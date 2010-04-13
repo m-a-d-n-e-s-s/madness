@@ -98,7 +98,7 @@ namespace madness {
     };
 
     /// FunctionCommonData holds all Function data common for given k
-    
+
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
@@ -112,7 +112,7 @@ namespace madness {
     class FunctionCommonData {
     private:
         static const FunctionCommonData<T, NDIM>* data[MAXK];
-        
+
         /// Private.  Initialize the twoscale coefficients
         void
         _init_twoscale();
@@ -140,7 +140,7 @@ namespace madness {
             _init_twoscale();
             _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw,
                              quad_phit);
-        }            
+        }
 
     public:
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeff
@@ -201,7 +201,7 @@ namespace madness {
     };
 
     /// FunctionFactory implements the named-parameter idiom for Function
-    
+
     /// C++ does not provide named arguments (as does, e.g., Python).
     /// This class provides something very close.  Create functions as follows
     /// \code
@@ -568,7 +568,7 @@ namespace madness {
 
 
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
-    
+
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
@@ -745,7 +745,7 @@ namespace madness {
                 return true;
             }
             template <typename Archive>
-            void serialize(Archive& ar) {};
+            void serialize(Archive& ar) {}
         };
 
         /// Inplace general bilinear operation
@@ -1090,7 +1090,7 @@ namespace madness {
 
         /// Invoked as a task by do_binary_op with the actual coefficients
         template <typename L, typename R, typename opT>
-        Void do_binary_op(const keyT& key, const Tensor<L>& left, 
+        Void do_binary_op(const keyT& key, const Tensor<L>& left,
                           const std::pair< keyT, Tensor<R> >& arg,
                           const opT& op) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -1188,7 +1188,7 @@ namespace madness {
                 }
                 return true;
             }
-            template <typename Archive> void serialize(const Archive& ar) {};
+            template <typename Archive> void serialize(const Archive& ar) {}
         };
 
         template <typename Q, typename R>
@@ -1468,7 +1468,7 @@ namespace madness {
 
             // Recur down
             coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
-            
+
             Tensor<L> lss;
             if (lc.size()) {
                 Tensor<L> ld(cdata.v2k);
@@ -1672,9 +1672,9 @@ namespace madness {
         Void sock_it_to_me_too(const keyT& key,
                                const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const;
 
-        Void plot_cube_kernel(archive_ptr< Tensor<T> > ptr, 
-                              const keyT& key, 
-                              const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
+        Void plot_cube_kernel(archive_ptr< Tensor<T> > ptr,
+                              const keyT& key,
+                              const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
                               bool eval_refine) const;
 
 
@@ -1755,12 +1755,12 @@ namespace madness {
             //print(key,"received",s.normf(),c.normf(),node.has_children());
 
             if (s.size() > 0) {
-                if (c.size() > 0) 
+                if (c.size() > 0)
                     c.gaxpy(1.0,s,1.0);
-                else 
+                else
                     c = s;
             }
-            
+
             if (node.has_children()) {
                 tensorT d;
                 if (c.size() > 0) {
@@ -1820,7 +1820,7 @@ namespace madness {
                         if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
                             tensorT result = transform_dir(c,R,axis);
-                            
+
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
@@ -1864,8 +1864,8 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
-        Void do_diff1(const DerivativeBase<T,NDIM>* D, 
-                      const implT* f, 
+        Void do_diff1(const DerivativeBase<T,NDIM>* D,
+                      const implT* f,
                       const keyT& key,
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
@@ -1886,7 +1886,7 @@ namespace madness {
                     argT center(key,node.coeff());
                     Future<argT> right = D->find_neighbor(f, key, 1);
                     task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
-                } 
+                }
                 else {
                     coeffs.replace(key,nodeT(tensorT(),true)); // Empty internal node
                 }
@@ -2045,14 +2045,14 @@ namespace madness {
                 it->second.set_norm_tree(0.0);
             }
         }
-            
+
         // Broaden tree
         void broaden(std::vector<bool> is_periodic, bool fence) {
             typename dcT::iterator end = coeffs.end();
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
-                if (node.has_coeff() && 
+                if (node.has_coeff() &&
                     node.get_norm_tree() != -1.0 &&
                     node.coeff().normf() >= truncate_tol(thresh,key)) {
 
@@ -2068,9 +2068,9 @@ namespace madness {
                         for (int d=0; d<NDIM; d++) {
                             const int odd = key.translation()[d] & 0x1L; // 1 if odd, 0 if even
                             l[d] -= 1; // (0,1,2) --> (-1,0,1)
-                            if (l[d] == -1) 
+                            if (l[d] == -1)
                                 l[d] = -1-odd;
-                            else if (l[d] ==  1) 
+                            else if (l[d] ==  1)
                                 l[d] = 2 - odd;
                         }
                         keyT neigh = neighbor(key, keyT(key.level(),l), is_periodic);
@@ -2091,7 +2091,7 @@ namespace madness {
                 zero_norm_tree();
                 world.gop.fence();
             }
-        }            
+        }
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
@@ -2176,7 +2176,7 @@ namespace madness {
                     d += c;
                 }
             }
-            
+
             tensorT s = copy(d(cdata.s0));
 
             if (key.level()> 0 && !nonstandard)
@@ -2271,9 +2271,9 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
 		    //print("APP", key, dest, cnorm, opnorm);
-                    
+
                     if (cnorm*opnorm> tol/fac) {
-                        
+
                         // Most expensive part is the kernel ... do it in a separate task
                         if (d.distsq()==0) {
                             // This introduces finer grain parallelism
@@ -2423,7 +2423,7 @@ namespace madness {
 
             template <typename Archive> void serialize(const Archive& ar) {
                 throw "NOT IMPLEMENTED";
-            };
+            }
         };
 
         /// Returns the square of the local norm ... no comms

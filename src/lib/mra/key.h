@@ -305,7 +305,6 @@ namespace madness {
         s << "(" << key.level() << "," << key.translation() << ")";
         return s;
     }
-    ;
 
     /// Iterates in lexical order thru all children of a key
 

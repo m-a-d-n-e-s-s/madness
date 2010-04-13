@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef MADNESS_TENSOR_TYPE_DATA_H__INCLUDED
 #define MADNESS_TENSOR_TYPE_DATA_H__INCLUDED
 
@@ -103,7 +103,7 @@ public: \
 template<> class TensorTypeFromId<num> {\
 public: \
   typedef T type; \
-};
+}
 
     TYPEINFO(0,int,false,true,int,double);
     TYPEINFO(1,long,false,true,long,double);
@@ -146,11 +146,11 @@ public: \
 
     // This macro embodies the above for a single parameter template.
     // Look in tensor.h for example of how to use in multi-parameter
-    // templates.  
+    // templates.
     //
     // *** !!! *** Unfortunately, this macro was confusing Doxygen
     // so we have removed all usages.
-    //#define ISSUPPORTED(T,RETURNTYPE)                                 
+    //#define ISSUPPORTED(T,RETURNTYPE)
     //template <typename T> typename IsSupported < TensorTypeData<T>, RETURNTYPE >::type
 
     /// TensorResultType<L,R>::type is the type of (L op R) where op is nominally multiplication
@@ -159,9 +159,9 @@ public: \
 
 #define SPEC(L,R,T) \
     template <> struct TensorResultType<L,R> {typedef T type;}; \
-    template <> struct TensorResultType<R,L> {typedef T type;};
+    template <> struct TensorResultType<R,L> {typedef T type;}
 #define DPEC(L,R,T) \
-    template <> struct TensorResultType<L,L> {typedef T type;};
+    template <> struct TensorResultType<L,L> {typedef T type;}
 
     DPEC(int,int,int);
     SPEC(int,long,long);

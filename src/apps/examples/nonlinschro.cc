@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /*!
@@ -45,7 +45,7 @@
   - Plotting of the solution and potential
 
   \par Background
-  
+
   This illustrates solution of a non-linear Schr&ouml;dinger motivated by
   exploring problems associated with equations of the same form from
   nuclear physics.
@@ -55,17 +55,17 @@
   -\nabla^2 \psi(x) + V(x) \psi(x) = E \psi(x)
   \f]
   where the potential is
-  \f[  
+  \f[
   V(x) = -a \exp(-b x^2) + \frac{c}{(n(x)+\eta)^{1/3}} - d n(x)^{5/3} + V_{\mbox{shift}}
   \f]
-  The parameters \f$ a \f$, \f$ b \f$, \f$ c \f$, \f$ d \f$, and  \f$ V_{\mbox{shift}} \f$ 
-  are given in the code.  The density is given by 
+  The parameters \f$ a \f$, \f$ b \f$, \f$ c \f$, \f$ d \f$, and  \f$ V_{\mbox{shift}} \f$
+  are given in the code.  The density is given by
   \f[
   n(x) = \psi(x)^2
   \f]
   There would normally be multiple states occupied but for simplicity we are employing
   just one.
-  
+
   The first term in the potential is weak and seems to be there to
   stabilize the solution.  The second term seems to act as a confining
   potential since it becomes large and positive when the density is
@@ -79,7 +79,7 @@
 
   The integral form of the equation is
   \f[
-     \psi = - 2 G_{\mu} * \left ( V \psi \right) 
+     \psi = - 2 G_{\mu} * \left ( V \psi \right)
   \f]
   where \f$ G_{\mu}\f$ is the Green's function for the Helmholtz equation
   \f[
@@ -90,8 +90,8 @@
   We employ a simple fixed-point iteration to the self-consistent
   solution, but strong damping or step restriction is necessary to
   ensure convergence.  This is due to the nearly singluar potential,
-  the problem being exacerbated by small \f$ \eta \f$.  A reliable 
-  solution scheme seems to be to first solve with a large value of 
+  the problem being exacerbated by small \f$ \eta \f$.  A reliable
+  solution scheme seems to be to first solve with a large value of
   \f$ \eta \f$ and then to reduce it in several steps to its final value.
   A much more efficient scheme would involve use of a non-linear
   equation solver instead of simple iteration.
@@ -105,7 +105,7 @@
 */
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <algorithm>
@@ -121,7 +121,7 @@ static const double b = 1.0;
 static const double c = 1.0;
 static const double d = 1.0;
 static const double eta_end = 1e-5; // Target value for eta
-static double eta = eta_end*1024;;  // Initial value foe eta
+static double eta = eta_end*1024;   // Initial value foe eta
 
 
 static const double vasymp = c/std::pow(eta_end,1.0/3.0);
@@ -134,7 +134,7 @@ double munge(double x, double xmin, double xmax) {
     // x=0    where it has value xmin and zero slope, and
     //
     // x=xmax where it has value xmax and unit slope
-    
+
     if (x > xmax) {
         return x;
     }
@@ -155,8 +155,8 @@ static void Vdynamic(const Key<1> & key, Tensor<T>& t)
 {
     static const double onethird = 1.0/3.0;
     static const double fivethird = 5.0/3.0;
-    UNARY_OPTIMIZED_ITERATOR(T, t, 
-                             double n=munge(*_p0, ntol, 10.0*ntol); 
+    UNARY_OPTIMIZED_ITERATOR(T, t,
+                             double n=munge(*_p0, ntol, 10.0*ntol);
                              *_p0 = c/pow(n+eta,onethird) - d*pow(n+eta,fivethird));
 }
 
@@ -210,13 +210,13 @@ void iterate(World& world, real_function_1d& psi) {
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
-    
+
     startup(world,argc,argv);
     std::cout.precision(6);
 
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
-    FunctionDefaults<1>::set_truncate_mode(1);  
+    FunctionDefaults<1>::set_truncate_mode(1);
     FunctionDefaults<1>::set_cubic_cell(-L,L);
 
     real_function_1d psi = real_factory_1d(world).f(guess);

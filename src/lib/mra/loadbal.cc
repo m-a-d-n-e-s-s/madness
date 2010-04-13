@@ -159,7 +159,7 @@ namespace madness {
             }
         }
         return klist;
-    };
+    }
 
 
     /// find_all_partitions takes the result of find_partitions, determines
@@ -294,7 +294,7 @@ namespace madness {
             }
         }
         return list_of_list;
-    };
+    }
 
 
 

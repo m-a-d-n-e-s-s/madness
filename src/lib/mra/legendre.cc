@@ -140,7 +140,7 @@ namespace madness {
         fclose(f);
         data_is_read = true;
         return true;
-    };
+    }
 
     /// Collective routine to pre-load and cache the quadrature points and weights
 

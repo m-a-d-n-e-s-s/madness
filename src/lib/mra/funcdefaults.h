@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
@@ -67,15 +67,15 @@ namespace madness {
       operators, only periodic and free space are supported.
     */
     template<int NDIM>
-    class BoundaryConditions { 
-    private: 
-        // Used to use STL vector but static data on  a MAC was 
+    class BoundaryConditions {
+    private:
+        // Used to use STL vector but static data on  a MAC was
         // causing problems.
         BCType bc[NDIM*2];
-        
+
     public:
         /// Constructor. Default boundary condition set to free space
-        BoundaryConditions(BCType code=BC_FREE) 
+        BoundaryConditions(BCType code=BC_FREE)
         {
             for (int i=0; i<NDIM*2; i++) bc[i] = code;
         }
@@ -115,10 +115,10 @@ namespace madness {
             return bc[2*d+i];
         }
 
-        template <typename Archive> 
+        template <typename Archive>
         void serialize(const Archive& ar) {
             ar & bc;
-        };
+        }
 
         /// Translates code into human readable string
 
@@ -134,21 +134,21 @@ namespace madness {
         /// @return Returns a vector indicating if each dimension is periodic
         std::vector<bool> is_periodic() const {
             std::vector<bool> v(NDIM);
-            for (int d=0; d<NDIM; d++) 
+            for (int d=0; d<NDIM; d++)
                 v[d] = (bc[2*d]==BC_PERIODIC);
             return v;
         }
     };
-    
+
 
     template <int NDIM>
-    static 
+    static
     inline
     std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
         s << "BoundaryConditions(";
         for (int d=0; d<NDIM; d++) {
             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
-            if (d == NDIM-1) 
+            if (d == NDIM-1)
                 s << ")";
             else
                 s << ", ";
@@ -271,7 +271,7 @@ namespace madness {
         static bool get_refine() {
             return refine;
         }
-        
+
         /// Sets the default adaptive refinement flag
 
         /// Existing functions are unaffected

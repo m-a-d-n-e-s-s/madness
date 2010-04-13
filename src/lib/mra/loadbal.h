@@ -70,7 +70,7 @@ namespace madness {
             }
         }
         return k;
-    };
+    }
 
     template <int D> class LBNode;
     template <int D> struct TreeCoords;
@@ -133,7 +133,7 @@ namespace madness {
         pi.partition_number << ", step_num = " << pi.step_num <<
         ", facter = " << pi.facter;
         return s;
-    };
+    }
 
 
 
@@ -171,7 +171,7 @@ namespace madness {
     inline std::ostream& operator<<(std::ostream& s, const NodeData& nd) {
         s << "cost " << nd.cost << ", subcost " << nd.subcost << ", is_taken " << nd.is_taken;
         return s;
-    };
+    }
 
 
     /// The node that is used in the fascimile copy of the tree to be load balanced
@@ -278,7 +278,7 @@ namespace madness {
             s << ", key_iterator = <EMPTY>";
         }
         return s;
-    };
+    }
 
 //     template <int D>
 //     std::ostream& operator<<(std::ostream& s, const LBNode<D>& node) {
@@ -324,7 +324,7 @@ namespace madness {
     inline std::ostream& operator<<(std::ostream& s, const TreeCoords<D>& tc) {
         s << tc.key << "   owner = " << tc.owner;
         return s;
-    };
+    }
 
 
 
