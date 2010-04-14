@@ -9,6 +9,7 @@ k 8
 thresh 1e-4
 safety 1e-0
 cut 0.3
+iState 2s
 prefix data
 nplot 999
 nprint 1

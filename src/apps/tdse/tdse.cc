@@ -40,7 +40,7 @@
 #include <mra/operator.h>
 #include <constants.h>
 #include <tensor/vmath.h>
-
+#include <complex>
 #include <mra/lbdeux.h>
 
 using namespace madness;
@@ -66,20 +66,20 @@ struct InputParameters {
   double thresh;      // precision for truncating wave function
   double safety;      // additional precision (thresh*safety) for operators and potential
   double cut;         // smoothing parameter for 1/r (same for all atoms for now)
-  std::string prefix;      // Prefix for filenames
+  std::string iState ; // initial state = "1s" or "2s"
+  std::string prefix; // Prefix for filenames
   int ndump;          // dump wave function to disk every ndump steps
   int nplot;          // dump opendx plot to disk every nplot steps
   int nprint;         // print stats every nprint steps
   int nloadbal;       // load balance every nloadbal steps
   int nio;            // Number of IO nodes 
-    
   double tScale;      // Scaling parameter for optimization
-
-  double target_time;// Target end-time for the simulation
+  double target_time; // Target end-time for the simulation
   
   void read(const char* filename) {
     std::ifstream f(filename);
     std::string tag;
+    iState = "1s";
     printf("\n");
     printf("       Simulation parameters\n");
     printf("       ---------------------\n");
@@ -140,6 +140,10 @@ struct InputParameters {
             f >> cut;
             printf("           cut = %.2f\n", cut);
         }
+        else if (tag == "iState") {
+            f >> iState;
+            printf("        iState = %s\n", iState.c_str());
+        }
         else if (tag == "prefix") {
             f >> prefix;
             printf("        prefix = %s\n", prefix.c_str());
@@ -158,19 +162,19 @@ struct InputParameters {
         }
         else if (tag == "nloadbal") {
             f >> nloadbal;
-            printf("         nloadbal = %d\n", nloadbal);
+            printf("       nloadbal = %d\n", nloadbal);
         }
         else if (tag == "nio") {
             f >> nio;
-            printf("           nio = %d\n", nio);
+            printf("            nio = %d\n", nio);
         }
         else if (tag == "target_time") {
             f >> target_time;
-            printf("   target_time = %.3f\n", target_time);
+            printf("    target_time = %.3f\n", target_time);
         }
         else if (tag == "tScale") {
             f >> tScale;
-            printf("           tScale = %.5f\n", tScale);
+            printf("         tScale = %.5f\n", tScale);
         }
         else {
             MADNESS_EXCEPTION("unknown input option", 0);
@@ -182,15 +186,15 @@ struct InputParameters {
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
     ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
-    ar & k & thresh & safety & cut & prefix & ndump & nplot & nprint & nloadbal & nio & target_time &
-		tScale;
+    ar & k & thresh & safety & cut & iState & prefix & ndump & nplot & nprint & nloadbal & nio;
+    ar & target_time & tScale;
   }
 };
 
 std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
-    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F<< " " << p.omega<<
-        " " << p.ncycle << " " << p.Z<< " " << p.R[0]<< " " << p.k<< " " <<
-        p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
+    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F << " " << p.omega <<
+        " " << p.ncycle << " " << p.Z << " " << p.R[0]<< " " << p.k<< " " <<
+        p.thresh<< " " << p.cut<< " " << p.iState << " " << p.prefix<< " " << p.ndump<< " " <<
         p.nplot << " " << p.nprint << " "  << p.nloadbal << " " << p.nio << p.tScale << std::endl;
 return s;
 }
@@ -375,15 +379,31 @@ static double dVdz(const coordT& r) {
 }
 
 // Initial guess wave function using symmetric superposition of 1s orbital on atoms
-static double guess(const coordT& r) {
+static double guess1s(const coordT& r) {
     const double x=r[0], y=r[1], z=r[2];
     double sum = 0.0;
     for (int i=0; i<param.natom; i++) {
       double xx = x-param.R[i][0];
       double yy = y-param.R[i][1];
       double zz = z-param.R[i][2];
+      double Z  = param.Z[i];
       double rr = sqrt(xx*xx+yy*yy+zz*zz+param.cut*param.cut);
-      sum += sqrt(3.14*param.Z[i]*param.Z[i]*param.Z[i])*exp(-param.Z[i]*rr);
+      sum += sqrt(3.14*Z*Z*Z)*exp(-Z*rr);
+    }
+    return sum;
+}
+
+// Initial guess wave function using symmetric superposition of 1s orbital on atoms
+static double guess2s(const coordT& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    double sum = 0.0;
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
+      double Z  = param.Z[i];
+      double rr = sqrt(xx*xx + yy*yy + zz*zz + param.cut*param.cut);
+      sum += sqrt(3.14*Z*Z*Z)*(1 - Z*rr/2)*exp(-Z*rr/2);
     }
     return sum;
 }
@@ -461,6 +481,30 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
         functionT tmp = apply(op,Vpsi).truncate(param.thresh);
         if (world.rank() == 0) print("applied operator", wall_time());
         double norm = tmp.norm2();
+        functionT r = tmp-psi;
+        double rnorm = r.norm2();
+        double eps_new = eps - 0.5*inner(Vpsi,r)/(norm*norm);
+        if (world.rank() == 0) {
+            print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
+        }
+        psi = tmp.scale(1.0/norm);
+        eps = eps_new;
+        if (rnorm < std::max(1e-5,param.thresh)) break;
+    }
+}
+
+void converge2s(World& world, functionT& potn, functionT& psi, double& eps) {
+
+    for (int iter=0; iter<30; iter++) {
+        if (world.rank() == 0) print("beginning iter", iter, wall_time());
+        operatorT op = BSHOperator3D(world, sqrt(-2*eps), param.cut, param.thresh);
+        functionT Vpsi = (potn*psi);
+        if (world.rank() == 0) print("made V*psi", wall_time());
+        Vpsi.scale(-2.0).truncate();
+        if (world.rank() == 0) print("tryuncated V*psi", wall_time()); 
+        functionT tmp = apply(op,Vpsi).truncate(param.thresh);
+        if (world.rank() == 0) print("applied operator", wall_time());
+       double norm = tmp.norm2();
         functionT r = tmp-psi;
         double rnorm = r.norm2();
         double eps_new = eps - 0.5*inner(Vpsi,r)/(norm*norm);
@@ -759,6 +803,8 @@ void propagate(World& world, int step0) {
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
     functionT vt = potn+laser(t)*z; // The total potential at time t
 
+    loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
+
     if (world.rank() == 0) {
         printf("\n");
         printf("        Evolution parameters\n");
@@ -931,20 +977,59 @@ void doit(World& world) {
     if (!exists) {
         if (step0 == 0) {
             if (world.rank() == 0) print("Computing initial ground state wavefunction", wall_time());
-            functionT psi = factoryT(world).f(guess);
-            psi.scale(1.0/psi.norm2());
-            psi.truncate();
-            psi.scale(1.0/psi.norm2());
-            if (world.rank() == 0) print("got psi", wall_time());
-            
-            double eps = energy(world, psi, potn);
+            functionT psi1s = factoryT(world).f(guess1s);
+            psi1s.scale(1.0/psi1s.norm2());
+            psi1s.truncate();
+            psi1s.scale(1.0/psi1s.norm2());
+            if (world.rank() == 0) print("got psi1s", wall_time());
+            double eps = energy(world, psi1s, potn);
             if (world.rank() == 0) print("guess energy", eps, wall_time()); 
-            converge(world, potn, psi, eps);
-
-            psi.truncate(param.thresh);
-
-            complex_functionT psic = double_complex(1.0,0.0)*psi;
-            wave_function_store(world, 0, psic);
+            converge(world, potn, psi1s, eps);
+            psi1s.truncate(param.thresh);
+            functionT iState = psi1s;
+            if( param.iState == "2s" ) {
+                if (world.rank() == 0) print("Computing initial 2s eigenfunction", wall_time());
+                functionT psi2s = factoryT(world).f(guess2s);
+                psi2s.scale(1.0/psi2s.norm2());
+                psi2s.truncate();
+                psi2s.scale(1.0/psi2s.norm2());
+                for(int iter=0; iter<30; iter++) {
+                    if (world.rank() == 0) print("orthoganalizing psi_2s to psi_1s", wall_time());
+                    psi2s = psi2s - inner(psi2s,psi1s) * psi1s;
+                    psi2s.scale(1.0/psi2s.norm2());
+                    psi2s.truncate();
+                    psi2s.scale(1.0/psi2s.norm2());
+                    if (world.rank() == 0) print("guess energy", eps, wall_time()); 
+                    eps = energy(world, psi2s, potn);
+                    if (world.rank() == 0) print("constructing BSH op ", wall_time());
+                    operatorT op = BSHOperator3D(world, sqrt(-2*eps), param.cut, param.thresh);
+                    functionT Vpsi2s = (potn*psi2s);
+                    Vpsi2s.scale(-2.0).truncate();
+                    if (world.rank() == 0) print("truncated V*psi2s", wall_time());
+                    functionT tmp = apply(op,Vpsi2s).truncate(param.thresh);
+                    double  norm = tmp.norm2();
+                    //DIPOLE check
+                    functionT y = factoryT(world).f(ydipole);
+                    functionT z = factoryT(world).f(zdipole);
+                    double ydip = myreal(inner(psi2s, y*psi2s))/(norm*norm);
+                    double zdip = myreal(inner(psi2s, z*psi2s))/(norm*norm);
+                    if (world.rank() == 0) print("applied operator:     <y> =",ydip,
+                                                 " <z> = ", zdip, "   ",  wall_time());
+                    // ERROR check
+                    functionT  r = tmp - psi2s;
+                    double rnorm = r.norm2();
+                     // ?? I'm not sure why this is the error in the energy
+                    double eps_error =  - 0.5*inner(Vpsi2s,r)/(norm*norm);
+                    if (world.rank() == 0 ) {
+                        print("norm = ",norm,"  eps = ",eps," err(psi) = ", rnorm," err(eps) = ",eps_error);
+                    }
+                    psi2s = tmp.scale(1.0/norm);
+                    if( rnorm < std::max(1e-5, param.thresh)) break;
+                }
+                iState = psi2s;
+            }
+            complex_functionT iStateC = double_complex(1.0,0.0)*iState;
+            wave_function_store(world, 0, iStateC);
         }
         else {
             if (world.rank() == 0) {

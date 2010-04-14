@@ -6,7 +6,7 @@
 #PBS -m a
 #PBS -m e
 #PBS -m b
-#PSB -S /bin/csh
+#PBS -S /bin/csh
 
 #module swap PrgEnv-pgi PrgEnv-gnu
 #module load subversion
