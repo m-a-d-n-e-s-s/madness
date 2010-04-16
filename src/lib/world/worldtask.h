@@ -62,7 +62,7 @@ namespace madness {
 
     /// All world tasks must be derived from this public interface
 
-    /// Multiple worlds with independent queues feed tasks into shared task 
+    /// Multiple worlds with independent queues feed tasks into shared task
     /// pool that is mapped to the H/W.
     ///
     /// For simplicity and backward compatibility we maintain two run interfaces
@@ -71,7 +71,7 @@ namespace madness {
     /// \c run(World&) - the user implements this for a single-threaded task
     ///
     /// \c run(World&, \c const \c TaskThreadEnv&) - the user implements this for
-    /// a multi-threaded task.  
+    /// a multi-threaded task.
     ///
     class TaskInterface : public DependencyInterface , public PoolTaskInterface {
         friend class WorldTaskQueue;
@@ -117,7 +117,7 @@ namespace madness {
                 : DependencyInterface(ndepend)
                 , PoolTaskInterface(attr)
                 , world(0)
-                , completion(0) 
+                , completion(0)
                 , submit(this)
         {}
 
@@ -127,7 +127,7 @@ namespace madness {
                 : DependencyInterface(0)
                 , PoolTaskInterface(attr)
                 , world(0)
-                , completion(0) 
+                , completion(0)
                 , submit(this)
         {}
 
@@ -148,7 +148,7 @@ namespace madness {
         /// Runs a multi-threaded task
         virtual void run(World& world, const TaskThreadEnv& env) {
             //print("in virtual run(world,env) method", env.nthread(), env.id());
-            if (env.nthread() != 1) 
+            if (env.nthread() != 1)
                 MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
             run(world);
         }
@@ -243,7 +243,7 @@ namespace madness {
         /// Adjust the chunksize in the range to control granularity.
         template <typename resultT, typename rangeT, typename opT>
         Future<resultT> reduce(const rangeT& range, const opT& op) {
-            if (range.size() <= range.get_chunksize()) { 
+            if (range.size() <= range.get_chunksize()) {
                 resultT sum = resultT();
                 for (typename rangeT::iterator it=range.begin(); it != range.end(); ++it) sum = op(sum,op(it));
                 return Future<resultT>(sum);
@@ -251,7 +251,7 @@ namespace madness {
             else {
                 rangeT left = range;
                 rangeT right(left,Split());
-                
+
                 Future<resultT>  leftsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, left,  op);
                 Future<resultT> rightsum = add(*this, &WorldTaskQueue::reduce<resultT,rangeT,opT>, right, op);
                 return add(&WorldTaskQueue::sum<resultT,opT>, leftsum, rightsum, op);
@@ -439,7 +439,7 @@ namespace madness {
             Stealer(WorldTaskQueue& q, std::vector<TaskInterface*>& v, int nsteal)
                 : q(q)
                 , v(v)
-                , nsteal(nsteal) 
+                , nsteal(nsteal)
             {}
 
             bool operator()(PoolTaskInterface** pt) {
@@ -1429,7 +1429,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2));
         };
     };
