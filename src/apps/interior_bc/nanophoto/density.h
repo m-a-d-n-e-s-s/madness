@@ -72,6 +72,65 @@ struct DirichletLBCost {
     }
 };
 
+/** \brief the Tip-Surface geometry sdf interface. */
+class TipSurfaceSDF : public SignedDFInterface<3> {
+    private:
+        TipSurfaceSDF() : surface(NULL), tip(NULL) {}
+
+    protected:
+        SignedDFInterface<3> *surface, *tip;
+
+    public:
+        TipSurfaceSDF(double d) : surface(NULL), tip(NULL) {
+            coord_3d normal;
+            coord_3d point;
+
+            // surface is the xy-plane
+            normal[0] = 0.0;
+            normal[1] = 0.0;
+            normal[2] = -1.0;
+            point[0] = 0.0;
+            point[1] = 0.0;
+            point[2] = 0.0;
+            surface = new SDFPlane(normal, point);
+
+            // tip apex is at (0, 0, d)
+            point[2] = d;
+            normal[2] = 1.0;
+            tip = new SDFParaboloid(50.0 / 0.052918, point, normal);
+        }
+
+        ~TipSurfaceSDF() {
+            if(tip)
+                delete tip;
+            if(surface)
+                delete surface;
+        }
+
+        double sdf(const coord_3d &pt) const {
+            double s, t;
+
+            s = surface->sdf(pt);
+            t = -tip->sdf(pt);
+return t;
+
+            if(s <= 0.0)
+                return s;
+            else if(t <= 0.0)
+                return t;
+            else {
+                if(t < s)
+                    return t;
+                else
+                    return s;
+            }
+        }
+
+        coord_3d grad_sdf(const coord_3d &pt) const {
+            MADNESS_EXCEPTION("not implemented in tip-surface", 0);
+        }
+};
+
 /** \brief Setup the tip-molecule problem. */
 class TipMolecule : public FunctionFunctorInterface<double, 3> {
     private:
@@ -97,7 +156,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         FunctorOutput fop;
 
         /// \brief Sets up the data for the problem-inspecific parts.
-        TipMolecule(double penalty_prefact, double eps,
+        TipMolecule(double eps,
             const Tensor<double> &denscoeffs, const std::vector<Atom*> &atoms,
             const std::vector<BasisFunc> &basis, double phi, double d)
             : dmi(eps), sdfi(NULL), penalty_prefact(2.0 / eps),
@@ -107,7 +166,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             // calculate some nice initial projection level
             // should be no lower than 6, but may need to be higher for small
             // eps
-            initial_level = ceil(log(4.0 / eps) / log(2.0) - 4);
+            initial_level = ceil(log(6614.0 / eps) / log(2.0) - 4);
             if(initial_level < 6)
                 initial_level = 6;
 
@@ -117,6 +176,9 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
                 specpts.push_back((*iter)->getCenter());
             }
+
+            // make the sdf
+            sdfi = new TipSurfaceSDF(d);
         }
 
         virtual ~TipMolecule() {
@@ -195,10 +257,22 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         std::vector<Vector<double, 3> > special_points() const {
-            return specpts;
+            if(fop == DOMAIN_MASK) {
+                std::vector<Vector<double, 3> > vec;
+                Vector<double, 3> pt;
+
+                pt[0] = pt[1] = pt[2] = 0.0;
+                vec.push_back(pt);
+
+                pt[2] = d;
+                vec.push_back(pt);
+                return vec;
+            }
+            else
+                return specpts;
         }
 
-        Level special_level() { return initial_level+2; }
+        Level special_level() { return initial_level+1; }
 };
 
 /** \brief The operator needed for solving for \f$u\f$ with GMRES */

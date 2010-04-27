@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
         thresh = atof(argv[2]);
         if(thresh > 1.0e-4) error("use some real thresholds...");
 
-        eps = atof(argv[3]);
+        eps = atof(argv[3]) / 0.052918; // convert to a.u.
         if(eps <= 0.0) error("eps must be positive, and hopefully small");
 
         phi = atof(argv[4]) * 3.6749322e-5; // convert to a.u.
@@ -127,22 +127,27 @@ int main(int argc, char **argv) {
 
     // the key data structure: sets up the problem details and projects
     // the initial functions
-    SharedPtr<TipMolecule> tpm(new TipMolecule(2.0/eps, eps, coeffs, atoms,
+    SharedPtr<TipMolecule> tpm(new TipMolecule(eps, coeffs, atoms,
         basis, phi, d));
 
-#if 0
     // ********************** START electrostatics solver
+    sprintf(funcname, "potential");
     if(world.rank() == 0) {
         // print out the arguments
         printf("Tip-Surface Distance: %.6e nm\nPotential Difference: %.6e " \
-            "mV\nk: %d\nthresh: %.6e\neps: %.6e nm\n", d, phi, k, thresh,
-            eps);
+            "mV\nk: %d\nthresh: %.6e\neps: %.6e nm\n", d * 0.052918,
+            phi / 3.6749322e-5, k, thresh, eps * 0.052918);
 
         // project the surface function
         printf("Projecting the surface function (to low order)\n");
         fflush(stdout);
     }
 
+    tpm->fop = DOMAIN_MASK;
+    real_function_3d usol = real_factory_3d(world).k(6).thresh(1.0e-4).
+        functor(tpm);
+
+#if 0
     tpm->fop = SURFACE;
     real_function_3d surf = real_factory_3d(world).k(6).thresh(1.0e-4).
         functor(tpm);
@@ -196,13 +201,12 @@ int main(int argc, char **argv) {
     double update_thresh = 1.0e-5;
     int maxiter = 30;
     GMRES(space, dcio, rhs, usol, maxiter, resid_thresh, update_thresh, true);
-
-    sprintf(funcname, "potential");
     // ********************** END electrostatics solver
 #endif
 
 
-    // ********************** START electrostatics solver
+#if 0
+    // ********************** START density plotter
     if(world.rank() == 0) {
         print("projecting the density");
         fflush(stdout);
@@ -216,7 +220,8 @@ int main(int argc, char **argv) {
         print(norm, trace);
 
     sprintf(funcname, "density");
-    // ********************** END electrostatics solver
+    // ********************** END density plotter
+#endif
 
     // print out the solution function on the total domain
     sprintf(filename, "%s.vts", funcname);
@@ -225,7 +230,7 @@ int main(int argc, char **argv) {
     for(int i = 0; i < 3; ++i) {
         plotlo[i] = cell(i, 0);
         plothi[i] = cell(i, 1);
-        npts[i] = 101;
+        npts[i] = 71;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(usol, funcname, world, filename, plotlo, plothi, npts);
@@ -233,11 +238,9 @@ int main(int argc, char **argv) {
 
     // print out the solution function near the area of interest
     sprintf(filename, "%s-local.vts", funcname);
-    for(int i = 0; i < 3; ++i) {
-        plotlo[i] = cell(i, 0);
-        plothi[i] = cell(i, 1);
-        npts[i] = 101;
-    }
+    plotlo[0] = -20.0 / 0.052918; plothi[0] = 20.0 / 0.052918; npts[0] = 71;
+    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 71;
+    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 71;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(usol, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
@@ -253,9 +256,6 @@ void scaled_plotvtk_begin(World &world, const char *filename,
     const Vector<long, 3> &npt, bool binary) {
 
     PROFILE_FUNC;
-
-    // our current assumptions
-    MADNESS_ASSERT(world.nproc()==1);
 
     Tensor<double> cell(3, 2);
     int i;
