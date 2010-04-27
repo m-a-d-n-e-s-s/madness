@@ -219,7 +219,7 @@ namespace madness {
             \param direc Oriented axis of the paraboloid */
         SDFParaboloid(const double c, const coord_3d &apex, const coord_3d &direc) 
             : apex(apex)
-            , c()
+            , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
