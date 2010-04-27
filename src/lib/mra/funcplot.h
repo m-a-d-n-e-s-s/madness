@@ -98,9 +98,6 @@
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // how do we plot data in more than 3-D?
 
-        // our current assumptions
-        MADNESS_ASSERT(world.nproc()==1);
-
         Tensor<double> cell(NDIM, 2);
         int i;
         for(i = 0; i < NDIM; ++i) {
@@ -194,8 +191,6 @@
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
-        MADNESS_ASSERT(world.nproc()==1);
-
         Tensor<double> cell(NDIM, 2);
         int i;
         for(i = 0; i < NDIM; ++i) {
@@ -254,8 +249,6 @@
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
-        MADNESS_ASSERT(world.nproc()==1);
-
         Tensor<double> cell(NDIM, 2);
         int i;
         for(i = 0; i < NDIM; ++i) {
@@ -303,8 +296,6 @@
     void plotvtk_end(World &world, const char *filename, bool binary = false) {
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3);
-
-        MADNESS_ASSERT(world.nproc() == 1);
 
         FILE *f = 0;
         if(world.rank() == 0) {
