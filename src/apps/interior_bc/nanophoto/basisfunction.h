@@ -60,11 +60,24 @@ class GaussianBF : public FunctionFunctorInterface<double, 3> {
         /// \brief Sets up the basis function data.
         GaussianBF(std::vector<double> &contract_coeffs,
                    std::vector<double> &exponents,
-                   Vector<double, 3> &center)
+                   const Vector<double, 3> &c)
             : contract_coeffs(contract_coeffs), exponents(exponents),
-              center(center), n(0) {}
+              n(0) {
+
+            center[0] = c[0];
+            center[1] = c[1];
+            center[2] = c[2];
+        }
 
         virtual ~GaussianBF() {}
+
+        std::vector<Vector<double, 3> > special_points() const {
+            std::vector<Vector<double, 3> > pts(0);
+            pts.push_back(center);
+            return pts;
+        }
+
+        Level special_level() { return 7; }
 };
 
 /** \brief An s basis function. */

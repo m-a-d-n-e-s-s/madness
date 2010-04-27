@@ -50,16 +50,30 @@ typedef SharedPtr<GaussianBF> BasisFunc;
 
 /** \brief Abstract Atom class. */
 class Atom {
+    private:
+        Atom() {}
+
     protected:
         std::vector<BasisFunc> basis;
+        Vector<double, 3> center;
 
     public:
         /// \brief Sets up the basis functions for the atom.
-        Atom()
-            : basis(0) {}
+        Atom(const Vector<double, 3> &c)
+            : basis(0) {
 
-        Atom(int n)
-            : basis(n) {}
+            center[0] = c[0];
+            center[1] = c[1];
+            center[2] = c[2];
+        }
+
+        Atom(const Vector<double, 3> &c, int n)
+            : basis(n) {
+
+            center[0] = c[0];
+            center[1] = c[1];
+            center[2] = c[2];
+        }
 
         virtual ~Atom() {
             for(std::vector<BasisFunc>::iterator iter = basis.begin();
@@ -75,17 +89,21 @@ class Atom {
             return basis[n];
         }
 
+        const Vector<double, 3> &getCenter() const {
+            return center;
+        }
+
         virtual int dimBasis() const = 0;
 };
 
 /** \brief Hydrogen atom */
 class Hydrogen : public Atom {
     private:
-        Hydrogen() {}
+        Hydrogen() : Atom(0) {}
 
     public:
-        Hydrogen(Vector<double, 3> &center)
-            : Atom(2) {
+        Hydrogen(Vector<double, 3> &c)
+            : Atom(c, 2) {
 
             std::vector<double> c1(3), c2(1);
             std::vector<double> e1(3), e2(1);
@@ -110,11 +128,11 @@ class Hydrogen : public Atom {
 /** \brief Carbon atom */
 class Carbon : public Atom {
     private:
-        Carbon() {}
+        Carbon() : Atom(0) {}
 
     public:
-        Carbon(Vector<double, 3> &center)
-            : Atom(21) {
+        Carbon(Vector<double, 3> &c)
+            : Atom(c, 21) {
 
             std::vector<double> c1(6), e1(6);
             std::vector<double> c2s(3), c2p(3), e2(3);
@@ -184,11 +202,11 @@ class Carbon : public Atom {
 /** \brief Silicon atom */
 class Silicon : public Atom {
     private:
-        Silicon() {}
+        Silicon() : Atom(0) {}
 
     public:
-        Silicon(Vector<double, 3> &center)
-            : Atom(25) {
+        Silicon(Vector<double, 3> &c)
+            : Atom(c, 25) {
 
             std::vector<double> c1(6), e1(6);
             std::vector<double> c2s(6), c2p(6), e2(6);

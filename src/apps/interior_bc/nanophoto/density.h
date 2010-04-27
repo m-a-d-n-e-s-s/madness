@@ -42,7 +42,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <mra/sdf_shape_2D.h>
 #include <mra/sdf_shape_3D.h>
 #include <string>
 
@@ -86,6 +85,8 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         int initial_level;
         const Tensor<double> &denscoeffs;
         const std::vector<BasisFunc> &basis;
+        std::vector<Vector<double, 3> > specpts;
+        double phi, d;
 
     public:
         /// which function to use when projecting:
@@ -97,11 +98,11 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
         /// \brief Sets up the data for the problem-inspecific parts.
         TipMolecule(double penalty_prefact, double eps,
-            const Tensor<double> &denscoeffs,
-            const std::vector<BasisFunc> &basis)
-            : dmi(eps), sdfi(NULL), penalty_prefact(penalty_prefact),
+            const Tensor<double> &denscoeffs, const std::vector<Atom*> &atoms,
+            const std::vector<BasisFunc> &basis, double phi, double d)
+            : dmi(eps), sdfi(NULL), penalty_prefact(2.0 / eps),
               eps(eps), denscoeffs(denscoeffs), basis(basis),
-              fop(DIRICHLET_RHS) {
+              specpts(0), phi(phi), d(d), fop(DIRICHLET_RHS) {
 
             // calculate some nice initial projection level
             // should be no lower than 6, but may need to be higher for small
@@ -109,6 +110,13 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             initial_level = ceil(log(4.0 / eps) / log(2.0) - 4);
             if(initial_level < 6)
                 initial_level = 6;
+
+            // make the list of special points for the atoms
+            for(std::vector<Atom*>::const_iterator iter = atoms.begin();
+                iter != atoms.end(); ++iter) {
+
+                specpts.push_back((*iter)->getCenter());
+            }
         }
 
         virtual ~TipMolecule() {
@@ -160,7 +168,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
         virtual double Inhomogeneity(const Vector<double, 3> &x) const {
             // all density is close to the origin for this problem
-            if(x[0]*x[0] + x[1]*x[1] + x[2]*x[2] > 40.0)
+            if(x[0]*x[0] + x[1]*x[1] + x[2]*x[2] > 1600.0)
                 return 0.0;
 
             double ret = 0.0;
@@ -183,8 +191,14 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
             if(ret < 1.0e-16)
                 return 0.0;
-            return ret;
+            return 2.0*ret; // 2 for spin
         }
+
+        std::vector<Vector<double, 3> > special_points() const {
+            return specpts;
+        }
+
+        Level special_level() { return initial_level+2; }
 };
 
 /** \brief The operator needed for solving for \f$u\f$ with GMRES */
