@@ -1085,7 +1085,9 @@ namespace madness
         {
           // These are our initial basis functions
           if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
+          START_TIMER(_world);
           cvecfuncT ao = project_ao_basis(_world, _kpoints[ki]);
+          END_TIMER(_world, "projecting atomic orbital basis");
 
       //    for (unsigned int ai = 0; ai < ao.size(); ai++)
       //    {
