@@ -112,14 +112,13 @@ class TipSurfaceSDF : public SignedDFInterface<3> {
 
             s = surface->sdf(pt);
             t = -tip->sdf(pt);
-return t;
 
-            if(s <= 0.0)
+            if(s >= 0.0)
                 return s;
-            else if(t <= 0.0)
+            else if(t >= 0.0)
                 return t;
             else {
-                if(t < s)
+                if(t > s)
                     return t;
                 else
                     return s;
