@@ -206,6 +206,7 @@ namespace madness {
         Tensor<double> c;
         Tensor<double> hgT;
         Tensor<double> hgT2k;
+        double arg;
 
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
@@ -213,13 +214,14 @@ namespace madness {
 
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, double sign, int maxR)
+        Convolution1D(int k, int npt, double sign, int maxR, double arg = 0.0)
                 : k(k)
                 , npt(npt)
                 , sign(sign)
                 , maxR(maxR)
                 , quad_x(npt)
                 , quad_w(npt) 
+                , arg(arg)
         {
 
             MADNESS_ASSERT(autoc(k,&c));
@@ -351,6 +353,15 @@ namespace madness {
             return ns_cache.getptr(n,lx);
         };
 
+        Q phase(double R) const {
+        	return 1.0;
+        }
+
+        Q phase(double_complex R) const {
+        	return exp(double_complex(0.0,arg)*R);
+        }
+
+
         const Tensor<Q>& get_rnlp(Level n, Translation lx) const {
             const Tensor<Q>* p=rnlp_cache.getptr(n,lx);
             if (p) return *p;
@@ -378,7 +389,7 @@ namespace madness {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
                     for (int R=-maxR; R<=maxR; R++) {
-                        r.gaxpy(1.0, rnlp(n,R*twon+lx), 1.0);
+                        r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(Q(R)));
                     }
                 }
                 else {
@@ -428,8 +439,8 @@ namespace madness {
 
         GenericConvolution1D() {}
 
-        GenericConvolution1D(int k, const opT& op, int maxR)
-            : Convolution1D<Q>(k, 20, 1.0, maxR), op(op), maxl(LONG_MAX-1) {
+        GenericConvolution1D(int k, const opT& op, int maxR, double arg = 0.0)
+            : Convolution1D<Q>(k, 20, 1.0, maxR, arg), op(op), maxl(LONG_MAX-1) {
             PROFILE_MEMBER_FUNC(GenericConvolution1D);
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -511,8 +522,9 @@ namespace madness {
         const Level natlev;
         const int m;
 
-        explicit GaussianConvolution1D(int k, Q coeff, double expnt, double sign, int m, bool periodic)
-            : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt))
+        explicit GaussianConvolution1D(int k, Q coeff, double expnt,
+        		double sign, int m, bool periodic, double arg = 0.0)
+            : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt),arg)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
