@@ -1780,7 +1780,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2));
         };
     };
