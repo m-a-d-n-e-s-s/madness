@@ -155,10 +155,10 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         FunctorOutput fop;
 
         /// \brief Sets up the data for the problem-inspecific parts.
-        TipMolecule(double eps,
+        TipMolecule(double eps, double penalty,
             const Tensor<double> &denscoeffs, const std::vector<Atom*> &atoms,
             const std::vector<BasisFunc> &basis, double phi, double d)
-            : dmi(eps), sdfi(NULL), penalty_prefact(2.0 / eps),
+            : dmi(eps), sdfi(NULL), penalty_prefact(penalty),
               eps(eps), denscoeffs(denscoeffs), basis(basis),
               specpts(0), phi(phi), d(d), fop(DIRICHLET_RHS) {
 
@@ -187,17 +187,6 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
         /// \brief The initial level to which functions should be projected.
         int get_initial_level() const { return initial_level; }
-
-        /// \brief Load balances using the provided Function
-        void load_balance(World &world, const Function<double, 3> &f)
-            const {
-
-            LoadBalanceDeux<3> lb(world);
-            lb.add_tree(f, DirichletLBCost<3>(1.0, 1.0));
-            // set this map as the default
-            FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,
-                false));
-        }
 
         /// \brief The operator for projecting a MADNESS function.
         double operator() (const Vector<double, 3> &x) const {

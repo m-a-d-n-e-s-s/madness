@@ -43,6 +43,8 @@
 #include "atom.h"
 #include "density.h"
 
+void vtk_output(World &world, const char *funcname,
+    const real_function_3d &func);
 void scaled_plotvtk_begin(World &world, const char *filename,
     const Vector<double, 3> &plotlo, const Vector<double, 3> &plothi,
     const Vector<long, 3> &npt, bool binary = false);
@@ -54,9 +56,8 @@ using namespace madness;
 int main(int argc, char **argv) {
     double eps;
     int j, k, n;
-    double thresh, phi, d;
+    double thresh, phi, d, penalty;
     unsigned int i;
-    char filename[100];
     char funcname[15];
 
     initialize(argc,argv);
@@ -92,10 +93,6 @@ int main(int argc, char **argv) {
     world.gop.broadcast(k);
     world.gop.broadcast(d);
 
-    FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_thresh(thresh);
-    //FunctionDefaults<3>::set_max_refine_level(6);
-
     // box size
     Tensor<double> cell(3, 2);
     cell(0,0) = cell(1,0) = -175.0 / 0.052918;
@@ -123,15 +120,16 @@ int main(int argc, char **argv) {
     Tensor<double> coeffs(nstate, nbasis);
     if(world.rank() == 0)
         read_states(nstate, nbasis, coeffs);
-    world.gop.broadcast(coeffs);
+    world.gop.broadcast_serializable(coeffs, 0);
+
+    penalty = 1.75 / eps;
 
     // the key data structure: sets up the problem details and projects
     // the initial functions
-    SharedPtr<TipMolecule> tpm(new TipMolecule(eps, coeffs, atoms,
+    SharedPtr<TipMolecule> tpm(new TipMolecule(eps, penalty, coeffs, atoms,
         basis, phi, d));
 
     // ********************** START electrostatics solver
-    sprintf(funcname, "potential");
     if(world.rank() == 0) {
         // print out the arguments
         printf("Tip-Surface Distance: %.6e nm\nPotential Difference: %.6e " \
@@ -139,115 +137,170 @@ int main(int argc, char **argv) {
             phi / 3.6749322e-5, k, thresh, eps * 0.052918);
 
         // project the surface function
-        printf("Projecting the surface function (to low order)\n");
+        printf("Load Balancing\n   --- Projecting surface and rhs to" \
+            " low orders.\n");
         fflush(stdout);
     }
 
-    tpm->fop = DOMAIN_MASK;
-    real_function_3d usol = real_factory_3d(world).k(6).thresh(1.0e-4).
-        functor(tpm);
+    // low order defaults
+    FunctionDefaults<3>::set_k(2);
+    FunctionDefaults<3>::set_thresh(1.0e-3);
 
-#if 0
+    // surface function
     tpm->fop = SURFACE;
-    real_function_3d surf = real_factory_3d(world).k(6).thresh(1.0e-4).
-        functor(tpm);
+    real_function_3d surf = real_factory_3d(world).functor(tpm);
 
+    // rhs function (phi*f - penalty*S*g)
+    tpm->fop = DIRICHLET_RHS;
+    real_function_3d rhs = real_factory_3d(world).functor(tpm);
+
+    // do the load balancing
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(surf, DirichletLBCost<3>(1.0, 1.0));
+    lb.add_tree(rhs, DirichletLBCost<3>(1.0, 1.0));
+    // set this map as default and redistribute the existing functions
+    FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0, false));
+
+    // set the defaults to the real deal
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+
+    // get the domain mask -- this segment can be commented out
     if(world.rank() == 0) {
-        printf("Performing load balancing\n");
+        printf("Projecting the domain mask\n");
         fflush(stdout);
     }
-    tpm->load_balance(world, surf);
+    sprintf(funcname, "domainmask");
+    //FunctionDefaults<3>::set_max_refine_level(6);
+    tpm->fop = DOMAIN_MASK;
+    real_function_3d dmask = real_factory_3d(world).functor(tpm);
+    vtk_output(world, funcname, dmask);
 
-    // reproject the surface function to the requested threshold / k
-    if(k > 6 || thresh < 1.0e-4) {
+    // get the molecular density -- this segment can be commented out
+    if(world.rank() == 0) {
+        printf("Projecting the molecular density\n");
+        fflush(stdout);
+    }
+    real_function_3d dens = real_factory_3d(world).functor(tpm);
+    double denstrace = dens.trace();
+    double densnorm2 = dens.norm2();
+    if(world.rank() == 0) {
+        // these should be close to 192 (384)
+        printf("   trace = %.6e; norm = %.6e\n", denstrace, densnorm2);
+        fflush(stdout);
+    }
+    sprintf(funcname, "density");
+    vtk_output(world, funcname, dens);
+
+    // do we already have a solution, or do we need to calculate it?
+    real_function_3d usol;
+    char arname[50];
+    sprintf(arname, "solution/solution");
+    if(ParallelInputArchive::exists(world, arname)) {
+        // read it in
         if(world.rank() == 0) {
-            printf("Reprojecting the surface function to requested order\n");
+            printf("Reading solution from archive\n");
+            fflush(stdout);
+        }
+
+        ParallelInputArchive input(world, arname, 10);
+        input & usol;
+        input.close();
+    }
+    else {
+        // reproject the surface and rhs functions to the requested thresh / k
+        if(world.rank() == 0) {
+            printf("Reprojecting the surface and rhs functions\n");
             fflush(stdout);
         }
         surf.clear();
+        tpm->fop = SURFACE;
         surf = real_factory_3d(world).functor(tpm);
+
+        rhs.clear();
+        tpm->fop = DIRICHLET_RHS;
+        rhs = real_factory_3d(world).functor(tpm);
+
+        // green's function
+        // note that this is really -G...
+        real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
+
+        // project the r.h.s. function
+        // and then convolute with G
+        real_function_3d grhs;
+        grhs = G(rhs);
+        grhs.truncate();
+        rhs.clear();
+
+        // make an initial guess:
+        // uguess = rhs / penalty_prefact
+        // the rescaling will make operator(uguess) close to rhs in magnitude
+        //     for starting in GMRES
+        usol = copy(grhs);
+        usol.scale(penalty);
+        usol.compress();
+        DirichletCondIntOp<3> dcio(G, surf);
+
+        // make the operators and prepare GMRES
+        FunctionSpace<double, 3> space(world);
+        double resid_thresh = 1.0e-5;
+        double update_thresh = 1.0e-5;
+        int maxiter = 30;
+        GMRES(space, dcio, grhs, usol, maxiter, resid_thresh, update_thresh,
+            true);
+
+        if(world.rank() == 0) {
+            printf("Writing solution to archive\n");
+            fflush(stdout);
+        }
+
+        // write the solution to archive
+        ParallelOutputArchive output(world, arname, 10);
+        output & usol;
+        output.close();
     }
 
-    // green's function
-    // note that this is really -G...
-    real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
+    // print out the solution function to a vtk file
+    sprintf(funcname, "solution");
+    vtk_output(world, funcname, usol);
 
-    // project the r.h.s. function (phi*f - penalty*S*g)
-    // and then convolute with G
-    real_function_3d usol, rhs;
-    if(world.rank() == 0) {
-        printf("Projecting the r.h.s. function\n");
-        fflush(stdout);
-    }
+    finalize();
+    
+    return 0;
+}
 
-    tpm->fop = DIRICHLET_RHS;
-    usol = real_factory_3d(world).functor(tpm);
-    rhs = G(usol);
-    rhs.truncate();
-    usol.clear();
+/** \brief Plots a function in the total domain, and also close to the
+           tip/surface junction.
 
-    // make an initial guess:
-    // uguess = rhs / penalty_prefact
-    // the rescaling will make operator(uguess) close to rhs in magnitude for
-    //     starting in GMRES
-    usol = copy(rhs);
-    usol.scale(2.0 / eps);
-    usol.compress();
-    DirichletCondIntOp<3> dcio(G, surf);
+    The filename is funcname.vts
+*/
+void vtk_output(World &world, const char *funcname,
+    const real_function_3d &func) {
 
-    // make the operators and prepare GMRES
-    FunctionSpace<double, 3> space(world);
-    double resid_thresh = 1.0e-5;
-    double update_thresh = 1.0e-5;
-    int maxiter = 30;
-    GMRES(space, dcio, rhs, usol, maxiter, resid_thresh, update_thresh, true);
-    // ********************** END electrostatics solver
-#endif
+    char filename[80];
 
-
-#if 0
-    // ********************** START density plotter
-    if(world.rank() == 0) {
-        print("projecting the density");
-        fflush(stdout);
-    }
-    tpm->fop = DENSITY;
-    real_function_3d usol = real_factory_3d(world).functor(tpm);
-
-    double norm = usol.norm2();
-    double trace = usol.trace();
-    if(world.rank() == 0)
-        print(norm, trace);
-
-    sprintf(funcname, "density");
-    // ********************** END density plotter
-#endif
-
-    // print out the solution function on the total domain
+    // print out the function on the total domain
     sprintf(filename, "%s.vts", funcname);
+    const Tensor<double> cell = FunctionDefaults<3>::get_cell();
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
     for(int i = 0; i < 3; ++i) {
         plotlo[i] = cell(i, 0);
         plothi[i] = cell(i, 1);
-        npts[i] = 71;
+        npts[i] = 101;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(usol, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
     sprintf(filename, "%s-local.vts", funcname);
-    plotlo[0] = -20.0 / 0.052918; plothi[0] = 20.0 / 0.052918; npts[0] = 71;
-    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 71;
-    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 71;
+    plotlo[0] = -20.0 / 0.052918; plothi[0] = 20.0 / 0.052918; npts[0] = 101;
+    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 101;
+    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 101;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(usol, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
-
-    finalize();
-    
-    return 0;
 }
 
 /** \brief Same as plotvtk_begin, but scales the coordinates back to nm */
