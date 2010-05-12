@@ -129,7 +129,6 @@ int main(int argc, char **argv) {
     SharedPtr<TipMolecule> tpm(new TipMolecule(eps, penalty, coeffs, atoms,
         basis, phi, d));
 
-    // ********************** START electrostatics solver
     if(world.rank() == 0) {
         // print out the arguments
         printf("Tip-Surface Distance: %.6e nm\nPotential Difference: %.6e " \
@@ -185,13 +184,14 @@ int main(int argc, char **argv) {
     double denstrace = dens.trace();
     double densnorm2 = dens.norm2();
     if(world.rank() == 0) {
-        // these should be close to 192 (384)
+        // these should be close to 176 (384 if not ECP)
         printf("   trace = %.6e; norm = %.6e\n", denstrace, densnorm2);
         fflush(stdout);
     }
     sprintf(funcname, "density");
     vtk_output(world, funcname, dens);
 
+#if 0
     // do we already have a solution, or do we need to calculate it?
     real_function_3d usol;
     char arname[50];
@@ -263,6 +263,7 @@ int main(int argc, char **argv) {
     // print out the solution function to a vtk file
     sprintf(funcname, "solution");
     vtk_output(world, funcname, usol);
+#endif
 
     finalize();
     
@@ -728,7 +729,8 @@ int mol_geom(std::vector<Atom*> &atoms) {
     center[2] = -1.2278362324;
     atoms.push_back(new Hydrogen(center));
 
-    return 191;
+    //return 191;
+    return 88;
 }
 
 /** \brief Read in the occupied states from file. */
