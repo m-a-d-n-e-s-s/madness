@@ -136,8 +136,7 @@ int main(int argc, char **argv) {
             phi / 3.6749322e-5, k, thresh, eps * 0.052918);
 
         // project the surface function
-        printf("Load Balancing\n   --- Projecting surface and rhs to" \
-            " low orders.\n");
+        printf("Load Balancing\n   --- Projecting surface to low order.\n");
         fflush(stdout);
     }
 
@@ -150,6 +149,10 @@ int main(int argc, char **argv) {
     real_function_3d surf = real_factory_3d(world).functor(tpm);
 
     // rhs function (phi*f - penalty*S*g)
+    if(world.rank() == 0) {
+        printf("Low order rhs\n");
+        fflush(stdout);
+    }
     tpm->fop = DIRICHLET_RHS;
     real_function_3d rhs = real_factory_3d(world).functor(tpm);
 
@@ -159,6 +162,8 @@ int main(int argc, char **argv) {
     lb.add_tree(rhs, DirichletLBCost<3>(1.0, 1.0));
     // set this map as default and redistribute the existing functions
     FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0, false));
+    surf.clear();
+    rhs.clear();
 
     // set the defaults to the real deal
     FunctionDefaults<3>::set_k(k);
@@ -191,7 +196,6 @@ int main(int argc, char **argv) {
     sprintf(funcname, "density");
     vtk_output(world, funcname, dens);
 
-#if 0
     // do we already have a solution, or do we need to calculate it?
     real_function_3d usol;
     char arname[50];
@@ -213,11 +217,9 @@ int main(int argc, char **argv) {
             printf("Reprojecting the surface and rhs functions\n");
             fflush(stdout);
         }
-        surf.clear();
         tpm->fop = SURFACE;
         surf = real_factory_3d(world).functor(tpm);
 
-        rhs.clear();
         tpm->fop = DIRICHLET_RHS;
         rhs = real_factory_3d(world).functor(tpm);
 
@@ -263,7 +265,6 @@ int main(int argc, char **argv) {
     // print out the solution function to a vtk file
     sprintf(funcname, "solution");
     vtk_output(world, funcname, usol);
-#endif
 
     finalize();
     
