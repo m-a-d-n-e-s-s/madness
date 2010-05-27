@@ -125,11 +125,11 @@ The language
 
        specifies the truncation threshold, default is 1e-4
 
-     * You can define other global constants but these
+     * You can define other global constants
 
      * Type declarations of the form (not usually needed)
 
-       comma separated list in field
+       comma-separated-list in field
 
        e.g.,
 
@@ -139,7 +139,7 @@ The language
        need to add RT, CT, RF, CF, Rd for tensors, functions, and
        d-dimension vector/coordinate).
 
-     * One line function definitions
+     * One-line function definitions
 
        name = paramlist -> expression
 
@@ -148,11 +148,9 @@ The language
    - The In block provides the executable statements that will appear
      in your C++ main program.
 
-     * Arithmetic (+,-,*,/), comparison (<,>,>=,<=,==,!=), 
-       boolean (and, or, not)
-  
-       subscript/array (x_i), and power (x^y) operations should work
-       as expected.
+     * Arithmetic (+,-,*,/), comparison (<,>,>=,<=,==,!=), boolean
+       (and, or, not), subscript/array (x_i), and power (x^y)
+       operations should work as expected.
 
      * for variable in [lo,hi]
           statements
@@ -177,13 +175,15 @@ The language
      * sum_var=lo^hi exp 
 
        computes the sum of exp with variable var varied over the
-       inclusive range [lo,hi].  Should nest correctly.
+       inclusive range [lo,hi].  Should nest correctly and work
+       inside expressions.
 
        Presently assumes result is a number so cannot yet sum up a
        function result ... to fix this need to modify the
-       initialization by peeling off the first term.
+       initialization of the accumulation variable by peeling off the
+       first term.
 
-     * print expressionlist
+     * print comma-separated-expression-list
 
        does the obvious thing
 
@@ -213,14 +213,14 @@ The language
 
        is the derivative in the z direction of the madness function f.
 
-     * del^2 is the laplacian (is this working?)
+     * del^2 applies the laplacian (is this working?)
 
      * del^-2 applies the Coulomb GF
  
-     * (exp - del^2)^-1 applies the BSH with mu^2 = exp
+     * (expression - del^2)^-1 applies the BSH with mu^2 = expression
 
-       The recognition of this expression is very crude and it must be
-       type in exactly the above ordering and form.
+       The recognition of this pattern is very crude and it must be
+       typed in exactly the above ordering and form.
 
        Application of the GFs truncates the input and the output
        for efficiency.
