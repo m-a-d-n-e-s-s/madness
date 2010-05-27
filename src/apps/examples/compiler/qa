@@ -43,7 +43,4 @@ In
     print "3 FAIL"
   end
 
-  psi = G op psi
-
-  psi = BSH(3.0) op psi
 End
