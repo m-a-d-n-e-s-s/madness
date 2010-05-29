@@ -213,12 +213,15 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         virtual double DirichletCond(const Vector<double, 3> &x) const {
-            return 0.0;
+            if(x[2] > 0.5*d)
+                return phi;
+            else
+                return 0.0;
         }
 
         virtual double Inhomogeneity(const Vector<double, 3> &x) const {
-            // all density is close to the origin for this problem
-            if(x[0]*x[0] + x[1]*x[1] + x[2]*x[2] > 1600.0)
+            // all density is close to the (0,0,5) for this problem
+            if(x[0]*x[0] + x[1]*x[1] + (x[2]-5.0)*(x[2]-5.0) > 100.0)
                 return 0.0;
 
             double ret = 0.0;

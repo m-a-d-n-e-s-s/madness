@@ -175,7 +175,6 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
     sprintf(funcname, "domainmask");
-    //FunctionDefaults<3>::set_max_refine_level(6);
     tpm->fop = DOMAIN_MASK;
     real_function_3d dmask = real_factory_3d(world).functor(tpm);
     vtk_output(world, funcname, dmask);
@@ -189,7 +188,7 @@ int main(int argc, char **argv) {
     double denstrace = dens.trace();
     double densnorm2 = dens.norm2();
     if(world.rank() == 0) {
-        // these should be close to 176 (384 if not ECP)
+        // these should be close to 8
         printf("   trace = %.6e; norm = %.6e\n", denstrace, densnorm2);
         fflush(stdout);
     }
@@ -375,363 +374,32 @@ void scaled_plotvtk_begin(World &world, const char *filename,
 int mol_geom(std::vector<Atom*> &atoms) {
     Vector<double, 3> center;
 
-    center[0] = 27.9797743030;
-    center[1] = 13.9898852618;
-    center[2] = 24.2819925053;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 26.4224322192;
-    center[1] = 12.9342276332;
-    center[2] = 23.5703519339;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 24.6432570915;
-    center[1] = 11.7396090042;
-    center[2] = 22.7317293351;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 22.6131358013;
-    center[1] = 10.2929746277;
-    center[2] = 21.7587226521;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 22.5443289883;
-    center[1] = 8.3037640154;
-    center[2] = 22.2745082426;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 20.7886299265;
-    center[1] = 11.2477851392;
-    center[2] = 20.2100789771;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 20.8714887419;
-    center[1] = 13.2423247788;
-    center[2] = 19.7126180594;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 18.8039395388;
-    center[1] = 9.8189122973;
-    center[2] = 19.1604854792;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 17.0840677920;
-    center[1] = 8.6326481468;
-    center[2] = 18.1574737270;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 15.1780391382;
-    center[1] = 7.2097203829;
-    center[2] = 16.9718785396;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 15.0817292532;
-    center[1] = 5.2029315394;
-    center[2] = 17.4118672207;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 13.4903097407;
-    center[1] = 8.1896566911;
-    center[2] = 15.2743339053;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 13.5871752051;
-    center[1] = 10.1998338132;
-    center[2] = 14.8468759972;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 11.6540573293;
-    center[1] = 6.7673619853;
-    center[2] = 13.9877158563;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 10.0735547638;
-    center[1] = 5.5816609732;
-    center[2] = 12.7727618859;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 8.3174456315;
-    center[1] = 4.1700035351;
-    center[2] = 11.3647251628;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 8.2357754538;
-    center[1] = 2.1445007351;
-    center[2] = 11.7122306541;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 6.7367106298;
-    center[1] = 5.1856670028;
-    center[2] = 9.5885263535;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 6.8080553447;
-    center[1] = 7.2156427841;
-    center[2] = 9.2608535364;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 5.0096409167;
-    center[1] = 3.7822771158;
-    center[2] = 8.1324452368;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 3.4972591937;
-    center[1] = 2.5826563821;
-    center[2] = 6.8514774685;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 3.0930827097;
-    center[1] = -2.2708591530;
-    center[2] = 6.4104229818;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 1.6664964362;
-    center[1] = 1.2864139586;
-    center[2] = 5.3697319832;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 1.6410229299;
-    center[1] = -1.2984156084;
-    center[2] = 5.3279992744;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = -0.1947041377;
-    center[1] = 2.9238142838;
-    center[2] = 3.8989147832;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = -0.1803289921;
-    center[1] = -2.9329076453;
-    center[2] = 3.9001903483;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = -2.1520993233;
-    center[1] = 2.4815598212;
-    center[2] = 4.4429102033;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 0.1232724954;
-    center[1] = 4.9194253981;
-    center[2] = 4.3227897709;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -2.1543745534;
-    center[1] = -2.5083334590;
-    center[2] = 4.4028310048;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 0.1458868463;
-    center[1] = -4.9299171568;
-    center[2] = 4.3174834203;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -0.0058222458;
-    center[1] = -2.3339911188;
-    center[2] = 0.2206576344;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -0.0084073909;
-    center[1] = 2.3313058182;
-    center[2] = 0.2343033458;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -7.2506688553;
-    center[1] = -2.2726789591;
-    center[2] = 0.0000000000;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -7.2506688553;
-    center[1] = 2.2726789591;
-    center[2] = 0.0000000000;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 7.2506669656;
-    center[1] = -2.2726789591;
-    center[2] = 0.0000000000;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 7.2506669656;
-    center[1] = 2.2726789591;
-    center[2] = 0.0000000000;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -10.8760023381;
-    center[1] = -3.6253334828;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -3.6253334828;
-    center[1] = -3.6253334828;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 3.6253334828;
-    center[1] = -3.6253334828;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 10.8760023381;
-    center[1] = -3.6253334828;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -10.8760023381;
-    center[1] = 3.6253353725;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -3.6253334828;
-    center[1] = 3.6253353725;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 3.6253334828;
-    center[1] = 3.6253353725;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 10.8760023381;
-    center[1] = 3.6253353725;
-    center[2] = -2.1790997282;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -3.6253334828;
-    center[1] = 0.0000000000;
-    center[2] = -4.7425980682;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = -5.9250204057;
-    center[1] = 0.0000000000;
-    center[2] = -6.4544819433;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 3.6253334828;
-    center[1] = 0.0000000000;
-    center[2] = -4.7425980682;
-    atoms.push_back(new Silicon(center));
-
-    center[0] = 5.9250204057;
-    center[1] = 0.0000000000;
-    center[2] = -6.4544819433;
-    atoms.push_back(new Hydrogen(center));
-
     center[0] = 0.0000000000;
     center[1] = 0.0000000000;
-    center[2] = -7.3060964083;
-    atoms.push_back(new Silicon(center));
+    center[2] = 0.0000000000 + 5.0;
+    atoms.push_back(new Carbon(center));
 
-    center[0] = 0.0000000000;
-    center[1] = -2.2898244430;
-    center[2] = -9.0169144778;
+    center[0] = 1.1927950435;
+    center[1] = -1.1927950435;
+    center[2] = -1.1927950435 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = 0.0000000000;
-    center[1] = 2.2898244430;
-    center[2] = -9.0169144778;
+    center[0] = -1.1927950435;
+    center[1] = 1.1927950435;
+    center[2] = -1.1927950435 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = -7.2506688553;
-    center[1] = -3.1938825836;
-    center[2] = 1.6640927048;
+    center[0] = -1.1927950435;
+    center[1] = -1.1927950435;
+    center[2] = 1.1927950435 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = -7.2506688553;
-    center[1] = 3.1938825836;
-    center[2] = 1.6640927048;
+    center[0] = 1.1927950435;
+    center[1] = 1.1927950435;
+    center[2] = 1.1927950435 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = 7.2506669656;
-    center[1] = -3.1938825836;
-    center[2] = 1.6640927048;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 7.2506669656;
-    center[1] = 3.1938825836;
-    center[2] = 1.6640927048;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -12.4605526966;
-    center[1] = -3.1641137301;
-    center[2] = -1.2278362324;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -10.8760023381;
-    center[1] = -5.5020392585;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -10.8760023381;
-    center[1] = -2.6924759181;
-    center[2] = -3.8394507756;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -3.6253334828;
-    center[1] = -5.5020392585;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 3.6253334828;
-    center[1] = -5.5020392585;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 10.8760023381;
-    center[1] = -5.5020392585;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 10.8760023381;
-    center[1] = -2.6924759181;
-    center[2] = -3.8394507756;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 12.4605526966;
-    center[1] = -3.1641137301;
-    center[2] = -1.2278362324;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -12.4605526966;
-    center[1] = 3.1641156199;
-    center[2] = -1.2278362324;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -10.8760023381;
-    center[1] = 5.5020411482;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -10.8760023381;
-    center[1] = 2.6924778079;
-    center[2] = -3.8394507756;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = -3.6253334828;
-    center[1] = 5.5020411482;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 3.6253334828;
-    center[1] = 5.5020411482;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 10.8760023381;
-    center[1] = 5.5020411482;
-    center[2] = -2.5045747940;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 10.8760023381;
-    center[1] = 2.6924778079;
-    center[2] = -3.8394507756;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 12.4605526966;
-    center[1] = 3.1641156199;
-    center[2] = -1.2278362324;
-    atoms.push_back(new Hydrogen(center));
-
-    //return 191;
-    return 88;
+    return 4;
 }
 
 /** \brief Read in the occupied states from file. */
