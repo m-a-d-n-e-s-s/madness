@@ -374,32 +374,17 @@ void scaled_plotvtk_begin(World &world, const char *filename,
 int mol_geom(std::vector<Atom*> &atoms) {
     Vector<double, 3> center;
 
-    center[0] = 0.0000000000;
-    center[1] = 0.0000000000;
-    center[2] = 0.0000000000 + 5.0;
-    atoms.push_back(new Carbon(center));
-
-    center[0] = 1.1927950435;
-    center[1] = -1.1927950435;
-    center[2] = -1.1927950435 + 5.0;
+    center[0] = 0.0;
+    center[1] = 0.0;
+    center[2] = 0.7018442318 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = -1.1927950435;
-    center[1] = 1.1927950435;
-    center[2] = -1.1927950435 + 5.0;
+    center[0] = 0.0;
+    center[1] = 0.0;
+    center[2] = -0.7018442318 + 5.0;
     atoms.push_back(new Hydrogen(center));
 
-    center[0] = -1.1927950435;
-    center[1] = -1.1927950435;
-    center[2] = 1.1927950435 + 5.0;
-    atoms.push_back(new Hydrogen(center));
-
-    center[0] = 1.1927950435;
-    center[1] = 1.1927950435;
-    center[2] = 1.1927950435 + 5.0;
-    atoms.push_back(new Hydrogen(center));
-
-    return 4;
+    return 1;
 }
 
 /** \brief Read in the occupied states from file. */

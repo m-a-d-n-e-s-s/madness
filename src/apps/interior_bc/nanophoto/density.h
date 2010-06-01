@@ -186,7 +186,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         /// \brief The initial level to which functions should be projected.
-        int get_initial_level() const { return initial_level; }
+        int get_initial_level() const { return 6; } //initial_level; }
 
         /// \brief The operator for projecting a MADNESS function.
         double operator() (const Vector<double, 3> &x) const {
