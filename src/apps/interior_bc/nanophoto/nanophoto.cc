@@ -178,6 +178,7 @@ int main(int argc, char **argv) {
     tpm->fop = DOMAIN_MASK;
     real_function_3d dmask = real_factory_3d(world).functor(tpm);
     vtk_output(world, funcname, dmask);
+    dmask.clear();
 
     // get the molecular density -- this segment can be commented out
     if(world.rank() == 0) {
@@ -186,14 +187,14 @@ int main(int argc, char **argv) {
     }
     real_function_3d dens = real_factory_3d(world).functor(tpm);
     double denstrace = dens.trace();
-    double densnorm2 = dens.norm2();
     if(world.rank() == 0) {
-        // these should be close to 8
-        printf("   trace = %.6e; norm = %.6e\n", denstrace, densnorm2);
+        // this should be close to 2
+        printf("   trace = %.6e\n", denstrace);
         fflush(stdout);
     }
     sprintf(funcname, "density");
     vtk_output(world, funcname, dens);
+    dens.clear();
 
     // do we already have a solution, or do we need to calculate it?
     real_function_3d usol;
@@ -302,6 +303,15 @@ void vtk_output(World &world, const char *funcname,
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
+
+    // print out the solution function near the area of interest
+    sprintf(filename, "%s-mol.vts", funcname);
+    plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
+    plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 101;
+    plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 101;
+    scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_end<3>(world, filename);
 }
 
 /** \brief Same as plotvtk_begin, but scales the coordinates back to nm */
@@ -376,12 +386,12 @@ int mol_geom(std::vector<Atom*> &atoms) {
 
     center[0] = 0.0;
     center[1] = 0.0;
-    center[2] = 0.7018442318 + 5.0;
+    center[2] = 0.7018442318 + 5.0 / 0.052918;
     atoms.push_back(new Hydrogen(center));
 
     center[0] = 0.0;
     center[1] = 0.0;
-    center[2] = -0.7018442318 + 5.0;
+    center[2] = -0.7018442318 + 5.0 / 0.052918;
     atoms.push_back(new Hydrogen(center));
 
     return 1;
@@ -416,21 +426,25 @@ void read_states(int nstate, int nbasis, Tensor<double> &coeffs) {
             file >> dbuffer;
             coeffs(curstate, i) = dbuffer;
 
-            file >> dbuffer;
-            if(curstate + 1 < nstate)
+            if(curstate + 1 < nstate) {
+                file >> dbuffer;
                 coeffs(curstate + 1, i) = dbuffer;
+            }
 
-            file >> dbuffer;
-            if(curstate + 2 < nstate)
+            if(curstate + 2 < nstate) {
+                file >> dbuffer;
                 coeffs(curstate + 2, i) = dbuffer;
+            }
 
-            file >> dbuffer;
-            if(curstate + 3 < nstate)
+            if(curstate + 3 < nstate) {
+                file >> dbuffer;
                 coeffs(curstate + 3, i) = dbuffer;
+            }
 
-            file >> dbuffer;
-            if(curstate + 4 < nstate)
+            if(curstate + 4 < nstate) {
+                file >> dbuffer;
                 coeffs(curstate + 4, i) = dbuffer;
+            }
 
             // flush the rest of the line
             file.getline(cbuffer, 100);

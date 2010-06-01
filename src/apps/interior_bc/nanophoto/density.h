@@ -164,8 +164,16 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
             // calculate some nice initial projection level
             // should be no lower than 6, but may need to be higher for small
-            // eps
+            // length scales
+
+            // epsilon from the diffuse domain approximation
             initial_level = ceil(log(6614.0 / eps) / log(2.0) - 4);
+
+            // smallest length scale from the molecular density
+            int n = ceil(log(6614.0 / sqrt(0.5 / 18.731137)) / log(2.0) - 4);
+            if(initial_level < n)
+                initial_level = n;
+
             if(initial_level < 6)
                 initial_level = 6;
 
@@ -186,7 +194,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         /// \brief The initial level to which functions should be projected.
-        int get_initial_level() const { return 6; } //initial_level; }
+        int get_initial_level() const { return initial_level; }
 
         /// \brief The operator for projecting a MADNESS function.
         double operator() (const Vector<double, 3> &x) const {
@@ -220,8 +228,9 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         virtual double Inhomogeneity(const Vector<double, 3> &x) const {
-            // all density is close to the (0,0,5) for this problem
-            if(x[0]*x[0] + x[1]*x[1] + (x[2]-5.0)*(x[2]-5.0) > 100.0)
+            // all density is close to the (0,0,5ang) for this problem
+            if(x[0]*x[0] + x[1]*x[1] +
+                (x[2]-5.0/0.052918)*(x[2]-5.0/0.052918) > 100.0)
                 return 0.0;
 
             double ret = 0.0;
@@ -242,9 +251,9 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 ret += perstate * perstate;
             }
 
-            if(ret < 1.0e-16)
+            if(ret < 1.0e-8)
                 return 0.0;
-            return 2.0*ret; // 2 for spin
+            return 2.0*ret; // 2 for spin degeneracy
         }
 
         std::vector<Vector<double, 3> > special_points() const {
