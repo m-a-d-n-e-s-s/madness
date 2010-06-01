@@ -61,7 +61,7 @@ static double func_ones(const coordT3d& r)
 
 //*****************************************************************************
 // Test charge density for the periodic coulomb operator.
-static double rho_coulomb_func3d(const coordT3d& r)
+static double_complex rho_coulomb_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   double npi = N * WST_PI;
@@ -99,7 +99,7 @@ static double rho_gaussian_func3d(const coordT3d& r)
 
 //*****************************************************************************
 // Test function for the periodic coulomb operator.
-static double phi_coulomb_func3d(const coordT3d& r)
+static double_complex phi_coulomb_func3d(const coordT3d& r)
 {
   const double x=r[0], y=r[1], z=r[2];
   double npi = N * WST_PI;
@@ -497,16 +497,16 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   // Create test charge density and the exact solution to Poisson's equation
   // with said charge density
   printf("building rho ...\n\n");
-  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_coulomb_func3d);
+  Function<double_complex,3> rho = FunctionFactory<double_complex,3>(world).f(rho_coulomb_func3d);
   rho.truncate();
   printf("building phi_exact ...\n\n");
-  Function<double,3> phi_exact = FunctionFactory<double,3>(world).f(phi_coulomb_func3d);
+  Function<double_complex,3> phi_exact = FunctionFactory<double_complex,3>(world).f(phi_coulomb_func3d);
 
   // Create operator and apply
   Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-  SeparatedConvolution<double,3> op = PeriodicCoulombOp<double,3>(world, k, 1e-8, thresh, cellsize);
+  SeparatedConvolution<double_complex,3> op = PeriodicCoulombOp<double_complex,3>(world, k, 1e-8, thresh, cellsize);
   printf("applying operator ...\n\n");
-  Function<double,3> phi_test = apply(op, rho);
+  Function<double_complex,3> phi_test = apply(op, rho);
 
   // Apply the laplacian operator the phi_test and see if we get rho back
 //  printf("applying laplacian operator to phi_test ...\n\n");
@@ -524,14 +524,14 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   for (int i=0; i<101; i++)
   {
     coordT3d p(-L/2 + i*bstep);
-    double error = fabs(phi_exact(p) - phi_test(p));
-    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], phi_exact(p), phi_test(p), error, error / phi_exact(p));
+    double error = abs(phi_exact(p) - phi_test(p));
+    printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], abs(phi_exact(p)), abs(phi_test(p)), error, error / abs(phi_exact(p)));
     //printf("%.2f\t\t%.8f\t%.8f\t%.8f\t%.8f\n", p[0], rho(p), rho_test(p), rho_diff(p), 0.0);
   }
 
   // Plot to OpenDX
   std::vector<long> npt(3,101);
-  Function<double,3> phi_diff = phi_exact - phi_test;
+  Function<double_complex,3> phi_diff = phi_exact - phi_test;
   plotdx(phi_test, "phitest.dx", FunctionDefaults<3>::get_cell(), npt);
   plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
   plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
