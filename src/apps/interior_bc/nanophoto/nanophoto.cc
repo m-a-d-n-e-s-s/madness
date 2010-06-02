@@ -141,8 +141,8 @@ int main(int argc, char **argv) {
     }
 
     // low order defaults
-    FunctionDefaults<3>::set_k(2);
-    FunctionDefaults<3>::set_thresh(1.0e-3);
+    FunctionDefaults<3>::set_k(6);
+    FunctionDefaults<3>::set_thresh(1.0e-4);
 
     // surface function
     tpm->fop = SURFACE;
@@ -185,6 +185,7 @@ int main(int argc, char **argv) {
         printf("Projecting the molecular density\n");
         fflush(stdout);
     }
+    tpm->fop = DENSITY;
     real_function_3d dens = real_factory_3d(world).functor(tpm);
     double denstrace = dens.trace();
     if(world.rank() == 0) {
@@ -286,10 +287,11 @@ void vtk_output(World &world, const char *funcname,
     const Tensor<double> cell = FunctionDefaults<3>::get_cell();
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
-    for(int i = 0; i < 3; ++i) {
+    plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
+    for(int i = 1; i < 3; ++i) {
         plotlo[i] = cell(i, 0);
         plothi[i] = cell(i, 1);
-        npts[i] = 101;
+        npts[i] = 201;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
@@ -297,9 +299,9 @@ void vtk_output(World &world, const char *funcname,
 
     // print out the solution function near the area of interest
     sprintf(filename, "%s-local.vts", funcname);
-    plotlo[0] = -20.0 / 0.052918; plothi[0] = 20.0 / 0.052918; npts[0] = 101;
-    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 101;
-    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 101;
+    plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
+    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 211;
+    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 151;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
@@ -307,8 +309,8 @@ void vtk_output(World &world, const char *funcname,
     // print out the solution function near the area of interest
     sprintf(filename, "%s-mol.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
-    plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 101;
-    plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 101;
+    plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 201;
+    plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 201;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);

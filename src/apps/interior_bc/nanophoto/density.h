@@ -72,64 +72,6 @@ struct DirichletLBCost {
     }
 };
 
-/** \brief the Tip-Surface geometry sdf interface. */
-class TipSurfaceSDF : public SignedDFInterface<3> {
-    private:
-        TipSurfaceSDF() : surface(NULL), tip(NULL) {}
-
-    protected:
-        SignedDFInterface<3> *surface, *tip;
-
-    public:
-        TipSurfaceSDF(double d) : surface(NULL), tip(NULL) {
-            coord_3d normal;
-            coord_3d point;
-
-            // surface is the xy-plane
-            normal[0] = 0.0;
-            normal[1] = 0.0;
-            normal[2] = -1.0;
-            point[0] = 0.0;
-            point[1] = 0.0;
-            point[2] = 0.0;
-            surface = new SDFPlane(normal, point);
-
-            // tip apex is at (0, 0, d)
-            point[2] = d;
-            normal[2] = 1.0;
-            tip = new SDFParaboloid(50.0 / 0.052918, point, normal);
-        }
-
-        ~TipSurfaceSDF() {
-            if(tip)
-                delete tip;
-            if(surface)
-                delete surface;
-        }
-
-        double sdf(const coord_3d &pt) const {
-            double s, t;
-
-            s = surface->sdf(pt);
-            t = -tip->sdf(pt);
-
-            if(s >= 0.0)
-                return s;
-            else if(t >= 0.0)
-                return t;
-            else {
-                if(t > s)
-                    return t;
-                else
-                    return s;
-            }
-        }
-
-        coord_3d grad_sdf(const coord_3d &pt) const {
-            MADNESS_EXCEPTION("not implemented in tip-surface", 0);
-        }
-};
-
 /** \brief Setup the tip-molecule problem. */
 class TipMolecule : public FunctionFunctorInterface<double, 3> {
     private:
@@ -138,7 +80,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
     protected:
         GaussianDomainMask dmi;
-        SignedDFInterface<3> *sdfi;
+        SignedDFInterface<3> *tip, *solid;
         double penalty_prefact, eps;
         int initial_level;
         const Tensor<double> &denscoeffs;
@@ -158,7 +100,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         TipMolecule(double eps, double penalty,
             const Tensor<double> &denscoeffs, const std::vector<Atom*> &atoms,
             const std::vector<BasisFunc> &basis, double phi, double d)
-            : dmi(eps), sdfi(NULL), penalty_prefact(penalty),
+            : dmi(eps), tip(NULL), solid(NULL), penalty_prefact(penalty),
               eps(eps), denscoeffs(denscoeffs), basis(basis),
               specpts(0), phi(phi), d(d), fop(DIRICHLET_RHS) {
 
@@ -184,13 +126,26 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 specpts.push_back((*iter)->getCenter());
             }
 
-            // make the sdf
-            sdfi = new TipSurfaceSDF(d);
+            // make the sdfs
+            coord_3d normal, point;
+
+            // solid surface is the xy-plane
+            normal[0] = normal[1] = 0.0;
+            normal[2] = -1.0;
+            point[0] = point[1] = point[2] = 0.0;
+            solid = new SDFPlane(normal, point);
+
+            // tip apex is at (0, 0, d)
+            point[2] = d;
+            normal[2] = 1.0;
+            tip = new SDFParaboloid(25.0 / 0.052918, point, normal);
         }
 
         virtual ~TipMolecule() {
-            if(sdfi != NULL)
-                delete sdfi;
+            if(solid != NULL)
+                delete solid;
+            if(tip != NULL)
+                delete tip;
         }
 
         /// \brief The initial level to which functions should be projected.
@@ -200,15 +155,17 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         double operator() (const Vector<double, 3> &x) const {
             switch(fop) {
             case DIRICHLET_RHS:
-                return dmi.mask(sdfi->sdf(x)) * Inhomogeneity(x) -
-                    DirichletCond(x) * dmi.surface(sdfi->sdf(x)) *
+                return dmi.mask(solid->sdf(x)) * dmi.mask(-tip->sdf(x))
+                    * Inhomogeneity(x) - DirichletCond(x) *
+                    dmi.surface(solid->sdf(x)) * dmi.surface(-tip->sdf(x)) *
                     penalty_prefact;
                 break;
             case SURFACE:
-                return dmi.surface(sdfi->sdf(x)) * penalty_prefact;
+                return dmi.surface(solid->sdf(x)) * dmi.surface(-tip->sdf(x)) *
+                    penalty_prefact;
                 break;
             case DOMAIN_MASK:
-                return dmi.mask(sdfi->sdf(x));
+                return dmi.mask(solid->sdf(x)) * dmi.mask(-tip->sdf(x));
                 break;
             case DENSITY:
                 return Inhomogeneity(x);
@@ -257,7 +214,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         std::vector<Vector<double, 3> > special_points() const {
-            if(fop == DOMAIN_MASK) {
+            if(fop == DOMAIN_MASK || fop == SURFACE) {
                 std::vector<Vector<double, 3> > vec;
                 Vector<double, 3> pt;
 
