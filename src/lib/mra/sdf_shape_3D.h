@@ -225,12 +225,27 @@ namespace madness {
 
         /** \brief Computes the normal distance
 
+            This formula works by finding a point pt0 on the actual paraboloid
+            (sdf(pt0) == 0) by computing the gradient at pt and then tracing
+            along that direction:
+               pt0 = pt + a grad(pt) = pt + a ( 2x i + 2y j - c k)
+
+            From x0^2 + y0^2 - c*z0 == 0 (x0, y0, z0 are the elements of pt0),
+            you get a quadratic equation for a.
+
+            a = [-c^2 -4d -4cz p/m sqrt(16czd +16c^2z^2 +8dc^2 +8c^3z +c^4)]
+                / [8(d+cz)]
+
+            If inside the paraboloid (d<0), we want the smallest a>0
+            If outside (d>0), we want the smallest (in magnitude) a<0
+            If on the paraboloid (d==0), sdf = 0
+
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             coord_3d diff;
             unsigned int i;
-            double dotp;
+            double dotp, d, discriminant, a1, a2, base, denom, maga;
 
             for(i = 0; i < 3; ++i)
                 diff[i] = pt[i] - apex[i];
@@ -239,9 +254,39 @@ namespace madness {
             
             for(i = 0; i < 3; ++i)
                 diff[i] -= dotp * dir[i];
-            
-            return diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
+
+            d = diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
                 - c * dotp;
+
+            discriminant = sqrt(16.0*c*dotp*d + 16.0*c*c*dotp*dotp +
+               8.0*d*c*c + 8.0*c*c*c*dotp + c*c*c*c);
+            base = -c*c - 4.0*d - 4.0*c*dotp;
+            denom = 1.0 / (8.0*(d + c*dotp));
+
+            a1 = (base + discriminant) * denom;
+            a2 = (base - discriminant) * denom;
+
+            // note, analytically, base < 0, denom > 0, discriminant > 0
+            if(d > 0) {
+               // outside the paraboloid, want smallest (in mag) a < 0
+               if(a1 <= 0.0)
+                  maga = a1;
+               else
+                  maga = a2;
+            }
+            else if(d < 0) {
+               // inside the paraboloid, want smallest (in mag) a > 0,
+               // which has to be a1
+               maga = a1;
+            }
+            else
+               maga = 0.0;
+
+            // sdf = maga * sqrt(4x^2 + 4y^2 + c^2)
+            //     = maga * sqrt(4.0*(d+c*dotp) + c^2)
+            //
+            // sdf should have the same sign as d, which is -maga
+            return -maga * sqrt(4.0*(d + c*dotp) + c*c);
         }
 
         /** \brief Computes the gradient of the SDF.
