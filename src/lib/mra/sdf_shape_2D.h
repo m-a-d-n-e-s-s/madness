@@ -43,7 +43,9 @@
   \note The signed distance functions should be the shortest distance between
   a point and \b any point on the surface.  This is hard to calculate in many
   cases, so we use contours here.  The surface layer may not be equally thick
-  around all points on the surface.
+  around all points on the surface.  Some shapes have the exact shortest
+  distances, which will be noted on a class-by-class basis.  Serious usage
+  of the contour-based signed distance functions is not recommended.
 */  
   
 #ifndef MADNESS_MRA_SDF_SHAPE_2D_H__INCLUDED
@@ -70,6 +72,8 @@ namespace madness {
         {}
 
         /** \brief Computes the normal distance
+
+            This SDF is exact, and easy to show.
 
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
@@ -107,6 +111,9 @@ namespace madness {
     };
 
     /** \brief A rectangle (2 dimensions)
+
+        This SDF naively uses contours, and should be improved for serious
+        usage.
 
         \note LIMIT -- the 2 primary axes must be x and y */
     class SDFRectangle : public SignedDFInterface<2> {

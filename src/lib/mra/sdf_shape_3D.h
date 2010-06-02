@@ -49,7 +49,11 @@
   \note The signed distance functions should be the shortest distance between
   a point and \b any point on the surface.  This is hard to calculate in many
   cases, so we use contours here.  The surface layer may not be equally thick
-  around all points on the surface.
+  around all points on the surface.  Some surfaces (plane, sphere, paraboloid)
+  use the exact signed distance functions.  All others use the contours, which
+  may be extremely problematic and cause excessive refinement.  The sdf
+  function of the sphere class outlines how to calculate the exact signed
+  distance functions, if needed.
 */  
   
 #ifndef MADNESS_MRA_SDF_SHAPE_3D_H__INCLUDED
@@ -77,6 +81,8 @@ namespace madness {
         {}
 
         /** \brief Computes the normal distance
+
+            This SDF is exact, and easy to show.
 
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
@@ -110,6 +116,8 @@ namespace madness {
         {}
 
         /** \brief Computes the normal distance
+
+            This SDF is exact, and easy to show.
 
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
@@ -170,6 +178,9 @@ namespace madness {
 
         /** \brief Computes the normal distance
 
+            This SDF naively uses contours, and should be improved before
+            serious usage.
+
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
@@ -223,29 +234,58 @@ namespace madness {
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
         {}
 
-        /** \brief Computes the normal distance
+        /** \brief Computes the normal distance.
 
-            This formula works by finding a point pt0 on the actual paraboloid
-            (sdf(pt0) == 0) by computing the gradient at pt and then tracing
-            along that direction:
-               pt0 = pt + a grad(pt) = pt + a ( 2x i + 2y j - c k)
+            This SDF is exact.
 
-            From x0^2 + y0^2 - c*z0 == 0 (x0, y0, z0 are the elements of pt0),
-            you get a quadratic equation for a.
+            Given a point, pt=(x, y, z), the goal is to find another point,
+            pt0=(x0, y0, z0), on the surface that minimizes |pt - pt0|^2.  The
+            root of this minimized square distance (and a sign) is the sdf.
 
-            a = [-c^2 -4d -4cz p/m sqrt(16czd +16c^2z^2 +8dc^2 +8c^3z +c^4)]
-                / [8(d+cz)]
+            For simplicity (here), I will assume that the paraboloid's axis
+            is along the positive z-axis and that the origin is the apex.
+            Note that the code does NOT make these assumptions.
 
-            If inside the paraboloid (d<0), we want the smallest a>0
-            If outside (d>0), we want the smallest (in magnitude) a<0
-            If on the paraboloid (d==0), sdf = 0
+            Thus, we want to minimize
+               (x-x0)^2 + (y-y0)^2 + (z-z0)^2
+            subject to
+               x0^2 + y0^2 - c z0 == 0.
 
+            Using Lagrange multipliers, the system of equations is
+            -2(x-x0) == L 2 x0
+            -2(y-y0) == L 2 y0
+            -2(z-z0) == L (-c)
+            x0^2 + y0^2 - c z0 == 0.
+
+            After some algebra, we get a cubic equation for L,
+            (x^2 + y^2 - c z) + (2c z + c^2/2) L - c (z + c) L^2
+               + c^2/2 L^3 == 0
+
+            This can be solved analytically in Mathematica, producing a long,
+            messy equation that is implemented below.  There are three complex
+            solutions to this equation; at least one is always real.  For
+            later, we choose the Lagrange multiplier that is real and smallest
+            in magnitude.
+
+            Note that solution to this cubic equation uses both a square root
+            and a cubic root; we track all six combinations even though there
+            are only three distinct answers.  (Perhaps someone will simplify
+            the code someday).
+
+            Once we have the correct Lagrange multiplier,
+            |pt - pt0|^2 = c L^2 (z - L c/2 + c/4).
+            The square root of this quantity (with the appropriate sign for
+            inside/outside) gives the sdf.
+            
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
             coord_3d diff;
-            unsigned int i;
-            double dotp, d, discriminant, a1, a2, base, denom, maga;
+            unsigned int i, n;
+            double dotp, d;
+            std::complex<double> root[6];
+            std::complex<double> cubicroot(-0.5, sqrt(3.0)*0.5);
+            double lambda;
 
             for(i = 0; i < 3; ++i)
                 diff[i] = pt[i] - apex[i];
@@ -258,35 +298,57 @@ namespace madness {
             d = diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
                 - c * dotp;
 
-            discriminant = sqrt(16.0*c*dotp*d + 16.0*c*c*dotp*dotp +
-               8.0*d*c*c + 8.0*c*c*c*dotp + c*c*c*c);
-            base = -c*c - 4.0*d - 4.0*c*dotp;
-            denom = 1.0 / (8.0*(d + c*dotp));
+            root[0] = 27.0*c*(d + c*dotp)*(2.0*c*c*c + 15.0*c*c*dotp
+                - 16.0*dotp*dotp*dotp + 24.0*c*dotp*dotp
+                + 27.0*c*d);
 
-            a1 = (base + discriminant) * denom;
-            a2 = (base - discriminant) * denom;
+            // take the square root and use both signs
+            root[0] = sqrt(root[0]);
+            root[1] = -root[0];
 
-            // note, analytically, base < 0, denom > 0, discriminant > 0
-            if(d > 0) {
-               // outside the paraboloid, want smallest (in mag) a < 0
-               if(a1 <= 0.0)
-                  maga = a1;
-               else
-                  maga = a2;
+            lambda = -c*c*c - 21.0*c*c*dotp + 8.0*dotp*dotp*dotp
+                - 27.0*c*d - 12.0*c*dotp*dotp;
+
+            for(i = 0; i < 2; ++i) {
+                root[i] += lambda;
+
+                // take the cubic root and account for complex roots
+                root[i] = pow(root[i], 1.0/3.0);
             }
-            else if(d < 0) {
-               // inside the paraboloid, want smallest (in mag) a > 0,
-               // which has to be a1
-               maga = a1;
+
+            for(i = 2; i < 6; ++i)
+                root[i] = root[i-2] * cubicroot;
+
+            // finalize the calculation
+            // and get the smallest, real root
+            n = 0; // the number of real roots thus encountered
+            for(i = 0; i < 6; ++i) {
+                root[i] = (2.0*(c+dotp) + root[i] + (c-2.0*dotp)*(c-2.0*dotp)
+                    / root[i]) / (3.0*c);
+
+                // is this root real?
+                if(fabs(imag(root[i])) < 1.0e-12) {
+                    if(n == 0) {
+                        lambda = real(root[i]);
+                    }
+                    else {
+                        if(real(root[i]) < lambda)
+                            lambda = real(root[i]);
+                    }
+                    ++n;
+                }
             }
+            MADNESS_ASSERT(n > 0); // we should have at least one real root...
+
+            // now that we have the Lagrange multiplier, get the distance
+            lambda = c*lambda*lambda*(dotp - lambda*c*0.5 + c*0.25);
+            MADNESS_ASSERT(lambda >= 0.0); // this shouldn't be negative
+            lambda = sqrt(lambda);
+
+            if(d > 0.0)
+                return lambda;
             else
-               maga = 0.0;
-
-            // sdf = maga * sqrt(4x^2 + 4y^2 + c^2)
-            //     = maga * sqrt(4.0*(d+c*dotp) + c^2)
-            //
-            // sdf should have the same sign as d, which is -maga
-            return -maga * sqrt(4.0*(d + c*dotp) + c*c);
+                return -lambda;
         }
 
         /** \brief Computes the gradient of the SDF.
@@ -316,6 +378,10 @@ namespace madness {
         {}
 
         /** \brief Computes the normal distance
+
+            This SDF naively uses contours, and should be improved before
+            serious usage.  If far from the corners, the SDF is easy (similar
+            to a plane), and is essentially what's implemented.
 
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
@@ -376,6 +442,9 @@ namespace madness {
         
         /** \brief Computes the normal distance
 
+            This SDF naively uses contours, and should be improved before
+            serious usage.
+
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
@@ -424,6 +493,9 @@ namespace madness {
         {}
         
         /** \brief Computes the normal distance
+
+            This SDF naively uses contours, and should be improved before
+            serious usage.
 
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
