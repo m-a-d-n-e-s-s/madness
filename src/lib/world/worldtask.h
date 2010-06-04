@@ -113,7 +113,7 @@ namespace madness {
         static bool debug;
 
         /// Create a new task with ndepend dependencies (default 0) and given attributes
-        TaskInterface(int ndepend=0, const TaskAttributes& attr = TaskAttributes())
+        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
                 : DependencyInterface(ndepend)
                 , PoolTaskInterface(attr)
                 , world(0)
@@ -305,7 +305,7 @@ namespace madness {
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
-        add(functionT function, const TaskAttributes& attr=TaskAttributes()) {
+        add(functionT function, const TaskAttributes attr=TaskAttributes()) {
             return add(me,function,attr);
         }
 
@@ -316,7 +316,7 @@ namespace madness {
         /// Future<void> is an empty class that may be ignored.
         template <typename functionT>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
-        add(ProcessID where, functionT function, const TaskAttributes& attr=TaskAttributes()) {
+        add(ProcessID where, functionT function, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me)
                 add(new TaskFunction<functionT>(result, function, attr));
@@ -329,7 +329,7 @@ namespace madness {
         /// Invoke "resultT (*function)(arg1T)" as a local task
         template <typename functionT, typename arg1T>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
-        add(functionT function, const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+        add(functionT function, const arg1T& arg1, const TaskAttributes attr=TaskAttributes()) {
             return add(me, function, arg1, attr);
         }
 
@@ -355,7 +355,7 @@ namespace madness {
         template <typename functionT, typename arg1T>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(ProcessID where, functionT function,
-            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, attr));
@@ -372,7 +372,7 @@ namespace madness {
         template <typename functionT, typename arg1T, typename arg2T>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(functionT function,
-            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes attr=TaskAttributes()) {
             return add(me,function,arg1,arg2,attr);
         }
 
@@ -384,7 +384,7 @@ namespace madness {
         template <typename functionT, typename arg1T, typename arg2T>
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, attr));
@@ -403,7 +403,7 @@ namespace madness {
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(functionT function,
             const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+            const arg3T& arg3, const TaskAttributes attr=TaskAttributes()) {
             return add(me,function,arg1,arg2,arg3,attr);
         }
 
@@ -416,7 +416,7 @@ namespace madness {
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(ProcessID where, functionT function,
             const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+            const arg3T& arg3, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, attr));
@@ -477,7 +477,7 @@ namespace madness {
         Future<REMFUTURE(FUNCTION_RETURNT(functionT))>
         add(ProcessID where, functionT function,
             const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) {
+            const arg3T& arg3, const arg4T& arg4, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, attr));
@@ -503,7 +503,7 @@ namespace madness {
         add(ProcessID where, functionT function,
             const arg1T& arg1, const arg2T& arg2,
             const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) {
+            const arg5T& arg5, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, attr));
@@ -528,7 +528,7 @@ namespace madness {
         add(ProcessID where, functionT function,
             const arg1T& arg1, const arg2T& arg2,
             const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) {
+            const arg5T& arg5, const arg6T& arg6, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, attr));
@@ -554,7 +554,7 @@ namespace madness {
         add(ProcessID where, functionT function,
             const arg1T& arg1, const arg2T& arg2,
             const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) {
+            const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
                 add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr));
@@ -582,7 +582,7 @@ namespace madness {
             const arg1T& arg1, const arg2T& arg2,
             const arg3T& arg3, const arg4T& arg4,
             const arg5T& arg5, const arg6T& arg6,
-	    const arg7T& arg7, const arg8T& arg8, const TaskAttributes& attr=TaskAttributes()) {
+	    const arg7T& arg7, const arg8T& arg8, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
 	      add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr));
@@ -612,7 +612,7 @@ namespace madness {
             const arg3T& arg3, const arg4T& arg4,
             const arg5T& arg5, const arg6T& arg6,
 	    	const arg7T& arg7, const arg8T& arg8,
-			const arg9T& arg9, const TaskAttributes& attr=TaskAttributes()) {
+			const arg9T& arg9, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(FUNCTION_RETURNT(functionT))> result;
             if (where == me) {
 	      add(new TaskFunction<functionT>(result, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, attr));
@@ -636,7 +636,7 @@ namespace madness {
         /// Invoke "resultT (obj.*memfun)()" as a local task
         template <typename memfunT>
         Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
-        add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) {
+        add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,attr));
             return result;
@@ -648,7 +648,7 @@ namespace madness {
         Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
-            const arg1T& arg1, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,attr));
             return result;
@@ -660,7 +660,7 @@ namespace madness {
         Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
-            const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const arg2T& arg2, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,attr));
             return result;
@@ -672,7 +672,7 @@ namespace madness {
         Future<REMFUTURE(MEMFUN_RETURNT(memfunT))>
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
-            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr=TaskAttributes()) {
+            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,attr));
             return result;
@@ -685,7 +685,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,attr));
             return result;
@@ -699,7 +699,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,attr));
             return result;
@@ -712,7 +712,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,attr));
             return result;
@@ -724,7 +724,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr));
             return result;
@@ -736,7 +736,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj,
             memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8, attr));
             return result;
@@ -748,7 +748,7 @@ namespace madness {
         add(MEMFUN_OBJT(memfunT)& obj, memfunT memfun,
             const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5,
 			const arg6T& arg6, const arg7T& arg7, const arg8T& arg8, const arg9T& arg9,
-            const TaskAttributes& attr=TaskAttributes()) {
+            const TaskAttributes attr=TaskAttributes()) {
             Future<REMFUTURE(MEMFUN_RETURNT(memfunT))> result;
             add(new TaskMemfun<memfunT>(result,obj,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9, attr));
             return result;
@@ -843,7 +843,7 @@ namespace madness {
                 , result(result)
                 , func(func) {};
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func());
         };
 
@@ -884,7 +884,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1));
         };
     };
@@ -928,7 +928,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2));
         };
     };
@@ -974,7 +974,7 @@ namespace madness {
             check_dependency(arg3);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3));
         };
     };
@@ -1026,7 +1026,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4));
         };
     };
@@ -1083,7 +1083,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5));
         };
     };
@@ -1144,7 +1144,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
@@ -1213,7 +1213,7 @@ namespace madness {
             check_dependency(arg7);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
     };
@@ -1285,7 +1285,7 @@ namespace madness {
 	    	check_dependency(arg8);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         };
     };
@@ -1361,7 +1361,7 @@ namespace madness {
 		    check_dependency(arg9);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
         };
     };
@@ -1380,7 +1380,7 @@ namespace madness {
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)());
         };
     };
@@ -1403,7 +1403,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
         };
     };
@@ -1459,7 +1459,7 @@ namespace madness {
             check_dependency(arg3);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3));
         };
     };
@@ -1492,7 +1492,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         };
     };
@@ -1528,7 +1528,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         };
     };
@@ -1568,7 +1568,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
@@ -1611,7 +1611,7 @@ namespace madness {
             check_dependency(arg7);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
     };
@@ -1657,7 +1657,7 @@ namespace madness {
 		    check_dependency(arg8);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         };
     };
@@ -1706,7 +1706,7 @@ namespace madness {
 		    check_dependency(arg9);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
         };
     };
@@ -1729,7 +1729,7 @@ namespace madness {
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {};
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)());
         };
     };
@@ -1752,7 +1752,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
         };
     };
@@ -1843,7 +1843,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         };
     };
@@ -1879,7 +1879,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         };
     };
@@ -1918,7 +1918,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         };
     };
@@ -1960,7 +1960,7 @@ namespace madness {
 		    check_dependency(arg7);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         };
     };
@@ -2005,7 +2005,7 @@ namespace madness {
 		    check_dependency(arg8);
         }
 
-        void run(World& world) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         };
     };
