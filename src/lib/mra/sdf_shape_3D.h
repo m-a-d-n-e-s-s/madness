@@ -285,11 +285,11 @@ namespace madness {
             double dotp, d;
             std::complex<double> root[6];
             std::complex<double> cubicroot(-0.5, sqrt(3.0)*0.5);
-            double lambda;
+            double lambda, dist, temp[2], upper;
 
             for(i = 0; i < 3; ++i)
                 diff[i] = pt[i] - apex[i];
-            
+
             dotp = diff[0]*dir[0] + diff[1]*dir[1] + diff[2]*dir[2];
             
             for(i = 0; i < 3; ++i)
@@ -320,35 +320,72 @@ namespace madness {
                 root[i] = root[i-2] * cubicroot;
 
             // finalize the calculation
-            // and get the smallest, real root
-            n = 0; // the number of real roots thus encountered
+            // and get real root (Lagrange multiplier) that minimizes
+            // the distance.
+            // note that real roots must be no bigger than (4dotp+c)/(2c)
+            // from the analytical form
+            n = 0; // the number of acceptable real roots thus encountered
+            upper = (4.0*dotp + c) * 0.5 / c;
+            dist = 0.0; // silence a warning
             for(i = 0; i < 6; ++i) {
                 root[i] = (2.0*(c+dotp) + root[i] + (c-2.0*dotp)*(c-2.0*dotp)
                     / root[i]) / (3.0*c);
 
                 // is this root real?
-                if(fabs(imag(root[i])) < 1.0e-12) {
-                    if(n == 0) {
-                        lambda = real(root[i]);
+                if(fabs(imag(root[i])) < 1.0e-10) {
+                    temp[0] = real(root[i]);
+
+                    // are we in range?
+                    if(temp[0] <= upper) {
+
+                        // calculate the distance
+                        temp[1] = c*(dotp - temp[0]*c*0.5 + c*0.25);
+                        if(temp[1] < 0.0) {
+                            // temp[1] is analytically non-negative
+                            // if we're here, it's noise
+                            temp[1] = 0.0;
+                        }
+                        else {
+                            temp[1] = fabs(temp[0])*sqrt(temp[1]);
+                        }
+
+                        if(n == 0) {
+                            lambda = temp[0];
+                            dist = temp[1];
+                        }
+                        else {
+                            if(temp[1] < dist) {
+                                lambda = temp[0];
+                                dist = temp[1];
+                            }
+                        }
+                        ++n;
                     }
-                    else {
-                        if(real(root[i]) < lambda)
-                            lambda = real(root[i]);
-                    }
-                    ++n;
                 }
             }
+
+            /*printf("c=%.16e d=%.16e z=%.16e L=%.4e", c, d, dotp, lambda);
+            if(n == 0) {
+                for(i = 0; i < 6; ++i)
+                    printf("\n   %d: %.6e %.6e\n", i, real(root[i]), imag(root[i]));
+                fflush(stdout);
+                fprintf(stderr, "No real root\n");
+                fflush(stderr);
+                MADNESS_ASSERT(false);
+            }*/
             MADNESS_ASSERT(n > 0); // we should have at least one real root...
 
-            // now that we have the Lagrange multiplier, get the distance
-            lambda = c*lambda*lambda*(dotp - lambda*c*0.5 + c*0.25);
-            MADNESS_ASSERT(lambda >= 0.0); // this shouldn't be negative
-            lambda = sqrt(lambda);
+            /*if(d < 0.0)
+                printf(" INT");
+            else if(d > 0.0)
+                printf(" OUT");
+            printf(" R=%.4e\n", dist);
+            fflush(stdout);*/
 
             if(d > 0.0)
-                return lambda;
+                return dist;
             else
-                return -lambda;
+                return -dist;
         }
 
         /** \brief Computes the gradient of the SDF.
