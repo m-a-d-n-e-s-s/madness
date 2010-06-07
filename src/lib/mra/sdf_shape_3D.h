@@ -221,6 +221,8 @@ namespace madness {
         const coord_3d apex; ///< The apex
         const double c; ///< Curvature/radius of the surface
         const coord_3d dir;///< The direction of the axis, from the apex INSIDE
+        const long double zero; ///< Numerical zero for root-finding in sdf
+        const long double rootzero; ///< Numerical zero for the roots
 
     public:
         /** \brief Constructor for paraboloid
@@ -232,6 +234,8 @@ namespace madness {
             : apex(apex)
             , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
+            , zero(1.0e-14L)
+            , rootzero(1.0e-18L)
         {}
 
         /** \brief Computes the normal distance.
@@ -262,15 +266,11 @@ namespace madness {
                + c^2/2 L^3 == 0
 
             This can be solved analytically in Mathematica, producing a long,
-            messy equation that is implemented below.  There are three complex
-            solutions to this equation; at least one is always real.  For
-            later, we choose the Lagrange multiplier that is real and smallest
-            in magnitude.
-
-            Note that solution to this cubic equation uses both a square root
-            and a cubic root; we track all six combinations even though there
-            are only three distinct answers.  (Perhaps someone will simplify
-            the code someday).
+            messy equation.  This equation has some stability issues (large
+            cancellations in some areas) and is not implemented below.
+            Instead we use an iterative root finder to locate the roots of the
+            cubic.  The simple bisection method is used, perhaps someone will
+            improve the code someday).
 
             Once we have the correct Lagrange multiplier,
             |pt - pt0|^2 = c L^2 (z - L c/2 + c/4).
@@ -280,12 +280,20 @@ namespace madness {
             \param pt Point at which to compute the distance from the surface
             \return The signed distance from the surface */
         double sdf(const coord_3d& pt) const {
-            coord_3d diff;
+            // work in extended precision since this calculation can have
+            // large cancellations
+            Vector<long double, 3> diff;
             unsigned int i, n;
-            double dotp, d;
-            std::complex<double> root[6];
-            std::complex<double> cubicroot(-0.5, sqrt(3.0)*0.5);
-            double lambda, dist, temp[2], upper;
+            long double dotp, d;
+            long double lambda, dist, temp[2], upper;
+            std::vector<long double> roots;
+
+            // silence warnings
+            lambda = 0.0;
+            dist = 0.0;
+
+            // avoid lots of casting
+            long double c = (long double)this->c;
 
             for(i = 0; i < 3; ++i)
                 diff[i] = pt[i] - apex[i];
@@ -297,95 +305,55 @@ namespace madness {
 
             d = diff[0]*diff[0] + diff[1]*diff[1] + diff[2]*diff[2]
                 - c * dotp;
+            //printf("   %.16Le %.16Le %.16Le\n", c, d, dotp);
 
-            root[0] = 27.0*c*(d + c*dotp)*(2.0*c*c*c + 15.0*c*c*dotp
-                - 16.0*dotp*dotp*dotp + 24.0*c*dotp*dotp
-                + 27.0*c*d);
-
-            // take the square root and use both signs
-            root[0] = sqrt(root[0]);
-            root[1] = -root[0];
-
-            lambda = -c*c*c - 21.0*c*c*dotp + 8.0*dotp*dotp*dotp
-                - 27.0*c*d - 12.0*c*dotp*dotp;
-
-            for(i = 0; i < 2; ++i) {
-                root[i] += lambda;
-
-                // take the cubic root and account for complex roots
-                root[i] = pow(root[i], 1.0/3.0);
-            }
-
-            for(i = 2; i < 6; ++i)
-                root[i] = root[i-2] * cubicroot;
-
-            // finalize the calculation
-            // and get real root (Lagrange multiplier) that minimizes
-            // the distance.
+            // get the real roots (Lagrange multipliers) and find the one
+            // that minimizes the distance.
             // note that real roots must be no bigger than (4dotp+c)/(2c)
             // from the analytical form
-            n = 0; // the number of acceptable real roots thus encountered
-            upper = (4.0*dotp + c) * 0.5 / c;
-            dist = 0.0; // silence a warning
-            for(i = 0; i < 6; ++i) {
-                root[i] = (2.0*(c+dotp) + root[i] + (c-2.0*dotp)*(c-2.0*dotp)
-                    / root[i]) / (3.0*c);
+            roots = get_roots(c, d, dotp);
+            upper = (4.0L*dotp + c) * 0.5L / c;
+            n = 0;
+            for(std::vector<long double>::iterator iter = roots.begin();
+                iter != roots.end(); ++iter) {
 
-                // is this root real?
-                if(fabs(imag(root[i])) < 1.0e-10) {
-                    temp[0] = real(root[i]);
+                temp[0] = *iter;
 
-                    // are we in range?
-                    if(temp[0] <= upper) {
+                // are we in range?
+                if(temp[0] <= upper) {
 
-                        // calculate the distance
-                        temp[1] = c*(dotp - temp[0]*c*0.5 + c*0.25);
-                        if(temp[1] < 0.0) {
-                            // temp[1] is analytically non-negative
-                            // if we're here, it's noise
-                            temp[1] = 0.0;
-                        }
-                        else {
-                            temp[1] = fabs(temp[0])*sqrt(temp[1]);
-                        }
+                    // calculate the distance
+                    temp[1] = c*(dotp - temp[0]*c*0.5L + c*0.25L);
+                    if(temp[1] < 0.0L) {
+                        // temp[1] is analytically non-negative
+                        // if we're here, it's noise
+                        temp[1] = 0.0L;
+                    }
+                    else {
+                        temp[1] = fabs(temp[0])*sqrt(temp[1]);
+                    }
 
-                        if(n == 0) {
+                    if(n == 0) {
+                        lambda = temp[0];
+                        dist = temp[1];
+                    }
+                    else {
+                        if(temp[1] < dist) {
                             lambda = temp[0];
                             dist = temp[1];
                         }
-                        else {
-                            if(temp[1] < dist) {
-                                lambda = temp[0];
-                                dist = temp[1];
-                            }
-                        }
-                        ++n;
                     }
+                    ++n;
                 }
             }
+            //printf("   L = %.16Le D = %.16Le\n", lambda, dist);
 
-            /*printf("c=%.16e d=%.16e z=%.16e L=%.4e", c, d, dotp, lambda);
-            if(n == 0) {
-                for(i = 0; i < 6; ++i)
-                    printf("\n   %d: %.6e %.6e\n", i, real(root[i]), imag(root[i]));
-                fflush(stdout);
-                fprintf(stderr, "No real root\n");
-                fflush(stderr);
-                MADNESS_ASSERT(false);
-            }*/
             MADNESS_ASSERT(n > 0); // we should have at least one real root...
 
-            /*if(d < 0.0)
-                printf(" INT");
-            else if(d > 0.0)
-                printf(" OUT");
-            printf(" R=%.4e\n", dist);
-            fflush(stdout);*/
-
-            if(d > 0.0)
-                return dist;
+            if(d > 0.0L)
+                return (double)dist;
             else
-                return -dist;
+                return (double)(-dist);
         }
 
         /** \brief Computes the gradient of the SDF.
@@ -394,6 +362,229 @@ namespace madness {
             \return the gradient */
         coord_3d grad_sdf(const coord_3d& pt) const {
             MADNESS_EXCEPTION("gradient method is not yet implemented for this shape",0);
+        }
+
+        protected:
+        /** \brief Finds real root(s) of the cubic polynomial in the sdf
+                   function.
+
+            The cubic equation can successfully solve the cubic analytically,
+            but evaluating the expression can be numerically irksome.
+            Analytical results show that at most one root appears in each of
+            the domains
+            - (-Infinity, (2z+2c-|c-2z|)/(3c))
+            - ((2z+2c-|c-2z|)/(3c), (2z+2c+|c-2z|)/(3c))
+            - ((2z+2c-|c-2z|)/(3c), Infinity).
+
+            Furthermore, the cubic is always increasing in the first and
+            third domains, and always decreasing in the second.
+
+            Since the cubic is easy to evaluate, we use simple bisections
+            to find the roots...  this can probably be improved.
+
+            Cubic equation of interest:
+            d + c(2z+c/2)*L - c(c+z)L^2 + c^2/2L^3 == 0
+
+            \param[in] c Parameter c for the paraboloid.
+            \param[in] d The d parameter: x^2+y^2-cz = d
+            \param[in] z The distance from the apex along the paraboloid's
+                         axis (called dotp in sdf)
+            \return The root(s)
+        */
+        std::vector<long double> get_roots(const long double c,
+                             const long double d, const long double z) const {
+
+            long double lower, upper, bound;
+            std::vector<long double> roots(0);
+            long double derivroot1, derivroot2, temp;
+            bool hasregion2, keepgoing, foundroot;
+
+            // calculate the region boundaries
+            lower = 2.0L*(c+z);
+            upper = fabs(c - 2.0L*z);
+            hasregion2 = (upper >= 1.0e-10L);
+
+            derivroot1 = (lower - upper) / (3.0L*c);
+            derivroot2 = (lower + upper) / (3.0L*c);
+
+            // first region -------------------------------------------------
+            foundroot = false;
+            upper = derivroot1;
+
+            // if cubic(upper) < 0.0, there's no root in this region
+            bound = eval_cubic(upper, c, d, z);
+            if(fabs(bound) < zero) {
+                // this is the root!
+                roots.push_back(upper);
+                hasregion2 = false;
+            }
+            if(bound > 0.0L) {
+                // there's a root in region 1: find it!
+
+                // need to find a lower bound
+                temp = -1.0;
+                do {
+                    lower = upper + temp;
+                    bound = eval_cubic(lower, c, d, z);
+                    if(fabs(bound) < zero) {
+                        // found the root!
+                        roots.push_back(lower);
+                        foundroot = true;
+                        break;
+                    }
+
+                    keepgoing = (bound > 0.0L);
+                    // if we didn't cross the root, we have a better upperbound
+                    if(keepgoing)
+                        upper = lower;
+                } while(keepgoing);
+
+                // with a lower and upper bound, find the root!
+                if(!foundroot) {
+                    temp = find_root(lower, upper, c, d, z, true);
+                    roots.push_back(temp);
+                }
+            }
+            else {
+                // no root in region 1; hence no root in region 2
+                hasregion2 = false;
+            }
+
+            // second region ------------------------------------------------
+            if(hasregion2) {
+                lower = derivroot1;
+                upper = derivroot2;
+                // the lower range has to be positive the upper range has to be
+                // negative
+                if(lower > 0.0L && upper < 0.0L) {
+                    temp = find_root(lower, upper, c, d, z, false);
+                    roots.push_back(temp);
+                }
+            }
+
+            // third region -------------------------------------------------
+            foundroot = false;
+            lower = derivroot2;
+
+            // if cubic(upper) > 0.0, there's no root in this region
+            bound = eval_cubic(lower, c, d, z);
+            if(fabs(bound) < zero) {
+                // this is the root!
+                roots.push_back(lower);
+            }
+            if(bound < 0.0L) {
+                // there's a root in region 3: find it!
+
+                // need to find an upper bound
+                temp = 1.0;
+                do {
+                    upper = lower + temp;
+                    bound = eval_cubic(upper, c, d, z);
+                    if(fabs(bound) < zero) {
+                        // found the root!
+                        roots.push_back(upper);
+                        foundroot = true;
+                        break;
+                    }
+
+                    keepgoing = (bound < 0.0L);
+                    // if we didn't cross the root, we have a better lowerbound
+                    if(keepgoing)
+                        lower = upper;
+                } while(keepgoing);
+
+                // with a lower and upper bound, find the root!
+                if(!foundroot) {
+                    temp = find_root(lower, upper, c, d, z, true);
+                    roots.push_back(temp);
+                }
+            }
+
+            return roots;
+        }
+
+        /** Finds a root in the specified range for the cubic equation.
+
+            This uses a simple bisection method... perhaps someone will
+            improve it one day...
+
+            \param[in] lower The bottom of the range
+            \param[in] upper The top of the range
+            \param[in] c Parameter c for the paraboloid.
+            \param[in] d The d parameter: x^2+y^2-cz = d
+            \param[in] z The distance from the apex along the paraboloid's
+                         axis (called dotp in sdf)
+            \param[in] dir True if the function is increasing in the domain,
+                           false for decreasing
+            \return the root.
+        */
+        long double find_root(long double lower, long double upper,
+                              const long double c, const long double d,
+                              const long double z, bool dir) const {
+
+            long double value, middle;
+            do {
+                middle = 0.5L*(upper + lower);
+                value = eval_cubic(middle, c, d, z);
+
+                if(fabs(value) < zero)
+                    return middle;
+
+                if(value < 0.0L) {
+                    if(dir)
+                        lower = middle;
+                    else
+                        upper = middle;
+                }
+                else {
+                    if(dir)
+                        upper = middle; 
+                    else
+                        lower = middle;
+                }
+            } while(fabs(upper-lower) > rootzero);
+
+            return middle;
+        }
+
+        /** \brief Evaluates the cubic equation for the Lagrangian multipliers
+
+            Cubic equation of interest:
+            d + c(2z+c/2)*L - c(c+z)L^2 + c^2/2L^3 == 0
+
+            \param[in] x Value at which to evaluate.
+            \param[in] c Parameter c for the paraboloid.
+            \param[in] d The d parameter: x^2+y^2-cz = d
+            \param[in] z The distance from the apex along the paraboloid's
+                         axis (called dotp in sdf)
+            \return the value
+        */
+        long double eval_cubic(const long double x, const long double c,
+                               const long double d, const long double z)
+                    const {
+            return ((c*0.5L*x - (c + z))*x + (2.0L*z + c*0.5L))*c*x + d;
+        }
+
+        /** \brief Evaluates the derivative of the cubic equation for the
+                   Lagrangian multipliers
+
+            Cubic equation of interest:
+            d + c(2z+c/2)*L - c(c+z)L^2 + c^2/2L^3 == 0
+
+            Derivative:
+            c(2z+c/2) - 2c(c+z)L + 3c^2/2 L^2
+
+            \param[in] x Value at which to evaluate.
+            \param[in] c Parameter c for the paraboloid.
+            \param[in] d The d parameter: x^2+y^2-cz = d
+            \param[in] z The distance from the apex along the paraboloid's
+                         axis (called dotp in sdf)
+            \return the value
+        */
+        long double eval_cubic_deriv(const long double x, const long double c,
+                               const long double d, const long double z)
+                    const {
+            return c*((1.5L*c*x - 2.0L*(c+z))*x + 2.0L*z + 0.5L*c);
         }
     };
 
