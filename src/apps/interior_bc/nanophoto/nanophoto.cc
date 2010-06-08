@@ -83,7 +83,7 @@ int main(int argc, char **argv) {
         eps = atof(argv[3]) / 0.052918; // convert to a.u.
         if(eps <= 0.0) error("eps must be positive, and hopefully small");
 
-        phi = atof(argv[4]) * 3.6749322e-5; // convert to a.u.
+        phi = atof(argv[4]) * 3.6749324e-5; // convert to a.u.
 
         d = atof(argv[5]) / 0.052918; // convert to a.u.
     }
@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
         // print out the arguments
         printf("Tip-Surface Distance: %.6e nm\nPotential Difference: %.6e " \
             "mV\nk: %d\nthresh: %.6e\neps: %.6e nm\n", d * 0.052918,
-            phi / 3.6749322e-5, k, thresh, eps * 0.052918);
+            phi * 27211.385, k, thresh, eps * 0.052918);
 
         // project the surface function
         printf("Load Balancing\n   --- Projecting domain mask to low order.\n");
@@ -189,7 +189,7 @@ int main(int argc, char **argv) {
     dens = real_factory_3d(world).functor(tpm);
     double denstrace = dens.trace();
     if(world.rank() == 0) {
-        // this should be close to 2
+        // this should be close to -2
         printf("   trace = %.6e\n", denstrace);
         fflush(stdout);
     }
@@ -254,8 +254,8 @@ int main(int argc, char **argv) {
 
         // make the operators and prepare GMRES
         FunctionSpace<double, 3> space(world);
-        double resid_thresh = 1.0e-5;
-        double update_thresh = 1.0e-5;
+        double resid_thresh = 1.0e-3;
+        double update_thresh = 1.0e-3;
         int maxiter = 30;
         GMRES(space, dcio, grhs, usol, maxiter, resid_thresh, update_thresh,
             true);
@@ -264,6 +264,9 @@ int main(int argc, char **argv) {
             printf("Writing solution to archive\n");
             fflush(stdout);
         }
+
+        // scale back to mV from a.u.
+        usol.scale(27211.385);
 
         // write the solution to archive
         ParallelOutputArchive output(world, arname, 10);
@@ -299,7 +302,7 @@ void vtk_output(World &world, const char *funcname,
     for(int i = 1; i < 3; ++i) {
         plotlo[i] = cell(i, 0);
         plothi[i] = cell(i, 1);
-        npts[i] = 101;
+        npts[i] = 251;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
@@ -309,8 +312,8 @@ void vtk_output(World &world, const char *funcname,
     // print out the solution function near the area of interest
     sprintf(filename, "%s-local.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
-    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 211;
-    plotlo[2] = -5.0 / 0.052918; plothi[2] = 20.0 / 0.052918; npts[2] = 151;
+    plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 251;
+    plotlo[2] = -10.0 / 0.052918; plothi[2] = 30.0 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
@@ -318,8 +321,8 @@ void vtk_output(World &world, const char *funcname,
     // print out the solution function near the area of interest
     sprintf(filename, "%s-mol.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
-    plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 201;
-    plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 201;
+    plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 251;
+    plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);

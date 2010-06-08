@@ -165,7 +165,8 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 return dmi.mask(solid->sdf(x)) * dmi.mask(-tip->sdf(x));
                 break;
             case DENSITY:
-                return Inhomogeneity(x);
+                // remember that Inhomogeneity returns -4Pi n(x)...
+                return Inhomogeneity(x) * (-0.25) / constants::pi;
                 break;
             default:
                 error("shouldn't be here...");
@@ -207,23 +208,17 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
 
             if(ret < 1.0e-8)
                 return 0.0;
-            return 2.0*ret; // 2 for spin degeneracy
+
+            // n(x) = -2.0*ret is the density (2 for spin degeneracy and a
+            // negative sign for charge), but we want the inhomogeneity for
+            // the PDE, which is -4Pi n(x).  Thus, the total inhomogeneity
+            // is 8Pi n(x).
+            return 8.0*constants::pi*ret;
         }
 
         std::vector<Vector<double, 3> > special_points() const {
-            if(fop == DOMAIN_MASK) {
+            if(fop == DOMAIN_MASK || fop == SURFACE) {
                 return std::vector<Vector<double, 3> >();
-            }
-            else if(fop == SURFACE) {
-                std::vector<Vector<double, 3> > vec;
-                Vector<double, 3> pt;
-
-                pt[0] = pt[1] = pt[2] = 0.0;
-                //vec.push_back(pt);
-
-                pt[2] = d;
-                //vec.push_back(pt);
-                return vec;
             }
             else
                 return specpts;
