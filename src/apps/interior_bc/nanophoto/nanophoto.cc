@@ -140,13 +140,15 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
 
+    real_function_3d dmask, dens;
+
     // low order defaults
     FunctionDefaults<3>::set_k(6);
     FunctionDefaults<3>::set_thresh(1.0e-4);
 
     // domain mask
     tpm->fop = DOMAIN_MASK;
-    real_function_3d dmask = real_factory_3d(world).functor(tpm);
+    dmask = real_factory_3d(world).functor(tpm);
 
     // density
     if(world.rank() == 0) {
@@ -154,7 +156,7 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
     tpm->fop = DENSITY;
-    real_function_3d dens = real_factory_3d(world).functor(tpm);
+    dens = real_factory_3d(world).functor(tpm);
 
     // do the load balancing
     LoadBalanceDeux<3> lb(world);
@@ -180,16 +182,33 @@ int main(int argc, char **argv) {
     vtk_output(world, funcname, dmask);
     dmask.clear();
 
-    // get the molecular density -- this segment can be commented out
+    // get the electron density -- this segment can be commented out
     if(world.rank() == 0) {
-        printf("Projecting the molecular density\n");
+        printf("Projecting the electron density\n");
         fflush(stdout);
     }
-    tpm->fop = DENSITY;
+    tpm->fop = ELECTRON_DENSITY;
     dens = real_factory_3d(world).functor(tpm);
     double denstrace = dens.trace();
     if(world.rank() == 0) {
         // this should be close to -2
+        printf("   trace = %.6e\n", denstrace);
+        fflush(stdout);
+    }
+    sprintf(funcname, "elecdens");
+    vtk_output(world, funcname, dens);
+    dens.clear();
+
+    // get the total density -- this segment can be commented out
+    if(world.rank() == 0) {
+        printf("Projecting the total density\n");
+        fflush(stdout);
+    }
+    tpm->fop = DENSITY;
+    dens = real_factory_3d(world).functor(tpm);
+    denstrace = dens.trace();
+    if(world.rank() == 0) {
+        // this should be close to 0
         printf("   trace = %.6e\n", denstrace);
         fflush(stdout);
     }
@@ -294,7 +313,7 @@ void vtk_output(World &world, const char *funcname,
     char filename[80];
 
     // print out the function on the total domain
-    sprintf(filename, "%s.vts", funcname);
+    sprintf(filename, "%s-coarse.vts", funcname);
     const Tensor<double> cell = FunctionDefaults<3>::get_cell();
     Vector<double, 3> plotlo, plothi;
     Vector<long, 3> npts;
@@ -310,7 +329,7 @@ void vtk_output(World &world, const char *funcname,
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
-    sprintf(filename, "%s-local.vts", funcname);
+    sprintf(filename, "%s-medium.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
     plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 251;
     plotlo[2] = -10.0 / 0.052918; plothi[2] = 30.0 / 0.052918; npts[2] = 251;
@@ -319,10 +338,19 @@ void vtk_output(World &world, const char *funcname,
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
-    sprintf(filename, "%s-mol.vts", funcname);
+    sprintf(filename, "%s-fine.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
     plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 251;
     plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 251;
+    scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_end<3>(world, filename);
+
+    // print out the solution function near the area of interest
+    sprintf(filename, "%s-hyperfine.vts", funcname);
+    plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
+    plotlo[1] = -0.0015 / 0.052918; plothi[1] = 0.0015 / 0.052918; npts[1] = 251;
+    plotlo[2] = 5.03611645505839 / 0.052918; plothi[2] = 5.03911645505839 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);

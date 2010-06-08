@@ -47,7 +47,8 @@
 
 using namespace madness;
 
-enum FunctorOutput { SURFACE, DIRICHLET_RHS, DOMAIN_MASK, DENSITY };
+enum FunctorOutput { SURFACE, DIRICHLET_RHS, DOMAIN_MASK, DENSITY,
+                     ELECTRON_DENSITY };
 
 // load balancing structure lifted from dataloadbal.cc
 template <int NDIM>
@@ -82,18 +83,20 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         GaussianDomainMask dmi;
         SignedDFInterface<3> *tip, *solid;
         double penalty_prefact, eps;
-        int dda_init_level, dens_init_level;
+        int dda_init_level, pdens_init_level, edens_init_level;
         const Tensor<double> &denscoeffs;
         const std::vector<BasisFunc> &basis;
-        std::vector<Vector<double, 3> > specpts;
+        std::vector<Vector<double, 3> > atom_centers;
         double phi, d;
+        double proton_stdev, proton_inverse;
 
     public:
         /// which function to use when projecting:
         /// -# the weighted surface (SURFACE)
         /// -# the rhs of the auxiliary DE (DIRICHLET_RHS)
         /// -# the domain mask (DOMAIN_MASK)
-        /// -# the molecular density (DENSITY)
+        /// -# the total charge density (DENSITY)
+        /// -# the electron charge density (ELECTRON_DENSITY)
         FunctorOutput fop;
 
         /// \brief Sets up the data for the problem-inspecific parts.
@@ -102,28 +105,38 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             const std::vector<BasisFunc> &basis, double phi, double d)
             : dmi(eps), tip(NULL), solid(NULL), penalty_prefact(penalty),
               eps(eps), denscoeffs(denscoeffs), basis(basis),
-              specpts(0), phi(phi), d(d), fop(DIRICHLET_RHS) {
+              atom_centers(0), phi(0.5*phi), d(d), proton_stdev(0.0003/0.052918),
+              fop(DIRICHLET_RHS) {
+
+            // note on phi: distribute the potential difference across the
+            // two surfaces (only half on each)
 
             // calculate some nice initial projection level
             // should be no lower than 6, but may need to be higher for small
             // length scales
 
             // epsilon from the diffuse domain approximation
-            dda_init_level = ceil(log(6614.0 / eps) / log(2.0) - 4);
+            dda_init_level = ceil(log(5669.15 / eps) / log(2.0) - 4);
             if(dda_init_level < 6)
                 dda_init_level = 6;
 
-            // smallest length scale from the molecular density
-            dens_init_level = ceil(log(6614.0 / sqrt(0.5 / 18.731137))
+            // smallest length scale from the electron density
+            edens_init_level = ceil(log(5669.15 / sqrt(0.5 / 18.731137))
                 / log(2.0) - 4);
-            if(dens_init_level < 6)
-                dens_init_level = 6;
+            if(edens_init_level < 6)
+                edens_init_level = 6;
+
+            // smallest length scale from the total density
+            pdens_init_level = ceil(log(5669.15 / proton_stdev)
+                / log(2.0) - 1);
+            if(pdens_init_level < 6)
+                pdens_init_level = 6;
 
             // make the list of special points for the atoms
             for(std::vector<Atom*>::const_iterator iter = atoms.begin();
                 iter != atoms.end(); ++iter) {
 
-                specpts.push_back((*iter)->getCenter());
+                atom_centers.push_back((*iter)->getCenter());
             }
 
             // make the sdfs
@@ -139,6 +152,8 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             point[2] = d;
             normal[2] = 1.0;
             tip = new SDFParaboloid(25.0 / 0.052918, point, normal);
+
+            proton_inverse = 0.5 / (proton_stdev * proton_stdev);
         }
 
         virtual ~TipMolecule() {
@@ -168,6 +183,9 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 // remember that Inhomogeneity returns -4Pi n(x)...
                 return Inhomogeneity(x) * (-0.25) / constants::pi;
                 break;
+            case ELECTRON_DENSITY:
+                return ElectronDensity(x);
+                break;
             default:
                 error("shouldn't be here...");
                 return 0.0;
@@ -179,10 +197,45 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             if(x[2] > 0.5*d)
                 return phi;
             else
-                return 0.0;
+                return -phi;
         }
 
+        /** \brief The PDE's inhomogeneity.
+
+            The Inhomogeneity is -4Pi n(x). */
         virtual double Inhomogeneity(const Vector<double, 3> &x) const {
+            // all density is close to the (0,0,5ang) for this problem
+            double dens;
+            double r2;
+            double norm = sqrt(proton_inverse / constants::pi);
+            norm *= norm*norm;
+
+            // proton density -----------------
+            // go through the atoms
+            dens = 0.0;
+            for(std::vector<Vector<double, 3> >::const_iterator iter = 
+                     atom_centers.begin();
+                iter != atom_centers.end();
+                ++iter) {
+
+                r2 = (x[0] - (*iter)[0])*(x[0] - (*iter)[0])
+                     + (x[1] - (*iter)[1])*(x[1] - (*iter)[1])
+                     + (x[2] - (*iter)[2])*(x[2] - (*iter)[2]);
+
+                r2 *= proton_inverse;
+                if(r2 < 30.0)
+                    dens += exp(-r2) * norm;
+            }
+
+            // add in the electron density
+            dens += ElectronDensity(x);
+
+            // The inhomogeneity of the PDE is -4Pi n(x); dens is presently
+            // n(x)
+            return -4.0*constants::pi*dens;
+        }
+
+        virtual double ElectronDensity(const Vector<double, 3> &x) const {
             // all density is close to the (0,0,5ang) for this problem
             if(x[0]*x[0] + x[1]*x[1] +
                 (x[2]-5.0/0.052918)*(x[2]-5.0/0.052918) > 100.0)
@@ -210,10 +263,8 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 return 0.0;
 
             // n(x) = -2.0*ret is the density (2 for spin degeneracy and a
-            // negative sign for charge), but we want the inhomogeneity for
-            // the PDE, which is -4Pi n(x).  Thus, the total inhomogeneity
-            // is 8Pi n(x).
-            return 8.0*constants::pi*ret;
+            // negative sign for charge)
+            return -2.0*ret;
         }
 
         std::vector<Vector<double, 3> > special_points() const {
@@ -221,7 +272,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 return std::vector<Vector<double, 3> >();
             }
             else
-                return specpts;
+                return atom_centers;
         }
 
         Level special_level() {
@@ -229,11 +280,14 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 return dda_init_level;
             }
             else if(fop == DENSITY) {
-                return dens_init_level;
+                return pdens_init_level;
+            }
+            else if(fop == ELECTRON_DENSITY) {
+                return edens_init_level;
             }
             else {
-                if(dens_init_level > dda_init_level)
-                    return dens_init_level;
+                if(pdens_init_level > dda_init_level)
+                    return pdens_init_level;
                 else
                     return dda_init_level;
             }
