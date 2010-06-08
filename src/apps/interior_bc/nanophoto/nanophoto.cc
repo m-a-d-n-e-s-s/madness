@@ -95,10 +95,10 @@ int main(int argc, char **argv) {
 
     // box size
     Tensor<double> cell(3, 2);
-    cell(0,0) = cell(1,0) = -175.0 / 0.052918;
-    cell(0,1) = cell(1,1) = 175.0 / 0.052918;
-    cell(2,0) = 10.0 * (constants::pi - 5.0) / 0.052918;
-    cell(2,1) = 150.0 / 0.052918;
+    cell(0,0) = cell(1,0) = -150.0 / 0.052918;
+    cell(0,1) = cell(1,1) = 150.0 / 0.052918;
+    cell(2,0) = 10.0 * (constants::pi - 8.0) / 0.052918;
+    cell(2,1) = (10.0 * (constants::pi - 8.0) + 300.0) / 0.052918;
     FunctionDefaults<3>::set_cell(cell);
 
     // make the basis functions to get the density
