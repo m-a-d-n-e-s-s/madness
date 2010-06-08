@@ -82,7 +82,7 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         GaussianDomainMask dmi;
         SignedDFInterface<3> *tip, *solid;
         double penalty_prefact, eps;
-        int initial_level;
+        int dda_init_level, dens_init_level;
         const Tensor<double> &denscoeffs;
         const std::vector<BasisFunc> &basis;
         std::vector<Vector<double, 3> > specpts;
@@ -109,15 +109,15 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
             // length scales
 
             // epsilon from the diffuse domain approximation
-            initial_level = ceil(log(6614.0 / eps) / log(2.0) - 4);
+            dda_init_level = ceil(log(6614.0 / eps) / log(2.0) - 4);
+            if(dda_init_level < 6)
+                dda_init_level = 6;
 
             // smallest length scale from the molecular density
-            int n = ceil(log(6614.0 / sqrt(0.5 / 18.731137)) / log(2.0) - 4);
-            if(initial_level < n)
-                initial_level = n;
-
-            if(initial_level < 6)
-                initial_level = 6;
+            dens_init_level = ceil(log(6614.0 / sqrt(0.5 / 18.731137))
+                / log(2.0) - 4);
+            if(dens_init_level < 6)
+                dens_init_level = 6;
 
             // make the list of special points for the atoms
             for(std::vector<Atom*>::const_iterator iter = atoms.begin();
@@ -148,21 +148,18 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
                 delete tip;
         }
 
-        /// \brief The initial level to which functions should be projected.
-        int get_initial_level() const { return initial_level; }
-
         /// \brief The operator for projecting a MADNESS function.
         double operator() (const Vector<double, 3> &x) const {
             switch(fop) {
             case DIRICHLET_RHS:
                 return dmi.mask(solid->sdf(x)) * dmi.mask(-tip->sdf(x))
                     * Inhomogeneity(x) - DirichletCond(x) *
-                    dmi.surface(solid->sdf(x)) * dmi.surface(-tip->sdf(x)) *
+                    (dmi.surface(solid->sdf(x)) + dmi.surface(-tip->sdf(x))) *
                     penalty_prefact;
                 break;
             case SURFACE:
-                return dmi.surface(solid->sdf(x)) * dmi.surface(-tip->sdf(x)) *
-                    penalty_prefact;
+                return (dmi.surface(solid->sdf(x)) + dmi.surface(-tip->sdf(x)))
+                    * penalty_prefact;
                 break;
             case DOMAIN_MASK:
                 return dmi.mask(solid->sdf(x)) * dmi.mask(-tip->sdf(x));
@@ -214,22 +211,38 @@ class TipMolecule : public FunctionFunctorInterface<double, 3> {
         }
 
         std::vector<Vector<double, 3> > special_points() const {
-            if(fop == DOMAIN_MASK || fop == SURFACE) {
+            if(fop == DOMAIN_MASK) {
+                return std::vector<Vector<double, 3> >();
+            }
+            else if(fop == SURFACE) {
                 std::vector<Vector<double, 3> > vec;
                 Vector<double, 3> pt;
 
                 pt[0] = pt[1] = pt[2] = 0.0;
-                vec.push_back(pt);
+                //vec.push_back(pt);
 
                 pt[2] = d;
-                vec.push_back(pt);
+                //vec.push_back(pt);
                 return vec;
             }
             else
                 return specpts;
         }
 
-        Level special_level() { return initial_level+1; }
+        Level special_level() {
+            if(fop == DOMAIN_MASK || fop == SURFACE) {
+                return dda_init_level;
+            }
+            else if(fop == DENSITY) {
+                return dens_init_level;
+            }
+            else {
+                if(dens_init_level > dda_init_level)
+                    return dens_init_level;
+                else
+                    return dda_init_level;
+            }
+        }
 };
 
 /** \brief The operator needed for solving for \f$u\f$ with GMRES */

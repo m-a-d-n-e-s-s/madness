@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
             phi / 3.6749322e-5, k, thresh, eps * 0.052918);
 
         // project the surface function
-        printf("Load Balancing\n   --- Projecting surface to low order.\n");
+        printf("Load Balancing\n   --- Projecting domain mask to low order.\n");
         fflush(stdout);
     }
 
@@ -144,26 +144,26 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(6);
     FunctionDefaults<3>::set_thresh(1.0e-4);
 
-    // surface function
-    tpm->fop = SURFACE;
-    real_function_3d surf = real_factory_3d(world).functor(tpm);
+    // domain mask
+    tpm->fop = DOMAIN_MASK;
+    real_function_3d dmask = real_factory_3d(world).functor(tpm);
 
-    // rhs function (phi*f - penalty*S*g)
+    // density
     if(world.rank() == 0) {
-        printf("Low order rhs\n");
+        printf("   --- Projecting density to low order.\n");
         fflush(stdout);
     }
-    tpm->fop = DIRICHLET_RHS;
-    real_function_3d rhs = real_factory_3d(world).functor(tpm);
+    tpm->fop = DENSITY;
+    real_function_3d dens = real_factory_3d(world).functor(tpm);
 
     // do the load balancing
     LoadBalanceDeux<3> lb(world);
-    lb.add_tree(surf, DirichletLBCost<3>(1.0, 1.0));
-    lb.add_tree(rhs, DirichletLBCost<3>(1.0, 1.0));
+    lb.add_tree(dmask, DirichletLBCost<3>(1.0, 1.0));
+    lb.add_tree(dens, DirichletLBCost<3>(1.0, 1.0));
     // set this map as default and redistribute the existing functions
     FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0, false));
-    surf.clear();
-    rhs.clear();
+    dmask.clear();
+    dens.clear();
 
     // set the defaults to the real deal
     FunctionDefaults<3>::set_k(k);
@@ -176,7 +176,7 @@ int main(int argc, char **argv) {
     }
     sprintf(funcname, "domainmask");
     tpm->fop = DOMAIN_MASK;
-    real_function_3d dmask = real_factory_3d(world).functor(tpm);
+    dmask = real_factory_3d(world).functor(tpm);
     vtk_output(world, funcname, dmask);
     dmask.clear();
 
@@ -186,7 +186,7 @@ int main(int argc, char **argv) {
         fflush(stdout);
     }
     tpm->fop = DENSITY;
-    real_function_3d dens = real_factory_3d(world).functor(tpm);
+    dens = real_factory_3d(world).functor(tpm);
     double denstrace = dens.trace();
     if(world.rank() == 0) {
         // this should be close to 2
@@ -213,16 +213,24 @@ int main(int argc, char **argv) {
         input.close();
     }
     else {
-        // reproject the surface and rhs functions to the requested thresh / k
+        // project the surface and rhs functions
         if(world.rank() == 0) {
-            printf("Reprojecting the surface and rhs functions\n");
+            printf("Projecting the surface function\n");
             fflush(stdout);
         }
         tpm->fop = SURFACE;
-        surf = real_factory_3d(world).functor(tpm);
+        real_function_3d surf = real_factory_3d(world).functor(tpm);
+        sprintf(funcname, "surface");
+        vtk_output(world, funcname, surf);
 
+        if(world.rank() == 0) {
+            printf("Projecting the rhs function\n");
+            fflush(stdout);
+        }
         tpm->fop = DIRICHLET_RHS;
-        rhs = real_factory_3d(world).functor(tpm);
+        real_function_3d rhs = real_factory_3d(world).functor(tpm);
+        sprintf(funcname, "rhs");
+        vtk_output(world, funcname, rhs);
 
         // green's function
         // note that this is really -G...
@@ -291,10 +299,11 @@ void vtk_output(World &world, const char *funcname,
     for(int i = 1; i < 3; ++i) {
         plotlo[i] = cell(i, 0);
         plothi[i] = cell(i, 1);
-        npts[i] = 201;
+        npts[i] = 101;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
     plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
