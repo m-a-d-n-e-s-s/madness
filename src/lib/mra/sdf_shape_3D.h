@@ -234,8 +234,8 @@ namespace madness {
             : apex(apex)
             , c(c)
             , dir(direc*(1.0/sqrt(direc[0]*direc[0] + direc[1]*direc[1] + direc[2]*direc[2])))
-            , zero(1.0e-14L)
-            , rootzero(1.0e-18L)
+            , zero(1.0e-10L)
+            , rootzero(1.0e-14L)
         {}
 
         /** \brief Computes the normal distance.
