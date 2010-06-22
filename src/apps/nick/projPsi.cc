@@ -187,7 +187,7 @@ void loadList(World& world, std::vector<std::string>& boundList, std::vector<std
             while(unbound >> kx) {
                 unbound >> ky;
                 unbound >> kz;
-                kxyz.precision( 2 );
+                kxyz.precision( 8 );
                 kxyz << std::fixed;
                 kxyz << kx << " " << ky << " " << kz;
                 unboundList.push_back(kxyz.str());
@@ -314,61 +314,86 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
     }
 }
 
-/****************************************************************************
- * The correlation amplitude |<Psi(+)|basis>|^2
+///What is the overlap of the Coulombic eigenfunctions on the ground state?
+void groundOverlap(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z, double cutoff) {
+    //LOAD Psi(0)
+    if( wave_function_exists(world,'0') ) {
+        complex_functionT psi0 = wave_function_load(world,0);
+        PRINTLINE("\t\t|<basis|Psi(0)>|^2 ");
+        if(boundList.empty() && unboundList.empty()) {
+            boundList.push_back("1 0 0");
+            boundList.push_back("2 1 0");
+        }
+        std::string tag;
+        std::vector<WF> psiList;
+        complexd output;
+        PRINTLINE("|t=0>");
+        //phi_nlm
+        if( !boundList.empty() ) {
+            std::vector<std::string>::const_iterator boundIT;
+            int N, L, M;
+            for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
+                std::stringstream ss(*boundIT);
+                ss >> N >> L >> M;
+                //PROJECT Phi_nlm into MADNESS
+                complex_functionT phi_nlm = complex_factoryT(world).
+                    functor(functorT( new BoundWF(Z, N, L, M)));
+                PRINT(*boundIT << "   ");
+                // <phi_bound|Psi(0)>
+                output = phi_nlm.inner( psi0 ); 
+                PRINTLINE(std::scientific <<"\t" << real(output*conj(output)));
+            }
+        }
+        if( !unboundList.empty() ) {
+            std::vector<std::string>::const_iterator unboundIT;
+            for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
+                //parsing unboundList
+                double KX, KY, KZ;
+                std::stringstream ss(*unboundIT);
+                ss >> KX >> KY >> KZ;
+                double dArr[3] = {KX, KY, KZ};
+                const vector3D kVec(dArr);
+                //screening out the zero vector
+                if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
+                    //PROJECT Psi_k into MADNESS
+                    complex_functionT phi_k = 
+                        complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
+                    output =  inner(psi0,phi_k);
+                    std::cout.precision( 8 );
+                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
+                           std::scientific << "\t" << real(output*conj(output)) );
+                }
+            }
+        }else {
+            PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+        }
+    }
+} 
+
+/************************************************************************************
+ * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
  * bound.num               Integer triplets of quantum numbers   2  1  0 
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
- ****************************************************************************/
-void projectPsi(World& world, std::vector<WF> boundList, std::vector<WF> unboundList, double Z) {
-    std::vector<WF> psiList;
-    if(boundList.empty() && unboundList.empty())
-        loadDefaultBasis(world, boundList, Z);
-    std::ifstream f("wf.num");
-    if(f.is_open()) {
-        std::string tag;
-        //LOAD Psi(+)
-        while(f >> tag) {
-            if(wave_function_exists(world, atoi(tag.c_str())) ) {
-                WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
-                psiList.push_back(WF(tag, psi_t.func));
-                if( !boundList.empty() )
-                    csToFile(world, boundList, psi_t, "bnd");
-                if( !unboundList.empty() )
-                    csToFile(world, unboundList, psi_t, "unb");
-            } else {
-                PRINT("Function: " << tag << " not found"<< std::endl);
-            }
-        }
-        //join boundList -> unboundList
-        std::vector<WF> basisList;
-        std::vector<WF>::iterator basisI;
-        for(basisI = boundList.begin(); basisI != boundList.end(); basisI++) {
-            basisList.push_back(*basisI);
-        } for(basisI = unboundList.begin(); basisI != unboundList.end(); basisI++) {
-            basisList.push_back(*basisI);
-        }
-        displayToScreen(world, basisList, psiList,"\t\t|<Psi(+)|basis>|^2 ");
-        f.close();
-    } else {
-        PRINTLINE("File: wf.num expected to contain a " 
-                  << "list of integers of loadable wave functions");
-    }
-}
+ ************************************************************************************/
 
-void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, const double cutoff) {
+void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, const double cutoff) {
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
+    PRINTLINE("one");
     if( !f.is_open() ) {
         PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
     } else {
         if(boundList.empty() && unboundList.empty()) {
             boundList.push_back("1 0 0");
             boundList.push_back("2 1 0");
+            PRINTLINE("two");
         }
         //LOAD Psi(t)
         std::string tag;
+        PRINTLINE("three");
         std::vector<WF> psiList;
+        PRINTLINE("four");
         complexd output;
         PRINT("\t\t");
         while(f >> tag) {
@@ -380,31 +405,46 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                 PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
+        PRINTLINE("five");
+
         PRINT("\n");
-        std::vector<WF>::const_iterator psiIT;
+        //psiIT holds the time evolved wave functions
+        //LOAD bound states
+        complex_functionT psi0 = wave_function_load(world,0);
+        std::vector<WF>::const_iterator psiIT; 
         if( !boundList.empty() ) {
-            // <phi_bound|Psi(t)>
-            std::vector<std::string>::const_iterator boundIT;
-            int N, L, M;
-            for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
-                std::stringstream ss(*boundIT);
-                ss >> N >> L >> M;
-                //PROJECT Psi_nlm into MADNESS
-                complex_functionT psi_nlm = complex_factoryT(world).
-                    functor(functorT( new BoundWF(Z, N, L, M)));
-                PRINT(*boundIT << "   ");
-                for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                    output = psi_nlm.inner( psiIT->func ); 
-                    PRINT(std::scientific <<"\t" << real(output*conj(output)));
-                }
-                PRINT("\n");
-            }            
+            if( !wave_function_exists(world,0) ) {
+                PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+            }else {
+                // <phi_bound|Psi(t)>
+                std::vector<std::string>::const_iterator boundIT;
+                int N, L, M;
+                for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
+                    std::stringstream ss(*boundIT);
+                    ss >> N >> L >> M;
+                    //PROJECT Phi_nlm into MADNESS
+                    complex_functionT phi_nlm = complex_factoryT(world).
+                        functor(functorT( new BoundWF(Z, N, L, M)));
+                    complexd n_overlap_0 = inner(phi_nlm,psi0);
+                    PRINT(*boundIT << "   ");
+                    //loop through time steps
+                    for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
+                        //<phi_k|PSI(t)> = <phi_k|Psi(t)> - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
+                        output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
+                        PRINT(std::scientific <<"\t" << real(output*conj(output)));
+                    }
+                    PRINT("\n");
+                }            
+            }
         }
         clock_t before=0, after=0;
+        //LOAD unbound states
         if( !unboundList.empty() ) {
-            std::vector<std::string>::const_iterator unboundIT;
-            if( wave_function_exists(world,0) ) {
-                complex_functionT psi0 = wave_function_load(world,0);
+            if( !wave_function_exists(world,0) ) {
+                PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+            }else {
+                std::vector<std::string>::const_iterator unboundIT;
                 for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
                     //parsing unboundList
                     double KX, KY, KZ;
@@ -422,15 +462,15 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                         //complex_functionT phi_k = 
                         //complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
                         if(world.rank()==0) after = clock();
-                        std::cout.precision( 6 );
-                        PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                         std::cout.precision( 8 );
-                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                        complex_functionT k_overlap_0 = psi0.scale( phi_k.inner(psi0) );
-                        //look through different time steps (t=0 not amoung them)
+                        PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
+                        //<phi_k|Psi(0)>
+                        double_complex k_overlap_0 = inner(phi_k,psi0);
+                        //loop through time steps
                         for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                            //<phi_k|PSI(t)>
-                            output = phi_k.inner( psiIT->func - k_overlap_0 );
+                            //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
+                            //<phi_k|PSI(t)> = <phi_k|Psi(t)>   - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
+                            output =  inner(phi_k, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
                             PRINT( std::scientific << "\t" << real(output*conj(output)) );
                         }
                         PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
@@ -438,9 +478,7 @@ void projectPsi2(World& world, std::vector<std::string> boundList, std::vector<s
                         PRINT("and has " << WFsize << " coefficients.\n");
                     }
                 }
-            }
-        } else {
-            PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+            } 
         }
     }
 }
@@ -698,8 +736,7 @@ void loadParameters(World& world, int& k, double& L, double &Z, double &cutoff) 
                 //cutoff > dMAX = v t
                 double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
                 cutoff = 0.0;
-                PRINTLINE("cutoff = " << cutoff);
-                while( cutoff < dMAX ) { cutoff += L/32; }
+                while( cutoff < dMAX ) { cutoff += L/16; }
                 PRINTLINE("dMAX = " << dMAX);
                 PRINTLINE("cutoff = " << cutoff);
             }
@@ -722,7 +759,7 @@ int main(int argc, char**argv) {
     double cutoff = L;
     loadParameters(world, k, L, Z, cutoff);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
-    FunctionDefaults<NDIM>::set_thresh(1e-4);       // Accuracy
+    FunctionDefaults<NDIM>::set_thresh(1e-6);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_apply_randomize(false);
@@ -732,10 +769,11 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try {
-        std::vector<std::string> boundList2;
-        std::vector<std::string> unboundList2;
-        loadList(world, boundList2, unboundList2);
-        projectPsi2(world, boundList2, unboundList2, Z, cutoff);
+        std::vector<std::string> boundList;
+        std::vector<std::string> unboundList;
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
+        PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
@@ -744,7 +782,7 @@ int main(int argc, char**argv) {
         //loadBasis(world,  boundList, unboundList, Z, cutoff);
         //belkic(world);
         //projectZdip(world, unboundList);
-        //projectPsi(world, boundList, unboundList, Z);
+        //groundOverlap(world, boundList, unboundList, Z, cutoff);
         world.gop.fence();
 //         if (world.rank() == 0) {
 //             world.am.print_stats();

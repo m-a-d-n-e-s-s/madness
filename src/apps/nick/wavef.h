@@ -59,7 +59,6 @@ typedef madness::Vector<double,NDIM> vector3D;
 const complexd I(0,1);
 const double PI = M_PI;
 const complexd one(1,0);
-
 int      fact(int);
 void     testFact(madness::World&);
 complexd gamma(complexd AA);
@@ -109,11 +108,11 @@ public:
     double   cutoff;
 private:
     CubicInterpolationTable<complexd > fit1F1;
-    complexd expmPI_k;
-    complexd expPI_2k;
-    complexd expPI_2kXgamma1pI_k;
-    complexd gamma1pI_k;
-    complexd gammamI_k;
+    complexd expmPIZ_k;
+    complexd expPIZ_2k;
+    complexd expPIZ_2kXgamma1pIZ_k;
+    complexd gamma1pIZ_k;
+    complexd gammamIZ_k;
     complexd one;
     double   alpha;
     double   beta;
@@ -122,15 +121,6 @@ private:
     double   dx_2n1;
     double   dxn1_2;
     int n;
-// splineFit
-//     double*  aR;
-//     double*  bR;
-//     double*  cR;
-//     double*  dR;
-//     double*  aI;
-//     double*  bI;
-//     double*  cI;
-//     double*  dI;
     double*   fR;
     double*   fI;
     double*  fpR;
@@ -147,6 +137,8 @@ private:
         complexd operator()(double x) {return obj->f11(x);}
     };
 };
+
+
 
 /******************************************
  * Bound WaveFunction

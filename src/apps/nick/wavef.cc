@@ -181,11 +181,11 @@ ScatteringWF::ScatteringWF(World& world, const double Z, const vector3D& kVec, c
     ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
     ,cutoff(cutoff)
 {
-    expmPI_k   = exp(-PI/k);
-    expPI_2k   = exp(PI/(2*k));
-    gamma1pI_k = gamma(1.0,1/k);
-    gammamI_k  = gamma(0.0,-1/k);
-    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
+    expmPIZ_k   = exp(-PI*Z/k);
+    expPIZ_2k   = exp(PI*Z/(2*k));
+    gamma1pIZ_k = gamma(1.0,Z/k);
+    gammamIZ_k  = gamma(0.0,-Z/k);
+    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
     one = complexd(1.0, 0.0);
     dx = 4e-3;   //Mesh spacing <- OPTIMIZE
     ra = 5.0; //boundary cutoff <- Variable Mesh
@@ -205,11 +205,11 @@ ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec, const double cu
     ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
     ,cutoff(cutoff)
 {
-    expmPI_k   = exp(-PI/k);
-    expPI_2k   = exp(PI/(2*k));
-    gamma1pI_k = gamma(1.0,1/k);
-    gammamI_k  = gamma(0.0,-1/k);
-    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
+    expmPIZ_k   = exp(-PI*Z/k);
+    expPIZ_2k   = exp(PI*Z/(2*k));
+    gamma1pIZ_k = gamma(1.0,Z/k);
+    gammamIZ_k  = gamma(0.0,-Z/k);
+    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
     one = complexd(1.0, 0.0);
     dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
@@ -226,11 +226,11 @@ ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec)
     ,cutoff(1000.0)
 {
     throw "cuttoff is set ";
-    expmPI_k   = exp(-PI/k);
-    expPI_2k   = exp(PI/(2*k));
-    gamma1pI_k = gamma(1.0,1/k);
-    gammamI_k  = gamma(0.0,-1/k);
-    expPI_2kXgamma1pI_k = expPI_2k * gamma1pI_k ;
+    expmPIZ_k   = exp(-PI*Z/k);
+    expPIZ_2k   = exp(PI*Z/(2*k));
+    gamma1pIZ_k = gamma(1.0,Z/k);
+    gammamIZ_k  = gamma(0.0,-Z/k);
+    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
     one = complexd(1.0, 0.0);
     dx = 4e-3;   //Mesh spacing
     ra = 5.0; //boundary cutoff
@@ -284,7 +284,7 @@ complexd ScatteringWF::f11(double xx) const {
     //conhyp(k,r) - aForm(k,r) for different k values
     //20 + 7exp(-6k) is the emperical fit
     //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
-    if(xx <= 4.1/(k*k) + 21.6) return conhyp(-I/k,one,ZZ);
+    if(xx <= 4.1*Z*Z/(k*k) + 21.6) return conhyp(-I*Z/k,one,ZZ);
     else return aForm3(ZZ);
 }
 
@@ -298,7 +298,7 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
         double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
         double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
         return 0.0634936359342 //  = (2PI)^-(3/2)
-               * expPI_2kXgamma1pI_k
+               * expPIZ_2kXgamma1pIZ_k
                * exp(I*kDOTr)
                * fit1F1(k*r + kDOTr);
     } else {
@@ -311,11 +311,11 @@ complexd ScatteringWF::operator()(const vector3D& rVec) const {
  * Abramowitz and Stegun 13.5.1
  * **************************************************************/
 complexd ScatteringWF::aForm3(complexd ZZ) const {
-    complexd cA2 = pow(ZZ,I/k);
+    complexd cA2 = pow(ZZ,I*Z/k);
     complexd cB1 = exp(ZZ);
-    complexd cB2 = pow(ZZ,-one-I/k);
-    complexd cA = expmPI_k*cA2/gamma1pI_k;
-    complexd cB = cB1*cB2/gammamI_k;
+    complexd cB2 = pow(ZZ,-one-I*Z/k);
+    complexd cA = expmPIZ_k*cA2/gamma1pIZ_k;
+    complexd cB = cB1*cB2/gammamIZ_k;
     complexd termA(0,0);
     complexd termB(0,0);
     int maxTerms = 24;
@@ -334,8 +334,8 @@ complexd ScatteringWF::aForm3(complexd ZZ) const {
         mzrn     *= -zr;
         zrn      *=  zr;
         nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
-        pochAA   *= complexd(n,-1.0/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
-        poch1mAA *= complexd(1+n,1.0/k);        
+        pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1mAA *= complexd(1+n,Z/k);        
     }
     return cA*termA + cB*termB;
 }
