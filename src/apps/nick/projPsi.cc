@@ -198,56 +198,56 @@ void loadList(World& world, std::vector<std::string>& boundList, std::vector<std
     }
 }
 
-void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, const double Z, const double cutoff) {
-    std::ifstream bound("bound.num");
-    std::ifstream unbound("unbound.num");
-    if( ! bound.is_open() && ! unbound.is_open() ) {
-        PRINTLINE("bound.num and unbound.num not found");
-        loadDefaultBasis(world,boundList,Z);
-    } else {
-        if(bound.is_open()) {
-            PRINTLINE("Calculating bound quantum states");
-            int n,l,m;
-            std::ostringstream nlm;
-            while(bound >> n) {
-                bound >> l;
-                bound >> m;
-                nlm << n << l << m;
-                double start = wall_time();
-                PRINT(nlm.str());                
-                boundList.push_back(WF(nlm.str()+"           ",
-                                       FunctionFactory<complexd,NDIM>(world).
-                                       functor(functorT(new BoundWF(Z,n,l,m)))));
-                double used = wall_time() - start;
-                PRINTLINE("\t" << used << " sec" );
-                nlm.str("");
-            }
-            bound.close();
-        } else PRINTLINE("bound.num not found");
-        if(unbound.is_open()) {
-            PRINTLINE("Calculating unbound quantum states");
-            double kx, ky, kz;
-            std::ostringstream kxyz;
-            while(unbound >> kx) {
-                unbound >> ky;
-                unbound >> kz;
-                kxyz.precision( 2 );
-                kxyz << std::fixed;
-                kxyz << kx << " " << ky << " " << kz;
-                PRINT(kxyz.str());
-                double start = wall_time();
-                const double kvec[] = {kx, ky, kz};
-                unboundList.push_back(WF(kxyz.str(),
-                                       FunctionFactory<complexd,NDIM>(world).
-                                       functor(functorT(new ScatteringWF(Z,kvec,cutoff)))));
-                double used = wall_time() - start;
-                PRINTLINE("\t" << used << " sec");
-                kxyz.str("");
-            }
-            unbound.close();
-        } else PRINTLINE("unbound.num not found");
-    }
-}
+// void loadBasis(World& world, std::vector<WF>& boundList, std::vector<WF>& unboundList, const double Z, const double cutoff) {
+//     std::ifstream bound("bound.num");
+//     std::ifstream unbound("unbound.num");
+//     if( ! bound.is_open() && ! unbound.is_open() ) {
+//         PRINTLINE("bound.num and unbound.num not found");
+//         loadDefaultBasis(world,boundList,Z);
+//     } else {
+//         if(bound.is_open()) {
+//             PRINTLINE("Calculating bound quantum states");
+//             int n,l,m;
+//             std::ostringstream nlm;
+//             while(bound >> n) {
+//                 bound >> l;
+//                 bound >> m;
+//                 nlm << n << l << m;
+//                 double start = wall_time();
+//                 PRINT(nlm.str());                
+//                 boundList.push_back(WF(nlm.str()+"           ",
+//                                        FunctionFactory<complexd,NDIM>(world).
+//                                        functor(functorT(new BoundWF(Z,n,l,m)))));
+//                 double used = wall_time() - start;
+//                 PRINTLINE("\t" << used << " sec" );
+//                 nlm.str("");
+//             }
+//             bound.close();
+//         } else PRINTLINE("bound.num not found");
+//         if(unbound.is_open()) {
+//             PRINTLINE("Calculating unbound quantum states");
+//             double kx, ky, kz;
+//             std::ostringstream kxyz;
+//             while(unbound >> kx) {
+//                 unbound >> ky;
+//                 unbound >> kz;
+//                 kxyz.precision( 2 );
+//                 kxyz << std::fixed;
+//                 kxyz << kx << " " << ky << " " << kz;
+//                 PRINT(kxyz.str());
+//                 double start = wall_time();
+//                 const double kvec[] = {kx, ky, kz};
+//                 unboundList.push_back(WF(kxyz.str(),
+//                                        FunctionFactory<complexd,NDIM>(world).
+//                                        functor(functorT(new ScatteringWF(Z,kvec,cutoff)))));
+//                 double used = wall_time() - start;
+//                 PRINTLINE("\t" << used << " sec");
+//                 kxyz.str("");
+//             }
+//             unbound.close();
+//         } else PRINTLINE("unbound.num not found");
+//     }
+// }
 complexd zdipole( const vector3D& r) {
     return complexd(r[2],0.0);
 }
@@ -314,61 +314,61 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
     }
 }
 
-///What is the overlap of the Coulombic eigenfunctions on the ground state?
-void groundOverlap(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z, double cutoff) {
-    //LOAD Psi(0)
-    if( wave_function_exists(world,'0') ) {
-        complex_functionT psi0 = wave_function_load(world,0);
-        PRINTLINE("\t\t|<basis|Psi(0)>|^2 ");
-        if(boundList.empty() && unboundList.empty()) {
-            boundList.push_back("1 0 0");
-            boundList.push_back("2 1 0");
-        }
-        std::string tag;
-        std::vector<WF> psiList;
-        complexd output;
-        PRINTLINE("|t=0>");
-        //phi_nlm
-        if( !boundList.empty() ) {
-            std::vector<std::string>::const_iterator boundIT;
-            int N, L, M;
-            for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
-                std::stringstream ss(*boundIT);
-                ss >> N >> L >> M;
-                //PROJECT Phi_nlm into MADNESS
-                complex_functionT phi_nlm = complex_factoryT(world).
-                    functor(functorT( new BoundWF(Z, N, L, M)));
-                PRINT(*boundIT << "   ");
-                // <phi_bound|Psi(0)>
-                output = phi_nlm.inner( psi0 ); 
-                PRINTLINE(std::scientific <<"\t" << real(output*conj(output)));
-            }
-        }
-        if( !unboundList.empty() ) {
-            std::vector<std::string>::const_iterator unboundIT;
-            for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
-                //parsing unboundList
-                double KX, KY, KZ;
-                std::stringstream ss(*unboundIT);
-                ss >> KX >> KY >> KZ;
-                double dArr[3] = {KX, KY, KZ};
-                const vector3D kVec(dArr);
-                //screening out the zero vector
-                if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
-                    //PROJECT Psi_k into MADNESS
-                    complex_functionT phi_k = 
-                        complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
-                    output =  inner(psi0,phi_k);
-                    std::cout.precision( 8 );
-                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
-                           std::scientific << "\t" << real(output*conj(output)) );
-                }
-            }
-        }else {
-            PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
-        }
-    }
-} 
+// ///What is the overlap of the Coulombic eigenfunctions on the ground state?
+// void groundOverlap(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z, double cutoff) {
+//     //LOAD Psi(0)
+//     if( wave_function_exists(world,'0') ) {
+//         complex_functionT psi0 = wave_function_load(world,0);
+//         PRINTLINE("\t\t|<basis|Psi(0)>|^2 ");
+//         if(boundList.empty() && unboundList.empty()) {
+//             boundList.push_back("1 0 0");
+//             boundList.push_back("2 1 0");
+//         }
+//         std::string tag;
+//         std::vector<WF> psiList;
+//         complexd output;
+//         PRINTLINE("|t=0>");
+//         //phi_nlm
+//         if( !boundList.empty() ) {
+//             std::vector<std::string>::const_iterator boundIT;
+//             int N, L, M;
+//             for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
+//                 std::stringstream ss(*boundIT);
+//                 ss >> N >> L >> M;
+//                 //PROJECT Phi_nlm into MADNESS
+//                 complex_functionT phi_nlm = complex_factoryT(world).
+//                     functor(functorT( new BoundWF(Z, N, L, M)));
+//                 PRINT(*boundIT << "   ");
+//                 // <phi_bound|Psi(0)>
+//                 output = phi_nlm.inner( psi0 ); 
+//                 PRINTLINE(std::scientific <<"\t" << real(output*conj(output)));
+//             }
+//         }
+//         if( !unboundList.empty() ) {
+//             std::vector<std::string>::const_iterator unboundIT;
+//             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
+//                 //parsing unboundList
+//                 double KX, KY, KZ;
+//                 std::stringstream ss(*unboundIT);
+//                 ss >> KX >> KY >> KZ;
+//                 double dArr[3] = {KX, KY, KZ};
+//                 const vector3D kVec(dArr);
+//                 //screening out the zero vector
+//                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
+//                     //PROJECT Psi_k into MADNESS
+//                     complex_functionT phi_k = 
+//                         complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
+//                     output =  inner(psi0,phi_k);
+//                     std::cout.precision( 8 );
+//                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
+//                            std::scientific << "\t" << real(output*conj(output)) );
+//                 }
+//             }
+//         }else {
+//             PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+//         }
+//     }
+// } 
 
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
@@ -406,7 +406,6 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             }
         }// done loading wf.num
         PRINTLINE("five");
-
         PRINT("\n");
         //psiIT holds the time evolved wave functions
         //LOAD bound states

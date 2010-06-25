@@ -32,7 +32,7 @@
 */
 #ifndef WAVEF_H
 #define WAVEF_H
-//\file wavef.cc
+//\file wavef.h
 //\brief The hydrogenic bound and continuum states
 /************************************************************************
  * Here is a madness representation of the hydrogenic wave functions.
@@ -59,51 +59,33 @@ typedef madness::Vector<double,NDIM> vector3D;
 const complexd I(0,1);
 const double PI = M_PI;
 const complexd one(1,0);
-int      fact(int);
 void     testFact(madness::World&);
 complexd gamma(complexd AA);
 complexd gamma(double re, double im);
 void     testGamma(madness::World&);
-complexd pochhammer(complexd AA,int n);
-void     testPochhammer(madness::World&);
-void     testWF(madness::World&);
-void     debug1F1(madness::World&);
-void test1F1(madness::World&, complexd (*func1F1)(complexd,complexd,complexd), const char* fileChar);
+
+
+class baseWF : public madness::FunctionFunctorInterface<complexd,NDIM> {
+public:
+    typedef madness::Vector<double,NDIM> vector3D;
+    complexd operator()(const vector3D& x) const = 0;
+};
 
 /******************************************
  * Scattering WaveFunction
  ******************************************/
-class ScatteringWF : public madness::FunctionFunctorInterface<complexd,NDIM> { 
+class ScatteringWF : public baseWF { 
 public:
-    typedef madness::Vector<double,NDIM> vector3D;
     ScatteringWF(const double Z, const vector3D& kVec );
     ScatteringWF(const double Z, const vector3D& kVec, const double cutoff );
     ScatteringWF(madness::World& world, const double Z, const vector3D& kVec, const double cutoff );
     complexd operator()(const vector3D& x) const;
-    complexd aFormNew3(complexd AA, complexd BB, complexd ZZ) const;
-    complexd aForm(complexd AA, complexd BB, complexd ZZ) const;
-    complexd aForm1(complexd AA, complexd BB, complexd ZZ) const;
-    complexd aForm2(complexd AA, complexd BB, complexd ZZ) const;
     complexd aForm3(complexd ZZ) const;
     complexd f11(double x) const;
-    complexd approx1F1(double x) const;
-    double   diffR(double x) const;
-    double   diffI(double x) const;
-    double   toX(int i) const;
-    int      fromX(double x) const;
-    void     taylor3Fit();
-    void     splineFit();
-    void     polyFit();
-    double   toX(double s) const;
-    double   toS(double x) const;
-    double   r1F1(double x) const;
-    double   i1F1(double x) const;
-    int      n1;
     double   Z;
     vector3D kVec;
     double   k;
     double   domain;
-    double   xi;
     double   ra;
     double   cutoff;
 private:
@@ -114,23 +96,8 @@ private:
     complexd gamma1pIZ_k;
     complexd gammamIZ_k;
     complexd one;
-    double   alpha;
-    double   beta;
-    double   boundary;
     double   dx;
-    double   dx_2n1;
-    double   dxn1_2;
     int n;
-    double*   fR;
-    double*   fI;
-    double*  fpR;
-    double*  fpI;
-    double* fppR;
-    double* fppI;
-    double* fpppR;
-    double* fpppI;
-    double*    h;
-    double*    x;
     struct MemberFuncPtr {
         ScatteringWF* obj;
         MemberFuncPtr(ScatteringWF* obj) : obj(obj) {}
@@ -138,7 +105,15 @@ private:
     };
 };
 
+class phikl : public ScatteringWF {
+public:
+    complexd operator()(const vector3D& x) const;
+};    
 
+class phiK : public ScatteringWF {
+public:
+    complexd operator()(const vector3D& x) const;
+};    
 
 /******************************************
  * Bound WaveFunction

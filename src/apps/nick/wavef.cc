@@ -239,45 +239,6 @@ ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec)
     fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
 }
 
-complexd ScatteringWF::approx1F1(double xx) const {
-    int j = fromX(xx);
-    double y = (xx - x[j]);
-    return complexd( fR[j] + y*(fpR[j] + y*fppR[j]/2 ),
-                     fI[j] + y*(fpI[j] + y*fppI[j]/2) );
-}
-
-double   ScatteringWF::diffR(double x)    const {
-    complexd ZZ(0.0,-x);
-    return real(aForm3(ZZ) - conhyp(-I/k,one,ZZ));
-}
-double   ScatteringWF::diffI(double x)    const {
-    complexd ZZ(0.0,-x);
-    return imag(aForm3(ZZ) - conhyp(-I/k,one,ZZ));
-}
-double   ScatteringWF::toX(double s)      const {
-    return dx*s*s/(ra/dx + s);
-}
-double   ScatteringWF::toS(double x)      const {
-    return (x + sqrt(x*x + 4*ra*x))/2/dx;
-}
-double   ScatteringWF::toX(int i)         const {
-    if( i <= n1 ) return alpha*i*i;
-    return dx*i - dxn1_2;
-}
-int      ScatteringWF::fromX( double xx ) const {
-    return floor( xx/dx );
-    if( xx < boundary ) {
-        return floor( sqrt(2*xi*ra*xx/dx/dx) + 0.5);
-    }
-    int index =  floor( (xx - beta)/dx + 0.5);
-    if(index > n) {
-        std::cout << "index = " << index << std::endl;
-        std::cout << "n = "         << n << std::endl;
-        std::cout << "x = "        << xx << std::endl;
-        throw "ScatteringWF: index out of bounds\n increase domain";
-    }
-    return index;
-}
 complexd ScatteringWF::f11(double xx) const {
     complexd ZZ(0.0,-xx);
     //The cutoff was done by finding the minimum difference between
