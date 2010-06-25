@@ -341,7 +341,7 @@ class ThreadPool {
         // Need to wait for everyone to be ready
         while (done != nthread); // Need to relax here
 
-        work(forever);
+        work(&forever);
 
         return 0;
     }
