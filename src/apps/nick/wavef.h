@@ -1,5 +1,5 @@
 /*
-  This file is part of MADNESS.
+  this file is part of MADNESS.
   
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
   
@@ -46,29 +46,26 @@
  * By:    Nick Vence
  ************************************************************************/
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include "hyp.h"
 #include <mra/mra.h>
 #include "interp.h"
 #include <complex>
 #include <iostream>
 #include <stdio.h>
+#include <complex>
 
 const int NDIM  = 3;
-typedef std::complex<double> complexd;
 typedef madness::SharedPtr< madness::FunctionFunctorInterface<complexd,NDIM> > functorT;
+typedef std::complex<double> complexd;
 typedef madness::Vector<double,NDIM> vector3D;
-const complexd I(0,1);
-const double PI = M_PI;
-const complexd one(1,0);
-void     testFact(madness::World&);
-complexd gamma(complexd AA);
-complexd gamma(double re, double im);
-void     testGamma(madness::World&);
-
 
 class baseWF : public madness::FunctionFunctorInterface<complexd,NDIM> {
 public:
+    typedef std::complex<double> complexd;
     typedef madness::Vector<double,NDIM> vector3D;
-    complexd operator()(const vector3D& x) const = 0;
+    virtual complexd operator()(const vector3D& x) const = 0;
+    static const complexd I;
+    static const double PI;
 };
 
 /******************************************
@@ -76,51 +73,61 @@ public:
  ******************************************/
 class ScatteringWF : public baseWF { 
 public:
-    ScatteringWF(const double Z, const vector3D& kVec );
-    ScatteringWF(const double Z, const vector3D& kVec, const double cutoff );
-    ScatteringWF(madness::World& world, const double Z, const vector3D& kVec, const double cutoff );
-    complexd operator()(const vector3D& x) const;
-    complexd aForm3(complexd ZZ) const;
-    complexd f11(double x) const;
-    double   Z;
-    vector3D kVec;
-    double   k;
+    ScatteringWF(const complexd AA, const complexd BB, double cutoff);
+    ScatteringWF(madness::World& world, const complexd AA, const complexd BB, double cutoff);
+    void setConstants();
+    virtual complexd f11(const double r) const = 0;
+    complexd aForm(complexd ZZ) const;
+    const double k_;
+    complexd AA;
+    complexd BB;
     double   domain;
-    double   ra;
     double   cutoff;
-private:
-    CubicInterpolationTable<complexd > fit1F1;
-    complexd expmPIZ_k;
-    complexd expPIZ_2k;
-    complexd expPIZ_2kXgamma1pIZ_k;
-    complexd gamma1pIZ_k;
-    complexd gammamIZ_k;
     complexd one;
     double   dx;
-    int n;
+    int      n;
+    complexd mAA;
+    complexd AAmBB;
+    complexd expPIAAXgammaBBmAAr;
+    complexd gammaAAr;
+protected:
     struct MemberFuncPtr {
         ScatteringWF* obj;
         MemberFuncPtr(ScatteringWF* obj) : obj(obj) {}
         complexd operator()(double x) {return obj->f11(x);}
     };
+    CubicInterpolationTable<complexd > fit1F1;
+    virtual double getk() const;
+    complexd gamma(double re, double im);
+    complexd gamma(complexd AA);
 };
 
-class phikl : public ScatteringWF {
+class PhiK : public ScatteringWF {
 public:
+    PhiK(madness::World& world, const double Z, const vector3D& kVec, double cutoff);
+    PhiK(const double Z, const vector3D& kVec, double cutoff);
+    void setConstants();
+    complexd f11(double x) const;
     complexd operator()(const vector3D& x) const;
-};    
+protected:
+    virtual double getk() const;
+private:
+    complexd expPIZ_2kXgamma1pIZ_k_;
+    const vector3D kVec_;
+    const double Z_;
+}; 
 
-class phiK : public ScatteringWF {
-public:
-    complexd operator()(const vector3D& x) const;
-};    
+// class phikl : public ScatteringWF {
+// public:
+//     complexd operator()(const vector3D& x) const;
+// };    
+
 
 /******************************************
  * Bound WaveFunction
  ******************************************/
-class BoundWF : public madness::FunctionFunctorInterface<complexd,NDIM> {
+class BoundWF : public baseWF {
 public:
-    typedef madness::Vector<double,NDIM> vector3D;
     BoundWF(double Z, int nn, int ll, int mm );
     complexd operator()(const vector3D& x) const;
 private:
@@ -133,26 +140,10 @@ private:
 /******************************************
  *Exp[ I*(k.r) ]
  ******************************************/
-class Expikr : public madness::FunctionFunctorInterface<complexd,NDIM>
+class Expikr : public baseWF
 {
 public:
-    typedef madness::Vector<double,NDIM> vector3D;
     Expikr(const vector3D& kVec);
-    complexd operator()(const vector3D& r) const;
-private:
-    vector3D kVec;
-    double k;
-    double costhK;
-};
-
-/******************************************
- *Exp[ -I*(kr + k.r) ]
- ******************************************/
-class Expikr2 : public madness::FunctionFunctorInterface<complexd,NDIM>
-{
-public:
-    typedef madness::Vector<double,NDIM> vector3D;
-    Expikr2(const vector3D& kVec);
     complexd operator()(const vector3D& r) const;
 private:
     vector3D kVec;

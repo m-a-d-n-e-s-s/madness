@@ -31,6 +31,9 @@
   $Id$
 */
 //By: Robert Harrison
+#ifndef HYP_H
+#define HYP_H
+
 #include <iostream>
 #include <complex>
 #include <algorithm>
@@ -53,3 +56,4 @@ typedef std::complex<double> complexd;
 complexd conhyp(const complexd& a_arg,
                 const complexd& b_arg,
                 const complexd& z_arg);
+#endif

@@ -50,15 +50,13 @@
  *    12 has been the default
  ***************************************************************************************/
 
-
-#include "wavef.h"
-#include "hyp.h"
 #include <string>
 #include <fstream>
 using std::ofstream;
 using std::ofstream;
 #include <stdlib.h>
 #include <time.h>
+#include "wavef.h"
 #define PRINT(str) if(world.rank()==0) std::cout << str 
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
 
@@ -239,7 +237,7 @@ void loadList(World& world, std::vector<std::string>& boundList, std::vector<std
 //                 const double kvec[] = {kx, ky, kz};
 //                 unboundList.push_back(WF(kxyz.str(),
 //                                        FunctionFactory<complexd,NDIM>(world).
-//                                        functor(functorT(new ScatteringWF(Z,kvec,cutoff)))));
+//                                        functor(functorT(new PhiK(Z,kvec,cutoff)))));
 //                 double used = wall_time() - start;
 //                 PRINTLINE("\t" << used << " sec");
 //                 kxyz.str("");
@@ -357,7 +355,7 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
 //                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
 //                     //PROJECT Psi_k into MADNESS
 //                     complex_functionT phi_k = 
-//                         complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
+//                         complex_factoryT(world).functor(functorT( new PhiK(world, Z, kVec, cutoff) ));
 //                     output =  inner(psi0,phi_k);
 //                     std::cout.precision( 8 );
 //                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
@@ -377,7 +375,7 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 
-void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, const double cutoff) {
+void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     PRINTLINE("one");
@@ -456,10 +454,10 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         //PROJECT Psi_k into MADNESS
                         if(world.rank()==0) before = clock();
                         complex_functionT phi_k = 
-                            complex_factoryT(world).functor(functorT( new ScatteringWF(world, Z, kVec, cutoff) ));
+                            complex_factoryT(world).functor(functorT( new PhiK(world, Z, kVec, cutoff) ));
                         // W/O timing
                         //complex_functionT phi_k = 
-                        //complex_factoryT(world).functor(functorT( new ScatteringWF(Z, kVec, cutoff) ));
+                        //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                         if(world.rank()==0) after = clock();
                         std::cout.precision( 8 );
                         PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
@@ -482,7 +480,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
     }
 }
 
-void compare1F1(World& world) {
+void compare1F1(World& world, double cutoff) {
     //load param
     std::string tag;
     double rMIN = 0.0;
@@ -528,7 +526,7 @@ void compare1F1(World& world) {
     }
     //make functor
     const double kvec[3] = {0, 0, k};
-    ScatteringWF phi_k =  ScatteringWF(Z, kvec);
+    PhiK phi_k =  PhiK(Z, kvec, cutoff);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
     std::cout << std::fixed;
@@ -539,8 +537,8 @@ void compare1F1(World& world) {
         std::cout.precision(8);
         PRINT(real(conhyp(-I/k,ONE,ZZ)) << "\t");
         PRINT(imag(conhyp(-I/k,ONE,ZZ)) << "\t");
-        PRINT(real(phi_k.aForm3(ZZ))    << "\t");
-        PRINT(imag(phi_k.aForm3(ZZ))    << "\n");
+        PRINT(real(phi_k.aForm(ZZ))     << "\t");
+        PRINT(imag(phi_k.aForm(ZZ))     << "\n");
     }
 }
 
@@ -581,7 +579,7 @@ void compareGroundState(World& world, double Z) {
 /*************************************************
  * If you're curious about a wave function's value
  *************************************************/
-void printBasis(World& world, double Z) {
+void printBasis(World& world, double Z, double cutoff = 10.0) {
     complexd output, output2;
     double sinTH, cosTH, sinPHI, cosPHI;
     std::string tag;
@@ -591,7 +589,6 @@ void printBasis(World& world, double Z) {
     double TH = 0.0;
     double PHI = 0.0;
     double k = 1.0;
-    double cutoff = 10.0;
     /***************************************
      *Load graphing parameters from the file: param
      * rMIN 0.0
@@ -641,7 +638,7 @@ void printBasis(World& world, double Z) {
     //make functions
     double kvec[3] = {0, 0, k};
     //    vector3D kVec(dARR);
-    ScatteringWF phi_k(Z, kvec);
+    PhiK phi_k(Z, kvec, cutoff);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
     PRINT("r \tRe:phi(rVec) \t Im:phi(rVec) \t");
@@ -671,7 +668,7 @@ void printBasis(World& world, double Z) {
 /****************************************************************************
  * Reproduces atomic form integrals given by Dz Belkic's analytic expression
  ****************************************************************************/
-void belkic(World& world) {
+void belkic(World& world, double cutoff) {
     /************************************************************************
      * qVec is the momentum transfered from the laser field
      * kVec is the momentum of the ejected electron
@@ -684,7 +681,7 @@ void belkic(World& world) {
     const vector3D kVec(dARR);
     PRINTLINE("|" << kVec << ">");
     complex_functionT phi_k = complex_factoryT(world).functor(functorT(
-                                                      new ScatteringWF(1.0, kVec) ));
+                                                      new PhiK(1.0, kVec, cutoff) ));
     dARR[2] =  1.5;
     const vector3D qVec(dARR);
     PRINTLINE("Exp[I" << qVec << ".r>");
@@ -776,10 +773,10 @@ int main(int argc, char**argv) {
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
-        //compare1F1(world);
-        //printBasis(world,Z);
+        //compare1F1(world, cutoff);
+        //printBasis(world, Z, cutoff);
         //loadBasis(world,  boundList, unboundList, Z, cutoff);
-        //belkic(world);
+        //belkic(world, cutoff);
         //projectZdip(world, unboundList);
         //groundOverlap(world, boundList, unboundList, Z, cutoff);
         world.gop.fence();

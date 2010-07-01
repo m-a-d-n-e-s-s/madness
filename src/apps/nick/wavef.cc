@@ -45,8 +45,8 @@
  * By:    Nick Vence
  ************************************************************************/
 
+
 #include "wavef.h"
-#include "hyp.h"
 #include <gsl/gsl_sf_trig.h>
 #include <gsl/gsl_sf_coulomb.h>
 #include <gsl/gsl_sf_gamma.h>
@@ -55,6 +55,7 @@
 #include <gsl/gsl_interp.h>
 #include <float.h>
 #include <time.h>
+#include <math.h>
 
 using namespace madness;
 
@@ -62,49 +63,198 @@ using namespace madness;
 time_t before, after;
 #define PRINT(str) if(world.rank()==0) std::cout << str;
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl;
-#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; std::cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << std::endl
-#define END_TIMER(msg) tt=cpu_time()-tt; printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
+//#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; std::cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << std::endl
+//#define END_TIMER(msg) tt=cpu_time()-tt; printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
+//Defining static members
+const double baseWF::PI = M_PI;
+const complexd baseWF::I(0.0,1.0);
 
-/*****************************************
- *Exp[ I*(k.r) ]
- *****************************************/
-Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
-{
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
-    costhK = kVec[2]/k;
+/**********************************************************************
+ * PhiK (directional scattering states)
+ * See Landau and Lifshitz Quantum Mechanics Volume 3
+ * Third Edition Formula (136.9)
+ **********************************************************************/
+PhiK::PhiK(const double Z, const vector3D& kVec, double cutoff)
+    :ScatteringWF(-I*Z/getk(), complexd(1.0,0.0),  cutoff)
+    ,kVec_(kVec)
+    ,Z_(Z)
+{   
+    setConstants();
 }
-complexd Expikr::operator()(const vector3D& rVec) const
-{
-    double kDOTr = 0.0;
-    for(int i=0; i<NDIM; i++) {
-        kDOTr += kVec[i]*rVec[i];
+PhiK::PhiK(World& world, const double Z, const vector3D& kVec, double cutoff)
+    :ScatteringWF(world, -I*Z/getk(), complexd(1.0,0.0),  cutoff)
+    ,kVec_(kVec)
+    ,Z_(Z)
+{   
+    setConstants();
+}
+void PhiK::setConstants()
+{    
+    expPIZ_2kXgamma1pIZ_k_ = exp(PI*Z_/(2*k_)) * gamma(0.0, Z_/k_);
+}
+double PhiK::getk() const {
+    return sqrt(kVec_[0]*kVec_[0] + kVec_[1]*kVec_[1] + kVec_[2]*kVec_[2]);
+}
+complexd PhiK::operator()(const vector3D& rVec) const {
+    if( fabs(rVec[0])<cutoff && fabs(rVec[1])<cutoff && fabs(rVec[2])<cutoff ) {
+        double kDOTr = kVec_[0]*rVec[0] + kVec_[1]*rVec[1] + kVec_[2]*rVec[2];
+        double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
+        return 0.0634936359342 //  = (2PI)^-(3/2)
+               * expPIZ_2kXgamma1pIZ_k_
+               * exp(I*kDOTr)
+               * fit1F1(k_*r + kDOTr);
+    } else {
+        return 0.0;
     }
-    return exp(I*kDOTr);
+}
+complexd PhiK::f11(double xx) const {
+    complexd ZZ(0.0,-xx);
+    //The cutoff was done by finding the minimum difference between
+    //conhyp(k,r) - aForm(k,r) for different k values
+    //20 + 7exp(-6k) is the emperical fit
+    //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
+    if(xx <= 4.1*Z_*Z_/(k_*k_) + 21.6) return conhyp(-I*Z_/k_, one, ZZ);
+    else return aForm(ZZ);  //??? Should I implemnt aForm in ScatteringWF or in PhiK and Phikl ???
 }
 
-/*****************************************
- *Exp[ -I*(kr + k.r) ]
- *****************************************/
-Expikr2::Expikr2( const vector3D& kVec) : kVec(kVec)
+/****************************************************
+ * The Scattering Wave Function
+ * An abstract base class for the anglar momentum 
+ * resolved basis or the vector basis scattering states
+ ****************************************************/
+ScatteringWF::ScatteringWF(const complexd AA, const complexd BB, double cutoff)
+    :k_(getk())
+    ,AA(AA)
+    ,BB(BB)
+    ,domain(k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+    ,cutoff(cutoff)
 {
-    double sum = 0.0;
-    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
-    k = sqrt(sum);
-    costhK = kVec[2]/k;
+    setConstants();
+    MemberFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
 }
-complexd Expikr2::operator()(const vector3D& rVec) const
+/**********************************************************************
+ * How far must we tabulate our 1F1 to cover the domain?
+ * V^(1/3) gives us the length of the box
+ * Our spherical function needs only one octant of the box    V^(1/3)/2
+ * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
+ * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
+ **********************************************************************/
+//World is needed for timing the length of the CubicInterpolationTable
+ScatteringWF::ScatteringWF(World& world, const complexd AA, const complexd BB, double cutoff)
+    :k_(getk())
+    ,AA(AA)
+    ,BB(BB)
+    ,domain(k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
+    ,cutoff(cutoff)
 {
-    double kDOTr = 0.0;
-    double r2 = 0.0;
-    for(int i=0; i<NDIM; i++) { r2 += rVec[i]*rVec[i]; }
-    double r = sqrt(r2);
-    for(int i=0; i<NDIM; i++) {
-        kDOTr += kVec[i]*rVec[i];
+    setConstants();   
+    MemberFuncPtr p1F1(this);
+    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
+}
+void ScatteringWF::setConstants()
+{    
+    one = complexd(1.0, 0.0);
+    dx = 4e-3;   //Mesh spacing <- OPTIMIZE
+    n = floor(domain/dx +1);
+    mAA = -AA;
+    AAmBB = AA-BB;
+    expPIAAXgammaBBmAAr = 1.0/exp(PI*I*AA)*gamma(BB-AA);
+    gammaAAr = 1.0/gamma(AA);
+}
+double ScatteringWF::getk() const
+{
+    throw "ScatteringWF::getk() shouldn't be called";
+    return 0.000001;
+}
+/****************************************************************
+ * The asymptotic form of the hypergeometric function given by
+ * Abramowitz and Stegun 13.5.1
+ * **************************************************************/
+complexd ScatteringWF::aForm(complexd ZZ) const {
+    //complexd cA1 = expPIZ_k; 
+    complexd cA2 = pow(ZZ,mAA);
+    complexd cB1 = exp(ZZ);
+    complexd cB2 = pow(ZZ, AAmBB);
+    complexd cA  = cA2*expPIAAXgammaBBmAAr;
+    complexd cB  = cB1*cB2*gammaAAr;
+    complexd termA(0,0);
+    complexd termB(0,0);
+    int      maxTerms = 24;
+    complexd zrn      = 1;
+    complexd mzrn     = 1;
+    complexd zr       = 1.0/ZZ;
+    double   nFact    = 1.0;      //0! = 1
+    complexd pochAA(1.0,0.0);     //Pochhammer is the counting up factorial (A)_0 = 1
+    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+    for(int n=0; n<=maxTerms; n++) {
+        complexd contribA = pochAA*pochAA*mzrn/nFact;
+        termA += contribA;
+        complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
+        termB += contribB;
+        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+        mzrn     *= -zr;
+        zrn      *=  zr;
+        nFact    *= n+1;    //(n+1) is the number to be used in the next iteration
+        pochAA   *= 1.0*n + AA; //(x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1mAA *= n + 1.0 - AA;
     }
-    return exp(-I*(k*r + kDOTr));
+    return cA*termA + cB*termB;
 }
+// complexd ScatteringWF::aForm(complexd ZZ) const {
+//   //complexd cA1 = expIPA;
+//     complexd cA2 = pow(ZZ,I*Z/k);
+//     complexd cB1 = exp(ZZ);
+//     complexd cB2 = pow(ZZ,-one-I*Z/k);
+//     complexd cA  = expmPIZ_k*cA2/gamma1pIZ_k;
+//     complexd cB  = cB1*cB2/gammamIZ_k;
+//     complexd termA(0,0);
+//     complexd termB(0,0);
+//     int      maxTerms = 24;
+//     complexd zrn = 1;
+//     complexd mzrn = 1;
+//     complexd zr = 1.0/ZZ;
+//     double   nFact = 1.0;            //0! = 1
+//     complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
+//     complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+//     for(int n=0; n<=maxTerms; n++) {
+//         complexd contribA = pochAA*pochAA*mzrn/nFact;
+//         termA += contribA;
+//         complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
+//         termB += contribB;
+//         //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+//         mzrn     *= -zr;
+//         zrn      *=  zr;
+//         nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
+//         pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
+//         poch1mAA *= complexd(1+n,Z/k);        
+//     }
+//     return cA*termA + cB*termB;
+// }
+complexd ScatteringWF::gamma(double re, double im) {
+    gsl_sf_result lnr;
+    gsl_sf_result arg;
+    int status = gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
+    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
+    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
+    return ANS;
+}
+complexd ScatteringWF::gamma(complexd AA) {
+    gsl_sf_result lnr;
+    gsl_sf_result arg;
+    int status = gsl_sf_lngamma_complex_e(real(AA), imag(AA), &lnr, &arg);
+    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
+    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
+    return ANS;
+}
+// void testGamma(World& world) {
+//     if(world.rank() == 0) std::cout << "Testing Gamma:================================================" << std::endl;
+//     if(world.rank() == 0) std::cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << std::endl;
+//     if(world.rank() == 0) std::cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << std::endl;
+//     if(world.rank() == 0) std::cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << std::endl;
+//     if(world.rank() == 0) std::cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << std::endl;
+// }
+
 
 /******************************************
  * BoundWF
@@ -156,170 +306,22 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
     }
 }
 
-struct MemberFuncPtr {
-    ScatteringWF* thisObj;
-    MemberFuncPtr(ScatteringWF* obj) : thisObj(obj) {}
-    complexd operator()(double x) { return thisObj->f11(x); }
-};
 
-/**********************************************************************
- * The Scattering Wave Function
- * See Landau and Lifshitz Quantum Mechanics Volume 3
- * Third Edition Formula (136.9)
- ********************************************************************** 
- * How far must we tabulate our 1F1 to cover the domain?
- * V^(1/3) gives us the length of the box
- * Our spherical function needs only one octant of the box    V^(1/3)/2
- * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
- * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
- **********************************************************************/
-///World is needed for timing the length of the CubicInterpolationTable
-ScatteringWF::ScatteringWF(World& world, const double Z, const vector3D& kVec, const double cutoff)
-    :Z(Z)
-    ,kVec(kVec)
-    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
-    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
-    ,cutoff(cutoff)
+/*****************************************
+ *Exp[ I*(k.r) ]
+ *****************************************/
+Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
 {
-    expmPIZ_k   = exp(-PI*Z/k);
-    expPIZ_2k   = exp(PI*Z/(2*k));
-    gamma1pIZ_k = gamma(1.0,Z/k);
-    gammamIZ_k  = gamma(0.0,-Z/k);
-    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
-    one = complexd(1.0, 0.0);
-    dx = 4e-3;   //Mesh spacing <- OPTIMIZE
-    ra = 5.0; //boundary cutoff <- Variable Mesh
-    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-    time( &before );
-    MemberFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
-    time( &after );
-    PRINTLINE("Computing the CubicInterpolationTable took " << after - before 
-         << " seconds.");
+    double sum = 0.0;
+    for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
+    k = sqrt(sum);
+    costhK = kVec[2]/k;
 }
-
-ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec, const double cutoff)
-    :Z(Z)
-    ,kVec(kVec)
-    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
-    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
-    ,cutoff(cutoff)
+complexd Expikr::operator()(const vector3D& rVec) const
 {
-    expmPIZ_k   = exp(-PI*Z/k);
-    expPIZ_2k   = exp(PI*Z/(2*k));
-    gamma1pIZ_k = gamma(1.0,Z/k);
-    gammamIZ_k  = gamma(0.0,-Z/k);
-    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
-    one = complexd(1.0, 0.0);
-    dx = 4e-3;   //Mesh spacing
-    ra = 5.0; //boundary cutoff
-    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-    MemberFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
-}
-
-ScatteringWF::ScatteringWF(const double Z, const vector3D& kVec)
-    :Z(Z)
-    ,kVec(kVec)
-    ,k(sqrt(kVec[0]*kVec[0] + kVec[1]*kVec[1] + kVec[2]*kVec[2]))
-    ,domain(k*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
-    ,cutoff(1000.0)
-{
-    throw "cuttoff is set ";
-    expmPIZ_k   = exp(-PI*Z/k);
-    expPIZ_2k   = exp(PI*Z/(2*k));
-    gamma1pIZ_k = gamma(1.0,Z/k);
-    gammamIZ_k  = gamma(0.0,-Z/k);
-    expPIZ_2kXgamma1pIZ_k = expPIZ_2k * gamma1pIZ_k ;
-    one = complexd(1.0, 0.0);
-    dx = 4e-3;   //Mesh spacing
-    ra = 5.0; //boundary cutoff
-    n = floor(0.5*domain/dx*(1 + sqrt(1 + 4*ra/domain))) + 1;
-    MemberFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
-}
-
-complexd ScatteringWF::f11(double xx) const {
-    complexd ZZ(0.0,-xx);
-    //The cutoff was done by finding the minimum difference between
-    //conhyp(k,r) - aForm(k,r) for different k values
-    //20 + 7exp(-6k) is the emperical fit
-    //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
-    if(xx <= 4.1*Z*Z/(k*k) + 21.6) return conhyp(-I*Z/k,one,ZZ);
-    else return aForm3(ZZ);
-}
-
-/****************************************************
- * The Scattering Wave Function
- * See Landau and Lifshitz Quantum Mechanics Volume 3
- * Third Edition Formula (136.9)
- ****************************************************/
-complexd ScatteringWF::operator()(const vector3D& rVec) const {
-    if( fabs(rVec[0])<cutoff && fabs(rVec[1])<cutoff && fabs(rVec[2])<cutoff ) {
-        double kDOTr = kVec[0]*rVec[0] + kVec[1]*rVec[1] + kVec[2]*rVec[2];
-        double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
-        return 0.0634936359342 //  = (2PI)^-(3/2)
-               * expPIZ_2kXgamma1pIZ_k
-               * exp(I*kDOTr)
-               * fit1F1(k*r + kDOTr);
-    } else {
-        return 0.0;
+    double kDOTr = 0.0;
+    for(int i=0; i<NDIM; i++) {
+        kDOTr += kVec[i]*rVec[i];
     }
-}
-
-/****************************************************************
- * The asymptotic form of the hypergeometric function given by
- * Abramowitz and Stegun 13.5.1
- * **************************************************************/
-complexd ScatteringWF::aForm3(complexd ZZ) const {
-    complexd cA2 = pow(ZZ,I*Z/k);
-    complexd cB1 = exp(ZZ);
-    complexd cB2 = pow(ZZ,-one-I*Z/k);
-    complexd cA = expmPIZ_k*cA2/gamma1pIZ_k;
-    complexd cB = cB1*cB2/gammamIZ_k;
-    complexd termA(0,0);
-    complexd termB(0,0);
-    int maxTerms = 24;
-    complexd zrn = 1;
-    complexd mzrn = 1;
-    complexd zr = 1.0/ZZ;
-    double nFact = 1.0;            //0! = 1
-    complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
-    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
-    for(int n=0; n<=maxTerms; n++) {
-        complexd contribA = pochAA*pochAA*mzrn/nFact;
-        termA += contribA;
-        complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
-        termB += contribB;
-        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
-        mzrn     *= -zr;
-        zrn      *=  zr;
-        nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
-        pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
-        poch1mAA *= complexd(1+n,Z/k);        
-    }
-    return cA*termA + cB*termB;
-}
-complexd gamma(double re, double im) {
-    gsl_sf_result lnr;
-    gsl_sf_result arg;
-    int status = gsl_sf_lngamma_complex_e(re, im, &lnr, &arg);
-    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
-    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
-    return ANS;
-}
-complexd gamma(complexd AA) {
-    gsl_sf_result lnr;
-    gsl_sf_result arg;
-    int status = gsl_sf_lngamma_complex_e(real(AA), imag(AA), &lnr, &arg);
-    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
-    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
-    return ANS;
-}
-void testGamma(World& world) {
-    if(world.rank() == 0) std::cout << "Testing Gamma:================================================" << std::endl;
-    if(world.rank() == 0) std::cout << "gamma(3.0,0.0) = " << gamma(3.0,0.0) << std::endl;
-    if(world.rank() == 0) std::cout << "gamma(0.0,3.0) = " << gamma(0.0,3.0) << std::endl;
-    if(world.rank() == 0) std::cout << "gamma(3.0,1.0) = " << gamma(3.0,1.0) << std::endl;
-    if(world.rank() == 0) std::cout << "gamma(1.0,3.0) = " << gamma(1.0,3.0) << std::endl;
+    return exp(I*kDOTr);
 }
