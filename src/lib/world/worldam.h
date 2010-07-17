@@ -357,6 +357,8 @@ namespace madness {
             MADNESS_ASSERT(arg->get_world());
             MADNESS_ASSERT(arg->get_func());
 
+            // HERE NEED TO MAP DEST FROM WORLD'S COMMUNICATOR TO COMM_WORLD
+
             lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             nsent++;
             int i = get_free_send_request();
@@ -372,7 +374,8 @@ namespace madness {
                 , rank(world.mpi.rank())
                 , nproc(world.size())
                 , nsent(0)
-                , nrecv(0) {
+                , nrecv(0) 
+        {
             lock();
             for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
             unlock();
