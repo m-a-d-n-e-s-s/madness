@@ -134,6 +134,20 @@ namespace madness {
         bool dec_and_test() {
             return ((*this)-- == 1);
         }
+
+#ifdef ATOMICINT_CAS
+        /// Compare and swap
+
+        /// Always returns original value; if (value == compare) value = newval.
+        inline int compare_and_swap(int compare, int newval) {
+#ifdef MADATOMIC_USE_GCC
+            return __sync_val_compare_and_swap (&value, compare, newval);
+#else
+#error ... atomic exchange_and_add operator must be implemented for this platform;
+#endif
+        }
+#endif
+
     };
     
 }

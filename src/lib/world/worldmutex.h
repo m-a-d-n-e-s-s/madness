@@ -223,6 +223,9 @@ namespace madness {
 #endif
 
 
+#define OLDXXX
+#ifdef OLDXXX
+    // This version uses a spin lock
     class MutexReaderWriter : private Spinlock, private NO_DEFAULTS {
         volatile mutable int nreader;
         volatile mutable bool writeflag;
@@ -318,6 +321,96 @@ namespace madness {
 
         virtual ~MutexReaderWriter() {};
     };
+
+#else
+
+    // This version uses AtomicInt and CAS
+    class MutexReaderWriter : private NO_DEFAULTS {
+        mutable AtomicInt nreader;
+        mutable AtomicInt writeflag;
+        enum {UNLOCKED, LOCKED};
+
+    public:
+        enum lockT {NOLOCK, READLOCK, WRITELOCK};
+        
+        MutexReaderWriter() {nreader=0; writeflag=0;}
+        
+        bool try_read_lock() const {
+            nreader++;
+            if (writeflag == UNLOCKED) return true;
+            nreader--;
+            return false;
+        }
+        
+        bool try_write_lock() const {
+            return (writeflag.compare_and_swap((int) UNLOCKED, (int) LOCKED) == 0);
+        }
+        
+        bool try_lock(int lockmode) const {
+            if (lockmode == READLOCK) {
+                return try_read_lock();
+            }
+            else if (lockmode == WRITELOCK) {
+                return try_write_lock();
+            }
+            else if (lockmode == NOLOCK) {
+                return true;
+            }
+            else {
+                MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
+            }
+        }
+        
+        bool try_convert_read_lock_to_write_lock() const {
+            if (!try_write_lock()) return false;
+            if (nreader > 1) {
+                write_unlock();
+                return false;
+            }
+            nreader = 0;
+            return true;
+        }
+        
+        void read_lock() const {
+            while (!try_read_lock()) cpu_relax();
+        }
+        
+        void write_lock() const {
+            while (!try_write_lock()) cpu_relax();
+        }
+        
+        void lock(int lockmode) const {
+            while (!try_lock(lockmode)) cpu_relax();
+        }
+        
+        void read_unlock() const {
+            nreader--;
+        }
+        
+        void write_unlock() const {
+            writeflag = UNLOCKED;
+        }
+        
+        void unlock(int lockmode) const {
+            if (lockmode == READLOCK) read_unlock();
+            else if (lockmode == WRITELOCK) write_unlock();
+            else if (lockmode != NOLOCK) MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
+        }
+        
+        /// Converts read to write lock without releasing the read lock
+        
+        /// Note that deadlock is guaranteed if two+ threads wait to convert at the same time.
+        void convert_read_lock_to_write_lock() const {
+            while (!try_convert_read_lock_to_write_lock()) cpu_relax();
+        }
+        
+        /// Always succeeds immediately
+        void convert_write_lock_to_read_lock() const {
+            nreader++;
+            writeflag = UNLOCKED;
+        }
+    };
+#endif
 
     /// Scalable and fair condition variable (spins on local value)
     class ConditionVariable : public Spinlock {
