@@ -41,6 +41,7 @@
 
 #include <madness_config.h>
 #include <world/typestuff.h>
+#include <utility>
 
 namespace madness {
 
@@ -133,8 +134,9 @@ namespace madness {
     struct Hash<T[n]> {
         static hashT hash(const T(&t)[n], hashT initval=0) {
             return madness::hash(t, n, initval);
-        };
+        }
     };
+
 }
 
 
