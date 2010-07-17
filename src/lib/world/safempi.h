@@ -36,7 +36,12 @@
 /// \file safempi.h
 /// \brief Serializes calls to MPI in case it does not support THREAD_MULTIPLE
 
+// #ifdef STUBOUTMPI
+// #include <world/stubmpi.h>
+// #else
 #include <mpi.h>
+// #endif
+
 #include <world/typestuff.h>
 #include <world/worldmutex.h>
 #include <world/worldthread.h>
