@@ -46,8 +46,9 @@
  *    projectZdip:For perturbation calculations
  *    printBasis: For debugging purposes
  *    belkic:     Reproduces an analytic integral
- * 3) k (The wavelet order) must be the same as the projected functions: see main()
- *    12 has been the default
+ * 3) projectPsi needs the following files
+ *    wf.num                      a list of wave function ID numbers
+ *    bound.num OR unbound.num    a list of states to project on
  ***************************************************************************************/
 
 #include <string>
