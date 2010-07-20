@@ -70,34 +70,57 @@ const double baseWF::PI = M_PI;
 const complexd baseWF::I(0.0,1.0);
 
 /**********************************************************************
+ * Philk (angular momentum resolved scattering states)
+ * See Freidrich, Theoretical Atomic Physics
+ * Appendix 5
+ **********************************************************************/
+Phikl::Phikl(const double Z, const double k, const int l, const double cutoff) 
+    :ScatteringWF(Z, cutoff) 
+    ,l_(l) {}
+Phikl::Phikl(World& world, const double Z, const double k, const int l, const double cutoff) 
+    :ScatteringWF(world, Z, cutoff) 
+  ,l_(l) {}
+//NOT IMPLEMENTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+complexd Phikl::operator()(const vector3D& rVec) const {
+    if( fabs(rVec[0])<cutoff_ && fabs(rVec[1])<cutoff_ && fabs(rVec[2])<cutoff_ ) {
+        return 0.01;
+    } else {
+        return 0.0;
+    }
+}
+//NOT IMPLEMENTED!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+///f11 determines when to use the series conhyp and when to use the asymptotic aForm
+///This particular f11 belongs to PhiK. I haven't tested that for Phikl and the C++ 
+///design needs to be modified to support it.
+complexd Phikl::f11(double xx) const {
+    complexd ZZ(0.0,-xx);
+    //The transition point was done by finding the minimum difference between
+    //conhyp(k,r) - aForm(k,r) for different k values
+    if(xx <= 4.1*Z_*Z_/(k_*k_) + 21.6) return conhyp(-I*Z_/k_, one, ZZ);
+    else return aForm(ZZ);  //??? Should I implemnt aForm in ScatteringWF or in PhiK and Phikl ???
+}
+double Phikl::getk() const  { return k_; }
+complexd Phikl::setAA() { return l_ + 1.0 + I*Z_/k_;}
+complexd Phikl::setBB() { return complexd(2.0*l_ + 2.0, 0.0); }
+/**********************************************************************
  * PhiK (directional scattering states)
  * See Landau and Lifshitz Quantum Mechanics Volume 3
  * Third Edition Formula (136.9)
  **********************************************************************/
-PhiK::PhiK(const double Z, const vector3D& kVec, double cutoff)
-    :ScatteringWF(-I*Z/getk(), complexd(1.0,0.0),  cutoff)
-    ,kVec_(kVec)
-    ,Z_(Z)
-{   
-    setConstants();
-}
-PhiK::PhiK(World& world, const double Z, const vector3D& kVec, double cutoff)
-    :ScatteringWF(world, -I*Z/getk(), complexd(1.0,0.0),  cutoff)
-    ,kVec_(kVec)
-    ,Z_(Z)
-{   
-    setConstants();
-}
-void PhiK::setConstants()
-{    
-    expPIZ_2kXgamma1pIZ_k_ = exp(PI*Z_/(2*k_)) * gamma(0.0, Z_/k_);
-}
+PhiK::PhiK(const double Z, const vector3D& kVec, const double cutoff)
+    :ScatteringWF(Z, cutoff)
+    ,kVec_(kVec) {}
+PhiK::PhiK(World& world, const double Z, const vector3D& kVec, const double cutoff)
+    :ScatteringWF(world, Z, cutoff)
+    ,kVec_(kVec) {}
 double PhiK::getk() const {
     return sqrt(kVec_[0]*kVec_[0] + kVec_[1]*kVec_[1] + kVec_[2]*kVec_[2]);
 }
+complexd PhiK::setAA() { return -I*Z_/k_; }
+complexd PhiK::setBB() { return complexd(1.0, 0.0); }
 complexd PhiK::operator()(const vector3D& rVec) const {
-    if( fabs(rVec[0])<cutoff && fabs(rVec[1])<cutoff && fabs(rVec[2])<cutoff ) {
-        double kDOTr = kVec_[0]*rVec[0] + kVec_[1]*rVec[1] + kVec_[2]*rVec[2];
+    if( fabs(rVec[0])<cutoff_ && fabs(rVec[1])<cutoff_ && fabs(rVec[2])<cutoff_ ) {
+        double kDOTr =    kVec_[0]*rVec[0] + kVec_[1]*rVec[1] + kVec_[2]*rVec[2];
         double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
         return 0.0634936359342 //  = (2PI)^-(3/2)
                * expPIZ_2kXgamma1pIZ_k_
@@ -107,13 +130,13 @@ complexd PhiK::operator()(const vector3D& rVec) const {
         return 0.0;
     }
 }
+///F11 determines when to use the series conhyp and when to use the asymptotic aForm
 complexd PhiK::f11(double xx) const {
     complexd ZZ(0.0,-xx);
     //The cutoff was done by finding the minimum difference between
     //conhyp(k,r) - aForm(k,r) for different k values
-    //20 + 7exp(-6k) is the emperical fit
-    //if(xx <= 20 + 7*std::exp(-6*k)) return conhyp(-I/k,one,ZZ);
-    if(xx <= 4.1*Z_*Z_/(k_*k_) + 21.6) return conhyp(-I*Z_/k_, one, ZZ);
+    //    if(xx <= 4.1*Z_*Z_/(k_*k_) + 21.6) return conhyp(-I*Z_/k_, one, ZZ);
+    if(xx <= 4.1*Z_*Z_/(k_*k_) + 21.6) return conhyp(AA, BB, ZZ);
     else return aForm(ZZ);  //??? Should I implemnt aForm in ScatteringWF or in PhiK and Phikl ???
 }
 
@@ -122,17 +145,19 @@ complexd PhiK::f11(double xx) const {
  * An abstract base class for the anglar momentum 
  * resolved basis or the vector basis scattering states
  ****************************************************/
-ScatteringWF::ScatteringWF(const complexd AA, const complexd BB, double cutoff)
-    :k_(getk())
-    ,AA(AA)
-    ,BB(BB)
-    ,domain(k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
-    ,cutoff(cutoff)
-{
-    setConstants();
-    MemberFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>(0.0, domain, n, p1F1);
-}
+ScatteringWF::ScatteringWF(World& world, const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
+ScatteringWF::ScatteringWF(const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
+void ScatteringWF::init(World& world) {
+    one = complexd(1.0, 0.0);
+    dx = 4e-3;   //Mesh spacing <- OPTIMIZE
+    k_ = getk();
+    AA = setAA();
+    BB = setBB();
+    mAA = -AA;
+    AAmBB = AA-BB;
+    expPIAAXgammaBBmAAr = 1.0/exp(PI*I*AA)*gamma(BB-AA);
+    expPIZ_2kXgamma1pIZ_k_ = exp(PI*Z_/(2*k_)) * gamma(0.0, Z_/k_);
+    gammaAAr = 1.0/gamma(AA);
 /**********************************************************************
  * How far must we tabulate our 1F1 to cover the domain?
  * V^(1/3) gives us the length of the box
@@ -140,32 +165,11 @@ ScatteringWF::ScatteringWF(const complexd AA, const complexd BB, double cutoff)
  * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
  * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
  **********************************************************************/
-//World is needed for timing the length of the CubicInterpolationTable
-ScatteringWF::ScatteringWF(World& world, const complexd AA, const complexd BB, double cutoff)
-    :k_(getk())
-    ,AA(AA)
-    ,BB(BB)
-    ,domain(k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0))    
-    ,cutoff(cutoff)
-{
-    setConstants();   
-    MemberFuncPtr p1F1(this);
-    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
-}
-void ScatteringWF::setConstants()
-{    
-    one = complexd(1.0, 0.0);
-    dx = 4e-3;   //Mesh spacing <- OPTIMIZE
+    domain = k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);    
     n = floor(domain/dx +1);
-    mAA = -AA;
-    AAmBB = AA-BB;
-    expPIAAXgammaBBmAAr = 1.0/exp(PI*I*AA)*gamma(BB-AA);
-    gammaAAr = 1.0/gamma(AA);
-}
-double ScatteringWF::getk() const
-{
-    throw "ScatteringWF::getk() shouldn't be called";
-    return 0.000001;
+    MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
+    //World is needed for timing the length of the CubicInterpolationTable
+    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
 }
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
@@ -259,8 +263,7 @@ complexd ScatteringWF::gamma(complexd AA) {
 /******************************************
  * BoundWF
  ******************************************/
-BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : Z(Z)
-{
+BoundWF::BoundWF(double Z, int nn, int ll, int mm ) : Z(Z) {
     gsl_set_error_handler_off();
     if(nn < 1) {
         std::cerr << "Thou shalt not have negative n!" << std::endl;
@@ -310,15 +313,13 @@ complexd BoundWF::operator()(const vector3D& rVec) const {
 /*****************************************
  *Exp[ I*(k.r) ]
  *****************************************/
-Expikr::Expikr( const vector3D& kVec) : kVec(kVec)
-{
+Expikr::Expikr( const vector3D& kVec) : kVec(kVec) {
     double sum = 0.0;
     for(int i=0; i<NDIM; i++) { sum += kVec[i]*kVec[i]; }
     k = sqrt(sum);
     costhK = kVec[2]/k;
 }
-complexd Expikr::operator()(const vector3D& rVec) const
-{
+complexd Expikr::operator()(const vector3D& rVec) const {
     double kDOTr = 0.0;
     for(int i=0; i<NDIM; i++) {
         kDOTr += kVec[i]*rVec[i];

@@ -73,22 +73,30 @@ public:
  ******************************************/
 class ScatteringWF : public baseWF { 
 public:
-    ScatteringWF(const complexd AA, const complexd BB, double cutoff);
-    ScatteringWF(madness::World& world, const complexd AA, const complexd BB, double cutoff);
-    void setConstants();
+    ScatteringWF(madness::World& world, const double Z, double cutoff);
+    ScatteringWF(const double Z, double cutoff);
+    void init(madness::World& world);
     virtual complexd f11(const double r) const = 0;
+    virtual double getk() const = 0;
+    virtual complexd setAA() = 0;
+    virtual complexd setBB() = 0;
     complexd aForm(complexd ZZ) const;
-    const double k_;
+    complexd gamma(double re, double im);
+    complexd gamma(complexd AA);
+    CubicInterpolationTable<complexd > fit1F1;
+    const double Z_;
+    const double cutoff_;
+    double   k_;
     complexd AA;
     complexd BB;
     double   domain;
-    double   cutoff;
     complexd one;
     double   dx;
     int      n;
     complexd mAA;
     complexd AAmBB;
     complexd expPIAAXgammaBBmAAr;
+    complexd expPIZ_2kXgamma1pIZ_k_;
     complexd gammaAAr;
 protected:
     struct MemberFuncPtr {
@@ -96,31 +104,33 @@ protected:
         MemberFuncPtr(ScatteringWF* obj) : obj(obj) {}
         complexd operator()(double x) {return obj->f11(x);}
     };
-    CubicInterpolationTable<complexd > fit1F1;
-    virtual double getk() const;
-    complexd gamma(double re, double im);
-    complexd gamma(complexd AA);
 };
 
 class PhiK : public ScatteringWF {
 public:
     PhiK(madness::World& world, const double Z, const vector3D& kVec, double cutoff);
     PhiK(const double Z, const vector3D& kVec, double cutoff);
-    void setConstants();
-    complexd f11(double x) const;
     complexd operator()(const vector3D& x) const;
-protected:
-    virtual double getk() const;
+    complexd f11(const double r) const ;
+    complexd setAA();
+    complexd setBB();
+    double   getk() const;
 private:
-    complexd expPIZ_2kXgamma1pIZ_k_;
     const vector3D kVec_;
-    const double Z_;
 }; 
 
-// class phikl : public ScatteringWF {
-// public:
-//     complexd operator()(const vector3D& x) const;
-// };    
+class Phikl : public ScatteringWF {
+public:
+    Phikl(const double Z, const double k, const int l, double cutoff);
+    Phikl(madness::World& world, const double Z, const double k, const int l, double cutoff);
+    complexd operator()(const vector3D& x) const;
+    complexd f11(const double r) const ;    
+    complexd setAA();
+    complexd setBB();
+    double   getk() const ;
+private:
+    const int l_;
+};    
 
 
 /******************************************

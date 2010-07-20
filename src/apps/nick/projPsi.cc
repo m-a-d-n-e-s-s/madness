@@ -55,6 +55,7 @@
 using std::ofstream;
 using std::ofstream;
 #include <stdlib.h>
+#include <iomanip>
 #include <time.h>
 #include "wavef.h"
 #define PRINT(str) if(world.rank()==0) std::cout << str 
@@ -75,6 +76,163 @@ const char* wave_function_filename(int step);
 bool wave_function_exists(World& world, int step);
 void wave_function_store(World& world, int step, const complex_functionT& psi);
 complex_functionT wave_function_load(World& world, int step);
+
+struct InputParameters {
+  static const int MAXNATOM=99;
+
+    // IF YOU ADD A NEW PARAMETER DON'T FORGET TO INCLUDE IT IN
+    // a) read()
+    // b) serialize()
+    // c) operator<<()
+  
+  double L;           // Box size for the simulation
+  double Lsmall;      // Box size for small (near nucleus) plots
+  double Llarge;      // Box size for large (far from nucleus) plots
+  double F;           // Laser field strength
+  double omega;       // Laser frequency
+  double ncycle;      // Number of laser cycles in envelope
+  int natom;          // Number of atoms
+  double Z[MAXNATOM]; // Nuclear charge of atoms
+  double R[MAXNATOM][3]; // Coordinates of atoms
+  int k;              // wavelet order
+  double thresh;      // precision for truncating wave function
+  double safety;      // additional precision (thresh*safety) for operators and potential
+  double cut;         // smoothing parameter for 1/r (same for all atoms for now)
+  std::string iState ; // initial state = "1s" or "2s"
+  std::string prefix; // Prefix for filenames
+  int ndump;          // dump wave function to disk every ndump steps
+  int nplot;          // dump opendx plot to disk every nplot steps
+  int nprint;         // print stats every nprint steps
+  int nloadbal;       // load balance every nloadbal steps
+  int nio;            // Number of IO nodes 
+  double tScale;      // Scaling parameter for optimization
+  double target_time; // Target end-time for the simulation
+  
+  void read(const char* filename) {
+    std::ifstream f(filename);
+    std::string tag;
+    iState = "1s";
+    printf("\n");
+    printf("       Simulation parameters\n");
+    printf("       ---------------------\n");
+    while(f >> tag) {
+        if (tag[0] == '#') {
+            char ch;
+            printf("    comment  %s ",tag.c_str());
+            while (f.get(ch)) {
+                printf("%c",ch);
+                if (ch == '\n') break;
+            }
+        }
+        else if (tag == "L") {
+            f >> L;
+            printf("             L = %.1f\n", L);
+        }
+        else if (tag == "Lsmall") {
+            f >> Lsmall;
+            printf("        Lsmall = %.1f\n", Lsmall);
+        }
+        else if (tag == "Llarge") {
+            f >> Llarge;
+            printf("        Llarge = %.1f\n", Llarge);
+        }
+        else if (tag == "F") {
+            f >> F;
+            printf("             F = %.6f\n", F);
+        }
+        else if (tag == "omega") {
+            f >> omega;
+            printf("         omega = %.6f\n", omega);
+        }
+        else if (tag == "ncycle") {
+            f >> ncycle;
+            printf("         ncycle = %.6f\n", ncycle);
+        }
+        else if (tag == "natom") {
+            f >> natom;
+            printf("         natom = %d\n", natom);
+            for (int i=0; i<natom; i++) {
+                f >> Z[i] >> R[i][0] >> R[i][1] >> R[i][2];
+                printf("           atom %2d   %.1f  %10.6f  %10.6f  %10.6f\n", i, Z[i], R[i][0], R[i][1], R[i][2]);
+            }
+        }
+        else if (tag == "k") {
+            f >> k;
+            printf("             k = %d\n", k);
+        }
+        else if (tag == "thresh") {
+            f >> thresh;
+            printf("        thresh = %.1e\n", thresh);
+        }
+        else if (tag == "safety") {
+            f >> safety;
+            printf("        safety = %.1e\n", safety);
+        }
+        else if (tag == "cut") {
+            f >> cut;
+            printf("           cut = %.2f\n", cut);
+        }
+        else if (tag == "iState") {
+            f >> iState;
+            printf("        iState = %s\n", iState.c_str());
+        }
+        else if (tag == "prefix") {
+            f >> prefix;
+            printf("        prefix = %s\n", prefix.c_str());
+        }
+        else if (tag == "ndump") {
+            f >> ndump;
+            printf("         ndump = %d\n", ndump);
+        }
+        else if (tag == "nplot") {
+            f >> nplot;
+            printf("         nplot = %d\n", nplot);
+        }
+        else if (tag == "nprint") {
+            f >> nprint;
+            printf("         nprint = %d\n", nprint);
+        }
+        else if (tag == "nloadbal") {
+            f >> nloadbal;
+            printf("       nloadbal = %d\n", nloadbal);
+        }
+        else if (tag == "nio") {
+            f >> nio;
+            printf("            nio = %d\n", nio);
+        }
+        else if (tag == "target_time") {
+            f >> target_time;
+            printf("    target_time = %.3f\n", target_time);
+        }
+        else if (tag == "tScale") {
+            f >> tScale;
+            printf("         tScale = %.5f\n", tScale);
+        }
+        else {
+            MADNESS_EXCEPTION("unknown input option", 0);
+        }
+    }
+  }
+    
+  template <typename Archive>
+  void serialize(Archive & ar) {
+    ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
+    ar & archive::wrap(&(R[0][0]), 3*MAXNATOM);
+    ar & k & thresh & safety & cut & iState & prefix & ndump & nplot & nprint & nloadbal & nio;
+    ar & target_time & tScale;
+  }
+};
+
+std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
+    s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F << " " << p.omega <<
+        " " << p.ncycle << " " << p.Z << " " << p.R[0]<< " " << p.k<< " " <<
+        p.thresh<< " " << p.cut<< " " << p.iState << " " << p.prefix<< " " << p.ndump<< " " <<
+        p.nplot << " " << p.nprint << " "  << p.nloadbal << " " << p.nio << p.tScale << std::endl;
+return s;
+}
+
+InputParameters param;
+
 
 struct WF {
     std::string str;
@@ -356,6 +514,7 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
 //                     //PROJECT Psi_k into MADNESS
 //                     complex_functionT phi_k = 
 //                         complex_factoryT(world).functor(functorT( new PhiK(world, Z, kVec, cutoff) ));
+//                     phi_k.init();
 //                     output =  inner(psi0,phi_k);
 //                     std::cout.precision( 8 );
 //                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
@@ -378,20 +537,16 @@ void displayToScreen(World& world, std::vector<WF> basisList, std::vector<WF> ps
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
     PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
-    PRINTLINE("one");
     if( !f.is_open() ) {
         PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
     } else {
         if(boundList.empty() && unboundList.empty()) {
             boundList.push_back("1 0 0");
             boundList.push_back("2 1 0");
-            PRINTLINE("two");
         }
         //LOAD Psi(t)
         std::string tag;
-        PRINTLINE("three");
         std::vector<WF> psiList;
-        PRINTLINE("four");
         complexd output;
         PRINT("\t\t");
         while(f >> tag) {
@@ -403,77 +558,76 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
-        PRINTLINE("five");
         PRINT("\n");
         //psiIT holds the time evolved wave functions
         //LOAD bound states
-        complex_functionT psi0 = wave_function_load(world,0);
+        complex_functionT psi0;
+        if( wave_function_exists(world, 0) ) {
+            psi0 = wave_function_load(world,0);
+        } else {
+            PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
+            PRINTLINE("Consider changing the restart file to 0 and rerunning tdse");
+            exit(1);
+        }
         std::vector<WF>::const_iterator psiIT; 
         if( !boundList.empty() ) {
-            if( !wave_function_exists(world,0) ) {
-                PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
-            }else {
-                // <phi_bound|Psi(t)>
-                std::vector<std::string>::const_iterator boundIT;
-                int N, L, M;
-                for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
-                    std::stringstream ss(*boundIT);
-                    ss >> N >> L >> M;
-                    //PROJECT Phi_nlm into MADNESS
-                    complex_functionT phi_nlm = complex_factoryT(world).
-                        functor(functorT( new BoundWF(Z, N, L, M)));
-                    complexd n_overlap_0 = inner(phi_nlm,psi0);
-                    PRINT(*boundIT << "   ");
-                    //loop through time steps
-                    for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                        //<phi_k|PSI(t)> = <phi_k|Psi(t)> - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
-                        output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
-                        PRINT(std::scientific <<"\t" << real(output*conj(output)));
-                    }
-                    PRINT("\n");
-                }            
-            }
+            // <phi_bound|Psi(t)>
+            std::vector<std::string>::const_iterator boundIT;
+            int N, L, M;
+            for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
+                std::stringstream ss(*boundIT);
+                ss >> N >> L >> M;
+                //PROJECT Phi_nlm into MADNESS
+                complex_functionT phi_nlm = complex_factoryT(world).
+                    functor(functorT( new BoundWF(Z, N, L, M)));
+                complexd n_overlap_0 = inner(phi_nlm,psi0);
+                PRINT(*boundIT << "   ");
+                //loop through time steps
+                for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                    //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
+                    //<phi_k|PSI(t)> = <phi_k|Psi(t)> - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
+                    output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
+                    PRINT(std::scientific <<"\t" << real(output*conj(output)));
+                }
+                PRINT("\n");
+            }            
         }
         clock_t before=0, after=0;
         //LOAD unbound states
         if( !unboundList.empty() ) {
-            if( !wave_function_exists(world,0) ) {
-                PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
-            }else {
-                std::vector<std::string>::const_iterator unboundIT;
-                for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
-                    //parsing unboundList
-                    double KX, KY, KZ;
-                    std::stringstream ss(*unboundIT);
-                    ss >> KX >> KY >> KZ;
-                    double dArr[3] = {KX, KY, KZ};
-                    const vector3D kVec(dArr);
-                    //screening out the zero vector
-                    if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
-                        //PROJECT Psi_k into MADNESS
-                        if(world.rank()==0) before = clock();
-                        complex_functionT phi_k = 
-                            complex_factoryT(world).functor(functorT( new PhiK(world, Z, kVec, cutoff) ));
-                        // W/O timing
-                        //complex_functionT phi_k = 
-                        //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
-                        if(world.rank()==0) after = clock();
-                        std::cout.precision( 8 );
-                        PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
-                        //<phi_k|Psi(0)>
-                        double_complex k_overlap_0 = inner(phi_k,psi0);
-                        //loop through time steps
-                        for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                            //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                            //<phi_k|PSI(t)> = <phi_k|Psi(t)>   - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
-                            output =  inner(phi_k, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
-                            PRINT( std::scientific << "\t" << real(output*conj(output)) );
-                        }
-                        PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                        int WFsize = phi_k.size();
-                        PRINT("and has " << WFsize << " coefficients.\n");
+            std::vector<std::string>::const_iterator unboundIT;
+            for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
+                //parsing unboundList
+                double KX, KY, KZ;
+                std::stringstream ss(*unboundIT);
+                ss >> KX >> KY >> KZ;
+                double dArr[3] = {KX, KY, KZ};
+                const vector3D kVec(dArr);
+                if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
+                    //PROJECT Psi_k into MADNESS
+                    if(world.rank()==0) before = clock();
+                    const double constcutoff = cutoff;
+                    PhiK phik = PhiK(world, Z, kVec, constcutoff);
+                    phik.init(world);
+                    complex_functionT phi_k = complex_factoryT(world).functor(functorT( &phik ));
+                    // W/O timing
+                    //complex_functionT phi_k = 
+                    //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
+                    if(world.rank()==0) after = clock();
+                    std::cout.precision( 8 );
+                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
+                    //<phi_k|Psi(0)>
+                    complexd k_overlap_0 = inner(phi_k,psi0);
+                    //loop through time steps
+                    for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
+                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
+                        //<phi_k|PSI(t)> = <phi_k|Psi(t)>   - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
+                        output =  inner(phi_k, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
+                        PRINT( std::scientific << "\t" << real(output*conj(output)) );
                     }
+                    PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
+                    int WFsize = phi_k.size();
+                    PRINT("and has " << WFsize << " coefficients.\n");
                 }
             } 
         }
@@ -542,38 +696,126 @@ void compare1F1(World& world, double cutoff) {
     }
 }
 
-void compareGroundState(World& world, double Z) {
-    //import psi0
-    complex_functionT psi0;
-    if(wave_function_exists(world, 0) ) {
-        psi0 = wave_function_load(world, 0);
-    } else {
-        PRINTLINE("Psi( t=0 ) must be present");
+
+
+// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.  
+static double smoothed_potential(double r) {
+    double r2 = r*r;
+    double pot;
+    if (r > 6.5){
+        pot = 1.0/r;
+    } else if (r > 1e-2) {
+        pot = erf(r)/r + exp(-r2)*0.56418958354775630;
+    } else{
+        pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    //make 1s
+    return pot;
+}
+
+// Nuclear attraction potential
+complexd V(const vector3D& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    double sum = 0.0;
+    for (int i=0; i<param.natom; i++) {
+      double xx = x-param.R[i][0];
+      double yy = y-param.R[i][1];
+      double zz = z-param.R[i][2];
+      double rr = sqrt(xx*xx+yy*yy+zz*zz);
+      sum +=  -param.Z[i]*smoothed_potential(rr/param.cut)/param.cut;
+    }
+    return complexd(sum,0.0);
+}
+double myreal(double t) {return t;}
+double myreal(const double_complex& t) {return real(t);}
+// Given psi and V evaluate the energy ... leaves psi compressed, potn reconstructed
+template <typename T>
+double energy(World& world, const Function<T,3>& psi, const Function<T,3>& potn) {
+    // First do all work in the scaling function basis
+    psi.reconstruct();
+    bool DOFENCE = false;
+    Derivative<T,3> Dx(world,0), Dy(world,1), Dz(world,2);
+    Function<T,3> dx = Dx(psi,DOFENCE);
+    Function<T,3> dy = Dy(psi,DOFENCE);
+    Function<T,3> dz = Dz(psi,DOFENCE);
+    Function<T,3> Vpsi = psi*potn;
+    // Now do all work in the wavelet basis
+    psi.compress(DOFENCE); Vpsi.compress(DOFENCE); dx.compress(DOFENCE); dy.compress(DOFENCE); dz.compress(true);
+    T S = psi.inner(psi);
+    T PE = psi.inner(Vpsi);
+    T KE = 0.5*(inner(dx,dx) + inner(dy,dy) + inner(dz,dz));
+    T E = (KE+PE)/S;
+    dx.clear(); dy.clear(); dz.clear(); Vpsi.clear(); // To free memory on return
+    world.gop.fence();
+    return myreal(E);
+}
+void converge(World& world, complex_functionT& potn, complex_functionT& psi, double& eps) {
+     for (int iter=0; iter<30; iter++) {
+         SeparatedConvolution<double,NDIM> op =
+             BSHOperator3D(world, sqrt(-2*eps), param.cut, param.thresh);
+         complex_functionT Vpsi = (potn*psi);
+         Vpsi.scale(-2.0).truncate();
+         complex_functionT tmp = apply(op,Vpsi).truncate(param.thresh);
+         double norm = tmp.norm2();
+         complex_functionT r = tmp-psi;
+         double rnorm = r.norm2();
+         double eps_new = eps - 0.5*real(inner(Vpsi,r))/(norm*norm);
+         // if (world.rank() == 0) {
+         //     print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
+         // }
+         psi = tmp.scale(1.0/norm);
+         eps = eps_new;
+         if (rnorm < std::max(1e-5,param.thresh)) break;
+     }
+     psi.truncate(param.thresh);     
+ }
+
+
+void compareGroundState(World& world, double Z) {
+    //Create the softened ground state for a list of cuts
+    const int nCUT = 5;
+    double cut[nCUT] = { 0.3, 0.2, 0.1, 0.05, 0.03 };
+    complexd output;
+    if (world.rank() == 0) param.read("input");
+    PRINTLINE("            |<1s|psi0>|^2 \t |<2s|psi0>|^2 \t |<3s|psi0>|^2 \t |<4s|psi0>|^2");
+    //make |ns> states
     complex_functionT oneS = FunctionFactory<complexd,NDIM>(world).
-                 functor(functorT(new BoundWF(Z, 1, 0, 0)));
-    //Read in Psi(+)
-    std::ifstream f("wf.num");
-    if(f.is_open()) {
-        std::string tag;
-        complexd output;
-        //LOAD Psi(+)
-        output = oneS.inner(oneS);
-        PRINTLINE(      "|<1s|1s>|^2 = " << real(output*conj(output)));
-        while(f >> tag) {
-            if(wave_function_exists(world, atoi(tag.c_str())) ) {
-                complex_functionT psi_t = wave_function_load(world, atoi(tag.c_str()));
-                output = psi0.inner(psi_t);
-                PRINT(      "|<psi0|" << tag << ">|^2 = " << real(output*conj(output)));
-                output = oneS.inner(psi_t);
-                PRINTLINE("\t|< 1s |" << tag << ">|^2 = " << real(output*conj(output)));
-            } else {
-                PRINT("Function: " << tag << " not found"<< std::endl);
-            }
-        }
+        functor(functorT(new BoundWF(Z, 1, 0, 0)));
+    complex_functionT twoS = FunctionFactory<complexd,NDIM>(world).
+        functor(functorT(new BoundWF(Z, 2, 0, 0)));
+    complex_functionT threeS = FunctionFactory<complexd,NDIM>(world).
+        functor(functorT(new BoundWF(Z, 3, 0, 0)));
+    complex_functionT fourS = FunctionFactory<complexd,NDIM>(world).
+        functor(functorT(new BoundWF(Z, 4, 0, 0)));
+    for(int i=0; i<nCUT; i++) {
+        //Generate psi0 cut
+        complex_functionT psi0 = FunctionFactory<complexd,NDIM>(world).
+            functor(functorT(new BoundWF(Z, 1, 0, 0)));
+        psi0.scale(1/psi0.norm2());
+        psi0.truncate();//Does this throw away small coefficents?
+        psi0.scale(1/psi0.norm2());
+        //Make potn
+        param.cut = cut[i]; //The function V calls param.cut
+        complex_functionT potn = complex_factoryT(world).f(V);
+        potn.truncate(param.thresh);
+        double eps = energy(world, psi0, potn);
+        converge(world, potn, psi0, eps);
+        output = inner(oneS,psi0);
+        PRINT(std::setprecision(2) << "cut = " << cut[i] << "  " <<std::setprecision(12) 
+              << real(conj(output)*output) << "\t");
+        output = inner(twoS,psi0);
+        PRINT(real(conj(output)*output) << "\t");
+        output = inner(threeS,psi0);
+        PRINT(real(conj(output)*output) << "\t");
+        output = inner(fourS,psi0);
+        PRINTLINE(real(conj(output)*output) << "\t");
     }
 }
+
+
+
+
+
+
 
 
 /*************************************************
@@ -675,18 +917,20 @@ void belkic(World& world, double cutoff) {
      * I will take these to be colinear
      ************************************************************************/
     PRINTLINE("1 0 0");
+    double Z = 1.0;
     complex_functionT b1s = complex_factoryT(world).functor(functorT( 
-                                                      new BoundWF(1.0, 1, 0, 0) ));
+                                                      new BoundWF(Z, 1, 0, 0) ));
     double dARR[3] = {0, 0, 0.5};
     const vector3D kVec(dARR);
     PRINTLINE("|" << kVec << ">");
-    complex_functionT phi_k = complex_factoryT(world).functor(functorT(
-                                                      new PhiK(1.0, kVec, cutoff) ));
-    dARR[2] =  1.5;
+    PhiK phik = PhiK(Z, kVec, cutoff);
+    phik.init(world);
+    complex_functionT phi_k = complex_factoryT(world).functor(functorT( &phik ));
+    dARR[2] =  1.5; // {0, 0, 1.5}
     const vector3D qVec(dARR);
     PRINTLINE("Exp[I" << qVec << ".r>");
     complex_functionT expikDOTr = complex_factoryT(world).functor(functorT(
-                                                      new Expikr(qVec) ));
+                                                           new Expikr(qVec) ));
     PRINTLINE("<k=0.5| Exp[iqVec.r] |100>");
     complexd output = inner(phi_k, expikDOTr*b1s);
     PRINTLINE(output);
@@ -769,7 +1013,7 @@ int main(int argc, char**argv) {
         std::vector<std::string> unboundList;
         loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
-        PRINTLINE("Z = " << Z);
+        //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
         //compareGroundState(world, Z);
