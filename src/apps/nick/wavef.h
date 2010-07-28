@@ -53,11 +53,33 @@
 #include <iostream>
 #include <stdio.h>
 #include <complex>
+#include <iomanip>
+#include <time.h>
+#define PRINT(str) if(world.rank()==0) std::cout << str 
+#define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
 
+const int nIOProcessors =1;
+const std::string prefix = "data";
 const int NDIM  = 3;
-typedef madness::SharedPtr< madness::FunctionFunctorInterface<complexd,NDIM> > functorT;
+
+using namespace madness;
+
 typedef std::complex<double> complexd;
 typedef madness::Vector<double,NDIM> vector3D;
+typedef Vector<double,NDIM> vector3D;
+typedef Function<complexd,NDIM> complex_functionT;
+typedef Function<double,NDIM> functionT;
+typedef FunctionFactory<complexd,NDIM> complex_factoryT;
+typedef FunctionFactory<double,NDIM> factoryT;
+typedef madness::SharedPtr< madness::FunctionFunctorInterface<complexd,NDIM> > functorT;
+typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+
+const char* wave_function_filename(int step);
+bool wave_function_exists(World& world, int step);
+void wave_function_store(World& world, int step, const complex_functionT& psi);
+complex_functionT wave_function_load(World& world, int step);
+
+
 
 class baseWF : public madness::FunctionFunctorInterface<complexd,NDIM> {
 public:
@@ -75,7 +97,7 @@ class ScatteringWF : public baseWF {
 public:
     ScatteringWF(madness::World& world, const double Z, double cutoff);
     ScatteringWF(const double Z, double cutoff);
-    void init(madness::World& world);
+    void Init(madness::World& world);
     virtual complexd f11(const double r) const = 0;
     virtual double getk() const = 0;
     virtual complexd setAA() = 0;
@@ -110,6 +132,7 @@ class PhiK : public ScatteringWF {
 public:
     PhiK(madness::World& world, const double Z, const vector3D& kVec, double cutoff);
     PhiK(const double Z, const vector3D& kVec, double cutoff);
+    virtual ~PhiK();
     complexd operator()(const vector3D& x) const;
     complexd f11(const double r) const ;
     complexd setAA();
@@ -131,7 +154,6 @@ public:
 private:
     const int l_;
 };    
-
 
 /******************************************
  * Bound WaveFunction
@@ -159,5 +181,14 @@ private:
     vector3D kVec;
     double k;
     double costhK;
+};
+
+class Yl0 : public madness::FunctionFunctorInterface<double,NDIM> {
+public:
+    Yl0(const double L, const int l);
+    double operator()(const vector3D& r) const;
+    int l_;
+private:
+    double norm;
 };
 #endif

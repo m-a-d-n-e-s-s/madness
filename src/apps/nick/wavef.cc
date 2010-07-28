@@ -54,15 +54,12 @@
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_interp.h>
 #include <float.h>
-#include <time.h>
 #include <math.h>
 
 using namespace madness;
 
 //MPI printing macros
 time_t before, after;
-#define PRINT(str) if(world.rank()==0) std::cout << str;
-#define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl;
 //#define END_TIMER_C(msg,cplx) tt=cpu_time()-tt; std::cout << "Timer: " << msg << "(" << real(cplx) << " + " << imag(cplx) << "I) took " << tt << " seconds" << std::endl
 //#define END_TIMER(msg) tt=cpu_time()-tt; printf("timer: %24.24s    took%8.2f seconds\n", msg, tt)
 //Defining static members
@@ -113,6 +110,9 @@ PhiK::PhiK(const double Z, const vector3D& kVec, const double cutoff)
 PhiK::PhiK(World& world, const double Z, const vector3D& kVec, const double cutoff)
     :ScatteringWF(world, Z, cutoff)
     ,kVec_(kVec) {}
+PhiK::~PhiK() {
+    std::cout << "Destructing" << std::endl;
+}
 double PhiK::getk() const {
     return sqrt(kVec_[0]*kVec_[0] + kVec_[1]*kVec_[1] + kVec_[2]*kVec_[2]);
 }
@@ -147,7 +147,7 @@ complexd PhiK::f11(double xx) const {
  ****************************************************/
 ScatteringWF::ScatteringWF(World& world, const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
 ScatteringWF::ScatteringWF(const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
-void ScatteringWF::init(World& world) {
+void ScatteringWF::Init(World& world) {
     one = complexd(1.0, 0.0);
     dx = 4e-3;   //Mesh spacing <- OPTIMIZE
     k_ = getk();
@@ -325,4 +325,13 @@ complexd Expikr::operator()(const vector3D& rVec) const {
         kDOTr += kVec[i]*rVec[i];
     }
     return exp(I*kDOTr);
+}
+
+Yl0::Yl0( double L=10.0, int l=0 ) : l_(l)  {
+    norm = std::sqrt(3.0/L/L/L);
+}
+
+double Yl0::operator()(const vector3D& r) const {
+    double cosTH = r[2]/std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+    return norm * gsl_sf_legendre_sphPlm(l_, 0, cosTH);
 }

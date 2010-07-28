@@ -1,13 +1,13 @@
-L 80
+L 20
 Lsmall 10.0
-Llarge 30.0
+Llarge 10.0
 F 0.176
 omega 1.32
 ncycle 2
 natom 1
    1.0    0.0 0.0 0.0
 k 12
-thresh 1e-4
+thresh 1e-7
 safety 1e-0
 cut 0.3
 prefix data
