@@ -90,14 +90,14 @@ namespace madness {
         virtual void print() const {}
 
         /// Registers object for receipt of redistribute callbacks
-        
+
         /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
         void register_callback(ptrT ptr) {
             ptrs.insert(ptr);
         }
 
         /// Deregisters object for receipt of redistribute callbacks
-        
+
         /// @param[in] ptr Pointer to class derived from WorldDCRedistributedInterface
         void deregister_callback(ptrT ptr) {
             ptrs.erase(ptr);
@@ -381,8 +381,8 @@ namespace madness {
             pmap->register_callback(this);
             if (do_pending) this->process_pending();
         }
-        
-        ~WorldContainerImpl() {
+
+        virtual ~WorldContainerImpl() {
             pmap->deregister_callback(this);
         }
 
@@ -582,7 +582,7 @@ namespace madness {
             local.insert(acc, key);
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6);
         }
-	
+
         // Used to forward call to item member function
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
         MEMFUN_RETURNT(memfunT)
@@ -668,7 +668,7 @@ namespace madness {
         /// constructed container.  There is no need to worry about
         /// default constructors being executed in order.
         WorldContainer()
-                : p(0) 
+                : p(0)
         {}
 
 
@@ -683,7 +683,7 @@ namespace madness {
             : p(new implT(world,
                           SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
                           do_pending,
-                          hf)) 
+                          hf))
         {}
 
         /// Makes an initialized, empty container (no communication)
@@ -697,7 +697,7 @@ namespace madness {
                        const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf)) 
+            : p(new implT(world, pmap, do_pending, hf))
         {}
 
 
@@ -706,7 +706,7 @@ namespace madness {
         /// The copy refers to exactly the same container as other
         /// which must be initialized.
         WorldContainer(const WorldContainer& other)
-            : p(other.p) 
+            : p(other.p)
         {
             check_initialized();
         }
