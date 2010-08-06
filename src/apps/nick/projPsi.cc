@@ -61,9 +61,9 @@ using std::ofstream;
 
 using namespace madness;
 
-/***********************************************************************
- * For the momoment, I'm going to hard code a fixed number of l values.
- ***********************************************************************/
+/***************
+ * <Yl0|Psi(t)>
+ ***************/
 void projectL(World& world, const double L) {
     //LOAD Psi(t)
     std::ifstream f("wf.num");
@@ -92,7 +92,8 @@ void projectL(World& world, const double L) {
                 functor(SharedPtr<FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
             std::vector<WF>::iterator psiT;
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
-                PRINT( std::setprecision(12) << real(inner( yl0,psiT->func )));
+                complexd output = real(inner( yl0,psiT->func ));
+                PRINT( std::setprecision(12) << output);
             }
             PRINTLINE("");
         }
@@ -100,63 +101,7 @@ void projectL(World& world, const double L) {
 }
 
 
-// ///What is the overlap of the Coulombic eigenfunctions on the ground state?
-// void groundOverlap(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, double Z, double cutoff) {
-//     //LOAD Psi(0)
-//     if( wave_function_exists(world,'0') ) {
-//         complex_functionT psi0 = wave_function_load(world,0);
-//         PRINTLINE("\t\t|<basis|Psi(0)>|^2 ");
-//         if(boundList.empty() && unboundList.empty()) {
-//             boundList.push_back("1 0 0");
-//             boundList.push_back("2 1 0");
-//         }
-//         std::string tag;
-//         std::vector<WF> psiList;
-//         complexd output;
-//         PRINTLINE("|t=0>");
-//         //phi_nlm
-//         if( !boundList.empty() ) {
-//             std::vector<std::string>::const_iterator boundIT;
-//             int N, L, M;
-//             for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
-//                 std::stringstream ss(*boundIT);
-//                 ss >> N >> L >> M;
-//                 //PROJECT Phi_nlm into MADNESS
-//                 complex_functionT phi_nlm = complex_factoryT(world).
-//                     functor(functorT( new BoundWF(Z, N, L, M)));
-//                 PRINT(*boundIT << "   ");
-//                 // <phi_bound|Psi(0)>
-//                 output = phi_nlm.inner( psi0 ); 
-//                 PRINTLINE(std::scientific <<"\t" << real(output*conj(output)));
-//             }
-//         }
-//         if( !unboundList.empty() ) {
-//             std::vector<std::string>::const_iterator unboundIT;
-//             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
-//                 //parsing unboundList
-//                 double KX, KY, KZ;
-//                 std::stringstream ss(*unboundIT);
-//                 ss >> KX >> KY >> KZ;
-//                 double dArr[3] = {KX, KY, KZ};
-//                 const vector3D kVec(dArr);
-//                 //screening out the zero vector
-//                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) {
-//                     //PROJECT Psi_k into MADNESS
-//                     complex_functionT phi_k = 
-//                         complex_factoryT(world).functor(functorT( new PhiK(world, Z, kVec, cutoff) ));
-//                     phi_k.init();
-//                     output =  inner(psi0,phi_k);
-//                     std::cout.precision( 8 );
-//                     PRINT( std::fixed << KX << " " << KY << " " << KZ << "\t" <<
-//                            std::scientific << "\t" << real(output*conj(output)) );
-//                 }
-//             }
-//         }else {
-//             PRINTLINE("psi0 must be present in this directory i.e.  data-00000.0000*");
-//         }
-//     }
-// } 
-
+ 
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
