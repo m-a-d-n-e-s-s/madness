@@ -69,10 +69,12 @@ namespace madness {
         BandlimitedPropagator(double c, double t, double width) : width(width) {
             // 4.0 is range of window in Fourier space, 32x for
             // oversampling in real space for accurate cubic
-            // interpolation
-            const double kmax = 32.0*4.0*c;
+            // interpolation.  Extra factor of 8 from accurate tdse1d testing.
+            const double kmax = 32.0*4.0*c*8;
             const double fac = kmax/constants::pi;
-            const int N = 131072;
+            const double c2 = std::pow(2.0,double(std::ceil(std::log(c/20.0)/std::log(2.0))));
+            //std::cout << "C2 " << c2 << std::endl;
+            const int N = 131072 * 2 * c2;
             const double hk = 2.0*kmax/N;
             const double hx = constants::pi/kmax;
             std::vector<double_complex> s(N);
