@@ -1,3 +1,4 @@
+
 /*
   This file is part of MADNESS.
   
@@ -78,22 +79,74 @@ void projectL(World& world, const double L) {
             if( !wave_function_exists(world, atoi(tag.c_str())) ) {
                 PRINTLINE("Function " << tag << " not found");
             } else {
-                //LOAD PSI(t) -COPY CODE-
                 WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
                 psiList.push_back(WF(tag, psi_t.func));
                 PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
-         PRINTLINE("");
-        const int lMAX = 10;
+        PRINTLINE("");
+        const int n = 40;
+        const double PI = M_PI;
+        const double dr = L/n;
+        const double dTH = PI/n;
+        const double dPHI = 2*PI/n;
+        const int lMAX = 1;
+        const bool debug = true;
         for( int l=0; l<lMAX; l++) {
             PRINT("Y"<< l << "0: \t");
             Function<double,3> yl0 = FunctionFactory<double,3>(world).
                 functor(SharedPtr<FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
             std::vector<WF>::iterator psiT;
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
-                complexd output = real(inner( yl0,psiT->func ));
-                PRINT( std::setprecision(12) << output);
+                complexd YlPsi = 0.0;
+                complexd psiPsi = 0.0;
+                complexd shell = 0.0;
+                int count = 0;
+                //WARNING! The below numerical scheme isn't working. I'm in the process of checking it against
+                //         Mathematica and resolveing the details.
+                for( int i=0; i<n; i++ ) {
+                    const double r = (0.5 + i)*dr;
+                    for( int j=0; j<n ; j++ ) {
+                        const double th = (0.5 + j)*dTH;
+                        for( int k=0; k<n; k++ ) {
+                            const double phi = k*dPHI;
+                            const double sinTH = std::sin(th);
+                            const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
+                            const vector3D rVec(a);
+                            //YlPsi +=  r*r*sinTH*dr*dTH*dPHI;
+                            count++;
+                            //if(count==11 || count==111 || count==1111) PRINTLINE("count = " << count << " YlPsi = " << real(YlPsi));
+                            YlPsi +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
+                            if(debug) {
+                                psiPsi +=  psiT->func(rVec) *psiT->func(rVec)  * r*r*sinTH*dr*dTH*dPHI;
+                                shell +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
+                            }
+                            // if(debug && i==0 && j==0 ) PRINTLINE(std::setprecision(2) << std::fixed << "Yl0(phi) = " << yl0(rVec) << "\t psi(phi=" << phi << ") = " <<
+                            //                                      std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
+                        }
+                        // const double sinTH = std::sin(th);
+                        // const double a[3] = {r*sinTH, r*sinTH, r*std::cos(th)};
+                        // const vector3D rVec(a);
+                        // if(debug && i==0) PRINTLINE(std::setprecision(2) << std::fixed      << "Yl0(th)  = " << yl0(rVec) << "\t psi(th="  << th  << " ) = " <<
+                        //                             std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
+                    }
+                    if(debug) {
+                        const double a[3] = {0, 0, r};
+                        const vector3D rVec(a);
+                        PRINTLINE(std::setprecision(2)<< std::fixed << "Yl0(r)   = " << yl0(rVec) << "\t psi(r="   << r   << "  ) = " <<
+                                  std::setprecision(9)<< std::scientific << real(psiT->func(rVec)) << "\t shell = " << real(shell));
+                        shell = 0.0;
+                    }
+                }
+                complexd output = inner(psiT->func, psiT->func);
+                PRINT( "<psi|psi>   =  " << std::setprecision(12) << real(output)<< "\t");
+                complexd outputYl = inner(psiT->func, yl0);
+                PRINTLINE( "<psi|Yl0>   =  " << std::setprecision(12) << real(outputYl)<< "\t");
+                PRINT( "my<psi|psi> =  " << std::setprecision(12) << real(psiPsi ) << "\t");
+                PRINTLINE( "my<psi|Yl0> =  " << std::setprecision(12) << real(YlPsi ) << "\t");
+                PRINT("diff        =  " << real( psiPsi-output) << "\t");
+                PRINTLINE("diff = " << real(YlPsi-outputYl));
+                PRINTLINE( "n = " << n);
             }
             PRINTLINE("");
         }

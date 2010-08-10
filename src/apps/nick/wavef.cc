@@ -333,5 +333,5 @@ Yl0::Yl0( double L=10.0, int l=0 ) : l_(l)  {
 
 double Yl0::operator()(const vector3D& r) const {
     double cosTH = r[2]/std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
-    return norm * gsl_sf_legendre_sphPlm(l_, 0, cosTH);
+    return  gsl_sf_legendre_sphPlm(l_, 0, cosTH);
 }
