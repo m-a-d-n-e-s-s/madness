@@ -81,7 +81,7 @@ void projectL(World& world, const double L, const int n) {
             } else {
                 WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
                 psiList.push_back(WF(tag, psi_t.func));
-                PRINT("|" << tag << ">\t\t");
+                PRINT("|" << tag << ">\t\t\t");
             }
         }// done loading wf.num
         PRINTLINE("");
@@ -91,12 +91,12 @@ void projectL(World& world, const double L, const int n) {
         const double dPHI = 2*PI/n;
         const int lMAX = 5;
         const bool debug = false;
+        std::vector<WF>::iterator psiT;
+        complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
         for( int l=0; l<lMAX; l++) {
-            //PRINT("Y"<< l << "0: \t");
-            functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
-            complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
-            std::vector<WF>::iterator psiT;
+            PRINT("Y"<< l << "0: \t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
+                functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
                 complexd YlPsi = 0.0;
                 complexd psiPsi = 0.0;
                 complexd shell = 0.0;
@@ -133,10 +133,11 @@ void projectL(World& world, const double L, const int n) {
                     }
                 }
                 complexd output = inner(psiT->func, yl0);
-                complexd output1s = inner(phi100,   yl0);
+                //complexd output1s = inner(phi100,   yl0);
                 PRINT(std::setprecision(15));
-                PRINTLINE( "<psi0|Y" << l << "0> =  " << real(output));
-                PRINTLINE( "  <1s|Y" << l << "0> =  " << real(output1s));
+                PRINT(real(output) << "\t");
+                // PRINT( "<psi0|Y" << l << "0> =  " << real(output));
+                // PRINTLINE( "  <1s|Y" << l << "0> =  " << real(output1s));
                 //PRINTLINE("diff        =  " << real(output1s - output) << "\t");
                 if(debug) {
                     PRINTLINE("my<psi|Yl0> =  " << real(YlPsi ) << "\t");
