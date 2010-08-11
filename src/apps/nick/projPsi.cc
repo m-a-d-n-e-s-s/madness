@@ -97,62 +97,9 @@ void projectL(World& world, const double L, const int n) {
             PRINT("Y"<< l << "0: \t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
-                complexd YlPsi = 0.0;
-                complexd psiPsi = 0.0;
-                complexd shell = 0.0;
-                for( int i=0; i<n; i++ ) {
-                    const double r = (0.5 + i)*dr;
-                    for( int j=0; j<n ; j++ ) {
-                        const double th = (0.5 + j)*dTH;
-                        for( int k=0; k<n; k++ ) {
-                            const double phi = k*dPHI;
-                            const double sinTH = std::sin(th);
-                            const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
-                            const vector3D rVec(a);
-                            //YlPsi +=  r*r*sinTH*dr*dTH*dPHI;
-                            YlPsi +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
-                            if(debug) {
-                                psiPsi +=  psiT->func(rVec) *psiT->func(rVec)  * r*r*sinTH*dr*dTH*dPHI;
-                                shell +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
-                            }
-                            // if(debug && i==0 && j==0 ) PRINTLINE(std::setprecision(2) << std::fixed << "Yl0(phi) = " << yl0(rVec) << "\t psi(phi=" << phi << ") = " <<
-                            //                                      std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
-                        }
-                        // const double sinTH = std::sin(th);
-                        // const double a[3] = {r*sinTH, r*sinTH, r*std::cos(th)};
-                        // const vector3D rVec(a);
-                        // if(debug && i==0) PRINTLINE(std::setprecision(2) << std::fixed      << "Yl0(th)  = " << yl0(rVec) << "\t psi(th="  << th  << " ) = " <<
-                        //                             std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
-                    }
-                    if(debug) {
-                        const double a[3] = {0, 0, r};
-                        const vector3D rVec(a);
-                        PRINTLINE(std::setprecision(2)<< std::fixed << "Yl0(r)   = " << yl0(rVec) << "\t psi(r="   << r   << "  ) = " <<
-                                  std::setprecision(9)<< std::scientific << real(psiT->func(rVec)) << "\t shell = " << real(shell));
-                        shell = 0.0;
-                    }
-                }
                 complexd output = inner(psiT->func, yl0);
-                //complexd output1s = inner(phi100,   yl0);
                 PRINT(std::setprecision(15));
                 PRINT(real(output) << "\t");
-                // PRINT( "<psi0|Y" << l << "0> =  " << real(output));
-                // PRINTLINE( "  <1s|Y" << l << "0> =  " << real(output1s));
-                //PRINTLINE("diff        =  " << real(output1s - output) << "\t");
-                if(debug) {
-                    PRINTLINE("my<psi|Yl0> =  " << real(YlPsi ) << "\t");
-                    PRINTLINE("diff        =  " << real(YlPsi-output) << "\t");
-                    PRINTLINE( "n = " << n);
-                    ofstream f;
-                    f.open("jnk.dat");
-                    for( int i=0; i<400; i++ ) {
-                        const double r = i*0.1;
-                        const double a[3] = {0, 0, r};
-                        const vector3D rVec(a);
-                        f <<  real( psiT->func(rVec) ) << "\n";
-                    }
-                    f.close();
-                }
             }
             PRINTLINE("");
         }
