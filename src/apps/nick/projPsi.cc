@@ -65,7 +65,7 @@ using namespace madness;
 /***************
  * <Yl0|Psi(t)>
  ***************/
-void projectL(World& world, const double L, const int n) {
+void projectL(World& world, const double L) {
     //LOAD Psi(t)
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -85,16 +85,11 @@ void projectL(World& world, const double L, const int n) {
             }
         }// done loading wf.num
         PRINTLINE("");
-        const double PI = M_PI;
-        const double dr = L/n;
-        const double dTH = PI/n;
-        const double dPHI = 2*PI/n;
         const int lMAX = 5;
-        const bool debug = false;
         std::vector<WF>::iterator psiT;
         complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
         for( int l=0; l<lMAX; l++) {
-            PRINT("Y"<< l << "0: \t");
+            PRINT("Y"<< l << "0 \t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
                 complexd output = inner(psiT->func, yl0);
@@ -225,7 +220,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
 }
 
 
-void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff, int &n) {
+void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff) {
     std::string tag;
     int natom;
     double Rx, Ry, Rz;
@@ -273,10 +268,6 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("dMAX = " << dMAX);
                 PRINTLINE("cutoff = " << cutoff);
             }
-            else if (tag == "n") {
-                f >> n;
-                PRINTLINE("n = " << n);
-            }
         }
     }
 }
@@ -295,9 +286,8 @@ int main(int argc, char**argv) {
     double Z = 1.0;
     double thresh = 1e-6;
     double cutoff = L;
-    int    n = 10;
     if(world.rank()==0) std::cout << std::setprecision(12);
-    loadParameters(world, thresh, k, L, Z, cutoff, n);
+    loadParameters(world, thresh, k, L, Z, cutoff);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -311,8 +301,7 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        const int n1 = n;
-        projectL(world, L, n1);
+        projectL(world, L);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
