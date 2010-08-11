@@ -65,7 +65,7 @@ using namespace madness;
 /***************
  * <Yl0|Psi(t)>
  ***************/
-void projectL(World& world, const double L) {
+void projectL(World& world, const double L, const int n) {
     //LOAD Psi(t)
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -85,25 +85,21 @@ void projectL(World& world, const double L) {
             }
         }// done loading wf.num
         PRINTLINE("");
-        const int n = 40;
         const double PI = M_PI;
         const double dr = L/n;
         const double dTH = PI/n;
         const double dPHI = 2*PI/n;
-        const int lMAX = 1;
-        const bool debug = true;
+        const int lMAX = 5;
+        const bool debug = false;
         for( int l=0; l<lMAX; l++) {
-            PRINT("Y"<< l << "0: \t");
-            Function<double,3> yl0 = FunctionFactory<double,3>(world).
-                functor(SharedPtr<FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
+            //PRINT("Y"<< l << "0: \t");
+            functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
+            complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
             std::vector<WF>::iterator psiT;
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 complexd YlPsi = 0.0;
                 complexd psiPsi = 0.0;
                 complexd shell = 0.0;
-                int count = 0;
-                //WARNING! The below numerical scheme isn't working. I'm in the process of checking it against
-                //         Mathematica and resolveing the details.
                 for( int i=0; i<n; i++ ) {
                     const double r = (0.5 + i)*dr;
                     for( int j=0; j<n ; j++ ) {
@@ -114,8 +110,6 @@ void projectL(World& world, const double L) {
                             const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
                             const vector3D rVec(a);
                             //YlPsi +=  r*r*sinTH*dr*dTH*dPHI;
-                            count++;
-                            //if(count==11 || count==111 || count==1111) PRINTLINE("count = " << count << " YlPsi = " << real(YlPsi));
                             YlPsi +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
                             if(debug) {
                                 psiPsi +=  psiT->func(rVec) *psiT->func(rVec)  * r*r*sinTH*dr*dTH*dPHI;
@@ -138,15 +132,26 @@ void projectL(World& world, const double L) {
                         shell = 0.0;
                     }
                 }
-                complexd output = inner(psiT->func, psiT->func);
-                PRINT( "<psi|psi>   =  " << std::setprecision(12) << real(output)<< "\t");
-                complexd outputYl = inner(psiT->func, yl0);
-                PRINTLINE( "<psi|Yl0>   =  " << std::setprecision(12) << real(outputYl)<< "\t");
-                PRINT( "my<psi|psi> =  " << std::setprecision(12) << real(psiPsi ) << "\t");
-                PRINTLINE( "my<psi|Yl0> =  " << std::setprecision(12) << real(YlPsi ) << "\t");
-                PRINT("diff        =  " << real( psiPsi-output) << "\t");
-                PRINTLINE("diff = " << real(YlPsi-outputYl));
-                PRINTLINE( "n = " << n);
+                complexd output = inner(psiT->func, yl0);
+                complexd output1s = inner(phi100,   yl0);
+                PRINT(std::setprecision(15));
+                PRINTLINE( "<psi0|Y" << l << "0> =  " << real(output));
+                PRINTLINE( "  <1s|Y" << l << "0> =  " << real(output1s));
+                //PRINTLINE("diff        =  " << real(output1s - output) << "\t");
+                if(debug) {
+                    PRINTLINE("my<psi|Yl0> =  " << real(YlPsi ) << "\t");
+                    PRINTLINE("diff        =  " << real(YlPsi-output) << "\t");
+                    PRINTLINE( "n = " << n);
+                    ofstream f;
+                    f.open("jnk.dat");
+                    for( int i=0; i<400; i++ ) {
+                        const double r = i*0.1;
+                        const double a[3] = {0, 0, r};
+                        const vector3D rVec(a);
+                        f <<  real( psiT->func(rVec) ) << "\n";
+                    }
+                    f.close();
+                }
             }
             PRINTLINE("");
         }
@@ -272,7 +277,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
 }
 
 
-void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff) {
+void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff, int &n) {
     std::string tag;
     int natom;
     double Rx, Ry, Rz;
@@ -320,6 +325,10 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("dMAX = " << dMAX);
                 PRINTLINE("cutoff = " << cutoff);
             }
+            else if (tag == "n") {
+                f >> n;
+                PRINTLINE("n = " << n);
+            }
         }
     }
 }
@@ -338,8 +347,9 @@ int main(int argc, char**argv) {
     double Z = 1.0;
     double thresh = 1e-6;
     double cutoff = L;
+    int    n = 10;
     if(world.rank()==0) std::cout << std::setprecision(12);
-    loadParameters(world, thresh, k, L, Z, cutoff);
+    loadParameters(world, thresh, k, L, Z, cutoff, n);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -353,7 +363,8 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        projectL(world, L);
+        const int n1 = n;
+        projectL(world, L, n1);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
