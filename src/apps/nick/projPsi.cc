@@ -188,12 +188,12 @@ void zSlice(World& world, int n, double L, double th, double phi) {
             exit(1);
         } else {
             psiT = wave_function_load(world, atoi(tag.c_str()));
-            PRINTLINE("phi(T=" << tag << ",r) =\t phi=0 \t\t phi=" << phi);
+            PRINTLINE("phi(T=" << tag << ",r) =\t th=0 \t\t th=" << th << "phi = " << phi);
         }// done loading wf.num
         const double dr = L/n;
         for( int i=0; i<n; i++ ) {
             const double r = i*dr;
-            const double a[3] = {r*std::sin(th), r*std::sin(th), r};
+            const double a[3] = {0, 0, r};
             const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
             const vector3D aVec(a);
             const vector3D bVec(b);
