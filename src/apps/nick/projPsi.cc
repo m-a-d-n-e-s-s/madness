@@ -92,15 +92,18 @@ void projectL(World& world, const double L, const int n) {
         const int lMAX = 5;
         const bool debug = false;
         std::vector<WF>::iterator psiT;
-        complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
+        std::vector<complexd> YlPsi(n);
+        for( int i=0; i<n; i++ ) {
+            YlPsi[i] = 0.0;
+        }
+        //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
         for( int l=0; l<lMAX; l++) {
             PRINT("Y"<< l << "0: \t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
-                complexd YlPsi = 0.0;
                 complexd psiPsi = 0.0;
                 complexd shell = 0.0;
-                for( int i=0; i<n; i++ ) {
+                for( int i=world.rank()==0; i<n; i+=world.size() ) {
                     const double r = (0.5 + i)*dr;
                     complexd Rl = 0.0;
                     for( int j=0; j<n ; j++ ) {
@@ -126,7 +129,7 @@ void projectL(World& world, const double L, const int n) {
                         // if(debug && i==0) PRINTLINE(std::setprecision(2) << std::fixed      << "Yl0(th)  = " << yl0(rVec) << "\t psi(th="  << th  << " ) = " <<
                         //                             std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
                     }
-                    YlPsi += conj(Rl)*Rl *r*r*dr;
+                    YlPsi[i] = conj(Rl)*Rl * r*r*dr;
                     if(debug) {
                         const double a[3] = {0, 0, r};
                         const vector3D rVec(a);
@@ -135,8 +138,14 @@ void projectL(World& world, const double L, const int n) {
                         shell = 0.0;
                     }
                 }
+                world.gop.sum(&YlPsi[0], n);
+                world.gop.fence();
+                double Pl = 0.0;
+                for( int i=0; i<n; i++ ) {
+                    Pl += real( YlPsi[i] );
+                }
                 PRINT(std::setprecision(15));
-                PRINT( real(YlPsi) << "\t");
+                PRINT( Pl << "\t");
                 //complexd output = inner(psiT->func, yl0);
                 //complexd output1s = inner(phi100,   yl0);
                 //PRINT(real(output) << "\t");
@@ -162,6 +171,39 @@ void projectL(World& world, const double L, const int n) {
     }
 }
 
+void zSlice(World& world, double L) {
+    ///READ wf.num
+    std::ifstream f("wf1.num");
+    complex_functionT psiT;
+    if( !f.is_open() ) {
+        PRINTLINE("File: wf1.num expected to contain an integer wave function number");
+    } else {
+        std::string tag;
+        std::vector<WF> psiList;
+        complexd output;
+        PRINT("\t");
+        while(f >> tag) {
+            if( !wave_function_exists(world, atoi(tag.c_str())) ) {
+                PRINTLINE("Function " << tag << " not found");
+                exit(1);
+            } else {
+                psiT = wave_function_load(world, atoi(tag.c_str()));
+                PRINT("|" << tag << ">\t\t\t");
+            }
+        }// done loading wf.num
+    }
+    const int n = 1000;
+    const double dr = L/n;
+    const double th = 0.0;
+    const double phi= 0.0;
+    PRINTLINE(std::setprecision(9) << std::scientific);
+    for( int i=0; i<n; i++ ) {
+        const double r = i*dr;
+        const double a[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
+        const vector3D rVec(a);
+        PRINTLINE(real(psiT(rVec)));
+    }
+}
 
  
 /************************************************************************************
@@ -367,8 +409,9 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        const int n1 = n;
-        projectL(world, L, n1);
+        //const int n1 = n;
+        //projectL(world, L, n1);
+        zSlice(world, L);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);

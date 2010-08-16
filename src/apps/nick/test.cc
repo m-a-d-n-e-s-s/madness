@@ -47,8 +47,6 @@ using std::ofstream;
 
 using namespace madness;
 
-const int nIOProcessors =1;
-const std::string prefix = "data";
 typedef std::complex<double> complexd;
 typedef Vector<double,NDIM> vector3D;
 typedef Function<complexd,NDIM> complex_functionT;
@@ -89,23 +87,23 @@ int main(int argc, char** argv) {
     //FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try{
-        // const double cutoff = L;
-        // double a[3] = {0, 0, 0.5};
-        // const vector3D kVec(a);
-        // PhiK phik = PhiK(world, 1.0, kVec, cutoff);
-        // phik.Init(world);
-        // {
-        //     complex_functionT phi_k = complex_factoryT(world).functor(functorT(new PhiKAdatpor(phik)));
-        //     PRINTLINE( "<phik|phik> = " << inner(phi_k, phi_k));
-        // }
-        Function<double,3> y10 = FunctionFactory<double,3>(world).
-            functor(SharedPtr<FunctionFunctorInterface<double,3> >( new Yl0(1) ));
-        for(double theta=0; theta < 3.14159; theta +=0.314) {
-            double a[3] = {0, std::sin(theta), std::cos(theta)};
-            const vector3D v(a);
-            PRINTLINE( y10(v) );
+        const int n = 9;
+        std::vector<int> a(n);
+        for(int i=0; i<n; i++) {
+            a[i] = 0;
         }
+        for(int i=world.rank(); i<n; i+=world.size()) {
+            a[i] = 2*i + 1;
+        }
+        world.gop.sum(&a[0], n);
         world.gop.fence();
+        if( world.rank()==0 ){
+            int total = 0;
+            for(int i=0; i<n; i++) {
+                total += a[i];
+            }
+            std::cout << total << std::endl;
+        }
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");

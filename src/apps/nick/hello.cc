@@ -40,9 +40,6 @@
 using std::ofstream;
 #include <nick/wavef.h>
 
-#define PRINT(str) if(world.rank()==0) cout << str
-#define PRINTLINE(str) if(world.rank()==0) cout << str << endl
-
 using namespace madness;
 
 const int nIOProcessors =1;
