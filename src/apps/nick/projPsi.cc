@@ -171,37 +171,34 @@ void projectL(World& world, const double L, const int n) {
     }
 }
 
-void zSlice(World& world, double L) {
-    ///READ wf.num
-    std::ifstream f("wf1.num");
+void zSlice(World& world, int n, double L, double th, double phi) {
+    //READ wf1.num
+    std::ifstream f("wf.num");
     complex_functionT psiT;
     if( !f.is_open() ) {
-        PRINTLINE("File: wf1.num expected to contain an integer wave function number");
+        PRINTLINE("File: wf.num expected to contain an integer wave function number");
     } else {
         std::string tag;
         std::vector<WF> psiList;
         complexd output;
-        PRINT("\t");
-        while(f >> tag) {
-            if( !wave_function_exists(world, atoi(tag.c_str())) ) {
-                PRINTLINE("Function " << tag << " not found");
-                exit(1);
-            } else {
-                psiT = wave_function_load(world, atoi(tag.c_str()));
-                PRINT("|" << tag << ">\t\t\t");
-            }
+        f >> tag;
+        PRINTLINE(std::setprecision(3));
+        if( !wave_function_exists(world, atoi(tag.c_str())) ) {
+            PRINTLINE("Function " << tag << " not found");
+            exit(1);
+        } else {
+            psiT = wave_function_load(world, atoi(tag.c_str()));
+            PRINTLINE("phi(T=" << tag << ",r) =\t phi=0 \t\t phi=" << phi);
         }// done loading wf.num
-    }
-    const int n = 1000;
-    const double dr = L/n;
-    const double th = 0.0;
-    const double phi= 0.0;
-    PRINTLINE(std::setprecision(9) << std::scientific);
-    for( int i=0; i<n; i++ ) {
-        const double r = i*dr;
-        const double a[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
-        const vector3D rVec(a);
-        PRINTLINE(real(psiT(rVec)));
+        const double dr = L/n;
+        for( int i=0; i<n; i++ ) {
+            const double r = i*dr;
+            const double a[3] = {r*std::sin(th), r*std::sin(th), r};
+            const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
+            const vector3D aVec(a);
+            const vector3D bVec(b);
+            PRINTLINE(std::fixed << r << " \t\t " << std::scientific << real(psiT(aVec)) << " \t " <<  real(psiT(bVec)));
+        }
     }
 }
 
@@ -321,14 +318,43 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
+void loadParameters2(World& world, int &n, double& th, double& phi) {
+    std::string tag;
+    std::ifstream f("input2");
+    std::cout << std::scientific;
+    if( f.is_open() ) {
+        while(f >> tag) {
+            if (tag[0] == '#') {
+                char ch;
+                PRINTLINE("    comment  " << tag.c_str());
+                while (f.get(ch)) {
+                    PRINTLINE(ch);
+                    if (ch == '\n') break;
+                }
+            }
+            else if (tag == "n") {
+                f >> n;
+                PRINTLINE("n = " << n);
+            }
+            else if (tag == "th") {
+                f >> th;
+                PRINTLINE("th = " << th);
+            }
+            else if (tag == "phi") {
+                f >> phi;
+                PRINTLINE("phi = " << phi);
+            }
+        }
+    }
+    f.close();
+}
 
-
-void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff, int &n) {
+void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff) {
     std::string tag;
     int natom;
     double Rx, Ry, Rz;
     std::ifstream f("input");
-    std::cout << std::fixed;
+    std::cout << std::scientific;
     if( f.is_open() ) {
         while(f >> tag) {
             if (tag[0] == '#') {
@@ -371,12 +397,9 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("dMAX = " << dMAX);
                 PRINTLINE("cutoff = " << cutoff);
             }
-            else if (tag == "n") {
-                f >> n;
-                PRINTLINE("n = " << n);
-            }
         }
     }
+    f.close();
 }
 
 int main(int argc, char**argv) {
@@ -393,9 +416,11 @@ int main(int argc, char**argv) {
     double Z = 1.0;
     double thresh = 1e-6;
     double cutoff = L;
+    double th = 0.0;
+    double phi = 0.0;
     int    n = 10;
-    if(world.rank()==0) std::cout << std::setprecision(12);
-    loadParameters(world, thresh, k, L, Z, cutoff, n);
+    loadParameters(world, thresh, k, L, Z, cutoff);
+    loadParameters2(world, n, th, phi);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -411,7 +436,7 @@ int main(int argc, char**argv) {
         std::vector<std::string> unboundList;
         //const int n1 = n;
         //projectL(world, L, n1);
-        zSlice(world, L);
+        if( world.rank()==0 ) zSlice(world, n, L, th, phi);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
