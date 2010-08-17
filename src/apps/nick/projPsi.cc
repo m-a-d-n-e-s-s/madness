@@ -172,7 +172,7 @@ void projectL(World& world, const double L, const int n) {
 }
 
 void zSlice(World& world, int n, double L, double th, double phi) {
-    //READ wf1.num
+    //READ wf.num
     std::ifstream f("wf.num");
     complex_functionT psiT;
     if( !f.is_open() ) {
@@ -182,13 +182,13 @@ void zSlice(World& world, int n, double L, double th, double phi) {
         std::vector<WF> psiList;
         complexd output;
         f >> tag;
-        PRINTLINE(std::setprecision(3));
+        PRINTLINE(std::setprecision(2) << std::fixed);
         if( !wave_function_exists(world, atoi(tag.c_str())) ) {
             PRINTLINE("Function " << tag << " not found");
             exit(1);
         } else {
             psiT = wave_function_load(world, atoi(tag.c_str()));
-            PRINTLINE("phi(T=" << tag << ",r) =\t th=0 \t\t th=" << th << "phi = " << phi);
+            PRINTLINE("phi(T=" << tag << ",r) =\t th=0 \t\t\t th=" << th << "  phi = " << phi);
         }// done loading wf.num
         const double dr = L/n;
         for( int i=0; i<n; i++ ) {
@@ -197,7 +197,10 @@ void zSlice(World& world, int n, double L, double th, double phi) {
             const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
             const vector3D aVec(a);
             const vector3D bVec(b);
-            PRINTLINE(std::fixed << r << " \t\t " << std::scientific << real(psiT(aVec)) << " \t " <<  real(psiT(bVec)));
+            double psiA = real(psiT(aVec));
+            double psiB = real(psiT(bVec));
+            PRINT(std::fixed << std::setprecision(2));
+            PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(8) << psiA << " \t " << psiB);
         }
     }
 }
@@ -436,7 +439,7 @@ int main(int argc, char**argv) {
         std::vector<std::string> unboundList;
         //const int n1 = n;
         //projectL(world, L, n1);
-        if( world.rank()==0 ) zSlice(world, n, L, th, phi);
+        zSlice(world, n, L, th, phi);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
