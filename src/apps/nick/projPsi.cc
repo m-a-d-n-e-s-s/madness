@@ -89,21 +89,22 @@ void projectL(World& world, const double L, const int n) {
         const double dr = L/n;
         const double dTH = PI/n;
         const double dPHI = 2*PI/n;
-        const int lMAX = 5;
+        const int lMAX = 3;
         const bool debug = false;
         std::vector<WF>::iterator psiT;
         std::vector<complexd> YlPsi(n);
-        for( int i=0; i<n; i++ ) {
-            YlPsi[i] = 0.0;
-        }
         //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
         for( int l=0; l<lMAX; l++) {
             PRINT("Y"<< l << "0: \t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
-                functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
+                psiT->func.reconstruct();
+                //functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
+                Yl0 yl0(L, l);
+                for( int i=0; i<n; i++ ) {
+                    YlPsi[i] = 0.0;
+                }
                 complexd psiPsi = 0.0;
-                complexd shell = 0.0;
-                for( int i=world.rank()==0; i<n; i+=world.size() ) {
+                for( int i=world.rank(); i<n; i+=world.size() ) {
                     const double r = (0.5 + i)*dr;
                     complexd Rl = 0.0;
                     for( int j=0; j<n ; j++ ) {
@@ -113,14 +114,9 @@ void projectL(World& world, const double L, const int n) {
                             const double sinTH = std::sin(th);
                             const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
                             const vector3D rVec(a);
-                            Rl +=  psiT->func(rVec) * yl0(rVec) * sinTH*dTH*dPHI;
+                            Rl += psiT->func.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
                             //Rl +=  phi100(rVec) * yl0(rVec) * sinTH*dTH*dPHI;
-                            //YlPsi +=  r*r*sinTH*dr*dTH*dPHI;
-                            if(debug) {
-                                psiPsi +=  psiT->func(rVec) *psiT->func(rVec)  * r*r*sinTH*dr*dTH*dPHI;
-                                shell +=  psiT->func(rVec) * yl0(rVec) * r*r*sinTH*dr*dTH*dPHI;
-                            }
-                            // if(debug && i==0 && j==0 ) PRINTLINE(std::setprecision(2) << std::fixed << "Yl0(phi) = " << yl0(rVec) << "\t psi(phi=" << phi << ") = " <<
+                            //if(debug && i==0 && j==0 ) PRINTLINE(std::setprecision(2) << std::fixed << "Yl0(phi) = " << yl0(rVec) << "\t psi(phi=" << phi << ") = " <<
                             //                                      std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
                         }
                         // const double sinTH = std::sin(th);
@@ -130,13 +126,7 @@ void projectL(World& world, const double L, const int n) {
                         //                             std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
                     }
                     YlPsi[i] = conj(Rl)*Rl * r*r*dr;
-                    if(debug) {
-                        const double a[3] = {0, 0, r};
-                        const vector3D rVec(a);
-                        //PRINTLINE(std::setprecision(2)<< std::fixed << "Yl0(r)   = " << yl0(rVec) << "\t psi(r="   << r   << "  ) = " <<
-                        PRINTLINE(std::setprecision(9) << std::scientific << real(psiT->func(rVec)) << "\t\t Rl = " << real(Rl) <<  "\t\t r^2|Rl|^2 = " << real(r*r*Rl*conj(Rl)));
-                        shell = 0.0;
-                    }
+                    if(debug) PRINT(r << "\t");
                 }
                 world.gop.sum(&YlPsi[0], n);
                 world.gop.fence();
@@ -146,64 +136,38 @@ void projectL(World& world, const double L, const int n) {
                 }
                 PRINT(std::setprecision(15));
                 PRINT( Pl << "\t");
-                //complexd output = inner(psiT->func, yl0);
-                //complexd output1s = inner(phi100,   yl0);
-                //PRINT(real(output) << "\t");
-                // PRINT( "<psi0|Y" << l << "0> =  " << real(output));
-                // PRINTLINE( "  <1s|Y" << l << "0> =  " << real(output1s));
-                //PRINTLINE("diff        =  " << real(output1s - output) << "\t");
-                // if(debug) {
-                //     PRINTLINE("diff        =  " << real(YlPsi-output) << "\t");
-                //     PRINTLINE( "n = " << n);
-                //     ofstream f;
-                //     f.open("jnk.dat");
-                //     for( int i=0; i<400; i++ ) {
-                //         const double r = i*0.1;
-                //         const double a[3] = {0, 0, r};
-                //         const vector3D rVec(a);
-                //         f <<  real( psiT->func(rVec) ) << "\n";
-                //     }
-                //     f.close();
-                // }
             }
             PRINTLINE("");
         }
     }
 }
 
-void zSlice(World& world, int n, double L, double th, double phi) {
+void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     //READ wf.num
-    std::ifstream f("wf.num");
     complex_functionT psiT;
-    if( !f.is_open() ) {
-        PRINTLINE("File: wf.num expected to contain an integer wave function number");
+    PRINTLINE(std::setprecision(2) << std::fixed);
+    if( !wave_function_exists(world, wf) ) {
+        PRINTLINE("Function " << wf << " not found");
+        exit(1);
     } else {
-        std::string tag;
-        std::vector<WF> psiList;
-        complexd output;
-        f >> tag;
-        PRINTLINE(std::setprecision(2) << std::fixed);
-        if( !wave_function_exists(world, atoi(tag.c_str())) ) {
-            PRINTLINE("Function " << tag << " not found");
-            exit(1);
-        } else {
-            psiT = wave_function_load(world, atoi(tag.c_str()));
-            PRINTLINE("phi(T=" << tag << ",r) =\t th=0 \t\t\t th=" << th << "  phi = " << phi);
-        }// done loading wf.num
-        const double dr = L/n;
-        for( int i=0; i<n; i++ ) {
-            const double r = i*dr;
-            const double a[3] = {0, 0, r};
-            const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
-            const vector3D aVec(a);
-            const vector3D bVec(b);
-            double psiA = real(psiT(aVec));
-            double psiB = real(psiT(bVec));
-            PRINT(std::fixed << std::setprecision(2));
-            PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(8) << psiA << " \t " << psiB);
-        }
+        psiT = wave_function_load(world, wf);
+        PRINTLINE("phi(T=" << wf << ",r) =\t th=0 \t\t\t th=" << th << "  phi = " << phi);
+    }// done loading wf.num
+    complexd output;
+    const double dr = L/n;
+    for( int i=0; i<n; i++ ) {
+        const double r = i*dr;
+        const double a[3] = {0, 0, r};
+        const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
+        const vector3D aVec(a);
+        const vector3D bVec(b);
+        double psiA = real(psiT(aVec));
+        double psiB = real(psiT(bVec));
+        PRINT(std::fixed << std::setprecision(2));
+        PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(8) << psiA << " \t " << psiB);
     }
 }
+
 
  
 /************************************************************************************
@@ -321,7 +285,8 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
-void loadParameters2(World& world, int &n, double& th, double& phi) {
+
+void loadParameters2(World& world, int &n, double& th, double& phi, int wf) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -341,11 +306,12 @@ void loadParameters2(World& world, int &n, double& th, double& phi) {
             }
             else if (tag == "th") {
                 f >> th;
-                PRINTLINE("th = " << th);
             }
             else if (tag == "phi") {
                 f >> phi;
-                PRINTLINE("phi = " << phi);
+            }
+            else if (tag == "wf") {
+                f >> wf;
             }
         }
     }
@@ -422,8 +388,9 @@ int main(int argc, char**argv) {
     double th = 0.0;
     double phi = 0.0;
     int    n = 10;
+    int   wf = 0;
     loadParameters(world, thresh, k, L, Z, cutoff);
-    loadParameters2(world, n, th, phi);
+    loadParameters2(world, n, th, phi, wf);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -437,9 +404,9 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //const int n1 = n;
-        //projectL(world, L, n1);
-        zSlice(world, n, L, th, phi);
+        const int n1 = n;
+        projectL(world, L, n1);
+        //zSlice(world, n1, L, th, phi);
         //loadList(world, boundList, unboundList);
         //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
