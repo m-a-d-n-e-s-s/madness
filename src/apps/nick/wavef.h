@@ -132,7 +132,6 @@ class PhiK : public ScatteringWF {
 public:
     PhiK(madness::World& world, const double Z, const vector3D& kVec, double cutoff);
     PhiK(const double Z, const vector3D& kVec, double cutoff);
-    virtual ~PhiK();
     complexd operator()(const vector3D& x) const;
     complexd f11(const double r) const ;
     complexd setAA();

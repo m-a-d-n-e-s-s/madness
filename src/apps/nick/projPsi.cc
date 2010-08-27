@@ -74,14 +74,15 @@ void projectL(World& world, const double L, const int n) {
         std::string tag;
         std::vector<WF> psiList;
         complexd output;
-        PRINT("\t");
+        PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
+        PRINT("\t\t\t\t\t\t");
         while(f >> tag) {
             if( !wave_function_exists(world, atoi(tag.c_str())) ) {
                 PRINTLINE("Function " << tag << " not found");
             } else {
                 WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
                 psiList.push_back(WF(tag, psi_t.func));
-                PRINT("|" << tag << ">\t\t\t");
+                PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
         PRINTLINE("");
@@ -89,13 +90,14 @@ void projectL(World& world, const double L, const int n) {
         const double dr = L/n;
         const double dTH = PI/n;
         const double dPHI = 2*PI/n;
+        const int smallN = 40;
         const int lMAX = 3;
         const bool debug = false;
         std::vector<WF>::iterator psiT;
         std::vector<complexd> YlPsi(n);
         //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
         for( int l=0; l<lMAX; l++) {
-            PRINT("Y"<< l << "0: \t");
+            PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
                 //functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
@@ -134,7 +136,7 @@ void projectL(World& world, const double L, const int n) {
                 for( int i=0; i<n; i++ ) {
                     Pl += real( YlPsi[i] );
                 }
-                PRINT(std::setprecision(15));
+                PRINT(std::setprecision(6));
                 PRINT( Pl << "\t");
             }
             PRINTLINE("");
@@ -164,7 +166,7 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
         double psiA = real(psiT(aVec));
         double psiB = real(psiT(bVec));
         PRINT(std::fixed << std::setprecision(2));
-        PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(8) << psiA << " \t " << psiB);
+        PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(6) << psiA << " \t " << psiB);
     }
 }
 
@@ -186,7 +188,7 @@ struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
 };
 
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
-    PRINTLINE("\t\t|<basis|Psi(t)>|^2 ");
+    PRINTLINE("\t\t\t\t\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
         PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
@@ -199,7 +201,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         std::string tag;
         std::vector<WF> psiList;
         complexd output;
-        PRINT("\t\t");
+        PRINT("\t\t\t\t\t\t");
         while(f >> tag) {
             if( !wave_function_exists(world, atoi(tag.c_str())) ) {
                 PRINTLINE("Function " << tag << " not found");
@@ -225,6 +227,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             // <phi_bound|Psi(t)>
             std::vector<std::string>::const_iterator boundIT;
             int N, L, M;
+            std::cout.precision(6);
             for(boundIT = boundList.begin(); boundIT !=boundList.end(); boundIT++ ) {
                 std::stringstream ss(*boundIT);
                 ss >> N >> L >> M;
@@ -232,7 +235,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 complex_functionT phi_nlm = complex_factoryT(world).
                     functor(functorT( new BoundWF(Z, N, L, M)));
                 complexd n_overlap_0 = inner(phi_nlm,psi0);
-                PRINT(*boundIT << "   ");
+                PRINT(*boundIT << "\t\t\t\t\t");
                 //loop through time steps
                 for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
@@ -254,6 +257,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 ss >> KX >> KY >> KZ;
                 double dArr[3] = {KX, KY, KZ};
                 const vector3D kVec(dArr);
+                std::cout.precision(12);
                 PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
                     //PROJECT Psi_k into MADNESS
@@ -267,8 +271,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
-                    PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
-                    //<phi_k|Psi(0)>
+                     //<phi_k|Psi(0)>
                     complexd k_overlap_0 = inner(phi_k,psi0);
                     //loop through time steps
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
@@ -407,8 +410,8 @@ int main(int argc, char**argv) {
         const int n1 = n;
         projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;

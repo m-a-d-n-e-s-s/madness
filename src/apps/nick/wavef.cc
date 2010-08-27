@@ -110,9 +110,6 @@ PhiK::PhiK(const double Z, const vector3D& kVec, const double cutoff)
 PhiK::PhiK(World& world, const double Z, const vector3D& kVec, const double cutoff)
     :ScatteringWF(world, Z, cutoff)
     ,kVec_(kVec) {}
-PhiK::~PhiK() {
-    std::cout << "Destructing" << std::endl;
-}
 double PhiK::getk() const {
     return sqrt(kVec_[0]*kVec_[0] + kVec_[1]*kVec_[1] + kVec_[2]*kVec_[2]);
 }
@@ -130,6 +127,7 @@ complexd PhiK::operator()(const vector3D& rVec) const {
         return 0.0;
     }
 }
+
 ///F11 determines when to use the series conhyp and when to use the asymptotic aForm
 complexd PhiK::f11(double xx) const {
     complexd ZZ(0.0,-xx);

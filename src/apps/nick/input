@@ -7,7 +7,7 @@ ncycle 2
 natom 1
    1.0    0.0 0.0 0.0
 k 12
-thresh 1e-4
+thresh 1e-3
 safety 1e-0
 cut 0.3
 prefix data
@@ -18,4 +18,4 @@ nio 1
 ndump 2
 target_time 10.1
 tScale 1.0
-n 10
+n 100
