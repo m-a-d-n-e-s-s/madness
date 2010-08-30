@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_WORLD_WORLDHASHMAP_H__INCLUDED
@@ -61,7 +61,7 @@ namespace madness {
         // A hashtable is an array of nbin bins.
         // Each bin is a linked list of entries protected by a spinlock.
         // Each entry holds a key+value pair, a read-write mutex, and a link to the next entry.
-        
+
         template <typename keyT, typename valueT>
         class entry : public madness::MutexReaderWriter {
         public:
@@ -85,7 +85,7 @@ namespace madness {
 
             entryT* volatile p;
             int volatile ninbin;
-            
+
             bin() : p(0),ninbin(0) {}
 
             ~bin() {
@@ -118,7 +118,7 @@ namespace madness {
                         gotlock = true;
                     }
                     unlock();           // END CRITICAL SECTION
-                    if (!gotlock) waiter.wait(); //cpu_relax(); 
+                    if (!gotlock) waiter.wait(); //cpu_relax();
                 }
                 while (!gotlock);
 
@@ -140,7 +140,7 @@ namespace madness {
                     }
                     gotlock = result->try_lock(lockmode);
                     unlock();           // END CRITICAL SECTION
-                    if (!gotlock) waiter.wait(); //cpu_relax(); 
+                    if (!gotlock) waiter.wait(); //cpu_relax();
                 }
                 while (!gotlock);
 
@@ -273,9 +273,9 @@ namespace madness {
                 MADNESS_ASSERT(h == other.h  &&  other == h->end()  &&  *this == h->begin());
                 return h->size();
             }
-            
+
             /// Only positive increments are supported
-            
+
             /// This exists to support splitting of range for parallel iteration.
             void advance(int n) {
                 if (n==0 || !entry) return;
@@ -285,9 +285,9 @@ namespace madness {
                 while (n-- && (entry=entry->next));
                 next_non_null_entry();
                 if (!entry) return; // end
-                
+
                 if (n <= 0) return;
-                
+
                 // If here, will point to first entry in
                 // a bin ... determine which bin contains
                 // our end point.
@@ -302,7 +302,7 @@ namespace madness {
 
                 entry = h->bins[bin].p;
                 MADNESS_ASSERT(entry);
-                
+
                 // Linear increment to target
                 while (n--) entry=entry->next;
 
@@ -333,7 +333,7 @@ namespace madness {
 
         template <class hashT, int lockmode>
         class HashAccessor : NO_DEFAULTS {
-            template <class a,class b,class c> friend class ConcurrentHashMap;
+            template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
             typedef typename add_const<is_const<hashT>::value,
                 typename hashT::entryT>::type entryT;
@@ -343,9 +343,7 @@ namespace madness {
             typedef datumT* pointer;
             typedef datumT& reference;
 
-#ifndef __INTEL_COMPILER
         private:
-#endif
             entryT* entry;
             bool gotlock;
 
@@ -591,13 +589,13 @@ namespace madness {
 
 namespace std {
 
-    template <typename hashT, typename distT> 
+    template <typename hashT, typename distT>
     inline void advance( madness::Hash_private::HashIterator<hashT>& it, const distT& dist ) {
         //std::cout << " in custom advance \n";
         it.advance(dist);
     }
 
-    template <typename hashT> 
+    template <typename hashT>
     inline int distance(const madness::Hash_private::HashIterator<hashT>& it, const madness::Hash_private::HashIterator<hashT>& jt) {
         //std::cout << " in custom distance \n";
         return it.distance(jt);
