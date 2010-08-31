@@ -126,6 +126,11 @@ using namespace madness;
       psi.broaden();
       psi.broaden();
 
+      psi.broaden(); 
+      // psi.broaden();
+      // psi.broaden();
+      // psi.broaden();
+
       complex_function_1d r = apply_1d_realspace_push(*q1d, psi, 0);
       r.sum_down();
       return r;
@@ -146,7 +151,7 @@ static const double velocity = 3.0;
 static const double eshift = 0.0;
 
 // Estimate the bandwidth and largest practical time step using G0
-static double ctarget = 20.0; // Estimated from FT of exact solution
+static double ctarget = 20.0; // Estimated from FT of exact solution ... was 20
 static double c = 1.86*ctarget;
 static double tcrit = 2*constants::pi/(c*c);
 
@@ -344,10 +349,10 @@ void print_info(World& world, const complex_function_1d& psi, int step) {
     if (world.rank() > 0) return;
     if ((step%40) == 0) {
         printf("\n");
-        printf(" step    time      atom x        norm        kinetic    potential      energy      err norm   depth   size  \n");
-        printf("------ -------- ------------ ------------ ------------ ------------ ------------ ------------ ----- ---------\n");
+        printf(" step    time      atom x              norm               kinetic              potential             energy              err norm     depth   size  \n");
+        printf("------ -------- ------------     ----------------     ----------------     ----------------     ----------------     ---------------- ----  --------\n");
     }
-    printf("%6d %8.4f %12.8f %12.9f %12.9f %12.9f %12.9f %12.9f %4d %9ld\n",
+    printf("%6d %8.4f %12.8f %20.13f %20.13f %20.13f %20.13f %20.13f %4d %9ld\n",
            step, current_time, atom_position(), norm, ke, pe, ke+pe, err, int(psi.max_depth()), long(psi.size()));
 }
 
@@ -563,6 +568,12 @@ int main(int argc, char** argv) {
             psi = q_c(world, np, psi, tstep);
         }
     }
+
+    print("CURRENT TIME",current_time);
+    complex_function_1d exact = complex_factory_1d(world).f(psi_exact);
+    coord_1d lo, hi;
+    lo[0] = -L; hi[0] = L;
+    plot_line("psiplot.dat",30001,lo,hi,psi,exact);
     
     finalize();
     return 0;
