@@ -2049,9 +2049,11 @@ namespace madness {
         // Broaden tree
         void broaden(std::vector<bool> is_periodic, bool fence) {
             typename dcT::iterator end = coeffs.end();
+	    typename dcT::accessor acc;
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
-                nodeT& node = it->second;
+		MADNESS_ASSERT(coeffs.find(acc,key));
+		nodeT& node = acc->second;
                 if (node.has_coeff() &&
                     node.get_norm_tree() != -1.0 &&
                     node.coeff().normf() >= truncate_tol(thresh,key)) {
