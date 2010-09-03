@@ -2241,7 +2241,7 @@ namespace madness {
         }
 
         template <typename opT, typename R>
-        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c, const std::vector<bool>& is_periodic) {
+        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -2249,22 +2249,13 @@ namespace madness {
             //const long lmax = 1L << (key.level()-1);
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
+
+            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
 
                 keyT dest = neighbor(key, d, is_periodic);
-
-                // For periodic directions restrict translations to be no more than
-                // half of the unit cell to avoid double counting.
-                bool notdoit = false;
-                for (int i=0; i<NDIM; i++) {
-                    //if (bc(i,0) == 1) {
-                    //    if (d.translation()[i]> lmax || d.translation()[i] <= -lmax) // SHOULD BREAK BE NESTED IN HERE?
-                    //        notdoit = true;
-                    //    break;
-                    //}
-                }
-                if (notdoit) break;
 
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
@@ -2272,7 +2263,7 @@ namespace madness {
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
 
-		    //print("APP", key, dest, cnorm, opnorm);
+                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
 
                     if (cnorm*opnorm> tol/fac) {
 
@@ -2288,7 +2279,10 @@ namespace madness {
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                             }
                         }
-                    } else if (d.distsq() >= 1) break; // Assumes monotonic decay beyond nearest neighbor
+                    } 
+                    else if (d.distsq() >= 1) {
+                        break; // Assumes monotonic decay beyond nearest neighbor
+                    }
                 }
             }
             return None;
@@ -2311,7 +2305,7 @@ namespace madness {
                         else {
                             p = coeffs.owner(key);
                         }
-                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff(), is_periodic);
+                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
                     }
                 }
             }

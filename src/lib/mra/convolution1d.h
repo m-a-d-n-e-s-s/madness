@@ -240,10 +240,10 @@ namespace madness {
         /// Compute the projection of the operator onto the double order polynomials
         virtual Tensor<Q> rnlp(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block is expected to be small
+        /// Returns true if the block of rnlp is expected to be small
         virtual bool issmall(Level n, Translation lx) const = 0;
 
-        /// Returns true if the block is expected to be small including periodicity
+        /// Returns true if the block of rnlp is expected to be small including periodicity
         bool get_issmall(Level n, Translation lx) const {
             if (maxR == 0) {
                 return issmall(n, lx);
@@ -491,6 +491,7 @@ namespace madness {
 
         bool issmall(Level n, Translation lx) const {
             if (lx < 0) lx = 1 - lx;
+
             // Always compute contributions to nearest neighbor coupling
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
             if (lx <= 7) return false;
@@ -529,7 +530,15 @@ namespace madness {
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
             , m(m)
-        {}
+        {
+            // std::cout << "GC expnt=" << expnt << " coeff="  << coeff << " natlev=" << natlev << " maxR=" << maxR(periodic,expnt) << std::endl;
+            // for (Level n=0; n<5; n++) {
+            //     for (Translation l=0; l<(1<<n); l++) {
+            //         std::cout << "RNLP " << n << " " << l << " " << this->get_rnlp(n,l).normf() << std::endl;
+            //     }
+            //     std::cout << std::endl;
+            // }
+        }
 
         virtual ~GaussianConvolution1D() {}
 
