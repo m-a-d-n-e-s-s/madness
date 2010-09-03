@@ -280,7 +280,10 @@ AC_ARG_WITH([papi],
             [--with-papi  Enables use of PAPI], 
             [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
-
+            
+ACX_WITH_BOOST
+# Check for TR1 support
+ACX_CHECK_TR1
 
 # Capture configuration info for user by compiled code
 AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_USER],["$USER"],[User that configured the code])
