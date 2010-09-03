@@ -44,6 +44,8 @@ using namespace madness;
 
 typedef Vector<double,3> coordT;
 
+const char* status[2] = {"FAIL !!!!!","PASS"};
+
 const double L = 3.0;  // [-L,L]
 const int nwave = 2;
 
@@ -104,18 +106,20 @@ void test_periodic(World& world) {
         opf.reconstruct();
         f.reconstruct();
 
-        double exact0 = u(r0[0],expnt);
-        exact0 = exact0*exact0*exact0;
-        double exact1 = u(r1[0],expnt);
-        exact1 = exact1*exact1*exact1;
-        print(i, expnt, r0, f(r0), source(r0), opf(r0), exact0, opf(r0)-exact0);
-        print(i, expnt, r1, f(r1), source(r1), opf(r1), exact1, opf(r1)-exact1);
+        double exact0 = u(r0[0],expnt); exact0 = exact0*exact0*exact0;
+        double exact1 = u(r1[0],expnt); exact1 = exact1*exact1*exact1;
+        double err0 = fabs(opf(r0)-exact0);
+        double err1 = fabs(opf(r1)-exact1);
 
-        char fname[256];
-        sprintf(fname,"plot-%d.dat",i+1);
-        coordT lo(0.0); lo[0]=-L;
-        coordT hi(0.0); hi[0]= L;
-        plot_line(fname, 1001, lo, hi, f, opf);
+        print("exponent", expnt, err0, err1, status[err0<1e-10 && err1<1e-10]);
+
+        // print(i, expnt, r0, f(r0), source(r0), opf(r0), exact0, );
+        // print(i, expnt, r1, f(r1), source(r1), opf(r1), exact1, opf(r1)-exact1);
+        // char fname[256];
+        // sprintf(fname,"plot-%d.dat",i+1);
+        // coordT lo(0.0); lo[0]=-L;
+        // coordT hi(0.0); hi[0]= L;
+        // plot_line(fname, 1001, lo, hi, f, opf);
     }
 
     world.gop.fence();
@@ -161,21 +165,23 @@ void test_periodic1(World& world) {
 
         double exact0 = u(r0[0],expnt);
         double exact1 = u(r1[0],expnt);
-        print(i, expnt, r0, f(r0), source1(r0), opf(r0), exact0, opf(r0)-exact0);
-        print(i, expnt, r1, f(r1), source1(r1), opf(r1), exact1, opf(r1)-exact1);
+        double err0 = fabs(opf(r0)-exact0);
+        double err1 = fabs(opf(r1)-exact1);
 
-        char fname[256];
-        sprintf(fname,"plot-%d.dat",i+1);
-        coord_1d lo(0.0); lo[0]=-L;
-        coord_1d hi(0.0); hi[0]= L;
-        plot_line(fname, 1001, lo, hi, f, opf);
+        print("exponent", expnt, err0, err1, status[err0<6e-10 && err1<6e-10]);
+
+        // print(i, expnt, r0, f(r0), source1(r0), opf(r0), exact0, opf(r0)-exact0);
+        // print(i, expnt, r1, f(r1), source1(r1), opf(r1), exact1, opf(r1)-exact1);
+        // char fname[256];
+        // sprintf(fname,"plot-%d.dat",i+1);
+        // coord_1d lo(0.0); lo[0]=-L;
+        // coord_1d hi(0.0); hi[0]= L;
+        // plot_line(fname, 1001, lo, hi, f, opf);
     }
 
     world.gop.fence();
 
 }
-
-
 
 void test_periodic2(World& world) {
     const long k = 10;
@@ -202,18 +208,19 @@ void test_periodic2(World& world) {
     // }
     // //SeparatedConvolution<double,3> op(world, ops);
 
-    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-6, thresh);
     std::cout.precision(10);
 
     Function<double,3> opf = op(f);
     opf.reconstruct();
 
-    print("i,value,exact,relerr");
+    //print("i,value,exact,relerr");
     for (int i=0; i<101; i++) {
         coordT r = coordT(-L + i*2*L/100.0);
         double value = opf(r);
         double exact = potential(r);
-        print(i,value,exact,fabs((value-exact)/exact));
+        double relerr = fabs((value-exact)/exact);
+        print(i,value,exact,relerr,status[relerr<3e-7]);
     }
 
     world.gop.fence();
