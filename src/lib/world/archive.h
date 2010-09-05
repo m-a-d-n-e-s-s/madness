@@ -58,7 +58,7 @@
   This should enable low-overhead use of archives in applications
   such as interprocess communication.
 
-  \par How to use an archive?  
+  \par How to use an archive?
 
   An archive is a uni-directional stream of typed data to/from disk,
   memory, or another process.  Whether the stream is for input or for
@@ -146,7 +146,7 @@
   now like to overload the behaviour of these functions in
   order accomodate your fancy object.  However, function templates
   cannot be partially specialized.  Following the technique
-  recommended <a href=http://www.gotw.ca/publications/mill17.htm>here</a> 
+  recommended <a href=http://www.gotw.ca/publications/mill17.htm>here</a>
   (look for moral#2), each of the templated functions directly calls
   a member of a templated class.  Classes, unlike functions, can be
   partially specialized so it is easy to control and predict what is
@@ -238,12 +238,12 @@
   namespace madness {
       namespace archive {
           template <class Archive>
-	  struct ArchiveLoadImpl<Archive,Obj> {
-	      inline void load(const Archive& ar, C& c) {ar & c.c;}
+	  struct ArchiveLoadImpl<Archive,C> {
+	      static inline void load(const Archive& ar, C& c) {ar & c.c;}
           };
 
 	  template <class Archive>
-	  struct ArchiveStoreImpl<Archive,Obj> {
+	  struct ArchiveStoreImpl<Archive,C> {
 	      static inline void store(const Archive& ar, const C& c) {ar & c.c;}
 	  };
       }
@@ -323,7 +323,7 @@
   \c wrap_opaque() interface.  However, this should be regarded
   as a last resort.
 
-  \par Type checking and registering your own types 
+  \par Type checking and registering your own types
 
   To enable type checking for user-defined types you must register
   them with the system.  There are 64 empty slots for user types
@@ -342,11 +342,11 @@
       namespace archive {
 	  ARCHIVE_REGISTER_TYPE_AND_PTR(Foo,128);
 	  ARCHIVE_REGISTER_TYPE_AND_PTR(Bar,129);
-      }  
+      }
   }
   \endcode
   -# In a single source file containing your initialization routine
-  define a macro to force instantiation of relevant templates 
+  define a macro to force instantiation of relevant templates
   \code
   #define ARCHIVE_REGISTER_TYPE_INSTANTIATE_HERE
   \endcode
@@ -356,14 +356,14 @@
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Foo);
     ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(Bar);
   \endcode
-  Have a look at 
+  Have a look at
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/lib/world/testar.cc>this test code</a>.
   to see things in action.
 
   \par Types of archive
 
-  Presently provided are 
-  - world/textfsar.h --- (text \c std::fstream ) a file in text (XML) 
+  Presently provided are
+  - world/textfsar.h --- (text \c std::fstream ) a file in text (XML)
   - world/binfsar.h --- (binary \c std::fstream ) a file in binary
   - world/vecar.h --- binary in memory using an \c std::vector<unsigned_char>
   - world/bufar.h --- binary in memory buffer (this is rather heavily specialized for internal
@@ -371,12 +371,12 @@
   - world/mpiar.h --- binary stream for point-to-point communication
     using MPI (non-typesafe for efficiency).
   - world/parar.h --- parallel archive to binary file with multiple readers/writers.
-    Mostly to support efficient transfer of large WorldContainer (world/worlddc.h) 
+    Mostly to support efficient transfer of large WorldContainer (world/worlddc.h)
     and MADNESS Function (mra/mra.h) objects, though any serialiable object
     can employ it.
 
   The buffer and \c vector archives are bitwise identical to the
-  binary file archive. 
+  binary file archive.
 
   \par Implementing a new archive
 
@@ -470,7 +470,7 @@ namespace madness {
 #else
 #define ARCHIVE_REGISTER_TYPE_XLC_EXTRA(T)
 #endif
-      
+
         /// \def ARCHIVE_REGISTER_TYPE(T, cooky)
         /// \brief Used to associate type with cookie value inside archive
         ///
@@ -762,7 +762,7 @@ namespace madness {
 
             T& operator*(){return *ptr;}
 
-            template <class Archive> 
+            template <class Archive>
             void serialize(const Archive& ar) {ar & wrap_opaque(&ptr, 1);}
         };
 
