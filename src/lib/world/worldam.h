@@ -39,10 +39,6 @@
 /// \brief Implements active message layer for World on top of RMI layer
 
 namespace madness {
-    using archive::BufferOutputArchive;
-    using archive::BufferInputArchive;
-    using archive::bufar_size;
-
 
     /*
       The RMI layer just does transport and does not know about World
@@ -146,13 +142,13 @@ namespace madness {
         /// Used to deserialize arguments from incoming message
         template <typename T>
         BufferInputArchive operator&(T& t) const {
-            return BufferInputArchive(buf(),size()) & t;
+            return archive::BufferInputArchive(buf(),size()) & t;
         }
 
         /// Used to serialize arguments into outgoing message
         template <typename T>
         BufferOutputArchive operator&(const T& t) const {
-            return BufferOutputArchive(buf(),size()) & t;
+            return archive::BufferOutputArchive(buf(),size()) & t;
         }
         /// For incoming AM gives the source process
         ProcessID get_src() const {
@@ -163,7 +159,7 @@ namespace madness {
         World* get_world() const {
             return World::world_from_id(worldid);
         }
-    };
+    }; // class AmArg
 
 
     /// Allocates a new AmArg with nbytes of user data ... delete with free_am_arg
@@ -191,7 +187,7 @@ namespace madness {
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I, typename J>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
                              const I& i, const J& j) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g,h,i,j));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h,i,j));
         *arg & a & b & c & d & e & f & g & h & i & j;
         return arg;
     }
@@ -200,7 +196,7 @@ namespace madness {
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H, typename I>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h,
                              const I& i) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g,h,i));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h,i));
         *arg & a & b & c & d & e & f & g & h & i;
         return arg;
     }
@@ -208,7 +204,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G, typename H>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g, const H& h) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g,h));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g,h));
         *arg & a & b & c & d & e & f & g & h;
         return arg;
     }
@@ -216,7 +212,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F, typename G>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f, const G& g) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e,f,g));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e,f,g));
         *arg & a & b & c & d & e & f & g;
         return arg;
     }
@@ -224,7 +220,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E, typename F>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e, const F& f) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,e,d,f));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,e,d,f));
         *arg & a & b & c & d & e & f;
         return arg;
     }
@@ -232,7 +228,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D, typename E>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d, const E& e) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d,e));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d,e));
         *arg & a & b & c & d & e;
         return arg;
     }
@@ -240,7 +236,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C, typename D>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c, const D& d) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c,d));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c,d));
         *arg & a & b & c & d;
         return arg;
     }
@@ -248,7 +244,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B, typename C>
     inline AmArg* new_am_arg(const A& a, const B& b, const C& c) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b,c));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b,c));
         *arg & a & b & c;
         return arg;
     }
@@ -256,7 +252,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A, typename B>
     inline AmArg* new_am_arg(const A& a, const B& b) {
-        AmArg* arg = alloc_am_arg(bufar_size(a,b));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a,b));
         *arg & a & b;
         return arg;
     }
@@ -264,7 +260,7 @@ namespace madness {
     /// Convenience template for serializing arguments into a new AmArg
     template <typename A>
     inline AmArg* new_am_arg(const A& a) {
-        AmArg* arg = alloc_am_arg(bufar_size(a));
+        AmArg* arg = alloc_am_arg(archive::bufar_size(a));
         *arg & a;
         return arg;
     }
@@ -317,11 +313,11 @@ namespace madness {
             // Wait for oldest request to complete
             while (!send_req[cur_msg].Test()) {
                 // If the oldest message has still not completed then there is likely
-                // severe network or end-point congestion, so pause for 100us in a rather 
+                // severe network or end-point congestion, so pause for 100us in a rather
                 // abitrary attempt to decreate the injection rate.  The server thread
                 // is still polling every 1us (which is required to suck data off the net
                 // and by some engines to ensure progress on sends).
-                myusleep(100); 
+                myusleep(100);
             }
 
             free_managed_send_buf(cur_msg);
@@ -374,7 +370,7 @@ namespace madness {
                 , rank(world.mpi.rank())
                 , nproc(world.size())
                 , nsent(0)
-                , nrecv(0) 
+                , nrecv(0)
         {
             lock();
             for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
@@ -410,7 +406,7 @@ namespace madness {
             }
             unlock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         }
-    };
-}
+    }; // class WorldAmInterface
+} // namespace madness
 
 #endif // MADNESS_WORLD_WORLDAM_H__INCLUDED
