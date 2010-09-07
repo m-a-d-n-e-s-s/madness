@@ -107,7 +107,7 @@ void test_bsh(World& world) {
     double mu = 1.0;
     std::vector<long> npt(3,201);
     typedef Vector<double,3> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 
     if (world.rank() == 0)
         print("Test BSH operation, type =",
@@ -126,7 +126,7 @@ void test_bsh(World& world) {
     const double expnt = 100.0;
     aa = expnt;
     const double coeff = pow(expnt/constants::pi,1.5);
-    
+
     Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
     f.truncate();
     f.reconstruct();

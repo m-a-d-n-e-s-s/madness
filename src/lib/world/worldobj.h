@@ -135,7 +135,7 @@ namespace madness {
     ///
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
-    class WorldObject : public DeferredCleanupInterface {
+    class WorldObject {
         typedef WorldObject<Derived> objT;
         typedef std::list<detail::PendingMsg> pendingT;
     public:
@@ -1035,7 +1035,7 @@ namespace madness {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr);
         }
 
-        virtual ~WorldObject() {
+        ~WorldObject() {
             world.unregister_ptr(static_cast<Derived*>(this));
         }
     };

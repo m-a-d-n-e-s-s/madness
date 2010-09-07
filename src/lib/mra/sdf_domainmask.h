@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id: sdf_shape.h 1792 2010-01-26 12:58:18Z rjharrison $
 */
 
@@ -163,10 +163,10 @@ namespace madness {
 
     private: // protected may be better if this becomes highly inherited
         /// The domain mask to use
-        SharedPtr<DomainMaskInterface> mask;
+        std::shared_ptr<DomainMaskInterface> mask;
 
         /// The signed distance function
-        SharedPtr<SignedDFInterface<NDIM> > sdf;
+        std::shared_ptr<SignedDFInterface<NDIM> > sdf;
 
         int mswitch; ///< Which masking function to use (mask, surface, etc.)
 
@@ -182,8 +182,8 @@ namespace madness {
 
             \param mask Pointer to the domain mask
             \param shape Pointer to the signed distance function */
-        DomainMaskSDFFunctor(SharedPtr<DomainMaskInterface> mask,
-                             SharedPtr<SignedDFInterface<NDIM> > sdf) 
+        DomainMaskSDFFunctor(std::shared_ptr<DomainMaskInterface> mask,
+                std::shared_ptr<SignedDFInterface<NDIM> > sdf)
             : mask(mask), sdf(sdf), mswitch(MASK)
         {}
 
@@ -194,9 +194,8 @@ namespace madness {
             \param shape Pointer to the signed distance function
             \param[in] mswitch Which function to use (MASK, DMASK, SURFACE,
                        DSURFACE, or MASK_COMPLEMENT) */
-        DomainMaskSDFFunctor(SharedPtr<DomainMaskInterface> mask,
-                             SharedPtr<SignedDFInterface<NDIM> > sdf,
-                             int _mswitch)
+        DomainMaskSDFFunctor(std::shared_ptr<DomainMaskInterface> mask,
+                std::shared_ptr<SignedDFInterface<NDIM> > sdf, int _mswitch)
             : mask(mask), sdf(sdf), mswitch(MASK) {
             if(_mswitch == MASK || _mswitch == DMASK || _mswitch == SURFACE ||
                _mswitch == DSURFACE || _mswitch == MASK_COMPLEMENT) {
@@ -292,25 +291,25 @@ namespace madness {
         signed distances \f$ |8 \epsilon| \f$ since the switching function
         becomes 0/1 to machine precision at these levels.  Specifically,
         for this function the parameter \f$ \epsilon \f$ is an effective
-        measure of the full width of the surface layer since 
- 
+        measure of the full width of the surface layer since
+
         \f[ \int_{-\epsilon/2}^{\epsilon/2} B(s) \, ds \doteq 0.987 \f]
 
-        and 
+        and
 
         \f[ \int_{-\epsilon}^{\epsilon} B(s) \, ds \doteq 0.999963 \f] */
     class LLRVDomainMask : public DomainMaskInterface {
     private:
         LLRVDomainMask() : epsilon(0.0) {} ///< Forbidden
-        
+
     protected:
         const double epsilon; ///< The width of the transition region
-        
+
     public:
         /** \brief Constructor for the domain mask
 
             \param[in] epsilon The effective width of the surface */
-        LLRVDomainMask(double epsilon) 
+        LLRVDomainMask(double epsilon)
             : epsilon(epsilon)
         {}
 
@@ -331,7 +330,7 @@ namespace madness {
                 return 0.5 * (1.0 - tanh(3.0 * d / epsilon));
             }
         }
-        
+
         /** \brief Derivative of characteristic function with respect to the
                    normal distance
 
@@ -346,7 +345,7 @@ namespace madness {
                 return 1.5*(tanh3d*tanh3d - 1.0) / epsilon;
             }
         }
-        
+
         /** \brief Value of surface function at distance d normal to surface
 
             \param[in] d The signed distance
@@ -366,7 +365,7 @@ namespace madness {
             double dphi = dmask(d);
             return 72.0*phi*(1.0-phi)*dphi*(1.0 - 2.0*phi)/epsilon;
         }
-        
+
         virtual ~LLRVDomainMask() {}
     };
 
@@ -375,15 +374,15 @@ namespace madness {
     class GaussianDomainMask : public DomainMaskInterface {
     private:
         GaussianDomainMask() : epsilon(0.0) {} ///< Forbidden
-        
+
     protected:
         const double epsilon; ///< The width of the transition region
-    
+
     public:
         /** \brief Constructor for the domain mask
 
             \param[in] epsilon The effective width of the surface */
-        GaussianDomainMask(double epsilon) 
+        GaussianDomainMask(double epsilon)
             : epsilon(epsilon)
         {}
 
@@ -404,7 +403,7 @@ namespace madness {
                 return (1.0 - erf(d / (sqrt(2.0) * epsilon))) * 0.5;
             }
         }
-    
+
         /** \brief Derivative of characteristic function with respect to the
                    normal distance
 
@@ -419,7 +418,7 @@ namespace madness {
                     * epsilon);
             }
         }
-    
+
         /** \brief Value of surface function at distance d normal to surface
 
             \param[in] d The signed distance
@@ -437,7 +436,7 @@ namespace madness {
             return -exp(-d*d*0.5/(epsilon*epsilon)) * d / (sqrt(2.0*constants::pi)
                 * epsilon*epsilon*epsilon);
         }
-    
+
         virtual ~GaussianDomainMask() {}
     };
 

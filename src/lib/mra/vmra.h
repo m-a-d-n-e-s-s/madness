@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_VMRA_H__INCLUDED
@@ -43,12 +43,12 @@
 
 
 	Operations on array of functions
-	
+
 	*) copying: deep copying of vectors of functions to vector of functions
 	\code
 	vector2 = copy(world, vector1,fence);
 	\endcode
-	
+
 	*) compress: convert multiwavelet representation to legendre representation
 	\code
 	compress(world, vector, fence);
@@ -63,15 +63,15 @@
 	\code
 	nonstandard(world, v, fence);
 	\endcode
-	
+
 	*) standard: convert to standard form
 	\code
-	standard(world, v, fence); 
+	standard(world, v, fence);
 	\endcode
 
 	*) truncate: truncating vectors of functions to desired precision
 	\code
-	truncate(world, v, tolerance, fence); 
+	truncate(world, v, tolerance, fence);
 	\endcode
 
 
@@ -82,7 +82,7 @@
 
 	*) transform: transform a representation from one basis to another
 	\code
-	transform(world, vector, tensor, tolerance, fence ) 
+	transform(world, vector, tensor, tolerance, fence )
 	\endcode
 
 	Setting thresh-hold for precision
@@ -212,7 +212,7 @@ namespace madness {
     apply(World& world,
           const Derivative<T,NDIM>& D,
           const std::vector< Function<T,NDIM> >& v,
-          bool fence=true) 
+          bool fence=true)
     {
         reconstruct(world, v);
         std::vector< Function<T,NDIM> > df(v.size());
@@ -284,7 +284,7 @@ namespace madness {
         vresult[0].vtransform(v, c, vresult, tol, fence);
         return vresult;
     }
-     
+
     /// Scales inplace a vector of functions by distinct values
     template <typename T, typename Q, int NDIM>
     void scale(World& world,
@@ -480,7 +480,7 @@ namespace madness {
 
     /// Makes the norm tree for all functions in a vector
     template <typename T, int NDIM>
-    void norm_tree(World& world, 
+    void norm_tree(World& world,
                    const std::vector< Function<T,NDIM> >& v,
                    bool fence=true)
     {
@@ -630,7 +630,7 @@ namespace madness {
         bool fence=true) {
         return add(world, a, b, fence);
     }
-    
+
     /// Returns new vector of functions --- q[i] = a[i] - b[i]
     template <typename T, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
@@ -676,7 +676,7 @@ namespace madness {
     template <typename opT, typename R, int NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
-          const std::vector< SharedPtr<opT> >& op,
+          const std::vector< std::shared_ptr<opT> >& op,
           const std::vector< Function<R,NDIM> > f) {
 
         PROFILE_BLOCK(Vapplyv);

@@ -187,7 +187,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
-        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
+        static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
         static void recompute_cell_info() {
             MADNESS_ASSERT(cell.dim(0)==NDIM && cell.dim(1)==2 && cell.ndim()==2);
@@ -389,19 +389,19 @@ namespace madness {
         }
 
         /// Returns the default process map
-        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
+        static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
             return pmap;
         }
 
         /// Sets the default process map (does \em not redistribute existing functions)
 
         /// Existing functions are probably rendered useless
-        static void set_pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& value) {
-            pmap=value;
+        static void set_pmap(const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& value) {
+            pmap = value;
         }
 
         /// Sets the default process map and redistributes all functions using the old map
-        static void redistribute(World& world, const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
+        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
             pmap->redistribute(world,newpmap);
             pmap = newpmap;
         }

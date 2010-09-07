@@ -43,9 +43,9 @@
 
 using namespace madness;
 
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef std::vector<functionT> vecfuncT;
 typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
@@ -53,7 +53,7 @@ typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
+typedef std::shared_ptr<operatorT> poperatorT;
 
 // The delta fn approx is (1/sqrt(2*pi*s^2))*exp(-x^2 / (2*s^2))
 
@@ -70,7 +70,7 @@ public:
         , radius(radius)
         , sigma(sigma)
         , expnt(0.5/(sigma*sigma))
-        , norm(1.0/(sigma*sqrt(2.0*constants::pi))) 
+        , norm(1.0/(sigma*sqrt(2.0*constants::pi)))
     {}
 
     double operator()(const coordT& x) const {
@@ -80,9 +80,9 @@ public:
         double r = sqrt(xx*xx + yy*yy + zz*zz);
         double dist = r - radius; // Normal distance from boundary
         double arg = dist*dist*expnt; // Argument to exponential
-        if (arg > 35.0) 
+        if (arg > 35.0)
             return 0.0;
-        else 
+        else
             return norm*exp(-arg);
     }
 };
@@ -101,7 +101,7 @@ public:
         , radius(radius)
         , sigma(sigma)
         , expnt(0.5/(sigma*sigma))
-        , norm(1.0/(sigma*sqrt(2.0*constants::pi))) 
+        , norm(1.0/(sigma*sqrt(2.0*constants::pi)))
     {}
 
     double operator()(const coordT& x) const {
@@ -111,9 +111,9 @@ public:
         double r = sqrt(xx*xx + yy*yy + zz*zz);
         double dist = r - radius; // Normal distance from boundary
         double arg = dist*dist*expnt; // Argument to exponential
-        if (arg > 35.0) 
+        if (arg > 35.0)
             return 0.0;
-        else 
+        else
             return -2.0*dist*expnt*norm*exp(-arg);
     }
 };
@@ -192,12 +192,12 @@ int main(int argc, char**argv) {
                     f.truncate();
                     fvec.push_back(f);
                     u = op(fvec[m]);
-                    u.scale(0.25/constants::pi); 
+                    u.scale(0.25/constants::pi);
                     u.truncate(); // Current soln
-                    
+
                     c = u*phi - u0; // Constraint violation
                     double cnorm = c.norm2();
-                    
+
                     //                    rvec.push_back(fvec[m] - lambda + (phi*c)*(1.0/mu)); // Residual AugLag
                     rvec.push_back(fvec[m] + phi*c*(1.0/mu)); // Residual QuadPen
                     rvec.back().truncate();
@@ -218,28 +218,28 @@ int main(int argc, char**argv) {
 //                     print(Q);
 
                     tensorT coeff = KAIN(Q);
-                    
+
 //                     print("Subspace solution");
 //                     print(coeff);
-                    
+
                     f = coeff[0]*(fvec[0]-rvec[0]);
                     for (int i=1; i<=m; i++) {
                         f.gaxpy(1.0,fvec[i]-rvec[i],coeff[i]);
                     }
-                    
+
                     // Step restriction
                     double snorm = (f - fvec[m]).norm2();
                     double fnorm = fvec[m].norm2();
-                    
+
                     if (snorm > fnorm*0.3) {
                         double damp = fnorm*0.3/snorm;
                         print("    damping", damp);
                         f.gaxpy(damp, fvec[m], 1.0-damp);
                     }
                     f.truncate();
-                    
+
                     print("    iteration", m, "mu", mu, "fnorm", fnorm, "snorm", snorm, "rnorm", rnorm, "cnorm", cnorm);
-                    
+
                     if (snorm < 0.1*cnorm) {
                         // Current solution will be in f
                         break;
@@ -268,7 +268,7 @@ int main(int argc, char**argv) {
 //             lambda = f + phi * c * (1.0/mu);
             print("\nupdating mu", muiter, mu);
         }
-        
+
     }
     catch (const MPI::Exception& e) {
         //        print(e);

@@ -230,8 +230,8 @@ namespace madness {
         bool _truncate_on_project;
         bool _fence;
         //Tensor<int> _bc;
-        SharedPtr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
-        SharedPtr<FunctionFunctorInterface<T, NDIM> > _functor;
+        std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
+        std::shared_ptr<FunctionFunctorInterface<T, NDIM> > _functor;
 
     public:
         struct FunctorInterfaceWrapper : public FunctionFunctorInterface<T,NDIM> {
@@ -258,18 +258,18 @@ namespace madness {
                 _truncate_on_project(
                     FunctionDefaults<NDIM>::get_truncate_on_project()),
                 _fence(true), // _bc(FunctionDefaults<NDIM>::get_bc()),
-                _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor(0) {
+                _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor() {
         }
         FunctionFactory&
         functor(
-            const SharedPtr<FunctionFunctorInterface<T, NDIM> >& functor) {
-            _functor = functor;
+            const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
+            _functor = f;
             return *this;
         }
         FunctionFactory&
         f(T
           (*f)(const coordT&)) {
-            functor(SharedPtr<FunctionFunctorInterface<T, NDIM> > (
+            functor(std::shared_ptr<FunctionFunctorInterface<T, NDIM> > (
                         new FunctorInterfaceWrapper(f)));
             return *this;
         }
@@ -345,7 +345,7 @@ namespace madness {
             return *this;
         }
         FunctionFactory&
-        pmap(const SharedPtr<WorldDCPmapInterface<Key<NDIM> > >& pmap) {
+        pmap(const std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > >& pmap) {
             _pmap = pmap;
             return *this;
         }
@@ -614,7 +614,7 @@ namespace madness {
 
         const FunctionCommonData<T,NDIM>& cdata;
 
-        SharedPtr< FunctionFunctorInterface<T,NDIM> > functor;
+        std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functor;
 
         bool compressed; ///< Compression status
 
@@ -684,7 +684,7 @@ namespace madness {
         /// Does \em not copy the coefficients ... creates an empty container.
         template <typename Q>
         FunctionImpl(const FunctionImpl<Q,NDIM>& other,
-                     const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
+                     const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& pmap,
                      bool dozero)
                 : WorldObject<implT>(other.world)
                 , world(other.world)
@@ -710,7 +710,7 @@ namespace madness {
             this->process_pending();
         }
 
-        const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
+        const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             return coeffs.get_pmap();
         }
 
@@ -1192,9 +1192,9 @@ namespace madness {
         };
 
         template <typename Q, typename R>
-        Void vtransform_doit(const SharedPtr< FunctionImpl<R,NDIM> >& right,
+        Void vtransform_doit(const std::shared_ptr< FunctionImpl<R,NDIM> >& right,
                              const Tensor<Q>& c,
-                             const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
+                             const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
                              double tol) {
 
             // To reduce crunch on vectors being transformed each task
@@ -1219,7 +1219,7 @@ namespace madness {
                     for (unsigned int j=0; j<vleft.size(); j++) {
                         unsigned int i = ind[j]; // Random permutation
                         if (std::abs(norm*c(i)) > keytol) {
-                            implT* left = vleft[i];
+                            implT* left = vleft[i].get();
                             typename dcT::accessor acc;
                             bool newnode = left->coeffs.insert(acc,key);
                             if (newnode && key.level()>0) {
@@ -1240,9 +1240,9 @@ namespace madness {
 
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
         template <typename Q, typename R>
-        void vtransform(const std::vector< SharedPtr< FunctionImpl<R,NDIM> > >& vright,
+        void vtransform(const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
                         const Tensor<Q>& c,
-                        const std::vector< SharedPtr< FunctionImpl<T,NDIM> > >& vleft,
+                        const std::vector< std::shared_ptr< FunctionImpl<T,NDIM> > >& vleft,
                         double tol,
                         bool fence) {
             for (unsigned int j=0; j<vright.size(); j++) {
@@ -2581,6 +2581,38 @@ namespace madness {
         struct ArchiveStoreImpl<Archive, FunctionImpl<T,NDIM>*> {
             static void store(const Archive& ar, FunctionImpl<T,NDIM>*const& ptr) {
                 ar & ptr->id();
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive, std::shared_ptr<const FunctionImpl<T,NDIM> > > {
+            static void load(const Archive& ar, std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
+                const FunctionImpl<T,NDIM>* f = NULL;
+                ArchiveLoadImpl<Archive, const FunctionImpl<T,NDIM>*>::load(ar, f);
+                ptr.reset(f, & detail::no_delete<const FunctionImpl<T,NDIM> >);
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive, std::shared_ptr<const FunctionImpl<T,NDIM> > > {
+            static void store(const Archive& ar, const std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
+                ArchiveStoreImpl<Archive, const FunctionImpl<T,NDIM>*>::store(ar, ptr.get());
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveLoadImpl<Archive, std::shared_ptr<FunctionImpl<T,NDIM> > > {
+            static void load(const Archive& ar, std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
+                FunctionImpl<T,NDIM>* f = NULL;
+                ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*>::load(ar, f);
+                ptr.reset(f, & detail::no_delete<FunctionImpl<T,NDIM> >);
+            }
+        };
+
+        template <class Archive, class T, int NDIM>
+        struct ArchiveStoreImpl<Archive, std::shared_ptr<FunctionImpl<T,NDIM> > > {
+            static void store(const Archive& ar, const std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
+                ArchiveStoreImpl<Archive, FunctionImpl<T,NDIM>*>::store(ar, ptr.get());
             }
         };
     }

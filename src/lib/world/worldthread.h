@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
@@ -185,7 +185,7 @@ namespace madness {
         void push_back(const T& value, int ncopy=1) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
             //sanity_check();
-            while (ncopy--) 
+            while (ncopy--)
                 push_back_with_lock(value);
             //sanity_check();
             //broadcast();
@@ -194,7 +194,7 @@ namespace madness {
         template <typename opT>
         void scan(opT& op) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            
+
             int f = _front;
             size_t nn = n;
             int size = int(sz);
@@ -216,13 +216,13 @@ namespace madness {
         /// multi-threaded tasks might cause fewer tasks to be taken
         int pop_front(int nmax, T* r, bool wait) {
             madness::ScopedMutex<CONDITION_VARIABLE_TYPE> obolus(this);
-            
+
             size_t nn = n;
-            
+
             if (nn==0 && wait) {
                 while (n == 0) // !!! Must be n (memory) not nn (local copy)
                     CONDITION_VARIABLE_TYPE::wait();
-                
+
                 nn = n;
             }
 
@@ -230,20 +230,20 @@ namespace madness {
             if (nn) {
                 size_t thesize = sz;
                 //sanity_check();
-                
+
                 nmax = std::min(nmax,std::max(int(nn>>6),1));
                 int retval; // Will return the number of items taken
-                
-                
+
+
                 int f = _front;
-                
+
                 // Original loop was this
                 //retval = nmax;
                 //while (nmax--) {
                 //    *r++ = buf[f++];
                 //    if (f >= int(sz)) f = 0;
                 //}
-                
+
                 // New loop includes checking for replicated multi-threaded task
                 // ... take one task and then check that subsequent tasks differ
                 nmax--;
@@ -262,10 +262,10 @@ namespace madness {
                         retval++;
                     }
                 }
-                
+
                 n = nn - retval;
                 _front = f;
-                
+
                 //sanity_check();
                 return retval;
             }
@@ -372,7 +372,7 @@ namespace madness {
             // RJH ... why not checking success/failure????
             pthread_attr_init(&attr);
             pthread_attr_setdetachstate(&attr,PTHREAD_CREATE_DETACHED);
-#ifndef HAVE_IBMBGP	    
+#ifndef HAVE_IBMBGP
             pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
 #endif
             int result = pthread_create(&id, &attr, &ThreadBase::main, (void *) this);
@@ -410,7 +410,7 @@ namespace madness {
 #elif defined(HC_NCPU)
 	  int mib[2]={CTL_HW,HW_NCPU}, ncpu;
 	  size_t len = sizeof(ncpu);
-	  if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0) 
+	  if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
 	    MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
 	  std::cout << "NCPU " << ncpu << std::endl;
 #else
@@ -608,16 +608,16 @@ namespace madness {
         const int _nthread; //< No. of threads collaborating on task
         const int _id;      //< Id of this thread (0,...,nthread-1)
         Barrier* _barrier;  //< Pointer to shared barrier, null if single thread
-        
+
     public:
-        TaskThreadEnv(int nthread, int id, Barrier* barrier) 
-            : _nthread(nthread), _id(id), _barrier(barrier) 
+        TaskThreadEnv(int nthread, int id, Barrier* barrier)
+            : _nthread(nthread), _id(id), _barrier(barrier)
         {}
-        
+
         int nthread() const {return _nthread;}
-        
+
         int id() const {return _id;}
-        
+
         bool barrier() const {
             if (_nthread == 1)
                 return true;
@@ -627,7 +627,7 @@ namespace madness {
             }
         }
     };
-        
+
 
     /// Lowest level task interface
 
@@ -635,11 +635,11 @@ namespace madness {
     /// setup for multiple threads and then invokes the users \c run method.
     class PoolTaskInterface : public TaskAttributes {
     	friend class ThreadPool;
-        
+
     private:
         Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
     	AtomicInt count;  //< Used to count threads as they start
-        
+
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
             // As a thread enters this routine it increments the shared counter
@@ -661,11 +661,11 @@ namespace madness {
                 return barrier->enter(id);
             }
     	}
-        
+
     public:
         PoolTaskInterface()
             : TaskAttributes()
-            , barrier(0) 
+            , barrier(0)
         {
             count = 0;
         }
@@ -680,23 +680,23 @@ namespace madness {
 
         /// Call this to reset the number of threads before the task is submitted
 
-        /// Once a task has been constructed /c TaskAttributes::set_nthread() 
+        /// Once a task has been constructed /c TaskAttributes::set_nthread()
         /// is insufficient because a multithreaded task includes a
         /// barrier that needs to know the number of threads.
         void set_nthread(int nthread) {
             if (nthread != get_nthread()) {
                 TaskAttributes::set_nthread(nthread);
                 delete barrier;
-                if (nthread > 1) 
+                if (nthread > 1)
                     barrier = new Barrier(nthread);
                 else
                     barrier = 0;
 
             }
         }
-        
+
         /// Override this method to implement a multi-threaded task
-        
+
         /// \c info.nthread() will be the number of threads collaborating on this task
         ///
         /// \c info.id() will be the index of the current thread \c id=0,...,nthread-1
@@ -704,7 +704,7 @@ namespace madness {
         /// \c info.barrier() will be a barrier for all of the threads, and returns
         /// \c true for the last thread to enter the barrier (other threads get false)
         virtual void run(const TaskThreadEnv& info) = 0;
-        
+
         virtual ~PoolTaskInterface() {
             delete barrier;
         }
@@ -765,7 +765,7 @@ namespace madness {
             char *cnthread = getenv("MAD_NUM_THREADS");
             // MAD_NUM_THREADS is total no. of application threads whereas
             // POOL_NTHREAD is just the number in the pool (one less)
-            if (cnthread) shift = 1;  
+            if (cnthread) shift = 1;
             if (cnthread == 0) cnthread = getenv("POOL_NTHREAD");
 
             if (cnthread) {
@@ -862,7 +862,7 @@ namespace madness {
             int nthread = task->get_nthread();
             // Currently multithreaded tasks must be shoved on the end of the q
             // to avoid a race condition as multithreaded task is starting up
-            if (task->is_high_priority() && nthread==1) { 
+            if (task->is_high_priority() && nthread==1) {
                 instance()->queue.push_front(task);
             }
             else {

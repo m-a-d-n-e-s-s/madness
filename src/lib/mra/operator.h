@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_OPERATOR_H__INCLUDED
@@ -88,7 +88,7 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
     private:
-        mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
+        mutable std::vector< std::shared_ptr< Convolution1D<Q> > > ops;
         const BoundaryConditions<NDIM> bc;
         const int k;
         const int rank;
@@ -327,7 +327,7 @@ namespace madness {
 
         // For general convolutions
         SeparatedConvolution(World& world,
-                             std::vector< SharedPtr< Convolution1D<Q> > >& ops,
+                             std::vector< std::shared_ptr< Convolution1D<Q> > >& ops,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
@@ -342,7 +342,7 @@ namespace madness {
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
                 , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) 
+                , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -370,7 +370,7 @@ namespace madness {
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
                 , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) 
+                , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -407,7 +407,7 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(T,Q),NDIM> operator()(const Function<T,NDIM>& f) const {
             return madness::apply(*this, f);
         }
-        
+
 
         template <typename T>
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
@@ -473,10 +473,10 @@ namespace madness {
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         const double pi = constants::pi;
-        
+
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
-        
+
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
 
@@ -561,8 +561,8 @@ namespace madness {
 	//print(expnt);
         return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
     }
-    
-    
+
+
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static
     inline
@@ -572,7 +572,7 @@ namespace madness {
                                                  double eps,
                                                  const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
                                                  int k=FunctionDefaults<3>::get_k())
-        
+
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
@@ -592,7 +592,7 @@ namespace madness {
         }
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
-    
+
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static
     inline
@@ -621,7 +621,7 @@ namespace madness {
         }
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
-    
+
     namespace archive {
         template <class Archive, class T, int NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {

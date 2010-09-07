@@ -53,7 +53,7 @@ using std::vector;
 using namespace madness;
 
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef FunctionFactory<double,3> factoryT;
 typedef vector<functionT> vecfuncT;

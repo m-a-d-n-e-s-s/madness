@@ -72,7 +72,7 @@ public:
 template <typename T>
 void test_proj(World& world) {
     typedef Vector<double,3> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 
     FunctionDefaults<3>::set_k(6);
     FunctionDefaults<3>::set_thresh(1e-8);

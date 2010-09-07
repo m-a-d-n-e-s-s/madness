@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
@@ -220,12 +220,12 @@ namespace madness {
                 , sign(sign)
                 , maxR(maxR)
                 , quad_x(npt)
-                , quad_w(npt) 
+                , quad_w(npt)
                 , arg(arg)
         {
 
             MADNESS_ASSERT(autoc(k,&c));
-            
+
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
             MADNESS_ASSERT(two_scale_hg(k,&hgT));
             hgT = transpose(hgT);
@@ -415,7 +415,7 @@ namespace madness {
     public:
         // coeff * exp(-exponent*x^2) * x^m
         GaussianGenericFunctor(Q coeff, double exponent, int m=0)
-            : coeff(coeff), exponent(exponent), m(m), 
+            : coeff(coeff), exponent(exponent), m(m),
               natlev(Level(0.5*log(exponent)/log(2.0)+1)) {}
 
         Q operator()(double x) const {
@@ -527,7 +527,7 @@ namespace madness {
             : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt),arg)
             , coeff(coeff)
             , expnt(expnt)
-            , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
+            , natlev(Level(0.5*log(expnt)/log(2.0)+1))
             , m(m)
         {}
 
@@ -623,7 +623,7 @@ namespace madness {
 
             if (lkeep < 0) {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
-                if ((m&0x1) == 1) 
+                if ((m&0x1) == 1)
                     for (long p=0; p<twok; p++) v(p) = -v(p);
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
             }
@@ -649,18 +649,18 @@ namespace madness {
 
     template <typename Q>
     struct GaussianConvolution1DCache {
-        static ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > > map;
-        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
-        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
-        
-        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
+        static ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > > map;
+        typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::iterator iterator;
+        typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
+
+        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
             hashT key = hash(expnt);
             key = hash(k, key);
             key = hash(m, key);
             key = hash(int(periodic), key);
             iterator it = map.find(key);
             if (it == map.end()) {
-                map.insert(datumT(key, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+                map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
                                                                                                           Q(sqrt(expnt/constants::pi)),
                                                                                                           expnt,
                                                                                                           1.0,

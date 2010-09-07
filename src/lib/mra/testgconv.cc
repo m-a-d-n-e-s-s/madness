@@ -79,13 +79,9 @@ void test_gconv(World& world) {
     real_function_1d f = real_factory_1d(world).f(g);
     print("error in integral(g) ", f.trace()-1.0);
 
-    std::vector< SharedPtr< Convolution1D<double> > > ops(1);
-    ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, 
-                                                                                  width/sqrt(constants::pi),
-                                                                                  width*width,
-                                                                                  1.0,
-                                                                                  0,
-                                                                                  false));
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
+    ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
+            width*width, 1.0, 0, false));
     real_convolution_1d op(world, ops);
 
     real_function_1d opf = op(f);
@@ -102,17 +98,13 @@ void test_gconv(World& world) {
     exact = real_factory_1d(world).f(gconvh);
     print("norm2(g conv h - exact)", (opq-exact).norm2());
 
-    ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, 
-                                                                                  width*width*sqrt(8.0),
-                                                                                  width*width,
-                                                                                  1.0,
-                                                                                  1,
-                                                                                  false));
+    ops[0].reset(new GaussianConvolution1D<double>(k, width*width*sqrt(8.0),
+            width*width, 1.0, 1, false));
     real_convolution_1d oph(world, ops);
-    
+
     opq = oph(f);
     print("norm2(h conv g - exact)", (opq-exact).norm2());
-    
+
     plot_line("opf.dat", 1001, lo, hi, q, opq, exact);
 
     world.gop.fence();

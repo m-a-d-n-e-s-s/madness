@@ -50,12 +50,12 @@ namespace madness {
         /// Wraps an archive around a binary file stream for output
         class BinaryFstreamOutputArchive : public BaseOutputArchive {
             static const std::size_t IOBUFSIZE = 4*1024*1024;
-            SharedArray<char> iobuf;
+            std::shared_ptr<char> iobuf;
             mutable std::ofstream os;
         public:
             BinaryFstreamOutputArchive(const char* filename = 0,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
-                                                                      std::ios_base::out | std::ios_base::trunc) : iobuf(0) {
+                                                                      std::ios_base::out | std::ios_base::trunc) : iobuf() {
                 if (filename) open(filename, mode);
             }
 
@@ -69,7 +69,7 @@ namespace madness {
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
                                                      std::ios_base::out |  std::ios_base::trunc) {
-                iobuf = SharedArray<char>(new char[IOBUFSIZE]);
+                iobuf.reset(new char[IOBUFSIZE], &detail::checked_array_delete<char>);
                 os.open(filename, mode);
 #ifndef ON_A_MAC
                 os.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
@@ -81,7 +81,7 @@ namespace madness {
             void close() {
                 if (iobuf) {
                     os.close();
-                    iobuf = SharedArray<char>(0);
+                    iobuf.reset();
                 }
             };
 
@@ -94,11 +94,11 @@ namespace madness {
         /// Wraps an archive around a binary file stream for input
         class BinaryFstreamInputArchive : public BaseInputArchive {
             static const std::size_t IOBUFSIZE = 4*1024*1024;
-            SharedArray<char> iobuf;
+            std::shared_ptr<char> iobuf;
             mutable std::ifstream is;
         public:
             BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in)
-                    : iobuf(0) {
+                    : iobuf() {
                 if (filename) open(filename, mode);
             }
 
@@ -110,9 +110,9 @@ namespace madness {
             }
 
             void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) {
-                iobuf = SharedArray<char>(new char[IOBUFSIZE]);
+                iobuf.reset(new char[IOBUFSIZE], &detail::checked_array_delete<char>);
                 is.open(filename, mode);
-                is.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
+                is.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);
                 char cookie[255];
                 int n = strlen(ARCHIVE_COOKIE)+1;
                 load(cookie, n);
@@ -123,7 +123,7 @@ namespace madness {
             void close() {
                 if (iobuf) {
                     is.close();
-                    iobuf = SharedArray<char>(0);
+                    iobuf.reset();
                 }
             };
         };

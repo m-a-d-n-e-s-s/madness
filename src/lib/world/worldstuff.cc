@@ -337,7 +337,7 @@ namespace madness {
 
     void WorldProfile::recv_stats(World& world, ProcessID p) {
         if (p >= world.size()) return;
-        MPIInputArchive ar(world, p);
+        archive::MPIInputArchive ar(world, p);
         const std::vector<WorldProfileEntry> v;
         ar & v;
         for (unsigned int i=0; i<v.size(); i++) {

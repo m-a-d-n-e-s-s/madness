@@ -55,15 +55,15 @@ It includes
  - Distributed objects that can be globally addressed.
  - Futures (results of unevaluated expressions) for composition of latency tolerant
    algorithms and expression of dependencies between tasks.
- - Globally accessible task queues in each process which 
+ - Globally accessible task queues in each process which
    can be used individually or collectively to provide a single global
    task queue.
  - Work stealing for dynamic load balancing (prototype being tested)
  - Facile management of computations on processor sub-groups.
  - Integration with MPI
- - Optional integration with Global Arrays (J. Nieplocha, 
+ - Optional integration with Global Arrays (J. Nieplocha,
    http://www.emsl.pnl.gov/docs/global).
- - Active messages to items in a container, distributed objects, 
+ - Active messages to items in a container, distributed objects,
    and processes.
  - Efficient use of multicore processors using pthreads.
 
@@ -73,8 +73,8 @@ There were several motivations for developing this environment.
  -  The rapid evolution of machines from hundreds (pre-2000), to
     millions (post-2008) of processors demonstrates the need to abandon
     process-centric models of computation and move to paradigms that
-    virtualize or even hide the concept of a process.  
-    The success of applications using the 
+    virtualize or even hide the concept of a process.
+    The success of applications using the
     Charm++ environment to scale rapidly to 30+K processes and the enormous effort
     required to scale most process-centric applications are the central examples.
  -  The arrival of multi-core processes and the associated needs of
@@ -83,9 +83,9 @@ There were several motivations for developing this environment.
     capture much more concurrency and the use of futures for
     latency hiding.
  -  The complexity of composing irregular applications in partitioned, global-address space
-    (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array) 
-    motivates the use of an object-centric active-message or remote method invocation (RMI) model 
-    so that computation may be moved to the data with the same ease as 
+    (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array)
+    motivates the use of an object-centric active-message or remote method invocation (RMI) model
+    so that computation may be moved to the data with the same ease as
     which data can be moved.  This greatly simplifies the task of maintaining
     and using distributed data structures.
  -  Interoperability with existing programming models to leverage existing
@@ -151,7 +151,7 @@ on their sub-trees.
 The \c World.am member provides inter-process active message functionality, which is
 the foundation on which everything else is built.  We do not recommend
 that applications make routine or direct use of inter-process active messages.
-Instead, try to compose applications using messaging 
+Instead, try to compose applications using messaging
 to/between items in distributed containers and the local
 task queue(s).
 
@@ -165,26 +165,26 @@ integration with legacy applications.
 The \c World.gop member provides global operations that are internally
 non-blocking, enabling the invoking thread to continue working.
 
-The execution model is sequentially consistent.  That is, 
-from the perspective of a single thread of execution, operations 
+The execution model is sequentially consistent.  That is,
+from the perspective of a single thread of execution, operations
 on the same local/remote object behave as if executed sequentially
 in the same order as programmed.   This means that performing
 a read after a write/modify returns the modified value, as expected.
-Such behavior applies only to the view of a single thread --- 
+Such behavior applies only to the view of a single thread ---
 the execution of multiple threads and active messages from different
 threads may be interleaved arbitrarily.
 
-Creating, executing, and reaping a local, null task with 
-no arguments or results presently takes about 350ns (Centos 4, 3GHz 
+Creating, executing, and reaping a local, null task with
+no arguments or results presently takes about 350ns (Centos 4, 3GHz
 Core2, Pathscale 3.0 compiler, -Ofast).  The time
 is dominated by \c new and and \c delete of the
 task structure, and as such is unlikely to get any faster
-except by the application caching and reusing the task structures.   
+except by the application caching and reusing the task structures.
 Creating and then executing a chain of
 dependent tasks with the result of one task fed as the argument
-of the next task (i.e., the input argument is an unevaluated future 
+of the next task (i.e., the input argument is an unevaluated future
 which is assigned by the next task) requires about 2000ns per
-task, which we believe can be redcued to about 1us (3 GHz Core2).  
+task, which we believe can be redcued to about 1us (3 GHz Core2).
 
 Creating a remote task adds the
 overhead of interprocess communication which is on the scale of 1-3us
@@ -205,11 +205,11 @@ work performed.  The automatic scheduling of tasks dependent upon
 future arguments confers many benefits, including
  - hiding the wall-time latency of remote data access,
  - removing from the programmer the burden of correct scheduling
-   of dependent tasks, 
- - expressing all parallelism at all scales of the algorithm 
+   of dependent tasks,
+ - expressing all parallelism at all scales of the algorithm
    for facile scaling to heavily multi-core architectures and
    massively parallel computers, and
- - virtualizing the system resources for maximum 
+ - virtualizing the system resources for maximum
    future portability and scalability.
 
 Available memory limits the number of tasks that can be generated
@@ -228,7 +228,7 @@ MPI programs) must express tasks so that dependencies can be satisfied
 without unreasonable expectation of buffering.
 
 In a multiscale approach to parallelism, coarse gain tasks are
-first enqueued, and these generate finer-grain tasks, which 
+first enqueued, and these generate finer-grain tasks, which
 in turn generate finer and finer grain work.   [Expand this discussion
 and include examples along with work stealing discussion]
 
@@ -245,9 +245,9 @@ in a dense range to a value) by mapping an arbitrary key to a value.
 This is a very natural, general and efficient mechanism for storing
 sparse data structures.  The distribution of items in the container
 between processes is based upon a function which maps the key
-to a process.  There is a default mapping which is essentially 
+to a process.  There is a default mapping which is essentially
 a pseudo-random uniform mapping, but the user can provide their own
-(possibly data-dependent) operator to control the distribution.  
+(possibly data-dependent) operator to control the distribution.
 
 The keys and values associated with containers must be serializble
 by the MADNESS archive mechanism.
@@ -302,7 +302,7 @@ Here is an example of a key that might be used in an octtree.
 
 Distributed objects (WorldObject) provide all of the communication
 and other resources necessary to build new distributed capabilities.
-The distributed container class (WorldContainer) actually inherits 
+The distributed container class (WorldContainer) actually inherits
 most of its functionality from the WorldObject.
 
 
@@ -379,6 +379,8 @@ namespace madness {
 namespace madness {
 
     class World;
+    template <typename, typename>
+    class DeferredDeleter;
 
     class uniqueidT {
         friend class World;
@@ -395,15 +397,15 @@ namespace madness {
 
         bool operator==(const uniqueidT& other) const {
             return  objid==other.objid && worldid==other.worldid;
-        };
+        }
 
         std::size_t operator()(const uniqueidT& id) const { // for GNU hash
             return id.objid;
-        };
+        }
 
         operator bool() const {
             return objid!=0;
-        };
+        }
 
         template <typename Archive>
         void serialize(Archive& ar) {
@@ -412,12 +414,12 @@ namespace madness {
 
         unsigned long get_world_id() const {
             return worldid;
-        };
+        }
 
         unsigned long get_obj_id() const {
             return objid;
-        };
-    };
+        }
+    }; // class uniqueidT
 
     std::ostream& operator<<(std::ostream& s, const uniqueidT& id);
 
@@ -437,10 +439,10 @@ namespace madness {
     static void world_taskq_unfactory(WorldTaskQueue* taskq);
     static void world_assign_id(World* world);
 
-    /// For purpose of deferring cleanup to synchronization points
-    struct DeferredCleanupInterface {
-        virtual ~DeferredCleanupInterface() {};
-    };
+//    /// For purpose of deferring cleanup to synchronization points
+//    struct DeferredCleanupInterface {
+//        virtual ~DeferredCleanupInterface() {};
+//    }; // struct DeferredCleanupInterface
 
     void error(const char *msg);
 
@@ -468,7 +470,7 @@ namespace madness {
             };
         };
 
-        Mutex globalmutex;  ///< Worldwide mutex 
+        Mutex globalmutex;  ///< Worldwide mutex
         typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
         typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
@@ -478,10 +480,41 @@ namespace madness {
         unsigned long _id;                  ///< Universe wide unique ID of this world
         unsigned long obj_id;               ///< Counter to generate unique IDs within this world
         void* user_state;                   ///< Holds user defined & managed local state
-        std::list< SharedPtr<DeferredCleanupInterface> > deferred; ///< List of stuff to possibly delete at next sync point
+        std::list< std::shared_ptr<void> > deferred; ///< List of stuff to possibly delete at next sync point
 
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
+
+        template<typename T, typename D>
+        friend class DeferredDeleter;
+
+        /// Adds item to list of stuff to be deleted at next global_fence()
+
+        /// The item must be derived from DeferredCleanupInterface so that the
+        /// pointer type T* can be statically cast to DeferredCleanupInterface*
+        template <typename T>
+        void deferred_cleanup(const std::shared_ptr<T>& item) {
+            // Not only is there no point storing an unowned pointer, it
+            // is detrimental due to the duplicate checking.
+            //if (!item.owned()) return;
+
+            // !! This algorithm is quadratic.  More efficient would be to
+            // !! use a sorted-list/heap/tree/map.
+
+            ScopedMutex<Mutex> buckleup(&globalmutex);
+            std::shared_ptr<void> p = std::static_pointer_cast<void>(item);
+
+            // Avoid duplicates since the reference counting will prevent cleaning
+
+            // We do not need to check this anymore. The only way to add a pointer
+            // to the deferred cleanup list is with the DeferredDeleter object.
+            // If it does get added to this list twice, then there is an error
+            // in the program that would cause a pointer to be deleted twice.
+//            if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
+                //print("deferred adding",(void*)p.get());
+                deferred.push_back(p);
+//            }
+        }
 
         /// Does any deferred cleanup and returns true if cleaning was necessary
         bool do_deferred_cleanup() {
@@ -502,7 +535,7 @@ namespace madness {
             bool deleted_something;
             do {
                 deleted_something = false;
-                for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
+                for (std::list< std::shared_ptr<void> >::iterator it = deferred.begin();
                      it != deferred.end();) {
                     //print("refcnt:",(void*) it->get(), it->use_count(), typeid(*(it->get())).name() );
                     if (it->use_count() == 1) {
@@ -517,7 +550,7 @@ namespace madness {
             } while (deleted_something);
 
             return (nclean != deferred.size());
-        };
+        }
 
     public:
         // Here we use Pimpl to both hide implementation details and also
@@ -561,7 +594,7 @@ namespace madness {
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.
             world_assign_id(this);  // Also acts as barrier
-        };
+        }
 
 
         /// Sets a pointer to user-managed local state
@@ -575,7 +608,7 @@ namespace madness {
         /// a singleton.
         void set_user_state(void* state) {
             user_state = state;
-        };
+        }
 
 
         /// Returns pointer to user-managed state set by set_user_state()
@@ -583,13 +616,13 @@ namespace madness {
         /// Will be NULL if set_user_state() has not been invoked.
         void* get_user_state() {
             return user_state;
-        };
+        }
 
 
         /// Clears user-defined state ... same as set_user_state(0)
         void clear_user_state() {
             set_user_state(0);
-        };
+        }
 
 
         /// Processes command line arguments
@@ -602,24 +635,24 @@ namespace madness {
         /// Returns the system-wide unique integer ID of this world
         unsigned long id() const {
             return _id;
-        };
+        }
 
 
         /// Returns the process rank in this world (same as MPI::Get_rank()))
         ProcessID rank() const {
             return me;
-        };
+        }
 
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
         ProcessID nproc() const {
             return nprocess;
-        };
+        }
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
         ProcessID size() const {
             return nprocess;
-        };
+        }
 
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
@@ -634,7 +667,7 @@ namespace madness {
         /// The value objid=0 is guaranteed to be invalid.
         uniqueidT unique_obj_id() {
             return uniqueidT(_id,obj_id++);
-        };
+        }
 
 
         /// Associate a local pointer with a universe-wide unique id
@@ -718,7 +751,7 @@ namespace madness {
                 if ((*it) && (*it)->_id == id) return *it;
             }
             return 0;
-        };
+        }
 
 
         // Cannot use bind_nullary here since MPI::Request::Test is non-const
@@ -727,14 +760,14 @@ namespace madness {
             MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
             bool operator()() const {
                 return r->Test();
-            };
+            }
         };
 
 
         /// Wait for MPI request to complete
         static void inline await(SafeMPI::Request& request, bool dowork = true) {
             await(MpiRequestTester(request), dowork);
-        };
+        }
 
 
         /// Gracefully wait for a condition to become true ... executes tasks if any in queue
@@ -753,30 +786,6 @@ namespace madness {
             }
         }
 
-
-        /// Adds item to list of stuff to be deleted at next global_fence()
-
-        /// The item must be derived from DeferredCleanupInterface so that the
-        /// pointer type T* can be statically cast to DeferredCleanupInterface*
-        template <typename T>
-        void deferred_cleanup(const SharedPtr<T>& item) {
-            // Not only is there no point storing an unowned pointer, it
-            // is detrimental due to the duplicate checking.
-            if (!item.owned()) return;
-
-            // !! This algorithm is quadratic.  More efficient would be to
-            // !! use a sorted-list/heap/tree/map.
-
-            ScopedMutex<Mutex> buckleup(&globalmutex);
-            SharedPtr<DeferredCleanupInterface> p(item);
-            // Avoid duplicates since the reference counting will prevent cleaning
-            if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
-                //print("deferred adding",(void*)p.get());
-                deferred.push_back(p);
-            }
-        }
-
-
         /// Initialize seed for the internal random number generator
 
         /// If seed is zero (default) the actual seed is the process rank()
@@ -789,7 +798,7 @@ namespace madness {
             myrand_next = seed;
             for (int i=0; i<1000; i++) rand(); // Warmup
 #endif
-        };
+        }
 
 
         /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
@@ -802,19 +811,19 @@ namespace madness {
             myrand_next = myrand_next * 1103515245UL + 12345UL;
             return int((myrand_next>>8) & 0xfffffful);
 #endif
-        };
+        }
 
 
         /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
         double drand() {
             return rand()/16777216.0;
-        };
+        }
 
 
         /// Returns a random process number [0,world.size())
         ProcessID random_proc() {
             return rand()%size();
-        };
+        }
 
 
         /// Returns a random process number [0,world.size()) != current process
@@ -829,7 +838,7 @@ namespace madness {
             }
             while (p == rank());
             return p;
-        };
+        }
 
 
         ~World() {
@@ -839,9 +848,97 @@ namespace madness {
             world_gop_interface_unfactory(&gop);
             world_am_interface_unfactory(&am);
             delete &mpi;
-        };
-    };
-}
+        }
+    }; // class World
+
+    /// Deferred deleter for smart pointers.
+
+    /// This deleter object places the shared pointer on the deferred deletion
+    /// list of a world when the last reference to the pointer is destroyed.
+    /// Once the pointer is placed in the deferred deletion list, it is
+    /// destroyed by the world object at the next global fence of that world.
+    /// You may pass any arbitrary deleter function pointer/functor to to the
+    /// DeferredDeleter constructor to handle cleanup. If no deleter function
+    /// pointer/functor is provided by the user, the pointer will be freed with
+    /// the \c delete operator.
+    /// \tparam T The pointer type that will be deleted
+    /// \tparam D The deleter function pointer/functor type that will be use to
+    /// cleanup the pointer [Default = void(*)(T*) ].
+    /// \note D type must be void(*)(T*) for function pointers or a functor type
+    /// that includes a void D::operator() (T*) function and have an accessible
+    /// copy constructor and assignment operator.
+    template <typename ptrT, typename deleterT = void(*)(ptrT*)>
+    class DeferredDeleter {
+    private:
+        World* world_;
+        deleterT deleter_;
+
+        struct Enabler { };
+
+        template <typename D>
+        static typename enable_if<is_same<D, void(*)(ptrT*)>, D>::type
+        default_deleter() {
+            return & detail::checked_delete<ptrT>;
+        }
+
+        template <typename D>
+        static typename disable_if<is_same<D, void(*)(ptrT*)>, D>::type
+        default_deleter() {
+            return D();
+        }
+
+    public:
+        /// Constructs a deferred deleter object.
+
+        /// The deleter function pointer \c d will be used to delete the pointer
+        /// at a global fence of world \c w.
+        /// \param w A reference to the world object, which will be responsible
+        /// for pointer deletion.
+        /// \param d A deleter function pointer/functor [Default = if \c D
+        /// \c == \c void(*)(ptrT*) then \c d \c = \c &detail::checked_delete<ptrT>
+        /// else \c d \c = \c D() ].
+        DeferredDeleter(World& w, deleterT d = default_deleter<deleterT>()) :
+            world_(&w), deleter_(d)
+        { }
+
+        /// Copy constructor
+
+        /// \param other The deleter object to be copied.
+        DeferredDeleter(const DeferredDeleter<ptrT, deleterT>& other) :
+            world_(other.world_), deleter_(other.deleter_)
+        { }
+
+        /// Copy assignment operator.
+
+        /// \param other The deleter object to be copied.
+        /// \return A reference to this object.
+        DeferredDeleter<ptrT, deleterT>& operator=(const DeferredDeleter<ptrT, deleterT>& other) {
+            world_ = other.world_;
+            deleter_ = other.deleter_;
+            return *this;
+        }
+
+        /// The deferred deletion function.
+
+        /// This function is called when the last reference to the shared
+        /// pointer is destroyed. It will place the pointer in the deferred
+        /// cleanup list of world.
+        void operator()(ptrT* p) const {
+            world_->deferred_cleanup(std::shared_ptr<ptrT>(p, deleter_));
+        }
+    }; // class DeferredDeleter
+
+    template <typename T, typename D>
+    inline DeferredDeleter<T,D> make_deferred_deleter(World& w, D d) {
+        return DeferredDeleter<T, D>(w, d);
+    }
+
+    template <typename T>
+    inline DeferredDeleter<T> make_deferred_deleter(World& w) {
+        return DeferredDeleter<T>(w);
+    }
+
+} // namespace madness
 
 // Order of these is important
 #include <world/worldam.h>
@@ -852,13 +949,13 @@ namespace madness {
 #include <world/worldgop.h>
 #include <world/parar.h>
 #include <world/mpiar.h>
-namespace madness {
-    using archive::ParallelOutputArchive;
-    using archive::ParallelInputArchive;
-    using archive::MPIInputArchive;
-    using archive::MPIOutputArchive;
-    using archive::ParallelSerializableObject;
-}
+//namespace madness {
+//    using archive::ParallelOutputArchive;
+//    using archive::ParallelInputArchive;
+//    using archive::MPIInputArchive;
+//    using archive::MPIOutputArchive;
+//    using archive::ParallelSerializableObject;
+//}
 #include <world/print_seq.h>
 #include <world/worldobj.h>
 #include <world/worlddc.h>

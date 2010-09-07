@@ -387,13 +387,13 @@ namespace madness {
         unsigned int map_type; // 0 = simple map, 1 = gaussian distributed map, 2 = treecoords list
         const int nproc;
         const int n;
-        SharedPtr< ProcMapImpl<D> > tree_map; // for map_type 2
+        std::shared_ptr< ProcMapImpl<D> > tree_map; // for map_type 2
         Tensor<ProcessID> simple_key_map; // map of keys at level n, for map_type 1
         typedef Key<D> KeyD;
 
         /// private method that builds the Tree underlying the procmap
         void build_tree_map(std::vector< TreeCoords<D> > v) {
-            tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
+            tree_map = std::shared_ptr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
         };
 
         ProcessID simple_hash(const KeyD& key) const {
@@ -649,7 +649,7 @@ namespace madness {
         dcT impl;
 
     public:
-        LBTree(World& world, const SharedPtr< WorldDCPmapInterface< Key<D> > >& pmap, Cost(*cost_f)()=&default_cost_fun) : woT(world)
+        LBTree(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<D> > >& pmap, Cost(*cost_f)()=&default_cost_fun) : woT(world)
                 , world(world)
                 //, cost_fun(cost_fun)
                 , impl(world,pmap) {
@@ -659,7 +659,7 @@ namespace madness {
         };
         /// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T, typename costfunT>
-        inline void init_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
+        inline void init_tree(const std::shared_ptr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             typename FunctionImpl<T,D>::dcT::const_iterator end = f->coeffs.end();
             for (typename FunctionImpl<T,D>::dcT::const_iterator it = f->coeffs.begin(); it != end; ++it) {
                 // convert Node to LBNode
@@ -693,7 +693,7 @@ namespace madness {
         // Methods:
 
         template <typename T, typename costfunT>
-        inline void add_tree(const SharedPtr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
+        inline void add_tree(const std::shared_ptr< FunctionImpl<T,D> >& f, const costfunT& costfun) {
             typename FunctionImpl<T,D>::dcT::const_iterator end = f->coeffs.end();
             for (typename FunctionImpl<T,D>::dcT::const_iterator it = f->coeffs.begin(); it != end; ++it) {
                 // convert Node to LBNode
@@ -799,13 +799,12 @@ namespace madness {
         double comm_bandw;
         double comm_latency;
         double flop_time;
-        SharedPtr<LBTree<D> > skeltree;
+        std::shared_ptr<LBTree<D> > skeltree;
         World& world;
 
         template<typename T, typename costfunT>
-        void construct_skel(const SharedPtr<FunctionImpl<T,D> >& f, const costfunT& costfun) {
-            skeltree = SharedPtr<LBTree<D> >(new LBTree<D>(f->world,
-                                             f->coeffs.get_pmap()));
+        void construct_skel(const std::shared_ptr<FunctionImpl<T,D> >& f, const costfunT& costfun) {
+            skeltree.reset(new LBTree<D>(f->world, f->coeffs.get_pmap()));
 //            madness::print("about to initialize tree");
             skeltree->template init_tree<T>(f,costfun);
 //            madness::print("just initialized tree");
@@ -834,8 +833,8 @@ namespace madness {
         //Methods
 
         /// Returns a shared pointer to a new process map, which can then be used to redistribute the function
-        SharedPtr< WorldDCPmapInterface< Key<D> > > load_balance() {
-            return SharedPtr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(world, find_best_partition()));
+        std::shared_ptr< WorldDCPmapInterface< Key<D> > > load_balance() {
+            return std::shared_ptr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(world, find_best_partition()));
         };
 
         std::vector< TreeCoords<D> > find_best_partition();

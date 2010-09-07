@@ -92,18 +92,18 @@ void test_periodic(World& world) {
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
     f.truncate();
 
-    std::vector< SharedPtr< Convolution1D<double> > > ops(1);
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
 
     std::cout.precision(10);
     for (int i=-1; i<=20; i++) {
         double expnt = pow(2.0,double(i));
         double coeff = sqrt(expnt/constants::pi);
-        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, 0, true));
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, 0, true));
 
         SeparatedConvolution<double,3> op(world, ops);
 
         Function<double,3> opf = op(f);
-        
+
         coordT r0(0.49);
         coordT r1(0.01);
 
@@ -135,11 +135,11 @@ void test_periodic2(World& world) {
     Tensor<double> coeff, expnt;
     bsh_fit(0.0, thresh, 100*L, thresh, &coeff, &expnt);
     const double acut = 0.25 / (4.0*L*L);
-    std::vector< SharedPtr< Convolution1D<double> > > ops;
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops;
     for (int i=0; i<coeff.dim(0); i++) {
         if (expnt[i] > acut) {
             double c = pow(4*constants::pi*coeff[i],1.0/3.0);
-            ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
+            ops.push_back(std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
             print(ops.size(), c, expnt[i]);
         }
     }

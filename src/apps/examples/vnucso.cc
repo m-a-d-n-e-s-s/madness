@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -42,7 +42,7 @@
   \ingroup examples
 
   Points of interest
-  
+
   - Forming a Hamiltonian and a Fock matrix
   - Forming and solving a generalized eigensystem problem using LAPACK
   - Refining the representation of real and complex functions
@@ -61,7 +61,7 @@
 */
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/vmra.h>
 #include <mra/operator.h>
@@ -71,14 +71,14 @@ using namespace madness;
 using namespace std;
 
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > real_functorT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > real_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
 typedef Function<double,3> real_functionT;
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double,3> real_factoryT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
+typedef std::shared_ptr<operatorT> poperatorT;
 
 static const double L = 120.0;     // box is [-L,L]
 static const double zeta = 7.5;   // potential wells at +/-zeta
@@ -99,10 +99,10 @@ static const double fac2=exp(-R2/a2);
 
 struct Guess : FunctionFunctorInterface<double_complex,3> {
     const double z;        // z-coordinate center
-    const double exponent; // exponent 
+    const double exponent; // exponent
     const int nx, ny, nz;  // powers of x, y, z ... only 0 or 1 supported!
 
-    Guess(double z, double exponent, int nx, int ny, int nz) 
+    Guess(double z, double exponent, int nx, int ny, int nz)
         : z(z), exponent(exponent), nx(nx), ny(ny), nz(nz) {}
 
     double_complex operator()(const coordT& r) const {
@@ -115,7 +115,7 @@ struct Guess : FunctionFunctorInterface<double_complex,3> {
     }
 };
 
-static double V(const coordT& r) 
+static double V(const coordT& r)
 {
     const double x=r[0], y=r[1], z=r[2];
     const double zp=(z+zeta), zm = (z-zeta);
@@ -152,19 +152,19 @@ void moments(World& world, const vector<complex_functionT>& u, const vector<comp
 void gaxpy1(World& world,
 	    const double_complex alpha,
 	    vector<complex_functionT>& a,
-	    const double_complex beta, 
+	    const double_complex beta,
 	    const vector<complex_functionT>& b,
 	    bool fence=true)
 {
   MADNESS_ASSERT(a.size() == b.size());
-  
+
   for (unsigned int i=0; i<a.size(); i++) {
     a[i] = alpha*a[i] + beta*b[i];
   }
   if (fence) world.gop.fence();
 }
 
-vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, double tol) 
+vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, double tol)
 {
     int n = evals.dim(0);
     vector<poperatorT> ops(n);
@@ -177,19 +177,19 @@ vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals,
     return ops;
 }
 
-Tensor<double_complex> hamiltonian_matrix(World& world, 
-                                          const vector<complex_functionT>& u, 
-                                          const vector<complex_functionT>& v, 
+Tensor<double_complex> hamiltonian_matrix(World& world,
+                                          const vector<complex_functionT>& u,
+                                          const vector<complex_functionT>& v,
                                           const vector<complex_functionT>& Vu,
                                           const vector<complex_functionT>& Vv,
                                           const vector<complex_functionT> du[3],
-                                          const vector<complex_functionT> dv[3]) 
+                                          const vector<complex_functionT> dv[3])
 {
     reconstruct(world, u);
     reconstruct(world, v);
     int n = u.size();
     Tensor<double_complex> r(n,n);
-    
+
     for (int axis=0; axis<3; axis++) {
       r += matrix_inner(world, du[axis], du[axis], true);
       r += matrix_inner(world, dv[axis], dv[axis], true);
@@ -202,18 +202,18 @@ Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
   return 1;
 }
 
-void apply_potential(World& world, 
+void apply_potential(World& world,
                      const real_functionT& V0,
-                     const real_functionT& V0x, 
-                     const real_functionT& V0y, 
-                     const real_functionT& V0z, 
+                     const real_functionT& V0x,
+                     const real_functionT& V0y,
+                     const real_functionT& V0z,
                      const vector<complex_functionT>& u,
                      const vector<complex_functionT>& v,
                      vector<complex_functionT>& Vu,
                      vector<complex_functionT>& Vv,
                      vector<complex_functionT> du[3],
                      vector<complex_functionT> dv[3],
-                     bool doso) 
+                     bool doso)
 {
     const double_complex lam(lambda,0.0);
     const double_complex one(1.0,0.0);
@@ -235,7 +235,7 @@ void apply_potential(World& world,
 
     Vu = mul(world, V0, u);
     Vv = mul(world, V0, v );
-	
+
     if (!doso) return;
 
     gaxpy(world, one, Vu, -I*lam, mul(world, V0y, du[x]));
@@ -245,7 +245,7 @@ void apply_potential(World& world,
     gaxpy(world, one, Vu,   -lam, mul(world, V0x, dv[z]));
     gaxpy(world, one, Vu,  I*lam, mul(world, V0y, dv[z]));
 
-    
+
     gaxpy(world, one, Vv,  I*lam, mul(world, V0y, dv[x]));
     gaxpy(world, one, Vv, -I*lam, mul(world, V0x, dv[y]));
     gaxpy(world, one, Vv,   -lam, mul(world, V0z, du[x]));
@@ -280,20 +280,20 @@ void doit(World& world) {
     // symmetry by ensuring that after updating (and before
     // diagonalization) the higher energy states are orthogonal to
     // lower states and their time-reversed form.
-    
+
     if (world.rank() == 0) print("entered solver at time", wall_time());
     long k = 5;              // wavelet order
     double thresh = 1e-3;    // precision for wave function
     coordT zero;
-    
+
     zero[0]=0.; zero[1]=0.; zero[2]=0.;
-    
+
     // FunctionDefaults<3>::k = k;
     //    FunctionDefaults<3>::thresh = thresh;
     // FunctionDefaults<3>::refine = true;
     // FunctionDefaults<3>::autorefine = false;
     // FunctionDefaults<3>::initial_level = 2;
-    // FunctionDefaults<3>::truncate_mode = 1;  
+    // FunctionDefaults<3>::truncate_mode = 1;
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -313,7 +313,7 @@ void doit(World& world) {
     vector<complex_functionT> w;
 
     // Initial guess is as for SO-free but first with (u,0) and then (0,v)
-    
+
     // Could this get any more verbose?  This needs to be fixed.
     u.push_back(complex_factoryT(world).functor(complex_functorT(new Guess( zeta, 0.15, 0, 0, 0))).nofence());  // s
     v.push_back(complex_functionT(complex_factoryT(world)));
@@ -363,7 +363,7 @@ void doit(World& world) {
     world.gop.fence();
     normalize2(world, u, v);
 
-    
+
     int nvec=u.size();
     Tensor<double_complex> H1(nvec,nvec);
     Tensor<double_complex> S1(nvec,nvec);
@@ -377,32 +377,32 @@ void doit(World& world) {
     print(" u size ",  u.size(), "v size ", v.size(), "\n");
 
     doitagain:
-    
+
     while (thresh > 0.9e-10) {
       if (world.rank() == 0) {
 	print("\n Solving with thresh",thresh,"k",k,"at time", wall_time(), "\n");
             printf("  iter   root        energy         err      time\n");
             printf("  ----   ----  ------------------ -------   ------\n");
       }
-      
+
       V0 = real_factoryT(world).f(V).thresh(thresh);
       V0x = real_derivative_3d(world,0)(V0);
       V0y = real_derivative_3d(world,1)(V0);
       V0z = real_derivative_3d(world,2)(V0);
-      
+
       // If it does not converge in 10 iters it probably needs more precision.
       for (int iter=0; iter<10; iter++) {
-	
+
 	// loadbalance(world, u, v, V0, V0x, V0y, V0z);
-	
+
 	vector<complex_functionT> Vu, Vv, du[3], dv[3];
-	
+
 	apply_potential(world, V0, V0x, V0y, V0z, u, v, Vu, Vv, du, dv, doso);
 	world.gop.fence(); // free memory
-	
+
 	Tensor<double_complex> H = hamiltonian_matrix(world, u, v, Vu, Vv, du, dv);
 	Tensor<double_complex> S = matrix_inner(world, u, u) + matrix_inner(world, v, v);
-	
+
 	if ( iter==0) {
 	  for (int iii = 0; iii < nvec; iii++ )
 	    for (int jjj = 0; jjj < nvec; jjj++ ){
@@ -414,7 +414,7 @@ void doit(World& world) {
 	    for (int jjj = 0; jjj < nvec; jjj++ ){
 	      H1(jjj,iii) = H(jjj,iii);
 	    }
-	
+
 	if ( iter==0) {
 	  for (int iii = 0; iii < nvec; iii++ )
 	    for (int jjj = 0; jjj < nvec; jjj++ ){
@@ -428,9 +428,9 @@ void doit(World& world) {
 	    }
 
 	world.gop.fence(); // free memory
-	
+
 	sygv(H1, S1, 1, c, e);
-	
+
 	for (int axis=0; axis<3; axis++) {
 	  du[axis].clear();
 	  dv[axis].clear();
@@ -440,61 +440,61 @@ void doit(World& world) {
 	e = e(Slice(0,nvec-1));
 	u  = transform(world, u,  c(_,Slice(0,nvec-1)));
 	v  = transform(world, v,  c(_,Slice(0,nvec-1)));
-	
+
 	Vu = transform(world, Vu, c(_,Slice(0,nvec-1)));
 	Vv = transform(world, Vv, c(_,Slice(0,nvec-1)));
 	world.gop.fence(); // free memory
-	
+
 	truncate(world, u);
 	truncate(world, v);
 	truncate(world, Vu);
 	truncate(world, Vv);
 	world.gop.fence();
-	
+
 	normalize2(world, u, v);
-	
+
 	world.gop.fence(); // free memory
 
 	for (int iii = 0; iii < nvec; iii++ )
 	  e1[iii] = e[iii]; // +shift;
-	
+
 
 	for (int i=0; i<nvec; i++) {
 	  Vu[i].refine();
 	  Vv[i].refine();
 	}
-	
+
 	vector<poperatorT> ops = make_bsh_operators(world, e1, thresh);
-	
+
 	vector<complex_functionT> u_new = apply(world, ops, Vu);
 	vector<complex_functionT> v_new = apply(world, ops, Vv);
 
 	normalize2(world, u_new, v_new);
-	
+
 	Vu.clear();
 	Vv.clear();
 	world.gop.fence();
-	
+
 	vector<double> rnormu = norm2s(world,add(world, u, u_new));
 	vector<double> rnormv = norm2s(world,add(world, v, v_new));
 	vector<double> rnorm(nvec);
 
-	for (int i=0; i<nvec; i++) 
+	for (int i=0; i<nvec; i++)
 	  rnorm[i] = sqrt(rnormu[i]*rnormu[i] + rnormv[i]*rnormv[i]);
-	
+
 	maxerr= 0.;
 	for (int i=0; i<nvec; i++) {
-	  if (world.rank() == 0) printf("  %3d    %3d  %18.12f  %.1e  %7.1f\n", 
+	  if (world.rank() == 0) printf("  %3d    %3d  %18.12f  %.1e  %7.1f\n",
 					iter, i, e[i]/reduced, rnorm[i], wall_time());
 	  maxerr = max(maxerr,rnorm[i]);
 	}
-	
+
 	u = u_new;
 	v = v_new;
-	
+
 	u_new.clear();
-	v_new.clear(); 
-	
+	v_new.clear();
+
 	if (maxerr < 1.e-3 && !doso) {
 	  // We initially converged to a threshold of 1e-4 without SO
 	  // and now we repeat the 1e-4 iteration with SO and continue
@@ -505,9 +505,9 @@ void doit(World& world) {
 	  break;
 	}
       }
-      
+
       moments(world, u, v);
-      
+
       thresh *= 1e-1;
       k += 1;
       FunctionDefaults<3>::set_k(k);
