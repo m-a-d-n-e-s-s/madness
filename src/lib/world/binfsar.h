@@ -72,7 +72,7 @@ namespace madness {
                 iobuf.reset(new char[IOBUFSIZE], &detail::checked_array_delete<char>);
                 os.open(filename, mode);
 #ifndef ON_A_MAC
-                os.rdbuf()->pubsetbuf(iobuf, IOBUFSIZE);
+                os.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);
 #endif
 
                 store(ARCHIVE_COOKIE, strlen(ARCHIVE_COOKIE)+1);
