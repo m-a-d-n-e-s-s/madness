@@ -1,21 +1,21 @@
-L 40
+L 40.0
 Lsmall 10.0
-Llarge 10.0
+Llarge 40.0
 F 0.176
 omega 1.32
-ncycle 2
 natom 1
    1.0    0.0 0.0 0.0
-k 12
-thresh 1e-3
+k 8
+thresh 1e-5
 safety 1e-0
-cut 0.3
+cut 0.4
 prefix data
 nplot 999
 nprint 1
-nloadbal 1
+nloadbal 20
 nio 1
-ndump 2
-target_time 10.1
-tScale 1.0
-n 100
+ndump 10
+ncycle 2
+target_time 5
+tScale 5.0
+

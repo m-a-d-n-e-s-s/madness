@@ -64,6 +64,7 @@ using namespace madness;
 
 /***************
  * <Yl0|Psi(t)>
+ * Needs: wf.num input2 
  ***************/
 void projectL(World& world, const double L, const int n) {
     //LOAD Psi(t)
@@ -88,9 +89,9 @@ void projectL(World& world, const double L, const int n) {
         PRINTLINE("");
         const double PI = M_PI;
         const double dr = L/n;
-        const double dTH = PI/n;
-        const double dPHI = 2*PI/n;
-        const int smallN = 40;
+        const int smallN = 80;
+        const double dTH = PI/smallN;
+        const double dPHI = 2*PI/smallN;
         const int lMAX = 3;
         const bool debug = false;
         std::vector<WF>::iterator psiT;
@@ -100,7 +101,6 @@ void projectL(World& world, const double L, const int n) {
             PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
-                //functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
                 Yl0 yl0(L, l);
                 for( int i=0; i<n; i++ ) {
                     YlPsi[i] = 0.0;
@@ -109,9 +109,9 @@ void projectL(World& world, const double L, const int n) {
                 for( int i=world.rank(); i<n; i+=world.size() ) {
                     const double r = (0.5 + i)*dr;
                     complexd Rl = 0.0;
-                    for( int j=0; j<n ; j++ ) {
+                    for( int j=0; j<smallN ; j++ ) {
                         const double th = (0.5 + j)*dTH;
-                        for( int k=0; k<n; k++ ) {
+                        for( int k=0; k<smallN; k++ ) {
                             const double phi = k*dPHI;
                             const double sinTH = std::sin(th);
                             const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
@@ -143,9 +143,10 @@ void projectL(World& world, const double L, const int n) {
         }
     }
 }
-
+/****************************************
+ * Needs: input input2
+ ****************************************/
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
-    //READ wf.num
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
     if( !wave_function_exists(world, wf) ) {
@@ -154,7 +155,7 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
     } else {
         psiT = wave_function_load(world, wf);
         PRINTLINE("phi(T=" << wf << ",r) =\t th=0 \t\t\t th=" << th << "  phi = " << phi);
-    }// done loading wf.num
+    }// done loading wf
     complexd output;
     const double dr = L/n;
     for( int i=0; i<n; i++ ) {
