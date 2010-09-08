@@ -1,40 +1,40 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /// \file tdse/tdse4.cc
 /// \brief Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>
@@ -89,7 +89,7 @@ struct InputParameters {
     // a) read()
     // b) serialize()
     // c) operator<<()
-  
+
   double L;           // Box size for the simulation
   double F;           // Laser field strength
   double omega;       // Laser frequency
@@ -102,12 +102,12 @@ struct InputParameters {
   int ndump;          // dump wave function to disk every ndump steps
   int nprint;         // print stats every nprint steps
   int nloadbal;       // load balance every nloadbal steps
-  int nio;            // Number of IO nodes 
-    
+  int nio;            // Number of IO nodes
+
   double tScale;      // Scaling parameter for optimization
 
   double target_time;// Target end-time for the simulation
-  
+
   void read(const char* filename) {
     std::ifstream f(filename);
     std::string tag;
@@ -116,8 +116,8 @@ struct InputParameters {
     printf("       ---------------------\n");
     printf("             Z = %.1f\n", Z);
     printf("            R0 = %.6f\n", R0);
-    printf("            mu = %.6f\n", reduced_mass);    
-    printf("      sqrt(mu) = %.6f\n", sqrtmu);    
+    printf("            mu = %.6f\n", reduced_mass);
+    printf("      sqrt(mu) = %.6f\n", sqrtmu);
     while(f >> tag) {
         if (tag[0] == '#') {
             char ch;
@@ -192,7 +192,7 @@ struct InputParameters {
         }
     }
   }
-    
+
   template <typename Archive>
   void serialize(Archive & ar) {
       ar & L & F & omega & ncycle;
@@ -201,7 +201,7 @@ struct InputParameters {
 };
 
 std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
-    s << p.L<< " " << p.F<< " " << p.omega << " " << 
+    s << p.L<< " " << p.F<< " " << p.omega << " " <<
         p.ncycle << " " << p.k<< " " <<
         p.thresh<< " " << p.cut<< " " << p.prefix<< " " << p.ndump<< " " <<
         p.nprint << " "  << p.nloadbal << " " << p.nio << p.tScale << std::endl;
@@ -219,9 +219,9 @@ private:
     const int nproc;
 public:
     LevelPmap() : nproc(0) {};
-    
+
     LevelPmap(World& world) : nproc(world.nproc()) {}
-    
+
     // Find the owner of a given key
     ProcessID owner(const Key<4>& key) const {
         Level n = key.level();
@@ -234,7 +234,7 @@ public:
         //if (n <= 2) hash = key.hash();
         //else hash = key.parent(2).hash();
 
-        // This randomly hashes levels 0-3 and then 
+        // This randomly hashes levels 0-3 and then
         // maps nodes on even levels to the same
         // random node as their parent.
         // if (n <= 3 || (n&0x1)) hash = key.hash();
@@ -249,7 +249,7 @@ public:
 
 // Smoothed 1/r potential.
 
-// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.  
+// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.
 static double smoothed_potential(double r) {
     double r2 = r*r, pot;
     if (r > 6.5){
@@ -259,7 +259,7 @@ static double smoothed_potential(double r) {
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    
+
     return pot;
 }
 
@@ -303,7 +303,7 @@ static double guess(const coordT& r) {
     //const double Rp = 2.12902;
     const double Rp = R0;
     const double Rmax = Rp + sqrt(23.0/a);
-    
+
     // Screen on size of nuclear wave function
     if (R > Rmax) return 0.0;
 
@@ -372,13 +372,13 @@ double energy(World& world, const Function<T,4>& psi, const functionT& pote, con
     Function<T,4> Vfpsi = psi*potf;
 
     // Now do all work in the wavelet basis
-    psi.compress(DOFENCE); 
-    Vepsi.compress(DOFENCE); 
-    Vnpsi.compress(DOFENCE); 
-    Vfpsi.compress(DOFENCE); 
-    dx.compress(DOFENCE); 
-    dy.compress(DOFENCE); 
-    dz.compress(DOFENCE); 
+    psi.compress(DOFENCE);
+    Vepsi.compress(DOFENCE);
+    Vnpsi.compress(DOFENCE);
+    Vfpsi.compress(DOFENCE);
+    dx.compress(DOFENCE);
+    dy.compress(DOFENCE);
+    dz.compress(DOFENCE);
     ds.compress(true);
     double S = real(psi.inner(psi));
     double PEe = real(psi.inner(Vepsi));
@@ -408,7 +408,7 @@ double delsqfred(const coordT& r) {
     double rsq = r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+r[3]*r[3];
     return (4.0*a*a*rsq - 4.0*2.0*a)*10.0*exp(-a*rsq);
 }
-    
+
 
 void testbsh(World& world) {
     double mu = 0.3;
@@ -468,8 +468,8 @@ void converge(World& world, functionT& potn, functionT& pote, functionT& pot, fu
 }
 
 complex_functionT trotter(World& world,
-                          const complex_functionT& expV, 
-                          const complex_operatorT& G, 
+                          const complex_functionT& expV,
+                          const complex_operatorT& G,
                           const complex_functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
 
@@ -493,7 +493,7 @@ complex_functionT trotter(World& world,
 
     FunctionDefaults<4>::set_pmap(oldpmap);
     psi1 = copy(psi1, oldpmap, true);
-    
+
     return psi1;
 }
 
@@ -562,22 +562,22 @@ const char* wave_function_large_plot_filename(int step) {
 
 complex_functionT wave_function_load(World& world, int step) {
     complex_functionT psi;
-    ParallelInputArchive ar(world, wave_function_filename(step));
+    archive::ParallelInputArchive ar(world, wave_function_filename(step));
     ar & psi;
     return psi;
 }
 
 void wave_function_store(World& world, int step, const complex_functionT& psi) {
-    ParallelOutputArchive ar(world, wave_function_filename(step), param.nio);
+    archive::ParallelOutputArchive ar(world, wave_function_filename(step), param.nio);
     ar & psi;
 }
 
 bool wave_function_exists(World& world, int step) {
-    return ParallelInputArchive::exists(world, wave_function_filename(step));
+    return archive::ParallelInputArchive::exists(world, wave_function_filename(step));
 }
 
 
-void loadbal(World& world, 
+void loadbal(World& world,
              functionT& pote, functionT& potn, functionT& pot, functionT& vt,
              complex_functionT& psi, complex_functionT& psi0,
              functionT& x, functionT& y, functionT& z, functionT& R) {
@@ -633,7 +633,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     functionT R = factoryT(world).f(bond_length);
 
     // Wave function at time t=0 for printing statistics
-    complex_functionT psi0 = wave_function_load(world, 0); 
+    complex_functionT psi0 = wave_function_load(world, 0);
 
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
@@ -658,7 +658,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     }
 
     print_stats_header(world);
-    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi0); 
+    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi0);
     world.gop.fence();
 
     psi.truncate();
@@ -670,7 +670,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         long depth = psi.max_depth(); long size=psi.size();
         if (world.rank() == 0) print("depth size", depth, size);
 
-        // Make the potential at time t + step/2 
+        // Make the potential at time t + step/2
         functionT vhalf = pot + laser(t+0.5*time_step)*x;
 
         // Apply Trotter to advance from time t to time t+step
@@ -682,7 +682,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         t += time_step;
         vt = pot+laser(t)*x;
 
-        print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi); 
+        print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
 
         if ((step%param.ndump) == 0 || step==nstep) {
             double start = wall_time();
@@ -760,11 +760,11 @@ void doit(World& world) {
             psi.scale(1.0/norm0);
             psi.truncate();
             if (world.rank() == 0) print("computed norm", norm0, "at", wall_time());
-            
+
             double eps = energy(world, psi, pote, potn, functionT(factoryT(world)));
-            if (world.rank() == 0) print("guess energy", eps, wall_time()); 
+            if (world.rank() == 0) print("guess energy", eps, wall_time());
             converge(world, potn, pote, pot, psi, eps);
-            
+
             psi.truncate(param.thresh);
 
             complex_functionT psic = double_complex(1.0,0.0)*psi;
@@ -785,7 +785,7 @@ void doit(World& world) {
 int main(int argc, char** argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
-    
+
     startup(world,argc,argv);
 
     try {
@@ -817,7 +817,7 @@ int main(int argc, char** argv) {
 
 
     world.gop.fence();
-    
+
     ThreadPool::end();
     print_stats(world);
     finalize();

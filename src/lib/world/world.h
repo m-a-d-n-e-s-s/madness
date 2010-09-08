@@ -55,15 +55,15 @@ It includes
  - Distributed objects that can be globally addressed.
  - Futures (results of unevaluated expressions) for composition of latency tolerant
    algorithms and expression of dependencies between tasks.
- - Globally accessible task queues in each process which 
+ - Globally accessible task queues in each process which
    can be used individually or collectively to provide a single global
    task queue.
  - Work stealing for dynamic load balancing (prototype being tested)
  - Facile management of computations on processor sub-groups.
  - Integration with MPI
- - Optional integration with Global Arrays (J. Nieplocha, 
+ - Optional integration with Global Arrays (J. Nieplocha,
    http://www.emsl.pnl.gov/docs/global).
- - Active messages to items in a container, distributed objects, 
+ - Active messages to items in a container, distributed objects,
    and processes.
  - Efficient use of multicore processors using pthreads.
 
@@ -73,8 +73,8 @@ There were several motivations for developing this environment.
  -  The rapid evolution of machines from hundreds (pre-2000), to
     millions (post-2008) of processors demonstrates the need to abandon
     process-centric models of computation and move to paradigms that
-    virtualize or even hide the concept of a process.  
-    The success of applications using the 
+    virtualize or even hide the concept of a process.
+    The success of applications using the
     Charm++ environment to scale rapidly to 30+K processes and the enormous effort
     required to scale most process-centric applications are the central examples.
  -  The arrival of multi-core processes and the associated needs of
@@ -83,9 +83,9 @@ There were several motivations for developing this environment.
     capture much more concurrency and the use of futures for
     latency hiding.
  -  The complexity of composing irregular applications in partitioned, global-address space
-    (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array) 
-    motivates the use of an object-centric active-message or remote method invocation (RMI) model 
-    so that computation may be moved to the data with the same ease as 
+    (PGAS) models using only MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array)
+    motivates the use of an object-centric active-message or remote method invocation (RMI) model
+    so that computation may be moved to the data with the same ease as
     which data can be moved.  This greatly simplifies the task of maintaining
     and using distributed data structures.
  -  Interoperability with existing programming models to leverage existing
@@ -151,7 +151,7 @@ on their sub-trees.
 The \c World.am member provides inter-process active message functionality, which is
 the foundation on which everything else is built.  We do not recommend
 that applications make routine or direct use of inter-process active messages.
-Instead, try to compose applications using messaging 
+Instead, try to compose applications using messaging
 to/between items in distributed containers and the local
 task queue(s).
 
@@ -165,26 +165,26 @@ integration with legacy applications.
 The \c World.gop member provides global operations that are internally
 non-blocking, enabling the invoking thread to continue working.
 
-The execution model is sequentially consistent.  That is, 
-from the perspective of a single thread of execution, operations 
+The execution model is sequentially consistent.  That is,
+from the perspective of a single thread of execution, operations
 on the same local/remote object behave as if executed sequentially
 in the same order as programmed.   This means that performing
 a read after a write/modify returns the modified value, as expected.
-Such behavior applies only to the view of a single thread --- 
+Such behavior applies only to the view of a single thread ---
 the execution of multiple threads and active messages from different
 threads may be interleaved arbitrarily.
 
-Creating, executing, and reaping a local, null task with 
-no arguments or results presently takes about 350ns (Centos 4, 3GHz 
+Creating, executing, and reaping a local, null task with
+no arguments or results presently takes about 350ns (Centos 4, 3GHz
 Core2, Pathscale 3.0 compiler, -Ofast).  The time
 is dominated by \c new and and \c delete of the
 task structure, and as such is unlikely to get any faster
-except by the application caching and reusing the task structures.   
+except by the application caching and reusing the task structures.
 Creating and then executing a chain of
 dependent tasks with the result of one task fed as the argument
-of the next task (i.e., the input argument is an unevaluated future 
+of the next task (i.e., the input argument is an unevaluated future
 which is assigned by the next task) requires about 2000ns per
-task, which we believe can be redcued to about 1us (3 GHz Core2).  
+task, which we believe can be redcued to about 1us (3 GHz Core2).
 
 Creating a remote task adds the
 overhead of interprocess communication which is on the scale of 1-3us
@@ -205,11 +205,11 @@ work performed.  The automatic scheduling of tasks dependent upon
 future arguments confers many benefits, including
  - hiding the wall-time latency of remote data access,
  - removing from the programmer the burden of correct scheduling
-   of dependent tasks, 
- - expressing all parallelism at all scales of the algorithm 
+   of dependent tasks,
+ - expressing all parallelism at all scales of the algorithm
    for facile scaling to heavily multi-core architectures and
    massively parallel computers, and
- - virtualizing the system resources for maximum 
+ - virtualizing the system resources for maximum
    future portability and scalability.
 
 Available memory limits the number of tasks that can be generated
@@ -228,7 +228,7 @@ MPI programs) must express tasks so that dependencies can be satisfied
 without unreasonable expectation of buffering.
 
 In a multiscale approach to parallelism, coarse gain tasks are
-first enqueued, and these generate finer-grain tasks, which 
+first enqueued, and these generate finer-grain tasks, which
 in turn generate finer and finer grain work.   [Expand this discussion
 and include examples along with work stealing discussion]
 
@@ -245,9 +245,9 @@ in a dense range to a value) by mapping an arbitrary key to a value.
 This is a very natural, general and efficient mechanism for storing
 sparse data structures.  The distribution of items in the container
 between processes is based upon a function which maps the key
-to a process.  There is a default mapping which is essentially 
+to a process.  There is a default mapping which is essentially
 a pseudo-random uniform mapping, but the user can provide their own
-(possibly data-dependent) operator to control the distribution.  
+(possibly data-dependent) operator to control the distribution.
 
 The keys and values associated with containers must be serializble
 by the MADNESS archive mechanism.
@@ -302,7 +302,7 @@ Here is an example of a key that might be used in an octtree.
 
 Distributed objects (WorldObject) provide all of the communication
 and other resources necessary to build new distributed capabilities.
-The distributed container class (WorldContainer) actually inherits 
+The distributed container class (WorldContainer) actually inherits
 most of its functionality from the WorldObject.
 
 
@@ -468,7 +468,7 @@ namespace madness {
             };
         };
 
-        Mutex globalmutex;  ///< Worldwide mutex 
+        Mutex globalmutex;  ///< Worldwide mutex
         typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
         typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
@@ -852,13 +852,6 @@ namespace madness {
 #include <world/worldgop.h>
 #include <world/parar.h>
 #include <world/mpiar.h>
-namespace madness {
-    using archive::ParallelOutputArchive;
-    using archive::ParallelInputArchive;
-    using archive::MPIInputArchive;
-    using archive::MPIOutputArchive;
-    using archive::ParallelSerializableObject;
-}
 #include <world/print_seq.h>
 #include <world/worldobj.h>
 #include <world/worlddc.h>

@@ -950,9 +950,9 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive_ptr< Tensor<T> > ptr, 
-                                                const keyT& key, 
-                                                const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt, 
+    Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
+                                                const keyT& key,
+                                                const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
                                                 bool eval_refine) const {
 
         Tensor<T>& r = *ptr;
@@ -983,7 +983,7 @@ namespace madness {
             // Coords of box
             boxlo[d] = fac*key.translation()[d];
             boxhi[d] = boxlo[d]+fac;
-            
+
             if (boxlo[d] > plothi[d] || boxhi[d] < plotlo[d]) {
                 // Discard boxes out of the plot range
                 npttotal = boxnpt[d] = 0;
@@ -999,7 +999,7 @@ namespace madness {
                 // Restrict to plot range
                 boxlo[d] = std::max(boxlo[d],plotlo[d]);
                 boxhi[d] = std::min(boxhi[d],plothi[d]);
-                
+
                 // Round lo up to next plot point; round hi down
                 double xlo = long((boxlo[d]-plotlo[d])/h[d])*h[d] + plotlo[d];
                 if (xlo < boxlo[d]) xlo += h[d];
@@ -1029,7 +1029,7 @@ namespace madness {
                 }
                 if (eval_refine) {
                     r(ind) = n;
-                } 
+                }
                 else {
                     T tmp = eval_cube(n, x, coeff);
                     r(ind) = tmp;
@@ -1037,16 +1037,16 @@ namespace madness {
                 }
             }
         }
-        
+
         return None;
     }
 
-    /// Set plot_refine=true to get a plot of the refinment levels of 
+    /// Set plot_refine=true to get a plot of the refinment levels of
     /// the given function (defaulted to false in prototype).
     template <typename T, int NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
                                                    const coordT& plothi,
-                                                   const std::vector<long>& npt, 
+                                                   const std::vector<long>& npt,
                                                    const bool eval_refine) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         Tensor<T> r(NDIM, &npt[0]);
@@ -1057,7 +1057,7 @@ namespace madness {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                task(world.rank(), &implT::plot_cube_kernel, archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
+                task(world.rank(), &implT::plot_cube_kernel, archive::archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
             }
         }
 

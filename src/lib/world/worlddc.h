@@ -642,7 +642,7 @@ namespace madness {
     /// non-blocking and return immediately.  If communication occurs
     /// it is asynchronous, otherwise operations are local.
     template <typename keyT, typename valueT, typename hashfunT = Hash_private::defhashT<keyT> >
-    class WorldContainer : public ParallelSerializableObject {
+    class WorldContainer : public archive::ParallelSerializableObject {
     public:
         typedef WorldContainer<keyT,valueT,hashfunT> containerT;
         typedef WorldContainerImpl<keyT,valueT,hashfunT> implT;
@@ -1420,7 +1420,7 @@ namespace madness {
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
-        void serialize(const BufferOutputArchive& ar) {
+        void serialize(const archive::BufferOutputArchive& ar) {
             check_initialized();
             ar & static_cast<WorldObject<implT>*>(p.get());
         }
@@ -1428,7 +1428,7 @@ namespace madness {
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
-        void serialize(const BufferInputArchive& ar) {
+        void serialize(const archive::BufferInputArchive& ar) {
             WorldObject<implT>* ptr;
             ar & ptr;
             MADNESS_ASSERT(ptr);

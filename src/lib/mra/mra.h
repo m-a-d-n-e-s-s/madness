@@ -42,7 +42,7 @@
   \brief Main include file for MADNESS and defines \c Function interface
 
   \addtogroup mra
- 
+
 */
 
 
@@ -75,7 +75,7 @@ namespace madness {
 
     /// A multiresolution adaptive numerical function
     template <typename T, int NDIM>
-    class Function : public ParallelSerializableObject {
+    class Function : public archive::ParallelSerializableObject {
         // We make all of the content of Function and FunctionImpl
         // public with the intent of avoiding the cumbersome forward
         // and friend declarations.  However, this open access should
@@ -205,13 +205,13 @@ namespace madness {
         /// All processes recieve the entire result (which is a rather severe limit
         /// on the size of the cube that is possible).
 
-        /// Set eval_refine=true to return the refinment levels of 
+        /// Set eval_refine=true to return the refinment levels of
         /// the given function.
-        
+
         /// @param[in] cell A Tensor describe the cube where the function to be evaluated in
         /// @param[in] npt How many points to evaluate in each dimension
         /// @param[in] refine Wether to return the refinment levels of the given function
-        Tensor<T> eval_cube(const Tensor<double>& cell, 
+        Tensor<T> eval_cube(const Tensor<double>& cell,
                             const std::vector<long>& npt,
                             bool eval_refine = false) const {
             PROFILE_MEMBER_FUNC(Function);
@@ -598,7 +598,7 @@ namespace madness {
 
 
         /// Inplace autorefines the function.  Optional fence. Possible non-blocking comm.
-        template <typename opT> 
+        template <typename opT>
         void refine_general(const opT& op, bool fence = true) const {
             PROFILE_MEMBER_FUNC(Function);
             verify();
@@ -621,7 +621,7 @@ namespace madness {
         }
 
         /// Inplace broadens support in scaling function basis
-        void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(), 
+        void broaden(const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                      bool fence = true) const {
             verify();
             reconstruct();
@@ -1197,7 +1197,7 @@ namespace madness {
     }
 
     /// Type conversion implies a deep copy.  No communication except for optional fence.
-    
+
     /// Works in either basis but any loss of precision may result in different errors
     /// in applied in a different basis.
     ///
@@ -1223,7 +1223,7 @@ namespace madness {
     Function<T,NDIM> conj(const Function<T,NDIM>& f, bool fence = true) {
         PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);
-        return result.conj(fence);   
+        return result.conj(fence);
     }
 
     /// Apply operator ONLY in non-standard form - required other steps missing !!
@@ -1299,7 +1299,7 @@ namespace madness {
     project(const Function<T,NDIM>& other,
             int k=FunctionDefaults<NDIM>::get_k(),
             double thresh=FunctionDefaults<NDIM>::get_thresh(),
-            bool fence=true) 
+            bool fence=true)
     {
         PROFILE_FUNC;
         Function<T,NDIM> result = FunctionFactory<T,NDIM>(other.world()).k(k).thresh(thresh).empty();
@@ -1318,27 +1318,27 @@ namespace madness {
         return f.inner(g);
     }
 
-    
+
     template <typename T, typename R, int NDIM>
-    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type
     operator+(const Function<T,NDIM>& f, R r) {
         return (f*R(1.0)).add_scalar(r);
     }
 
     template <typename T, typename R, int NDIM>
-    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type
     operator+(R r, const Function<T,NDIM>& f) {
         return (f*R(1.0)).add_scalar(r);
     }
 
     template <typename T, typename R, int NDIM>
-    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type
     operator-(const Function<T,NDIM>& f, R r) {
         return (f*R(1.0)).add_scalar(-r);
     }
 
     template <typename T, typename R, int NDIM>
-    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type 
+    typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type
     operator-(R r, const Function<T,NDIM>& f) {
         return (f*R(-1.0)).add_scalar(r);
     }

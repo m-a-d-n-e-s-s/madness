@@ -141,13 +141,13 @@ namespace madness {
 
         /// Used to deserialize arguments from incoming message
         template <typename T>
-        BufferInputArchive operator&(T& t) const {
+        archive::BufferInputArchive operator&(T& t) const {
             return archive::BufferInputArchive(buf(),size()) & t;
         }
 
         /// Used to serialize arguments into outgoing message
         template <typename T>
-        BufferOutputArchive operator&(const T& t) const {
+        archive::BufferOutputArchive operator&(const T& t) const {
             return archive::BufferOutputArchive(buf(),size()) & t;
         }
         /// For incoming AM gives the source process

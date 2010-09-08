@@ -45,13 +45,13 @@
 #include <world/textfsar.h>
 
 namespace madness {
-    using archive::BufferInputArchive;
-    using archive::BufferOutputArchive;
-    using archive::VectorInputArchive;
-    using archive::VectorOutputArchive;
-    using archive::BinaryFstreamInputArchive;
-    using archive::BinaryFstreamOutputArchive;
-    using archive::TextFstreamInputArchive;
-    using archive::TextFstreamOutputArchive;
+//    using archive::BufferInputArchive;
+//    using archive::BufferOutputArchive;
+//    using archive::VectorInputArchive;
+//    using archive::VectorOutputArchive;
+//    using archive::BinaryFstreamInputArchive;
+//    using archive::BinaryFstreamOutputArchive;
+//    using archive::TextFstreamInputArchive;
+//    using archive::TextFstreamOutputArchive;
 }
 #endif // MADNESS_WORLD_WORLDSER_H__INCLUDED

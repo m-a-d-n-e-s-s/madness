@@ -68,8 +68,6 @@ namespace madness {
 
 namespace madness {
 
-    using archive::archive_ptr;
-
     /// A simple process map soon to be supplanted by Rebecca's
     template<typename keyT>
     class SimpleMap : public WorldDCPmapInterface<keyT> {
@@ -1672,7 +1670,7 @@ namespace madness {
         Void sock_it_to_me_too(const keyT& key,
                                const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const;
 
-        Void plot_cube_kernel(archive_ptr< Tensor<T> > ptr,
+        Void plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                               const keyT& key,
                               const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
                               bool eval_refine) const;

@@ -272,7 +272,7 @@ namespace madness {
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
             if (world.rank() == root) {
-                BufferOutputArchive count;
+                archive::BufferOutputArchive count;
                 count & obj;
                 BUFLEN = count.size();
             }
@@ -280,12 +280,12 @@ namespace madness {
 
             unsigned char* buf = new unsigned char[BUFLEN];
             if (world.rank() == root) {
-                BufferOutputArchive ar(buf,BUFLEN);
+                archive::BufferOutputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             broadcast(buf, BUFLEN, root);
             if (world.rank() != root) {
-                BufferInputArchive ar(buf,BUFLEN);
+                archive::BufferInputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             delete [] buf;
@@ -398,12 +398,12 @@ namespace madness {
             std::vector<T> left, right;
             if (child0 != -1) {
                 World::await(req0);
-                BufferInputArchive ar(buf0, bufsz);
+                archive::BufferInputArchive ar(buf0, bufsz);
                 ar & left;
             }
             if (child1 != -1) {
                 World::await(req1);
-                BufferInputArchive ar(buf1, bufsz);
+                archive::BufferInputArchive ar(buf1, bufsz);
                 ar & right;
                 for (unsigned int i=0; i<right.size(); i++) left.push_back(right[i]);
             }
@@ -411,7 +411,7 @@ namespace madness {
             for (unsigned int i=0; i<v.size(); i++) left.push_back(v[i]);
 
             if (parent != -1) {
-                BufferOutputArchive ar(buf0, bufsz);
+                archive::BufferOutputArchive ar(buf0, bufsz);
                 ar & left;
                 req0 = mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
                 World::await(req0);

@@ -127,7 +127,7 @@ public:
     int ndim;                   // no. of dimensions
     bool binary;                // output format for plot data
     bool finished;              // true if finishing
-    
+
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & cell & plot_cell & data_type & plot_type
@@ -135,7 +135,7 @@ public:
             & npt & ndim & binary & finished;
     }
 
-    Plotter(World& world) 
+    Plotter(World& world)
         : world(world)
         , cell()
         , plot_cell()
@@ -263,7 +263,7 @@ public:
         }
 
         if (finished) return;
-        
+
         // Implement runtime defaults
         if (cell.size() <= 0) {
             MADNESS_ASSERT(ndim>0 && ndim<=6);
@@ -297,7 +297,7 @@ public:
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
-        
+
         plot_line(output_filename.c_str(), npt[0], lo, hi, f);
     }
 
@@ -315,7 +315,7 @@ public:
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
             }
-            
+
             plotvtk_begin(world, output_filename.c_str(), plotlo, plothi,
                 numpt, binary);
             plotvtk_data(f, function_name.c_str(), world,
@@ -332,7 +332,7 @@ public:
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
-        
+
         plot_line(output_filename.c_str(), npt[0], lo, hi, f, g);
     }
 
@@ -350,7 +350,7 @@ public:
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
             }
-            
+
             plotvtk_begin(world, output_filename.c_str(), plotlo, plothi,
                 numpt, binary);
             plotvtk_data(f, function_name.c_str(), world,
@@ -370,7 +370,7 @@ public:
 
         // Load the function
         Function<T,NDIM> f;
-        ParallelInputArchive ar(world, input_filename.c_str());
+        archive::ParallelInputArchive ar(world, input_filename.c_str());
         ar & f;
 
         // Load the user's function

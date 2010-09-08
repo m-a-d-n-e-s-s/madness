@@ -70,10 +70,10 @@ typedef std::complex<double> double_complex;
   \addtogroup tensor
 
   \par Introduction
-  
+
   A tensor is a multi-dimensional array and does not incorporate any concepts
   of covariance and contravariance.
-  
+
   When a new tensor is created, the underlying data is also allocated.
   E.g.,
   \code
@@ -97,7 +97,7 @@ typedef std::complex<double> double_complex;
   or \c map() ), or if the tensor is actually a slice of another
   tensor, then the layout in memory may be more complex and
   may not reflect a contiguous block of memory.
-    
+
   Multiple tensors may be used to provide multiple identical or
   distinct views of the same data.  E.g., in the following
   \code
@@ -110,9 +110,9 @@ typedef std::complex<double> double_complex;
   cout << a(1,2) << endl;  // Outputs 99
   cout << b(1,2) << endl;  // Outputs 99
   \endcode
-  
+
   \par Shallow copy and assignment
-  
+
   It is important to appreciate that the views and the data are
   quite independent.  In particular, the default copy constructor
   and assignment operations only copy the tensor (the view) and not
@@ -120,7 +120,7 @@ typedef std::complex<double> double_complex;
   only take shallow copies</em>.  This is for both consistency and
   efficiency.  Thus, assigning one tensor to another generates another
   view of the same data, replacing any previous view and not moving
-  or copying any of the data.  
+  or copying any of the data.
   E.g.,
   \code
   Tensor<double> a(2,3);   // A new tensor initialized to zero
@@ -133,21 +133,21 @@ typedef std::complex<double> double_complex;
   The above example also illustrates how reference counting is used
   to keep track of the underlying data.  Once there are no views
   of the data, it is automatically freed.
-  
+
   There are only two ways to actually copy the underlying data.  A
   new, complete, and contigous copy of a tensor and its data may be
   generated with the \c copy() function.  Or, to copy data from one tensor
   into the data viewed by another tensor, you must use a Slice.
-  
+
   \par Indexing
-  
+
   One dimensional tensors (i.e., vectors) may be indexed using
   either square brackets (e.g., \c v[i] ) or round brackets (e.g.,
   \c v(i) ).  All higher-dimensional tensors must use only round
   brackets (e.g., \c t(i,j,k) ).  This is due to C++'s restriction
   that the indexing operator (\c [] ) can only have one argument.
   The indexing operation should generate efficient code.
-  
+
   For the sake of efficiency, no bounds checking is performed by
   default by most single element indexing operations.  Checking can
   be enabled at compile time by defining \c -DTENSOR_BOUNDS_CHECKING for
@@ -166,12 +166,12 @@ typedef std::complex<double> double_complex;
   a(vector_factory(3L,4L,9L)) += 1; // OK ... out-bounds access will
   // be detected at runtime.
   \endcode
-  
-  \par Slicing 
-  
+
+  \par Slicing
+
   Slices generate sub-tensors --- i.e., views of patches of the
   data.  E.g., to refer to all but the first and last elements in
-  each dimension of a matrix use 
+  each dimension of a matrix use
   \code
   a(Slice(1,-2),Slice(1,-2))
   \endcode
@@ -198,15 +198,15 @@ typedef std::complex<double> double_complex;
   been defined to refer to all elements in a dimension, all
   elements in a dimension but reversed, and all elements in all
   dimensions, respectively.
-  
+
   \par Iteration and algorithms
-  
+
   See tensor_macros.h for documentation on the easiest mechanisms for iteration over
   elements of tensors and tips for optimization.  See \c TensorIterator for
   the most general form of iteration.
 */
 
- 
+
 #ifndef HAVE_STD_ABS_LONG
 #ifndef HAVE_STD_LABS
 namespace std {
@@ -336,21 +336,21 @@ namespace madness {
     public:
         /// C++ typename of this tensor.
         typedef T type;
-        
+
         /// C++ typename of the real type associated with a complex type.
         typedef typename TensorTypeData<T>::scalar_type scalar_type;
 
         /// C++ typename of the floating point type associated with scalar real type
         typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
 
-        /// Default constructor does not allocate any data and sets ndim=-1, size=0, _p=0, and id. 
+        /// Default constructor does not allocate any data and sets ndim=-1, size=0, _p=0, and id.
         Tensor() : _p(0) {
             _id = TensorTypeData<T>::id;
         }
 
         /// Copy constructor is shallow (same as assignment)
 
-        /// \em Caveat \em emptor: The shallow copy constructor has many virtues but 
+        /// \em Caveat \em emptor: The shallow copy constructor has many virtues but
         /// enables you to violate constness with simple code such as
         /// \code
         /// const Tensor<double> a(5);
@@ -364,7 +364,7 @@ namespace madness {
 
         /// Assignment is shallow (same as copy constructor)
 
-        /// \em Caveat \em emptor: The shallow assignment has many virtues but 
+        /// \em Caveat \em emptor: The shallow assignment has many virtues but
         /// enables you to violate constness with simple code such as
         /// \code
         /// const Tensor<double> a(5);
@@ -548,7 +548,7 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return New tensor
-        template <typename Q> 
+        template <typename Q>
         typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
         operator*(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
@@ -561,7 +561,7 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return New tensor
-        template <typename Q> 
+        template <typename Q>
         typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
         operator/(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
@@ -574,7 +574,7 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return New tensor
-        template <typename Q> 
+        template <typename Q>
         typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
         operator+(const Q& x) const {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
@@ -587,7 +587,7 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return New tensor
-        template <typename Q> 
+        template <typename Q>
         typename IsSupported<TensorTypeData<Q>, Tensor<TENSOR_RESULT_TYPE(T,Q)> >::type
         operator-(const Q& x) const {
             return (*this) + (-x);
@@ -606,8 +606,8 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return %Reference to this tensor
-        template <typename Q> 
-        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        template <typename Q>
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type
         operator*=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 *= x);
             return *this;
@@ -617,8 +617,8 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return %Reference to this tensor
-        template <typename Q> 
-        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        template <typename Q>
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type
         scale(Q x) {
             return (*this)*=x;
         }
@@ -627,8 +627,8 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return %Reference to this tensor
-        template <typename Q> 
-        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        template <typename Q>
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type
         operator+=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 += x);
             return *this;
@@ -638,8 +638,8 @@ namespace madness {
 
         /// @param[in] x Scalar value
         /// @return %Reference to this tensor
-        template <typename Q> 
-        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type 
+        template <typename Q>
+        typename IsSupported<TensorTypeData<Q>,Tensor<T>&>::type
         operator-=(const Q& x) {
             UNARY_OPTIMIZED_ITERATOR(T, (*this), *_p0 -= x);
             return *this;
@@ -656,7 +656,7 @@ namespace madness {
 
         /// Inplace fill with random values ( \c [0,1] for floats, \c [0,MAXSIZE] for integers)
 
-        /// @return %Reference to this tensor 
+        /// @return %Reference to this tensor
         Tensor<T>& fillrandom() {
             if (iscontiguous()) {
                 madness::RandomVector<T>(size(), ptr());
@@ -994,7 +994,7 @@ namespace madness {
         /// @param[in] s Vector containing slice for each dimension
         /// @return SliceTensor viewing patch of original tensor
         SliceTensor<T> operator()(const std::vector<Slice>& s) {
-            TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
+            TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions",
                           this->ndim(),this);
             return SliceTensor<T>(*this,&(s[0]));
         }
@@ -1004,7 +1004,7 @@ namespace madness {
         /// @param[in] s Vector containing slice for each dimension
         /// @return Constant Tensor viewing patch of original tensor
         const Tensor<T> operator()(const std::vector<Slice>& s) const {
-            TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions", 
+            TENSOR_ASSERT(s.size()>=(unsigned)(this->ndim()), "invalid number of dimensions",
                           this->ndim(),this);
             return SliceTensor<T>(*this,&(s[0]));
         }
@@ -1198,7 +1198,7 @@ namespace madness {
             Slice s[3] = {Slice(i,i,0),s1,Slice(k,k,0)};
             return SliceTensor<T>(*this,s);
         }
-        
+
         /// Return a 1d constant Tensor that views the specified range of the 3d Tensor
 
         /// @return Constant Tensor viewing patch of original tensor
@@ -1208,7 +1208,7 @@ namespace madness {
             Slice s[3] = {Slice(i,i,0),s1,Slice(k,k,0)};
             return SliceTensor<T>(*this,s);
         }
-        
+
         /// Return a 1d SliceTensor that views the specified range of the 3d Tensor
 
         /// @return SliceTensor viewing patch of original tensor
@@ -1239,7 +1239,7 @@ namespace madness {
             Slice s[4] = {s0,s1,s2,s3};
             return SliceTensor<T>(*this,s);
         }
-        
+
         /// Return a 1-4d constant Tensor that views the specified range of the 4d Tensor
 
         /// @return Constant Tensor viewing patch of original tensor
@@ -1250,7 +1250,7 @@ namespace madness {
             Slice s[4] = {s0,s1,s2,s3};
             return SliceTensor<T>(*this,s);
         }
-        
+
         /// Return a 1-5d SliceTensor that views the specified range of the 5d Tensor
 
         /// @return SliceTensor viewing patch of original tensor
@@ -1296,7 +1296,7 @@ namespace madness {
             return SliceTensor<T>(*this,s);
         }
 
-        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor 
+        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
 
         /// @param[in] ndimnew Number of dimensions in the result
         /// @param[in] d Array containing size of each new dimension
@@ -1307,7 +1307,7 @@ namespace madness {
             return result;
         }
 
-        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor 
+        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
 
         /// @param[in] ndimnew Number of dimensions in the result
         /// @param[in] d Array containing size of each new dimension
@@ -1318,7 +1318,7 @@ namespace madness {
             return result;
         }
 
-        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor 
+        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
 
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
@@ -1326,7 +1326,7 @@ namespace madness {
             return reshape(d.size(), &d[0]);
         }
 
-        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor 
+        /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
 
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
@@ -1334,7 +1334,7 @@ namespace madness {
             return reshape(d.size(), &d[0]);
         }
 
-        /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension  
+        /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension
 
         /// @param[in] dim0 Size of new dimension 0
         /// @return New tensor (viewing same underlying data as the original but with different shape)
@@ -1342,7 +1342,7 @@ namespace madness {
             long d[1] = {dim0};
             return reshape(1,d);
         }
-        /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension  
+        /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension
 
         /// @param[in] dim0 Size of new dimension 0
         /// @return New tensor (viewing same underlying data as the original but with different shape)
@@ -1351,27 +1351,27 @@ namespace madness {
             return reshape(1,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 2-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 2-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         Tensor<T> reshape(long dim0, long dim1) {
             long d[2] = {dim0,dim1};
-            return reshape(2,d); 
+            return reshape(2,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 2-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 2-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         const Tensor<T> reshape(long dim0, long dim1) const {
             long d[2] = {dim0,dim1};
-            return reshape(2,d); 
+            return reshape(2,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 3-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 3-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1382,7 +1382,7 @@ namespace madness {
             return reshape(3,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 3-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 3-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1393,7 +1393,7 @@ namespace madness {
             return reshape(3,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 4-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 4-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1405,7 +1405,7 @@ namespace madness {
             return reshape(4,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 4-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 4-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1417,7 +1417,7 @@ namespace madness {
             return reshape(4,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 5-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 5-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1430,7 +1430,7 @@ namespace madness {
             return reshape(5,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 5-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 5-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1443,7 +1443,7 @@ namespace madness {
             return reshape(5,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 6-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 6-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1457,7 +1457,7 @@ namespace madness {
             return reshape(6,d);
         }
 
-        /// Returns new view/tensor rehaping to conforming 6-d tensor with given dimensions 
+        /// Returns new view/tensor rehaping to conforming 6-d tensor with given dimensions
 
         /// @param[in] dim0 Size of new dimension 0
         /// @param[in] dim1 Size of new dimension 1
@@ -1519,7 +1519,7 @@ namespace madness {
             return result;
         }
 
-        /// Returns new view/tensor swaping dimensions \c i and \c j 
+        /// Returns new view/tensor swaping dimensions \c i and \c j
 
         /// @return New tensor (viewing same underlying data as the original but with reordered dimensions)
         Tensor<T> swapdim(long idim, long jdim) {
@@ -1528,7 +1528,7 @@ namespace madness {
             return result;
         }
 
-        /// Returns new view/tensor swaping dimensions \c i and \c j 
+        /// Returns new view/tensor swaping dimensions \c i and \c j
 
         /// @return New tensor (viewing same underlying data as the original but with reordered dimensions)
         const Tensor<T> swapdim(long idim, long jdim) const {
@@ -1768,7 +1768,7 @@ namespace madness {
             return TensorIterator<T>(this,(const Tensor<T>*) 0, (const Tensor<T>*) 0,
                                      iterlevel, optimize, fusedim, jdim);
         }
-        
+
         /// Return iterator over two tensors
         template <class Q>
         TensorIterator<T,Q> binary_iterator(const Tensor<Q>& q,
@@ -1779,7 +1779,7 @@ namespace madness {
             return TensorIterator<T,Q>(this,&q,(const Tensor<T>*) 0,
                                        iterlevel, optimize, fusedim, jdim);
         }
-        
+
         /// Return iterator over three tensors
         template <class Q, class R>
         TensorIterator<T,Q,R> ternary_iterator(const Tensor<Q>& q,
@@ -1791,23 +1791,23 @@ namespace madness {
             return TensorIterator<T,Q,R>(this,&q,&r,
                                          iterlevel, optimize, fusedim, jdim);
         }
-        
+
         /// End point for forward iteration
         const TensorIterator<T>& end() const {
             static TensorIterator<T> theend(0,0,0,0,0,0);
             return theend;
         }
-        
+
         virtual ~Tensor() {}
-        
+
         /// Frees all memory and resests to state of default constructor
         void clear() {deallocate();}
     };
-    
+
     template <class T>
     std::ostream& operator << (std::ostream& out, const Tensor<T>& t);
-    
-    
+
+
     namespace archive {
         /// Serialize a tensor
         template <class Archive, typename T>
@@ -1822,8 +1822,8 @@ namespace madness {
                 }
             };
         };
-        
-        
+
+
         /// Deserialize a tensor ... existing tensor is replaced
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
@@ -1843,9 +1843,9 @@ namespace madness {
                 }
             };
         };
-        
+
     }
-       
+
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
     /// \ingroup tensor
@@ -1854,7 +1854,7 @@ namespace madness {
     operator+(Q x, const Tensor<T>& t) {
         return t+x;
     }
-    
+
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
     /// \ingroup tensor
@@ -1863,7 +1863,7 @@ namespace madness {
     operator*(const Q& x, const Tensor<T>& t) {
         return t*x;
     }
-    
+
     /// The class defines tensor op scalar ... here define scalar op tensor.
 
     /// \ingroup tensor
@@ -1872,7 +1872,7 @@ namespace madness {
     operator-(Q x, const Tensor<T>& t) {
         return (-t)+=x;
     }
-    
+
     /// Returns a new contiguous tensor that is a deep copy of the input
 
     /// \ingroup tensor
@@ -1943,8 +1943,8 @@ namespace madness {
         SliceTensor<T>();
 
     public:
-        SliceTensor(const Tensor<T>& t, const Slice s[]) 
-            : Tensor<T>(const_cast<Tensor<T>&>(t)) //!!!!!!!!!!! 
+        SliceTensor(const Tensor<T>& t, const Slice s[])
+            : Tensor<T>(const_cast<Tensor<T>&>(t)) //!!!!!!!!!!!
         {
             // C++ standard says class derived from parameterized base class cannot
             // directly access the base class elements ... must explicitly reference.
@@ -1958,20 +1958,20 @@ namespace madness {
                 if (end < 0) end += this->_dim[i];
                 long len = end-start+1;
                 if (step) len /= step;	// Rounds len towards zero
-                
+
                 // if input length is not exact multiple of step, round end towards start
                 // for the same behaviour of for (i=start; i<=end; i+=step);
                 end = start + (len-1)*step;
-                
+
                 //std::printf("%ld munged start=%ld end=%ld step=%ld len=%ld _dim=%ld\n",
                 //		i, start, end, step, len, this->_dim[i]);
-                
+
                 TENSOR_ASSERT(start>=0 && start<this->_dim[i],"slice start invalid",start,this);
                 TENSOR_ASSERT(end>=0 && end<this->_dim[i],"slice end invalid",end,this);
                 TENSOR_ASSERT(len>0,"slice length must be non-zero",len,this);
-                
+
                 this->_p += start * t._stride[i];
-                
+
                 if (step) {
                     size *= len;
                     this->_dim[nd] = len;
@@ -1989,13 +1989,13 @@ namespace madness {
             this->_ndim = nd;
             this->_size = size;
         }
-        
+
         SliceTensor<T>& operator=(const SliceTensor<T>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, *_p0 = (T)(*_p1));
             return *this;
         }
 
-        template <class Q> 
+        template <class Q>
         SliceTensor<T>& operator=(const SliceTensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const Q, t, *_p0 = (T)(*_p1));
             return *this;
@@ -2006,7 +2006,7 @@ namespace madness {
             return *this;
         }
 
-        template <class Q> 
+        template <class Q>
         SliceTensor<T>& operator=(const Tensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const Q, t, *_p0 = (T)(*_p1));
             return *this;
@@ -2034,8 +2034,6 @@ namespace madness {
     /// \ingroup tensor
     template <class T>
     std::ostream& operator << (std::ostream& s, const Tensor<T>& t) {
-        using namespace std;
-
         if (t.size() == 0) {
             s << "[empty tensor]\n";
             return s;
@@ -2057,7 +2055,7 @@ namespace madness {
         else
             index_width = 6;
 
-        ios::fmtflags oldflags = s.setf(ios::scientific);
+        std::ios::fmtflags oldflags = s.setf(std::ios::scientific);
         long oldprec = s.precision();
         long oldwidth = s.width();
 
@@ -2066,7 +2064,7 @@ namespace madness {
             const T* p = iter._p0;
             long inc = iter._s0;
             long dimj = iter.dimj;
-            s.unsetf(ios::scientific);
+            s.unsetf(std::ios::scientific);
             s << '[';
             for (long i=0; i<iter.ndim; i++) {
                 s.width(index_width);
@@ -2074,14 +2072,14 @@ namespace madness {
                 if (i != iter.ndim) s << ",";
             }
             s << "*]";
-            s.setf(ios::scientific);
+            s.setf(std::ios::scientific);
             for (long j=0; j<dimj; j++, p+=inc) {
                 s.precision(4);
                 s.width(12);
                 s << *p;
             }
-            s.unsetf(ios::scientific);
-            s << endl;
+            s.unsetf(std::ios::scientific);
+            s << std::endl;
         }
         s.setf(oldflags);
         s.precision(oldprec);
