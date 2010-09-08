@@ -430,7 +430,7 @@
 
 #ifdef MAD_ARCHIVE_DEBUG_ENABLE
 #define MAD_ARCHIVE_DEBUG(s) s
-using std::endl;
+//using std::endl;
 #else
 #define MAD_ARCHIVE_DEBUG(s)
 #endif

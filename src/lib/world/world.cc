@@ -49,7 +49,7 @@ void test0(World& world) {
     char buf[n+2];
     buf[0] = buf[n+1] = 127;
 
-    BufferOutputArchive arout(buf+1,n-2);
+    archive::BufferOutputArchive arout(buf+1,n-2);
 
     arout & 1L & 99.9;
     arout.store("hello",6);
@@ -59,7 +59,7 @@ void test0(World& world) {
     long i;
     double a;
 
-    BufferInputArchive arin(buf+1,n-2);
+    archive::BufferInputArchive arin(buf+1,n-2);
     char s[8];
     s[0] = s[7] = 66;
     arin & i & a;
@@ -499,11 +499,11 @@ void test7(World& world) {
 void test8(World& world) {
     PROFILE_FUNC;
     vector<unsigned char> v;
-    VectorOutputArchive arout(v);
+    archive::VectorOutputArchive arout(v);
     arout & &world;
 
     World* p;
-    VectorInputArchive arin(v);
+    archive::VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);
     if (world.rank() == 0) print("test8 (serializing world pointer) OK");
@@ -949,13 +949,13 @@ void test12(World& world) {
 
     world.gop.fence();
 
-    BinaryFstreamOutputArchive out("testme.ar");
+    archive::BinaryFstreamOutputArchive out("testme.ar");
     out & d;
     out.close();
 
     world.gop.fence();
 
-    BinaryFstreamInputArchive in("testme.ar");
+    archive::BinaryFstreamInputArchive in("testme.ar");
     WorldContainer<int,double> c(world);
     in & c;
 

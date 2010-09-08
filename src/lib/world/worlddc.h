@@ -1422,7 +1422,7 @@ namespace madness {
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
-        void serialize(const BufferOutputArchive& ar) {
+        void serialize(const archive::BufferOutputArchive& ar) {
             check_initialized();
             ar & static_cast<WorldObject<implT>*>(p.get());
         }
@@ -1430,7 +1430,7 @@ namespace madness {
         /// (de)Serialize --- !! ONLY for purpose of interprocess communication
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
-        void serialize(const BufferInputArchive& ar) {
+        void serialize(const archive::BufferInputArchive& ar) {
             WorldObject<implT>* ptr;
             ar & ptr;
             MADNESS_ASSERT(ptr);

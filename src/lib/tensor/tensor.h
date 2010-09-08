@@ -2034,8 +2034,6 @@ namespace madness {
     /// \ingroup tensor
     template <class T>
     std::ostream& operator << (std::ostream& s, const Tensor<T>& t) {
-        using namespace std;
-
         if (t.size() == 0) {
             s << "[empty tensor]\n";
             return s;
@@ -2057,7 +2055,7 @@ namespace madness {
         else
             index_width = 6;
 
-        ios::fmtflags oldflags = s.setf(ios::scientific);
+        std::ios::fmtflags oldflags = s.setf(std::ios::scientific);
         long oldprec = s.precision();
         long oldwidth = s.width();
 
@@ -2066,7 +2064,7 @@ namespace madness {
             const T* p = iter._p0;
             long inc = iter._s0;
             long dimj = iter.dimj;
-            s.unsetf(ios::scientific);
+            s.unsetf(std::ios::scientific);
             s << '[';
             for (long i=0; i<iter.ndim; i++) {
                 s.width(index_width);
@@ -2074,14 +2072,14 @@ namespace madness {
                 if (i != iter.ndim) s << ",";
             }
             s << "*]";
-            s.setf(ios::scientific);
+            s.setf(std::ios::scientific);
             for (long j=0; j<dimj; j++, p+=inc) {
                 s.precision(4);
                 s.width(12);
                 s << *p;
             }
-            s.unsetf(ios::scientific);
-            s << endl;
+            s.unsetf(std::ios::scientific);
+            s << std::endl;
         }
         s.setf(oldflags);
         s.precision(oldprec);

@@ -950,7 +950,7 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive_ptr< Tensor<T> > ptr,
+    Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                                                 const keyT& key,
                                                 const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
                                                 bool eval_refine) const {
@@ -1057,7 +1057,8 @@ namespace madness {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                task(world.rank(), &implT::plot_cube_kernel, archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
+                task(world.rank(), &implT::plot_cube_kernel,
+                    archive::archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
             }
         }
 
