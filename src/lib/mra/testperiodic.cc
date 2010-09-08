@@ -44,6 +44,8 @@ using namespace madness;
 
 typedef Vector<double,3> coordT;
 
+const char* status[2] = {"FAIL !!!!!","PASS"};
+
 const double L = 3.0;  // [-L,L]
 const int nwave = 2;
 
@@ -51,69 +53,73 @@ double source(const coordT& r) {
     return cos(nwave*constants::pi*r[0]/L)*cos(nwave*constants::pi*r[1]/L)*cos(nwave*constants::pi*r[2]/L);
 }
 
+double source1(const coord_1d& r) {
+    return cos(nwave*constants::pi*r[0]/L);
+}
+
+double u(const double x, const double expnt) {
+    double fac = nwave*constants::pi/(2.0*L);
+    return exp(-fac*fac/expnt) * cos(nwave*constants::pi*x/L);
+}
+
+// The electrostatic potential due to cos(n*pi*x/L)*(ditto z)*(ditto y)
+// is ((4*L*L)/(3*n*n*pi))*cos(n*pi*x/L)
 double potential(const coordT& r) {
-    const double fac = 1.0/(3*nwave*nwave*constants::pi);
+    //const double fac = 1.0/(3*nwave*nwave*constants::pi);
+    double fac = 4*L*L/(3*nwave*nwave*constants::pi);
     return source(r)*fac;
 }
 
 void test_periodic(World& world) {
-    double maple[22] = {
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        0.0,
-        1.257380016185e-13,
-        3.380170823023e-07,
-        5.542104317870e-04,
-        2.244102656751e-02,
-        1.427995147839e-01,
-        3.602207596042e-01,
-        5.721234392206e-01,
-        7.210248654090e-01,
-        8.094322295048e-01,
-        8.576214176506e-01,
-        8.827814139059e-01,
-        8.956368674033e-01,
-        9.021346272394e-01,
-        9.054011635752e-01,
-        9.070388644916e-01,
-        9.078588254753e-01,
-        9.082690838913e-01
-    };
+
+    // the convolution of cos(n*pi*x/L) with sqrt(a/pi)*exp(-a*x^2)
+    // is exp(-n^2*pi^2/(4*a*L^2)) * cos(n*pi*x/L)
 
     const long k = 14;
     const double thresh = 1e-12;
-    const double L = 0.5;
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_cubic_cell(-L,L);
     FunctionDefaults<3>::set_thresh(thresh);
+    //FunctionDefaults<3>::set_initial_level(3);
 
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
-    f.truncate();
+    //f.truncate();
 
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
 
     std::cout.precision(10);
-    for (int i=-1; i<=20; i++) {
+    double width = 2*L;
+    for (int i=-4; i<=20; i++) {
         double expnt = pow(2.0,double(i));
+        double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
-        ops[0].reset(new GaussianConvolution1D<double>(k, coeff, expnt, 1.0, 0, true));
+        double coeff_sim = coeff*width;
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 1.0, 0, true));
 
         SeparatedConvolution<double,3> op(world, ops);
 
         Function<double,3> opf = op(f);
 
-        coordT r0(0.49);
-        coordT r1(0.01);
+        coordT r0(0);
+        coordT r1(L-0.1);
 
         opf.reconstruct();
         f.reconstruct();
 
-        print(i, expnt, r0, f(r0), source(r0), opf(r0), opf(r0)-maple[i+1]);
-        print(i, expnt, r1, f(r1), source(r1), opf(r1), opf(r1)-maple[i+1]);
+        double exact0 = u(r0[0],expnt); exact0 = exact0*exact0*exact0;
+        double exact1 = u(r1[0],expnt); exact1 = exact1*exact1*exact1;
+        double err0 = fabs(opf(r0)-exact0);
+        double err1 = fabs(opf(r1)-exact1);
 
-        //plot_line("plot.dat", 101, coordT(-L), coordT(L), f, opf);
+        print("exponent", expnt, err0, err1, status[err0<1e-10 && err1<1e-10]);
+
+        // print(i, expnt, r0, f(r0), source(r0), opf(r0), exact0, );
+        // print(i, expnt, r1, f(r1), source(r1), opf(r1), exact1, opf(r1)-exact1);
+        // char fname[256];
+        // sprintf(fname,"plot-%d.dat",i+1);
+        // coordT lo(0.0); lo[0]=-L;
+        // coordT hi(0.0); hi[0]= L;
+        // plot_line(fname, 1001, lo, hi, f, opf);
     }
 
     world.gop.fence();
@@ -121,6 +127,61 @@ void test_periodic(World& world) {
 }
 
 
+void test_periodic1(World& world) {
+
+    // the convolution of cos(n*pi*x/L) with sqrt(a/pi)*exp(-a*x^2)
+    // is exp(-n^2*pi^2/(4*a*L^2)) * cos(n*pi*x/L)
+
+    const long k = 14;
+    const double thresh = 1e-12;
+    FunctionDefaults<1>::set_k(k);
+    FunctionDefaults<1>::set_cubic_cell(-L,L);
+    FunctionDefaults<1>::set_thresh(thresh);
+    //FunctionDefaults<1>::set_initial_level(2);
+
+    Function<double,1> f = FunctionFactory<double,1>(world).f(source1); //.norefine();
+    //f.truncate();
+
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
+
+    std::cout.precision(10);
+    double width = 2*L;
+    for (int i=-4; i<=20; i++) {
+        double expnt = pow(2.0,double(i));
+        double expnt_sim = expnt*width*width;
+        double coeff = sqrt(expnt/constants::pi);
+        double coeff_sim = coeff*width;
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 1.0, 0, true));
+
+        SeparatedConvolution<double,1> op(world, ops);
+
+        Function<double,1> opf = op(f);
+
+        coord_1d r0(0);
+        coord_1d r1(L-0.1);
+
+        opf.reconstruct();
+        f.reconstruct();
+
+        double exact0 = u(r0[0],expnt);
+        double exact1 = u(r1[0],expnt);
+        double err0 = fabs(opf(r0)-exact0);
+        double err1 = fabs(opf(r1)-exact1);
+
+        print("exponent", expnt, err0, err1, status[err0<6e-10 && err1<6e-10]);
+
+        // print(i, expnt, r0, f(r0), source1(r0), opf(r0), exact0, opf(r0)-exact0);
+        // print(i, expnt, r1, f(r1), source1(r1), opf(r1), exact1, opf(r1)-exact1);
+        // char fname[256];
+        // sprintf(fname,"plot-%d.dat",i+1);
+        // coord_1d lo(0.0); lo[0]=-L;
+        // coord_1d hi(0.0); hi[0]= L;
+        // plot_line(fname, 1001, lo, hi, f, opf);
+    }
+
+    world.gop.fence();
+
+}
 
 void test_periodic2(World& world) {
     const long k = 10;
@@ -132,30 +193,34 @@ void test_periodic2(World& world) {
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
     f.truncate();
 
-    Tensor<double> coeff, expnt;
-    bsh_fit(0.0, thresh, 100*L, thresh, &coeff, &expnt);
-    const double acut = 0.25 / (4.0*L*L);
-    std::vector< std::shared_ptr< Convolution1D<double> > > ops;
-    for (int i=0; i<coeff.dim(0); i++) {
-        if (expnt[i] > acut) {
-            double c = pow(4*constants::pi*coeff[i],1.0/3.0);
-            ops.push_back(std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
-            print(ops.size(), c, expnt[i]);
-        }
-    }
-    SeparatedConvolution<double,3> op(world, ops);
+    // Tensor<double> coeff, expnt;
+    // double width = 2*L;
+    // bsh_fit(0.0, 1e-5, 100*width, thresh/(4*constants::pi), &coeff, &expnt);
+    // const double acut = 0.25 / (4.0*width*width);
+    // std::vector< SharedPtr< Convolution1D<double> > > ops;
+    // print("expansion of 1/r in gaussians");
+    // for (int i=0; i<coeff.dim(0); i++) {
+    //     if (expnt[i] > acut) {
+    //         double c = pow(4*constants::pi*coeff[i],1.0/3.0);
+    //         ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
+    //         print(ops.size(), "coeff", c, "expnt", expnt[i]);
+    //     }
+    // }
+    // //SeparatedConvolution<double,3> op(world, ops);
 
-//    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-5, thresh);
+    SeparatedConvolution<double,3> op = CoulombOperator(world, 1e-6, thresh);
     std::cout.precision(10);
 
     Function<double,3> opf = op(f);
     opf.reconstruct();
 
+    //print("i,value,exact,relerr");
     for (int i=0; i<101; i++) {
         coordT r = coordT(-L + i*2*L/100.0);
         double value = opf(r);
         double exact = potential(r);
-        print(i,value,exact,value/exact);
+        double relerr = fabs((value-exact)/exact);
+        print(i,value,exact,relerr,status[relerr<3e-7]);
     }
 
     world.gop.fence();
@@ -169,14 +234,16 @@ int main(int argc, char**argv) {
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
 
-    //FunctionDefaults<3>::set_bc(BC_PERIODIC);
-    FunctionDefaults<3>::set_bc(BC_FREE);
+    FunctionDefaults<1>::set_bc(BC_PERIODIC);
+    FunctionDefaults<3>::set_bc(BC_PERIODIC);
 
     try {
 
-        print("BCCCCC", FunctionDefaults<3>::get_bc());
-
+        print("1D gaussians");
+        test_periodic1(world);
+        print("\n3D gaussians");
         test_periodic(world);
+        print("\n3D coulomb");
         test_periodic2(world);
 
     }
@@ -217,4 +284,3 @@ int main(int argc, char**argv) {
 
     return 0;
 }
-
