@@ -731,7 +731,7 @@ namespace madness
     //*************************************************************************
     void save_orbitals()
     {
-      ParallelOutputArchive ar(_world, "orbitals", _params.nio);
+      archive::ParallelOutputArchive ar(_world, "orbitals", _params.nio);
       ar & _params.spinpol;
       ar & (unsigned int)(_kpoints.size());
       for (unsigned int i = 0; i < _kpoints.size(); i++) ar & _kpoints[i];
@@ -752,7 +752,7 @@ namespace madness
       const double thresh = FunctionDefaults<3>::get_thresh();
       const int k = FunctionDefaults<3>::get_k();
 
-      ParallelInputArchive ar(_world, "orbitals");
+      archive::ParallelInputArchive ar(_world, "orbitals");
 
       // spin-polarized
       bool spinrest;
@@ -1550,28 +1550,46 @@ namespace madness
       if (_world.rank() == 0)
       {
         print("Energies:");
+      }
         print("Kinetic energy:\t\t ", ke);
         print("Potential energy:\t ", pe);
         print("Coulomb energy:\t\t ", ce);
         print("Exchage energy:\t\t ", xc, "\n");
         print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
-      }
     }
     //*************************************************************************
 
     //*************************************************************************
     void reproject()
     {
-      double tol = 1e-9;
-      if (_params.thresh > (_maxthresh - tol))
+      _params.waveorder += 2;
+      _params.thresh /= 100;
+      FunctionDefaults<3>::set_thresh(_params.thresh);
+      FunctionDefaults<3>::set_k(_params.waveorder);
+      if (_world.rand() == 0) printf("reprojecting to wavelet order %d\n\n", _params.waveorder);
+      reconstruct(_world, _phisa);
+      for(unsigned int i = 0; i < _phisa.size(); i++)
       {
-       if (_world.rank() == 0)
-       {
-         printf("Reprojecting:\n");
-         printf("_params.thresh = %.5e\t_maxthresh = %.5e\n", _params.thresh, _maxthresh);
-        _params.thresh *= 10;
-       }
+        _phisa[i] = madness::project(_phisa[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
       }
+      _world.gop.fence();
+      truncate(_world, _phisa);
+      normalize(_world, _phisa);
+      if(_params.spinpol)
+      {
+        reconstruct(_world, _phisb);
+        for(unsigned int i = 0; i < _phisb.size(); i++)
+        {
+            _phisb[i] = madness::project(_phisb[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+        }
+        _world.gop.fence();
+        truncate(_world, _phisb);
+        normalize(_world, _phisb);
+      }
+
+      delete _cop;
+      make_nuclear_potential();
+
     }
     //*************************************************************************
 
@@ -1592,10 +1610,10 @@ namespace madness
 
       for (int it = 0; it < _params.maxits; it++)
       {
-        //if ((it > 0) && ((it % 4) == 0))
-        //{
-        //  reproject();
-        //}
+        if ((it > 0) && (_residual < 50*_params.thresh))
+        {
+          reproject();
+        }
 
         if (_world.rank() == 0) print("it = ", it);
        
