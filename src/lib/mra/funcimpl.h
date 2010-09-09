@@ -2047,9 +2047,9 @@ namespace madness {
         // Broaden tree
         void broaden(std::vector<bool> is_periodic, bool fence) {
             typename dcT::iterator end = coeffs.end();
-	    typename dcT::accessor acc;
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
+		typename dcT::accessor acc;
 		MADNESS_ASSERT(coeffs.find(acc,key));
 		nodeT& node = acc->second;
                 if (node.has_coeff() &&
@@ -2248,7 +2248,7 @@ namespace madness {
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
 
-            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -2296,13 +2296,7 @@ namespace madness {
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
-                        ProcessID p;
-                        if (FunctionDefaults<NDIM>::get_apply_randomize()) {
-                            p = world.random_proc();
-                        }
-                        else {
-                            p = coeffs.owner(key);
-                        }
+                        ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                         task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
                     }
                 }
