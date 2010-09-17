@@ -1288,8 +1288,8 @@ struct Calculation {
         for (int i=0; i<natom; i++) {
             Atom at = molecule.get_atom(i);
             unsigned int atn = at.atomic_number;
-            if (molecule.n_core_orb(atn) == 0) continue;
             unsigned int ncore = molecule.n_core_orb(atn);
+            if (ncore == 0) continue;
             for (unsigned int c=0; c<ncore; c++) {
                 unsigned int l = molecule.get_core_l(atn, c);
                 int max_m = (l+1)*(l+2)/2;

@@ -109,7 +109,7 @@ public:
 
     unsigned int n_core_orb(unsigned int atn) const {
         if (core_pot.is_defined(atn))
-            return core_pot.n_core_orb(atn);
+            return core_pot.n_core_orb_base(atn);
         else
             return 0;
     };

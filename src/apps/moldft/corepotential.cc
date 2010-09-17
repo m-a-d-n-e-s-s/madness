@@ -303,9 +303,6 @@ static bool read_orbital(TiXmlElement* e, AtomCore& ac) {
         vc.push_back(co);
     }
     ac.orbital = vc;
-    if (vc.size() != ac.ncore) {
-        MADNESS_EXCEPTION("CORE_INFO: read_orbital: inconsistent number of core.", -1);
-    }
 
     return true;
 }

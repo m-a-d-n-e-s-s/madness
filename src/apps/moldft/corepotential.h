@@ -168,6 +168,10 @@ public:
         return (*(atom_core.find(atn))).second.n_orbital();
     }
 
+    inline unsigned int n_core_orb_base(const unsigned int atn) const {
+        return (*(atom_core.find(atn))).second.orbital.size();
+    }
+
     inline std::string guess_file() const { return guess_filename; }
 
     AtomCore get_atom_core(unsigned int atn) const {
