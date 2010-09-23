@@ -28,6 +28,9 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
   if test "$acx_cv_std_tr1_shard_ptr" = yes; then
     AC_DEFINE([MADNESS_HAVE_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
   fi
+  if test "$acx_cv_std_shard_ptr$acx_cv_std_tr1_shard_ptr" = nono; then
+    AC_MSG_ERROR([Unable to find std::shared_ptr or std::tr1::shared_ptr. Reconfigure Madness to use the Boost library.])
+  fi
 ])
 
 AC_DEFUN([ACX_CHECK_TR1],
