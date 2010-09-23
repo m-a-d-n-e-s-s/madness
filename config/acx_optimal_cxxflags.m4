@@ -50,7 +50,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             ;;
 
          Intel)
-            CXXFLAGS="-Wall -diag-disable remark -ansi -O3 -ip -no-prec-div -mkl -std=c++0x"
+            CXXFLAGS="-Wall -diag-disable remark -ansi -O3 -ip -no-prec-div -mkl"
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
             ;;
 
