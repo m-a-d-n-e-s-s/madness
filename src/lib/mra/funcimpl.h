@@ -184,12 +184,12 @@ namespace madness {
     template<typename T, int NDIM>
     class FunctionFunctorInterface {
     public:
-    	/// You should implement this to return \c f(x)
+        /// You should implement this to return \c f(x)
         virtual T operator()(const Vector<double, NDIM>& x) const = 0;
 
         /// Override this to return list of special points to be refined more deeply
         virtual std::vector< Vector<double,NDIM> > special_points() const {
-        	return std::vector< Vector<double,NDIM> >();
+            return std::vector< Vector<double,NDIM> >();
         }
 
         /// Override this change level refinement for special points (default is 6)
@@ -843,8 +843,8 @@ namespace madness {
 
         /// Evaluate function at quadrature points in the specified box
         void fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const;
-		void fcube(const keyT& key,  T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const;
-		//~ template<typename FF>
+        void fcube(const keyT& key,  T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const;
+        //~ template<typename FF>
         //~ void fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const;
 
         const keyT& key0() const {
@@ -902,7 +902,7 @@ namespace madness {
         const tensorT parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const;
 
 
-	/// Returns the box at level n that contains the given point in simulation coordinates
+    /// Returns the box at level n that contains the given point in simulation coordinates
         Key<NDIM> simpt2key(const coordT& pt, Level n) const {
             Vector<Translation,NDIM> l;
             double twon = std::pow(2.0, double(n));
@@ -2047,11 +2047,11 @@ namespace madness {
         // Broaden tree
         void broaden(std::vector<bool> is_periodic, bool fence) {
             typename dcT::iterator end = coeffs.end();
-            typename dcT::accessor acc;
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
-                MADNESS_ASSERT(coeffs.find(acc,key));
-                nodeT& node = acc->second;
+        typename dcT::accessor acc;
+        MADNESS_ASSERT(coeffs.find(acc,key));
+        nodeT& node = acc->second;
                 if (node.has_coeff() &&
                     node.get_norm_tree() != -1.0 &&
                     node.coeff().normf() >= truncate_tol(thresh,key)) {
@@ -2239,7 +2239,7 @@ namespace madness {
         }
 
         template <typename opT, typename R>
-        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c, const std::vector<bool>& is_periodic) {
+        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -2247,22 +2247,13 @@ namespace madness {
             //const long lmax = 1L << (key.level()-1);
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
+
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
 
                 keyT dest = neighbor(key, d, is_periodic);
-
-                // For periodic directions restrict translations to be no more than
-                // half of the unit cell to avoid double counting.
-                bool notdoit = false;
-                for (int i=0; i<NDIM; i++) {
-                    //if (bc(i,0) == 1) {
-                    //    if (d.translation()[i]> lmax || d.translation()[i] <= -lmax) // SHOULD BREAK BE NESTED IN HERE?
-                    //        notdoit = true;
-                    //    break;
-                    //}
-                }
-                if (notdoit) break;
 
                 if (dest.is_valid()) {
                     double opnorm = op->norm(key.level(), d);
@@ -2270,7 +2261,7 @@ namespace madness {
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
 
-		    //print("APP", key, dest, cnorm, opnorm);
+                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
 
                     if (cnorm*opnorm> tol/fac) {
 
@@ -2286,7 +2277,8 @@ namespace madness {
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                             }
                         }
-                    } else if (d.distsq() >= 1) break; // Assumes monotonic decay beyond nearest neighbor
+                    } else if (d.distsq() >= 1)
+                        break; // Assumes monotonic decay beyond nearest neighbor
                 }
             }
             return None;
@@ -2297,19 +2289,13 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
-				// looping through all the coefficients in the source
+                // looping through all the coefficients in the source
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
-                        ProcessID p;
-                        if (FunctionDefaults<NDIM>::get_apply_randomize()) {
-                            p = world.random_proc();
-                        }
-                        else {
-                            p = coeffs.owner(key);
-                        }
-                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff(), is_periodic);
+                        ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
                     }
                 }
             }

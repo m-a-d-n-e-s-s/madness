@@ -1,38 +1,39 @@
 
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 //\file projPsi.cc
 //\brief Projects a time evolved wave function onto an arbitrary number of bound states
+
 /***************************************************************************************
  * By: Nick Vence
  * This code must handled with care for the following reasons:
@@ -64,6 +65,7 @@ using namespace madness;
 
 /***************
  * <Yl0|Psi(t)>
+ * Needs: wf.num input2
  ***************/
 void projectL(World& world, const double L, const int n) {
     //LOAD Psi(t)
@@ -88,9 +90,9 @@ void projectL(World& world, const double L, const int n) {
         PRINTLINE("");
         const double PI = M_PI;
         const double dr = L/n;
-        const double dTH = PI/n;
-        const double dPHI = 2*PI/n;
-        const int smallN = 40;
+        const int smallN = 80;
+        const double dTH = PI/smallN;
+        const double dPHI = 2*PI/smallN;
         const int lMAX = 3;
         const bool debug = false;
         std::vector<WF>::iterator psiT;
@@ -100,7 +102,6 @@ void projectL(World& world, const double L, const int n) {
             PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
-                //functionT yl0 = factoryT(world).functor(madness::SharedPtr< madness::FunctionFunctorInterface<double,3> >( new Yl0(L, l) ));
                 Yl0 yl0(L, l);
                 for( int i=0; i<n; i++ ) {
                     YlPsi[i] = 0.0;
@@ -109,9 +110,9 @@ void projectL(World& world, const double L, const int n) {
                 for( int i=world.rank(); i<n; i+=world.size() ) {
                     const double r = (0.5 + i)*dr;
                     complexd Rl = 0.0;
-                    for( int j=0; j<n ; j++ ) {
+                    for( int j=0; j<smallN ; j++ ) {
                         const double th = (0.5 + j)*dTH;
-                        for( int k=0; k<n; k++ ) {
+                        for( int k=0; k<smallN; k++ ) {
                             const double phi = k*dPHI;
                             const double sinTH = std::sin(th);
                             const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
@@ -143,9 +144,10 @@ void projectL(World& world, const double L, const int n) {
         }
     }
 }
-
+/****************************************
+ * Needs: input input2
+ ****************************************/
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
-    //READ wf.num
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
     if( !wave_function_exists(world, wf) ) {
@@ -154,7 +156,7 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
     } else {
         psiT = wave_function_load(world, wf);
         PRINTLINE("phi(T=" << wf << ",r) =\t th=0 \t\t\t th=" << th << "  phi = " << phi);
-    }// done loading wf.num
+    }// done loading wf
     complexd output;
     const double dr = L/n;
     for( int i=0; i<n; i++ ) {
@@ -171,11 +173,11 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
 }
 
 
- 
+
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
- * bound.num               Integer triplets of quantum numbers   2  1  0 
+ * bound.num               Integer triplets of quantum numbers   2  1  0
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 //Clunky code! Design out of this!
@@ -222,7 +224,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             PRINTLINE("Consider changing the restart file to 0 and rerunning tdse");
             exit(1);
         }
-        std::vector<WF>::const_iterator psiIT; 
+        std::vector<WF>::const_iterator psiIT;
         if( !boundList.empty() ) {
             // <phi_bound|Psi(t)>
             std::vector<std::string>::const_iterator boundIT;
@@ -244,7 +246,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     PRINT(std::scientific <<"\t" << real(output*conj(output)));
                 }
                 PRINT("\n");
-            }            
+            }
         }
         clock_t before=0, after=0;
         //LOAD unbound states
@@ -267,7 +269,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     phik.Init(world);
                     complex_functionT phi_k = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     // W/O timing
-                    //complex_functionT phi_k = 
+                    //complex_functionT phi_k =
                     //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
@@ -454,6 +456,7 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
     world.gop.fence();
-    finalize();				//FLAG
+    finalize();             //FLAG
     return 0;
 }
+

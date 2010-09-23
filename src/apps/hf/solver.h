@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #include <mra/mra.h>
@@ -45,10 +45,10 @@
 
 #ifndef SOLVER_H_
 
-/*! 
+/*!
   \ingroup applications
   \defgroup periodic_solver Periodic Solver
-  \brief The Periodic Solver group is a group that contains the software 
+  \brief The Periodic Solver group is a group that contains the software
   objects that are needed to solve a periodic Kohn-Sham hamiltonian.
 */
 
@@ -87,17 +87,17 @@ namespace madness
 
   /*!
    \ingroup periodic_solver
-  
-   \brief The SubspaceK class is a container class holding previous orbitals 
+
+   \brief The SubspaceK class is a container class holding previous orbitals
    and residuals.
    \par
-   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN) 
-   accelerate the convergence a given calculation. The KAIN solver needs to 
-   store a subspace of previous orbitals and residuals. In the case is this 
-   implementation, the orbitals are store according to which k-point to which 
+   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN)
+   accelerate the convergence a given calculation. The KAIN solver needs to
+   store a subspace of previous orbitals and residuals. In the case is this
+   implementation, the orbitals are store according to which k-point to which
    they belong.
   */
-  
+
   //***************************************************************************
   template <typename T, int NDIM>
   class SubspaceK
@@ -308,13 +308,13 @@ namespace madness
 
   /*!
    \ingroup periodic_solver
-  
-   \brief The SubspaceK class is a container class holding previous orbitals 
+
+   \brief The SubspaceK class is a container class holding previous orbitals
    and residuals.
    \par
-   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN) 
-   accelerate the convergence a given calculation. The KAIN solver needs to 
-   store a subspace of previous orbitals and residuals. 
+   The Solver class uses the Krylov Accelerated Inexact Newton Solver (KAIN)
+   accelerate the convergence a given calculation. The KAIN solver needs to
+   store a subspace of previous orbitals and residuals.
   */
 
   //***************************************************************************
@@ -603,7 +603,7 @@ namespace madness
     ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
     }
     //*************************************************************************
-   
+
     //*************************************************************************
     Solver(World& world, const std::string& filename) : _world(world)
     {
@@ -698,7 +698,7 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2, 
+    std::vector<KPoint> genkmesh(unsigned int ngridk0, unsigned ngridk1, unsigned int ngridk2,
                                  double koffset0, double koffset1, double koffset2, double R)
     {
       std::vector<KPoint> kmesh;
@@ -731,7 +731,7 @@ namespace madness
     //*************************************************************************
     void save_orbitals()
     {
-      ParallelOutputArchive ar(_world, "orbitals", _params.nio);
+      archive::ParallelOutputArchive ar(_world, "orbitals", _params.nio);
       ar & _params.spinpol;
       ar & (unsigned int)(_kpoints.size());
       for (unsigned int i = 0; i < _kpoints.size(); i++) ar & _kpoints[i];
@@ -752,7 +752,7 @@ namespace madness
       const double thresh = FunctionDefaults<3>::get_thresh();
       const int k = FunctionDefaults<3>::get_k();
 
-      ParallelInputArchive ar(_world, "orbitals");
+      archive::ParallelInputArchive ar(_world, "orbitals");
 
       // spin-polarized
       bool spinrest;
@@ -960,7 +960,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, 
+    Solver(World& world,
            rfuntionT vnucrhon,
            vecfuncT phisa,
            vecfuncT phisb,
@@ -1301,7 +1301,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, 
+    Solver(World& world,
            const rfuntionT& vnucrhon,
            const vecfuncT& phis,
            const std::vector<T>& eigs,
@@ -1335,7 +1335,7 @@ namespace madness
 
     //*************************************************************************
     // Constructor
-    Solver(World& world, 
+    Solver(World& world,
            rfuntionT vnucrhon,
            vecfuncT phis,
            std::vector<T> eigs,
@@ -1550,55 +1550,72 @@ namespace madness
       if (_world.rank() == 0)
       {
         print("Energies:");
-        print("Kinetic energy:\t\t ", ke);
-        print("Potential energy:\t ", pe);
-        print("Coulomb energy:\t\t ", ce);
-        print("Exchage energy:\t\t ", xc, "\n");
-        print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
       }
+      print("Kinetic energy:\t\t ", ke);
+      print("Potential energy:\t ", pe);
+      print("Coulomb energy:\t\t ", ce);
+      print("Exchage energy:\t\t ", xc, "\n");
+      print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
     }
     //*************************************************************************
 
     //*************************************************************************
     void reproject()
     {
-      double tol = 1e-9;
-      if (_params.thresh > (_maxthresh - tol))
-      {
-       if (_world.rank() == 0)
-       {
-         printf("Reprojecting:\n");
-         printf("_params.thresh = %.5e\t_maxthresh = %.5e\n", _params.thresh, _maxthresh);
-        _params.thresh *= 10;
-       }
-      }
+        _params.waveorder += 2;
+        _params.thresh /= 100;
+        FunctionDefaults<3>::set_thresh(_params.thresh);
+        FunctionDefaults<3>::set_k(_params.waveorder);
+        if (_world.rand() == 0) printf("reprojecting to wavelet order %d\n\n", _params.waveorder);
+        reconstruct(_world, _phisa);
+        for(unsigned int i = 0; i < _phisa.size(); i++)
+        {
+          _phisa[i] = madness::project(_phisa[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+        }
+        _world.gop.fence();
+        truncate(_world, _phisa);
+        normalize(_world, _phisa);
+        if(_params.spinpol)
+        {
+          reconstruct(_world, _phisb);
+          for(unsigned int i = 0; i < _phisb.size(); i++)
+          {
+              _phisb[i] = madness::project(_phisb[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+          }
+          _world.gop.fence();
+          truncate(_world, _phisb);
+          normalize(_world, _phisb);
+        }
+
+        delete _cop;
+        make_nuclear_potential();
     }
     //*************************************************************************
 
     //*************************************************************************
     void solve()
     {
-      
+
       // WSTHORNTON
       // multiply gamma-point WF by random phase
       double_complex t1 = RandomValue<double_complex>();
       double_complex t2 = exp(t1);
       std::vector<double_complex> phase(_phisa.size(), t2);
       scale(_world, _phisa, phase);
-       
+
        // set maximum thresh from _params
       //_maxthresh = _params.thresh;
       //_params.thresh *= 1e2;
 
       for (int it = 0; it < _params.maxits; it++)
       {
-        //if ((it > 0) && ((it % 4) == 0))
-        //{
-        //  reproject();
-        //}
+        if ((it > 0) && (_residual < 50*_params.thresh)
+        {
+          reproject();
+        }
 
         if (_world.rank() == 0) print("it = ", it);
-       
+
         // Compute density
         _rhoa = compute_rho(_phisa, _kpoints);
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
@@ -1619,7 +1636,7 @@ namespace madness
 
         // Do right hand side for all k-points
         do_rhs(_phisa, pfuncsa, _eigsa, _kpoints);
-        
+
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
         std::vector<T> sfactor(pfuncsa.size(), -2.0);
@@ -1675,7 +1692,7 @@ namespace madness
       save_orbitals();
     }
     //*************************************************************************
-    
+
     //*************************************************************************
     ctensorT matrix_exponential(const ctensorT& A) {
         const double tol = 1e-13;
@@ -1761,8 +1778,8 @@ namespace madness
             functionT dx_wf = Dx(k_wf[i]);
             functionT dy_wf = Dy(k_wf[i]);
             functionT dz_wf = Dz(k_wf[i]);
-            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf + 
-                      std::complex<T>(0.0,k1)*dy_wf + 
+            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
+                      std::complex<T>(0.0,k1)*dy_wf +
                       std::complex<T>(0.0,k2)*dz_wf;
             // k^/2
             double ksq = k0*k0 + k1*k1 + k2*k2;
@@ -1920,7 +1937,7 @@ namespace madness
               print("kpoint ", kp, "ei ", ei, "eps ", real(e(ei,ei)), "\tdiff\t", diffe);
           }
 
-          for (unsigned int ei = kpoint.begin, fi = 0; 
+          for (unsigned int ei = kpoint.begin, fi = 0;
             ei < kpoint.end; ei++, fi++)
           {
             alpha[ei] = std::min(-0.1, real(fock(fi,fi)));
@@ -1954,7 +1971,7 @@ namespace madness
 
       START_TIMER(_world);
       if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
-        tensorT kinetic = ::kinetic_energy_matrix(_world, psi, 
+        tensorT kinetic = ::kinetic_energy_matrix(_world, psi,
                                                   _params.periodic,
                                                   kpoint);
       END_TIMER(_world,"potential energy matrix");
@@ -2012,7 +2029,7 @@ namespace madness
         }
         printf("\n");
       }
-      
+
       if (_world.rank() == 0)
       {
         printf("\n");
@@ -2023,7 +2040,7 @@ namespace madness
         }
         printf("\n");
       }
-      
+
       return rm;
     }
 
