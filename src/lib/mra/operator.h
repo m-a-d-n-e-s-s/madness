@@ -55,6 +55,9 @@
 namespace madness {
 
 
+    extern void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e, 
+      double L, bool discardG0);
+
     extern void bsh_fit(double mu, double lo, double hi, double eps,
                             Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
@@ -471,7 +474,6 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         const double pi = constants::pi;
         
         // bsh_fit generates representation for 1/4Pir but we want 1/r
@@ -481,15 +483,7 @@ namespace madness {
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
 
         if (bc(0,0) == BC_PERIODIC) {
-            const double acut = 0.25 / (4.0*hi*hi);
-            // Relies on expnts being in decreasing order
-            for (int i=0; i<expnt.dim(0); i++) {
-                if (expnt(i) < acut) {
-                    coeff = coeff(Slice(0,i));
-                    expnt = expnt(Slice(0,i));
-                    break;
-                }
-            }
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
         coeff.scale(4.0*pi);
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
@@ -507,24 +501,17 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         const double pi = constants::pi;
 
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        
         if (bc(0,0) == BC_PERIODIC) {
-            const double acut = 0.25 / (4.0*hi*hi);
-            // Relies on expnts being in decreasing order
-            for (int i=0; i<expnt.dim(0); i++) {
-                if (expnt(i) < acut) {
-                    coeff = coeff(Slice(0,i));
-                    expnt = expnt(Slice(0,i));
-                    break;
-                }
-            }
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
+
         coeff.scale(4.0*pi);
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
@@ -543,22 +530,13 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
+
         if (bc(0,0) == BC_PERIODIC) {
-            const double acut = 0.25 / (4.0*hi*hi);
-            // Relies on expnts being in decreasing order
-            for (int i=0; i<expnt.dim(0); i++) {
-                if (expnt(i) < acut) {
-                    coeff = coeff(Slice(0,i));
-                    expnt = expnt(Slice(0,i));
-                    break;
-                }
-            }
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
-	//print(coeff);
-	//print(expnt);
+
         return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
     }
     
@@ -576,20 +554,13 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+
         if (bc(0,0) == BC_PERIODIC) {
-            const double acut = 0.25 / (4.0*hi*hi);
-            // Relies on expnts being in decreasing order
-            for (int i=0; i<expnt.dim(0); i++) {
-                if (expnt(i) < acut) {
-                    coeff = coeff(Slice(0,i));
-                    expnt = expnt(Slice(0,i));
-                    break;
-                }
-            }
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
+
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
     
@@ -605,19 +576,11 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
-        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+
         if (bc(0,0) == BC_PERIODIC) {
-            const double acut = 0.25 / (4.0*hi*hi);
-            // Relies on expnts being in decreasing order
-            for (int i=0; i<expnt.dim(0); i++) {
-                if (expnt(i) < acut) {
-                    coeff = coeff(Slice(0,i));
-                    expnt = expnt(Slice(0,i));
-                    break;
-                }
-            }
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
