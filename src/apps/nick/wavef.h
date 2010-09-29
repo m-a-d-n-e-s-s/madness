@@ -46,15 +46,16 @@
  * By:    Nick Vence
  ************************************************************************/
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "hyp.h"
 #include <mra/mra.h>
-#include "interp.h"
 #include <complex>
 #include <iostream>
 #include <stdio.h>
 #include <complex>
 #include <iomanip>
 #include <time.h>
+#include "hyp.h"
+
+#include "interp.h"
 #define PRINT(str) if(world.rank()==0) std::cout << str 
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
 
@@ -66,7 +67,7 @@ using namespace madness;
 
 typedef std::complex<double> complexd;
 typedef madness::Vector<double,NDIM> vector3D;
-typedef Vector<double,NDIM> vector3D;
+//typedef Vector<double,NDIM> vector3D;
 typedef Function<complexd,NDIM> complex_functionT;
 typedef Function<double,NDIM> functionT;
 typedef FunctionFactory<complexd,NDIM> complex_factoryT;

@@ -1,6 +1,6 @@
-#include "wavef.h"
 #include "extra.h"
-
+#include <world/parar.h>
+//using namespace madness;
 std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F << " " << p.omega <<
         " " << p.ncycle << " " << p.Z << " " << p.R[0]<< " " << p.k<< " " <<
@@ -18,15 +18,15 @@ const char* wave_function_filename(int step) {
     return fname;
 }
 bool wave_function_exists(World& world, int step) {
-    return ParallelInputArchive::exists(world, wave_function_filename(step));
+    return archive::ParallelInputArchive::exists(world, wave_function_filename(step));
 }
 void wave_function_store(World& world, int step, const complex_functionT& psi) {
-    ParallelOutputArchive ar(world, wave_function_filename(step), nIOProcessors);
+    archive::ParallelOutputArchive ar(world, wave_function_filename(step), nIOProcessors);
     ar & psi;
 }
 complex_functionT wave_function_load(World& world, int step) {
     complex_functionT psi;
-    ParallelInputArchive ar(world, wave_function_filename(step));
+    archive::ParallelInputArchive ar(world, wave_function_filename(step));
     ar & psi;
     return psi;
 }

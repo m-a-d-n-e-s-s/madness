@@ -1,4 +1,3 @@
-
 /*
   This file is part of MADNESS.
   
@@ -92,8 +91,9 @@ void projectL(World& world, const double L, const int n) {
         const int smallN = 80;
         const double dTH = PI/smallN;
         const double dPHI = 2*PI/smallN;
-        const int lMAX = 3;
+        const int lMAX = 1;
         const bool debug = false;
+        clock_t before=0, after=0, middle=0;
         std::vector<WF>::iterator psiT;
         std::vector<complexd> YlPsi(n);
         //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
@@ -101,6 +101,7 @@ void projectL(World& world, const double L, const int n) {
             PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
+                if(world.rank()==0) before = clock();
                 Yl0 yl0(L, l);
                 for( int i=0; i<n; i++ ) {
                     YlPsi[i] = 0.0;
@@ -130,12 +131,16 @@ void projectL(World& world, const double L, const int n) {
                     YlPsi[i] = conj(Rl)*Rl * r*r*dr;
                     if(debug) PRINT(r << "\t");
                 }
+                if(world.rank()==0) middle = clock();
                 world.gop.sum(&YlPsi[0], n);
                 world.gop.fence();
                 double Pl = 0.0;
                 for( int i=0; i<n; i++ ) {
                     Pl += real( YlPsi[i] );
                 }
+                if(world.rank()==0) after = clock();
+                PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
+                PRINT("\t Summing took " << (after - middle)/CLOCKS_PER_SEC << " seconds ");
                 PRINT(std::setprecision(6));
                 PRINT( Pl << "\t");
             }
@@ -384,15 +389,15 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
     // Setup defaults for numerical functions
-    int    k = 12;
-    double L = 1.0;
-    double Z = 1.0;
+    int    k   = 12;
+    double L   = 1.0;
+    double Z   = 1.0;
     double thresh = 1e-6;
     double cutoff = L;
-    double th = 0.0;
+    double th  = 0.0;
     double phi = 0.0;
-    int    n = 10;
-    int   wf = 0;
+    int    n   = 10;
+    int    wf  = 0;
     loadParameters(world, thresh, k, L, Z, cutoff);
     loadParameters2(world, n, th, phi, wf);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
@@ -409,7 +414,7 @@ int main(int argc, char**argv) {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
         const int n1 = n;
-        projectL(world, L, n1);
+        //projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
         loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
