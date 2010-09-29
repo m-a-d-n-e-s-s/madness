@@ -474,6 +474,7 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         const double pi = constants::pi;
         
         // bsh_fit generates representation for 1/4Pir but we want 1/r
@@ -501,6 +502,7 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         const double pi = constants::pi;
 
         // bsh_fit generates representation for 1/4Pir but we want 1/r
@@ -530,6 +532,7 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
 
@@ -554,6 +557,7 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
 
@@ -576,6 +580,7 @@ namespace madness {
     {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
         Tensor<double> coeff, expnt;
         bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
 
