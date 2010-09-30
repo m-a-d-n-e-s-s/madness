@@ -473,6 +473,37 @@ namespace madness
       bwfs_new = phisb_new;
     }
     //*************************************************************************
+
+    //*************************************************************************
+    void reproject()
+    {
+       if (_world.rank() == 0) 
+         printf("\n\nreprojecting subspace to wavelet order: %d and thresh: %.5e\n\n", 
+         FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh());
+         
+       unsigned int m = _subspace.size();
+       for (unsigned int s = 0; s < m; s++)
+       {
+           vecfuncT& vs = _subspace[s].first;
+           vecfuncT& rs = _subspace[s].second;
+           reconstruct(_world, vs);
+           reconstruct(_world, rs);
+           unsigned int vm = vs.size();
+           for (unsigned int i = 0; i < vm; i++)
+           {
+             vs[i] = madness::project(vs[i], FunctionDefaults<3>::get_k(), 
+               FunctionDefaults<3>::get_thresh(), false);
+             rs[i] = madness::project(rs[i], FunctionDefaults<3>::get_k(), 
+               FunctionDefaults<3>::get_thresh(), false);
+             truncate(_world, vs);
+             truncate(_world, rs);
+             normalize(_world, vs);
+           }
+       }
+       _world.gop.fence();
+    }
+    //*************************************************************************
+
   };
   //***************************************************************************
 
@@ -608,6 +639,7 @@ namespace madness
     Solver(World& world, const std::string& filename) : _world(world)
     {
       init(filename);
+      if (_params.periodic) FunctionDefaults<3>::set_bc(BC_PERIODIC);
       _residual = 1e5;
       make_nuclear_potential();
       initial_guess();
@@ -814,7 +846,8 @@ namespace madness
       if (_params.periodic) // periodic
       {
         Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-        _cop = PeriodicCoulombOpPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh * 0.1, cellsize);
+        //_cop = PeriodicCoulombOpPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh * 0.1, cellsize);
+        _cop = CoulombOperatorPtr(_world, _params.lo, _params.thresh * 0.1);
       }
       else // not periodic
       {
@@ -975,8 +1008,9 @@ namespace madness
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        //_cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+        //    FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
       else
       {
@@ -1021,7 +1055,7 @@ namespace madness
         // build effective potential
         rfunctionT vlocal;
         // Is this a many-body system?
-        int rank = _world.rank();
+        //int rank = _world.rank();
         if (_params.ncharge > 1.0)
         {
           if (_world.rank() == 0) print("Creating Coulomb op ...\n\n");
@@ -1030,8 +1064,9 @@ namespace madness
           if (_params.periodic)
           {
             Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-            op = PeriodicCoulombOpPtr<double, 3> (_world, _params.waveorder,
-                _params.lo, _params.thresh * 0.1, cellsize);
+            //op = PeriodicCoulombOpPtr<double, 3> (_world, _params.waveorder,
+            //    _params.lo, _params.thresh * 0.1, cellsize);
+            op = CoulombOperatorPtr(_world, _params.lo, _params.thresh * 0.1);
           }
           else
           {
@@ -1136,7 +1171,7 @@ namespace madness
 //            if (_params.nelec > _params.ncharge)
 //              _occs[occend] = 1.0;
             double availcharge = _params.ncharge;
-            double tol = 1e-6;
+            //double tol = 1e-6;
             for (int i = occstart; i < occend; i++)
             {
               if (_world.rank() == 0) printf("availcharge = %.8f\n", availcharge);
@@ -1314,8 +1349,9 @@ namespace madness
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        //_cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+        //    FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
       else
       {
@@ -1351,8 +1387,9 @@ namespace madness
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-        _cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-            FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        //_cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
+        //    FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
+        _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
       else
       {
@@ -1422,7 +1459,6 @@ namespace madness
       // Make BSH vector
       std::vector<poperatorT> bops;
       // Get defaults
-      int k = FunctionDefaults<NDIM>::get_k();
       double tol = FunctionDefaults<NDIM>::get_thresh();
       // Loop through eigenvalues, adding a BSH operator to bops
       // for each eigenvalue
@@ -1441,8 +1477,9 @@ namespace madness
           if (_params.periodic)
           {
             Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-            bops.push_back(poperatorT(PeriodicBSHOpPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1,
-                cellsize)));
+            //bops.push_back(poperatorT(PeriodicBSHOpPtr<T,NDIM>(_world, sqrt(-2.0*eps), k, _params.lo, tol * 0.1,
+            //    cellsize)));
+            bops.push_back(poperatorT(BSHOperatorPtr3D(_world, sqrt(-2.0*eps), _params.lo, tol * 0.1)));
           }
           else
           {
@@ -1546,6 +1583,28 @@ namespace madness
           xc = fc.trace();
         }
       }
+      //else if (_params.functional == 2)
+      //{
+      //  // Loop over k-points and states for both eletrons
+      //  for (unsigned int ik = 0; ik < kpoints.size(); ik++)
+      //  {
+      //    KPoint ikp = kpoints[ik];
+      //    for (unsigned int ist = ikp.begin; ist < ikp.end; ist++)
+      //    {
+      //      functionT utmp_result = factoryT(_world);
+      //      functionT utmp1 = _phisa[ist]; 
+      //      for (unsigned int jk = 0; jk < kpoints.size(); jk++)
+      //      {
+      //        KPoint jkp = kpoints[jk];
+      //        for (unsigned int jst = jkp.begin; jst < jkp.end; jst++)
+      //        {
+      //          functionT utmp2 = _phisa[jst];
+      //        }
+      //      }
+      //    }
+      //  }
+      //  
+      //}
       std::cout.precision(8);
       if (_world.rank() == 0)
       {
@@ -1566,11 +1625,15 @@ namespace madness
       _params.thresh /= 100;
       FunctionDefaults<3>::set_thresh(_params.thresh);
       FunctionDefaults<3>::set_k(_params.waveorder);
-      if (_world.rand() == 0) printf("reprojecting to wavelet order %d\n\n", _params.waveorder);
+      if (_world.rank() == 0) 
+        printf("\n\nreprojecting to wavelet order: %d and thresh: %.5e\n\n", 
+        _params.waveorder, _params.thresh);
+        
       reconstruct(_world, _phisa);
       for(unsigned int i = 0; i < _phisa.size(); i++)
       {
-        _phisa[i] = madness::project(_phisa[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+        _phisa[i] = madness::project(_phisa[i], FunctionDefaults<3>::get_k(), 
+          FunctionDefaults<3>::get_thresh(), false);
       }
       _world.gop.fence();
       truncate(_world, _phisa);
@@ -1580,7 +1643,8 @@ namespace madness
         reconstruct(_world, _phisb);
         for(unsigned int i = 0; i < _phisb.size(); i++)
         {
-            _phisb[i] = madness::project(_phisb[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+            _phisb[i] = madness::project(_phisb[i], FunctionDefaults<3>::get_k(), 
+              FunctionDefaults<3>::get_thresh(), false);
         }
         _world.gop.fence();
         truncate(_world, _phisb);
@@ -1589,7 +1653,7 @@ namespace madness
 
       delete _cop;
       make_nuclear_potential();
-
+      _subspace->reproject();
     }
     //*************************************************************************
 
@@ -1608,7 +1672,7 @@ namespace madness
       //_maxthresh = _params.thresh;
       //_params.thresh *= 1e2;
 
-      for (int it = 0; it < _params.maxits; it++)
+      for (int it = 0; it < _params.maxits && _residual > 1e-5; it++)
       {
         if ((it > 0) && (_residual < 50*_params.thresh))
         {
