@@ -4,13 +4,17 @@ AC_PREREQ(2.59)
 AC_INIT([madness], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
 AC_CONFIG_SRCDIR([configure.ac])
 
-initial_CXXFLAGS="$CXXFLAGS"
-
 # This is where autoconf automatically generated files go
 AC_CONFIG_AUX_DIR([config])
 
 # This is where local macros will be stored (by us)
 AC_CONFIG_MACRO_DIR([config])
+
+# Default options for automake ??
+AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+
+# We want #defines output into a header file
+AC_CONFIG_HEADERS([include/madness_config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
@@ -22,8 +26,6 @@ ACX_IBMBGP
 BIND=${BIND-"-1 -1 -1"}
 AC_DEFINE_UNQUOTED([MAD_BIND_DEFAULT], ["$BIND"], [The default binding for threads])
 
-# All source will be built with the MPI C++ and C compilers
-ACX_MPI
 
 # This sets host, host_cpu, host_vendor, host_os
 AC_CANONICAL_HOST
@@ -49,82 +51,11 @@ esac
 AM_CONDITIONAL([USE_X86_64_ASM], [test $use_x86_64_asm = yes])
 AM_CONDITIONAL([USE_X86_32_ASM], [test $use_x86_32_asm = yes])
 
-# If the user did not specify compiler flags attempt to select optimal ones here.
-# Do this now so subsequent checks use/modify these flags.
-if test "x$initial_CXXFLAGS" = "x"; then
-  ACX_OPTIMAL_CXXFLAGS
-else
-  echo "Using user specified C++ compiler flags '$CXXFLAGS'"
-fi
+# All source will be built with the MPI C++ and C compilers
+ACX_MPI
 
-# Get optional external libraries inplace so that building will partially check them
-LIBUNWIND_DIR=""
-AC_ARG_WITH([libunwind],
-            [--with-libunwind @<:@=installation directory@:>@ Enables use of libunwind required for Google profiler and heap checker],
-            [
-               LIBUNWIND_DIR="$withval"
-               echo "Enabling libunwind ($LIBUNWIND_DIR)"
-               AC_DEFINE(HAVE_LIBUNWIND, [1], [Define if should use libunwind for Google performance tools])
-            ],
-            [])
-
-GOOGLE_PERF_DIR=""
-AC_ARG_WITH([google-perf],
-            [--with-google-perf @<:@=installation directory@:>@ Enables use of Google fast malloc, profiler, and heap checker],
-            [
-               GOOGLE_PERF_DIR="$withval"
-               echo "Enabling Google performance tools ($GOOGLE_PERF_DIR)"
-               AC_DEFINE(HAVE_GOOGLE_PERF, [1], [Define if should use Google performance tools])
-            ],
-            [])
-
-GOOGLE_TEST_DIR=""
-AC_ARG_WITH([google-test],
-            [--with-google-test @<:@=installation directory@:>@ Enables use of Google unit test],
-            [
-               GOOGLE_TEST_DIR="$withval"
-               if test "$GOOGLE_TEST_DIR" == "yes"; then
-                   echo " ... must specify installation directory for google test ... disabling !!!!!!!!!!!!!!!"
-                   GOOGLE_TEST_DIR=""
-               else
-                   echo "Enabling Google unit test ($GOOGLE_TEST_DIR)"
-                   AC_DEFINE(HAVE_GOOGLE_TEST, [1], [Define if should use Google unit testing])
-               fi
-            ],
-            [])
-
-GOOGLE_LIBS=""
-GOOGLE_INCS=""
-if test "$GOOGLE_TEST_DIR" != ""; then
-   GOOGLE_LIBS="$GOOGLE_LIBS -L$GOOGLE_TEST_DIR/lib -lgtest"
-   GOOGLE_INCS="$GOOGLE_INCS -I$GOOGLE_TEST_DIR/include"
-   if test "$CXXVENDOR" = "Intel"; then
-       CPPFLAGS="$CPPFLAGS -DGTEST_HAS_TR1_TUPLE=0"
-   fi
-fi
-
-if test "$GOOGLE_PERF_DIR" != ""; then
-   if test "$GOOGLE_PERF_DIR" != "yes"; then
-      GOOGLE_LIBS="$GOOGLE_LIBS -L$GOOGLE_PERF_DIR/lib"
-   fi
-   if test "$LIBUNWIND_DIR" != ""; then
-      if test "$LIBUNWIND_DIR" != "yes"; then
-          GOOGLE_LIBS="$GOOGLE_LIBS -L$LIBUNWIND_DIR/lib"
-      fi
-      GOOGLE_LIBS="$GOOGLE_LIBS -ltcmalloc -lunwind"
-   else
-      GOOGLE_LIBS="$GOOGLE_LIBS -ltcmalloc_minimal"
-   fi
-fi
-
-if test "$GOOGLE_LIBS" != ""; then
-   echo "Prepending Google libs $GOOGLE_LIBS"
-   LIBS="$GOOGLE_LIBS $LIBS"
-fi
-if test "$GOOGLE_INCS" != ""; then
-   echo "Appending  Google incs $GOOGLE_INCS"
-   CPPFLAGS="$CPPFLAGS $GOOGLE_INCS"
-fi
+initial_CFLAGS="$CFLAGS"
+initial_CXXFLAGS="$CXXFLAGS"
 
 AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
@@ -132,19 +63,31 @@ AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
 AC_LANG_CPLUSPLUS
 echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
 
-# Default options for automake ??
-AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+CFLAGS="$initial_CFLAGS"
+CXXFLAGS="$initial_CXXFLAGS"
 
-# We want #defines output into a header file
-AC_CONFIG_HEADERS([include/madness_config.h])
+ACX_DETECT_CXX
+
+# Set debugging
+ACX_ENABLE_DEBUGGING
+
+# Set optimization
+ACX_ENABLE_OPTIMIZATION
+
+# Set warning flags by compiler vendor
+ACX_ENABLE_WARN
+ACX_ENABLE_OPTIMAL
 
 # Check for boost
-# We need this here for Intel compiler + c++0x
 ACX_WITH_BOOST
 ACX_CHECK_TR1
 
+# Get optional external libraries inplace so that building will partially check them
+ACX_WITH_LIBUNWIND
+ACX_WITH_GOOGLE_PERF
+ACX_WITH_GOOGLE_TEST
+
 # Check for basic build functionality
-AM_SANITY_CHECK
 AC_PROG_RANLIB
 AC_PROG_INSTALL
 AC_PROG_LN_S
@@ -224,7 +167,8 @@ fi
 
 # How to handle MADNESS exceptions.
 AC_ARG_ENABLE(madex,
-              [  --enable-madex=arg   Specifies behavior of MADNESS assertions: throw (default), abort, assert, disable],
+              [AC_HELP_STRING([--enable-madex=arg],
+                [Specifies behavior of MADNESS assertions: throw (default), abort, assert, disable])],
               [madex=$enableval],
               [madex=throw])
 case $madex in
@@ -247,8 +191,8 @@ case $madex in
 esac
 
 # Determine if we should use the instrumented new/delete
-AC_ARG_ENABLE(memstats,
-              [  --enable-memstats  If yes, gather memory statistics (expensive)],
+AC_ARG_ENABLE([memstats],
+              [AC_HELP_STRING([--enable-memstats], [If yes, gather memory statistics (expensive)])],
               [memstats=$enableval],
               [memstats=no])
 if test "$memstats" = "yes"; then
@@ -257,32 +201,36 @@ if test "$memstats" = "yes"; then
 fi
 
 AC_ARG_ENABLE([profile], 
-              [--enable-profile  Enables profiling], 
+              [AC_HELP_STRING([--enable-profile], [Enables profiling])], 
               [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
               [])
 
 AC_ARG_ENABLE([tensor-bounds-checking], 
-              [--enable-tensor-bounds-checking  Enable checking of bounds in tensors ... slow but useful for debugging], 
+              [AC_HELP_STRING([--enable-tensor-bounds-checking],
+                [Enable checking of bounds in tensors ... slow but useful for debugging])], 
               [echo "Enabling tensor bounds checking"; AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
               [])
 
 AC_ARG_ENABLE([tensor-instance-count], 
-              [--enable-tensor-instance-count  Enable counting of allocated tensors for memory leak detection], 
+              [AC_HELP_STRING([--enable-tensor-instance-count],
+                [Enable counting of allocated tensors for memory leak detection])], 
               [echo "Enabling tensor instance counting"; AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
               [])
 
 AC_ARG_ENABLE([spinlocks], 
-              [--enable-spinlocks  Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)], 
+              [AC_HELP_STRING([--enable-spinlocks],
+                [Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)])], 
               [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
               [])
 
 AC_ARG_ENABLE([never-spin], 
-              [--enable-never-spin  Disables use of spinlocks (notably for use inside virtual machines)], 
+              [AC_HELP_STRING([--enable-never-spin],
+                [Disables use of spinlocks (notably for use inside virtual machines)])], 
               [echo "Disabling use of spinlocks"; AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
               [])
 
 AC_ARG_WITH([papi], 
-            [--with-papi  Enables use of PAPI], 
+            [AC_HELP_STRING([--with-papi], [Enables use of PAPI])], 
             [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
 
@@ -297,13 +245,19 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on th
 AC_DEFINE([WORLD_WATCHDOG],[1],[Enables timeout for dead lock detection])
 AC_DEFINE([WATCHDOG_BARK_INTERVAL],[300],[Interval for warning about possible deadlock])
 AC_DEFINE([WATCHDOG_TIMEOUT],[1200],[Abort if idle for this long])
-AC_DEFINE(MADNESS_FORINT,[long],[Equivalent C type for Fortran integers ... should always be long?])
+AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers ... should always be long?])
 
 
 # Stuff that either does not work or is ill-advised
 ######AC_DEFINE([WORLD_TAU_TRACE],[1],[Enable tracing using tau])
 #####AC_DEFINE([WORLD_SCHED_BACKOFF],[1],[Yield during busy spin])
 
+# Display options
+AC_MSG_NOTICE([CPPFLAGS = $CPPFLAGS])
+AC_MSG_NOTICE([CFLAGS = $CFLAGS])
+AC_MSG_NOTICE([CXXFLAGS = $CXXFLAGS])
+AC_MSG_NOTICE([LDFLAGS  = $LDFLAGS])
+AC_MSG_NOTICE([LIBS     = $LIBS])
 
 # These are the files that must be generated/preprocessed ... as you add files
 # please maintain the directory tree file order and indenting.

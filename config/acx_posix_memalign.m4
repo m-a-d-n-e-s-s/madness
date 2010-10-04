@@ -12,21 +12,17 @@ AC_DEFUN([ACX_POSIX_MEMALIGN], [
 
     if test $gotpm = 1; then
         AC_MSG_CHECKING([if missing declaration of posix_memalign in stdlib.h])
-        AC_LANG_PUSH([C++])
-        AC_COMPILE_IFELSE([[
+        AC_LANG_SAVE
+        AC_LANG([C++])
+        AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <stddef.h>
 #include <stdlib.h>
-extern "C"  int posix_memalign(void **memptr, size_t alignment, size_t size);
-int main() {
-    void *m;
-    posix_memalign(&m, 16, 1024);
-    return 0;
-}
-        ]],
+extern "C"  int posix_memalign(void **memptr, size_t alignment, size_t size);]],
+[[void *m; posix_memalign(&m, 16, 1024);]])],
          [AC_MSG_RESULT([no])],
          [ AC_DEFINE(MISSING_POSIX_MEMALIGN_PROTO, [1], [Set if the posix_memalign prototype is missing]) 
           AC_MSG_RESULT([yes]) ]
         )
-        AC_LANG_POP([C++])
+        AC_LANG_RESTORE
     fi
 ])

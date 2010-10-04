@@ -13,8 +13,8 @@
 
 m4_ifndef([AC_AUTOCONF_VERSION],
   [m4_copy([m4_PACKAGE_VERSION], [AC_AUTOCONF_VERSION])])dnl
-m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.67],,
-[m4_warning([this file was generated for autoconf 2.67.
+m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.68],,
+[m4_warning([this file was generated for autoconf 2.68.
 You have another version of autoconf.  It may work, but is not guaranteed to.
 If you have problems, you may need to regenerate the build system entirely.
 To do so, use the procedure documented by the package, typically `autoreconf'.])])
@@ -971,15 +971,22 @@ AC_SUBST([am__tar])
 AC_SUBST([am__untar])
 ]) # _AM_PROG_TAR
 
+m4_include([config/acx_check_compiler_flags.m4])
 m4_include([config/acx_check_tr1.m4])
 m4_include([config/acx_crayxt.m4])
 m4_include([config/acx_detect_cxx.m4])
+m4_include([config/acx_enable_debugging.m4])
+m4_include([config/acx_enable_optimal.m4])
+m4_include([config/acx_enable_optimization.m4])
+m4_include([config/acx_enable_warn.m4])
 m4_include([config/acx_fortran_symbols.m4])
 m4_include([config/acx_ibmbgp.m4])
 m4_include([config/acx_mac.m4])
 m4_include([config/acx_mpi.m4])
-m4_include([config/acx_optimal_cxxflags.m4])
 m4_include([config/acx_posix_memalign.m4])
 m4_include([config/acx_std_abs.m4])
 m4_include([config/acx_unqal_stat_decl.m4])
 m4_include([config/acx_with_boost.m4])
+m4_include([config/acx_with_google_perf.m4])
+m4_include([config/acx_with_google_test.m4])
+m4_include([config/acx_with_libunwind.m4])

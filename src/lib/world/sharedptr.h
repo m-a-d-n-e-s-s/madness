@@ -39,11 +39,11 @@
 /// \file sharedptr.h
 /// \brief Minimal, thread safe, modified (and renamed) Boost-like SharedPtr & SharedArray
 
-#include <memory> // for shared_ptr
 #include <madness_config.h>
+#include <memory> // for shared_ptr
 
-#if defined(MADNESS_HAVE_STD_TR1_SHARED_PTR) && !defined(MADNESS_HAVE_STD_SHARED_PTR)
-#define MADNESS_HAVE_STD_SHARED_PTR
+#if defined(MADNESS_HAS_STD_TR1_SHARED_PTR) && !defined(MADNESS_HAS_STD_SHARED_PTR)
+#define MADNESS_HAS_STD_SHARED_PTR
 // shard_ptr is in std::tr1 but we want it in std namespace
 namespace std {
     using ::std::tr1::bad_weak_ptr;
