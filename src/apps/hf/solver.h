@@ -45,6 +45,11 @@
 
 #ifndef SOLVER_H_
 
+using std::endl;
+using std::setfill;
+using std::setw;
+using std::ostream;
+
 /*! 
   \ingroup applications
   \defgroup periodic_solver Periodic Solver
@@ -477,9 +482,9 @@ namespace madness
     //*************************************************************************
     void reproject()
     {
-       if (_world.rank() == 0) 
-         printf("\n\nreprojecting subspace to wavelet order: %d and thresh: %.5e\n\n", 
-         FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh());
+       //if (_world.rank() == 0) 
+         //printf("\n\nreprojecting subspace to wavelet order: %d and thresh: %.5e\n\n", 
+         //FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh());
          
        unsigned int m = _subspace.size();
        for (unsigned int s = 0; s < m; s++)
@@ -628,11 +633,19 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+    std::ofstream _matF;
+    //*************************************************************************
+
+    //*************************************************************************
     std::ofstream _eigF;
     //*************************************************************************
 
     //*************************************************************************
     std::ofstream _kmeshF;
+    //*************************************************************************
+
+    //*************************************************************************
+    int _it;
     //*************************************************************************
 
   public:
@@ -703,6 +716,7 @@ namespace madness
 
       // Open output files
       _outputF.open("output.txt");
+      _matF.open("matrix.txt");
       _eigF.open("eigs.txt");
 
       // kmesh
@@ -734,14 +748,23 @@ namespace madness
         }
         if (_world.rank() == 0)
         {
-        	_kmeshF.open("kpoints.txt");
-            for (unsigned int i = 0; i < _kpoints.size(); i++)
-            {
-              KPoint kpoint = _kpoints[i];
-              _kmeshF << kpoint.k[0] << kpoint.k[1] << kpoint.k[2]
-                      << kpoint.weight << std::endl;
-            }
-        	_kmeshF.close();
+          _kmeshF.open("kpoints.txt");
+          _kmeshF << "kpts: " << _kpoints.size() << endl;
+          _kmeshF << "ik" << setw(10) << "kpt" << setw(30) << "weight" << endl;
+          _kmeshF << "--" << setw(10) << "---" << setw(30) << "------" << endl;
+           
+          //_kmeshF << setfill('-') << setw(55) << "-" << endl;
+          //_kmeshF << setfill(' ') << endl;
+          _kmeshF << endl;
+          for (unsigned int i = 0; i < _kpoints.size(); i++)
+          {
+            KPoint kpoint = _kpoints[i];
+            _kmeshF << i << setw(10) << kpoint.k[0]; 
+            _kmeshF << setw(10) << kpoint.k[1];
+            _kmeshF << setw(10) << kpoint.k[2];
+            _kmeshF << setw(10) << kpoint.weight << endl;
+          }
+          _kmeshF.close();
         }
       }
       else
@@ -869,16 +892,16 @@ namespace madness
       {
         Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
         //_cop = PeriodicCoulombOpPtr<double,3>(_world, _params.waveorder,_params.lo, _params.thresh * 0.1, cellsize);
-        _cop = CoulombOperator(_world, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1, 
-          _bc, FunctionDefaults<3>::get_k());
+        _cop = CoulombOperatorPtr(_world, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1); 
       }
       else // not periodic
       {
-        _cop = CoulombOperator(_world, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1); 
+        _cop = CoulombOperatorPtr(_world, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1); 
         //_cop = CoulombOperatorPtr(_world, _params.lo, _params.thresh * 0.1);
       }
 
-      if (_world.rank() == 0) print("Making nuclear potential ..\n\n");
+      if (_world.rank() == 0) 
+        _outputF << "Making nuclear potential .." << endl << endl;
       Tensor<double> csize = FunctionDefaults<3>::get_cell();
       if (_world.rank() == 0)
       {
@@ -1132,7 +1155,7 @@ namespace madness
         int norbs = _params.nbands * nkpts;
         // Check to see if the basis set can accomodate the number of bands
         if (_params.nbands > nao)
-          MADNESS_EXCEPTION("Error: basis not large enough to accomodate number of bands", 0);
+          MADNESS_EXCEPTION("Error: basis not large enough to accomodate number of bands", nao);
         // set the number of orbitals
         _eigsa = std::vector<double>(norbs, 0.0);
         _eigsb = std::vector<double>(norbs, 0.0);
@@ -1435,6 +1458,7 @@ namespace madness
     virtual ~Solver()
     {
       _outputF.close();
+      _matF.close();
       _eigF.close();
       delete _subspace;
     }
@@ -1451,7 +1475,7 @@ namespace madness
       // Electron density
       rfuntionT rho = rfactoryT(_world);
       _world.gop.fence();
-      if (_world.rank() == 0) _outputF << "computing rho ..." << std::endl;
+      if (_world.rank() == 0) _outputF << "computing rho ..." << endl;
       // Loop over k-points
       for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
@@ -1496,7 +1520,7 @@ namespace madness
           {
               if (_world.rank() == 0)
               {
-                  std::cout << "bsh: warning: positive eigenvalue" << i << eps << std::endl;
+                  std::cout << "bsh: warning: positive eigenvalue" << i << eps << endl;
               }
               eps = -0.1;
           }
@@ -1559,7 +1583,7 @@ namespace madness
      \brief Applies the LDA effective potential to each orbital. Currently only
             lda and spin-polarized is not implemented.
      */
-    void apply_potential(int iter, vecfuncT& pfuncsa,
+    void apply_potential(vecfuncT& pfuncsa,
         vecfuncT& pfuncsb, const vecfuncT& phisa,
         const vecfuncT& phisb, const rfuntionT& rhoa, const rfuntionT& rhob,
         const rfuntionT& rho)
@@ -1569,7 +1593,7 @@ namespace madness
       rfuntionT vlocal = _vnuc + vc;
       // WSTHORNTON
       std::ostringstream strm;
-      strm << "vlocal" << iter << ".out";
+      strm << "vlocal" << _it << ".out";
       std::string fname = strm.str();
       //plot_line(fname.c_str(), 100, coordT(-5.0), coordT(5.0), _vnuc, vc);
       // Calculate energies for Coulomb and nuclear
@@ -1652,7 +1676,7 @@ namespace madness
       FunctionDefaults<3>::set_thresh(_params.thresh);
       FunctionDefaults<3>::set_k(_params.waveorder);
       if (_world.rand() == 0) _outputF << "reprojecting to wavelet order "
-          << _params.waveorder << std::endl;
+          << _params.waveorder << endl;
       reconstruct(_world, _phisa);
       for(unsigned int i = 0; i < _phisa.size(); i++)
       {
@@ -1696,21 +1720,21 @@ namespace madness
       //_maxthresh = _params.thresh;
       //_params.thresh *= 1e2;
 
-      for (int it = 0; it < _params.maxits && _residual > 1e-5; it++)
+      for (_it = 0; _it < _params.maxits && _residual > 1e-5; _it++)
       {
-        if ((it > 0) && (_residual < 50*_params.thresh))
+        if ((_it > 0) && (_residual < 30*_params.thresh))
         {
           reproject();
         }
 
-        if (_world.rank() == 0) _outputF << "it = " << it << std::endl;
+        if (_world.rank() == 0) _outputF << "_it = " << _it << endl;
        
         // Compute density
         _rhoa = compute_rho(_phisa, _kpoints);
         _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
         _rho = _rhoa + _rhob;
         double rtrace = _rho.trace();
-        if (_world.rank() == 0) _outputF << "trace of rho" << rtrace << std::endl;
+        if (_world.rank() == 0) _outputF << "trace of rho" << rtrace << endl;
 
         std::vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
@@ -1718,9 +1742,9 @@ namespace madness
                 zero_functions<valueT,NDIM>(_world, _phisb.size());
 
         // Apply the potentials to the orbitals
-        if (_world.rank() == 0) _outputF << "applying potential ...\n" << std::endl;
+        if (_world.rank() == 0) _outputF << "applying potential ...\n" << endl;
         START_TIMER(_world);
-        apply_potential(it, pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
+        apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
         END_TIMER(_world,"apply potential");
 
         // Do right hand side for all k-points
@@ -1732,7 +1756,7 @@ namespace madness
         scale(_world, pfuncsa, sfactor);
 
         // Apply Green's function to orbitals
-        if (_world.rank() == 0) _outputF << "applying BSH operator ...\n" << std::endl;
+        if (_world.rank() == 0) _outputF << "applying BSH operator ...\n" << endl;
         truncate<valueT,NDIM>(_world, pfuncsa);
         START_TIMER(_world);
         std::vector<functionT> tmpa = apply(_world, bopsa, pfuncsa);
@@ -1821,6 +1845,23 @@ namespace madness
         return expB;
     }
     //*************************************************************************
+    
+    //*************************************************************************
+    template<typename Q>
+    void print_tensor2d(ostream& os, Tensor<Q> t)
+    {
+      os.precision(5);
+      for (int i = 0; i < t.dim(0); i++)
+      {
+        for (int j = 0; j < t.dim(1); j++)
+        {
+          os << t(i,j) << setw(12);
+        }
+        os << endl;
+      } 
+      os << endl; 
+    }
+    //*************************************************************************
 
     //*************************************************************************
     void do_rhs(vecfuncT& wf,
@@ -1832,6 +1873,7 @@ namespace madness
       double trantol = 0.1*_params.thresh/std::min(30.0,double(wf.size()));
       double thresh = 1e-4;
 
+      if (_world.rank() == 0) _eigF << "Iteration: " << _it << endl; 
       for (unsigned int kp = 0; kp < kpoints.size(); kp++)
       {
         // Get k-point and orbitals for this k-point
@@ -1880,14 +1922,25 @@ namespace madness
         if (_params.canon) // canonical orbitals
         {
 
+//          // Debug output
+//          if (_world.rank() == 0)
+//          { print("Overlap matrix:");
+//            print(overlap);
+//          }
+//          if (_world.rank() == 0)
+//          { print("Fock matrix:");
+//            print(fock);
+//          }
+
           // Debug output
           if (_world.rank() == 0)
-          { print("Overlap matrix:");
-            print(overlap);
+          { _matF << "Iteration: " << _it << endl;
+            _matF << "Overlap matrix:" << endl;
+            print_tensor2d<valueT>(_matF, overlap);
           }
           if (_world.rank() == 0)
-          { print("Fock matrix:");
-            print(fock);
+          { _matF << "Fock matrix:" << endl;
+            print_tensor2d<valueT>(_matF, fock);
           }
 
           ctensorT U; rtensorT e;
@@ -2009,13 +2062,13 @@ namespace madness
           }
           if (_world.rank() == 0)
           {
-            _eigF << "kpt:     " << std::endl;
-            _eigF << "-----------------------------------\n" << std::endl;
+            _eigF << "kpt: " << kp << endl;
+            _eigF << setfill('-') << setw(20) << " " << endl;
             for (unsigned int ei = 0; ei < e.dim(0); ei++)
             {
-              _eigF << ei << "\t" << real(e(ei,ei));
+              _eigF << ei << setfill(' ') << setw(12) << real(e(ei,ei)) << endl;
             }
-            _eigF << "\n\n" << std::endl;
+            _eigF << "\n\n" << endl;
           }
         }
         else // non-canonical orbitals
@@ -2064,13 +2117,13 @@ namespace madness
       END_TIMER(_world,"kinetic energy matrix");
 
       START_TIMER(_world);
-      if (_world.rank() == 0) _outputF << "Building kinetic energy matrix ...\n\n" << std::endl;
+      if (_world.rank() == 0) _outputF << "Building kinetic energy matrix ...\n\n" << endl;
         tensorT kinetic = ::kinetic_energy_matrix(_world, psi, 
                                                   _params.periodic,
                                                   kpoint);
       END_TIMER(_world,"potential energy matrix");
 
-      if (_world.rank() == 0) _outputF << "Constructing Fock matrix ...\n\n" << std::endl;
+      if (_world.rank() == 0) _outputF << "Constructing Fock matrix ...\n\n" << endl;
       tensorT fock = potential + kinetic;
       fock = 0.5 * (fock + transpose(fock));
       _world.gop.fence();
@@ -2112,27 +2165,27 @@ namespace madness
       for (unsigned int i = 0; i < rnvec.size(); i++) rnorm += rnvec[i];
       // renormalize and print
       _residual = rnorm / rnvec.size();
-      if (_world.rank() == 0) _outputF << "\nResiduals\n---------" << std::endl;
-      if (_world.rank() == 0) _outputF << "residual = " << _residual << std::endl;
+      if (_world.rank() == 0) _outputF << "\nResiduals\n---------" << endl;
+      if (_world.rank() == 0) _outputF << "residual = " << _residual << endl;
       if (_world.rank() == 0)
       {
-        _outputF << std::endl;
+        _outputF << endl;
         for (unsigned int i = 0; i < rnvec.size(); i++)
         {
-          _outputF << "residual" << i << "\t" << rnvec[i] << std::endl;
+          _outputF << "residual" << i << "\t" << rnvec[i] << endl;
         }
-        _outputF << std::endl;
+        _outputF << endl;
       }
       
       if (_world.rank() == 0)
       {
-        _outputF << std::endl;
+        _outputF << endl;
         printf("Occupations\n-----------\n");
         for (unsigned int i = 0; i < rnvec.size(); i++)
         {
-          _outputF << "occ " << i << _occs[i] << std::endl;
+          _outputF << "occ " << i << _occs[i] << endl;
         }
-        _outputF << std::endl;
+        _outputF << endl;
       }
       
       return rm;
@@ -2209,9 +2262,9 @@ namespace madness
           nres++;
           if (_world.rank() == 0)
           {
-            if (!aorb && nres == 1) _outputF << "  restricting step for alpha orbitals:" << std::endl;
-            if (aorb && nres == 1) _outputF << "  restricting step for beta orbitals:" << std::endl;
-            outputF << i;
+            if (!aorb && nres == 1) _outputF << "  restricting step for alpha orbitals:" << endl;
+            if (aorb && nres == 1) _outputF << "  restricting step for beta orbitals:" << endl;
+            _outputF << i;
           }
           nwfs[i].gaxpy(s, owfs[i], 1.0 - s, false);
         }
