@@ -1,26 +1,26 @@
 /*
-                 __________                                      
-    _____   __ __\______   \_____  _______  ______  ____ _______ 
+                 __________
+    _____   __ __\______   \_____  _______  ______  ____ _______
    /     \ |  |  \|     ___/\__  \ \_  __ \/  ___/_/ __ \\_  __ \
   |  Y Y  \|  |  /|    |     / __ \_|  | \/\___ \ \  ___/ |  | \/
-  |__|_|  /|____/ |____|    (____  /|__|  /____  > \___  >|__|   
-        \/                       \/            \/      \/        
+  |__|_|  /|____/ |____|    (____  /|__|  /____  > \___  >|__|
+        \/                       \/            \/      \/
   Copyright (C) 2004-2008 Ingo Berg
 
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
   software and associated documentation files (the "Software"), to deal in the Software
-  without restriction, including without limitation the rights to use, copy, modify, 
-  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
   permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-  The above copyright notice and this permission notice shall be included in all copies or 
+  The above copyright notice and this permission notice shall be included in all copies or
   substantial portions of the Software.
 
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
-  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
-  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
-  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 #ifndef MU_PARSER_BYTECODE_H
 #define MU_PARSER_BYTECODE_H
@@ -29,6 +29,7 @@
 #include <string>
 #include <stack>
 #include <vector>
+#include <locale>
 
 #include "muParserDef.h"
 #include "muParserError.h"
@@ -46,11 +47,11 @@ namespace mu
 /** \brief Bytecode implementation of the Math Parser.
 
   The bytecode contains the formula converted to revers polish notation stored in a continious
-  memory area. Associated with this data are operator codes, variable pointers, constant 
+  memory area. Associated with this data are operator codes, variable pointers, constant
   values and function pointers. Those are necessary in order to calculate the result.
   All those data items will be casted to the underlying datatype of the bytecode.
 
-  \author (C) 2004, 2005 Ingo Berg 
+  \author (C) 2004, 2005 Ingo Berg
 */
 class ParserByteCode
 {
@@ -58,7 +59,7 @@ public:
     /** \brief Underlying type of the container.
 
        The bytecode is a vector of this type containing control codes,
-       values and pointers. Values and pointer will be casted to this 
+       values and pointers. Values and pointer will be casted to this
        type before their storage.
     */
     typedef bytecode_type map_type;
@@ -81,13 +82,13 @@ private:
     const int mc_iSizeVal;
 
     /** \brief Size of a pointer, relative to size of underlying TMapType.
-       
+
         \attention The size is related to the size of TMapType not bytes!
     */
     const int mc_iSizePtr;
 
-    /** \brief A value entry requires that much entires in the bytecode. 
-        
+    /** \brief A value entry requires that much entires in the bytecode.
+
         Value entry consists of:
         <ul>
           <li>One entry for Stack index</li>
@@ -122,24 +123,24 @@ public:
 
     const map_type* GetRawData() const;
 
-    /** \brief Return size of a value entry. 
-    
+    /** \brief Return size of a value entry.
+
       That many bytecode entries are necessary to store a value.
 
       \sa mc_iSizeVal
     */
-    unsigned GetValSize() const 
+    unsigned GetValSize() const
     {
       return mc_iSizeVal;
     }
 
-    /** \brief Return size of a pointer entry. 
-    
+    /** \brief Return size of a pointer entry.
+
       That many bytecode entries are necessary to store a pointer.
 
       \sa mc_iSizePtr
     */
-    unsigned GetPtrSize() const 
+    unsigned GetPtrSize() const
     {
       return mc_iSizePtr;
     }
