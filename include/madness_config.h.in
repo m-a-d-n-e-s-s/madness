@@ -18,12 +18,6 @@
 /* Fortran-C linking convention upper case with single underscore */
 #undef FORTRAN_LINKAGE_UCU
 
-/* Define this as 0 when using Boost TR1 and Google Test */
-#undef GTEST_HAS_TR1_TUPLE
-
-/* Define this as 1 when using Boost TR1 and Google Test */
-#undef GTEST_USE_OWN_TR1_TUPLE
-
 /* Define if AMD math library available - ACML */
 #undef HAVE_ACML
 

@@ -108,9 +108,12 @@ am_libMADworld_a_OBJECTS = worldstuff.$(OBJEXT) redirectio.$(OBJEXT) \
 	worldref.$(OBJEXT) $(am__objects_1)
 libMADworld_a_OBJECTS = $(am_libMADworld_a_OBJECTS)
 PROGRAMS = $(bin_PROGRAMS)
-am_array_test_OBJECTS = array_test.$(OBJEXT)
+am_array_test_OBJECTS = array_test-array_test.$(OBJEXT)
 array_test_OBJECTS = $(am_array_test_OBJECTS)
-array_test_LDADD = $(LDADD)
+am__DEPENDENCIES_1 =
+array_test_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+array_test_LINK = $(CXXLD) $(array_test_CXXFLAGS) $(CXXFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 am_helloworld_OBJECTS = helloworld.$(OBJEXT)
 helloworld_OBJECTS = $(am_helloworld_OBJECTS)
 helloworld_DEPENDENCIES = libMADworld.a
@@ -146,9 +149,12 @@ testprof_DEPENDENCIES = libMADworld.a
 am_world_OBJECTS = world.$(OBJEXT)
 world_OBJECTS = $(am_world_OBJECTS)
 world_DEPENDENCIES = libMADworld.a
-am_world_test_OBJECTS = world_test.$(OBJEXT)
+am_world_test_OBJECTS = world_test-world_test.$(OBJEXT)
 world_test_OBJECTS = $(am_world_test_OBJECTS)
-world_test_DEPENDENCIES = libMADworld.a
+world_test_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+	libMADworld.a
+world_test_LINK = $(CXXLD) $(world_test_CXXFLAGS) $(CXXFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -209,6 +215,10 @@ F77 = @F77@
 FFLAGS = @FFLAGS@
 GDB = @GDB@
 GREP = @GREP@
+GTEST_CPPFLAGS = @GTEST_CPPFLAGS@
+GTEST_CXXFLAGS = @GTEST_CXXFLAGS@
+GTEST_LDFLAGS = @GTEST_LDFLAGS@
+GTEST_LIBS = @GTEST_LIBS@
 HAVE_DOT = @HAVE_DOT@
 HAVE_DOXYGEN = @HAVE_DOXYGEN@
 HAVE_LATEX = @HAVE_LATEX@
@@ -331,8 +341,13 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      worldhashmap.h          worldrange.h  atomicint.h     posixmem.h
 
 array_test_SOURCES = array_test.cc
+array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+array_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+array_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS)
 world_test_SOURCES = world_test.cc
-world_test_LDADD = libMADworld.a
+world_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+world_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+world_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
 testhashdc_SOURCES = testhashdc.cc
@@ -469,7 +484,7 @@ clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
 array_test$(EXEEXT): $(array_test_OBJECTS) $(array_test_DEPENDENCIES) 
 	@rm -f array_test$(EXEEXT)
-	$(CXXLINK) $(array_test_OBJECTS) $(array_test_LDADD) $(LIBS)
+	$(array_test_LINK) $(array_test_OBJECTS) $(array_test_LDADD) $(LIBS)
 helloworld$(EXEEXT): $(helloworld_OBJECTS) $(helloworld_DEPENDENCIES) 
 	@rm -f helloworld$(EXEEXT)
 	$(CXXLINK) $(helloworld_OBJECTS) $(helloworld_LDADD) $(LIBS)
@@ -505,7 +520,7 @@ world$(EXEEXT): $(world_OBJECTS) $(world_DEPENDENCIES)
 	$(CXXLINK) $(world_OBJECTS) $(world_LDADD) $(LIBS)
 world_test$(EXEEXT): $(world_test_OBJECTS) $(world_test_DEPENDENCIES) 
 	@rm -f world_test$(EXEEXT)
-	$(CXXLINK) $(world_test_OBJECTS) $(world_test_LDADD) $(LIBS)
+	$(world_test_LINK) $(world_test_OBJECTS) $(world_test_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -514,7 +529,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/archive_type_names.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/array_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/array_test-array_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/helloworld.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lookup3.Po@am__quote@
@@ -532,7 +547,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testprof.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/threadpool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world_test-world_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldmem.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldpapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldref.Po@am__quote@
@@ -566,6 +581,34 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='$<' object='$@' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXXCOMPILE) -c -o $@ `$(CYGPATH_W) '$<'`
+
+array_test-array_test.o: array_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(array_test_CPPFLAGS) $(CPPFLAGS) $(array_test_CXXFLAGS) $(CXXFLAGS) -MT array_test-array_test.o -MD -MP -MF $(DEPDIR)/array_test-array_test.Tpo -c -o array_test-array_test.o `test -f 'array_test.cc' || echo '$(srcdir)/'`array_test.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/array_test-array_test.Tpo $(DEPDIR)/array_test-array_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='array_test.cc' object='array_test-array_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(array_test_CPPFLAGS) $(CPPFLAGS) $(array_test_CXXFLAGS) $(CXXFLAGS) -c -o array_test-array_test.o `test -f 'array_test.cc' || echo '$(srcdir)/'`array_test.cc
+
+array_test-array_test.obj: array_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(array_test_CPPFLAGS) $(CPPFLAGS) $(array_test_CXXFLAGS) $(CXXFLAGS) -MT array_test-array_test.obj -MD -MP -MF $(DEPDIR)/array_test-array_test.Tpo -c -o array_test-array_test.obj `if test -f 'array_test.cc'; then $(CYGPATH_W) 'array_test.cc'; else $(CYGPATH_W) '$(srcdir)/array_test.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/array_test-array_test.Tpo $(DEPDIR)/array_test-array_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='array_test.cc' object='array_test-array_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(array_test_CPPFLAGS) $(CPPFLAGS) $(array_test_CXXFLAGS) $(CXXFLAGS) -c -o array_test-array_test.obj `if test -f 'array_test.cc'; then $(CYGPATH_W) 'array_test.cc'; else $(CYGPATH_W) '$(srcdir)/array_test.cc'; fi`
+
+world_test-world_test.o: world_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(world_test_CPPFLAGS) $(CPPFLAGS) $(world_test_CXXFLAGS) $(CXXFLAGS) -MT world_test-world_test.o -MD -MP -MF $(DEPDIR)/world_test-world_test.Tpo -c -o world_test-world_test.o `test -f 'world_test.cc' || echo '$(srcdir)/'`world_test.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/world_test-world_test.Tpo $(DEPDIR)/world_test-world_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='world_test.cc' object='world_test-world_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(world_test_CPPFLAGS) $(CPPFLAGS) $(world_test_CXXFLAGS) $(CXXFLAGS) -c -o world_test-world_test.o `test -f 'world_test.cc' || echo '$(srcdir)/'`world_test.cc
+
+world_test-world_test.obj: world_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(world_test_CPPFLAGS) $(CPPFLAGS) $(world_test_CXXFLAGS) $(CXXFLAGS) -MT world_test-world_test.obj -MD -MP -MF $(DEPDIR)/world_test-world_test.Tpo -c -o world_test-world_test.obj `if test -f 'world_test.cc'; then $(CYGPATH_W) 'world_test.cc'; else $(CYGPATH_W) '$(srcdir)/world_test.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/world_test-world_test.Tpo $(DEPDIR)/world_test-world_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='world_test.cc' object='world_test-world_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(world_test_CPPFLAGS) $(CPPFLAGS) $(world_test_CXXFLAGS) $(CXXFLAGS) -c -o world_test-world_test.obj `if test -f 'world_test.cc'; then $(CYGPATH_W) 'world_test.cc'; else $(CYGPATH_W) '$(srcdir)/world_test.cc'; fi`
 install-thisincludeHEADERS: $(thisinclude_HEADERS)
 	@$(NORMAL_INSTALL)
 	test -z "$(thisincludedir)" || $(MKDIR_P) "$(DESTDIR)$(thisincludedir)"

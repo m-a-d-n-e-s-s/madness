@@ -627,6 +627,10 @@ CCASFLAGS
 CCAS
 LN_S
 RANLIB
+GTEST_LIBS
+GTEST_LDFLAGS
+GTEST_CXXFLAGS
+GTEST_CPPFLAGS
 EGREP
 GREP
 CXXCPP
@@ -772,6 +776,10 @@ FFLAGS
 LDFLAGS
 LIBS
 CXXCPP
+GTEST_CPPFLAGS
+GTEST_CXXFLAGS
+GTEST_LDFLAGS
+GTEST_LIBS
 CCAS
 CCASFLAGS'
 
@@ -1451,6 +1459,13 @@ Some influential environment variables:
   F77         Fortran 77 compiler command
   FFLAGS      Fortran 77 compiler flags
   CXXCPP      C++ preprocessor
+  GTEST_CPPFLAGS 
+              C-like preprocessor flags for Google Test.
+  GTEST_CXXFLAGS 
+              C++ compile flags for Google Test.
+  GTEST_LDFLAGS 
+              Linker path and option flags for Google Test.
+  GTEST_LIBS  Library linking flags for Google Test.
   CCAS        assembler compiler command (defaults to CC)
   CCASFLAGS   assembler compiler flags (defaults to CFLAGS)
 
@@ -6341,8 +6356,9 @@ if test "${with_google_test+set}" = set; then :
         acx_with_google_test="no"
       ;;
       *)
-        CPPFLAGS="$CPPFLAGS -I$withval/include"
-        LDFLAGS="$LDFLAGS -L$withval/lib"
+        GTEST_CPPFLAGS="-I$withval/include"
+        GTEST_LDFLAGS="-L$withval/lib"
+        GTEST_LIBS="-lgtest"
         acx_with_google_test="$withval"
       esac
     
@@ -6351,6 +6367,12 @@ else
   
 fi
 
+  
+  
+  
+  
+  
+           
   if test $acx_with_google_test != "no"; then
     
     ac_ext=cpp
@@ -6360,13 +6382,20 @@ ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ex
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
     if test $acx_with_boost != "no"; then
-      
-$as_echo "@%:@define GTEST_HAS_TR1_TUPLE 0" >>confdefs.h
-
-      
-$as_echo "@%:@define GTEST_USE_OWN_TR1_TUPLE 1" >>confdefs.h
-
+      GTEST_CPPFLAGS="$GTEST_CPPFLAGS -DGTEST_HAS_TR1_TUPLE=0 -DGTEST_USE_OWN_TR1_TUPLE=1"
     fi
+    
+    # Save and set compile flags for checks
+    acx_with_google_test_cppflags_save=$CPPFLAGS
+    acx_with_google_test_cxxflags_save=$CXXFLAGS
+    acx_with_google_test_ldflags_save=$LDFLAGS
+    acx_with_google_test_libs_save=$LIBS
+    CPPFLAGS="$CPPFLAGS $GTEST_CPPFLAGS"
+    CXXFLAGS="$CXXFLAGS $GTEST_CXXFLAGS"
+    LDFLAGS="$LDFLAGS $GTEST_LDFLAGS"
+    LIBS="$LIBS $GTEST_LIBS"
+    
+    # Check for gtest header
     ac_fn_cxx_check_header_mongrel "$LINENO" "gtest/gtest.h" "ac_cv_header_gtest_gtest_h" "$ac_includes_default"
 if test "x$ac_cv_header_gtest_gtest_h" = xyes; then :
   
@@ -6375,9 +6404,10 @@ else
 fi
 
 
+    
+    # Check for gtest library
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking for ::testing::InitGoogleTest in -lgtest" >&5
 $as_echo_n "checking for ::testing::InitGoogleTest in -lgtest... " >&6; }
-    LIBS="$LIBS -lgtest"
     cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 namespace testing { void InitGoogleTest(int*,char**); }
@@ -6400,8 +6430,21 @@ $as_echo "no" >&6; }
 fi
 rm -f core conftest.err conftest.$ac_objext \
     conftest$ac_exeext conftest.$ac_ext
+
+    # Restore the original flags
+    CPPFLAGS=$acx_with_google_test_cppflags_save
+    CXXFLAGS=$acx_with_google_test_cxxflags_save
+    LDFLAGS=$acx_with_google_test_ldflags_save
+    LIBS=$acx_with_google_test_libs_save
+
+    # Set preprocessor and build variables
     
 $as_echo "@%:@define MADNESS_HAS_GOOGLE_TEST 1" >>confdefs.h
+
+    
+    
+    
+    
 
     ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
@@ -8477,8 +8520,8 @@ $as_echo "@%:@define MADNESS_FORINT long" >>confdefs.h
 # Display options
 { $as_echo "$as_me:${as_lineno-$LINENO}: CPPFLAGS = $CPPFLAGS" >&5
 $as_echo "$as_me: CPPFLAGS = $CPPFLAGS" >&6;}
-{ $as_echo "$as_me:${as_lineno-$LINENO}: CFLAGS = $CFLAGS" >&5
-$as_echo "$as_me: CFLAGS = $CFLAGS" >&6;}
+{ $as_echo "$as_me:${as_lineno-$LINENO}: CFLAGS   = $CFLAGS" >&5
+$as_echo "$as_me: CFLAGS   = $CFLAGS" >&6;}
 { $as_echo "$as_me:${as_lineno-$LINENO}: CXXFLAGS = $CXXFLAGS" >&5
 $as_echo "$as_me: CXXFLAGS = $CXXFLAGS" >&6;}
 { $as_echo "$as_me:${as_lineno-$LINENO}: LDFLAGS  = $LDFLAGS" >&5

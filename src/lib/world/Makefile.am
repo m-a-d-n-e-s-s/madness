@@ -14,10 +14,14 @@ thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldm
                      worldhashmap.h          worldrange.h  atomicint.h     posixmem.h
 
 array_test_SOURCES = array_test.cc
+array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+array_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+array_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS)
 
 world_test_SOURCES = world_test.cc
-world_test_LDADD = libMADworld.a
-
+world_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+world_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+world_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
