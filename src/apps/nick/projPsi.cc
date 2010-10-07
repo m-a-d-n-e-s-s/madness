@@ -413,7 +413,7 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        const int n1 = n;
+        //const int n1 = n;
         //projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
         loadList(world, boundList, unboundList);

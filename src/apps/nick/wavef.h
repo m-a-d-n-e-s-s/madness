@@ -109,18 +109,20 @@ public:
     CubicInterpolationTable<complexd > fit1F1;
     const double Z_;
     const double cutoff_;
+    complexd one;
+    double   dx;
     double   k_;
     complexd AA;
     complexd BB;
-    double   domain;
-    complexd one;
-    double   dx;
-    int      n;
-    complexd mAA;
+    complexd gammaBB;
+    complexd expmIPIAArGammaBBmAA;
+    complexd rGammaAA;
     complexd AAmBB;
+    complexd mAA;
     complexd expPIAAXgammaBBmAAr;
     complexd expPIZ_2kXgamma1pIZ_k_;
-    complexd gammaAAr;
+    double   domain;
+    int      n;
 protected:
     struct MemberFuncPtr {
         ScatteringWF* obj;
