@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 bin_PROGRAMS = testpg moldft
 
 moldft_SOURCES = moldft.cc lda.cc  molecule.cc \
-                 molecule.h molecularbasis.h \
+                 molecule.h molecularbasis.h molecularbasis.cc \
                  atomutil.h atomutil.cc \
                  corepotential.h corepotential.cc
 

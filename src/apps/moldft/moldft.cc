@@ -1411,10 +1411,14 @@ struct Calculation {
             }
             compress(world, ao);
 
-            amo = transform(world, ao, c(_, Slice(-param.nmo_alpha, -1)), 0.0, true);
+            unsigned int ncore = 0;
+            if (param.core_type != "") {
+                ncore = molecule.n_core_orb_all();
+            }
+            amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
             truncate(world, amo);
             normalize(world, amo);
-            aeps = e(Slice(-param.nmo_alpha, -1));
+            aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
 
             aocc = tensorT(param.nmo_alpha);
             for(int i = 0;i < param.nalpha;i++)
@@ -1441,10 +1445,10 @@ struct Calculation {
             //}
 
             if(param.nbeta && !param.spin_restricted){
-                bmo = transform(world, ao, c(_, Slice(-param.nmo_beta, -1)), 0.0, true);
+                bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
                 truncate(world, bmo);
                 normalize(world, bmo);
-                beps = e(Slice(-param.nmo_beta, -1));
+                beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
                 bocc = tensorT(param.nmo_beta);
                 for(int i = 0;i < param.nbeta;i++)
                     bocc[i] = 1.0;
