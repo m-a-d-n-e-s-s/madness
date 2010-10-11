@@ -37,7 +37,7 @@
 #include <fortran_ctypes.h>
 #include <cmath>
 
-#include "poperator.h"
+//#include "poperator.h"
 #include "libxc.h"
 #include "electronicstructureparams.h"
 #include "complexfun.h"

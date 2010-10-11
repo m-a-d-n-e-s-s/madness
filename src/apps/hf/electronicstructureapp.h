@@ -43,7 +43,7 @@
 #include <mra/mra.h>
 #include <misc/ran.h>
 #include "electronicstructureparams.h"
-#include "poperator.h"
+//#include "poperator.h"
 #include "libxc.h"
 #include "complexfun.h"
 #include "esolver.h"
