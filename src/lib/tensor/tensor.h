@@ -2363,7 +2363,7 @@ namespace madness {
     Tensor< typename Tensor<T>::scalar_type > abs(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
         Tensor<scalar_type> result(t.ndim(),t.dims(),false);
-        BINARY_OPTIMIZED_ITERATOR(scalar_type,result,T,t,*_p0 = std::abs(*_p1));
+        BINARY_OPTIMIZED_ITERATOR(scalar_type,result,const T,t,*_p0 = std::abs(*_p1));
         return result;
     }
 
