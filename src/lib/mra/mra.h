@@ -1343,6 +1343,58 @@ namespace madness {
         return (f*R(-1.0)).add_scalar(r);
     }
 
+    namespace detail {
+        template <int NDIM>
+        struct realop {
+            typedef double resultT;
+            Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
+                return real(t);
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+
+        template <int NDIM>
+        struct imagop {
+            typedef double resultT;
+            Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
+                return imag(t);
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+
+        template <int NDIM>
+        struct abssqop {
+            typedef double resultT;
+            Tensor<double> operator()(const Key<NDIM>& key, const Tensor<double_complex>& t) const {
+                Tensor<double> r = abs(t);
+                return r.emul(r);
+            }
+
+            template <typename Archive> void serialize (Archive& ar) {}
+        };
+    }
+    
+    /// Returns a new function that is the real part of the input
+    template <int NDIM>
+    Function<double,NDIM> real(const Function<double_complex,NDIM>& z, bool fence=true) {
+        return unary_op_coeffs(z, detail::realop<NDIM>(), fence);
+    }
+
+    /// Returns a new function that is the imaginary part of the input
+    template <int NDIM>
+    Function<double,NDIM> imag(const Function<double_complex,NDIM>& z, bool fence=true) {
+        return unary_op_coeffs(z, detail::imagop<NDIM>(), fence);
+    }
+
+    /// Returns a new function that is the square of the absolute value of the input
+    template <int NDIM>
+    Function<double,NDIM> abssq(const Function<double_complex,NDIM>& z, bool fence=true) {
+        return unary_op(z, detail::abssqop<NDIM>(), fence);
+    }
+
+
 
 #include <mra/funcplot.h>
 
