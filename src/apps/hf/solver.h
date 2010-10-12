@@ -1299,66 +1299,68 @@ namespace madness
           //if (_world.rank() == 0) print("\n");
 
           // DEBUG
-          if (_world.rank() == 0) printf("Overlap: \n");
-          for (int i = 0; i < kinetic.dim(0); i++)
-          {
-            for (int j = 0; j < kinetic.dim(1); j++)
-            {
-              if (_world.rank() == 0) printf("%10.5f", real(overlap(i,j)));
-            }
-            if (_world.rank() == 0) printf("\n");
-          }
-          if (_world.rank() == 0) printf("\n");
-          if (_world.rank() == 0) printf("\n");
+          if (_params.print_matrices && _world.rank() == 0) {
+              printf("Overlap: \n");
+              for (int i = 0; i < kinetic.dim(0); i++)
+                  {
+                      for (int j = 0; j < kinetic.dim(1); j++)
+                          {
+                              printf("%10.5f", real(overlap(i,j)));
+                          }
+                      printf("\n");
+                  }
+              printf("\n");
+              printf("\n");
 
-          if (_world.rank() == 0) printf("Kinetic: \n");
-          for (int i = 0; i < kinetic.dim(0); i++)
-          {
-            for (int j = 0; j < kinetic.dim(1); j++)
-            {
-              if (_world.rank() == 0) printf("%10.5f", real(kinetic(i,j)));
-            }
-            if (_world.rank() == 0) printf("\n");
-          }
-          if (_world.rank() == 0) printf("\n");
-          if (_world.rank() == 0) printf("\n");
+              printf("Kinetic: \n");
+              for (int i = 0; i < kinetic.dim(0); i++)
+                  {
+                      for (int j = 0; j < kinetic.dim(1); j++)
+                          {
+                              printf("%10.5f", real(kinetic(i,j)));
+                          }
+                      printf("\n");
+                  }
+              printf("\n");
+              printf("\n");
 
-          if (_world.rank() == 0) printf("V: \n");
-          for (int i = 0; i < potential.dim(0); i++)
-          {
-            for (int j = 0; j < potential.dim(1); j++)
-            {
-              if (_world.rank() == 0) printf("%10.5f", real(potential(i,j)));
-            }
-            if (_world.rank() == 0) printf("\n");
-          }
-          if (_world.rank() == 0) printf("\n");
-          if (_world.rank() == 0) printf("\n");
+              printf("V: \n");
+              for (int i = 0; i < potential.dim(0); i++)
+                  {
+                      for (int j = 0; j < potential.dim(1); j++)
+                          {
+                              printf("%10.5f", real(potential(i,j)));
+                          }
+                      printf("\n");
+                  }
+              printf("\n");
+              printf("\n");
 
-          if (_world.rank() == 0) printf("Fock: \n");
-          for (int i = 0; i < fock.dim(0); i++)
-          {
-            for (int j = 0; j < fock.dim(1); j++)
-            {
-              if (_world.rank() == 0) printf("%10.5f", real(fock(i,j)));
-            }
-            if (_world.rank() == 0) printf("\n");
-          }
-          if (_world.rank() == 0) printf("\n");
-          if (_world.rank() == 0) printf("\n");
+              printf("Fock: \n");
+              for (int i = 0; i < fock.dim(0); i++)
+                  {
+                      for (int j = 0; j < fock.dim(1); j++)
+                          {
+                              printf("%10.5f", real(fock(i,j)));
+                          }
+                      printf("\n");
+                  }
+              printf("\n");
+              printf("\n");
 
-          if (_world.rank() == 0) printf("New overlap: \n");
-          for (int i = 0; i < overlap2.dim(0); i++)
-          {
-            for (int j = 0; j < overlap2.dim(1); j++)
-            {
-              if (_world.rank() == 0) printf("%10.5f", real(overlap2(i,j)));
-            }
-            if (_world.rank() == 0) printf("\n");
+              printf("New overlap: \n");
+              for (int i = 0; i < overlap2.dim(0); i++)
+                  {
+                      for (int j = 0; j < overlap2.dim(1); j++)
+                          {
+                              printf("%10.5f", real(overlap2(i,j)));
+                          }
+                      printf("\n");
+                  }
+              printf("\n");
+              printf("\n");
           }
-          if (_world.rank() == 0) printf("\n");
-          if (_world.rank() == 0) printf("\n");
-
+              
           // Fill in orbitals and eigenvalues
           int kend = kp + _params.nbands;
           kpt.begin = kp;
@@ -1470,7 +1472,7 @@ namespace madness
      \brief Compute the electronic density for either a molecular or periodic
             system.
      */
-    rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
+    rfuntionT compute_rho_slow(const vecfuncT& phis, std::vector<KPoint> kpoints)
     {
       // Electron density
       rfuntionT rho = rfactoryT(_world);
@@ -1501,6 +1503,41 @@ namespace madness
 
       return rho;
     }
+
+
+    rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
+    {
+      if (_world.rank() == 0) _outputF << "computing rho ..." << endl;
+      rfunctionT rho = rfactoryT(_world);       // Electron density
+
+      reconstruct(_world, phis); // For max parallelism
+      std::vector<rfunctionT> phisq(phis.size());
+      for (unsigned int i=0; i<phis.size(); i++) {
+          phisq[i] = abssq(phis[i],false); 
+      }
+      _world.gop.fence();
+      std::vector<double> phinorm = norm2s(_world, phis);
+
+      compress(_world,phisq); // since will be using gaxpy for accumulation
+      rho.compress();
+
+      // Loop over k-points
+      for (unsigned int kp = 0; kp < kpoints.size(); kp++)  {
+          // get k-point
+          KPoint kpoint = kpoints[kp];
+          // loop through bands
+          for (unsigned int j = kpoint.begin; j < kpoint.end; j++)  {
+              rho.gaxpy(1.0, phisq[j], 0.5 * _occs[j] * kpoint.weight / (phinorm[j]*phinorm[j]), false);
+        }
+      }
+      _world.gop.fence();
+      phisq.clear();
+      rho.truncate();
+
+      return rho;
+    }
+
+
     //***************************************************************************
 
     //***************************************************************************
@@ -1659,12 +1696,12 @@ namespace madness
       if (_world.rank() == 0)
       {
         print("Energies:");
-      }
         print("Kinetic energy:\t\t ", ke);
         print("Potential energy:\t ", pe);
         print("Coulomb energy:\t\t ", ce);
         print("Exchage energy:\t\t ", xc, "\n");
         print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
+      }
     }
     //*************************************************************************
 
@@ -1933,12 +1970,12 @@ namespace madness
 //          }
 
           // Debug output
-          if (_world.rank() == 0)
+          if (_params.print_matrices && _world.rank() == 0)
           { _matF << "Iteration: " << _it << endl;
             _matF << "Overlap matrix:" << endl;
             print_tensor2d<valueT>(_matF, overlap);
           }
-          if (_world.rank() == 0)
+          if (_params.print_matrices && _world.rank() == 0)
           { _matF << "Fock matrix:" << endl;
             print_tensor2d<valueT>(_matF, fock);
           }
@@ -2025,17 +2062,16 @@ namespace madness
           }
 
           // Debug output
-          if (_world.rank() == 0)
-          { print("Overlap matrix:");
-            print(overlap);
-          }
-          if (_world.rank() == 0)
-          { print("Fock matrix:");
-            print(fock);
-          }
-          if (_world.rank() == 0)
-          { print("U matrix: (eigenvectors)");
-            print(U);
+          if (_params.print_matrices && _world.rank() == 0)
+          { 
+              print("Overlap matrix:");
+              print(overlap);
+              
+              print("Fock matrix:");
+              print(fock);
+
+              print("U matrix: (eigenvectors)");
+              print(U);
           }
 
           if (_params.solver == 0)

@@ -103,6 +103,8 @@ struct ElectronicStructureParams
   double ncharge;
   // width for smearing
   double swidth;
+  // print matrices
+  bool print_matrices;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -113,7 +115,7 @@ struct ElectronicStructureParams
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
         koffset2 & basis & nio & restart & ncharge & 
-        swidth;
+        swidth & print_matrices;
   }
 
   ElectronicStructureParams()
@@ -149,6 +151,7 @@ struct ElectronicStructureParams
     restart = 0;
     ncharge = 0;
     swidth = 0.001;
+    print_matrices = true;
   }
 
   void read_file(const std::string& filename)
@@ -335,6 +338,12 @@ struct ElectronicStructureParams
       else if (s == "koffset")
       {
         f >> koffset0; f >> koffset1; f >> koffset2;
+      }
+      else if (s == "print_matrices") {
+          print_matrices = true;
+      }
+      else if (s == "noprint_matrices") {
+          print_matrices = false;
       }
       else
       {
