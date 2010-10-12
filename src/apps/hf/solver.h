@@ -58,10 +58,10 @@ using std::ostream;
 */
 
 //*****************************************************************************
-static double onesfunc(const coordT& x)
-{
-  return 1.0;
-}
+/* static double onesfunc(const coordT& x) */
+/* { */
+/*   return 1.0; */
+/* } */
 //*****************************************************************************
 
 namespace madness

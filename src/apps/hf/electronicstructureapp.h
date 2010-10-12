@@ -148,8 +148,10 @@ class AtomicBasisFunctor : public FunctionFunctorInterface<std::complex<double>,
 private:
   const AtomicBasisFunction aofunc;
   const double R;
+  const double rangesq;
   const bool periodic;
   const KPoint kpt;
+  coordT r;
   std::vector<coordT> _specialpts;
 //  const int NTRANS = 2;
   Vector<std::complex<double>,2*NTRANS+1> tx;
@@ -158,11 +160,11 @@ private:
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
                      bool periodic, const KPoint kpt)
-  : aofunc(aofunc), R(R), periodic(periodic), kpt(kpt)
+      : aofunc(aofunc), R(R), rangesq(aofunc.rangesq()), periodic(periodic), kpt(kpt)
   {
     double x, y, z;
     aofunc.get_coords(x,y,z);
-    coordT r;
+    
     r[0]=x; r[1]=y; r[2]=z;
     _specialpts=std::vector<coordT>(1,r);
 
@@ -182,26 +184,32 @@ public:
   std::complex<double> operator()(const coordT& x) const
   {
     std::complex<double> value = 0.0;
-    if (periodic)
-    {
-      for (int xr = -NTRANS; xr <= NTRANS; xr += 1)
-      {
-        for (int yr = -NTRANS; yr <= NTRANS; yr += 1)
-        {
-          for (int zr = -NTRANS; zr <= NTRANS; zr += 1)
-          {
-            std::complex<double> t1 = tx[xr+NTRANS]*ty[yr+NTRANS]*tz[zr+NTRANS];
-            double kx0 = kpt.k[0] * x[0];
-            double kx1 = kpt.k[1] * x[1];
-            double kx2 = kpt.k[2] * x[2];
-            std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
-            value += t1 * t2 * aofunc(x[0]+xr*R, x[1]+yr*R, x[2]+zr*R);
-          }
+    if (periodic) {
+        for (int xx=-NTRANS; xx<=NTRANS; xx++)  {
+            const double xxR = xx*R + x[0] -r[0];
+            const double xxRsq = xxR*xxR;
+            if (xxRsq < rangesq) {
+                for (int yy=-NTRANS; yy<=NTRANS; yy++) {
+                    const double yyR = yy*R + x[1] - r[1];
+                    const double yyRsq = xxRsq + yyR*yyR;
+                    if (yyRsq < rangesq) {
+                        for (int zz=-NTRANS; zz<=NTRANS; zz++)  {
+                            double ao = aofunc(xx*R+x[0], yy*R+x[1], zz*R+x[2]);
+                            if (fabs(ao) > 1e-8) {
+                                std::complex<double> t1 = tx[xx+NTRANS]*ty[yy+NTRANS]*tz[zz+NTRANS];
+                                double kx0 = kpt.k[0] * x[0];
+                                double kx1 = kpt.k[1] * x[1];
+                                double kx2 = kpt.k[2] * x[2];
+                                std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
+                                value += t1 * t2 * ao;
+                            }
+                        }
+                    }
+                }
+            }
         }
-      }
     }
-    else
-    {
+    else  {
       value = aofunc(x[0], x[1], x[2]);
     }
     return value;
