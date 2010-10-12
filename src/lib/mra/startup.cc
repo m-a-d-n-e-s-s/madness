@@ -31,7 +31,7 @@
 
   $Id$
 */
-
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 /// \file mra/startup.cc
 

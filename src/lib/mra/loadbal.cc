@@ -958,13 +958,13 @@ namespace madness {
     template class LoadBalImpl<2>;
     template class LoadBalImpl<3>;
     template class LoadBalImpl<4>;
-    //template class LoadBalImpl<5>;
-    //template class LoadBalImpl<6>;
+    template class LoadBalImpl<5>;
+    template class LoadBalImpl<6>;
 
     template class LBTree<1>;
     template class LBTree<2>;
     template class LBTree<3>;
     template class LBTree<4>;
-    //template class LBTree<5>;
-    //template class LBTree<6>;
+    template class LBTree<5>;
+    template class LBTree<6>;
 }
