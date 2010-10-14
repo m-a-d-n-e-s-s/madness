@@ -363,7 +363,7 @@ namespace madness {
 #include <world/worldexc.h>
 //#include <world/worldmem.h>
 #include <world/print.h>
-//#include <world/worldhash.h>
+#include <world/worldhashmap.h>
 #include <world/array.h>
 #include <world/dqueue.h>
 #include <world/sharedptr.h>

@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_WORLD_WORLDPROFILE_H__INCLUDED
@@ -35,9 +35,12 @@
 
 #include <madness_config.h>
 #include <world/worldtypes.h>
-#include <world/worldtime.h>
-#include <world/worldthread.h>
-#include <world/worldhashmap.h>
+#include <world/worldmutex.h>
+//#include <world/worldtime.h>
+//#include <world/worldthread.h>
+//#include <world/worldhashmap.h>
+#include <string>
+#include <vector>
 
 // NEED TO ADD ATTRIBUTION TO SHINY ON SOURCE FORGE
 
@@ -46,6 +49,8 @@
 #endif
 
 namespace madness {
+
+    class World;
 
     /// Simple container for parallel profile statistic
     template <typename T>
@@ -85,7 +90,7 @@ namespace madness {
         void serialize(const Archive& ar) {
             ar & value & max & min & sum & pmax & pmin;
         }
-    };
+    }; // struct ProfileStat
 
     /// Used to store profiler info
     struct WorldProfileEntry : public Spinlock {
@@ -96,56 +101,27 @@ namespace madness {
         ProfileStat<double> xcpu; ///< exclusive cpu time (i.e., excluding calls)
         ProfileStat<double> icpu; ///< inclusive cpu call (i.e., including calls)
 
-        WorldProfileEntry(const char* name = "")
-                : name(name), depth(0) {};
+        WorldProfileEntry(const char* name = "");
 
-        WorldProfileEntry(const WorldProfileEntry& other)
-                : Spinlock() {
-            *this = other;
-        }
+        WorldProfileEntry(const WorldProfileEntry& other);
 
-        WorldProfileEntry& operator=(const WorldProfileEntry& other) {
-            name = other.name;
-            depth = other.depth;
-            count = other.count;
-            xcpu = other.xcpu;
-            icpu = other.icpu;
-            return *this;
-        }
+        WorldProfileEntry& operator=(const WorldProfileEntry& other);
 
-        static bool exclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
-            return a.xcpu.sum > b.xcpu.sum;
-        }
+        static bool exclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b);
 
-        static bool inclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b) {
-            return a.icpu.sum > b.icpu.sum;
-        }
+        static bool inclusivecmp(const WorldProfileEntry&a, const WorldProfileEntry& b);
 
-        void init_par_stats(ProcessID me) {
-            count.init_par_stats(me);
-            xcpu.init_par_stats(me);
-            icpu.init_par_stats(me);
-        }
+        void init_par_stats(ProcessID me);
 
-        void par_reduce(const WorldProfileEntry& other) {
-            count.par_reduce(other.count);
-            xcpu.par_reduce(other.xcpu);
-            icpu.par_reduce(other.icpu);
-        }
+        void par_reduce(const WorldProfileEntry& other);
 
-        void clear() {
-            count.clear();
-            xcpu.clear();
-            icpu.clear();
-        }
+        void clear();
 
         template <class Archive>
         void serialize(const Archive& ar) {
             ar & name & depth & count & xcpu & icpu;
         }
-    };
-
-    class World;
+    }; // struct WorldProfileEntry
 
 
     /// Singleton-like class for holding profiling data and functionality
@@ -158,68 +134,25 @@ namespace madness {
         static double cpu_start;
         static double wall_start;
 
-        static std::vector<WorldProfileEntry>& nvitems() {
-            return const_cast<std::vector<WorldProfileEntry>&>(items);
-        }
+        static std::vector<WorldProfileEntry>& nvitems();
 
 
         /// Returns id of the entry associated with the name.  Returns -1 if not found;
-        static int find(const std::string& name) {
-            // ASSUME WE HAVE THE MUTEX ALREADY
-            std::vector<WorldProfileEntry>& nv = nvitems();
-            size_t sz = nv.size();
-            if (sz == 0) nv.reserve(1000); // Avoid resizing during execution ... stupid code somewhere below not thread safe?
-            if (sz >=1000) MADNESS_EXCEPTION("WorldProfile: did not reserve enough space!", sz);
-            for (unsigned int i=0; i<nv.size(); i++) {
-                if (name == nv[i].name) return i;
-            }
-            return -1;
-        }
+        static int find(const std::string& name);
 
 
     public:
         /// Returns id for the name, registering if necessary.
-        static int register_id(const char* name) {
-            ScopedMutex<Spinlock> fred(mutex);
-            int id = find(name);
-            if (id < 0) {
-                std::vector<WorldProfileEntry>& nv = nvitems();
-                id = nv.size();
-                nv.push_back(name);
-            }
-            return id;
-        }
+        static int register_id(const char* name);
 
         /// Returns id for the name, registering if necessary.
-        static int register_id(const char* classname, const char* function) {
-            ScopedMutex<Spinlock> fred(mutex);
-            std::string name = std::string(classname) + std::string("::") + std::string(function);
-            int id = find(name.c_str());
-            if (id < 0) {
-                std::vector<WorldProfileEntry>& nv = nvitems();
-                id = nv.size();
-                nv.push_back(name.c_str());
-            }
-            return id;
-        }
+        static int register_id(const char* classname, const char* function);
 
         /// Clears all profiling information
-        static void clear() {
-            ScopedMutex<Spinlock> fred(mutex);
-            cpu_start = madness::cpu_time();
-            wall_start = madness::wall_time();
-            std::vector<WorldProfileEntry>& nv = nvitems();
-            for (unsigned int i=0; i<nv.size(); i++) {
-                nv[i].clear();
-            }
-        }
+        static void clear();
 
         /// Returns a reference to the specified entry.  Throws if id is invalid.
-        static WorldProfileEntry& get_entry(int id) {
-            std::vector<WorldProfileEntry>& nv = nvitems();
-            if (id<0 || id >= int(nv.size())) MADNESS_EXCEPTION("WorldProfileEntry: get_entry: invalid id", id);
-            return nv[id];
-        }
+        static WorldProfileEntry& get_entry(int id);
 
         /// Prints global profiling information.  Global fence involved.  Implemented in worldstuff.cc
         static void print(World& world);
@@ -238,38 +171,15 @@ namespace madness {
         double cpu_start;            ///< Time that I was at top of stack
     public:
 
-        WorldProfileObj(int id) : prev(call_stack), id(id), cpu_base(madness::cpu_time()) {
-            cpu_start = cpu_base;
-            call_stack = this;
-            WorldProfile::get_entry(id).depth++; // Keep track of recursive calls to avoid double counting time in self
-            if (prev) prev->pause(cpu_start);
-        }
+        WorldProfileObj(int id);
 
         /// Pause profiling while we are not executing ... accumulate time in self
-        void pause(double now) {
-            ScopedMutex<Spinlock> martha(WorldProfile::get_entry(id));
-            WorldProfile::get_entry(id).xcpu.value += (now - cpu_start);
-        }
+        void pause(double now);
 
         /// Resume profiling
-        void resume(double now) {
-            cpu_start = now;
-        }
+        void resume(double now);
 
-        ~WorldProfileObj() {
-            // if (call_stack != this) throw "WorldProfileObject: call stack confused\n"; // destructors should not throw
-            double now = madness::cpu_time();
-            WorldProfileEntry& d = WorldProfile::get_entry(id);
-            {
-                ScopedMutex<Spinlock> martha(d);
-                d.count.value++;
-                d.xcpu.value += (now - cpu_start);
-                d.depth--;
-                if (d.depth == 0) d.icpu.value += (now - cpu_base); // Don't double count recursive calls
-            }
-            call_stack = prev;
-            if (call_stack) call_stack->resume(now);
-        }
+        ~WorldProfileObj();
     };
 }
 
