@@ -37,8 +37,14 @@
 
 namespace madness {
     namespace detail {
-        madness::Mutex RemoteCounter::global_mutex_;
+        madness::Mutex RemoteCounter::mutex_;
         RemoteCounter::pimpl_mapT RemoteCounter::pimpl_map_;
+
+        void RemoteCounter::unregister_ptr_(void* k) {
+            ScopedMutex<Mutex> buckleup(&mutex_);
+            std::size_t ereased = pimpl_map_.erase(k);
+            MADNESS_ASSERT(ereased == 1);
+        }
 
         /// Clean-up the implementation object
 
@@ -46,30 +52,26 @@ namespace madness {
         /// release the current reference. If the count drops to zero, then
         /// this is the last reference to the pimpl and it should be deleted.
         void RemoteCounter::destroy() {
-            if(pimpl_ != NULL) {
+            if(pimpl_) {
                 if(pimpl_->relase()) {
-                    {
-                        ScopedMutex<Mutex> buckleup(&global_mutex_);
-                        std::size_t ereased = pimpl_map_.erase(pimpl_->get());
-                        MADNESS_ASSERT(ereased == 1);
-                    }
-
                     // No one else is referencing this pointer.
-                    // We can safely delete it.
-                    delete pimpl_;
+                    // We can safely dispose of it.
+                    unregister_ptr_(pimpl_->get());
+                    delete pimpl_.get();
                 }
             }
 
-            pimpl_ = NULL;
+            pimpl_ = WorldPtr<implT>();
         }
 
+        RemoteCounter::RemoteCounter(const WorldPtr<implT>& p) : pimpl_(p) { }
 
-        RemoteCounter::RemoteCounter() : pimpl_(NULL) { }
+        RemoteCounter::RemoteCounter() : pimpl_() { }
 
         RemoteCounter::RemoteCounter(const RemoteCounter& other) :
             pimpl_(other.pimpl_)
         {
-            if(pimpl_ != NULL)
+            if(pimpl_ && pimpl_.is_local())
                 pimpl_->add_ref();
         }
 
@@ -78,10 +80,10 @@ namespace madness {
         }
 
         RemoteCounter& RemoteCounter::operator=(const RemoteCounter& other) {
-            RemoteCounterBase* temp = other.pimpl_;
+            WorldPtr<implT> temp = other.pimpl_;
 
             if(pimpl_ != temp) {
-                if(temp != NULL)
+                if(temp)
                     temp->add_ref();
                 destroy();
                 pimpl_ = temp;
@@ -90,9 +92,9 @@ namespace madness {
             return *this;
         }
 
-        long RemoteCounter::use_count() const { return (pimpl_ != NULL ? pimpl_->use_count() : 0); }
+        long RemoteCounter::use_count() const { return (pimpl_ ? pimpl_->use_count() : 0); }
         bool RemoteCounter::unique() const { return use_count() == 1; }
-        bool RemoteCounter::empty() const { return pimpl_ == NULL; }
+        bool RemoteCounter::empty() const { return pimpl_; }
         void RemoteCounter::swap(RemoteCounter& other) {
             std::swap(pimpl_, other.pimpl_);
         }
