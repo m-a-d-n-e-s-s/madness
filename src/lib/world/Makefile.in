@@ -42,7 +42,7 @@ bin_PROGRAMS = world$(EXEEXT) testhashthreaded$(EXEEXT) \
 	testdc$(EXEEXT) objexample$(EXEEXT) objexample2$(EXEEXT) \
 	testprof$(EXEEXT) helloworld$(EXEEXT) taskexample$(EXEEXT) \
 	testatomicint$(EXEEXT) testhashdc$(EXEEXT) array_test$(EXEEXT) \
-	world_test$(EXEEXT) qtest$(EXEEXT)
+	world_test$(EXEEXT) qtest$(EXEEXT) worldprofile_test$(EXEEXT)
 subdir = src/lib/world
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -105,7 +105,8 @@ am_libMADworld_a_OBJECTS = worldstuff.$(OBJEXT) redirectio.$(OBJEXT) \
 	archive_type_names.$(OBJEXT) debug.$(OBJEXT) print.$(OBJEXT) \
 	worldmem.$(OBJEXT) lookup3.$(OBJEXT) threadpool.$(OBJEXT) \
 	worldrmi.$(OBJEXT) safempi.$(OBJEXT) worldpapi.$(OBJEXT) \
-	worldref.$(OBJEXT) $(am__objects_1)
+	worldref.$(OBJEXT) worldam.$(OBJEXT) worldprofile.$(OBJEXT) \
+	worldthread.$(OBJEXT) $(am__objects_1)
 libMADworld_a_OBJECTS = $(am_libMADworld_a_OBJECTS)
 PROGRAMS = $(bin_PROGRAMS)
 am_array_test_OBJECTS = array_test-array_test.$(OBJEXT)
@@ -155,6 +156,9 @@ world_test_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
 	libMADworld.a
 world_test_LINK = $(CXXLD) $(world_test_CXXFLAGS) $(CXXFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+am_worldprofile_test_OBJECTS = worldprofile_test.$(OBJEXT)
+worldprofile_test_OBJECTS = $(am_worldprofile_test_OBJECTS)
+worldprofile_test_DEPENDENCIES = libMADworld.a
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -173,13 +177,15 @@ SOURCES = $(libMADworld_a_SOURCES) $(array_test_SOURCES) \
 	$(objexample2_SOURCES) $(qtest_SOURCES) $(taskexample_SOURCES) \
 	$(testatomicint_SOURCES) $(testdc_SOURCES) \
 	$(testhashdc_SOURCES) $(testhashthreaded_SOURCES) \
-	$(testprof_SOURCES) $(world_SOURCES) $(world_test_SOURCES)
+	$(testprof_SOURCES) $(world_SOURCES) $(world_test_SOURCES) \
+	$(worldprofile_test_SOURCES)
 DIST_SOURCES = $(libMADworld_a_SOURCES) $(array_test_SOURCES) \
 	$(helloworld_SOURCES) $(objexample_SOURCES) \
 	$(objexample2_SOURCES) $(qtest_SOURCES) $(taskexample_SOURCES) \
 	$(testatomicint_SOURCES) $(testdc_SOURCES) \
 	$(testhashdc_SOURCES) $(testhashthreaded_SOURCES) \
-	$(testprof_SOURCES) $(world_SOURCES) $(world_test_SOURCES)
+	$(testprof_SOURCES) $(world_SOURCES) $(world_test_SOURCES) \
+	$(worldprofile_test_SOURCES)
 HEADERS = $(thisinclude_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -370,8 +376,11 @@ qtest_SOURCES = qtest.cc
 qtest_LDADD = libMADworld.a
 world_SOURCES = world.cc
 world_LDADD = libMADworld.a
+worldprofile_test_SOURCES = worldprofile_test.cc
+worldprofile_test_LDADD = libMADworld.a
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc print.cc worldmem.cc lookup3.c \
                          threadpool.cc worldrmi.cc safempi.cc worldpapi.cc worldref.cc \
+                         worldam.cc worldprofile.cc worldthread.cc \
                      \
                      $(thisinclude_HEADERS)
 
@@ -521,6 +530,9 @@ world$(EXEEXT): $(world_OBJECTS) $(world_DEPENDENCIES)
 world_test$(EXEEXT): $(world_test_OBJECTS) $(world_test_DEPENDENCIES) 
 	@rm -f world_test$(EXEEXT)
 	$(world_test_LINK) $(world_test_OBJECTS) $(world_test_LDADD) $(LIBS)
+worldprofile_test$(EXEEXT): $(worldprofile_test_OBJECTS) $(worldprofile_test_DEPENDENCIES) 
+	@rm -f worldprofile_test$(EXEEXT)
+	$(CXXLINK) $(worldprofile_test_OBJECTS) $(worldprofile_test_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -548,11 +560,15 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/threadpool.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world_test-world_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldam.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldmem.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldpapi.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldprofile.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldprofile_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldref.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldrmi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldstuff.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldthread.Po@am__quote@
 
 .c.o:
 @am__fastdepCC_TRUE@	$(COMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

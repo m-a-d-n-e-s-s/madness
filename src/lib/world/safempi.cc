@@ -70,7 +70,7 @@ namespace SafeMPI {
     }
 
 
-    Intracomm::Intracomm(MPI::Intracomm& comm) : comm(comm) {
+    Intracomm::Intracomm(MPI::Intracomm& c) : comm(c) {
         SAFE_MPI_GLOBAL_MUTEX;
         me = comm.Get_rank();
         numproc = comm.Get_size();
@@ -158,12 +158,6 @@ namespace SafeMPI {
         if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
         return result;
     }
-
-    int Intracomm::rank() const { return Get_rank(); }
-
-    int Intracomm::nproc() const { return Get_size(); }
-
-    int Intracomm::size() const { return Get_size(); }
 
     /// Construct info about a binary tree with given root
 

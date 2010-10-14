@@ -233,11 +233,11 @@ namespace SafeMPI {
             Bcast(&buffer, sizeof(T), MPI::BYTE,root);
         }
 
-        int rank() const;
+        int rank() const { return Get_rank(); }
 
-        int nproc() const;
+        int nproc() const { return Get_size(); }
 
-        int size() const;
+        int size() const { return Get_size(); }
 
 
         /// Construct info about a binary tree with given root

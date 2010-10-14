@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc array_test world_test qtest
+bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof helloworld taskexample testatomicint testhashdc array_test world_test qtest worldprofile_test
 
 lib_LIBRARIES = libMADworld.a
 
@@ -57,8 +57,12 @@ qtest_LDADD = libMADworld.a
 world_SOURCES = world.cc
 world_LDADD = libMADworld.a
 
+worldprofile_test_SOURCES = worldprofile_test.cc
+worldprofile_test_LDADD = libMADworld.a
+
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc print.cc worldmem.cc lookup3.c \
                          threadpool.cc worldrmi.cc safempi.cc worldpapi.cc worldref.cc \
+                         worldam.cc worldprofile.cc worldthread.cc \
                      \
                      $(thisinclude_HEADERS)
 
