@@ -34,6 +34,7 @@
 #include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 #include <world/print.h>
+#include <world/worldtime.h>
 #include <vector>
 #include <stdio.h>
 #include <stdlib.h>

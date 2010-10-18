@@ -334,26 +334,34 @@ instantiate the templates that you are using.
 // #undef SEEK_END
 // #endif
 
-
+// Standerd C++ header files needed by world.h
 #include <iostream>
 #include <list>
 #include <utility>
 #include <cstddef>
 
+#ifdef HAVE_RANDOM
+#include <stdlib.h>
+#endif
+
 #ifdef UINT64_T
 typedef UINT64_T uint64_t;
 #endif
 
-
+// Madness world header files needed by world
 #include <world/safempi.h>
 #include <world/worldhashmap.h>
 #include <world/sharedptr.h>
 #include <world/archive.h>
 #include <world/worldprofile.h>
 
-#ifdef HAVE_RANDOM
-#include <stdlib.h>
-#endif
+// Header files not needed by world.h, but are a part of Madness world
+// We really do not want these here because they introduce a lot of potentially
+// unnecessary symbols into the compile process
+//#include <world/worlddc.h>
+//#include <world/print.h>
+//#include <world/worldobj.h>
+//#include <world/worldtime.h>
 
 namespace madness {
 

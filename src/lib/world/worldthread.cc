@@ -41,6 +41,7 @@
 #include <world/worldpapi.h>
 #include <world/safempi.h>
 #include <world/atomicint.h>
+#include <cstring>
 
 namespace madness {
 

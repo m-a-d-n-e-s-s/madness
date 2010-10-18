@@ -32,13 +32,9 @@
   $Id$
 */
 
-
-#include <madness_config.h>
 #include <world/world.h>
 #include <world/worldmem.h>
-#include <world/worldam.h>
-#include <world/worldtask.h>
-#include <world/worldgop.h>
+#include <world/worldtime.h>
 #include <cstdlib>
 #include <sstream>
 

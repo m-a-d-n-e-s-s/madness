@@ -36,11 +36,10 @@
 */
 
 #include <madness_config.h>
-#include <iostream>
-#include <iomanip>
 #ifdef WORLD_GATHER_MEM_STATS
 #include <new>
 #endif // WORLD_GATHER_MEM_STATS
+#include <cstddef>
 
 namespace madness {
 
@@ -58,26 +57,10 @@ namespace madness {
 #endif
     private:
         /// Invoked when user pointer p is allocated with size bytes
-        void do_new(void *p, std::size_t size) {
-            num_new_calls++;
-            cur_num_frags++;
-            if (cur_num_frags > max_num_frags) max_num_frags = cur_num_frags;
-            cur_num_bytes += size;
-            if (cur_num_bytes > max_num_bytes) max_num_bytes = cur_num_bytes;
-
-            if (trace)
-                std::cout << "WorldMemInfo: allocating " << p << " " << size << "\n";
-        }
+        void do_new(void *p, std::size_t size);
 
         /// Invoked when user pointer p is deleted with size bytes
-        void do_del(void *p, std::size_t size) {
-            num_del_calls++;
-            cur_num_frags--;
-            cur_num_bytes -= size;
-
-            if (trace)
-                std::cout << "WorldMemInfo: deleting " << p << " " << size << "\n";
-        }
+        void do_del(void *p, std::size_t size);
 
     public:
         static const unsigned long overhead = 4*sizeof(long) + 16;
@@ -92,34 +75,15 @@ namespace madness {
         bool trace;
 
         /// Prints memory use statistics to std::cout
-        void print() const {
-            std::cout.flush();
-            std::cout << "\n    MADNESS memory statistics\n";
-            std::cout << "    -------------------------\n";
-            std::cout << "      overhead bytes per frag " << std::setw(12)
-                << overhead << "\n";
-            std::cout << "         calls to new and del " << std::setw(12)
-                << num_new_calls << " " << std::setw(12) << num_del_calls << "\n";
-            std::cout << "  cur and max frags allocated " << std::setw(12)
-                << cur_num_frags << " " << std::setw(12) << max_num_frags << "\n";
-            std::cout << "  cur and max bytes allocated " << std::setw(12)
-                << cur_num_bytes << " " << std::setw(12) << max_num_bytes << "\n";
-        }
+        void print() const;
 
         /// Resets all counters to zero
-        void reset() {
-            num_new_calls = 0;
-            num_del_calls = 0;
-            cur_num_frags = 0;
-            max_num_frags = 0;
-            cur_num_bytes = 0;
-            max_num_bytes = 0;
-        }
+        void reset();
 
         /// If trace is set true a message is printed for every new and delete
         void set_trace(bool trace) {
             this->trace = trace;
-        };
+        }
 
         /// Set the maximum memory limit (trying to allocate more will throw MadnessException)
         void set_max_mem_limit(unsigned long max_mem_limit) {

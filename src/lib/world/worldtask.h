@@ -52,6 +52,7 @@
 #include <world/worldthread.h>
 #include <world/worldrange.h>
 #include <world/worldfut.h>
+#include <world/worldtime.h>
 
 namespace madness {
 
