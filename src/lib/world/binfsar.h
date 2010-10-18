@@ -42,6 +42,7 @@
 #include <fstream>
 #include <world/archive.h>
 #include <world/worldexc.h>
+#include <world/sharedptr.h>
 
 
 namespace madness {

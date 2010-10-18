@@ -39,6 +39,7 @@
 
 #include <world/world.h>
 #include <world/array.h>
+#include <world/worlddc.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
 

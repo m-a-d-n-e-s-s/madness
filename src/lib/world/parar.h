@@ -37,6 +37,7 @@
 /// \brief Implements ParallelInputArchive and ParallelOutputArchive
 
 #include <world/archive.h>
+#include <world/binfsar.h>
 
 #include <unistd.h>
 #include <cstring>

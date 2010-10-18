@@ -44,6 +44,9 @@
 
 #include <world/parar.h>
 #include <world/worldhashmap.h>
+#include <world/mpiar.h>
+#include <world/worldobj.h>
+#include <world/deferred_deleter.h>
 #include <set>
 
 namespace madness {
@@ -1495,7 +1498,7 @@ namespace madness {
                         }
                         else if (ar.io_node(p) == me) {
                             world->mpi.Send(int(1),p,tag); // Tell client to start sending
-                            MPIInputArchive source(*world, p);
+                            archive::MPIInputArchive source(*world, p);
                             long cookie;
                             unsigned long count;
 

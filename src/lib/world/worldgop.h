@@ -42,9 +42,18 @@
 /// If you can recall the Intel hypercubes, their comm lib used GOP as
 /// the abbreviation.
 
+#include <world/worldtypes.h>
+#include <world/bufar.h>
+#include <world/worldmpi.h>
+#include <world/deferred_cleanup.h>
 
 
 namespace madness {
+
+    class World;
+    class WorldAmInterface;
+    class WorldTaskQueue;
+
     template <typename T>
     struct WorldSumOp {
         inline T operator()(const T& a, const T& b) const {
@@ -93,39 +102,33 @@ namespace madness {
     /// If native AM interoperates with MPI we probably should map these to MPI.
     class WorldGopInterface {
     private:
-        World& world;
-        WorldMpiInterface& mpi;
-        WorldAmInterface& am;
-        WorldTaskQueue& taskq;
-        ProcessID rank;
-        const int nproc;
-        bool debug;
+        WorldMpiInterface& mpi; ///< MPI interface
+        WorldAmInterface& am;   ///< AM interface
+        WorldTaskQueue& taskq;  ///< Task queue interface
+        detail::DeferredCleanup deferred; ///< Deferred cleanup object.
+        ProcessID rank;         ///< The rank of this process
+        const int nproc;        ///< The number of processes
+        bool debug;             ///< Debug mode
+
+        // The only way to put something in the deferred cleanup list
+        template<typename T, typename D>
+        friend class DeferredDeleter;
+
+
+
+        static void await(SafeMPI::Request& req);
+
     public:
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
-        WorldGopInterface(World& world)
-                : world(world)
-                , mpi(world.mpi)
-                , am(world.am)
-                , taskq(world.taskq)
-                , rank(world.mpi.rank())
-                , nproc(world.mpi.size())
-                , debug(false) {};
+        WorldGopInterface(World& world);
 
 
         /// Set debug flag to new value and return old value
-        bool set_debug(bool value) {
-            bool status = debug;
-            debug = value;
-            return status;
-        };
+        bool set_debug(bool value);
 
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
-        void barrier() {
-            long i = rank;
-            sum(i);
-            if (i != nproc*(nproc-1)/2) error("bad value after sum in barrier");
-        };
+        void barrier();
 
 
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
@@ -137,111 +140,13 @@ namespace madness {
         /// constant over two traversals.  We are then we are sure
         /// that all tasks and AM are processed and there no AM in
         /// flight.
-        void fence() {
-            PROFILE_MEMBER_FUNC(WorldGopInterface);
-            unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
-            SafeMPI::Request req0, req1;
-            ProcessID parent, child0, child1;
-            mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gfence_tag = mpi.unique_tag();
-            int npass = 0;
-
-            //double start = wall_time();
-
-            while (1) {
-                uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
-                if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
-                if (child1 != -1) req1 = mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
-                world.taskq.fence();
-                if (child0 != -1) World::await(req0);
-                if (child1 != -1) World::await(req1);
-
-                bool finished;
-                uint64_t ntask1, nsent1, nrecv1, ntask2, nsent2, nrecv2;
-                do {
-                    taskq.fence();
-
-                    // Since the number of outstanding tasks and number of AM sent/recv
-                    // don't share a critical section read each twice and ensure they
-                    // are unchanged to ensure that are consistent ... they don't have
-                    // to be current.
-
-                    ntask1 = taskq.size();
-                    nsent1 = am.nsent;
-                    nrecv1 = am.nrecv;
-
-                    __asm__ __volatile__ (" " : : : "memory");
-
-                    ntask2 = taskq.size();
-                    nsent2 = am.nsent;
-                    nrecv2 = am.nrecv;
-
-                    __asm__ __volatile__ (" " : : : "memory");
-
-                    finished = (ntask2==0) && (ntask1==0) && (nsent1==nsent2) && (nrecv1==nrecv2);
-                }
-                while (!finished);
-
-                sum[0] = sum0[0] + sum1[0] + nsent2; // Must use values read above
-                sum[1] = sum0[1] + sum1[1] + nrecv2;
-
-                if (parent != -1) {
-                    req0 = mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
-                    World::await(req0);
-                }
-
-                // While we are probably idle free unused communication buffers
-                world.am.free_managed_buffers();
-
-                //bool dowork = (npass==0) || (ThreadPool::size()==0);
-                bool dowork = true;
-                broadcast(&sum, sizeof(sum), 0, dowork);
-                npass++;
-
-                //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
-
-                if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
-                    break;
-                }
-
-//                 if (wall_time() - start > 1200.0) {
-//                     std::cout << world.rank() << " FENCE " << nsent2 << " " << nsent_prev << " " << nrecv2 << " " << nrecv_prev << " " << sum[0] << " " << sum[1] << " " << npass << " " << taskq.size() << std::endl;
-//                     std::cout.flush();
-//                     //myusleep(1000);
-//                     MADNESS_ASSERT(0);
-//                 }
-
-                nsent_prev = sum[0];
-                nrecv_prev = sum[1];
-
-            };
-            world.am.free_managed_buffers(); // free up communication buffers
-            world.do_deferred_cleanup();
-        };
+        void fence();
 
 
         /// Broadcasts bytes from process root while still processing AM & tasks
 
         /// Optimizations can be added for long messages
-        void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true) {
-            SafeMPI::Request req0, req1;
-            ProcessID parent, child0, child1;
-            mpi.binary_tree_info(root, parent, child0, child1);
-            Tag bcast_tag = mpi.unique_tag();
-
-            //print("BCAST TAG", bcast_tag);
-
-            if (parent != -1) {
-                req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
-                World::await(req0, dowork);
-            }
-
-            if (child0 != -1) req0 = mpi.Isend(buf, nbyte, MPI::BYTE, child0, bcast_tag);
-            if (child1 != -1) req1 = mpi.Isend(buf, nbyte, MPI::BYTE, child1, bcast_tag);
-
-            if (child0 != -1) World::await(req0, dowork);
-            if (child1 != -1) World::await(req1, dowork);
-        };
+        void broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork = true);
 
 
         /// Broadcasts typed contiguous data from process root while still processing AM & tasks
@@ -271,7 +176,7 @@ namespace madness {
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
-            if (world.rank() == root) {
+            if (rank == root) {
                 archive::BufferOutputArchive count;
                 count & obj;
                 BUFLEN = count.size();
@@ -279,12 +184,12 @@ namespace madness {
             broadcast(BUFLEN, root);
 
             unsigned char* buf = new unsigned char[BUFLEN];
-            if (world.rank() == root) {
+            if (rank == root) {
                 archive::BufferOutputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             broadcast(buf, BUFLEN, root);
-            if (world.rank() != root) {
+            if (rank != root) {
                 archive::BufferInputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
@@ -308,11 +213,11 @@ namespace madness {
             if (child1 != -1) req1 = mpi.Irecv(buf1, nelem*sizeof(T), MPI::BYTE, child1, gsum_tag);
 
             if (child0 != -1) {
-                World::await(req0);
+                await(req0);
                 for (long i=0; i<(long)nelem; i++) buf[i] = op(buf[i],buf0[i]);
             }
             if (child1 != -1) {
-                World::await(req1);
+                await(req1);
                 for (long i=0; i<(long)nelem; i++) buf[i] = op(buf[i],buf1[i]);
             }
 
@@ -321,7 +226,7 @@ namespace madness {
 
             if (parent != -1) {
                 req0 = mpi.Isend(buf, nelem*sizeof(T), MPI::BYTE, parent, gsum_tag);
-                World::await(req0);
+                await(req0);
             }
 
             broadcast(buf, nelem, 0);
@@ -397,12 +302,12 @@ namespace madness {
 
             std::vector<T> left, right;
             if (child0 != -1) {
-                World::await(req0);
+                await(req0);
                 archive::BufferInputArchive ar(buf0, bufsz);
                 ar & left;
             }
             if (child1 != -1) {
-                World::await(req1);
+                await(req1);
                 archive::BufferInputArchive ar(buf1, bufsz);
                 ar & right;
                 for (unsigned int i=0; i<right.size(); i++) left.push_back(right[i]);
@@ -414,7 +319,7 @@ namespace madness {
                 archive::BufferOutputArchive ar(buf0, bufsz);
                 ar & left;
                 req0 = mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
-                World::await(req0);
+                await(req0);
             }
 
             delete [] buf0;
@@ -423,8 +328,8 @@ namespace madness {
             if (parent == -1) return left;
             else return std::vector<T>();
         }
-    };
-}
+    }; // class WorldGopInterface
+} // namespace madness
 
 
 #endif // MADNESS_WORLD_WORLDGOP_H__INCLUDED

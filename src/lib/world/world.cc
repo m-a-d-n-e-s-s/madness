@@ -35,6 +35,8 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
+#include <world/worldobj.h>
+#include <world/worlddc.h>
 
 #ifdef WORLD_TAU_TRACE
 #include <TAU.h>

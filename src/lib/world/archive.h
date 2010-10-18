@@ -417,10 +417,12 @@
 
 #include <complex>
 #include <iostream>
+#include <cstdio>
 #include <vector>
 #include <map>
 #include <world/typestuff.h>
-#include <world/worldprofile.h>
+//#include <world/worldprofile.h>
+#include <world/worldexc.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0

@@ -48,9 +48,10 @@
 #include <world/worldtypes.h>
 #include <world/typestuff.h>
 #include <world/worlddep.h>
-#include <world/worldfut.h>
+#include <world/world.h>
 #include <world/worldthread.h>
 #include <world/worldrange.h>
+#include <world/worldfut.h>
 
 namespace madness {
 
@@ -89,47 +90,23 @@ namespace madness {
         } submit;
 
 
-        void set_info(World* world, CallbackInterface* completion) {
-            this->world = world;
-            this->completion = completion;
-        }
+        void set_info(World* world, CallbackInterface* completion);
 
         /// Adds call back to schedule task when outstanding dependencies are satisfied
-        void register_submit_callback() {
-            register_callback(&submit);
-        }
+        void register_submit_callback();
 
     protected:
-        void run(const TaskThreadEnv& env) { // This is what thread pool will invoke
-            MADNESS_ASSERT(world);
-            MADNESS_ASSERT(completion);
-            World* w = const_cast<World*>(world);
-            if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
-            run(*w, env);
-            if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
-        }
+        void run(const TaskThreadEnv& env);
 
     public:
         static bool debug;
 
         /// Create a new task with ndepend dependencies (default 0) and given attributes
-        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
-                : DependencyInterface(ndepend)
-                , PoolTaskInterface(attr)
-                , world(0)
-                , completion(0)
-                , submit(this)
-        {}
+        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes());
 
 
         /// Create a new task with zero dependencies and given attributes
-        explicit TaskInterface(const TaskAttributes& attr)
-                : DependencyInterface(0)
-                , PoolTaskInterface(attr)
-                , world(0)
-                , completion(0)
-                , submit(this)
-        {}
+        explicit TaskInterface(const TaskAttributes& attr);
 
 
 //         void serialize(Buffer& ar) {
@@ -140,24 +117,14 @@ namespace madness {
         /// Runs a single-threaded task ... derived classes must implement this.
 
         /// This interface may disappear so new code should use the multi-threaded interface.
-        virtual void run(World& /*world*/) {
-            //print("in virtual run(world) method");
-            MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
-        }
+        virtual void run(World& /*world*/);
 
         /// Runs a multi-threaded task
-        virtual void run(World& world, const TaskThreadEnv& env) {
-            //print("in virtual run(world,env) method", env.nthread(), env.id());
-            if (env.nthread() != 1)
-                MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
-            run(world);
-        }
+        virtual void run(World& world, const TaskThreadEnv& env);
 
-        World* get_world() const {return const_cast<World*>(world);}
+        World* get_world() const;
 
-        virtual ~TaskInterface() {
-            if (completion) completion->notify();
-        }
+        virtual ~TaskInterface();
     };
 
 
@@ -169,14 +136,10 @@ namespace madness {
         const ProcessID me;        ///< This process
         AtomicInt nregistered;     ///< Counts pending tasks
 
-        void notify() {
-            nregistered--;
-        }
+        void notify();
 
         // Used in for_each kernel to check completion
-        static bool completion_status(bool left, bool right) {
-            return (left && right);
-        }
+        static bool completion_status(bool left, bool right);
 
 
         // Used in reduce kernel
@@ -188,16 +151,10 @@ namespace madness {
 
 
     public:
-        WorldTaskQueue(World& world)
-                : world(world)
-                , me(world.mpi.rank()) {
-            nregistered = 0;
-        }
+        WorldTaskQueue(World& world);
 
         /// Returns the number of pending tasks
-        size_t size() const {
-            return nregistered;
-        }
+        size_t size() const;
 
         /// Add a new local task taking ownership of the pointer
 
@@ -208,21 +165,7 @@ namespace madness {
         /// Once the task is complete it will execute
         /// task_complete_callback to decrement the number of pending
         /// tasks and be deleted.
-        void add(TaskInterface* t) {
-            nregistered++;
-
-            t->set_info(&world, this);       // Stuff info
-
-            if (t->ndep() == 0) {
-                // If no dependencies directly submit
-                ThreadPool::add(t);
-            }
-            else {
-                // With dependencies must use the callback to avoid race condition
-                t->register_submit_callback();
-                //t->dec();
-            }
-        }
+        void add(TaskInterface* t);
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
 
@@ -247,8 +190,7 @@ namespace madness {
                 resultT sum = resultT();
                 for (typename rangeT::iterator it=range.begin(); it != range.end(); ++it) sum = op(sum,op(it));
                 return Future<resultT>(sum);
-            }
-            else {
+            } else {
                 rangeT left = range;
                 rangeT right(left,Split());
 
@@ -288,8 +230,7 @@ namespace madness {
                 bool status = true;
                 for (typename rangeT::iterator it=range.begin();  it != range.end();  ++it) status &= op(it);
                 return Future<bool>(status);
-            }
-            else {
+            } else {
                 rangeT left = range;
                 rangeT right(left,Split());
                 Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
@@ -442,31 +383,12 @@ namespace madness {
                 , nsteal(nsteal)
             {}
 
-            bool operator()(PoolTaskInterface** pt) {
-                madness::print("IN STEAL");
-                PoolTaskInterface* t = *pt;
-                if (t->is_stealable()) {
-                    TaskInterface* task = dynamic_cast<TaskInterface*>(t);
-                    if (task) {
-                        if (task->get_world()->id() == q.world.id()) {
-                            madness::print("Stealing", (void *) task);
-                            v.push_back(task);
-                            *pt = 0; // Indicates task has been stolen
-                        }
-                    }
-                }
-                return true;
-            }
+            bool operator()(PoolTaskInterface** pt);
         };
 
 
         /// Invoke locally or remotely to send tasks to process P
-        std::vector<TaskInterface*> steal(int nsteal) {
-            std::vector<TaskInterface*> v;
-            Stealer xxx(*this, v, nsteal);
-            ThreadPool::instance()->scan(xxx);
-            return v;
-        }
+        std::vector<TaskInterface*> steal(int nsteal);
 
 
         /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T)" as a task, local or remote
@@ -758,29 +680,13 @@ namespace madness {
             WorldTaskQueue* tq;
             double start;
             ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
-            bool operator()() const {
-                if (cpu_time()-start > 1200) {
-                    for (int loop = 0; loop<3; loop++) {
-                        std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
-                        std::cout.flush();
-                        myusleep(1000000);
-                    }
-                    MADNESS_ASSERT(cpu_time()-start < 1200);
-                }
-                return (tq->size() == 0);
-            }
+            bool operator()() const;
         };
 
         /// Returns after all local tasks have completed
 
         /// While waiting the calling thread will run tasks.
-        void fence() {
-            ProbeAllDone tester(this);
-            do {
-                world.await(tester);
-            }
-            while (nregistered);
-        }
+        void fence();
     };
 
 
@@ -791,8 +697,8 @@ namespace madness {
         functionT func;
         TaskAttributes attr;
         TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr)
-                : ref(ref), func(func),attr(attr) {};
-        TaskHandlerInfo() {};
+                : ref(ref), func(func),attr(attr) {}
+        TaskHandlerInfo() {}
         template <typename Archive>
         void serialize(const Archive& ar) {
             ar & archive::wrap_opaque(*this);
@@ -801,11 +707,10 @@ namespace madness {
 
     // Internal: Common functionality for TaskFunction and TaskMemfun classes
     class TaskFunctionBase : public TaskInterface {
-    protected:
     public:
 
         TaskFunctionBase(const madness::TaskAttributes& attributes)
-                : TaskInterface(attributes) {};
+                : TaskInterface(attributes) {}
 
         // Register non-ready future as a dependency
         template <typename T>
@@ -816,8 +721,10 @@ namespace madness {
             }
         }
 
-        virtual ~TaskFunctionBase() {};
+        virtual ~TaskFunctionBase() {}
     };
+
+
 
     // Task wrapping "resultT (*function)()"
     template <typename resultT>
@@ -830,11 +737,11 @@ namespace madness {
             TaskHandlerInfo<refT,functionT> info;
             arg & info;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,info.attr));
-        };
+        }
 
         static void sender(World& world, ProcessID dest, Future<REMFUTURE(resultT)>& result, functionT func, const TaskAttributes& attr) {
             world.am.send(dest, handler, new_am_arg(TaskHandlerInfo<refT,functionT>(result.remote_ref(world), func, attr)));
-        };
+        }
 
         futureT result;
         const functionT func;
@@ -845,9 +752,9 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func());
-        };
+        }
 
-        virtual ~TaskFunction() {};
+        virtual ~TaskFunction() {}
     };
 
 
@@ -864,7 +771,7 @@ namespace madness {
             arg1T arg1;
             arg & info & arg1;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,info.attr));
-        };
+        }
 
         template <typename a1T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -886,7 +793,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1));
-        };
+        }
     };
 
 
@@ -906,7 +813,7 @@ namespace madness {
             arg2T arg2;
             arg & info & arg1 & arg2;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -930,7 +837,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2));
-        };
+        }
     };
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3)"
@@ -950,7 +857,7 @@ namespace madness {
             arg3T arg3;
             arg & info & arg1 & arg2 & arg3;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -976,7 +883,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3));
-        };
+        }
     };
 
 
@@ -999,7 +906,7 @@ namespace madness {
             arg4T arg4;
             arg & info & arg1 & arg2 & arg3 & arg4;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1028,7 +935,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4));
-        };
+        }
     };
 
 
@@ -1053,7 +960,7 @@ namespace madness {
             arg5T arg5;
             arg & info & arg1 & arg2 & arg3 & arg4 & arg5;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1085,7 +992,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5));
-        };
+        }
     };
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6)"
@@ -1111,7 +1018,7 @@ namespace madness {
             arg6T arg6;
             arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1146,7 +1053,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6));
-        };
+        }
     };
 
 
@@ -1176,7 +1083,7 @@ namespace madness {
             arg7T arg7;
             arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1215,7 +1122,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
-        };
+        }
     };
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)"
@@ -1246,7 +1153,7 @@ namespace madness {
 	    arg8T arg8;
             arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1287,7 +1194,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
-        };
+        }
     };
 
     // Task wrapping "resultT (*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9)"
@@ -1320,7 +1227,7 @@ namespace madness {
 	    	arg9T arg9;
             arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
             arg.get_world()->taskq.add(new TaskFunction<functionT>(futureT(info.ref),info.func,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,info.attr));
-        };
+        }
 
         template <typename a1T, typename a2T, typename a3T, typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
         static void sender(World& world, ProcessID dest, const futureT& result, functionT func,
@@ -1363,7 +1270,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
-        };
+        }
     };
 
 
@@ -1405,7 +1312,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2)"
@@ -1431,7 +1338,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3)"
@@ -1461,7 +1368,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4)"
@@ -1494,7 +1401,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5)"
@@ -1530,7 +1437,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6)"
@@ -1570,7 +1477,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)"
@@ -1613,7 +1520,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)"
@@ -1659,7 +1566,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9)"
@@ -1708,7 +1615,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
-        };
+        }
     };
 
 
@@ -1731,7 +1638,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)());
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1)const"
@@ -1754,7 +1661,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
-        };
+        }
     };
 
 
@@ -1812,7 +1719,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4)const"
@@ -1845,7 +1752,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5)const"
@@ -1881,7 +1788,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6)const"
@@ -1920,7 +1827,7 @@ namespace madness {
 
         void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7)const"
@@ -1962,7 +1869,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
-        };
+        }
     };
 
     // Task wrapping "resultT (obj.*function)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8)const"
@@ -2007,7 +1914,7 @@ namespace madness {
 
         void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
-        };
+        }
     };
 
 }

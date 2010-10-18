@@ -53,6 +53,7 @@
 */
 
 #include <world/safempi.h>
+#include <world/worldtypes.h>
 
 namespace madness {
 

@@ -40,6 +40,7 @@
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 
 #include <world/worldthread.h>
+#include <world/worldtask.h>
 
 namespace madness {
 

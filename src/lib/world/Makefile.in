@@ -106,7 +106,8 @@ am_libMADworld_a_OBJECTS = worldstuff.$(OBJEXT) redirectio.$(OBJEXT) \
 	worldmem.$(OBJEXT) lookup3.$(OBJEXT) threadpool.$(OBJEXT) \
 	worldrmi.$(OBJEXT) safempi.$(OBJEXT) worldpapi.$(OBJEXT) \
 	worldref.$(OBJEXT) worldam.$(OBJEXT) worldprofile.$(OBJEXT) \
-	worldthread.$(OBJEXT) $(am__objects_1)
+	worldthread.$(OBJEXT) worldtask.$(OBJEXT) worldgop.$(OBJEXT) \
+	deferred_cleanup.$(OBJEXT) $(am__objects_1)
 libMADworld_a_OBJECTS = $(am_libMADworld_a_OBJECTS)
 PROGRAMS = $(bin_PROGRAMS)
 am_array_test_OBJECTS = array_test-array_test.$(OBJEXT)
@@ -380,7 +381,7 @@ worldprofile_test_SOURCES = worldprofile_test.cc
 worldprofile_test_LDADD = libMADworld.a
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc print.cc worldmem.cc lookup3.c \
                          threadpool.cc worldrmi.cc safempi.cc worldpapi.cc worldref.cc \
-                         worldam.cc worldprofile.cc worldthread.cc \
+                         worldam.cc worldprofile.cc worldthread.cc worldtask.cc worldgop.cc deferred_cleanup.cc \
                      \
                      $(thisinclude_HEADERS)
 
@@ -543,6 +544,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/archive_type_names.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/array_test-array_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/deferred_cleanup.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/helloworld.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lookup3.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/objexample.Po@am__quote@
@@ -561,6 +563,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/world_test-world_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldam.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldgop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldmem.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldpapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldprofile.Po@am__quote@
@@ -568,6 +571,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldref.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldrmi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldstuff.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldtask.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldthread.Po@am__quote@
 
 .c.o:

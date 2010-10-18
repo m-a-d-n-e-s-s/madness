@@ -32,7 +32,7 @@
 */
 
 #include <world/worldprofile.h>
-//#include <world/mpiar.h>
+#include <world/mpiar.h>
 //#include <world/worldtypes.h>
 //#include <world/worldtime.h>
 //#include <world/worldthread.h>

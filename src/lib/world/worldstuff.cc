@@ -36,6 +36,9 @@
 #include <madness_config.h>
 #include <world/world.h>
 #include <world/worldmem.h>
+#include <world/worldam.h>
+#include <world/worldtask.h>
+#include <world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -54,6 +57,127 @@ namespace madness {
     static double start_cpu_time;
     static double start_wall_time;
     const int WorldAmInterface::NSEND;
+
+    World::World(MPI::Intracomm& comm)
+            : obj_id(1)          ///< start from 1 so that 0 is an invalid id
+            , user_state(0)
+            , mpi(*(new WorldMpiInterface(comm)))
+            , am(* (new WorldAmInterface(*this)))
+            , taskq(*(new WorldTaskQueue(*this)))
+            , gop(* (new WorldGopInterface(*this)))
+            , me(mpi.rank())
+            , nprocess(mpi.nproc())
+            , myrand_next(0) {
+        worlds.push_back(this);
+        srand();  // Initialize random number generator
+        cpu_frequency();
+
+        // Assign a globally (within COMM_WORLD) unique ID to this
+        // world by assigning to each processor a unique range of indices
+        // and broadcasting from node 0 of the current communicator.
+        // Each process in COMM_WORLD is given unique ids for 10K new worlds
+        if(idbase == 0 && me) {
+            idbase = me*10000;
+        }
+        // The id of a new world is taken from the unique range of ids
+        // assigned to the process with rank=0 in the sub-communicator
+        if(me == 0)
+            _id = idbase++;
+        gop.broadcast(_id);
+        gop.barrier();
+    }
+
+
+    void World::args(int argc, char** argv) {
+        for (int arg=1; arg<argc; arg++) {
+            if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
+//             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
+//            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
+//             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
+        }
+    }
+
+
+    /// Returns new universe-wide unique ID for objects created in this world.  No comms.
+
+    /// You should consider using register_ptr(), unregister_ptr(),
+    /// id_from_ptr() and ptr_from_id() rather than using this directly.
+    ///
+    /// Currently relies on this being called in the same order on
+    /// every process within the current world in order to avoid
+    /// synchronization.
+    ///
+    /// The value objid=0 is guaranteed to be invalid.
+    uniqueidT World::unique_obj_id() {
+        return uniqueidT(_id,obj_id++);
+    }
+
+    World* World::world_from_id(unsigned long id) {
+        // This is why C++ iterators are stupid, stupid, stupid, ..., gack!
+        for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
+            if ((*it) && (*it)->_id == id) return *it;
+        }
+        return 0;
+    }
+
+    void World::srand(unsigned long seed) {
+        if (seed == 0) seed = rank();
+#ifdef HAVE_RANDOM
+        srandom(seed);
+#else
+        myrand_next = seed;
+        for (int i=0; i<1000; i++) rand(); // Warmup
+#endif
+    }
+
+
+    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
+
+    /// Each process has a distinct seed for the generator.
+    int World::rand() {
+#ifdef HAVE_RANDOM
+        return int(random() & 0xfffffful);
+#else
+        myrand_next = myrand_next * 1103515245UL + 12345UL;
+        return int((myrand_next>>8) & 0xfffffful);
+#endif
+    }
+
+
+    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
+    double World::drand() {
+        return rand()/16777216.0;
+    }
+
+
+    /// Returns a random process number [0,world.size())
+    ProcessID World::random_proc() {
+        return rand()%size();
+    }
+
+
+    /// Returns a random process number [0,world.size()) != current process
+
+    /// Makes no sense to call this with just one process, but just in case you
+    /// do it returns -1 in the hope that you won't actually use the result.
+    ProcessID World::random_proc_not_me() {
+        if (size() == 1) return -1;
+        ProcessID p;
+        do {
+            p = rand()%size();
+        }
+        while (p == rank());
+        return p;
+    }
+
+
+    World::~World() {
+        worlds.remove(this);
+        delete &taskq;
+        delete &gop;
+        delete &am;
+        delete &mpi;
+    }
 
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
@@ -197,14 +321,6 @@ namespace madness {
         return out;
     }
 
-    void World::args(int argc, char** argv) {
-        for (int arg=1; arg<argc; arg++) {
-            if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
-//             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
-//            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
-//             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
-        }
-    }
 
 
     __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
