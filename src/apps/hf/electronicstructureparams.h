@@ -105,7 +105,11 @@ struct ElectronicStructureParams
   double swidth;
   // print matrices
   bool print_matrices;
-  
+  // plot orbitals
+  bool plotorbs;
+  // convergence criterion for residual
+  double rcriterion;
+ 
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & spinpol &
@@ -115,7 +119,7 @@ struct ElectronicStructureParams
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
         koffset2 & basis & nio & restart & ncharge & 
-        swidth & print_matrices;
+        swidth & print_matrices & plotorbs & rcriterion;
   }
 
   ElectronicStructureParams()
@@ -152,6 +156,8 @@ struct ElectronicStructureParams
     ncharge = 0;
     swidth = 0.001;
     print_matrices = true;
+    plotorbs = false;
+    rcriterion = 1e-4;
   }
 
   void read_file(const std::string& filename)
@@ -344,6 +350,27 @@ struct ElectronicStructureParams
       }
       else if (s == "noprint_matrices") {
           print_matrices = false;
+      }
+      else if (s == "plotorbs")
+      {
+        std::string tempstr;
+        f >> tempstr;
+        if (tempstr == "true")
+        {
+          plotorbs = true;
+        }
+        else if (tempstr == "false")
+        {
+          plotorbs = false;
+        }
+        else
+        {
+          MADNESS_EXCEPTION("input error -- plotorbs", 0);
+        }
+      }
+      else if (s == "rcriterion")
+      {
+        f >> rcriterion;
       }
       else
       {
