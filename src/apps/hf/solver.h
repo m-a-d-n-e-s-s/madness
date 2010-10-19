@@ -31,6 +31,7 @@
   $Id$
 */
 #include <mra/mra.h>
+//#include <mra/lbdeux.h>
 #include <world/world.h>
 #include <linalg/solvers.h>
 #include <vector>
@@ -354,17 +355,12 @@ namespace madness
     ElectronicStructureParams _params;
     //*************************************************************************
 
-    //*************************************************************************
-    double _residual;
-    //*************************************************************************
-
   public:
 
     //*************************************************************************
     Subspace(World& world, const ElectronicStructureParams& params)
       : _world(world), _params(params)
     {
-      _residual = 1e6;
     }
     //*************************************************************************
 
@@ -482,34 +478,55 @@ namespace madness
     //*************************************************************************
     void reproject()
     {
-       //if (_world.rank() == 0) 
-         //printf("\n\nreprojecting subspace to wavelet order: %d and thresh: %.5e\n\n", 
-         //FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh());
-         
-       unsigned int m = _subspace.size();
-       for (unsigned int s = 0; s < m; s++)
-       {
-           vecfuncT& vs = _subspace[s].first;
-           vecfuncT& rs = _subspace[s].second;
-           reconstruct(_world, vs);
-           reconstruct(_world, rs);
-           unsigned int vm = vs.size();
-           for (unsigned int i = 0; i < vm; i++)
-           {
-             vs[i] = madness::project(vs[i], FunctionDefaults<3>::get_k(), 
-               FunctionDefaults<3>::get_thresh(), false);
-             rs[i] = madness::project(rs[i], FunctionDefaults<3>::get_k(), 
-               FunctionDefaults<3>::get_thresh(), false);
-             truncate(_world, vs);
-             truncate(_world, rs);
-             normalize(_world, vs);
-           }
-       }
-       _world.gop.fence();
+      //  //if (_world.rank() == 0) 
+      //    //printf("\n\nreprojecting subspace to wavelet order: %d and thresh: %.5e\n\n", 
+      //    //FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh());
+      //    
+      //  unsigned int m = _subspace.size();
+      //  for (unsigned int s = 0; s < m; s++)
+      //  {
+      //      vecfuncT& vs = _subspace[s].first;
+      //      vecfuncT& rs = _subspace[s].second;
+      //      reconstruct(_world, vs);
+      //      reconstruct(_world, rs);
+      //      unsigned int vm = vs.size();
+      //      for (unsigned int i = 0; i < vm; i++)
+      //      {
+      //        vs[i] = madness::project(vs[i], FunctionDefaults<3>::get_k(), 
+      //          FunctionDefaults<3>::get_thresh(), false);
+      //        rs[i] = madness::project(rs[i], FunctionDefaults<3>::get_k(), 
+      //          FunctionDefaults<3>::get_thresh(), false);
+      //      }
+      //      _world.gop.fence(); 
+      //      truncate(_world, vs);
+      //      truncate(_world, rs);
+      //      normalize(_world, vs);
+      //  }
+      //  _world.gop.fence();
+      
     }
     //*************************************************************************
 
   };
+
+//  template <typename T, int NDIM>
+//  struct lbcost {
+//      double leaf_value;
+//      double parent_value;
+//      lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+//      double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
+//          if (key.level() <= 1) {
+//              return 100.0*(leaf_value+parent_value);
+//          }
+//          else if (node.is_leaf()) {
+//              return leaf_value;
+//          }
+//          else {
+//              return parent_value;
+//          }
+//      }
+//  };
+
   //***************************************************************************
 
   /*! \ingroup periodic_solver
@@ -1097,6 +1114,16 @@ namespace madness
       if (_world.rank() == 0) print("trace of rho = ", rtrace);
       rho.scale(_params.ncharge/rho.trace());
 
+      // load balance
+      //if(_world.size() > 1) {
+      //    START_TIMER(_world);
+      //    LoadBalanceDeux<3> lb(_world);
+      //    lb.add_tree(_vnuc, lbcost<double,3>(1.0, 0.0), false);
+      //    lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
+
+      //    FunctionDefaults<3>::redistribute(_world, lb.load_balance(6.0));
+      //}
+
       if (_params.restart != 1)
       {
         // build effective potential
@@ -1179,6 +1206,19 @@ namespace madness
       //      vector<long> npt(3,101);
       //      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
       //    }
+          
+          // load balancing
+          //if(_world.size() > 1)
+          //{
+          //  LoadBalanceDeux<3> lb(_world);
+          //  lb.add_tree(_vnuc, lbcost<double,3>(1.0, 1.0), false);
+          //  for(unsigned int i = 0; i < ao.size(); i++)
+          //  {
+          //      lb.add_tree(ao[i], lbcost<valueT,3>(1.0, 1.0), false);
+          //  }
+
+          //  FunctionDefaults<3>::redistribute(_world, lb.load_balance(6.0));
+          //}
 
           // Get k-point from list
           KPoint& kpt = _kpoints[ki];
@@ -1375,10 +1415,7 @@ namespace madness
             _eigsa[oi] = tmp_eigs[ti];
             _eigsb[oi] = tmp_eigs[ti];
           }
-
-
         }
-
       }
     }
     //*************************************************************************
@@ -1578,6 +1615,32 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
+//    void loadbal()
+//    {
+//        if(_world.size() == 1)
+//            return;
+//
+//        LoadBalanceDeux<3> lb(_world);
+//        lb.add_tree(_vnuc, lbcost<double,3>(1.0, 0.0), false);
+//        lb.add_tree(_rhoa, lbcost<double,3>(1.0, 1.0), false);
+//        for(unsigned int i = 0;i < _phisa.size();i++)
+//        {
+//            lb.add_tree(_phisa[i], lbcost<valueT,3>(1.0, 1.0), false);
+//        }
+//        if(_params.spinpol)
+//        {
+//            lb.add_tree(_rhob, lbcost<double,3>(1.0, 1.0), false);
+//            for(unsigned int i = 0;i < _phisb.size();i++)
+//            {
+//                lb.add_tree(_phisa[i], lbcost<valueT,3>(1.0, 1.0), false);
+//            }
+//        }
+//
+//        FunctionDefaults<3>::redistribute(_world, lb.load_balance(6.0));
+//   }
+   //*************************************************************************
+
+    //*************************************************************************
     double calculate_kinetic_energy()
     {
       double ke = 0.0;
@@ -1712,7 +1775,7 @@ namespace madness
       _params.thresh /= 100;
       FunctionDefaults<3>::set_thresh(_params.thresh);
       FunctionDefaults<3>::set_k(_params.waveorder);
-      if (_world.rand() == 0) _outputF << "reprojecting to wavelet order "
+      if (_world.rank() == 0) _outputF << "reprojecting to wavelet order "
           << _params.waveorder << endl;
       reconstruct(_world, _phisa);
       for(unsigned int i = 0; i < _phisa.size(); i++)
@@ -1738,7 +1801,9 @@ namespace madness
 
       delete _cop;
       make_nuclear_potential();
-      _subspace->reproject();
+      //_subspace->reproject();
+      delete _subspace; 
+      _subspace = new Subspace<T,NDIM>(_world, _params);
     }
     //*************************************************************************
 
@@ -1753,13 +1818,10 @@ namespace madness
       std::vector<double_complex> phase(_phisa.size(), t2);
       scale(_world, _phisa, phase);
        
-       // set maximum thresh from _params
-      //_maxthresh = _params.thresh;
-      //_params.thresh *= 1e2;
-
+      //for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++)
       for (_it = 0; _it < _params.maxits && _residual > 1e-5; _it++)
       {
-        if ((_it > 0) && (_residual < 30*_params.thresh))
+        if ((_it > 0) && (_residual < 20*_params.thresh))
         {
           reproject();
         }
@@ -1773,6 +1835,13 @@ namespace madness
         double rtrace = _rho.trace();
         if (_world.rank() == 0) _outputF << "trace of rho" << rtrace << endl;
 
+        if(_it < 2 || (_it % 10) == 0)
+        {
+          START_TIMER(_world);
+          //loadbal();
+          END_TIMER(_world, "Load balancing");
+        }
+ 
         std::vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
         std::vector<functionT> pfuncsb =
@@ -1839,6 +1908,31 @@ namespace madness
 //        }
       }
 
+      //    for (unsigned int ai = 0; ai < ao.size(); ai++)
+      //    {
+      //      std::ostringstream strm;
+      //      strm << "aod" << ai << ".dx";
+      //      std::string fname = strm.str();
+      //      vector<long> npt(3,101);
+      //      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
+      //    }
+     
+      if (_params.plotorbs) 
+      {
+        std::vector<long> npt(3,101);
+        for (int ik = 0; ik < _kpoints.size(); ik++)
+        {
+          KPoint kpoint = _kpoints[ik];
+          int ist = 0;
+          for (int kst = kpoint.begin; kst < kpoint.end; kst++, ist++)
+          {
+            std::ostringstream strm;
+            strm << "unk_" << ik << "_" << ist << ".dx";
+            std::string fname = strm.str();
+            plotdx(_phisa[kst], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
+          }
+        }
+      }
       save_orbitals();
     }
     //*************************************************************************
@@ -2202,7 +2296,7 @@ namespace madness
       // renormalize and print
       _residual = rnorm / rnvec.size();
       if (_world.rank() == 0) _outputF << "\nResiduals\n---------" << endl;
-      if (_world.rank() == 0) _outputF << "residual = " << _residual << endl;
+      if (_world.rank() == 0) _outputF << std::setiosflags(std::ios::scientific) << "residual = " << _residual << endl;
       if (_world.rank() == 0)
       {
         _outputF << endl;
