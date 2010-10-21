@@ -354,6 +354,7 @@ typedef UINT64_T uint64_t;
 #include <world/sharedptr.h>
 #include <world/archive.h>
 #include <world/worldprofile.h>
+#include <world/worldthread.h>
 
 // Header files not needed by world.h, but are a part of Madness world
 // We really do not want these here because they introduce a lot of potentially

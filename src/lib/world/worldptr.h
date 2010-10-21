@@ -38,6 +38,7 @@
 #include <world/world.h>        // for World
 #include <world/worldexc.h>     // for MADNESS_ASSERT
 #include <world/worldtypes.h>   // for ProcessID
+#include <limits>
 
 namespace madness {
     namespace detail {
@@ -60,16 +61,21 @@ namespace madness {
         template <typename T>
         class WorldPtr {
         private:
-            World* world_;      ///< A pointer to the local world
-            ProcessID rank_;    ///< The rank of the node that the pointer belongs to
-            T* pointer_;        ///< The pointer being referenced
+            typedef unsigned long worldidT;
+            World* world_;          ///< A pointer to the world
+            worldidT worldid_;      ///< The world id
+            ProcessID rank_;        ///< The rank of the node that the pointer belongs to
+            T* pointer_;            ///< The pointer being referenced
 
-            /// World rank accessor
+            template<typename>
+            friend class WorldPtr;
 
-            /// \return If the pointer is non-null, the current world rank;
-            /// otherwise, -1.
+            /// Current local rank
+
+            /// \return The rank of the current node. If the pointer is not
+            /// not set, then -2.
             /// \throw nothing
-            ProcessID world_rank() const { return (world_ != NULL ? world_->rank() : -2); }
+            ProcessID local_rank() const { return (world_ != NULL ? world_->rank() : -2); }
 
         public:
 
@@ -82,7 +88,10 @@ namespace madness {
             /// to -1).
             /// \throw nothing
             WorldPtr() :
-                world_(NULL), rank_(-1), pointer_(NULL)
+                world_(NULL),
+                worldid_(0),
+                rank_(-1),
+                pointer_(NULL)
             { }
 
             /// World pointer constructor
@@ -92,7 +101,10 @@ namespace madness {
             /// \param p The local pointer.
             /// \throw nothing
             WorldPtr(World& w, T* p) :
-                world_(&w), rank_(w.rank()), pointer_(p)
+                world_(&w),
+                worldid_(w.id() + 1),
+                rank_(w.rank()),
+                pointer_(p)
             { }
 
             /// Copy constructor
@@ -100,7 +112,10 @@ namespace madness {
             /// \param other The world pointer to be copied
             /// \throw nothing
             WorldPtr(const WorldPtr<T>& other) :
-                world_(other.world_), rank_(other.rank_), pointer_(other.pointer_)
+                world_(other.world_),
+                worldid_(other.worldid_),
+                rank_(other.rank_),
+                pointer_(other.pointer_)
             { }
 
             /// Copy conversion constructor
@@ -112,7 +127,10 @@ namespace madness {
             /// \note \c U* must be implicitly convertible to T* type.
             template <typename U>
             WorldPtr(const WorldPtr<U>& other) :
-                world_(other.world_), rank_(other.rank_), pointer_(other.pointer_)
+                world_(other.world_),
+                worldid_(other.worldid_),
+                rank_(other.rank_),
+                pointer_(other.pointer_)
             { }
 
             /// Copy assignment operator
@@ -122,6 +140,7 @@ namespace madness {
             /// \throw nothing
             WorldPtr<T>& operator=(const WorldPtr<T>& other) {
                 world_ = other.world_;
+                worldid_ = other.worldid_;
                 rank_ = other.rank_;
                 pointer_ = other.pointer_;
 
@@ -139,6 +158,7 @@ namespace madness {
             template <typename U>
             WorldPtr<T>& operator=(const WorldPtr<U>& other) {
                 world_ = other.world_;
+                worldid_ = other.worldid_;
                 rank_ = other.rank_;
                 pointer_ = other.pointer_;
 
@@ -150,7 +170,7 @@ namespace madness {
             /// \return \c true when the pointer points to a local address, and
             /// \c false when it points to a remote address or is NULL.
             /// \throw nothing
-            bool is_local() const { return world_rank() == rank_; }
+            bool is_local() const { return local_rank() == rank_; }
 
             /// Check that the world pointer has an owner
 
@@ -165,8 +185,8 @@ namespace madness {
             /// \throw MadnessException When the pointer references a remote
             /// address.
             pointer get() const {
-                // It is not safe to access this pointer remotely.
-                MADNESS_ASSERT(is_local());
+                // It is not safe to access this pointer remotely unless null.
+                MADNESS_ASSERT(is_local() || (pointer_ == NULL));
                 return pointer_;
             }
 
@@ -219,7 +239,7 @@ namespace madness {
             template <typename U>
             bool operator==(const WorldPtr<U>& other) const {
                 return (pointer_ == other.pointer_) && (rank_ == other.rank_)
-                    && (world_   == other.world_);
+                    && (worldid_ == other.worldid_);
             }
 
             /// Inequality comparison operator
@@ -231,7 +251,7 @@ namespace madness {
             template <typename U>
             bool operator!=(const WorldPtr<U>& other) const {
                 return (pointer_ != other.pointer_) || (rank_ != other.rank_)
-                    || (world_ != other.world_);
+                    || (worldid_ != other.worldid_);
             }
 
             /// Less-than comparison operator
@@ -244,8 +264,8 @@ namespace madness {
             /// \throw nothing
             template <typename U>
             bool operator<(const WorldPtr<U>& other) const {
-                return (world_->id() < other.world_->id()) ||
-                        ((world_ == other.world_) && ((rank_ < other.rank_) ||
+                return (worldid_ < other.worldid_) ||
+                        ((worldid_ == worldid_) && ((rank_ < other.rank_) ||
                         ((rank_ == other.rank_) && (pointer_ < other.pointer_))));
             }
 
@@ -258,6 +278,12 @@ namespace madness {
                 MADNESS_ASSERT(world_ != NULL);
                 return *world_;
             }
+
+            /// World ID accessor
+
+            /// \return The world ID of the world that the pointer belongs to.
+            /// \throw nothing
+            worldidT get_worldid() const { return worldid_ - 1; }
 
             /// Rank accessor
 
@@ -274,6 +300,7 @@ namespace madness {
             template <typename U>
             void swap(WorldPtr<U>& other) {
                 std::swap(world_, other.world_);
+                std::swap(worldid_, other.worldid_);
                 std::swap(rank_, other.rank_);
                 std::swap(pointer_, other.pointer_);
             }
@@ -284,23 +311,14 @@ namespace madness {
             /// or write to disk.
             /// \tparam Archive The archive object type.
             template <class Archive>
-            inline void serialize(const Archive& ar) {
-                ar & world_ & rank_ & archive::wrap_opaque(pointer_);
+            inline void load_internal_(const Archive& ar) {
+                ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
+                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : NULL);
             }
 
-            /// Deserialize pointer from \c ar
-            template <typename Archive>
-            void load_internal_(const Archive& ar) {
-                unsigned long id = 0;
-                ar & id & rank_ & archive::wrap_opaque(pointer_);
-                world_ = (id != std::numeric_limits<unsigned long>::max() ? World::world_from_id(id) : NULL);
-            }
-
-            /// Serialize world pointer from \c ar
-            template <typename Archive>
-            void store_internal_(const Archive& ar) const {
-                ar & (world_ ? world_->id() : std::numeric_limits<unsigned long>::max())
-                   & rank_ & archive::wrap_opaque(pointer_);
+            template <class Archive>
+            inline void store_internal_(const Archive& ar) const {
+                ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
             }
         }; // class WorldPtr
 
@@ -312,6 +330,21 @@ namespace madness {
         template <typename T, typename U>
         void swap(WorldPtr<T>& l, WorldPtr<U>& r) {
             l.swap(r);
+        }
+
+        template <typename T, typename U>
+        bool operator>(const WorldPtr<T>& left, const WorldPtr<U>& right) {
+            return right < left;
+        }
+
+        template <typename T, typename U>
+        bool operator<=(const WorldPtr<T>& left, const WorldPtr<U>& right) {
+            return !(right < left);
+        }
+
+        template <typename T, typename U>
+        bool operator>=(const WorldPtr<T>& left, const WorldPtr<U>& right) {
+            return !(left < right);
         }
 
         template <typename T>

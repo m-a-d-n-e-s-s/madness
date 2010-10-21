@@ -30,6 +30,8 @@
 
   $Id$
 */
+
+#include <world/worldthread.h>
 #include <world/worldhash.h>
 #include <world/worldhashmap.h>
 #include <world/worldrange.h>

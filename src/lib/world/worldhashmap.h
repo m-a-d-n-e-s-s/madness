@@ -44,7 +44,7 @@
 // This is a basic, functional-enough, fast-enough hash map with
 // vague compatibility with the TBB API.
 
-#include <world/worldthread.h>
+#include <world/worldmutex.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
 #include <new>

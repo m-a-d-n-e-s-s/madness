@@ -41,7 +41,6 @@
 
 #include <fstream>
 #include <world/archive.h>
-#include <world/worldexc.h>
 #include <world/sharedptr.h>
 
 
@@ -56,9 +55,7 @@ namespace madness {
         public:
             BinaryFstreamOutputArchive(const char* filename = 0,
                                        std::ios_base::openmode mode = std::ios_base::binary | \
-                                                                      std::ios_base::out | std::ios_base::trunc) : iobuf() {
-                if (filename) open(filename, mode);
-            }
+                                                                      std::ios_base::out | std::ios_base::trunc);
 
             template <class T>
             inline
@@ -69,26 +66,11 @@ namespace madness {
 
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
-                                                     std::ios_base::out |  std::ios_base::trunc) {
-                iobuf.reset(new char[IOBUFSIZE], &detail::checked_array_delete<char>);
-                os.open(filename, mode);
-#ifndef ON_A_MAC
-                os.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);
-#endif
+                                                     std::ios_base::out |  std::ios_base::trunc);;
 
-                store(ARCHIVE_COOKIE, strlen(ARCHIVE_COOKIE)+1);
-            };
+            void close();
 
-            void close() {
-                if (iobuf) {
-                    os.close();
-                    iobuf.reset();
-                }
-            };
-
-            void flush() {
-                os.flush();
-            };
+            void flush();
         };
 
 
@@ -98,10 +80,7 @@ namespace madness {
             std::shared_ptr<char> iobuf;
             mutable std::ifstream is;
         public:
-            BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in)
-                    : iobuf() {
-                if (filename) open(filename, mode);
-            }
+            BinaryFstreamInputArchive(const char* filename = 0, std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
 
             template <class T>
             inline
@@ -110,23 +89,9 @@ namespace madness {
                 is.read((char *) t, n*sizeof(T));
             }
 
-            void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in) {
-                iobuf.reset(new char[IOBUFSIZE], &detail::checked_array_delete<char>);
-                is.open(filename, mode);
-                is.rdbuf()->pubsetbuf(iobuf.get(), IOBUFSIZE);
-                char cookie[255];
-                int n = strlen(ARCHIVE_COOKIE)+1;
-                load(cookie, n);
-                if (strncmp(cookie,ARCHIVE_COOKIE,n) != 0)
-                    MADNESS_EXCEPTION("BinaryFstreamInputArchive: open: not an archive?", 1);
-            };
+            void open(const char* filename,  std::ios_base::openmode mode = std::ios_base::binary | std::ios_base::in);
 
-            void close() {
-                if (iobuf) {
-                    is.close();
-                    iobuf.reset();
-                }
-            };
+            void close();
         };
     }
 }

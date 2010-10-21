@@ -36,7 +36,6 @@
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
 
-#include <world/worldexc.h>
 #include <world/dqueue.h>
 
 #ifndef _SC_NPROCESSORS_CONF

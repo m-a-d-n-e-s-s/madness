@@ -30,10 +30,12 @@
 
   $Id$
 */
-#include <world/world.h>
+
 #include <madness_config.h>
 
 #ifdef MADNESS_HAS_GOOGLE_TEST
+
+#include <world/world.h>
 #include <gtest/gtest.h>
 
 madness::World* pworld;

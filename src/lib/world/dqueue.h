@@ -37,7 +37,6 @@
 #define MADNESS_WORLD_DQUEUE_H__INCLUDED
 
 #include <world/worldmutex.h>
-#include <world/worldexc.h>
 #include <cstddef>
 #include <utility>
 #include <algorithm>
