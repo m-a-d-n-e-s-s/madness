@@ -44,7 +44,7 @@ namespace madness {
         static int bmax_default() {
             int bmax;
             if (NDIM == 1) bmax = 7;
-
+            else if (NDIM == 2) bmax = 5;
             else if (NDIM == 3) bmax = 3;
             else bmax = 2;
             return bmax;
@@ -74,11 +74,11 @@ namespace madness {
 
         static void make_disp(int bmax) {
             // Note newer loop structure in make_disp_periodic_sum
-            Vector<Translation,NDIM> d;
+            Vector<Translation,NDIM> d(0);
 
             int num = 1;
             for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
-            disp = std::vector< Key<NDIM> >(num);
+            disp.resize(num,Key<NDIM>(0));
 
             num = 0;
             if (NDIM == 1) {

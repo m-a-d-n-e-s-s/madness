@@ -110,7 +110,7 @@ using namespace madness;
 // This to test various implementaitons of the 1d propagator
 #ifdef USE_NSFORM
   typedef SeparatedConvolution<double_complex,1> complex_operatorT;
-  typedef SharedPtr<complex_operatorT> pcomplex_operatorT;
+  typedef std::shared_ptr<complex_operatorT> pcomplex_operatorT;
   #define APPLY(G,psi) apply(*G,psi)
   #define MAKE_PROPAGATOR(world, t) qm_free_particle_propagatorPtr<1>(world, k, c, t)
 

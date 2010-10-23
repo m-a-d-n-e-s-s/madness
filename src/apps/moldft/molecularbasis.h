@@ -207,25 +207,6 @@ public:
     }
 };
 
-
-std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
-    static const char* tag[] = {"s","p","d","f","g"};
-    char buf[32768];
-    char* p = buf;
-    const std::vector<double>& coeff = c.get_coeff();
-    const std::vector<double>& expnt = c.get_expnt();
-
-    p += sprintf(p,"%s [",tag[c.angular_momentum()]);
-    for (int i=0; i<c.nprim(); i++) {
-        p += sprintf(p, "%.6f(%.6f)",coeff[i],expnt[i]);
-        if (i != (c.nprim()-1)) p += sprintf(p, ", ");
-    }
-    p += sprintf(p, "]");
-    s << buf;
-    return s;
-}
-
-
 /// Represents multiple shells of contracted gaussians on a single center
 class AtomicBasis {
     std::vector<ContractedGaussianShell> g;
@@ -347,19 +328,6 @@ public:
 
 };
 
-std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
-    const std::vector<ContractedGaussianShell>& shells = c.get_shells();
-    for (int i=0; i<c.nshell(); i++) {
-        s << "     " << shells[i] << std::endl;
-    }
-    if (c.has_guess_info()) {
-        s << "     " << "Guess density matrix" << std::endl;
-        s << c.get_dmat();
-    }
-
-    return s;
-}
-
 /// Used to represent one basis function from a shell on a specific center
 class AtomicBasisFunction {
 private:
@@ -392,9 +360,7 @@ public:
         return bf[ibf];
     }
 
-    void print_me(std::ostream& s) const {
-        s << "atomic basis function: center " << xx << " " << yy << " " << zz << " : ibf " << ibf << " nbf " << nbf << " : shell " << shell << std::endl;
-    }
+    void print_me(std::ostream& s) const;
 
     const ContractedGaussianShell& get_shell() const {
         return shell;
@@ -413,11 +379,6 @@ public:
 		return;
     }
 };
-
-std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {
-    a.print_me(s);
-    return s;
-}
 
 /// Contracted Gaussian basis
 class AtomicBasisSet {
@@ -622,23 +583,7 @@ foundit:
     }
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)
-    void print(const Molecule& molecule) const {
-        molecule.print();
-        std::cout << "\n " << name << " atomic basis set" << std::endl;
-        for (int i=0; i<molecule.natom(); i++) {
-            const Atom& atom = molecule.get_atom(i);
-            const unsigned int atn = atom.atomic_number;
-            for (int j=0; j<i; j++) {
-                if (molecule.get_atom(j).atomic_number == atn)
-                    goto doneitalready;
-            }
-            std::cout << std::endl;
-            std::cout << "   " <<  get_atomic_data(atn).symbol << std::endl;
-            std::cout << ag[atn];
-doneitalready:
-            ;
-        }
-    }
+    void print(const Molecule& molecule) const;
 
     template <typename T>
     class AnalysisSorter {
@@ -705,15 +650,7 @@ doneitalready:
     }
 
     /// Print basis info for all supported atoms
-    void print_all() const {
-        std::cout << "\n " << name << " atomic basis set" << std::endl;
-        for (unsigned int i=0; i<ag.size(); i++) {
-            if (ag[i].nbf() > 0) {
-                std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
-                std::cout << ag[i];
-            }
-        }
-    }
+    void print_all() const;
 
     template <typename Archive>
     void serialize(Archive& ar) {

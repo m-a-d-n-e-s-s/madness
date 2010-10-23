@@ -411,6 +411,10 @@ public:
     	x=xx; y=yy; z=zz;
 		return;
     }
+
+    double rangesq() const {
+        return shell.rangesq();
+    }
 };
 
 std::ostream& operator<<(std::ostream& s, const AtomicBasisFunction& a) {

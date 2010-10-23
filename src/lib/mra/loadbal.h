@@ -520,12 +520,12 @@ namespace madness {
 //         const int nproc;
 //         const ProcessID me;
 //         const int n;
-//         SharedPtr< ProcMapImpl<D> > tree_map;
+//         std::shared_ptr< ProcMapImpl<D> > tree_map;
 //         typedef Key<D> KeyD;
 
 //         /// private method that builds the Tree underlying the procmap
 //         void build_tree_map(std::vector< TreeCoords<D> > v) {
-//             tree_map = SharedPtr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
+//             tree_map.reset(new ProcMapImpl<D>(v));
 //         };
 
 //         ProcessID simple_hash(const KeyD& key) const {

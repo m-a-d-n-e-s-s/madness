@@ -71,7 +71,7 @@ void squareit(const Key<NDIM>& key, Tensor<T>& t) {
 template <typename T, int NDIM>
 void test_unaryop(World& world) {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0)
         print("Test unary operation (pointwise function-of-a-function), type =",

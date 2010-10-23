@@ -14,7 +14,8 @@ nplot 999
 nprint 1
 nloadbal 20
 nio 1
-ndump 10
+ndump 1
 ncycle 2
 target_time 5
 tScale 5.0
+

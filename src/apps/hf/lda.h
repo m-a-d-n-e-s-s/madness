@@ -52,9 +52,9 @@ typedef int logical;
 
 #define max(a,b) ((a)>=(b)?(a):(b))
 
-static double pow_dd(doublereal* a, doublereal* b) {
-    return pow(*a,*b);
-}
+/* static double pow_dd(doublereal* a, doublereal* b) { */
+/*     return pow(*a,*b); */
+/* } */
 
 using namespace madness;
 

@@ -296,7 +296,7 @@ namespace madness {
 #define TENSOR_ALIGNMENT 16
 #ifdef WORLD_GATHER_MEM_STATS
                     _p = new T[size];
-                    _shptr = SharedPtr<T>(p);
+                    _shptr = std::shared_ptr<T>(p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
                     _shptr.reset(_p, &::madness::detail::checked_free<T>);
@@ -2363,7 +2363,7 @@ namespace madness {
     Tensor< typename Tensor<T>::scalar_type > abs(const Tensor<T>& t) {
         typedef typename Tensor<T>::scalar_type scalar_type;
         Tensor<scalar_type> result(t.ndim(),t.dims(),false);
-        BINARY_OPTIMIZED_ITERATOR(scalar_type,result,T,t,*_p0 = std::abs(*_p1));
+        BINARY_OPTIMIZED_ITERATOR(scalar_type,result,const T,t,*_p0 = std::abs(*_p1));
         return result;
     }
 

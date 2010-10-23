@@ -456,4 +456,39 @@ namespace madness {
         *pexpnt = expnt;
     }
 
+    void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e, 
+      double L, bool discardG0)
+    {
+      double tcut = 0.25/L/L;   
+     
+      if (discardG0)
+      {
+        // Relies on expnts being in decreasing order
+        for (int i=0; i<e.dim(0); i++) {
+          if (e(i) < tcut) {
+            c = c(Slice(0,i));
+            e = e(Slice(0,i));
+            break;
+          }
+        }
+      }
+      else
+      {
+        // Relies on expnts being in decreasing order
+        int icut = -1;
+        for (int i=0; i<e.dim(0); i++) {
+          if (e(i) < tcut) {
+            icut = i;
+            break;
+          }
+        }
+        if (icut > 0) {
+          for (int i=icut+1; i<e.dim(0); i++) {
+            c(icut) += c(i); 
+          }
+          c = c(Slice(0,icut));
+          e = e(Slice(0,icut));
+        }
+      }
+    }
 }

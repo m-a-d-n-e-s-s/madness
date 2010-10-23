@@ -197,12 +197,12 @@ void test_periodic2(World& world) {
     // double width = 2*L;
     // bsh_fit(0.0, 1e-5, 100*width, thresh/(4*constants::pi), &coeff, &expnt);
     // const double acut = 0.25 / (4.0*width*width);
-    // std::vector< SharedPtr< Convolution1D<double> > > ops;
+    // std::vector< std::shared_ptr< Convolution1D<double> > > ops;
     // print("expansion of 1/r in gaussians");
     // for (int i=0; i<coeff.dim(0); i++) {
     //     if (expnt[i] > acut) {
     //         double c = pow(4*constants::pi*coeff[i],1.0/3.0);
-    //         ops.push_back(SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
+    //         ops.push_back(std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
     //         print(ops.size(), "coeff", c, "expnt", expnt[i]);
     //     }
     // }

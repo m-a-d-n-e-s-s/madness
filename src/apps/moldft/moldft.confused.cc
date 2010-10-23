@@ -91,15 +91,15 @@ public:
     }
 };
 
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef vector<functionT> vecfuncT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
+typedef std::shared_ptr<operatorT> poperatorT;
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()

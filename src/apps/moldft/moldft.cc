@@ -1411,14 +1411,14 @@ struct Calculation {
             }
             compress(world, ao);
 
-            unsigned int n_core = 0;
+            unsigned int ncore = 0;
             if (param.core_type != "") {
-                n_core = molecule.n_core_orb_all();
+                ncore = molecule.n_core_orb_all();
             }
-            amo = transform(world, ao, c(_, Slice(n_core, n_core + param.nmo_alpha - 1)), 0.0, true);
+            amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
             truncate(world, amo);
             normalize(world, amo);
-            aeps = e(Slice(n_core, n_core + param.nmo_alpha - 1));
+            aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
 
             aocc = tensorT(param.nmo_alpha);
             for(int i = 0;i < param.nalpha;i++)
@@ -1445,10 +1445,10 @@ struct Calculation {
             //}
 
             if(param.nbeta && !param.spin_restricted){
-                bmo = transform(world, ao, c(_, Slice(n_core, n_core + param.nmo_beta - 1)), 0.0, true);
+                bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
                 truncate(world, bmo);
                 normalize(world, bmo);
-                beps = e(Slice(n_core, n_core + param.nmo_beta - 1));
+                beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
                 bocc = tensorT(param.nmo_beta);
                 for(int i = 0;i < param.nbeta;i++)
                     bocc[i] = 1.0;
@@ -1755,6 +1755,7 @@ struct Calculation {
                 ra[atom * 3 + axis] = molecule.nuclear_repulsion_derivative(atom, axis);
             }
         }
+        r += ru + rc + ra;
         END_TIMER(world,"derivatives");
 
         if (world.rank() == 0) {
@@ -1768,7 +1769,6 @@ struct Calculation {
                        r[i*3+0], r[i*3+1], r[i*3+2]);
             }
         }
-        r += ru + rc + ra;
         return r;
     }
 

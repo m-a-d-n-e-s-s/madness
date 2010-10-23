@@ -100,7 +100,7 @@ namespace madness {
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
-    /// is shared between instances using a SharedPtr.  Also,
+    /// is shared between instances using a whared_ptr.  Also,
     /// separating shared from instance specific state accelerates the
     /// constructor, which is important for massive parallelism, and
     /// permitting inexpensive use of temporaries.  The default copy
@@ -570,7 +570,7 @@ namespace madness {
     /// Since Function assignment and copy constructors are shallow it
     /// greatly simplifies maintaining consistent state to have all
     /// (permanent) state encapsulated in a single class.  The state
-    /// is shared between instances using a SharedPtr<FunctionImpl>.
+    /// is shared between instances using a shared_ptr<FunctionImpl>.
     ///
     /// The FunctionImpl inherits all of the functionality of WorldContainer
     /// (to store the coefficients) and WorldObject<WorldContainer> (used

@@ -1,36 +1,36 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
-/* 
+/*
  * File:   esolver.h
  * Author: wsttiger
  *
@@ -40,10 +40,10 @@
 #ifndef _ESOLVER_H
 #define	_ESOLVER_H
 
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<std::complex<double>,3> > functorT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > rfunctorT;
+typedef std::shared_ptr< FunctionFunctorInterface<std::complex<double>,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > rfunctorT;
 typedef Function<std::complex<double>,3> functionT;
 typedef Function<std::complex<double>,3> cfunctionT;
 typedef Function<double,3> rfunctionT;
@@ -55,7 +55,7 @@ typedef Tensor<double> rtensorT;
 typedef FunctionFactory<std::complex<double>,3> factoryT;
 typedef FunctionFactory<double,3> rfactoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
+typedef std::shared_ptr<operatorT> poperatorT;
 
 void print_cube(World& world, const Function<double,3>& f, int npts)
 {
@@ -186,7 +186,7 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     return (fabs(d) <= eps) ? true : false;
   }
   //***************************************************************************
-  
+
 //  //***************************************************************************
 //  template <typename Q, int NDIM>
 //  Function<Q,NDIM> pdiff(const Function<Q,NDIM>& f, int axis, bool fence = true)
@@ -207,7 +207,7 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
 
   //***************************************************************************
   template <typename Q, int NDIM>
-  ctensorT kinetic_energy_matrix(World& world,
+  ctensorT kinetic_energy_matrix_slow(World& world,
                                  const std::vector< Function<std::complex<Q>,NDIM> >& v,
                                  const bool periodic,
                                  const KPoint k = KPoint(coordT(0.0), 0.0))
@@ -247,7 +247,7 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
     }
     else
     {
-      std::vector< SharedPtr < Derivative< std::complex<Q>,NDIM> > > gradop =
+      std::vector< std::shared_ptr < Derivative< std::complex<Q>,NDIM> > > gradop =
           gradient_operator<std::complex<Q>,NDIM>(world);
       for (int axis = 0; axis < 3; axis++)
       {
@@ -255,6 +255,36 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
         c += matrix_inner(world, dv, dv, true);
         dv.clear(); // Allow function memory to be freed
       }
+    }
+    return c.scale(0.5);
+  }
+
+
+  //***************************************************************************
+  template <typename Q, int NDIM>
+  ctensorT kinetic_energy_matrix(World& world,
+                                 const std::vector< Function<std::complex<Q>,NDIM> >& v,
+                                 const bool periodic,
+                                 const KPoint k = KPoint(coordT(0.0), 0.0))
+  {
+    const std::complex<double>   I = std::complex<double>(0.0, 1.0);
+    const std::complex<double> one = std::complex<double>(1.0, 0.0);
+
+    int n = v.size();
+    ctensorT c(n, n);
+    std::vector< std::shared_ptr < Derivative< std::complex<Q>,NDIM> > > gradop =
+        gradient_operator<std::complex<Q>,NDIM>(world);
+    for (int axis = 0; axis < 3; axis++)  {
+        reconstruct(world, v);
+        vecfuncT dv = apply(world, *(gradop[axis]), v);
+        if (periodic) {
+            compress(world,v);
+            compress(world,dv);
+            for (int i=0; i<n; i++) dv[i].gaxpy(one, v[i], I*k.k[axis], false);
+            world.gop.fence();
+        }
+        c += matrix_inner(world, dv, dv, true);
+        dv.clear(); // Allow function memory to be freed
     }
     return c.scale(0.5);
   }

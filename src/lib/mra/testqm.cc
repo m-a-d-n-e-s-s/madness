@@ -49,7 +49,7 @@ const double PI = 3.1415926535897932384;
 using namespace madness;
 
 typedef Vector<double,1> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,1> > functorT;
 typedef Function<double_complex,1> functionT;
 typedef FunctionFactory<double_complex,1> factoryT;
 typedef SeparatedConvolution<double_complex,1> operatorT;

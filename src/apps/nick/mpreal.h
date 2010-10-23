@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /*
@@ -68,12 +68,12 @@
 
 // Detect compiler using signatures from http://predef.sourceforge.net/
 // GNU C/C++
-#if defined(__GNUC__)	
+#if defined(__GNUC__)
 	#define IsInf(x) std::isinf(x)				// C99 supported by C++ 2003 standard
 
 // Microsoft Visual C++
-#elif defined(_MSC_VER)		
-	#define IsInf(x) (!_finite(x))				// Microsoft specific 
+#elif defined(_MSC_VER)
+	#define IsInf(x) (!_finite(x))				// Microsoft specific
 
 // Others, will be added as needed
 #else
@@ -87,8 +87,8 @@ private:
 	mpfr_t mp;
 
 public:
-	static mp_rnd_t   default_rnd;	
-	static mp_prec_t  default_prec;	
+	static mp_rnd_t   default_rnd;
+	static mp_prec_t  default_prec;
 	static int		  default_base;
     static int        double_bits;
 
@@ -97,11 +97,11 @@ public:
 	mpreal();
 	mpreal(const mpreal& u);
 
-	mpreal(const mpfr_t u);	
-	mpreal(const mpf_t u);	
+	mpreal(const mpfr_t u);
+	mpreal(const mpf_t u);
 
-	mpreal(const mpz_t u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);	
-	mpreal(const mpq_t u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);	
+	mpreal(const mpz_t u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
+	mpreal(const mpq_t u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
 	mpreal(const double u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
 	mpreal(const long double u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
 	mpreal(const unsigned long int u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
@@ -110,11 +110,11 @@ public:
 	mpreal(const int u, mp_prec_t prec = default_prec, mp_rnd_t mode = default_rnd);
 	mpreal(const char* s, mp_prec_t prec = default_prec, int base = default_base, mp_rnd_t mode = default_rnd);
 
-	~mpreal();                           
+	~mpreal();
 
 	// Operations
 	// =
-	// +, -, *, /, ++, --, <<, >> 
+	// +, -, *, /, ++, --, <<, >>
 	// *=, +=, -=, /=,
 	// <, >, ==, <=, >=
 
@@ -124,7 +124,7 @@ public:
 	mpreal& operator=(const mpz_t v);
 	mpreal& operator=(const mpq_t v);
 	mpreal& operator=(const long double v);
-	mpreal& operator=(const double v);		
+	mpreal& operator=(const double v);
 	mpreal& operator=(const unsigned long int v);
 	mpreal& operator=(const unsigned int v);
 	mpreal& operator=(const long int v);
@@ -144,7 +144,7 @@ public:
 	mpreal& operator+=(const int u);
 	const mpreal operator+() const;
 	mpreal& operator++ ();
-	const mpreal  operator++ (int); 
+	const mpreal  operator++ (int);
 
 	// -
 	mpreal& operator-=(const mpreal& v);
@@ -162,7 +162,7 @@ public:
 	friend const mpreal operator-(const long int b, const mpreal& a);
 	friend const mpreal operator-(const int b, const mpreal& a);
 	friend const mpreal operator-(const double b, const mpreal& a);
-	mpreal& operator-- ();    
+	mpreal& operator-- ();
 	const mpreal  operator-- (int);
 
 	// *
@@ -175,7 +175,7 @@ public:
 	mpreal& operator*=(const unsigned int v);
 	mpreal& operator*=(const long int v);
 	mpreal& operator*=(const int v);
-	
+
 	// /
 	mpreal& operator/=(const mpreal& v);
 	mpreal& operator/=(const mpz_t v);
@@ -242,11 +242,11 @@ public:
 	friend const mpreal div_2ui(const mpreal& v, unsigned long int k, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal div_2si(const mpreal& v, long int k, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend int cmpabs(const mpreal& a,const mpreal& b);
-	
+
 	friend const mpreal log  (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal log2 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal log10(const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
-	friend const mpreal exp  (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd); 
+	friend const mpreal exp  (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal exp2 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal exp10(const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 
@@ -283,12 +283,12 @@ public:
 	friend const mpreal zeta (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal erf (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal erfc (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
-	friend const mpreal _j0 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd); 
-	friend const mpreal _j1 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd); 
+	friend const mpreal _j0 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
+	friend const mpreal _j1 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal _jn (long n, const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal _y0 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal _y1 (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
-	friend const mpreal _yn (long n, const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd); 
+	friend const mpreal _yn (long n, const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal fma (const mpreal& v1, const mpreal& v2, const mpreal& v3, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal fms (const mpreal& v1, const mpreal& v2, const mpreal& v3, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal agm (const mpreal& v1, const mpreal& v2, mp_rnd_t rnd_mode = mpreal::default_rnd);
@@ -305,12 +305,12 @@ public:
 #endif
 
 	// Exponent and mantissa manipulation
-	friend const mpreal frexp(const mpreal& v, mp_exp_t* exp);	
+	friend const mpreal frexp(const mpreal& v, mp_exp_t* exp);
 	friend const mpreal ldexp(const mpreal& v, mp_exp_t exp);
 
 	// Splits mpreal value into fractional and integer parts.
 	// Returns fractional part and stores integer part in n.
-	friend const mpreal modf(const mpreal& v, mpreal& n);	
+	friend const mpreal modf(const mpreal& v, mpreal& n);
 
 	// Constants
 	// don't forget to call mpfr_free_cache() for every thread where you are using const-functions
@@ -336,14 +336,14 @@ public:
 	friend const mpreal frac (const mpreal& v, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal remainder (const mpreal& x, const mpreal& y, mp_rnd_t rnd_mode = mpreal::default_rnd);
 	friend const mpreal remquo (long* q, const mpreal& x, const mpreal& y, mp_rnd_t rnd_mode = mpreal::default_rnd);
-	
+
 	// Miscellaneous Functions
 	friend const mpreal nexttoward (const mpreal& x, const mpreal& y);
 	friend const mpreal nextabove  (const mpreal& x);
 	friend const mpreal nextbelow  (const mpreal& x);
 
 	// use gmp_randinit_default() to init state, gmp_randclear() to clear
-	friend const mpreal urandomb (gmp_randstate_t& state); 
+	friend const mpreal urandomb (gmp_randstate_t& state);
 	friend const mpreal random2 (mp_size_t size, mp_exp_t exp);
 
 	// Instance Checkers
@@ -356,9 +356,9 @@ public:
 	// Set/Get instance properties
 	mp_prec_t	get_prec() const;
 	void		set_prec(mp_prec_t prec, mp_rnd_t rnd_mode = default_rnd);	// Change precision with rounding mode
-	
+
 	// Set mpreal to +-inf, NaN
-	void      set_inf(int sign = +1);	
+	void      set_inf(int sign = +1);
 	void	  set_nan();
 
 	// sign = -1 or +1
@@ -393,12 +393,12 @@ public:
 
 	// Get/Set conversions
 	// Convert mpreal to string with n significant digits in base b
-	// n = 0 -> convert with the maximum available digits 
+	// n = 0 -> convert with the maximum available digits
 	std::string to_string(size_t n = 0, int b = default_base, mp_rnd_t mode = default_rnd) const;
-	
+
 	// Efficient swapping of two mpreal values
 	friend void swap(mpreal& x, mpreal& y);
-	
+
 	//Min Max - macros is evil. Needed for systems which defines max and min globally as macros (e.g. Windows)
 	//Hope that globally defined macros uses > < operations only
 	#ifndef max
@@ -646,17 +646,17 @@ const mpreal pow(const long int a, const double b, mp_rnd_t rnd_mode = mpreal::d
 const mpreal pow(const int a, const unsigned long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const int a, const unsigned int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const int a, const long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
-const mpreal pow(const int a, const int b, mp_rnd_t rnd_mode = mpreal::default_rnd); 
+const mpreal pow(const int a, const int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const int a, const long double b, mp_rnd_t rnd_mode = mpreal::default_rnd);
-const mpreal pow(const int a, const double b, mp_rnd_t rnd_mode = mpreal::default_rnd); 
+const mpreal pow(const int a, const double b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 
-const mpreal pow(const long double a, const long double b, mp_rnd_t rnd_mode = mpreal::default_rnd);	
+const mpreal pow(const long double a, const long double b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const long double a, const unsigned long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const long double a, const unsigned int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const long double a, const long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const long double a, const int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 
-const mpreal pow(const double a, const double b, mp_rnd_t rnd_mode = mpreal::default_rnd);	
+const mpreal pow(const double a, const double b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const double a, const unsigned long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const double a, const unsigned int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
 const mpreal pow(const double a, const long int b, mp_rnd_t rnd_mode = mpreal::default_rnd);
@@ -692,14 +692,14 @@ inline mpreal& mpreal::operator=(const mpq_t v)
 	return *this;
 }
 
-inline mpreal& mpreal::operator=(const long double v)		
-{	
+inline mpreal& mpreal::operator=(const long double v)
+{
     mpfr_set_ld(mp,v,default_rnd);
 	return *this;
 }
 
-inline mpreal& mpreal::operator=(const double v)				
-{	
+inline mpreal& mpreal::operator=(const double v)
+{
     if(double_bits == -1 || fits_in_bits(v, double_bits))
     {
     	mpfr_set_d(mp,v,default_rnd);
@@ -710,27 +710,27 @@ inline mpreal& mpreal::operator=(const double v)
 	return *this;
 }
 
-inline mpreal& mpreal::operator=(const unsigned long int v)	
-{	
-	mpfr_set_ui(mp,v,default_rnd);	
+inline mpreal& mpreal::operator=(const unsigned long int v)
+{
+	mpfr_set_ui(mp,v,default_rnd);
 	return *this;
 }
 
-inline mpreal& mpreal::operator=(const unsigned int v)		
-{	
-	mpfr_set_ui(mp,v,default_rnd);	
+inline mpreal& mpreal::operator=(const unsigned int v)
+{
+	mpfr_set_ui(mp,v,default_rnd);
 	return *this;
 }
 
-inline mpreal& mpreal::operator=(const long int v)			
-{	
-	mpfr_set_si(mp,v,default_rnd);	
+inline mpreal& mpreal::operator=(const long int v)
+{
+	mpfr_set_si(mp,v,default_rnd);
 	return *this;
 }
 
 inline mpreal& mpreal::operator=(const int v)
-{	
-	mpfr_set_si(mp,v,default_rnd);	
+{
+	mpfr_set_si(mp,v,default_rnd);
 	return *this;
 }
 
@@ -762,7 +762,7 @@ inline mpreal& mpreal::operator+=(const mpq_t u)
 
 inline mpreal& mpreal::operator+= (const long double u)
 {
-	return *this += mpreal(u);	
+	return *this += mpreal(u);
 }
 
 inline mpreal& mpreal::operator+= (const double u)
@@ -771,7 +771,7 @@ inline mpreal& mpreal::operator+= (const double u)
 	mpfr_add_d(mp,mp,u,default_rnd);
 	return *this;
 #else
-	return *this += mpreal(u);	
+	return *this += mpreal(u);
 #endif
 }
 
@@ -912,7 +912,7 @@ inline const mpreal operator+(const int b, const mpreal& a)
 	return mpreal(a) += b;
 }
 
-inline mpreal& mpreal::operator++() 
+inline mpreal& mpreal::operator++()
 {
 	*this += 1;
 	return *this;
@@ -925,7 +925,7 @@ inline const mpreal mpreal::operator++ (int)
 	return x;
 }
 
-inline mpreal& mpreal::operator--() 
+inline mpreal& mpreal::operator--()
 {
 	*this -= 1;
 	return *this;
@@ -960,7 +960,7 @@ inline mpreal& mpreal::operator-=(const mpq_t v)
 
 inline mpreal& mpreal::operator-=(const long double v)
 {
-	return *this -= mpreal(v);	
+	return *this -= mpreal(v);
 }
 
 inline mpreal& mpreal::operator-=(const double v)
@@ -969,7 +969,7 @@ inline mpreal& mpreal::operator-=(const double v)
 	mpfr_sub_d(mp,mp,v,default_rnd);
 	return *this;
 #else
-	return *this -= mpreal(v);	
+	return *this -= mpreal(v);
 #endif
 }
 
@@ -1008,7 +1008,7 @@ inline const mpreal operator-(const mpreal& a, const mpreal& b)
 {
 	// prec(a-b) = max(prec(a),prec(b))
 	if(a.get_prec()>b.get_prec())	return   mpreal(a) -= b;
-	else							return -(mpreal(b) -= a);		
+	else							return -(mpreal(b) -= a);
 }
 
 inline const mpreal operator-(const mpreal& a, const mpz_t b)
@@ -1137,7 +1137,7 @@ inline mpreal& mpreal::operator*=(const mpq_t v)
 
 inline mpreal& mpreal::operator*=(const long double v)
 {
-	return *this *= mpreal(v);	
+	return *this *= mpreal(v);
 }
 
 inline mpreal& mpreal::operator*=(const double v)
@@ -1146,7 +1146,7 @@ inline mpreal& mpreal::operator*=(const double v)
 	mpfr_mul_d(mp,mp,v,default_rnd);
 	return *this;
 #else
-	return *this *= mpreal(v);	
+	return *this *= mpreal(v);
 #endif
 }
 
@@ -1178,7 +1178,7 @@ inline const mpreal operator*(const mpreal& a, const mpreal& b)
 {
 	// prec(a*b) = max(prec(a),prec(b))
 	if(a.get_prec()>b.get_prec())	return   mpreal(a) *= b;
-	else							return   mpreal(b) *= a;		
+	else							return   mpreal(b) *= a;
 }
 
 inline const mpreal operator*(const mpreal& a, const mpz_t b)
@@ -1283,7 +1283,7 @@ inline mpreal& mpreal::operator/=(const mpq_t v)
 
 inline mpreal& mpreal::operator/=(const long double v)
 {
-	return *this /= mpreal(v);	
+	return *this /= mpreal(v);
 }
 
 inline mpreal& mpreal::operator/=(const double v)
@@ -1292,7 +1292,7 @@ inline mpreal& mpreal::operator/=(const double v)
 	mpfr_div_d(mp,mp,v,default_rnd);
 	return *this;
 #else
-	return *this /= mpreal(v);	
+	return *this /= mpreal(v);
 #endif
 }
 
@@ -1976,17 +1976,17 @@ inline mpreal::operator long double() const
 
 inline mpreal::operator unsigned long() const
 {
-	return mpfr_get_ui(mp,default_rnd);	
+	return mpfr_get_ui(mp,default_rnd);
 }
 
 inline mpreal::operator unsigned int() const
 {
-	return mpfr_get_ui(mp,default_rnd);	
+	return mpfr_get_ui(mp,default_rnd);
 }
 
 inline mpreal::operator long() const
 {
-	return mpfr_get_si(mp,default_rnd);	
+	return mpfr_get_si(mp,default_rnd);
 }
 
 inline mpreal::operator std::string() const
@@ -2022,12 +2022,12 @@ inline void mpreal::set_prec(mp_prec_t prec, mp_rnd_t rnd_mode)
 	mpfr_prec_round(mp,prec,rnd_mode);
 }
 
-inline void mpreal::set_inf(int sign) 
-{ 
+inline void mpreal::set_inf(int sign)
+{
 	mpfr_set_inf(mp,sign);
-}	
+}
 
-inline void mpreal::set_nan() 
+inline void mpreal::set_nan()
 {
 	mpfr_set_nan(mp);
 }
@@ -2055,7 +2055,7 @@ inline const mpreal ldexp(const mpreal& v, mp_exp_t exp)
 	mpreal x(v);
 
 	// rounding is not important since we just increasing the exponent
-	mpfr_mul_2si(x.mp,x.mp,exp,mpreal::default_rnd); 
+	mpfr_mul_2si(x.mp,x.mp,exp,mpreal::default_rnd);
 	return x;
 }
 
@@ -2064,7 +2064,7 @@ inline const mpreal modf(const mpreal& v, mpreal& n)
 	mpreal frac(v);
 
 	// rounding is not important since we are using the same number
-	mpfr_frac(frac.mp,frac.mp,mpreal::default_rnd);	
+	mpfr_frac(frac.mp,frac.mp,mpreal::default_rnd);
 	mpfr_trunc(n.mp,v.mp);
 	return frac;
 }
@@ -2151,7 +2151,7 @@ inline const mpreal sqrt(const unsigned int v, mp_rnd_t rnd_mode)
 inline const mpreal sqrt(const long int v, mp_rnd_t rnd_mode)
 {
 	if (v>=0)	return sqrt(static_cast<unsigned long int>(v),rnd_mode);
-	else		return mpreal(); // NaN  
+	else		return mpreal(); // NaN
 }
 
 inline const mpreal sqrt(const int v, mp_rnd_t rnd_mode)
@@ -2325,8 +2325,8 @@ inline const mpreal atan2 (const mpreal& y, const mpreal& x, mp_rnd_t rnd_mode)
 	mpreal a;
 	mp_prec_t yp, xp;
 
-	yp = y.get_prec(); 
-	xp = x.get_prec(); 
+	yp = y.get_prec();
+	xp = x.get_prec();
 
 	a.set_prec(yp>xp?yp:xp);
 
@@ -2531,8 +2531,8 @@ inline const mpreal fmod (const mpreal& x, const mpreal& y, mp_rnd_t rnd_mode)
 	mpreal a;
 	mp_prec_t yp, xp;
 
-	yp = y.get_prec(); 
-	xp = x.get_prec(); 
+	yp = y.get_prec();
+	xp = x.get_prec();
 
 	a.set_prec(yp>xp?yp:xp);
 
@@ -2659,7 +2659,7 @@ inline const mpreal frac (const mpreal& v, mp_rnd_t rnd_mode)
 
 //////////////////////////////////////////////////////////////////////////
 // Miscellaneous Functions
-inline void swap(mpreal& a, mpreal& b) 
+inline void swap(mpreal& a, mpreal& b)
 {
 	mpfr_swap(a.mp,b.mp);
 }
@@ -2716,49 +2716,49 @@ inline const mpreal random2 (mp_size_t size, mp_exp_t exp)
 //////////////////////////////////////////////////////////////////////////
 // Set/Get global properties
 inline void mpreal::set_default_prec(mp_prec_t prec)
-{ 
+{
 	default_prec = prec;
-	mpfr_set_default_prec(prec); 
+	mpfr_set_default_prec(prec);
 }
 
 inline mp_prec_t mpreal::get_default_prec()
-{ 
+{
 	return mpfr_get_default_prec();
 }
 
 inline void mpreal::set_default_base(int base)
-{ 
+{
 	default_base = base;
 }
 
 inline int mpreal::get_default_base()
-{ 
+{
 	return default_base;
 }
 
 inline void mpreal::set_default_rnd(mp_rnd_t rnd_mode)
-{ 
+{
 	default_rnd =  rnd_mode;
-	mpfr_set_default_rounding_mode(rnd_mode); 
+	mpfr_set_default_rounding_mode(rnd_mode);
 }
 
 inline mp_rnd_t mpreal::get_default_rnd()
-{ 
+{
 	return mpfr_get_default_rounding_mode();
 }
 
 inline void mpreal::set_double_bits(int dbits)
-{ 
+{
 	double_bits = dbits;
 }
 
 inline int mpreal::get_double_bits()
-{ 
+{
 	return double_bits;
 }
 
 inline bool mpreal::fits_in_bits(double x, int n)
-{   
+{
 	int i;
 	double t;
 	return IsInf(x) || (std::modf ( std::ldexp ( std::frexp ( x, &i ), n ), &t ) == 0.0);
@@ -3008,7 +3008,7 @@ inline const mpreal pow(const int a, const double b, mp_rnd_t rnd_mode)
 	else		return pow(mpreal(a),mpreal(b),rnd_mode); //mpfr_pow
 }
 
-// pow long double 
+// pow long double
 inline const mpreal pow(const long double a, const long double b, mp_rnd_t rnd_mode)
 {
 	return pow(mpreal(a),mpreal(b),rnd_mode);
@@ -3066,9 +3066,9 @@ inline const mpreal pow(const double a, const int b, mp_rnd_t rnd_mode)
 namespace std
 {
 	template <>
-	inline void swap(mpfr::mpreal& x, mpfr::mpreal& y) 
-	{ 
-		return mpfr::swap(x, y); 
+	inline void swap(mpfr::mpreal& x, mpfr::mpreal& y)
+	{
+		return mpfr::swap(x, y);
 	}
 }
 

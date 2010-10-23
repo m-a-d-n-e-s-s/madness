@@ -109,7 +109,7 @@ public:
 template <typename T, int NDIM>
 void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) print("at beginning of test_loadbal");
 
@@ -159,7 +159,7 @@ void test_loadbal(World& world) {
 
     for (int k=9; k >=9; k-=2) {
         //MyPmap<NDIM> temppmap(world);
-        FunctionDefaults<NDIM>::set_pmap(SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world)));
+        FunctionDefaults<NDIM>::set_pmap(std::shared_ptr<MyPmap<NDIM> >(new MyPmap<NDIM>(world)));
         /*
         if (world.rank() == 0) {
             FunctionDefaults<NDIM>::pmap->print();

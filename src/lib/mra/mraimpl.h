@@ -1178,9 +1178,9 @@ namespace madness {
         cell(_,1) = 1.0;
         recompute_cell_info();
 
-        //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
+        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
         pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
-        //pmap = SharedPtr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
+        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
     }
 
     template <typename T, int NDIM>

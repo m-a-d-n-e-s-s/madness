@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -36,6 +36,7 @@
 #include "util.h"
 #include "poperator.h"
 #include "outputwriter.h"
+#include <mra/operator.h>
 
 //#define DEBUG_STREAM *(OutputWriter::instance()->debug_stream())
 //#define LOG_STREAM *(OutputWriter::instance()->log_stream())
@@ -110,7 +111,7 @@ namespace madness
     // Electron density
     funcT rho = FunctionFactory<double,NDIM>(const_cast<World&>(world));
     // Loop over all wavefunctions to compute density
-    for (int j = 0; j < phis.size(); j++)
+    for (unsigned int j = 0; j < phis.size(); j++)
     {
       // Get phi(j) from iterator
       const funcT& phij = phis[j];
@@ -278,8 +279,8 @@ namespace madness
   template <typename T, int NDIM>
   void EigSolver<T,NDIM>::solve(int maxits)
   {
-	cout.setf(ios::fixed,ios::floatfield);
-	cout.precision(8);
+	std::cout.setf(std::ios::fixed,std::ios::floatfield);
+	std::cout.precision(8);
   double thresh = FunctionDefaults<NDIM>::get_thresh();
 	for (int it = 0; it < maxits; it++)
     {
@@ -420,7 +421,7 @@ namespace madness
       prepare_ops();
       if (_world.rank() == 0) printf("Iteration #%d\n\n", it);
       // Create empty functions for calculations
-      vector<funcT> pfuncs(_phis.size());
+      std::vector<funcT> pfuncs(_phis.size());
       for (unsigned int pi = 0; pi < _phis.size(); pi++)
         pfuncs[pi] = FunctionFactory<T, NDIM>(_world);
       // Loop through all ops to work on a vector of functions
@@ -438,10 +439,10 @@ namespace madness
       make_bsh_operators();
       // Apply the Green's function operator (stubbed)
       if (_world.rank() == 0) printf("Applying BSH operator ...\n\n");
-      vector<double> sfactor(pfuncs.size());
+      std::vector<double> sfactor(pfuncs.size());
       for (unsigned int si = 0; si < sfactor.size(); si++) sfactor[si] = -2.0;
       scale(_world, pfuncs, sfactor);
-      vector<funcT> tmp = apply(_world, _bops, pfuncs);
+      std::vector<funcT> tmp = apply(_world, _bops, pfuncs);
       // WSTHORNTON DEBUG
       for (unsigned int ti = 0; ti < tmp.size(); ti++)
       {

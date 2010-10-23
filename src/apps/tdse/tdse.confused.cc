@@ -1,40 +1,40 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /// \file tdse/tdse.confused.cc
 /// \brief Evolves the hydrogen atom in imaginary and also real time
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>
@@ -52,7 +52,7 @@ struct InputParameters {
     // a) read()
     // b) serialize()
     // c) operator<<()
-  
+
   double L;           // Box size for the simulation
   double Lsmall;      // Box size for small (near nucleus) plots
   double Llarge;      // Box size for large (far from nucleus) plots
@@ -71,12 +71,12 @@ struct InputParameters {
   int nplot;          // dump opendx plot to disk every nplot steps
   int nprint;         // print stats every nprint steps
   int nloadbal;       // load balance every nloadbal steps
-  int nio;            // Number of IO nodes 
-    
+  int nio;            // Number of IO nodes
+
   double tScale;      // Scaling parameter for optimization
 
   double target_time;// Target end-time for the simulation
-  
+
   void read(const char* filename) {
     ifstream f(filename);
     string tag;
@@ -177,7 +177,7 @@ struct InputParameters {
         }
     }
   }
-    
+
   template <typename Archive>
   void serialize(Archive & ar) {
     ar & L & Lsmall & Llarge & F & omega & ncycle & natom & Z;
@@ -202,15 +202,15 @@ static double zero_field_time;      // Laser actually switches on after this tim
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double_complex,3> complex_operatorT;
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 
 // This controls the distribution of data across the machine
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
@@ -218,9 +218,9 @@ private:
     const int nproc;
 public:
     LevelPmap() : nproc(0) {};
-    
+
     LevelPmap(World& world) : nproc(world.nproc()) {}
-    
+
     // Find the owner of a given key
     ProcessID owner(const Key<3>& key) const {
         Level n = key.level();
@@ -233,7 +233,7 @@ public:
         //if (n <= 2) hash = key.hash();
         //else hash = key.parent(2).hash();
 
-        // This randomly hashes levels 0-3 and then 
+        // This randomly hashes levels 0-3 and then
         // maps nodes on even levels to the same
         // random node as their parent.
         // if (n <= 3 || (n&0x1)) hash = key.hash();
@@ -248,7 +248,7 @@ public:
 
 // Derivative of the smoothed 1/r approximation
 
-// Invoke as \c du(r/c)/(c*c) where \c c is the radius of the smoothed volume.  
+// Invoke as \c du(r/c)/(c*c) where \c c is the radius of the smoothed volume.
 static double d_smoothed_potential(double r) {
     double r2 = r*r;
 
@@ -265,7 +265,7 @@ static double d_smoothed_potential(double r) {
 
 // Smoothed 1/r potential.
 
-// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.  
+// Invoke as \c u(r/c)/c where \c c is the radius of the smoothed volume.
 static double smoothed_potential(double r) {
     double r2 = r*r, pot;
     if (r > 6.5){
@@ -275,7 +275,7 @@ static double smoothed_potential(double r) {
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    
+
     return pot;
 }
 
@@ -288,7 +288,7 @@ static double V(const coordT& r) {
       double yy = y-param.R[i][1];
       double zz = z-param.R[i][2];
       double rr = sqrt(xx*xx+yy*yy+zz*zz);
-      
+
       sum +=  -param.Z[i]*smoothed_potential(rr/param.cut)/param.cut;
     }
     return sum;
@@ -470,8 +470,8 @@ complex_functionT chin_chen(const complex_functionT& expV_0,
 }
 
 complex_functionT trotter(World& world,
-                          const complex_functionT& expV, 
-                          const complex_operatorT& G, 
+                          const complex_functionT& expV,
+                          const complex_operatorT& G,
                           const complex_functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
 
@@ -485,7 +485,7 @@ complex_functionT trotter(World& world,
     if (world.rank() == 0) print("APPLYING G again", size);
     psi1 = apply(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
     if (world.rank() == 0) print("DONE", size);
-    
+
     return psi1;
 }
 
@@ -525,7 +525,7 @@ void print_stats_header(World& world) {
     }
 }
 
-void print_stats(World& world, int step, double t, const functionT& v, 
+void print_stats(World& world, int step, double t, const functionT& v,
                  const functionT& x, const functionT& y, const functionT& z,
                  const functionT& dV_dz,
                  const complex_functionT& psi0, const complex_functionT& psi) {
@@ -575,7 +575,7 @@ bool wave_function_exists(World& world, int step) {
     return ParallelInputArchive::exists(world, wave_function_filename(step));
 }
 
-void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) { 
+void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) {
     double start = wall_time();
     Tensor<double> cell(3,2);
     std::vector<long> npt(3, numpt);
@@ -590,7 +590,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
     static const int npt = 10001;
     double_complex v[10001];
     psi.reconstruct();
-    for (int i=0; i<npt; i++) 
+    for (int i=0; i<npt; i++)
         v[i] = 0.0;
     for (int i=world.rank(); i<npt; i+=world.size()) {
         double z = -param.Llarge + 2.0*i*param.Llarge/(npt-1);
@@ -630,9 +630,9 @@ struct lbcost {
     }
 };
 
-void loadbal(World& world, 
+void loadbal(World& world,
              functionT& potn, functionT& vt,
-             functionT& dpotn_dx, functionT& dpotn_dy, functionT& dpotn_dz, 
+             functionT& dpotn_dx, functionT& dpotn_dy, functionT& dpotn_dz,
              functionT& dpotn_dx_sq, functionT& dpotn_dy_sq,
              complex_functionT& psi, complex_functionT& psi0,
              functionT& x, functionT& y, functionT& z) {
@@ -689,9 +689,9 @@ void propagate(World& world, int step0) {
     // Chin-Chen and also for computing the power spectrum ... compute
     // derivatives analytically to reduce numerical noise
     functionT potn = factoryT(world).f(V);         potn.truncate();
-    functionT dpotn_dx = factoryT(world).f(dVdx);  
-    functionT dpotn_dy = factoryT(world).f(dVdy);  
-    functionT dpotn_dz = factoryT(world).f(dVdz);  
+    functionT dpotn_dx = factoryT(world).f(dVdx);
+    functionT dpotn_dy = factoryT(world).f(dVdy);
+    functionT dpotn_dz = factoryT(world).f(dVdz);
 
     functionT dpotn_dx_sq = dpotn_dx*dpotn_dx;
     functionT dpotn_dy_sq = dpotn_dy*dpotn_dy;
@@ -702,7 +702,7 @@ void propagate(World& world, int step0) {
     functionT z = factoryT(world).f(zdipole);
 
     // Wave function at time t=0 for printing statistics
-    complex_functionT psi0 = wave_function_load(world, 0); 
+    complex_functionT psi0 = wave_function_load(world, 0);
 
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
@@ -731,7 +731,7 @@ void propagate(World& world, int step0) {
         // Make gradient of potential at time t in z direction to compute HHG
         functionT dV_dz = copy(dpotn_dz);
         dV_dz.add_scalar(laser(t));
-        
+
         print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
         line_plot(world, step, psi);
     }
@@ -749,7 +749,7 @@ void propagate(World& world, int step0) {
 
         long depth = psi.max_depth(); long size=psi.size();
         if (use_trotter) {
-            // Make the potential at time t + step/2 
+            // Make the potential at time t + step/2
             functionT vhalf = potn + laser(t+0.5*time_step)*z;
 
             // Apply Trotter to advance from time t to time t+step
@@ -780,7 +780,7 @@ void propagate(World& world, int step0) {
             t4 = wall_time();
             Vtilde.gaxpy(1.0, dvsq, -time_step*time_step/48.0);
             t5 = wall_time();
-            
+
             // Exponentiate potentials
             complex_functionT expv_0     = make_exp(time_step/6.0, vt);
             t6 = wall_time();
@@ -795,7 +795,7 @@ void propagate(World& world, int step0) {
             dvsq.clear();
             world.gop.fence();
             t9 = wall_time();
-            
+
             // Apply Chin-Chen
             psi = chin_chen(expv_0, expv_tilde, expv_1, G, psi);
             t10 = wall_time();
@@ -813,7 +813,7 @@ void propagate(World& world, int step0) {
             t11 = wall_time();
             dV_dz.add_scalar(laser(t));
             t12 = wall_time();
-            
+
             if ((step%param.nprint) == 0 || step==nstep) {
                 print_stats(world, step, t, vt, x, y, z, dV_dz, psi0, psi);
                 line_plot(world, step, psi);
@@ -821,8 +821,8 @@ void propagate(World& world, int step0) {
             }
 
             t13 = wall_time();
-            if (world.rank() == 0) 
-                printf("loadbal=%.2f copy=%.2f Vtil=%.2f dvsq =%.2f gaxpy=%.2f exp1=%.2f exp2=%.2f exp3=%.2f clear=%.2f CC=%.2f copy=%.2f addscl=%.2f prnt=%.2f\n", 
+            if (world.rank() == 0)
+                printf("loadbal=%.2f copy=%.2f Vtil=%.2f dvsq =%.2f gaxpy=%.2f exp1=%.2f exp2=%.2f exp3=%.2f clear=%.2f CC=%.2f copy=%.2f addscl=%.2f prnt=%.2f\n",
                        t1-t0, t2-t1, t3-t2, t4-t3, t5-t4, t6-t5, t7-t6, t8-t7, t9-t8, t10-t9, t11-t10, t12-t11, t13-t12);
         }
 
@@ -885,9 +885,9 @@ void doit(World& world) {
             psi.truncate();
             psi.scale(1.0/psi.norm2());
             if (world.rank() == 0) print("got psi", wall_time());
-            
+
             double eps = energy(world, psi, potn);
-            if (world.rank() == 0) print("guess energy", eps, wall_time()); 
+            if (world.rank() == 0) print("guess energy", eps, wall_time());
             converge(world, potn, psi, eps);
 
             psi.truncate(param.thresh);
@@ -910,7 +910,7 @@ void doit(World& world) {
 int main(int argc, char** argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
-    
+
     startup(world,argc,argv);
 
     try {
@@ -942,7 +942,7 @@ int main(int argc, char** argv) {
 
 
     world.gop.fence();
-    
+
     ThreadPool::end();
     print_stats(world);
     finalize();

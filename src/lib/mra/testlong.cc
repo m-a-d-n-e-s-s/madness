@@ -106,8 +106,8 @@ public:
 template <typename resultT, typename L, typename R, typename opT, int NDIM>
 class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<L,NDIM> > functorL;
-    typedef SharedPtr< FunctionFunctorInterface<R,NDIM> > functorR;
+    typedef std::shared_ptr< FunctionFunctorInterface<L,NDIM> > functorL;
+    typedef std::shared_ptr< FunctionFunctorInterface<R,NDIM> > functorR;
 
     functorL left;
     functorR right;
@@ -135,7 +135,7 @@ Cost a_cost_function(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
 template <typename T, int NDIM>
 void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) print("at beginning of test_loadbal");
 
@@ -180,7 +180,7 @@ void test_loadbal(World& world) {
     }
 
     for (int k=5; k >=5; k-=2) {
-        FunctionDefaults<NDIM>::pmap = SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world));
+        FunctionDefaults<NDIM>::pmap.reset(new MyPmap<NDIM>(world));
 
         int n = 2;
         double thresh = 1e-4;

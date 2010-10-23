@@ -24,14 +24,14 @@ std::ostream& operator<<(std::ostream& s, const Exp& e);
 class Exp {
 public:
     enum Type {
-        INTEGER, 
-        REAL, 
-        COMPLEX, 
-        REALTEN, 
-        COMPLEXTEN, 
-        REALFUN, 
-        COMPLEXFUN, 
-        STRING, 
+        INTEGER,
+        REAL,
+        COMPLEX,
+        REALTEN,
+        COMPLEXTEN,
+        REALFUN,
+        COMPLEXFUN,
+        STRING,
         COORD,
         UNKNOWN
     };
@@ -45,7 +45,7 @@ public:
         static const char* name[] = {"long", "double", "double_complex", "real_tensor", "complex_tensor", "real_function", "complex_function", "std::string", "coord", "unknown"};
         return name[t];
     }
-    
+
     typedef std::vector<Exp*>::iterator iterator;
     typedef std::vector<Exp*>::const_iterator const_iterator;
 
@@ -57,12 +57,12 @@ private:
 public:
 
     // Leaf node
-    Exp(const std::string& s, Type t=UNKNOWN) 
+    Exp(const std::string& s, Type t=UNKNOWN)
         : s(s), t(t), c()
     {}
 
     // Unary op
-    Exp(const std::string& s, Exp* left, Type t=UNKNOWN) 
+    Exp(const std::string& s, Exp* left, Type t=UNKNOWN)
         : s(s), t(t), c()
     {
         c.push_back(left);
@@ -97,13 +97,13 @@ public:
         c.push_back(far);
     }
 
-    Exp* add(Exp* child) 
+    Exp* add(Exp* child)
     {
         c.push_back(child);
         return child;
     }
 
-    Exp* add(const std::string& str, Type t=UNKNOWN) 
+    Exp* add(const std::string& str, Type t=UNKNOWN)
     {
         return add(new Exp(str,t));
     }
@@ -111,17 +111,17 @@ public:
     void print_tree(std::ostream& file, int depth=0) const {
         for (int i=0; i<depth; i++) file << "        ";
         file << *this << std::endl;
-        for (const_iterator iter = c.begin(); 
-             iter != c.end(); 
+        for (const_iterator iter = c.begin();
+             iter != c.end();
              ++iter) (*iter)->print_tree(file,depth+1);
-        
+
     }
 
     bool match_sub_tree(const Exp* t) const {
         // t points to a template tree that we want to
         // match against this sub-tree. either exact match
         // or wildcard indicated by null string in t
-        
+
         if (t->str() == "" || (t->str() == str() && t->c.size() <= c.size())) {
             const_iterator it = t->begin();
             const_iterator ti =    begin();
@@ -138,7 +138,7 @@ public:
     void regenerate(std::ostream& file) const {
         // varlist, arglist, paramlist can be 1 or more entries
         if (s == "arglist" || s=="varlist" || s=="paramlist") {
-            const_iterator iter = c.begin(); 
+            const_iterator iter = c.begin();
             while (iter != c.end()) {
                 (*iter)->regenerate(file);
                 ++iter;
@@ -321,7 +321,7 @@ public:
     void generate_tex(std::ostream& file) const {
         // varlist, arglist, paramlist can be 1 or more entries
         if (s == "arglist" || s=="varlist" || s=="paramlist") {
-            const_iterator iter = c.begin(); 
+            const_iterator iter = c.begin();
             while (iter != c.end()) {
                 (*iter)->generate_tex(file);
                 ++iter;
@@ -357,7 +357,7 @@ public:
             // while    while exp
             // plot     plot  exp
             // lap
-            
+
             if      (s == "()") file << "\\left(";
             else if (s == "{}") file << "{";
             else if (s == "-") file << "-";
@@ -365,9 +365,9 @@ public:
             else if (s == "greek") file << "\\";
             else if (s == "lap") file << " \\nabla^2 ";
             else file << "\\textsf{" << s << "}\\ ";
-            
+
             c[0]->generate_tex(file);
-            
+
             if      (s == "{}") file << "}";
             else if (s == "()") file << "\\right)";
         }
@@ -560,10 +560,10 @@ public:
     void generate_cxx(std::ostream& file) const {
         // varlist, arglist, paramlist can be 1 or more entries
         if (s == "arglist" || s=="varlist" || s=="paramlist") {
-            const_iterator iter = c.begin(); 
+            const_iterator iter = c.begin();
             while (iter != c.end()) {
                 const Exp* e = *iter;
-                
+
                 if (s == "paramlist") {
                     Exp::Type t = e->type();
                     bool pass_by_const_ref = (! Exp::is_pod(t));
@@ -732,9 +732,9 @@ public:
             else if (s == "_") {
                 c[0]->generate_cxx(file);
                 file << "[";
-                c[1]->generate_cxx(file);                
+                c[1]->generate_cxx(file);
                 file << "]";
-            }            
+            }
             else if (s == "and") {
                 c[0]->generate_cxx(file);
                 file << " && ";
@@ -826,8 +826,8 @@ public:
                 file << "typedef FunctionFactory<double,D> real_factory;\n";
                 file << "typedef FunctionFactory<double_complex,D> complex_factory;\n";
                 file << "typedef Vector<double,D> coord;\n\n";
-                file << "std::vector< SharedPtr < Derivative<double,D> > > real_grad;\n";
-                file << "std::vector< SharedPtr < Derivative<double_complex,D> > > complex_grad;\n";
+                file << "std::vector< std::shared_ptr < Derivative<double,D> > > real_grad;\n";
+                file << "std::vector< std::shared_ptr < Derivative<double_complex,D> > > complex_grad;\n";
                 file << "template <typename functionT>\n";
                 file << "void plot(const functionT& f, const char* filename = \"plot.dx\") {\n";
                 file << "    plotdx(f, filename, FunctionDefaults<D>::get_cell(), std::vector<long>(D,101));\n";
@@ -947,9 +947,9 @@ public:
             if (g==REALFUN) return REAL;
             else if (g==COMPLEXFUN) return COMPLEX;
         }
-        else if (f==COMPLEXFUN && (g==REALFUN || g==COMPLEXFUN)) 
+        else if (f==COMPLEXFUN && (g==REALFUN || g==COMPLEXFUN))
             return COMPLEX;
-        
+
         std::cout << "computing braket with non-function types? <" << type_name(f) << "|" << type_name(g) << ">\n";
         return UNKNOWN;
     }
@@ -1007,7 +1007,7 @@ public:
         if (is_integer(l) && is_integer(r)) {
             if (op=="+" || op=="-" || op=="*") return INTEGER;
         }
-        
+
         // Choice is now (complex|real) (number|tensor|function)
         if (is_complex(l) || is_complex(r)) {
             if (is_tensor(l) || is_tensor(r)) return COMPLEXTEN;
@@ -1026,19 +1026,19 @@ public:
     }
 
     ~Exp() {
-        for (iterator iter = c.begin(); 
-             iter != c.end(); 
+        for (iterator iter = c.begin();
+             iter != c.end();
              ++iter) delete *iter;
     }
 
     Exp* operator[](int i) const {
         return c[i];
     }
-    
+
 };
 
 inline std::ostream& operator<<(std::ostream& s, const Exp& e) {
-    s << Exp::type_name(e.type()) << " " << e.str(); 
+    s << Exp::type_name(e.type()) << " " << e.str();
     return s;
 }
 
@@ -1116,12 +1116,12 @@ public:
 
             rewrite_sum(exp);
 
-            insert_before(new Exp("=",new Exp(*var), 
+            insert_before(new Exp("=",new Exp(*var),
                                   new Exp("+",new Exp(*var),exp,t),t));
             insert_before(new Exp("end"));
             e = *var;
             //}
-            
+
         }
         else {
             for (Exp::iterator it=e.begin(); it!=e.end(); ++it) {
@@ -1184,7 +1184,7 @@ public:
             std::cout << "unknown type " << type << " in declaration" << std::endl;
             t = Exp::UNKNOWN;
         }
-        
+
         if (e->str() == "varlist") {
             for (Exp::const_iterator iter=e->begin(); iter!=e->end(); ++iter) {
                 insert_sym("declaring",(*iter)->str(), t);
@@ -1196,7 +1196,7 @@ public:
     }
 
     void print_tree(std::ostream& file) const {
-        for (std::vector<Exp*>::const_iterator iter = program.begin(); iter != program.end();  ++iter) 
+        for (std::vector<Exp*>::const_iterator iter = program.begin(); iter != program.end();  ++iter)
             (*iter)->print_tree(file);
     }
 
@@ -1222,7 +1222,7 @@ public:
             }
 
             for (int i=0; i<4*ind; i++) file << " ";
-            
+
             (*iter)->regenerate(file);
 
             file << std::endl;
@@ -1252,7 +1252,7 @@ public:
 
             file << "& ";
             for (int i=0; i<4*ind; i++) file << "\\ ";
-            
+
             (*iter)->generate_tex(file);
 
             file << "\\\\" << std::endl;
@@ -1262,7 +1262,7 @@ public:
     void generate_cxx(std::ostream& file) {
 
         // note class global variable cur
-        for (cur = program.begin(); cur != program.end();  ++cur) 
+        for (cur = program.begin(); cur != program.end();  ++cur)
             rewrite_sum(*cur);
 
         int indent = 0;
@@ -1289,7 +1289,7 @@ public:
             if (s == "=") {
                 const std::string& cs = (*(e->begin()))->str();
                 if (cs == "k") use_k_default = false;
-                if (cs == "greek" && (*(*(e->begin()))->begin())->str()=="epsilon") 
+                if (cs == "greek" && (*(*(e->begin()))->begin())->str()=="epsilon")
                     use_eps_default = false;
             }
 
@@ -1302,19 +1302,19 @@ public:
                     file << "const double epsilon = 1e-4;\n";
                     insert_sym("defaulting", new Exp("epsilon",Exp::REAL));
                 }
-            }                
+            }
 
 
             for (int i=0; i<4*ind; i++) file << " ";
-            
+
             if (s=="elif" || s=="else") {
                 file << "}\n";
                 for (int i=0; i<4*ind; i++) file << " ";
             }
-            
+
             (*iter)->generate_cxx(file);
 
-            if (s=="if" || s=="elif" || s=="else" || s=="while") 
+            if (s=="if" || s=="elif" || s=="else" || s=="while")
                 file << " {";
             else if (s=="end")
                 file << "}";

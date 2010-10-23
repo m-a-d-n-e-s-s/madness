@@ -36,8 +36,8 @@ build_triplet = @build@
 host_triplet = @host@
 DIST_COMMON = $(srcdir)/Makefile.am $(srcdir)/Makefile.in \
 	$(top_srcdir)/config/MakeGlobal.am
-bin_PROGRAMS = testpg$(EXEEXT) moldft$(EXEEXT)
-subdir = src/apps/moldft
+bin_PROGRAMS = maxwell$(EXEEXT)
+subdir = src/apps/maxwell
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
 	$(top_srcdir)/config/acx_check_compiler_flags.m4 \
@@ -68,14 +68,11 @@ CONFIG_CLEAN_FILES =
 CONFIG_CLEAN_VPATH_FILES =
 am__installdirs = "$(DESTDIR)$(bindir)"
 PROGRAMS = $(bin_PROGRAMS)
-am_moldft_OBJECTS = moldft.$(OBJEXT) lda.$(OBJEXT) molecule.$(OBJEXT) \
-	molecularbasis.$(OBJEXT) atomutil.$(OBJEXT) \
-	corepotential.$(OBJEXT)
-moldft_OBJECTS = $(am_moldft_OBJECTS)
-moldft_DEPENDENCIES = $(MRALIBS)
-am_testpg_OBJECTS = testpg.$(OBJEXT)
-testpg_OBJECTS = $(am_testpg_OBJECTS)
-testpg_DEPENDENCIES = $(MRALIBS)
+am_maxwell_OBJECTS = maxwell.$(OBJEXT) envelopedpulse.$(OBJEXT) \
+	frequencyhandler.$(OBJEXT)
+maxwell_OBJECTS = $(am_maxwell_OBJECTS)
+maxwell_LDADD = $(LDADD)
+maxwell_DEPENDENCIES = $(MRALIBS)
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -85,12 +82,8 @@ CXXCOMPILE = $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) \
 CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
-COMPILE = $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) \
-	$(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS)
-CCLD = $(CC)
-LINK = $(CCLD) $(AM_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
-SOURCES = $(moldft_SOURCES) $(testpg_SOURCES)
-DIST_SOURCES = $(moldft_SOURCES) $(testpg_SOURCES)
+SOURCES = $(maxwell_SOURCES)
+DIST_SOURCES = $(maxwell_SOURCES)
 ETAGS = etags
 CTAGS = ctags
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -240,14 +233,8 @@ LIBMUPARSER = $(LIBMUPARSERDIR)/libMADmuparser.a
 
 # Most scientific/numeric applications will link against these libraries
 MRALIBS = $(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
-moldft_SOURCES = moldft.cc lda.cc  molecule.cc \
-                 molecule.h molecularbasis.h molecularbasis.cc \
-                 atomutil.h atomutil.cc \
-                 corepotential.h corepotential.cc
-
-testpg_SOURCES = testpg.cc pointgroup.h
-moldft_LDADD = $(MRALIBS)
-testpg_LDADD = $(MRALIBS)
+maxwell_SOURCES = maxwell.cc envelopedpulse.cc frequencyhandler.cc
+LDADD = $(MRALIBS)
 all: all-am
 
 .SUFFIXES:
@@ -261,9 +248,9 @@ $(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/config/MakeGlobal.am
 	      exit 1;; \
 	  esac; \
 	done; \
-	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/apps/moldft/Makefile'; \
+	echo ' cd $(top_srcdir) && $(AUTOMAKE) --foreign src/apps/maxwell/Makefile'; \
 	$(am__cd) $(top_srcdir) && \
-	  $(AUTOMAKE) --foreign src/apps/moldft/Makefile
+	  $(AUTOMAKE) --foreign src/apps/maxwell/Makefile
 .PRECIOUS: Makefile
 Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	@case '$?' in \
@@ -319,12 +306,9 @@ uninstall-binPROGRAMS:
 
 clean-binPROGRAMS:
 	-test -z "$(bin_PROGRAMS)" || rm -f $(bin_PROGRAMS)
-moldft$(EXEEXT): $(moldft_OBJECTS) $(moldft_DEPENDENCIES) 
-	@rm -f moldft$(EXEEXT)
-	$(CXXLINK) $(moldft_OBJECTS) $(moldft_LDADD) $(LIBS)
-testpg$(EXEEXT): $(testpg_OBJECTS) $(testpg_DEPENDENCIES) 
-	@rm -f testpg$(EXEEXT)
-	$(CXXLINK) $(testpg_OBJECTS) $(testpg_LDADD) $(LIBS)
+maxwell$(EXEEXT): $(maxwell_OBJECTS) $(maxwell_DEPENDENCIES) 
+	@rm -f maxwell$(EXEEXT)
+	$(CXXLINK) $(maxwell_OBJECTS) $(maxwell_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -332,13 +316,9 @@ mostlyclean-compile:
 distclean-compile:
 	-rm -f *.tab.c
 
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/atomutil.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/corepotential.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/lda.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/moldft.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/molecularbasis.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/molecule.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testpg.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/envelopedpulse.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/frequencyhandler.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/maxwell.Po@am__quote@
 
 .cc.o:
 @am__fastdepCXX_TRUE@	$(CXXCOMPILE) -MT $@ -MD -MP -MF $(DEPDIR)/$*.Tpo -c -o $@ $<

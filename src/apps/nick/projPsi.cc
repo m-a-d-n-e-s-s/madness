@@ -1,39 +1,37 @@
-
 /*
   This file is part of MADNESS.
-
+  
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-
+  
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-
+  
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-
+  
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-
+  
   For more information please contact:
-
+  
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-
+  
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-
+  
   $Id$
 */
 //\file projPsi.cc
 //\brief Projects a time evolved wave function onto an arbitrary number of bound states
-
 /***************************************************************************************
  * By: Nick Vence
  * This code must handled with care for the following reasons:
@@ -65,7 +63,7 @@ using namespace madness;
 
 /***************
  * <Yl0|Psi(t)>
- * Needs: wf.num input2
+ * Needs: wf.num input2 
  ***************/
 void projectL(World& world, const double L, const int n) {
     //LOAD Psi(t)
@@ -93,8 +91,9 @@ void projectL(World& world, const double L, const int n) {
         const int smallN = 80;
         const double dTH = PI/smallN;
         const double dPHI = 2*PI/smallN;
-        const int lMAX = 3;
+        const int lMAX = 1;
         const bool debug = false;
+        clock_t before=0, after=0, middle=0;
         std::vector<WF>::iterator psiT;
         std::vector<complexd> YlPsi(n);
         //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
@@ -102,6 +101,7 @@ void projectL(World& world, const double L, const int n) {
             PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
+                if(world.rank()==0) before = clock();
                 Yl0 yl0(L, l);
                 for( int i=0; i<n; i++ ) {
                     YlPsi[i] = 0.0;
@@ -131,12 +131,16 @@ void projectL(World& world, const double L, const int n) {
                     YlPsi[i] = conj(Rl)*Rl * r*r*dr;
                     if(debug) PRINT(r << "\t");
                 }
+                if(world.rank()==0) middle = clock();
                 world.gop.sum(&YlPsi[0], n);
                 world.gop.fence();
                 double Pl = 0.0;
                 for( int i=0; i<n; i++ ) {
                     Pl += real( YlPsi[i] );
                 }
+                if(world.rank()==0) after = clock();
+                PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
+                PRINT("\t Summing took " << (after - middle)/CLOCKS_PER_SEC << " seconds ");
                 PRINT(std::setprecision(6));
                 PRINT( Pl << "\t");
             }
@@ -173,11 +177,11 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
 }
 
 
-
+ 
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
- * bound.num               Integer triplets of quantum numbers   2  1  0
+ * bound.num               Integer triplets of quantum numbers   2  1  0 
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 //Clunky code! Design out of this!
@@ -224,7 +228,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             PRINTLINE("Consider changing the restart file to 0 and rerunning tdse");
             exit(1);
         }
-        std::vector<WF>::const_iterator psiIT;
+        std::vector<WF>::const_iterator psiIT; 
         if( !boundList.empty() ) {
             // <phi_bound|Psi(t)>
             std::vector<std::string>::const_iterator boundIT;
@@ -246,7 +250,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     PRINT(std::scientific <<"\t" << real(output*conj(output)));
                 }
                 PRINT("\n");
-            }
+            }            
         }
         clock_t before=0, after=0;
         //LOAD unbound states
@@ -269,7 +273,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     phik.Init(world);
                     complex_functionT phi_k = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     // W/O timing
-                    //complex_functionT phi_k =
+                    //complex_functionT phi_k = 
                     //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
@@ -385,15 +389,15 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
     // Setup defaults for numerical functions
-    int    k = 12;
-    double L = 1.0;
-    double Z = 1.0;
+    int    k   = 12;
+    double L   = 1.0;
+    double Z   = 1.0;
     double thresh = 1e-6;
     double cutoff = L;
-    double th = 0.0;
+    double th  = 0.0;
     double phi = 0.0;
-    int    n = 10;
-    int   wf = 0;
+    int    n   = 10;
+    int    wf  = 0;
     loadParameters(world, thresh, k, L, Z, cutoff);
     loadParameters2(world, n, th, phi, wf);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
@@ -409,8 +413,8 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        const int n1 = n;
-        projectL(world, L, n1);
+        //const int n1 = n;
+        //projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
         loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
@@ -456,7 +460,6 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
     world.gop.fence();
-    finalize();             //FLAG
+    finalize();				//FLAG
     return 0;
 }
-

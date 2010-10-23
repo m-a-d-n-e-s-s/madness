@@ -13,6 +13,7 @@ dft
   maxsub 8
   maxrotn 0.1
   canon true
+  noprint_matrices
 end
 
 # LiF with L = 5.0

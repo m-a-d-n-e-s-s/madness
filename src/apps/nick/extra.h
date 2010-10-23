@@ -1,3 +1,5 @@
+#ifndef EXTRA_H
+#define EXTRA_H
 #include "wavef.h"
 
 struct InputParameters {
@@ -219,3 +221,4 @@ void converge(World& world, complex_functionT& potn, complex_functionT& psi, dou
 void compareGroundState(World& world, double Z);
 void printBasis(World& world, double Z, double cutoff = 10.0);
 void belkic(World& world, double cutoff);
+#endif
