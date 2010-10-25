@@ -47,9 +47,8 @@ namespace madness {
             , am(world.am)
             , taskq(world.taskq)
             , deferred()
-            , rank(world.rank())
-            , nproc(world.size())
-            , debug(false) {}
+            , debug(false)
+    { }
 
     /// Set debug flag to new value and return old value
     bool WorldGopInterface::set_debug(bool value) {
@@ -60,9 +59,9 @@ namespace madness {
 
     /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
     void WorldGopInterface::barrier() {
-        long i = rank;
+        long i = rank();
         sum(i);
-        if (i != nproc*(nproc-1)/2) error("bad value after sum in barrier");
+        if (i != size()*(size()-1)/2) error("bad value after sum in barrier");
     }
 
 
@@ -143,7 +142,10 @@ namespace madness {
             }
 
 //                 if (wall_time() - start > 1200.0) {
-//                     std::cout << world.rank() << " FENCE " << nsent2 << " " << nsent_prev << " " << nrecv2 << " " << nrecv_prev << " " << sum[0] << " " << sum[1] << " " << npass << " " << taskq.size() << std::endl;
+//                     std::cout << rank() << " FENCE " << nsent2 << " "
+//                         << nsent_prev << " " << nrecv2 << " " << nrecv_prev
+//                         << " " << sum[0] << " " << sum[1] << " " << npass
+//                         << " " << taskq.size() << std::endl;
 //                     std::cout.flush();
 //                     //myusleep(1000);
 //                     MADNESS_ASSERT(0);

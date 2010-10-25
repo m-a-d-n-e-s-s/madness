@@ -36,9 +36,6 @@
 #include <madness_config.h>
 #include <world/worldtypes.h>
 #include <world/worldmutex.h>
-//#include <world/worldtime.h>
-//#include <world/worldthread.h>
-//#include <world/worldhashmap.h>
 #include <string>
 #include <vector>
 

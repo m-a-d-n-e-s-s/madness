@@ -349,7 +349,7 @@ typedef UINT64_T uint64_t;
 #endif
 
 // Madness world header files needed by world
-#include <world/safempi.h>
+#include <world/worldmpi.h>
 #include <world/worldhashmap.h>
 #include <world/sharedptr.h>
 #include <world/archive.h>
@@ -368,7 +368,6 @@ namespace madness {
 
     class World;
     class uniqueidT;
-    class WorldMpiInterface;
     class WorldTaskQueue;
     class WorldAmInterface;
     class WorldGopInterface;
@@ -484,8 +483,6 @@ namespace madness {
         WorldGopInterface& gop;  ///< Global operations
 
     private:
-        const ProcessID me;      ///< My rank ... needs to be declared after MPI
-        int nprocess;            ///< No. of processes ... ditto
         unsigned int myrand_next;///< State of crude internal random number generator
 
     public:
@@ -522,14 +519,14 @@ namespace madness {
         unsigned long id() const { return _id; }
 
         /// Returns the process rank in this world (same as MPI::Get_rank()))
-        ProcessID rank() const { return me; }
+        ProcessID rank() const { return mpi.rank(); }
 
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID nproc() const { return nprocess; }
+        ProcessID nproc() const { return mpi.nproc(); }
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID size() const { return nprocess; }
+        ProcessID size() const { return mpi.size(); }
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
 

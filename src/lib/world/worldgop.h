@@ -106,17 +106,15 @@ namespace madness {
         WorldAmInterface& am;   ///< AM interface
         WorldTaskQueue& taskq;  ///< Task queue interface
         detail::DeferredCleanup deferred; ///< Deferred cleanup object.
-        ProcessID rank;         ///< The rank of this process
-        const int nproc;        ///< The number of processes
         bool debug;             ///< Debug mode
 
         // The only way to put something in the deferred cleanup list
         template<typename T, typename D>
         friend class DeferredDeleter;
 
-
-
         static void await(SafeMPI::Request& req);
+        ProcessID rank() const { return mpi.rank(); }
+        int size() const { return mpi.size(); }
 
     public:
 
@@ -176,7 +174,7 @@ namespace madness {
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
-            if (rank == root) {
+            if (rank() == root) {
                 archive::BufferOutputArchive count;
                 count & obj;
                 BUFLEN = count.size();
@@ -184,12 +182,12 @@ namespace madness {
             broadcast(BUFLEN, root);
 
             unsigned char* buf = new unsigned char[BUFLEN];
-            if (rank == root) {
+            if (rank() == root) {
                 archive::BufferOutputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             broadcast(buf, BUFLEN, root);
-            if (rank != root) {
+            if (rank() != root) {
                 archive::BufferInputArchive ar(buf,BUFLEN);
                 ar & obj;
             }

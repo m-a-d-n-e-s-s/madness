@@ -33,13 +33,16 @@
 
 #include <world/worldprofile.h>
 #include <world/mpiar.h>
-//#include <world/worldtypes.h>
-//#include <world/worldtime.h>
-//#include <world/worldthread.h>
-//#include <world/worldhashmap.h>
 #include <world/world.h>
 
 namespace madness {
+
+    __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
+
+    Spinlock WorldProfile::mutex;
+    volatile std::vector<WorldProfileEntry> WorldProfile::items;
+    double WorldProfile::cpu_start = madness::cpu_time();
+    double WorldProfile::wall_start = madness::wall_time();
 
     WorldProfileEntry::WorldProfileEntry(const char* name)
             : name(name), depth(0) {};
@@ -146,6 +149,49 @@ namespace madness {
         return nv[id];
     }
 
+#ifdef WORLD_PROFILE_ENABLE
+    static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
+        double cpu_total = 0.0;
+        for (unsigned int i=0; i<v.size(); i++)
+            cpu_total += v[i].xcpu.sum;
+
+        double cpu_sum = 0.0;
+        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-eff   calls  call-min call-avg call-max call-eff name\n");
+        std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
+
+        //
+        for (unsigned int i=0; i<v.size(); i++) {
+            double cpu = v[i].xcpu.sum;
+            double inc = v[i].icpu.sum;
+            double count = v[i].count.sum;
+
+            cpu_sum += cpu;
+
+            double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
+            double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
+
+            double cpu_mean = cpu/world.size();
+            double count_mean = count/world.size();
+            double count_eff = v[i].count.max ? count_mean/v[i].count.max : 1.0;
+            double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
+
+            double inc_mean = inc/world.size();
+            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 1.0;
+
+            printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
+                   cum_cpu_percent,
+                   cpu_percent,
+                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_eff,
+                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_eff,
+                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), count_eff,
+                   v[i].name.c_str());
+            printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
+                   v[i].xcpu.pmin, v[i].xcpu.pmax,
+                   v[i].icpu.pmin, v[i].icpu.pmax,
+                   v[i].count.pmin, v[i].count.pmax);
+        }
+    }
+#endif
 
     void WorldProfile::print(World& world) {
 #ifdef WORLD_PROFILE_ENABLE
@@ -269,6 +315,10 @@ namespace madness {
         }
         call_stack = prev;
         if (call_stack) call_stack->resume(now);
+    }
+
+    static void est_profile_overhead() {
+        PROFILE_MEMBER_FUNC(WorldProfile);
     }
 
 } // namespace madness

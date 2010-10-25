@@ -44,6 +44,8 @@
 
 namespace madness {
 
+    bool TaskInterface::debug = false;
+
     void TaskInterface::set_info(World* world, CallbackInterface* completion) {
         this->world = world;
         this->completion = completion;

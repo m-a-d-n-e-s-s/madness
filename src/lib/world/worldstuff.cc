@@ -54,6 +54,9 @@ namespace madness {
     static double start_wall_time;
     const int WorldAmInterface::NSEND;
 
+    std::list<World*> World::worlds;
+    unsigned long World::idbase = 0;
+
     World::World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
@@ -61,8 +64,6 @@ namespace madness {
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
             , gop(* (new WorldGopInterface(*this)))
-            , me(mpi.rank())
-            , nprocess(mpi.nproc())
             , myrand_next(0) {
         worlds.push_back(this);
         srand();  // Initialize random number generator
@@ -72,12 +73,12 @@ namespace madness {
         // world by assigning to each processor a unique range of indices
         // and broadcasting from node 0 of the current communicator.
         // Each process in COMM_WORLD is given unique ids for 10K new worlds
-        if(idbase == 0 && me) {
-            idbase = me*10000;
+        if(idbase == 0 && rank()) {
+            idbase = rank()*10000;
         }
         // The id of a new world is taken from the unique range of ids
         // assigned to the process with rank=0 in the sub-communicator
-        if(me == 0)
+        if(rank() == 0)
             _id = idbase++;
         gop.broadcast(_id);
         gop.barrier();
@@ -235,10 +236,6 @@ namespace madness {
         MPI::Finalize();
     }
 
-    std::list<World*> World::worlds;
-    unsigned long World::idbase = 0;
-    bool TaskInterface::debug = false;
-
     // Enables easy printing of MadnessExceptions
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
         out << "MadnessException : ";
@@ -315,64 +312,6 @@ namespace madness {
     std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
         out << "<Void>";
         return out;
-    }
-
-
-
-    __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
-
-    Spinlock WorldProfile::mutex;
-    volatile std::vector<WorldProfileEntry> WorldProfile::items;
-    double WorldProfile::cpu_start = madness::cpu_time();
-    double WorldProfile::wall_start = madness::wall_time();
-
-
-#ifdef WORLD_PROFILE_ENABLE
-    static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
-        double cpu_total = 0.0;
-        for (unsigned int i=0; i<v.size(); i++)
-            cpu_total += v[i].xcpu.sum;
-
-        double cpu_sum = 0.0;
-        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-eff   calls  call-min call-avg call-max call-eff name\n");
-        std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
-
-        //
-        for (unsigned int i=0; i<v.size(); i++) {
-            double cpu = v[i].xcpu.sum;
-            double inc = v[i].icpu.sum;
-            double count = v[i].count.sum;
-
-            cpu_sum += cpu;
-
-            double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
-            double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
-
-            double cpu_mean = cpu/world.size();
-            double count_mean = count/world.size();
-            double count_eff = v[i].count.max ? count_mean/v[i].count.max : 1.0;
-            double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
-
-            double inc_mean = inc/world.size();
-            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 1.0;
-
-            printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
-                   cum_cpu_percent,
-                   cpu_percent,
-                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_eff,
-                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_eff,
-                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), count_eff,
-                   v[i].name.c_str());
-            printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
-                   v[i].xcpu.pmin, v[i].xcpu.pmax,
-                   v[i].icpu.pmin, v[i].icpu.pmax,
-                   v[i].count.pmin, v[i].count.pmax);
-        }
-    }
-#endif
-
-    static void est_profile_overhead() {
-        PROFILE_MEMBER_FUNC(WorldProfile);
     }
 
     void print_stats(World& world) {
