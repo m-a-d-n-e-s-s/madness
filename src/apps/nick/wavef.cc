@@ -99,6 +99,7 @@ complexd Phikl::f11(double xx) const {
 double Phikl::getk() const  { return k_; }
 complexd Phikl::setAA() { return l_ + 1.0 + I*Z_/k_;}
 complexd Phikl::setBB() { return complexd(2.0*l_ + 2.0, 0.0); }
+
 /**********************************************************************
  * PhiK (directional scattering states)
  * See Landau and Lifshitz Quantum Mechanics Volume 3
@@ -127,7 +128,6 @@ complexd PhiK::operator()(const vector3D& rVec) const {
         return 0.0;
     }
 }
-
 ///F11 determines when to use the series conhyp and when to use the asymptotic aForm
 complexd PhiK::f11(double xx) const {
     complexd ZZ(0.0,-xx);
@@ -185,7 +185,7 @@ void ScatteringWF::Init(World& world) {
     n = floor(domain/dx +1);
     MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
     //World is needed for timing the length of the CubicInterpolationTable
-    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
+    //fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
     // std::ofstream fout;
     // fout.open("f11.dat");
     // fout.precision(18);

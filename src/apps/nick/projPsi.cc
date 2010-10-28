@@ -58,8 +58,13 @@
 using std::ofstream;
 using std::ofstream;
 #include <stdlib.h>
+#include <gsl/gsl_sf_gamma.h>
 
 using namespace madness;
+
+const double PI = M_PI;
+const complexd I(0,1);
+const complexd one(1,0);
 
 /***************
  * <Yl0|Psi(t)>
@@ -88,16 +93,16 @@ void projectL(World& world, const double L, const int n) {
         PRINTLINE("");
         const double PI = M_PI;
         const double dr = L/n;
-        const int smallN = 80;
+        const int smallN = n;
         const double dTH = PI/smallN;
         const double dPHI = 2*PI/smallN;
-        const int lMAX = 1;
+        const int lMAX = 0;
         const bool debug = false;
         clock_t before=0, after=0, middle=0;
         std::vector<WF>::iterator psiT;
         std::vector<complexd> YlPsi(n);
         //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
-        for( int l=0; l<lMAX; l++) {
+        for( int l=0; l<=lMAX; l++) {
             PRINT("Y"<< l << "0: \t\t\t\t\t\t");
             for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
                 psiT->func.reconstruct();
@@ -106,15 +111,14 @@ void projectL(World& world, const double L, const int n) {
                 for( int i=0; i<n; i++ ) {
                     YlPsi[i] = 0.0;
                 }
-                complexd psiPsi = 0.0;
                 for( int i=world.rank(); i<n; i+=world.size() ) {
                     const double r = (0.5 + i)*dr;
                     complexd Rl = 0.0;
                     for( int j=0; j<smallN ; j++ ) {
                         const double th = (0.5 + j)*dTH;
+                        const double sinTH = std::sin(th);
                         for( int k=0; k<smallN; k++ ) {
                             const double phi = k*dPHI;
-                            const double sinTH = std::sin(th);
                             const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
                             const vector3D rVec(a);
                             Rl += psiT->func.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
@@ -139,8 +143,7 @@ void projectL(World& world, const double L, const int n) {
                     Pl += real( YlPsi[i] );
                 }
                 if(world.rank()==0) after = clock();
-                PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
-                PRINT("\t Summing took " << (after - middle)/CLOCKS_PER_SEC << " seconds ");
+                //PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
                 PRINT(std::setprecision(6));
                 PRINT( Pl << "\t");
             }
@@ -173,6 +176,103 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
         double psiB = real(psiT(bVec));
         PRINT(std::fixed << std::setprecision(2));
         PRINTLINE(r << " \t\t " << std::scientific << std::setprecision(6) << psiA << " \t " << psiB);
+    }
+}
+
+complexd gamma(complexd AA) {
+    gsl_sf_result lnr;
+    gsl_sf_result arg;
+    int status = gsl_sf_lngamma_complex_e(real(AA), imag(AA), &lnr, &arg);
+    if(status != 0) throw "Error: gsl_sf_lngamma: " + status;
+    complexd ANS(exp(lnr.val)*cos(arg.val), exp(lnr.val)*sin(arg.val) );
+    return ANS;
+}
+
+complexd aFormNew(double Z, double k, double r)  {
+    complexd ZZ(0,-k*r);
+    complexd AA(0,-Z/k);
+    complexd BB(1,0);
+    complexd ZZPmAA = pow(ZZ,-AA);
+    complexd expZZ = exp(ZZ);
+    complexd ZZPAAmBB = pow(ZZ, AA-BB);
+    complexd cA  = ZZPmAA*exp(-I*PI*AA)/gamma(BB-AA);
+    complexd cB  = expZZ*ZZPAAmBB/gamma(AA);
+    complexd termA(0,0);
+    complexd termB(0,0);
+    const int maxTerms = 24;
+    double nFact = 1.0;        // 0! = 1
+    complexd  zr = 1.0/ZZ;     
+    complexd         zrn(1.0,0.0);   //(1/z)^0
+    complexd        mzrn(1.0,0.0);   //(-1/z)^0
+    complexd      pochAA(1.0,0.0);   //Pochhammer is the counting up factorial (A)_0 = 1
+    complexd poch1pAAmBB(1.0,0.0);
+    complexd   pochBBmAA(1.0,0.0);
+    complexd    poch1mAA(1.0,0.0);
+    for(int n=0; n<=maxTerms; n++) {
+        //sum terms for n 
+        complexd contribA = pochAA*poch1pAAmBB*mzrn/nFact;
+        termA += contribA;
+        complexd contribB = pochBBmAA*poch1mAA*zrn/nFact;
+        termB += contribB;
+        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+        //Calculate the coefficients for the next (n+1) term
+        zrn         *=  zr;         // z^-n
+        mzrn        *= -zr;         // (-z)^-n
+        nFact       *= n+1;         // (n+1) is the number to be used in the next iteration
+        pochAA      *=        AA + 1.0*n;  // (x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1pAAmBB *= 1.0+AA-BB + 1.0*n;
+        pochBBmAA   *=   BB - AA + 1.0*n;
+        poch1mAA    *=  1.0 - AA + 1.0*n;
+    }
+    return gamma(BB)*(cA*termA + cB*termB);
+}
+
+complexd aFormOld(double Z, double k, double r)  {
+    complexd ZZ(0,-k*r);
+    complexd cA2 = pow(ZZ,I*Z/k);
+    complexd cB1 = exp(ZZ);
+    complexd cB2 = pow(ZZ,-one-I*Z/k);
+    complexd cA  = exp(PI*Z/k)*cA2/gamma(complexd(1,Z/k));
+    complexd cB  = cB1*cB2/gamma(complexd(0,-Z/k));
+    complexd termA(0,0);
+    complexd termB(0,0);
+    int      maxTerms = 24;
+    complexd zrn = 1;
+    complexd mzrn = 1;
+    complexd zr = 1.0/ZZ;
+    double   nFact = 1.0;            //0! = 1
+    complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
+    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
+    for(int n=0; n<=maxTerms; n++) {
+        complexd contribA = pochAA*pochAA*mzrn/nFact;
+        termA += contribA;
+        complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
+        termB += contribB;
+        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
+        mzrn     *= -zr;
+        zrn      *=  zr;
+        nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
+        pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
+        poch1mAA *= complexd(1+n,Z/k);        
+    }
+    return cA*termA + cB*termB;
+}
+
+void debugSlice(World& world, const int n, double L) {
+    const double dr = L/n;
+    const double Z = 1.0;
+    const double k = 1.0;
+    const double a[3] = {0, 0, k};
+    const vector3D kVec(a);
+    ofstream fout;
+    fout.open("aFormOld.dat");
+    PhiK phi = PhiK(world, Z, kVec, L);
+    phi.Init(world);
+    for( int i=0; i<n; i++ ) {
+        const complexd ZZ(0.0, -k*i*dr);
+        fout << std::fixed << std::setprecision(2)
+             << i*dr << " \t " << std::scientific << std::setprecision(16)
+             << real(phi.aForm(ZZ)) << " \t " << imag(phi.aForm(ZZ)) << std::endl;
     }
 }
 
@@ -363,12 +463,12 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
             else if (tag == "omega") {
                 double omega;
                 f >> omega;
-                //E_n = n hbar omega
-                //I_p = 0.5 Z^2
-                //KE = E_n - I_p
-                //Atomic Units: hbar = m = 1
-                //v = sqrt( 2n omega - Z^2)
-                //cutoff > dMAX = v t
+                ///E_n = n hbar omega
+                ///I_p = 0.5 Z^2
+                ///KE = E_n - I_p
+                ///Atomic Units: hbar = m = 1
+                ///v = sqrt( 2n omega - Z^2)
+                ///cutoff > dMAX = v t
                 double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
                 cutoff = 0.0;
                 while( cutoff < dMAX ) { cutoff += L/16; }
@@ -413,11 +513,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //const int n1 = n;
+        const int n1 = n;
         //projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
+        debugSlice(world, n1, L);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
