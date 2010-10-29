@@ -176,17 +176,19 @@ namespace madness {
 
             /// \return true when the pointer has a valid owner
             /// \throw nothing
-            bool has_owner() const { return rank_ != -1; }
+            bool has_owner() const { return (rank_ != -1) && (world_ != NULL); }
 
             /// Pointer accessor
 
-            /// Get the pointer referenced by the
+            /// Get the pointer of the world pointer. Note: A default initialized
+            /// pointer is not considered to be local because it is not associated
+            /// with a world.
             /// \return The local pointer.
             /// \throw MadnessException When the pointer references a remote
             /// address.
             pointer get() const {
                 // It is not safe to access this pointer remotely unless null.
-                MADNESS_ASSERT(is_local() || (pointer_ == NULL));
+                MADNESS_ASSERT(is_local());
                 return pointer_;
             }
 
@@ -320,6 +322,12 @@ namespace madness {
             inline void store_internal_(const Archive& ar) const {
                 ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
             }
+
+            friend std::ostream& operator<<(std::ostream& out, const WorldPtr<T>& p) {
+                out << "WorldPointer(ptr=" << p.pointer_ << ", rank=" << p.rank_ <<
+                        ", worldid=" << (p.worldid_ - 1) << ")";
+                return out;
+            }
         }; // class WorldPtr
 
         /// Swap the content of \c l with \c r
@@ -347,12 +355,7 @@ namespace madness {
             return !(left < right);
         }
 
-        template <typename T>
-        std::ostream& operator<<(std::ostream& out, const WorldPtr<T>& p) {
-            out << "WorldPointer(ptr=" << p.get() << ", rank=" << p.owner() <<
-                    ", worldid=" << p.get_world().id() << ")";
-            return out;
-        }
+
 
     } // namespace detail
 

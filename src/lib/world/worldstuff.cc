@@ -255,7 +255,10 @@ namespace madness {
         return s;
     }
 
-
+    void exception_break(bool message) {
+        if(message)
+            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to bebug.\n";
+    }
 
     double wall_time() {
 #ifdef __CYGWIN__

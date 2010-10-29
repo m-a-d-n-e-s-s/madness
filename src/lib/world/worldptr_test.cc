@@ -35,7 +35,7 @@
 
 #ifdef MADNESS_HAS_GOOGLE_TEST
 
-
+#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <world/worldobj.h>
@@ -110,10 +110,10 @@ namespace {
 
     TEST_F(WorldPtrTest, DefaultConstructor) {
         // Check for correct initialization
-        EXPECT_TRUE(p0.get() == NULL);
         EXPECT_EQ(p0.owner(), -1);
         EXPECT_EQ(p0.get_worldid(), std::numeric_limits<unsigned long>::max());
 #ifdef MADNESS_ASSERTIONS_THROW
+        EXPECT_THROW(p0.get(), madness::MadnessException);
         EXPECT_THROW(p0.get_world(), madness::MadnessException);
 #endif
         EXPECT_FALSE(p0);
@@ -291,10 +291,10 @@ namespace {
         EXPECT_EQ(&(p.get_world()), pworld);
         EXPECT_EQ(p.get_worldid(), pworld->id());
 
-        EXPECT_TRUE(p0.get() == NULL);
         EXPECT_EQ(p0.owner(), -1);
         EXPECT_EQ(p0.get_worldid(), std::numeric_limits<unsigned long>::max());
 #ifdef MADNESS_ASSERTIONS_THROW
+        EXPECT_THROW(p0.get(), madness::MadnessException);
         EXPECT_THROW(p0.get_world(), madness::MadnessException);
 #endif
 
@@ -306,10 +306,10 @@ namespace {
         EXPECT_EQ(&(p0.get_world()), pworld);
         EXPECT_EQ(p0.get_worldid(), pworld->id());
 
-        EXPECT_TRUE(p.get() == NULL);
         EXPECT_EQ(p.owner(), -1);
         EXPECT_EQ(p.get_worldid(), std::numeric_limits<unsigned long>::max());
 #ifdef MADNESS_ASSERTIONS_THROW
+        EXPECT_THROW(p.get(), madness::MadnessException);
         EXPECT_THROW(p.get_world(), madness::MadnessException);
 #endif
 
@@ -321,10 +321,10 @@ namespace {
         EXPECT_EQ(&(p.get_world()), pworld);
         EXPECT_EQ(p.get_worldid(), pworld->id());
 
-        EXPECT_TRUE(p0.get() == NULL);
         EXPECT_EQ(p0.owner(), -1);
         EXPECT_EQ(p0.get_worldid(), std::numeric_limits<unsigned long>::max());
 #ifdef MADNESS_ASSERTIONS_THROW
+        EXPECT_THROW(p0.get(), madness::MadnessException);
         EXPECT_THROW(p0.get_world(), madness::MadnessException);
 #endif
 
@@ -336,17 +336,17 @@ namespace {
         EXPECT_EQ(&(p0.get_world()), pworld);
         EXPECT_EQ(p0.get_worldid(), pworld->id());
 
-        EXPECT_TRUE(p.get() == NULL);
         EXPECT_EQ(p.owner(), -1);
         EXPECT_EQ(p.get_worldid(), std::numeric_limits<unsigned long>::max());
 #ifdef MADNESS_ASSERTIONS_THROW
+        EXPECT_THROW(p.get(), madness::MadnessException);
         EXPECT_THROW(p.get_world(), madness::MadnessException);
 #endif
     }
 
     TEST_F(WorldPtrTest, Serialize) {
         // Serialize 2 pointers to a buffer
-        unsigned char buf[2*sizeof(p)];
+        unsigned char buf[10*sizeof(WorldPtr<int>)];
         madness::archive::BufferOutputArchive oar(buf,sizeof(buf));
         oar & p & p0;
         std::size_t nbyte = oar.size();
@@ -365,7 +365,7 @@ namespace {
         EXPECT_EQ(&(a.get_world()), &(p.get_world()));
         EXPECT_EQ(a.get_worldid(), p.get_worldid());
 
-        EXPECT_TRUE(a0.get() == p0.get());
+        EXPECT_TRUE(a0 == p0);
         EXPECT_EQ(a0.owner(), p0.owner());
         EXPECT_EQ(a0.get_worldid(), p0.get_worldid());
 #ifdef MADNESS_ASSERTIONS_THROW
@@ -470,10 +470,8 @@ namespace {
             EXPECT_FALSE(remote);
             EXPECT_TRUE(! remote);
 
-            // Check that we can access a null pointer on a remote machine
-            EXPECT_TRUE(remote.get() == NULL);
-
 #ifdef MADNESS_ASSERTIONS_THROW
+            EXPECT_THROW(remote.get(), madness::MadnessException);
             EXPECT_THROW(remote.get_world(), madness::MadnessException);
             EXPECT_THROW(*remote, madness::MadnessException);
             // Should check arrow operator too but the assertions are the same as
@@ -495,11 +493,9 @@ namespace {
             EXPECT_FALSE(back.has_owner());
             EXPECT_EQ(back.owner(), -1);
 
-            // Check that the pointer is still null
-            EXPECT_TRUE(remote.get() == NULL);
-
             // Check world and world id of remote pointer
 #ifdef MADNESS_ASSERTIONS_THROW
+            EXPECT_THROW(back.get(), madness::MadnessException);
             EXPECT_THROW(back.get_world(), madness::MadnessException);
             EXPECT_THROW(*back, madness::MadnessException);
 #endif

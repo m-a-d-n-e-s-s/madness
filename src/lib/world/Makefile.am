@@ -2,7 +2,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
-               gtest_example qtest worldprofile_test worldptr_test
+               gtest_example qtest worldprofile_test worldptr_test worldref_test
 
 lib_LIBRARIES = libMADworld.a
 
@@ -29,6 +29,11 @@ worldptr_test_SOURCES = worldptr_test.cc
 worldptr_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 worldptr_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
 worldptr_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+
+worldref_test_SOURCES = worldref_test.cc
+worldref_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+worldref_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+worldref_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a

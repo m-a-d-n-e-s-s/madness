@@ -32,7 +32,6 @@
 */
 
 #include <world/world.h>
-#include <world/worldref.h>
 #include <world/worldmutex.h>
 
 namespace madness {
@@ -52,7 +51,7 @@ namespace madness {
         /// release the current reference. If the count drops to zero, then
         /// this is the last reference to the pimpl and it should be deleted.
         void RemoteCounter::destroy() {
-            if(pimpl_) {
+            if(pimpl_ && pimpl_.is_local()) {
                 if(pimpl_->relase()) {
                     // No one else is referencing this pointer.
                     // We can safely dispose of it.
@@ -92,15 +91,27 @@ namespace madness {
             return *this;
         }
 
-        long RemoteCounter::use_count() const { return (pimpl_ ? pimpl_->use_count() : 0); }
+        long RemoteCounter::use_count() const { return (pimpl_ && pimpl_.is_local() ? pimpl_->use_count() : 0); }
         bool RemoteCounter::unique() const { return use_count() == 1; }
         bool RemoteCounter::empty() const { return pimpl_; }
+        bool RemoteCounter::is_local() const { return pimpl_.is_local(); }
+        bool RemoteCounter::has_owner() const { return pimpl_.has_owner(); }
+        ProcessID RemoteCounter::owner() const { return pimpl_.owner(); }
+        typename WorldPtr<RemoteCounter::implT>::worldidT
+        RemoteCounter::get_worldid() const { return pimpl_.get_worldid(); }
+        World& RemoteCounter::get_world() const { return pimpl_.get_world(); }
         void RemoteCounter::swap(RemoteCounter& other) {
-            std::swap(pimpl_, other.pimpl_);
+            madness::detail::swap(pimpl_, other.pimpl_);
         }
 
         void swap(RemoteCounter& l, RemoteCounter& r) {
             l.swap(r);
+        }
+
+        std::ostream& operator<<(std::ostream& out, const RemoteCounter& counter) {
+            out << "RemoteCounter( owner=" << counter.owner() << " worldid=" <<
+                    counter.get_worldid() << " use_count=" << counter.use_count() << ")";
+            return out;
         }
     } // namespace detail
 } // namespace madness

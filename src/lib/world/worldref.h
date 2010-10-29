@@ -47,7 +47,8 @@
 #include <world/archive.h>      // for wrap_opaque
 #include <world/worldam.h>      // for new_am_arg
 #include <world/worldptr.h>     // for WorldPtr
-#include <map>                  // for map
+#include <map>                  // for std::map
+#include <iosfwd>               // for std::ostream
 
 namespace madness {
 
@@ -66,14 +67,12 @@ namespace madness {
             RemoteCounterBase(const RemoteCounterBase&);
             RemoteCounterBase& operator=(const RemoteCounterBase&);
 
-            virtual void* get_ptr() const = 0;
-
         public:
 
             RemoteCounterBase() { count_ = 1; }
             virtual ~RemoteCounterBase() { }
 
-            void* get() const { return this->get_ptr(); }
+            virtual void* get() const = 0;
             long use_count() const { return count_; }
             void add_ref() { count_++; }
             bool relase() { return count_.dec_and_test(); }
@@ -88,14 +87,14 @@ namespace madness {
             // while we have outstanding remote references to it.
             std::shared_ptr<T> pointer_; ///< pointer that is remotely referenced
 
-            virtual void* get_ptr() const { return static_cast<void*>(pointer_.get()); }
-
         public:
             explicit RemoteCounterImpl(const std::shared_ptr<T>& p) :
                 RemoteCounterBase(), pointer_(p)
             { }
 
             virtual ~RemoteCounterImpl() { }
+
+            virtual void* get() const { return static_cast<void*>(pointer_.get()); }
 
 //            void* operator new(std::size_t) {
 //                return A().allocate(1);
@@ -192,6 +191,13 @@ namespace madness {
             long use_count() const;
             bool unique() const;
             bool empty() const;
+
+            bool is_local() const;
+            bool has_owner() const;
+            ProcessID owner() const;
+
+            World& get_world() const;
+            typename WorldPtr<implT>::worldidT get_worldid() const;
             void swap(RemoteCounter& other);
 
             template <typename Archive>
@@ -204,16 +210,19 @@ namespace madness {
 
             template <typename Archive>
             void store_internal_(const Archive& ar) const {
+                ar & pimpl_;
                 if(pimpl_.is_local())
                     pimpl_->add_ref();
-                else
-                    pimpl_ = WorldPtr<implT>();
-
-                ar & pimpl_;
+//                else
+//                    pimpl_ = WorldPtr<implT>();
             }
+
+
         }; // class RemoteCounter
 
         void swap(RemoteCounter& l, RemoteCounter& r);
+
+        std::ostream& operator<<(std::ostream& out, const RemoteCounter& counter);
 
     } // namespace detail
 
@@ -242,52 +251,49 @@ namespace madness {
     /// you will have a memory leak.
     template <typename T>
     class RemoteReference {
+    public:
+        typedef typename detail::ptr_traits<T>::reference referenceT;
+        typedef T* pointerT;
+
     private:
         friend std::ostream& operator<< <T> (std::ostream&, const RemoteReference<T>&);
 
-        mutable detail::WorldPtr<T> wpointer_;  ///< World pointer
+        mutable pointerT pointer_;  ///< World pointer
         detail::RemoteCounter counter_;     ///< Remote reference counter
 
+        // This is for RemoteReferences of other types, so they can still access
+        // private members.
+        template <typename>
+        friend class RemoteReference;
+
+        // Handles reset of a remote reference from another node.
         static void reset_handler(const AmArg& arg) {
             RemoteReference<T> r;
             arg & r;
             // r resets on scope exit.
         }
 
-        /// Destroy the remote reference
-
-        /// Calling this function resets the remote reference to its default,
-        /// initialized state. This will prevent the remote reference from
-        /// initiating any communication on destruction.
-        /// \throw nothing
-        void destroy() {
-            detail::WorldPtr<T>().swap(wpointer_);
-            detail::RemoteCounter().swap(counter_);
-        }
-
     public:
+
         /// Makes a non-shared (no reference count) null pointer
         RemoteReference() :
-            wpointer_(), counter_() {};
+            pointer_(), counter_() {};
 
         /// Makes a shared reference and increments ptr reference count
-        RemoteReference(World& w, std::shared_ptr<T>& p) :
-            wpointer_(w, p.get()), counter_(w, p)
+        RemoteReference(World& w, const std::shared_ptr<T>& p) :
+            pointer_(p.get()), counter_(w, p)
         { }
 
         RemoteReference(const RemoteReference<T>& other) :
-            wpointer_(other.wpointer_), counter_(other.counter_)
+            pointer_(other.pointer_), counter_(other.counter_)
         { }
 
         template <typename U>
         RemoteReference(const RemoteReference<U>& other) :
-            wpointer_(other.wpointer_), counter_(other.counter_)
+            pointer_(other.pointer_), counter_(other.counter_)
         { }
 
-        ~RemoteReference() {
-            if((owner() != -1) && (! is_local()))
-                get_world().am.send(owner(), RemoteReference<T>::reset_handler, new_am_arg(*this));
-        }
+        ~RemoteReference() { }
 
         RemoteReference<T>& operator=(const RemoteReference<T>& other) {
             RemoteReference<T>(other).swap(*this);
@@ -301,83 +307,99 @@ namespace madness {
         }
 
 
-        /// Call this when you logically release the remote reference
+        /// Release this reference
 
-        /// Can be called locally or remotely.
-        ///
-        /// When invoked, the internal information is destroyed by
-        /// default since the reference is no longer valid.
+        /// This function will clear the reference and leave it in the default
+        /// constructed state. If the reference is non-local, then a message is
+        /// sent to the reference owner that releases the reference.
+        /// \warning Only call this function for non-local references when it
+        /// will not otherwise be returned to the reference owner as part of a
+        /// message.
         void reset() {
-            // invalidate the reference
-            RemoteReference<T>().swap(*this);
+            if((! (counter_.is_local())) && counter_.has_owner())
+                get_world().am.send(owner(), RemoteReference<T>::reset_handler, new_am_arg(*this));
+            else
+                RemoteReference<T>().swap(*this);
         }
-
-        template <typename U>
-        void reset(const std::shared_ptr<U>& p) {
-            RemoteReference<T>(p).swap(*this);
-        }
-
-        template <typename U>
-        void reset(const detail::WorldPtr<U>& wp) {
-            RemoteReference<T>(wp).swap(*this);
-        }
-
 
         /// Returns true if holding a non-zero pointer
-        inline operator bool() const {
-            return wpointer_;
+        operator bool() const {
+            return pointer_;
         }
 
         /// Returns possibly remote pointer which will be 0 if not initialized
-        inline T* get() const {
-            MADNESS_ASSERT(is_local());
-            return wpointer_.get();
+        pointerT get() const {
+            MADNESS_ASSERT(counter_.is_local());
+            return pointer_;
         }
 
-        void print(const char* msg = "") const {
-            std::cout << msg << wpointer_;
+        referenceT operator*() const {
+            MADNESS_ASSERT(pointer_ != NULL);
+            MADNESS_ASSERT(counter_.is_local());
+            return *pointer_; }
+
+        /// Returns possibly remote pointer which will be 0 if not initialized
+        pointerT operator->() const {
+            MADNESS_ASSERT(pointer_ != NULL);
+            MADNESS_ASSERT(counter_.is_local());
+            return pointer_;
         }
+
+        /// Reference count accessor
+
+        /// \return The total number of local and remote references.
+        /// \throw nothing
+        long use_count() const { return counter_.use_count(); }
+
+        /// Get uniqueness
+
+        /// \return True when the use count is equal to exactly 1.
+        /// \throw nothing
+        bool unique() const { return counter_.unique(); }
+
+//        void print(const char* msg = "") const {
+//            std::cout << msg << wpointer_;
+//        }
 
         template <typename U>
         void swap(RemoteReference<U>& other) {
-            madness::detail::swap(wpointer_, other.wpointer_);
+            std::swap(pointer_, other.pointer_);
             madness::detail::swap(counter_, other.counter_);
         }
 
-        inline bool is_local() const { return wpointer_.is_local(); }
+        inline bool is_local() const { return counter_.is_local(); }
 
         /// Returns rank of owning process, or -1 if not initialized
         inline ProcessID owner() const {
-            return wpointer_.owner();
+            return counter_.owner();
         }
 
-        World& get_world() const { return wpointer_.get_world(); }
+        World& get_world() const { return counter_.get_world(); }
 
         template <typename Archive>
         void load_internal_(const Archive& ar) {
-            ar & wpointer_ & counter_;
+            ar & archive::wrap_opaque(pointer_) & counter_;
         }
 
         template <typename Archive>
         void store_internal_(const Archive& ar) const {
-            ar & wpointer_ & counter_;
-            if(! wpointer_.is_local())
-                wpointer_ = detail::WorldPtr<T>();
+            ar & archive::wrap_opaque(pointer_) & counter_;
+            if(! (counter_.is_local()))
+                pointer_ = NULL;
         }
 
+        friend std::ostream& operator<<(std::ostream& out, const RemoteReference<T>& ref) {
+            out << "RemoteReference( pointer=" << ref.pointer_ << " counter=" << ref.counter_ << ")";
+            return out;
+        }
     }; // class RemoteReference
+
+
 
     template <typename T, typename U>
     void swap(RemoteReference<T>& l, RemoteReference<U>& r) {
         l.swap(r);
     }
-
-    template <typename T>
-    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref) {
-        s << "<remote: ptr=" << ref.wpointer_ << ">";
-        return s;
-    }
-
 
     namespace archive {
         template <typename, typename>

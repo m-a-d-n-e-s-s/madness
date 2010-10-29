@@ -43,7 +43,8 @@ bin_PROGRAMS = world$(EXEEXT) testhashthreaded$(EXEEXT) \
 	testprof$(EXEEXT) helloworld$(EXEEXT) taskexample$(EXEEXT) \
 	testatomicint$(EXEEXT) testhashdc$(EXEEXT) array_test$(EXEEXT) \
 	gtest_example$(EXEEXT) qtest$(EXEEXT) \
-	worldprofile_test$(EXEEXT) worldptr_test$(EXEEXT)
+	worldprofile_test$(EXEEXT) worldptr_test$(EXEEXT) \
+	worldref_test$(EXEEXT)
 subdir = src/lib/world
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -166,6 +167,12 @@ worldptr_test_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) libMADworld.a
 worldptr_test_LINK = $(CXXLD) $(worldptr_test_CXXFLAGS) $(CXXFLAGS) \
 	$(AM_LDFLAGS) $(LDFLAGS) -o $@
+am_worldref_test_OBJECTS = worldref_test-worldref_test.$(OBJEXT)
+worldref_test_OBJECTS = $(am_worldref_test_OBJECTS)
+worldref_test_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+	$(am__DEPENDENCIES_1) libMADworld.a
+worldref_test_LINK = $(CXXLD) $(worldref_test_CXXFLAGS) $(CXXFLAGS) \
+	$(AM_LDFLAGS) $(LDFLAGS) -o $@
 DEFAULT_INCLUDES = 
 depcomp = $(SHELL) $(top_srcdir)/config/depcomp
 am__depfiles_maybe = depfiles
@@ -186,7 +193,7 @@ SOURCES = $(libMADworld_a_SOURCES) $(array_test_SOURCES) \
 	$(testdc_SOURCES) $(testhashdc_SOURCES) \
 	$(testhashthreaded_SOURCES) $(testprof_SOURCES) \
 	$(world_SOURCES) $(worldprofile_test_SOURCES) \
-	$(worldptr_test_SOURCES)
+	$(worldptr_test_SOURCES) $(worldref_test_SOURCES)
 DIST_SOURCES = $(libMADworld_a_SOURCES) $(array_test_SOURCES) \
 	$(gtest_example_SOURCES) $(helloworld_SOURCES) \
 	$(objexample_SOURCES) $(objexample2_SOURCES) $(qtest_SOURCES) \
@@ -194,7 +201,7 @@ DIST_SOURCES = $(libMADworld_a_SOURCES) $(array_test_SOURCES) \
 	$(testdc_SOURCES) $(testhashdc_SOURCES) \
 	$(testhashthreaded_SOURCES) $(testprof_SOURCES) \
 	$(world_SOURCES) $(worldprofile_test_SOURCES) \
-	$(worldptr_test_SOURCES)
+	$(worldptr_test_SOURCES) $(worldref_test_SOURCES)
 HEADERS = $(thisinclude_HEADERS)
 ETAGS = etags
 CTAGS = ctags
@@ -367,6 +374,10 @@ worldptr_test_SOURCES = worldptr_test.cc
 worldptr_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 worldptr_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
 worldptr_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+worldref_test_SOURCES = worldref_test.cc
+worldref_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+worldref_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+worldref_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
 testhashdc_SOURCES = testhashdc.cc
@@ -549,6 +560,9 @@ worldprofile_test$(EXEEXT): $(worldprofile_test_OBJECTS) $(worldprofile_test_DEP
 worldptr_test$(EXEEXT): $(worldptr_test_OBJECTS) $(worldptr_test_DEPENDENCIES) 
 	@rm -f worldptr_test$(EXEEXT)
 	$(worldptr_test_LINK) $(worldptr_test_OBJECTS) $(worldptr_test_LDADD) $(LIBS)
+worldref_test$(EXEEXT): $(worldref_test_OBJECTS) $(worldref_test_DEPENDENCIES) 
+	@rm -f worldref_test$(EXEEXT)
+	$(worldref_test_LINK) $(worldref_test_OBJECTS) $(worldref_test_LDADD) $(LIBS)
 
 mostlyclean-compile:
 	-rm -f *.$(OBJEXT)
@@ -587,6 +601,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldprofile_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldptr_test-worldptr_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldref.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldref_test-worldref_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldrmi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldstuff.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/worldtask.Po@am__quote@
@@ -661,6 +676,20 @@ worldptr_test-worldptr_test.obj: worldptr_test.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='worldptr_test.cc' object='worldptr_test-worldptr_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(worldptr_test_CPPFLAGS) $(CPPFLAGS) $(worldptr_test_CXXFLAGS) $(CXXFLAGS) -c -o worldptr_test-worldptr_test.obj `if test -f 'worldptr_test.cc'; then $(CYGPATH_W) 'worldptr_test.cc'; else $(CYGPATH_W) '$(srcdir)/worldptr_test.cc'; fi`
+
+worldref_test-worldref_test.o: worldref_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(worldref_test_CPPFLAGS) $(CPPFLAGS) $(worldref_test_CXXFLAGS) $(CXXFLAGS) -MT worldref_test-worldref_test.o -MD -MP -MF $(DEPDIR)/worldref_test-worldref_test.Tpo -c -o worldref_test-worldref_test.o `test -f 'worldref_test.cc' || echo '$(srcdir)/'`worldref_test.cc
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/worldref_test-worldref_test.Tpo $(DEPDIR)/worldref_test-worldref_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='worldref_test.cc' object='worldref_test-worldref_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(worldref_test_CPPFLAGS) $(CPPFLAGS) $(worldref_test_CXXFLAGS) $(CXXFLAGS) -c -o worldref_test-worldref_test.o `test -f 'worldref_test.cc' || echo '$(srcdir)/'`worldref_test.cc
+
+worldref_test-worldref_test.obj: worldref_test.cc
+@am__fastdepCXX_TRUE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(worldref_test_CPPFLAGS) $(CPPFLAGS) $(worldref_test_CXXFLAGS) $(CXXFLAGS) -MT worldref_test-worldref_test.obj -MD -MP -MF $(DEPDIR)/worldref_test-worldref_test.Tpo -c -o worldref_test-worldref_test.obj `if test -f 'worldref_test.cc'; then $(CYGPATH_W) 'worldref_test.cc'; else $(CYGPATH_W) '$(srcdir)/worldref_test.cc'; fi`
+@am__fastdepCXX_TRUE@	$(am__mv) $(DEPDIR)/worldref_test-worldref_test.Tpo $(DEPDIR)/worldref_test-worldref_test.Po
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='worldref_test.cc' object='worldref_test-worldref_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(worldref_test_CPPFLAGS) $(CPPFLAGS) $(worldref_test_CXXFLAGS) $(CXXFLAGS) -c -o worldref_test-worldref_test.obj `if test -f 'worldref_test.cc'; then $(CYGPATH_W) 'worldref_test.cc'; else $(CYGPATH_W) '$(srcdir)/worldref_test.cc'; fi`
 install-thisincludeHEADERS: $(thisinclude_HEADERS)
 	@$(NORMAL_INSTALL)
 	test -z "$(thisincludedir)" || $(MKDIR_P) "$(DESTDIR)$(thisincludedir)"
