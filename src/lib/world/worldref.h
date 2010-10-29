@@ -213,8 +213,6 @@ namespace madness {
                 ar & pimpl_;
                 if(pimpl_.is_local())
                     pimpl_->add_ref();
-//                else
-//                    pimpl_ = WorldPtr<implT>();
             }
 
 
@@ -384,8 +382,6 @@ namespace madness {
         template <typename Archive>
         void store_internal_(const Archive& ar) const {
             ar & archive::wrap_opaque(pointer_) & counter_;
-            if(! (counter_.is_local()))
-                pointer_ = NULL;
         }
 
         friend std::ostream& operator<<(std::ostream& out, const RemoteReference<T>& ref) {

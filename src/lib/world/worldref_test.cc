@@ -70,10 +70,10 @@ namespace {
         class XferRef : public madness::WorldObject<XferRef<T> > {
             madness::Void set_ptr(const RemoteReference<T>& r, bool away) {
                 if(away) {
-                    std::cout << pworld->rank() << ": Set remote_ref = " << r << "\n";
+                    //std::cout << pworld->rank() << ": Set remote_ref = " << r << "\n";
                     remote_ref.set(r);
                 } else {
-                    std::cout << pworld->rank() << ": Set return_ref = " << r << "\n";
+                    //std::cout << pworld->rank() << ": Set return_ref = " << r << "\n";
                     return_ref.set(r);
                 }
                 return madness::None;
@@ -89,8 +89,7 @@ namespace {
             }
 
             void xfer(const ProcessID dest, const RemoteReference<T>& r, bool away) const {
-
-                std::cout << pworld->rank() << ": Sending " << r << " to " << dest << "\n";
+                //std::cout << pworld->rank() << ": Sending " << r << " to " << dest << "\n";
                 madness::WorldObject<XferRef<T> >::send(dest, & XferRef<T>::set_ptr,
                         r, away);
             }
@@ -476,13 +475,16 @@ namespace {
             XferRef<int> xfer_wobj(*pworld);
             xfer_wobj.xfer(send, r, true);
 
-            // Check that the reference counter is incremented.
-            EXPECT_EQ(r.use_count(), 3);
+            pworld->gop.barrier();
+
+            // Check that there is one remote reference in addition to the
+            // single local reference
+            EXPECT_EQ(3, r.use_count());
 
             pworld->gop.barrier();
 
             // wait for the remote reference
-            RemoteReference<int> remote = xfer_wobj.remote_ref.get();
+            RemoteReference<int>& remote = xfer_wobj.remote_ref.get();
 
             // Check for locality
             EXPECT_TRUE(remote);
@@ -492,7 +494,7 @@ namespace {
             EXPECT_EQ(0, remote.use_count());
             EXPECT_FALSE(remote.unique());
 
-            // Check that you cannot remotely access
+            // Check that you cannot remotely access reference
 #ifdef MADNESS_ASSERTIONS_THROW
             EXPECT_THROW(remote.get(), madness::MadnessException);
             EXPECT_THROW(*remote, madness::MadnessException);
@@ -502,28 +504,18 @@ namespace {
 
             xfer_wobj.xfer(recv, remote, false);
 
-            EXPECT_FALSE(remote);
-            EXPECT_FALSE(remote.is_local());
-            EXPECT_EQ(-1, remote.owner());
-            EXPECT_EQ(0, remote.use_count());
-            EXPECT_FALSE(remote.unique());
-#ifdef MADNESS_ASSERTIONS_THROW
-            EXPECT_THROW(remote.get_world(), madness::MadnessException);
-            EXPECT_THROW(remote.get(), madness::MadnessException);
-            EXPECT_THROW(*remote, madness::MadnessException);
-            // Should check arrow operator too but the assertions are the same as
-            // operator* so we should get the same throw conditions
-#endif
+            pworld->gop.barrier();
+            EXPECT_EQ(3, r.use_count());
 
             // wait for the original to return.
-            RemoteReference<int> back = xfer_wobj.return_ref.get();
+            RemoteReference<int>& back = xfer_wobj.return_ref.get();
 
             // Check that the reference was returned with correct info
             EXPECT_TRUE(back);
             EXPECT_TRUE(back.is_local());
             EXPECT_EQ(pworld->rank(), back.owner());
-            EXPECT_EQ(1, back.use_count());
-            EXPECT_TRUE(back.unique());
+            EXPECT_EQ(3, back.use_count());
+            EXPECT_FALSE(back.unique());
             EXPECT_EQ(pworld, &(back.get_world()));
             EXPECT_EQ(i.get(), back.get());
             EXPECT_EQ(*i, *back);
