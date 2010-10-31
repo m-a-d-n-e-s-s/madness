@@ -121,7 +121,7 @@ complexd PhiK::operator()(const vector3D& rVec) const {
         double kDOTr =    kVec_[0]*rVec[0] + kVec_[1]*rVec[1] + kVec_[2]*rVec[2];
         double r     = sqrt(rVec[0]*rVec[0] + rVec[1]*rVec[1] + rVec[2]*rVec[2]);
         return 0.0634936359342 //  = (2PI)^-(3/2)
-               * expPIZ_2kXgamma1pIZ_k_
+               * expPIZ_2kXgamma1pIZ_k
                * exp(I*kDOTr)
                * fit1F1(k_*r + kDOTr);
     } else {
@@ -172,8 +172,7 @@ void ScatteringWF::Init(World& world) {
     rGammaAA = 1.0/gamma(AA);
     AAmBB = AA-BB;
     mAA = -AA;
-    expPIZ_2kXgamma1pIZ_k_ = exp(PI*Z_/(2*k_)) * gamma(0.0, Z_/k_);
-    rGammaAA = 1.0/gamma(AA);
+    expPIZ_2kXgamma1pIZ_k = std::exp(PI*Z_/(2*k_))*gamma(1.0+I*Z_/k_);
 /**********************************************************************
  * How far must we tabulate our 1F1 to cover the domain?
  * V^(1/3) gives us the length of the box
@@ -185,18 +184,7 @@ void ScatteringWF::Init(World& world) {
     n = floor(domain/dx +1);
     MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
     //World is needed for timing the length of the CubicInterpolationTable
-    //fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
-    // std::ofstream fout;
-    // fout.open("f11.dat");
-    // fout.precision(18);
-    // for( int ii=0; ii < n; ii++ ) {
-    //     complexd ZZ(0.0, -2*k_*ii*dx);
-    //     //        fout << ii*dx << "\t" << real(conhyp(AA,BB,ZZ)) << "\t" << imag(conhyp(AA,BB,ZZ))
-    //     fout << ii*dx << "\t" << 1 << "\t" << 1 
-    //                  << "\t" << real(aForm(ZZ)) << "\t" << imag(aForm(ZZ))
-    //                  << "\t" << real(f11(2*k_*ii*dx)) << "\t" << imag(f11(2*k_*ii*dx)) << std::endl;
-    // }
-    // fout.close();
+    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
 }
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
@@ -205,9 +193,9 @@ void ScatteringWF::Init(World& world) {
 complexd ScatteringWF::aForm(complexd ZZ) const {
     //complexd cA1 = expPIZ_k; 
     complexd ZZPmAA = pow(ZZ,mAA);
+    complexd cA  = ZZPmAA*expmIPIAArGammaBBmAA;
     complexd expZZ = exp(ZZ);
     complexd ZZPAAmBB = pow(ZZ, AAmBB);
-    complexd cA  = ZZPmAA*expmIPIAArGammaBBmAA;
     complexd cB  = expZZ*ZZPAAmBB*rGammaAA;
     complexd termA(0,0);
     complexd termB(0,0);
@@ -220,17 +208,17 @@ complexd ScatteringWF::aForm(complexd ZZ) const {
     complexd poch1pAAmBB(1.0,0.0);
     complexd   pochBBmAA(1.0,0.0);
     complexd    poch1mAA(1.0,0.0);
+    
     for(int n=0; n<=maxTerms; n++) {
-        //sum terms for n 
+        //Suming the n'th term
         complexd contribA = pochAA*poch1pAAmBB*mzrn/nFact;
         termA += contribA;
         complexd contribB = pochBBmAA*poch1mAA*zrn/nFact;
         termB += contribB;
-        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
-        //Calculate the coefficients for the next (n+1) term
-        zrn         *=  zr;         // z^-n
+        //Calculating the (n+1)'th term
+        zrn         *=  zr;         //   z^-n
         mzrn        *= -zr;         // (-z)^-n
-        nFact       *= n+1;         // (n+1) is the number to be used in the next iteration
+        nFact       *= n+1;
         pochAA      *=        AA + 1.0*n;  // (x)_n = x(x+1)(x+2)..(x+n-1)
         poch1pAAmBB *= 1.0+AA-BB + 1.0*n;
         pochBBmAA   *=   BB - AA + 1.0*n;
@@ -238,36 +226,7 @@ complexd ScatteringWF::aForm(complexd ZZ) const {
     }
     return gammaBB*(cA*termA + cB*termB);
 }
-// complexd ScatteringWF::aForm(complexd ZZ) const {
-//   //complexd cA1 = expIPA;
-//     complexd cA2 = pow(ZZ,I*Z/k);
-//     complexd cB1 = exp(ZZ);
-//     complexd cB2 = pow(ZZ,-one-I*Z/k);
-//     complexd cA  = expmPIZ_k*cA2/gamma1pIZ_k;
-//     complexd cB  = cB1*cB2/gammamIZ_k;
-//     complexd termA(0,0);
-//     complexd termB(0,0);
-//     int      maxTerms = 24;
-//     complexd zrn = 1;
-//     complexd mzrn = 1;
-//     complexd zr = 1.0/ZZ;
-//     double   nFact = 1.0;            //0! = 1
-//     complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
-//     complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
-//     for(int n=0; n<=maxTerms; n++) {
-//         complexd contribA = pochAA*pochAA*mzrn/nFact;
-//         termA += contribA;
-//         complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
-//         termB += contribB;
-//         //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
-//         mzrn     *= -zr;
-//         zrn      *=  zr;
-//         nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
-//         pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
-//         poch1mAA *= complexd(1+n,Z/k);        
-//     }
-//     return cA*termA + cB*termB;
-// }
+
 complexd ScatteringWF::gamma(double re, double im) {
     gsl_sf_result lnr;
     gsl_sf_result arg;

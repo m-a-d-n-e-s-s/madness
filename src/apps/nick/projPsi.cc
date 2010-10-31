@@ -188,91 +188,21 @@ complexd gamma(complexd AA) {
     return ANS;
 }
 
-complexd aFormNew(double Z, double k, double r)  {
-    complexd ZZ(0,-k*r);
-    complexd AA(0,-Z/k);
-    complexd BB(1,0);
-    complexd ZZPmAA = pow(ZZ,-AA);
-    complexd expZZ = exp(ZZ);
-    complexd ZZPAAmBB = pow(ZZ, AA-BB);
-    complexd cA  = ZZPmAA*exp(-I*PI*AA)/gamma(BB-AA);
-    complexd cB  = expZZ*ZZPAAmBB/gamma(AA);
-    complexd termA(0,0);
-    complexd termB(0,0);
-    const int maxTerms = 24;
-    double nFact = 1.0;        // 0! = 1
-    complexd  zr = 1.0/ZZ;     
-    complexd         zrn(1.0,0.0);   //(1/z)^0
-    complexd        mzrn(1.0,0.0);   //(-1/z)^0
-    complexd      pochAA(1.0,0.0);   //Pochhammer is the counting up factorial (A)_0 = 1
-    complexd poch1pAAmBB(1.0,0.0);
-    complexd   pochBBmAA(1.0,0.0);
-    complexd    poch1mAA(1.0,0.0);
-    for(int n=0; n<=maxTerms; n++) {
-        //sum terms for n 
-        complexd contribA = pochAA*poch1pAAmBB*mzrn/nFact;
-        termA += contribA;
-        complexd contribB = pochBBmAA*poch1mAA*zrn/nFact;
-        termB += contribB;
-        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
-        //Calculate the coefficients for the next (n+1) term
-        zrn         *=  zr;         // z^-n
-        mzrn        *= -zr;         // (-z)^-n
-        nFact       *= n+1;         // (n+1) is the number to be used in the next iteration
-        pochAA      *=        AA + 1.0*n;  // (x)_n = x(x+1)(x+2)..(x+n-1)
-        poch1pAAmBB *= 1.0+AA-BB + 1.0*n;
-        pochBBmAA   *=   BB - AA + 1.0*n;
-        poch1mAA    *=  1.0 - AA + 1.0*n;
-    }
-    return gamma(BB)*(cA*termA + cB*termB);
-}
-
-complexd aFormOld(double Z, double k, double r)  {
-    complexd ZZ(0,-k*r);
-    complexd cA2 = pow(ZZ,I*Z/k);
-    complexd cB1 = exp(ZZ);
-    complexd cB2 = pow(ZZ,-one-I*Z/k);
-    complexd cA  = exp(PI*Z/k)*cA2/gamma(complexd(1,Z/k));
-    complexd cB  = cB1*cB2/gamma(complexd(0,-Z/k));
-    complexd termA(0,0);
-    complexd termB(0,0);
-    int      maxTerms = 24;
-    complexd zrn = 1;
-    complexd mzrn = 1;
-    complexd zr = 1.0/ZZ;
-    double   nFact = 1.0;            //0! = 1
-    complexd pochAA(1.0,0.0);      //Pochhammer is the counting up factorial (A)_0 = 1
-    complexd poch1mAA(1.0,0.0);   //(BB-AA)_n
-    for(int n=0; n<=maxTerms; n++) {
-        complexd contribA = pochAA*pochAA*mzrn/nFact;
-        termA += contribA;
-        complexd contribB = poch1mAA*poch1mAA*zrn/nFact;
-        termB += contribB;
-        //print("contribA = ",contribA,"\tcontribB = ",contribB, "termA =", termA, "termB =", termB);
-        mzrn     *= -zr;
-        zrn      *=  zr;
-        nFact    *= n+1;  //(n+1) is the number to be used in the next iteration
-        pochAA   *= complexd(n,-Z/k); //(x)_n = x(x+1)(x+2)..(x+n-1)
-        poch1mAA *= complexd(1+n,Z/k);        
-    }
-    return cA*termA + cB*termB;
-}
-
-void debugSlice(World& world, const int n, double L) {
+void debugSlice(World& world, const int n, double L, double Z, double k) {
     const double dr = L/n;
-    const double Z = 1.0;
-    const double k = 1.0;
     const double a[3] = {0, 0, k};
     const vector3D kVec(a);
     ofstream fout;
-    fout.open("aFormOld.dat");
+    fout.open("aFormNew.dat");
     PhiK phi = PhiK(world, Z, kVec, L);
     phi.Init(world);
-    for( int i=0; i<n; i++ ) {
-        const complexd ZZ(0.0, -k*i*dr);
+    for( int i=1; i<n; i++ ) {
+        double r = i*dr;
+        const double b[3] = {0, 0, r};
+        const vector3D rVec(b);
         fout << std::fixed << std::setprecision(2)
-             << i*dr << " \t " << std::scientific << std::setprecision(16)
-             << real(phi.aForm(ZZ)) << " \t " << imag(phi.aForm(ZZ)) << std::endl;
+             << r << " \t " << std::scientific << std::setprecision(16)
+             << real(phi.f11(k*r)) << " \t " << imag(phi.f11(k*r)) << std::endl;
     }
 }
 
@@ -395,7 +325,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
     }
 }
 
-void loadParameters2(World& world, int &n, double& th, double& phi, int wf) {
+void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& k) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -421,6 +351,10 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int wf) {
             }
             else if (tag == "wf") {
                 f >> wf;
+            }
+            else if (tag == "k") {
+                f >> k;
+                PRINTLINE("k = " << k);
             }
         }
     }
@@ -496,11 +430,12 @@ int main(int argc, char**argv) {
     double cutoff = L;
     double th  = 0.0;
     double phi = 0.0;
+    double kMomentum   = 1.0;
     int    n   = 10;
     int    wf  = 0;
     loadParameters(world, thresh, k, L, Z, cutoff);
-    loadParameters2(world, n, th, phi, wf);
-    FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
+    loadParameters2(world, n, th, phi, wf, kMomentum);
+    FunctionDefaults<NDIM>::set_k(k);                 // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
@@ -516,9 +451,9 @@ int main(int argc, char**argv) {
         const int n1 = n;
         //projectL(world, L, n1);
         //zSlice(world, n1, L, th, phi);
-        debugSlice(world, n1, L);
+        //debugSlice(world, n1, L, Z, kMomentum);
         //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;

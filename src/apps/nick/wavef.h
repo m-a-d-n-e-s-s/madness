@@ -116,11 +116,10 @@ public:
     complexd BB;
     complexd gammaBB;
     complexd expmIPIAArGammaBBmAA;
+    complexd expPIZ_2kXgamma1pIZ_k;
     complexd rGammaAA;
     complexd AAmBB;
     complexd mAA;
-    complexd expPIAAXgammaBBmAAr;
-    complexd expPIZ_2kXgamma1pIZ_k_;
     double   domain;
     int      n;
 protected:
