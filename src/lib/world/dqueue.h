@@ -41,6 +41,7 @@
 #include <utility>
 #include <algorithm>
 #include <iostream>
+#include <stdint.h>
 
 /// \file dqueue.h
 /// \brief Implements DQueue
