@@ -32,7 +32,6 @@
 */
 
 #include <madness_config.h>
-#define MADNESS_HAS_GOOGLE_TEST
 #ifdef MADNESS_HAS_GOOGLE_TEST
 
 //#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
