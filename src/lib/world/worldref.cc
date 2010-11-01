@@ -97,7 +97,7 @@ namespace madness {
         bool RemoteCounter::is_local() const { return pimpl_.is_local(); }
         bool RemoteCounter::has_owner() const { return pimpl_.has_owner(); }
         ProcessID RemoteCounter::owner() const { return pimpl_.owner(); }
-        typename WorldPtr<RemoteCounter::implT>::worldidT
+        WorldPtr<RemoteCounter::implT>::worldidT
         RemoteCounter::get_worldid() const { return pimpl_.get_worldid(); }
         World& RemoteCounter::get_world() const { return pimpl_.get_world(); }
         void RemoteCounter::swap(RemoteCounter& other) {
