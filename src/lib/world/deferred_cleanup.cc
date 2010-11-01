@@ -46,7 +46,7 @@ namespace madness {
         bool DeferredCleanup::do_cleanup() {
             bool deleted_something = false;
             mutex.lock();
-            typename void_ptr_list::iterator it = deferred.begin();
+            void_ptr_list::iterator it = deferred.begin();
             bool at_end = (it == deferred.end());
             mutex.unlock();
             while(! at_end) {

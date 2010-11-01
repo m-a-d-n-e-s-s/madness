@@ -60,8 +60,10 @@ namespace madness {
         /// \tparam T The pointer type
         template <typename T>
         class WorldPtr {
+        public:
+            typedef unsigned long worldidT; ///< World ID type
+
         private:
-            typedef unsigned long worldidT;
             World* world_;          ///< A pointer to the world
             worldidT worldid_;      ///< The world id
             ProcessID rank_;        ///< The rank of the node that the pointer belongs to

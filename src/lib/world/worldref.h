@@ -197,7 +197,7 @@ namespace madness {
             ProcessID owner() const;
 
             World& get_world() const;
-            typename WorldPtr<implT>::worldidT get_worldid() const;
+            WorldPtr<implT>::worldidT get_worldid() const;
             void swap(RemoteCounter& other);
 
             template <typename Archive>

@@ -48,6 +48,7 @@
 #include <world/worldexc.h>
 #include <world/worldhash.h>
 #include <new>
+#include <stdio.h>
 
 namespace madness {
 
