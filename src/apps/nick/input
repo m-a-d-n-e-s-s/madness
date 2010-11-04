@@ -6,7 +6,7 @@ omega 1.32
 natom 1
    1.0    0.0 0.0 0.0
 k 8
-thresh 1e-7
+thresh 1e-5
 safety 1e-0
 cut 0.1
 prefix data

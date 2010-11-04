@@ -319,6 +319,22 @@ complexd Expikr::operator()(const vector3D& rVec) const {
     return exp(I*kDOTr);
 }
 
+/*****************************************
+ *Exp[ -r^2 ]
+ *****************************************/
+Gaussian::Gaussian(const double aa) {
+    if( a>0 ) a = aa;
+    else a = 1.0;
+}
+complexd Gaussian::operator()(const vector3D& rVec) const {
+    double r2 = 0.0;
+    for(int i=0; i<NDIM; i++) {
+        r2 += rVec[i]*rVec[i];
+    }
+    return complexd(exp(-a*r2),0);
+}
+
+
 Yl0::Yl0( double L=10.0, int l=0 ) : l_(l)  {
     norm = std::sqrt(3.0/L/L/L);
 }

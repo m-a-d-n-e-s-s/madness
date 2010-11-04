@@ -54,7 +54,6 @@
 #include <iomanip>
 #include <time.h>
 #include "hyp.h"
-
 #include "interp.h"
 #define PRINT(str) if(world.rank()==0) std::cout << str 
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
@@ -67,7 +66,6 @@ using namespace madness;
 
 typedef std::complex<double> complexd;
 typedef madness::Vector<double,NDIM> vector3D;
-//typedef Vector<double,NDIM> vector3D;
 typedef Function<complexd,NDIM> complex_functionT;
 typedef Function<double,NDIM> functionT;
 typedef FunctionFactory<complexd,NDIM> complex_factoryT;
@@ -183,6 +181,16 @@ private:
     double k;
     double costhK;
 };
+
+class Gaussian : public baseWF
+{
+public:
+    Gaussian(double a);
+    complexd operator()(const vector3D& r) const;
+private:
+    double a;
+};
+
 
 class Yl0 : public madness::FunctionFunctorInterface<double,NDIM> {
 public:
