@@ -21,9 +21,9 @@ AC_DEFUN([ACX_WITH_LIBUNWIND], [
   )
   if test $acx_with_libunwind != "no"; then
     AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_C
     AC_CHECK_HEADER([libunwind.h], [], [AC_MSG_ERROR([Unable to compile with the libunwind.])])
-    AC_CHECK_LIB([unwind], [unw_getcontext], [LIBS="$LIBS -lunwind"], [AC_MSG_ERROR(["Unable to link with libunwind])])
+    AC_CHECK_LIB([unwind], [_Unwind_GetRegionStart], [LIBS="$LIBS -lunwind"], [AC_MSG_ERROR(["Unable to link with libunwind])])
     AC_DEFINE(MADNESS_HAS_LIBUNWIND, [1], [Define if should use libunwind for Google performance tools])
     AC_LANG_RESTORE
   fi

@@ -1293,9 +1293,9 @@ m4trace:config/acx_with_libunwind.m4:1: -1- AC_DEFUN([ACX_WITH_LIBUNWIND], [
   )
   if test $acx_with_libunwind != "no"; then
     AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
+    AC_LANG_C
     AC_CHECK_HEADER([libunwind.h], [], [AC_MSG_ERROR([Unable to compile with the libunwind.])])
-    AC_CHECK_LIB([unwind], [unw_getcontext], [LIBS="$LIBS -lunwind"], [AC_MSG_ERROR(["Unable to link with libunwind])])
+    AC_CHECK_LIB([unwind], [_Unwind_GetRegionStart], [LIBS="$LIBS -lunwind"], [AC_MSG_ERROR(["Unable to link with libunwind])])
     AC_DEFINE(MADNESS_HAS_LIBUNWIND, [1], [Define if should use libunwind for Google performance tools])
     AC_LANG_RESTORE
   fi
@@ -1784,10 +1784,13 @@ m4trace:configure.ac:86: -1- _m4_warn([obsolete], [The macro `AC_LANG_SAVE' is o
 You should run autoupdate.], [../../lib/autoconf/lang.m4:126: AC_LANG_SAVE is expanded from...
 config/acx_with_libunwind.m4:1: ACX_WITH_LIBUNWIND is expanded from...
 configure.ac:86: the top level])
-m4trace:configure.ac:86: -1- _m4_warn([obsolete], [The macro `AC_LANG_CPLUSPLUS' is obsolete.
-You should run autoupdate.], [../../lib/autoconf/c.m4:252: AC_LANG_CPLUSPLUS is expanded from...
+m4trace:configure.ac:86: -1- _m4_warn([obsolete], [The macro `AC_LANG_C' is obsolete.
+You should run autoupdate.], [../../lib/autoconf/c.m4:73: AC_LANG_C is expanded from...
 config/acx_with_libunwind.m4:1: ACX_WITH_LIBUNWIND is expanded from...
 configure.ac:86: the top level])
+m4trace:configure.ac:86: -1- m4_pattern_allow([^CPP$])
+m4trace:configure.ac:86: -1- m4_pattern_allow([^CPPFLAGS$])
+m4trace:configure.ac:86: -1- m4_pattern_allow([^CPP$])
 m4trace:configure.ac:86: -1- m4_pattern_allow([^MADNESS_HAS_LIBUNWIND$])
 m4trace:configure.ac:86: -1- _m4_warn([obsolete], [The macro `AC_LANG_RESTORE' is obsolete.
 You should run autoupdate.], [../../lib/autoconf/lang.m4:135: AC_LANG_RESTORE is expanded from...
