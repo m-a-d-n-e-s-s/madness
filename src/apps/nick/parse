@@ -1,0 +1,6 @@
+#!/bin/bash
+
+thisDir=`pwd | sed 's/.*\///'`
+parse.py $thisDir.job.o*
+gnuplot -persist ~/bin/makePlots.gp
+

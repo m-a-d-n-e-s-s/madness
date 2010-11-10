@@ -53,6 +53,7 @@
 
 #include "wavef.h"
 #include "extra.h"
+#include <mra/lbdeux.h>
 #include <string>
 #include <fstream>
 using std::ofstream;
@@ -64,6 +65,28 @@ using namespace madness;
 const double PI = M_PI;
 const complexd I(0,1);
 const complexd one(1,0);
+
+struct LBCost {
+    double leaf_value;
+    double parent_value;
+    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+        : leaf_value(leaf_value)
+        , parent_value(parent_value) 
+    {}
+
+    double operator()(const Key<3>& key, const FunctionNode<double_complex,3>& node) const {
+        if (key.level() <= 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
+
 
 /******************************************************
  * <Yl0|Psi(t)>
@@ -81,6 +104,10 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         exit(1);
     } else {
         psi = wave_function_load(world, wf);
+        psi.reconstruct();
+        LoadBalanceDeux<3> lb(world);
+        lb.add_tree(psi, LBCost(1.0,1.0));
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
     }
     PRINTLINE("");
@@ -451,8 +478,8 @@ int main(int argc, char**argv) {
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n1, L, Z, kMomentum);
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;
