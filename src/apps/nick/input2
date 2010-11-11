@@ -1,6 +1,6 @@
-n 100
+n 4
 th 0.1
 phi 0.3
 wf 0
 k 0.5
-lMAX 4
+lMAX 11

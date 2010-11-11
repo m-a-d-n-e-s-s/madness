@@ -6,9 +6,9 @@ omega 1.32
 natom 1
    1.0    0.0 0.0 0.0
 k 8
-thresh 1e-5
+thresh 1e-4
 safety 1e-0
-cut 0.1
+cut 0.3
 prefix data
 nplot 999
 nprint 1
@@ -18,4 +18,3 @@ ndump 1
 ncycle 2
 target_time 5
 tScale 5.0
-

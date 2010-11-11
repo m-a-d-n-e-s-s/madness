@@ -246,6 +246,7 @@ void debugSlice(World& world, const int n, double L, double Z, double k) {
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
+    bool usesPlaneWaves = true;
     PRINTLINE("\t\t\t\t\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -256,6 +257,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             boundList.push_back("2 1 0");
         }
         //LOAD Psi(t)
+        //psiIT holds the time evolved wave functions
         std::string tag;
         std::vector<WF> psiList;
         complexd output;
@@ -270,7 +272,6 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             }
         }// done loading wf.num
         PRINT("\n");
-        //psiIT holds the time evolved wave functions
         //LOAD bound states
         complex_functionT psi0;
         if( wave_function_exists(world, 0) ) {
@@ -302,7 +303,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     PRINT(std::scientific <<"\t" << real(output*conj(output)));
                 }
                 PRINT("\n");
-            }            
+            }
         }
         clock_t before=0, after=0;
         //LOAD unbound states
@@ -320,26 +321,32 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
                     //PROJECT Psi_k into MADNESS
                     if(world.rank()==0) before = clock();
-                    const double constcutoff = cutoff;
-                    PhiK phik = PhiK(world, Z, kVec, constcutoff);
-                    phik.Init(world);
-                    complex_functionT phi_k = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+                    complex_functionT phiK;
+                    if( usesPlaneWaves ) {
+                        phiK = complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
+                    } else {
+                        const double constcutoff = cutoff;
+                        PhiK phik = PhiK(world, Z, kVec, constcutoff);
+                        phik.Init(world);
+                        phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+                    }
                     // W/O timing
-                    //complex_functionT phi_k = 
+                    //complex_functionT phiK = 
                     //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
-                     //<phi_k|Psi(0)>
-                    complexd k_overlap_0 = inner(phi_k,psi0);
+                     //<phiK|Psi(0)>
+                    complexd k_overlap_0 = inner(phiK,psi0);
                     //loop through time steps
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                        //<phi_k|PSI(t)> = <phi_k|Psi(t)>   - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
-                        output =  inner(phi_k, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
+                        //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
+                        //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
+                        output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
                         PRINT( std::scientific << "\t" << real(output*conj(output)) );
                     }
+                    PRINTLINE("6");
                     PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                    int WFsize = phi_k.size();
+                    int WFsize = phiK.size();
                     PRINT("and has " << WFsize << " coefficients.\n");
                 }
             }
@@ -474,7 +481,7 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        projectL(world, L, wf, n, lMAX);
+        //projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n1, L, Z, kMomentum);
