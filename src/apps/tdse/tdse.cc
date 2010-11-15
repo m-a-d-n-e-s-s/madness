@@ -238,6 +238,8 @@ complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& p
     r.reconstruct();
     r.broaden();
     r.broaden();
+    r.broaden();
+    r.broaden();
 
     r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
     r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
