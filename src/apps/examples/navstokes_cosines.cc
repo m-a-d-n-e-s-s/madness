@@ -284,7 +284,7 @@ void testNavierStokes(int argc, char**argv) {
 		p.scale(-1. / (4. * pi));
 
 		// Step 2.  Calculate the velocity at time t+1.
-		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p)/mu + u_t/(deltaT mu)
+		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p - u grad u)/mu + u_t/(deltaT mu)
 
 		// do the following calculation
 		//~ rhs[0] = (f[0] - diff(p, 0) -rhs[0])*(1. / mu) + u[0]*dum;
