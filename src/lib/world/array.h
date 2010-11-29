@@ -190,6 +190,15 @@ namespace madness {
             return r;
         }
 
+        /// In-place element-wise addition of another vector
+
+        /// Returns a reference to this for chaining operations
+        template <typename Q>
+        Vector<T,N>& operator+=(const Vector<Q,N>& q) {
+            for (int i=0; i<N; i++) v[i] += q[i];
+            return *this;
+        }
+
         /// Element-wise subtraction of a scalar
 
         /// Returns a new vector
@@ -208,6 +217,15 @@ namespace madness {
             Vector<T,N> r;
             for (int i=0; i<N; i++) r[i] = v[i] - q[i];
             return r;
+        }
+
+        /// In-place element-wise subtraction of another vector
+
+        /// Returns a reference to this for chaining operations
+        template <typename Q>
+        Vector<T,N>& operator-=(const Vector<Q,N>& q) {
+            for (int i=0; i<N; i++) v[i] -= q[i];
+            return *this;
         }
 
         /// STL iterator support
@@ -229,6 +247,12 @@ namespace madness {
         const_iterator end() const {
             return v+N;
         }
+
+        typedef std::random_access_iterator_tag iterator_category;
+        typedef T value_type;
+        typedef std::ptrdiff_t difference_type;
+        typedef T* pointer;
+        typedef T& reference;
 
         /// Length of the vector
         int size() const {
