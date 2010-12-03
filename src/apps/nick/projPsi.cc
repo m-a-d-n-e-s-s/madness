@@ -344,7 +344,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
                         PRINT( std::scientific << "\t" << real(output*conj(output)) );
                     }
-                    PRINTLINE("6");
+                    PRINTLINE("");
                     PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
                     int WFsize = phiK.size();
                     PRINT("and has " << WFsize << " coefficients.\n");
