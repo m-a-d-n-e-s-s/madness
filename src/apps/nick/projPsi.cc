@@ -160,9 +160,8 @@ void projectL(World& world, const double L, const int wf, const int n, const int
 }
 
 
-/****************************************
- * Needs: input input2
- ****************************************/
+///Needs: input input2
+///loads wf and prints its values along the z-axis
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
@@ -219,12 +218,13 @@ void testIntegral(World& world, double L, const double Z, double k) {
     }
 }
 
+///Evaluate phi_k along the z-axis
 void debugSlice(World& world, const int n, double L, double Z, double k) {
     const double dr = L/n;
     const double a[3] = {0, 0, k};
     const vector3D kVec(a);
     ofstream fout;
-    fout.open("phi0.5.dat");
+    fout.open("phi.dat");
     PhiK phi = PhiK(world, Z, kVec, L);
     phi.Init(world);
     for( int i=1; i<n; i++ ) {
@@ -238,7 +238,6 @@ void debugSlice(World& world, const int n, double L, double Z, double k) {
 }
 
 
- 
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
@@ -304,6 +303,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 }
                 PRINT("\n");
             }
+            PRINTLINE("");
         }
         clock_t before=0, after=0;
         //LOAD unbound states
@@ -353,8 +353,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
-
-void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& k, int& lMAX) {
+void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& kMomentum, int& lMAX) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -381,9 +380,9 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, dou
             else if (tag == "wf") {
                 f >> wf;
             }
-            else if (tag == "k") {
-                f >> k;
-                PRINTLINE("k = " << k);
+            else if (tag == "kMomentum") {
+                f >> kMomentum;
+                PRINTLINE("kMomentum = " << kMomentum);
             }
             else if (tag == "lMAX") {
                 f >> lMAX;
@@ -484,9 +483,9 @@ int main(int argc, char**argv) {
         //projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
-        //debugSlice(world, n1, L, Z, kMomentum);
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
+        debugSlice(world, n, L, Z, kMomentum);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
         //PRINTLINE("Z = " << Z);
         //std::vector<WF> boundList;
         //std::vector<WF> unboundList;

@@ -6,7 +6,7 @@ except:
     print "Which file?"
     sys.exit()
 
-#Parse MADNESS output 
+#Parse projPsi's output 
 inputFile = sys.argv[1]
 print inputFile
 f = open(inputFile, 'r')
