@@ -128,7 +128,7 @@ complexd PhiK::operator()(const vector3D& rVec) const {
         return 0.0;
     }
 }
-///F11 determines when to use the series conhyp and when to use the asymptotic aForm
+///f11(double) determines when to use the series conhyp and when to use the asymptotic aForm
 complexd PhiK::f11(double xx) const {
     complexd ZZ(0.0,-xx);
     //The cutoff was done by finding the r value for which the precision (error)

@@ -245,7 +245,7 @@ void debugSlice(World& world, const int n, double L, double Z, double k) {
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
-    bool usesPlaneWaves = true;
+    bool usesPlaneWaves = false;
     PRINTLINE("\t\t\t\t\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -483,12 +483,9 @@ int main(int argc, char**argv) {
         //projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
-        debugSlice(world, n, L, Z, kMomentum);
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
-        //PRINTLINE("Z = " << Z);
-        //std::vector<WF> boundList;
-        //std::vector<WF> unboundList;
+        //debugSlice(world, n, L, Z, kMomentum);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);
