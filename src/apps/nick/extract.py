@@ -7,6 +7,7 @@ except:
     sys.exit()
 
 #Parse projPsi's output 
+doRl = False
 inputFile = sys.argv[1]
 print inputFile
 f = open(inputFile, 'r')
@@ -34,6 +35,7 @@ while 1:
                 ionFile.write(word + "\t")
             ionFile.write("\n")
         if Rl:
+            doRl = True
             words = line.split()
             l = Rl.group(1)
             Pl = lines.pop(0)[0:-1]
@@ -42,31 +44,20 @@ while 1:
         break
 f.close()
 
-#Get last line of wf.num
-f = open("wf.num", "r")
-lines = f.readlines()
-maxStep = int(lines.pop())
-f.close()
-print "maxStep = ", maxStep
-
 #Sort STEP, atomic time, and walltime
 f = open("time.dat", 'r')
 lines = f.readlines()
 legacyTime = 0
-lastTime = 0
-lastStep = 0
+lastTime  = 0
+lastStep  = 0
 fout = open("t.dat", "w")
 for line in lines:
     time = line.split()
-    step  = float(time[0])
-    aTime = time[1]
+    step  = float(time[0]) # time step number
+    qTime = time[1]        # quantum time
     wTime = float(time[2]) # wall time
-    if step <= lastStep:   # no repeat time steps
+    if step <= lastStep:   # Don't allow repeat time steps
         continue
-    if step == maxStep:
-        tFile = open("tMAX.dat", 'w')
-        tFile.write( aTime )
-        tFile.close()
     if wTime < lastTime:   # add to legacy time
         legacyTime += lastTime
     totalTime = wTime + legacyTime
@@ -74,24 +65,30 @@ for line in lines:
     lastStep = step
     lastTime = wTime
 f.close()
-
+tFile = open("tMAX.dat", 'w')
+tFile.write( qTime )
+tFile.close()
+        
 #make dr.dat
-f = open("input", 'r')
-lines = f.readlines()
-for line in lines:
-    if line:
-        word = line.split()
-        if word[0] == 'L':
-            L = float(word[1])
-f.close()
-f = open("input2", 'r')
-lines = f.readlines()
-for line in lines:
-    if line:
-        word = line.split()
-        if word[0] == 'n':
-            n = int(word[1])
-f.close()
-f = open("dr.dat", 'w')
-f.write( str(L/n) )
-f.close()
+if( doRl ):
+    if os.exists('input'):
+        f = open("input", 'r')
+        lines = f.readlines()
+        for line in lines:
+            if line:
+                word = line.split()
+                if word[0] == 'L':
+                    L = float(word[1])
+        f.close()
+        if os.exists('input2'):
+            f = open("input2", 'r')
+            lines = f.readlines()
+            for line in lines:
+                if line:
+                    word = line.split()
+                    if word[0] == 'n':
+                        n = int(word[1])
+            f.close()
+            f = open("dr.dat", 'w')
+            f.write( str(L/n) )
+            f.close()
