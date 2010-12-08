@@ -5,10 +5,14 @@ try:
 except:
     print "Which file?"
     sys.exit()
+inputFile = sys.argv[1]
+if not os.path.isfile(inputFile):
+    print inputFile, "doesn't exist"
+    sys.exit()
+print inputFile
+
 #Parse projPsi's output 
 doRl = False
-inputFile = sys.argv[1]
-print inputFile
 f = open(inputFile, 'r')
 exFile = open("ex.dat", 'w')
 ionFile = open("ion.dat", 'w')
@@ -67,13 +71,15 @@ tFile = open("tMAX.dat", 'w')
 tFile.write( qTime )
 tFile.close()
 
-        
+if os.path.isfile('input'):
+    os.system('cp input input.dat')
+if os.path.isfile('input2'):
+    os.system("cp input2 input2.dat")
 #make dr.dat
-thisDIR = os.getcwd()
-inputFile = thisDIR  + '/input'
-input2File = thisDIR + '/input2'
-
 if( doRl ):
+    thisDIR = os.getcwd()
+    inputFile = thisDIR  + '/input'
+    input2File = thisDIR + '/input2'
     if os.path.isfile(inputFile):
         print 'here'
         f = open("input", 'r')
