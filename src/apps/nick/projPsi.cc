@@ -265,9 +265,9 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             if( !wave_function_exists(world, atoi(tag.c_str())) ) {
                 PRINTLINE("Function " << tag << " not found");
             } else {
+                PRINT("|" << tag << ">\t\t");
                 WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
                 psiList.push_back(WF(tag, psi_t.func));
-                PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
         PRINT("\n");
