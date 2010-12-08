@@ -1,11 +1,10 @@
-#!/usr/bin/env python
-import sys, re
+#!/usr/bin/python
+import sys, re, os, os.path
 try:
     sys.argv[1]
 except:
     print "Which file?"
     sys.exit()
-
 #Parse projPsi's output 
 doRl = False
 inputFile = sys.argv[1]
@@ -15,6 +14,7 @@ exFile = open("ex.dat", 'w')
 ionFile = open("ion.dat", 'w')
 RlFile = open("Rl.dat", 'w')
 lines = f.readlines()
+
 while 1:
     if(lines):
         line = lines.pop(0)
@@ -23,9 +23,7 @@ while 1:
         Rl = re.match( "^Y(\d+)0", line)
         if exState:
             words = line.split()
-            for word in words:
-                exFile.write(word + "\t")
-                exFile.write("\n")
+            exFile.write(' '.join(words) + '\n')
         if kState:
             words = line.split()
             words.pop(0)
@@ -68,10 +66,16 @@ f.close()
 tFile = open("tMAX.dat", 'w')
 tFile.write( qTime )
 tFile.close()
+
         
 #make dr.dat
+thisDIR = os.getcwd()
+inputFile = thisDIR  + '/input'
+input2File = thisDIR + '/input2'
+
 if( doRl ):
-    if os.exists('input'):
+    if os.path.isfile(inputFile):
+        print 'here'
         f = open("input", 'r')
         lines = f.readlines()
         for line in lines:
@@ -80,7 +84,7 @@ if( doRl ):
                 if word[0] == 'L':
                     L = float(word[1])
         f.close()
-        if os.exists('input2'):
+        if os.path.isfile(input2File):
             f = open("input2", 'r')
             lines = f.readlines()
             for line in lines:
