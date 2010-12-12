@@ -321,6 +321,11 @@ namespace madness {
         }
     }
 
+    /// Writes a Povray DF3 format file with a cube of points on a uniform grid
+
+    /// Collective operation but only process 0 writes the file.  By convention Povray
+    /// files end in ".df3" but this choice is up to the user.  The dynamic range of 
+    /// function values is mapped onto [0,1] and values stored in 16-bit fixed precision.
     template <typename T>
     static void plotpovray(const Function<T,3>& function,
                            const char* filename,
