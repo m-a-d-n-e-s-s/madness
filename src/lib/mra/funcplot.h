@@ -316,7 +316,7 @@ namespace madness {
     }
 
     namespace detail {
-        unsigned short htons(unsigned short a) {
+        inline unsigned short htons(unsigned short a) {
             return (a>>8) | (a<<8);
         }
     }
