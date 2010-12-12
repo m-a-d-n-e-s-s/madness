@@ -42,6 +42,7 @@
   @{
  */
 
+namespace madness {
     /// Writes an OpenDX format file with a cube/slice of points on a uniform grid
 
     /// Collective operation but only process 0 writes the file.  By convention OpenDX
@@ -314,6 +315,55 @@
         world.gop.fence();
     }
 
+    namespace detail {
+        unsigned short htons(unsigned short a) {
+            return (a>>8) | (a<<8);
+        }
+    }
+
+    template <typename T>
+    static void plotpovray(const Function<T,3>& function,
+                           const char* filename,
+                           const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
+                           const std::vector<long>& npt = std::vector<long>(3,201L))
+    {
+        using detail::htons;
+
+        MADNESS_ASSERT(npt.size() == 3);
+        unsigned short dims[3] = {htons(npt[0]),htons(npt[1]),htons(npt[2])};
+
+        World& world = const_cast< Function<T,3>& >(function).world();
+        FILE *f=0;
+        if (world.rank() == 0) {
+            f = fopen(filename, "w");
+            if (!f) MADNESS_EXCEPTION("plotdx: failed to open the plot file", 0);
+            fwrite((void*) dims, sizeof(short), 3, f);
+        }
+        Tensor<T> r = function.eval_cube(cell, npt);
+        if (world.rank() == 0) {
+            double rmax = r.max();
+            double rmin = r.min();
+            double rrange = rmax + rmin;
+            double rmean = rrange*0.5;
+            double fac = 65535.0/rrange;
+
+            printf("plot_povray: %s: min=%.2e(0.0) mean=%.2e(0.5) max=%.2e(1.0) range=%.2e\n",
+                   filename,rmin,rmean,rmax,rrange);
+
+            std::vector<unsigned short> d(npt[0]);
+            for (unsigned int i2=0; i2<npt[2]; i2++) {
+                for (unsigned int i1=0; i1<npt[1]; i1++) {
+                    for (unsigned int i0=0; i0<npt[0]; i0++) {
+                        d[i0] = (unsigned short)(htons((unsigned short)(fac*(r(i0,i1,i2) - rmin))));
+                        //printf("%d\n",htons(d[i0]));
+                    }
+                    fwrite((void*) &d[0], sizeof(short), npt[0], f);
+                }
+            }
+
+            fclose(f);
+        }
+    }
 
     static inline void plot_line_print_value(FILE* f, double_complex v) {
         fprintf(f, "    %.14e %.14e   ", real(v), imag(v));
@@ -447,6 +497,8 @@
         }
         world.gop.fence();
     }
+}
 
 /* @} */
+
 #endif // MADNESS_MRA_FUNCPLOT_H__INCLUDED
