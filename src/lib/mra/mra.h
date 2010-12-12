@@ -1397,9 +1397,11 @@ namespace madness {
     }
 
 
+}
 
 #include <mra/funcplot.h>
 
+namespace madness {
     namespace archive {
         template <class T, int NDIM>
         struct ArchiveLoadImpl< ParallelInputArchive, Function<T,NDIM> > {
@@ -1415,8 +1417,6 @@ namespace madness {
             }
         };
     }
-
-
 }
 /* @} */
 
