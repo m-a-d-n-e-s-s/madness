@@ -12,7 +12,7 @@ using namespace std;
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
 const double L = 5; // box is [-L,L]
-const double sigma = 0.1; // Surface width
+const double sigma = 0.05; // Surface width
 
 const double epsilon_0 = 1.0; // Interior dielectric
 const double epsilon_1 =10.0; // Exterior dielectric
@@ -202,12 +202,25 @@ int main(int argc, char **argv) {
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
 
+    coord_3d lo(0.0), hi(0.0); // Range for line plotting
+    lo[0] =-5.0;
+    hi[0] = 5.0;
+
     // Function defaults
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
     FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_truncate_on_project(true);
+    FunctionDefaults<3>::set_bc(BC_FREE);
+
+    // The Coulomb operator (this is just 1/r ... whereas the notes are -1/4pir)
+    real_convolution_3d op = CoulombOperator(world, sigma*0.001, thresh*0.1);
+
+    // Derivative operators
+    real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
+    real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
+    real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
 
     // We will have one sphere of radius R centered at the origin
     vector<double> atomic_radii(1,R);
@@ -236,6 +249,9 @@ int main(int argc, char **argv) {
     TIME("make charge ", real_function_3d charge = real_factory_3d(world).f(charge_function));
     TIME("make exact  ", real_function_3d exact = real_factory_3d(world).f(exact_function));
     
+    // Dielectric function
+    real_function_3d eps = epsilon_0*volume + epsilon_1*(1.0-volume);
+
     // Reciprocal of the dielectric function
     real_function_3d rdielectric = (1.0/epsilon_0)*volume + (1.0/epsilon_1)*(1.0-volume);
 
@@ -243,6 +259,11 @@ int main(int argc, char **argv) {
     real_function_3d di_gradx = (epsilon_0-epsilon_1)*gradx;
     real_function_3d di_grady = (epsilon_0-epsilon_1)*grady;
     real_function_3d di_gradz = (epsilon_0-epsilon_1)*gradz;
+
+    // Test grad of the volume
+    print("err in volume grad", (gradx-Dx(volume)).norm2(), (grady-Dy(volume)).norm2(), (gradz-Dz(volume)).norm2());
+    print("err in dielectric grad", (di_gradx-Dx(eps)).norm2(), (di_grady-Dy(eps)).norm2(), (di_gradz-Dz(eps)).norm2());
+    plot_line("eps.dat", 301, lo, hi, di_gradx, Dx(eps));
 
     // Print some values for sanity checking
     print("the volume is", volume.trace());
@@ -253,19 +274,7 @@ int main(int argc, char **argv) {
     volume.clear();
     surface.clear();
 
-    // Make the Coulomb operator (this is just 1/r ... whereas the notes are -1/4pir)
-    real_convolution_3d op = CoulombOperator(world, sigma*0.001, thresh*0.1);
-
-    // Derivative operators
-    real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
-    real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
-    real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
-
     const double rfourpi = 1.0/(4.0*constants::pi);
-    coord_3d lo(0.0), hi(0.0);
-    lo[0] =-5.0;
-    hi[0] = 5.0;
-
     charge = (1.0/epsilon_0)*charge;
 
     // Initial guess is constant dielectric
@@ -276,7 +285,7 @@ int main(int argc, char **argv) {
     vector_real_function_3d uvec, rvec;
     for (int iter=0; iter<20; iter++) {
         uvec.push_back(u);
-        rvec.push_back(u - op(charge + (0.5*rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
+        rvec.push_back(u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
   
         Tensor<double> newQ(iter+1,iter+1);
         if (iter>0) newQ(Slice(0,-2),Slice(0,-2)) = Q;
