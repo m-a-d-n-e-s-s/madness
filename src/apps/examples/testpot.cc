@@ -12,7 +12,7 @@ using namespace std;
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
 const double L = 5; // box is [-L,L]
-const double sigma = 0.05; // Surface width
+const double sigma = 0.1; // Surface width
 
 const double epsilon_0 = 1.0; // Interior dielectric
 const double epsilon_1 =10.0; // Exterior dielectric
@@ -178,6 +178,14 @@ public:
     }
 };
 
+template <typename T, int NDIM>
+struct Reciprocal {
+    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = 1.0/(*_p0));
+    }
+    template <typename Archive> void serialize(Archive& ar) {}
+};
+
 double charge_function(const coord_3d& r) {
     const double expnt = 100.0;
     const double coeff = pow(1.0/constants::pi*expnt,0.5*3);
@@ -212,6 +220,7 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_cubic_cell(-L, L);
     FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_truncate_on_project(true);
+    //FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_bc(BC_FREE);
 
     // The Coulomb operator (this is just 1/r ... whereas the notes are -1/4pir)
@@ -249,21 +258,14 @@ int main(int argc, char **argv) {
     TIME("make charge ", real_function_3d charge = real_factory_3d(world).f(charge_function));
     TIME("make exact  ", real_function_3d exact = real_factory_3d(world).f(exact_function));
     
-    // Dielectric function
-    real_function_3d eps = epsilon_0*volume + epsilon_1*(1.0-volume);
-
     // Reciprocal of the dielectric function
-    real_function_3d rdielectric = (1.0/epsilon_0)*volume + (1.0/epsilon_1)*(1.0-volume);
+    real_function_3d rdielectric = epsilon_0*volume + epsilon_1*(1.0-volume);
+    rdielectric.unaryop(Reciprocal<double,3>());
 
     // Gradient of the dielectric function
     real_function_3d di_gradx = (epsilon_0-epsilon_1)*gradx;
     real_function_3d di_grady = (epsilon_0-epsilon_1)*grady;
     real_function_3d di_gradz = (epsilon_0-epsilon_1)*gradz;
-
-    // Test grad of the volume
-    print("err in volume grad", (gradx-Dx(volume)).norm2(), (grady-Dy(volume)).norm2(), (gradz-Dz(volume)).norm2());
-    print("err in dielectric grad", (di_gradx-Dx(eps)).norm2(), (di_grady-Dy(eps)).norm2(), (di_gradz-Dz(eps)).norm2());
-    plot_line("eps.dat", 301, lo, hi, di_gradx, Dx(eps));
 
     // Print some values for sanity checking
     print("the volume is", volume.trace());
@@ -273,6 +275,9 @@ int main(int argc, char **argv) {
     // Free up stuff we are not using any more to save memory
     volume.clear();
     surface.clear();
+    gradx.clear();
+    grady.clear();
+    gradz.clear();
 
     const double rfourpi = 1.0/(4.0*constants::pi);
     charge = (1.0/epsilon_0)*charge;
@@ -281,13 +286,13 @@ int main(int argc, char **argv) {
     real_function_3d u = op(charge).truncate();
     double unorm = u.norm2();
 
-    Tensor<double> Q;
+    real_tensor Q;
     vector_real_function_3d uvec, rvec;
     for (int iter=0; iter<20; iter++) {
         uvec.push_back(u);
         rvec.push_back(u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
   
-        Tensor<double> newQ(iter+1,iter+1);
+        real_tensor newQ(iter+1,iter+1);
         if (iter>0) newQ(Slice(0,-2),Slice(0,-2)) = Q;
         Q = newQ;
 
@@ -296,7 +301,7 @@ int main(int argc, char **argv) {
             if (iter != jter) Q(iter,jter) = inner(uvec[iter],rvec[jter]);
         }
         
-        Tensor<double> c = KAIN(Q);
+        real_tensor c = KAIN(Q);
         //print(Q);
         //print("KAIN", c);
 
@@ -309,7 +314,7 @@ int main(int argc, char **argv) {
         double err = (u-exact).norm2();
         print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
 
-        if (change > 0.1*unorm) u = 0.25*u + 0.75*u_prev;
+        if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
 
         if (change < 10.0*thresh) break;
     }

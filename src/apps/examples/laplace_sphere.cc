@@ -191,8 +191,11 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
     
     // Make the Coulomb Green's function
     real_convolution_3d G = CoulombOperator(world, 0.1*epsilon, FunctionDefaults<3>::get_thresh());
-    // Initial guess for u is zero
-    real_function_3d u = real_factory_3d(world);
+
+    // Initial guess for u is G Sg
+    real_function_3d u = Sg * 0.25 * epsilon * epsilon;
+    u = G(u);
+    u.truncate();
     
     // Iterate
     NonlinearSolver solver;
@@ -258,10 +261,10 @@ real_function_3d auglag(World& world, double epsilon, const coord_3d& center) {
     u = G(u);
     u.truncate();
     
-    double mu = 0.25;
+    double mu = 0.05;
     double thresh = FunctionDefaults<3>::get_thresh();
 
-    for (int lamiter=0; lamiter<5; lamiter++) {
+    for (int lamiter=0; lamiter<20; lamiter++) {
         if (world.rank() == 0) print("   mu =", mu);
         // Iterate
         NonlinearSolver solver;
@@ -287,8 +290,8 @@ real_function_3d auglag(World& world, double epsilon, const coord_3d& center) {
         sprintf(fname,"u%3.3d.dat", lamiter);
         plot_line(fname, 10001, coord_3d(-1.5), coord_3d(+1.5), u);
 
-        Slam = Slam - (S*u - Sg)*(1.0/mu);
-        mu *= 0.75;
+        Slam = Slam - 0.25*(S*u - Sg)*(1.0/mu);
+        //if ((lamiter%5) == 2) mu *= 0.5;
     }
     
     plotdx(u, "u.dx");
@@ -371,12 +374,14 @@ int main(int argc, char**argv) {
   FunctionDefaults<3>::set_cubic_cell(-3,3);
   FunctionDefaults<3>::set_thresh(1e-4);
   FunctionDefaults<3>::set_k(6);
+  FunctionDefaults<3>::set_initial_level(5);
+  FunctionDefaults<3>::set_truncate_mode(0);
 
-  double epsilon = 0.2;   // surface width
+  double epsilon = 0.05;   // surface width
   coord_3d center;        // (0,0,0)
 
   approx2(world, epsilon, center);
-  auglag(world, epsilon, center);
+  //auglag(world, epsilon, center);
   //approx3(world, epsilon, center);
 
   finalize();
