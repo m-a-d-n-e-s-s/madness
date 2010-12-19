@@ -12,7 +12,7 @@ using namespace std;
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
 const double L = 5; // box is [-L,L]
-const double sigma = 0.1; // Surface width
+const double sigma = 0.2; // Surface width
 
 const double epsilon_0 = 1.0; // Interior dielectric
 const double epsilon_1 =10.0; // Exterior dielectric
@@ -286,38 +286,50 @@ int main(int argc, char **argv) {
     real_function_3d u = op(charge).truncate();
     double unorm = u.norm2();
 
-    real_tensor Q;
-    vector_real_function_3d uvec, rvec;
-    for (int iter=0; iter<20; iter++) {
-        uvec.push_back(u);
-        rvec.push_back(u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
-  
-        real_tensor newQ(iter+1,iter+1);
-        if (iter>0) newQ(Slice(0,-2),Slice(0,-2)) = Q;
-        Q = newQ;
+    const bool USE_SOLVER = true;
 
-        for (int jter=0; jter<=iter; jter++) {
-            Q(jter,iter) = inner(uvec[jter],rvec[iter]);
-            if (iter != jter) Q(iter,jter) = inner(uvec[iter],rvec[jter]);
+    if (USE_SOLVER) {
+        // This section employs a non-linear equation solver from solvers.h
+        //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
+        real_tensor Q;
+        vector_real_function_3d uvec, rvec;
+        for (int iter=0; iter<20; iter++) {
+            uvec.push_back(u);
+            rvec.push_back(u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
+            real_tensor newQ(iter+1,iter+1);
+            if (iter>0) newQ(Slice(0,-2),Slice(0,-2)) = Q;
+            Q = newQ;
+            for (int jter=0; jter<=iter; jter++) {
+                Q(jter,iter) = inner(uvec[jter],rvec[iter]);
+                if (iter != jter) Q(iter,jter) = inner(uvec[iter],rvec[jter]);
+            }
+            real_tensor c = KAIN(Q);
+            //print(Q);
+            //print("KAIN", c);
+            u = real_factory_3d(world); 
+            for (int i=0; i<=iter; i++) u += c[i]*(uvec[i] - rvec[i]);
+            real_function_3d u_prev = uvec[iter];
+            double change = (u-u_prev).norm2();
+            double err = (u-exact).norm2();
+            print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
+            if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
+            if (change < 10.0*thresh) break;
         }
-        
-        real_tensor c = KAIN(Q);
-        //print(Q);
-        //print("KAIN", c);
-
-        u = real_factory_3d(world); 
-        for (int i=0; i<=iter; i++) u += c[i]*(uvec[i] - rvec[i]);
-
-        real_function_3d u_prev = uvec[iter];
-
-        double change = (u-u_prev).norm2();
-        double err = (u-exact).norm2();
-        print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
-
-        if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
-
-        if (change < 10.0*thresh) break;
     }
+    else {
+        // This section employs a simple iteration with damping (step restriction)
+        for (int iter=0; iter<20; iter++) {
+            real_function_3d u_prev = u;
+            u = op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate();
+            
+            double change = (u-u_prev).norm2();
+            double err = (u-exact).norm2();
+            print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
+            if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
+            if (change < 10.0*thresh) break;
+        }
+    }
+
 
     plot_line("testpot.dat", 301, lo, hi, u, exact);
     real_tensor cell(3,2);
