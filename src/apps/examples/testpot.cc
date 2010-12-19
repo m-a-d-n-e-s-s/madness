@@ -159,7 +159,8 @@ int main(int argc, char **argv) {
             real_function_3d u_prev = uvec[iter];
             double change = (u-u_prev).norm2();
             double err = (u-exact).norm2();
-            print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
+            print("iter", iter, "change", change, "err", err, 
+                  "exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)));
             if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
             if (change < 10.0*thresh) break;
         }
