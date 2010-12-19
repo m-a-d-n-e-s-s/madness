@@ -97,7 +97,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     complexd output;
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
-    //LOAD Psi(t)
+    //LOAD Psi(T)
     complex_functionT psi;
     if( !wave_function_exists(world, wf) ) {
         PRINTLINE("Function " << wf << " not found");
@@ -480,12 +480,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //projectL(world, L, wf, n, lMAX);
+        projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);
