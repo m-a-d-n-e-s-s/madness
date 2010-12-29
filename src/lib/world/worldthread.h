@@ -476,6 +476,9 @@ namespace madness {
                 perror("system error message");
                 std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
             }
+            //else {
+            //    printf("managed to set affinity\n");
+            //}
 #endif
         }
     };
