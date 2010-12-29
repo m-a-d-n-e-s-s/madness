@@ -1027,6 +1027,89 @@ void test13(World& world) {
     world.gop.fence();
 }
 
+inline bool is_odd(int i) {
+    return i & 0x1;
+}
+
+inline bool is_even(int i) {
+    return !is_odd(i);
+}
+
+void work_odd(World& world) {
+    test5(world);
+    test6(world);
+    test6a(world);
+    test7(world);
+    test8(world);
+    test9(world);
+    test10(world);
+    test11(world);
+    // test12(world); cannot run due to filename collision
+    // test13(world);
+    world.gop.fence();
+}
+
+void work_even(World& world) {
+    test5(world);
+    test6(world);
+    test6a(world);
+    test7(world);
+    test8(world);
+    test9(world);
+    test10(world);
+    test11(world);
+    // test12(world); cannot run due to filename collision
+    // test13(world);
+    world.gop.fence();
+}
+
+void test_multi_world(World& world) {
+    if (world.size() < 2) return;
+
+    // Make two more worlds: odd processes, even processes
+
+    // a) make list of ranks of processes in the subgroups
+    //
+    // Only process belonging to the subgroups participate
+    // in the next steps
+    //
+    // b) make MPI group and hence new MPI sub-communcator
+    //
+    // c) make new worlds and do work
+
+    std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
+
+    std::vector<int> odd, even;
+    for (int i=0; i<world.size(); i++) {
+        if (is_odd(i)) 
+            odd.push_back(i);
+        else
+            even.push_back(i);
+    }
+
+    if (world.rank() & 0x1) {   // Odd processes
+        MPI::Group g_odd = world.mpi.comm().Get_group().Incl(odd.size(), &odd[0]);
+        MPI::Intracomm comm_odd = world.mpi.comm().Create(g_odd);
+        {
+            World world_odd(comm_odd);
+            work_odd(world_odd);
+        }
+        comm_odd.Free();
+        
+    }
+    else {                      // Even processes
+        MPI::Group g_even = world.mpi.comm().Get_group().Incl(even.size(),&even[0]);
+        MPI::Intracomm comm_even = world.mpi.comm().Create(g_even); 
+        {
+            World world_even(comm_even);
+            work_even(world_even);
+        }
+        comm_even.Free();
+    }
+
+    world.gop.fence();
+}
+
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
@@ -1064,7 +1147,10 @@ int main(int argc, char** argv) {
         test12(world);
         test13(world);
 
-        test_multi(world);
+        // for (int i=0; i<100; i++) {
+        //     print("REPETITION",i);
+        //     test_multi_world(world);
+        // }
     }
     catch (MPI::Exception e) {
         error("caught an MPI exception");

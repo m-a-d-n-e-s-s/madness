@@ -552,7 +552,8 @@ namespace madness {
                 , gop(*world_gop_interface_factory(this))
                 , me(mpi.rank())
                 , nprocess(mpi.nproc())
-                , myrand_next(0) {
+                , myrand_next(0) 
+        {
             worlds.push_back(this);
             srand();  // Initialize random number generator
             cpu_frequency();
@@ -561,6 +562,7 @@ namespace madness {
             // world by assigning to each processor a unique range of indices
             // and broadcasting from node 0 of the current communicator.
             world_assign_id(this);  // Also acts as barrier
+            //std::cout << "JUST MADE WORLD " << id() << std::endl;
         };
 
 
@@ -888,7 +890,9 @@ namespace madness {
         }
         // The id of a new world is taken from the unique range of ids
         // assigned to the process with rank=0 in the sub-communicator
-        if (world->mpi.rank() == 0) world->_id = World::idbase++;
+        if (world->mpi.rank() == 0) {
+            world->_id = World::idbase++;
+        }
         world->gop.broadcast(world->_id);
         world->gop.barrier();
     }

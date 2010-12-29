@@ -35,6 +35,8 @@
 #ifndef MADNESS_WORLD_WORLDAM_H__INCLUDED
 #define MADNESS_WORLD_WORLDAM_H__INCLUDED
 
+#include <vector>
+
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
 
@@ -286,8 +288,11 @@ namespace madness {
         World& world;            ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
+        volatile int cur_msg; ///< Index of next buffer to attempt to use
         volatile unsigned long nsent;     ///< Counts no. of AM sent for purpose of termination detection
         volatile unsigned long nrecv;     ///< Counts no. of AM received for purpose of termination detection
+
+        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to MPI::COMM_WORLD
 
         void free_managed_send_buf(int i) {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
@@ -301,8 +306,6 @@ namespace madness {
         /// Private: Finds/waits for a free send request
         int get_free_send_request() {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
-            static volatile int cur_msg = 0; // Index of next buffer to attempt to use
-
 //             // Sequentially loop looking for next free request.
 //             while (!send_req[cur_msg].Test()) {
 //                 cur_msg++;
@@ -353,7 +356,8 @@ namespace madness {
             MADNESS_ASSERT(arg->get_world());
             MADNESS_ASSERT(arg->get_func());
 
-            // HERE NEED TO MAP DEST FROM WORLD'S COMMUNICATOR TO COMM_WORLD
+            // Map dest from world's communicator to comm_world
+            dest = map_to_comm_world[dest];
 
             lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
             nsent++;
@@ -367,27 +371,46 @@ namespace madness {
     public:
         WorldAmInterface(World& world)
                 : world(world)
-                , rank(world.mpi.rank())
-                , nproc(world.size())
+                , rank(world.mpi.Get_rank())
+                , nproc(world.mpi.Get_size())
+                , cur_msg(0)
                 , nsent(0)
                 , nrecv(0)
+                , map_to_comm_world(nproc)
         {
             lock();
             for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
+
+            std::vector<int> fred(nproc);
+            for (int i=0; i<nproc; i++) fred[i] = i;
+            MPI::Group::Translate_ranks(world.mpi.comm().Get_group(), nproc, &fred[0], 
+                                        MPI::COMM_WORLD.Get_group(), &map_to_comm_world[0]);
+
+            // for (int i=0; i<nproc; i++) {
+            //     std::cout << "map " << i << " " << map_to_comm_world[i] << std::endl;
+            // }
+
             unlock();
         }
 
-        virtual ~WorldAmInterface() {}
+        virtual ~WorldAmInterface() {
+            for (int i=0; i<NSEND; i++) {
+                while (!send_req[i].Test()) {
+                    myusleep(100);
+                }
+                free_managed_send_buf(i);
+            }
+        }
 
 
         /// Currently a noop
         void fence() {}
 
-        /// Sends an unmanaged non-blocking active message
-        RMI::Request isend_(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
-            std::cerr << "ISEND_ING AM\n";
-            return isend(dest, op, arg, attr, false);
-        }
+        // /// Sends an unmanaged non-blocking active message ... UNUSED?
+        // RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
+        //     std::cerr << "ISEND_ING AM\n";
+        //     return isend(dest, op, arg, attr, false);
+        // }
 
         /// Sends a managed non-blocking active message
         void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
