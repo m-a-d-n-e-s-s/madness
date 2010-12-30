@@ -83,7 +83,8 @@ namespace madness {
             , bc(bc) 
             , vk(NDIM,k)
         {
-            this->process_pending();
+            // No!  Cannot process incoming messages until the *derived* class is constructed.
+            // this->process_pending();
         }
 
         Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
@@ -489,6 +490,8 @@ namespace madness {
                 else
                     bv_right(i) = 0.0;
             }
+            
+            //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
         
     public:
@@ -516,6 +519,8 @@ namespace madness {
             initCoefficients();
             g1.reconstruct();
             g2.reconstruct();
+
+            this->process_pending();
         }
     };
     
