@@ -4,6 +4,7 @@
 #include <mra/funcplot.h>
 #include <linalg/solvers.h>
 #include <examples/molecularmask.h>
+#include <examples/nonlinsol.h>
 #include <constants.h>
 #include <vector>
 
@@ -138,30 +139,24 @@ int main(int argc, char **argv) {
 
     if (USE_SOLVER) {
         // This section employs a non-linear equation solver from solvers.h
-        //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
-        real_tensor Q;
-        vector_real_function_3d uvec, rvec;
+        // and nonlinsol.h as described in
+        // http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
+        NonlinearSolver solver;
         for (int iter=0; iter<20; iter++) {
-            uvec.push_back(u);
-            rvec.push_back(u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate());
-            real_tensor newQ(iter+1,iter+1);
-            if (iter>0) newQ(Slice(0,-2),Slice(0,-2)) = Q;
-            Q = newQ;
-            for (int jter=0; jter<=iter; jter++) {
-                Q(jter,iter) = inner(uvec[jter],rvec[iter]);
-                if (iter != jter) Q(iter,jter) = inner(uvec[iter],rvec[jter]);
-            }
-            real_tensor c = KAIN(Q);
-            //print(Q);
-            //print("KAIN", c);
-            u = real_factory_3d(world); 
-            for (int i=0; i<=iter; i++) u += c[i]*(uvec[i] - rvec[i]);
-            real_function_3d u_prev = uvec[iter];
-            double change = (u-u_prev).norm2();
+            real_function_3d r = 
+                (u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u)))).truncate();
+
+            real_function_3d unew = solver.update(u, r);
+
+            double change = (unew-u).norm2();
             double err = (u-exact).norm2();
             print("iter", iter, "change", change, "err", err, 
                   "exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)));
-            if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
+            if (change > 0.3*unorm) 
+                u = 0.5*unew + 0.5*u;
+            else 
+                u = unew;
+
             if (change < 10.0*thresh) break;
         }
     }
