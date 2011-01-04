@@ -72,10 +72,17 @@ namespace madness {
             RemoteCounterBase() { count_ = 1; }
             virtual ~RemoteCounterBase() { }
 
-            virtual void* get() const = 0;
+            virtual void* key() const = 0;
             long use_count() const { return count_; }
-            void add_ref() { count_++; }
-            bool relase() { return count_.dec_and_test(); }
+            void add_ref() {
+                long c = count_++;
+                std::cout << ">>> RemoteCounterBase(" << this->key() << ") +ref count= " << c + 1 << std::endl;
+            }
+            bool release() {
+                long c = count_;
+                std::cout << ">>> RemoteCounterBase(" << this->key() << ") -ref count= " << c - 1 << std::endl;
+                return count_.dec_and_test();
+            }
         }; // class RemoteCounterBase
 
         template <typename T>
@@ -94,7 +101,7 @@ namespace madness {
 
             virtual ~RemoteCounterImpl() { }
 
-            virtual void* get() const { return static_cast<void*>(pointer_.get()); }
+            virtual void* key() const { return static_cast<void*>(pointer_.get()); }
 
 //            void* operator new(std::size_t) {
 //                return A().allocate(1);
@@ -142,6 +149,8 @@ namespace madness {
             static WorldPtr<implT> register_ptr_(World& w, const std::shared_ptr<T>& p) {
                 WorldPtr<implT> result;
                 if(p.get() != NULL) {
+                    ScopedMutex<Mutex> buckleup(&mutex_);
+
                     // Pointer is local and non-null
                     pimpl_mapT::const_iterator it =
                         pimpl_map_.find(static_cast<void*>(p.get()));
@@ -155,6 +164,8 @@ namespace madness {
                             std::pair<pimpl_mapT::const_iterator, bool> insert_result
                                 = pimpl_map_.insert(std::make_pair(static_cast<void*>(p.get()), result));
                             MADNESS_ASSERT(insert_result.second);
+
+                            std::cout << ">>> RemoteCounter::register_ptr_(new): key= " << p.get() << ", pimpl= " << pimpl << std::endl;
                         } catch(...) {
                             delete pimpl;
                             throw;
@@ -163,6 +174,7 @@ namespace madness {
                         // The pointer is already registered, so we just need
                         // increment the counter.
                         result = it->second;
+                        std::cout << ">>> RemoteCounter::register_ptr_(existing): key= " << result->key() << ", pimpl= " << result << std::endl;
                         result->add_ref();
                     }
                 }
@@ -204,15 +216,23 @@ namespace madness {
             void load_internal_(const Archive& ar) {
                 WorldPtr<implT> p;
                 ar & p;
-
                 RemoteCounter(p).swap(*this);
+
+                std::cout << ">>> RemoteCounter::load: pimpl= " << pimpl_ << std::endl;
             }
 
             template <typename Archive>
             void store_internal_(const Archive& ar) const {
                 ar & pimpl_;
-                if(pimpl_.is_local())
-                    pimpl_->add_ref();
+
+                if(! ar.count_only()) {
+                    std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << std::endl;
+                    if(pimpl_.is_local()) {
+                        pimpl_->add_ref();
+                    } else {
+                        pimpl_ = WorldPtr<implT>();
+                    }
+                }
             }
 
 

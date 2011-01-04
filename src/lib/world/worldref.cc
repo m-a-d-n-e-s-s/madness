@@ -42,7 +42,7 @@ namespace madness {
         void RemoteCounter::unregister_ptr_(void* k) {
             ScopedMutex<Mutex> buckleup(&mutex_);
             std::size_t ereased = pimpl_map_.erase(k);
-            MADNESS_ASSERT(ereased == 1);
+            MADNESS_ASSERT(ereased > 0);
         }
 
         /// Clean-up the implementation object
@@ -52,10 +52,11 @@ namespace madness {
         /// this is the last reference to the pimpl and it should be deleted.
         void RemoteCounter::destroy() {
             if(pimpl_ && pimpl_.is_local()) {
-                if(pimpl_->relase()) {
+                if(pimpl_->release()) {
                     // No one else is referencing this pointer.
                     // We can safely dispose of it.
-                    unregister_ptr_(pimpl_->get());
+                    std::cout << ">>> RemoteCounter::unregister_ptr_: key= " << pimpl_->key() << ", value= " << pimpl_ << std::endl;
+                    unregister_ptr_(pimpl_->key());
                     delete pimpl_.get();
                 }
             }

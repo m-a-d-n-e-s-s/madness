@@ -92,6 +92,8 @@ namespace madness {
 
             void flush() {}
 
+            bool count_only() const { return countonly; }
+
             inline std::size_t size() const {
                 return i;
             };
