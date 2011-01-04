@@ -127,6 +127,49 @@ namespace madness {
         }
     }; // class Mutex
 
+    /// Recursive mutex using pthread mutex operations
+    class RecursiveMutex {
+    private:
+        mutable pthread_mutex_t mutex;
+
+        /// Copy constructor is forbidden
+        RecursiveMutex(const RecursiveMutex&);
+
+        /// Assignment is forbidden
+        void operator=(const RecursiveMutex&);
+
+    public:
+        /// Make and initialize a mutex ... initial state is unlocked
+        RecursiveMutex();
+
+        /// Try to acquire the mutex ... return true on success, false on failure
+        bool try_lock() const {
+            return pthread_mutex_trylock(&mutex)==0;
+        }
+
+        /// Acquire the mutex waiting if necessary
+        void lock() const {
+            int result = pthread_mutex_lock(&mutex);
+            if (result) MADNESS_EXCEPTION("failed acquiring mutex", result);
+        }
+
+        /// Free a mutex owned by this thread
+        void unlock() const {
+            int result = pthread_mutex_unlock(&mutex);
+            if (result) MADNESS_EXCEPTION("failed releasing mutex", result);
+        }
+
+        /// Return a pointer to the pthread mutex for use by a condition variable
+        pthread_mutex_t* ptr() const {
+            return &mutex;
+        }
+
+        ~RecursiveMutex() {
+            pthread_mutex_destroy(&mutex);
+        }
+    }; // class Mutex
+
+
     /// Mutex that is applied/released at start/end of a scope
 
     /// The mutex must provide lock and unlock methods

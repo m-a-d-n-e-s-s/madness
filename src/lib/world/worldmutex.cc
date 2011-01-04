@@ -66,6 +66,23 @@ namespace madness {
 #endif
     }
 
+    RecursiveMutex::RecursiveMutex() {
+        // Create recursive mutex attribute
+        pthread_mutexattr_t attr;
+        int result = pthread_mutexattr_init(&attr);
+        if (result) MADNESS_EXCEPTION("RecursiveMutex attribute initialization failed.", result);
+        result = pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+        if (result) MADNESS_EXCEPTION("RecursiveMutex attribute set type failed.", result);
+
+        // Initialize the mutex
+        result = pthread_mutex_init(&mutex, &attr);
+        if (result) MADNESS_EXCEPTION("RecursiveMutex initialization failed.", result);
+
+        // Destroy the mutex attribute
+        result = pthread_mutexattr_destroy(&attr);
+        if (result) MADNESS_EXCEPTION("RecursiveMutex initialization failed.", result);
+    }
+
 #define OLDXXX
 #ifdef OLDXXX
 
