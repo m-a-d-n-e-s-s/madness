@@ -37,35 +37,36 @@
 namespace madness {
     namespace detail {
 
-        void DeferredCleanup::add(const void_ptr& item) {
-            mutex.lock();
-            deferred.push_back(item);
-            mutex.unlock();
+        void DeferredCleanup::destroy(bool mode) {
+            mutex_.lock();
+            destroy_ = true;
+            mutex_.unlock();
         }
 
-        bool DeferredCleanup::do_cleanup() {
-            bool deleted_something = false;
-            mutex.lock();
-            void_ptr_list::iterator it = deferred.begin();
-            bool at_end = (it == deferred.end());
-            mutex.unlock();
-            while(! at_end) {
-                // Do not lock here so that other pointers can be added to
-                // the cleanup list as a side effect of releasing the pointer.
-                it->reset();
-                deleted_something = true;
-                mutex.lock();
-                ++it;
-                if(it == deferred.end()) {
-                    // all the pointers in the list have been reset and we are
-                    // at the end.
-                    at_end = true;
-                    deferred.clear();
-                }
-                mutex.unlock();
-            }
+        bool DeferredCleanup::destroy() const {
+            mutex_.lock();
+            bool mode = destroy_;
+            mutex_.unlock();
+            return mode;
+        }
 
-            return deleted_something;
+        void DeferredCleanup::add(const void_ptr& obj) {
+            ScopedMutex<RecursiveMutex> lock(mutex_);
+            // if we do not store obj, it will be destroyed when the calling
+            // function (DeferredDeleter::operator()) exits.
+            if(! destroy_)
+                deferred_.push_back(obj);
+        }
+
+        void DeferredCleanup::do_cleanup() {
+            std::list<void_ptr> cleaner;
+
+            do {
+                cleaner.clear(); // Cleanup memory
+                mutex_.lock();
+                cleaner.swap(deferred_);
+                mutex_.unlock();
+            } while(! cleaner.empty());
         }
 
     }  // namespace detail

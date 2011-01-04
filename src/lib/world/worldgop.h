@@ -105,7 +105,7 @@ namespace madness {
         WorldMpiInterface& mpi; ///< MPI interface
         WorldAmInterface& am;   ///< AM interface
         WorldTaskQueue& taskq;  ///< Task queue interface
-        detail::DeferredCleanup deferred; ///< Deferred cleanup object.
+        std::shared_ptr<detail::DeferredCleanup> deferred; ///< Deferred cleanup object.
         bool debug;             ///< Debug mode
 
         // The only way to put something in the deferred cleanup list
@@ -120,6 +120,8 @@ namespace madness {
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
         WorldGopInterface(World& world);
+
+        ~WorldGopInterface();
 
 
         /// Set debug flag to new value and return old value

@@ -60,8 +60,9 @@ namespace madness {
     template <typename ptrT, typename deleterT = void(*)(ptrT*)>
     class DeferredDeleter {
     private:
-        World* world_;      ///< The world that is responsible for cleaning up
-                            ///< pointer at global sync points
+        // Hold a shared pointer to the deferred deleter object to make sure it
+        // is available for all deleter objects, even if the gop object is gone.
+        std::shared_ptr<detail::DeferredCleanup> deferred_; ///< Deferred cleanup object.
         deleterT deleter_;  ///< The deleter function or functor that deletes
                             ///< the pointer
 
@@ -86,22 +87,24 @@ namespace madness {
         /// \c == \c void(*)(ptrT*) then \c d \c = \c &detail::checked_delete<ptrT>
         /// else \c d \c = \c D() ].
         DeferredDeleter(World& w, deleterT d = default_deleter<deleterT>()) :
-            world_(&w), deleter_(d)
+            deferred_(w.gop.deferred), deleter_(d)
         { }
 
         /// Copy constructor
 
         /// \param other The deleter object to be copied.
         DeferredDeleter(const DeferredDeleter<ptrT, deleterT>& other) :
-            world_(other.world_), deleter_(other.deleter_)
-        { }
+            deferred_(other.deferred_), deleter_(other.deleter_)
+        {
+
+        }
 
         /// Copy assignment operator.
 
         /// \param other The deleter object to be copied.
         /// \return A reference to this object.
         DeferredDeleter<ptrT, deleterT>& operator=(const DeferredDeleter<ptrT, deleterT>& other) {
-            world_ = other.world_;
+            deferred_ = other.deferred_;
             deleter_ = other.deleter_;
             return *this;
         }
@@ -112,8 +115,9 @@ namespace madness {
         /// pointer is destroyed. It will place the pointer in the deferred
         /// cleanup list of world.
         void operator()(ptrT* p) const {
-            std::shared_ptr<ptrT> temp(p, deleter_);
-            world_->gop.deferred.add(std::static_pointer_cast<void>(temp));
+            std::shared_ptr<ptrT> temp(p, deleter_); // do not store this pointer
+                                                // that is the job of deferred_
+            deferred_->add(std::static_pointer_cast<void>(temp));
         }
     }; // class DeferredDeleter
 

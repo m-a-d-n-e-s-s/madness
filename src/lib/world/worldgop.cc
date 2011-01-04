@@ -46,9 +46,14 @@ namespace madness {
             : mpi(world.mpi)
             , am(world.am)
             , taskq(world.taskq)
-            , deferred()
+            , deferred(new detail::DeferredCleanup())
             , debug(false)
     { }
+
+    WorldGopInterface::~WorldGopInterface() {
+        deferred->destroy(true);
+        deferred->do_cleanup();
+    }
 
     /// Set debug flag to new value and return old value
     bool WorldGopInterface::set_debug(bool value) {
@@ -156,7 +161,7 @@ namespace madness {
 
         };
         am.free_managed_buffers(); // free up communication buffers
-        deferred.do_cleanup();
+        deferred->do_cleanup();
     }
 
 

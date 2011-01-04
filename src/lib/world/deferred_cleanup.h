@@ -42,28 +42,54 @@
 namespace madness {
     namespace detail {
 
+        /// Deferred cleanup of shared_ptr's
+
+        /// Holds dynamically allocated pointers until it is ready for cleanup.
+        /// \note This object is considered an implementation detail and should
+        /// not be used directly, instead use \c DeferredDeleter with a
+        /// \c std::shared_ptr.
         class DeferredCleanup {
+        public:
+            typedef std::shared_ptr<void> void_ptr; ///< input pointer type
+
         private:
-            typedef std::shared_ptr<void> void_ptr;
             typedef std::list<void_ptr> void_ptr_list;
 
-            Mutex mutex;            ///< Worldwide mutex
-            void_ptr_list deferred; ///< List of pointers to cleanup
+            RecursiveMutex mutex_;      ///< Worldwide mutex
+            void_ptr_list deferred_;    ///< List of pointers to cleanup
+            bool destroy_;              ///< Object destroy mode
+                                        ///< true = destroy immediate
+                                        ///< false = destroy deferred (default)
 
+            // not allowed
+            DeferredCleanup(const DeferredCleanup&);
+            DeferredCleanup& operator=(const DeferredCleanup&);
 
         public:
-            DeferredCleanup() : mutex(), deferred() { }
+            /// Construct a deferred deleter object.
+            DeferredCleanup() : mutex_(), deferred_(), destroy_(false) { }
 
-            ~DeferredCleanup() { do_cleanup(); }
+            /// Set the destruction mode
 
-            /// Adds item to list of stuff to be deleted at next global_fence()
+            /// \param mode true for immediate destruction, false for deferred
+            /// destruction.
+            void destroy(bool mode);
 
-            /// The item must be derived from DeferredCleanupInterface so that the
-            /// pointer type T* can be statically cast to DeferredCleanupInterface*
-            void add(const void_ptr& item);
+            /// Get the current destruction mode mode
 
-            /// Does any deferred cleanup and returns true if cleaning was necessary
-            bool do_cleanup();
+            /// \return true for immediate destruction and false for deferred
+            /// destruction.
+            bool destroy() const;
+
+            /// Adds \c item to cleanup list
+
+            /// If destroy mode is true then the pointer is destroyed immediately.
+            /// Otherwise it is stored until \c do_cleanup() is called.
+            /// \param obj Object that is ready for destruction
+            void add(const void_ptr& obj);
+
+            /// Deletes/frees any pointers that are in the list
+            void do_cleanup();
         };
 
     }  // namespace detail
