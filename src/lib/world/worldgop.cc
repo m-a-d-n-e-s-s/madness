@@ -140,7 +140,7 @@ namespace madness {
             broadcast(&sum, sizeof(sum), 0, dowork);
             npass++;
 
-            //madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
+//            madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 
             if (sum[0]==sum[1] && sum[0]==nsent_prev && sum[1]==nrecv_prev) {
                 break;
