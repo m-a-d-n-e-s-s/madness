@@ -478,7 +478,7 @@ namespace {
 
             // Check that there is one remote reference in addition to the
             // single local reference
-            EXPECT_EQ(3, r.use_count());
+            EXPECT_EQ(2, r.use_count());
 
             pworld->gop.barrier();
 
@@ -504,16 +504,22 @@ namespace {
             xfer_wobj.xfer(recv, remote, false);
 
             pworld->gop.barrier();
-            EXPECT_EQ(3, r.use_count());
+            // Check that the remote reference is NULL after sending it back
+            EXPECT_FALSE(remote);
+
+
+            EXPECT_EQ(2, r.use_count());
 
             // wait for the original to return.
             RemoteReference<int>& back = xfer_wobj.return_ref.get();
+
+            EXPECT_EQ(2, r.use_count());
 
             // Check that the reference was returned with correct info
             EXPECT_TRUE(back);
             EXPECT_TRUE(back.is_local());
             EXPECT_EQ(pworld->rank(), back.owner());
-            EXPECT_EQ(3, back.use_count());
+            EXPECT_EQ(2, back.use_count());
             EXPECT_FALSE(back.unique());
             EXPECT_EQ(pworld, &(back.get_world()));
             EXPECT_EQ(i.get(), back.get());
