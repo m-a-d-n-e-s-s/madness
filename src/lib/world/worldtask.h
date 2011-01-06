@@ -702,7 +702,7 @@ namespace madness {
         TaskHandlerInfo() {}
         template <typename Archive>
         void serialize(const Archive& ar) {
-            ar & archive::wrap_opaque(*this);
+            ar & ref & archive::wrap_opaque(func) & attr;
         }
     };
 
