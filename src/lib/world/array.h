@@ -52,8 +52,17 @@ namespace madness {
     private:
         T v[N];
     public:
-        typedef T* iterator;
-        typedef const T* const_iterator;
+
+        // types
+        typedef T                                     value_type;
+        typedef T*                                    iterator;
+        typedef const T*                              const_iterator;
+        typedef std::reverse_iterator<iterator>       reverse_iterator;
+        typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
+        typedef T&                                    reference;
+        typedef const T&                              const_reference;
+        typedef std::size_t                           size_type;
+        typedef std::ptrdiff_t                        difference_type;
 
         /// Default constructor does not initialize vector contents
         Vector() {}
@@ -69,8 +78,8 @@ namespace madness {
         }
 
         /// Construct from an STL vector of equal or greater length
-        template <typename Q>
-        Vector(const std::vector<Q> t) {
+        template <typename Q, typename A>
+        Vector(const std::vector<Q, A> t) {
             MADNESS_ASSERT(t.size() >= N);
             for (int i=0; i<N; i++) v[i] = t[i];
         }
@@ -81,19 +90,19 @@ namespace madness {
         }
 
         /// Assignment is deep (since a vector is POD)
-        Vector& operator=(const Vector<T,N>& other) {
+        Vector<T,N>& operator=(const Vector<T,N>& other) {
             for (int i=0; i<N; i++) v[i] = other.v[i];
             return *this;
         }
 
         /// Assignment is deep (since a vector is POD)
-        Vector& operator=(const std::vector<T>& other) {
+        Vector<T,N>& operator=(const std::vector<T>& other) {
             for (int i=0; i<N; i++) v[i] = other[i];
             return *this;
         }
 
         /// Fill from scalar value
-        Vector& operator=(T t) {
+        Vector<T,N>& operator=(T t) {
             for (int i=0; i<N; i++) v[i] = t;
             return *this;
         }
@@ -123,12 +132,12 @@ namespace madness {
         }
 
         /// Indexing
-        T& operator[](int i) {
+        reference operator[](int i) {
             return v[i];
         }
 
         /// Indexing
-        const T& operator[](int i) const {
+        const_reference operator[](int i) const {
             return v[i];
         }
 
@@ -190,6 +199,15 @@ namespace madness {
             return r;
         }
 
+        /// In-place element-wise addition of another vector
+
+        /// Returns a reference to this for chaining operations
+        template <typename Q>
+        Vector<T,N>& operator+=(const Vector<Q,N>& q) {
+            for (int i=0; i<N; i++) v[i] += q[i];
+            return *this;
+        }
+
         /// Element-wise subtraction of a scalar
 
         /// Returns a new vector
@@ -210,28 +228,41 @@ namespace madness {
             return r;
         }
 
-        /// STL iterator support
-        iterator begin() {
-            return v;
+        /// In-place element-wise subtraction of another vector
+
+        /// Returns a reference to this for chaining operations
+        template <typename Q>
+        Vector<T,N>& operator-=(const Vector<Q,N>& q) {
+            for (int i=0; i<N; i++) v[i] -= q[i];
+            return *this;
         }
 
-        /// STL iterator support
-        const_iterator begin() const {
-            return v;
-        }
+        /// Begin iterator factory
+        iterator begin() { return v; }
 
-        /// STL iterator support
-        iterator end() {
-            return v+N;
-        }
+        /// Begin const iterator factory
+        const_iterator begin() const { return v; }
 
-        /// STL iterator support
-        const_iterator end() const {
-            return v+N;
-        }
+        /// End iterator factory
+        iterator end() { return v+N; }
+
+        /// End const iterator factory
+        const_iterator end() const { return v+N; }
+
+        /// Begin reverse iterator factory
+        reverse_iterator rbegin() { return reverse_iterator(end()); }
+
+        /// Begin const, reverse iterator factory
+        const_reverse_iterator rbegin() const { return const_reverse_iterator(end()); }
+
+        /// End reverse iterator factory
+        reverse_iterator rend() { return reverse_iterator(begin()); }
+
+        /// End const, reverse iterator factory
+        const_reverse_iterator rend() const { return const_reverse_iterator(begin()); }
 
         /// Length of the vector
-        int size() const {
+        size_type size() const {
             return N;
         }
 
@@ -267,7 +298,7 @@ namespace madness {
         T t[N];
 //         Vector<T,N> t;
         int n;
-        
+
     public:
         Stack() : n(0) {}
 
