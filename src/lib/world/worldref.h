@@ -76,11 +76,11 @@ namespace madness {
             long use_count() const { return count_; }
             void add_ref() {
                 long c = count_++;
-                std::cout << ">>> RemoteCounterBase(" << this->key() << ") +ref count= " << c + 1 << std::endl;
+//                std::cout << ">>> RemoteCounterBase(" << this->key() << ") +ref count= " << c + 1 << std::endl;
             }
             bool release() {
                 long c = count_;
-                std::cout << ">>> RemoteCounterBase(" << this->key() << ") -ref count= " << c - 1 << std::endl;
+//                std::cout << ">>> RemoteCounterBase(" << this->key() << ") -ref count= " << c - 1 << std::endl;
                 return count_.dec_and_test();
             }
         }; // class RemoteCounterBase
@@ -165,7 +165,7 @@ namespace madness {
                                 = pimpl_map_.insert(std::make_pair(static_cast<void*>(p.get()), result));
                             MADNESS_ASSERT(insert_result.second);
 
-                            std::cout << ">>> RemoteCounter::register_ptr_(new): key= " << p.get() << ", pimpl= " << pimpl << std::endl;
+//                            std::cout << ">>> RemoteCounter::register_ptr_(new): key= " << p.get() << ", pimpl= " << pimpl << std::endl;
                         } catch(...) {
                             delete pimpl;
                             throw;
@@ -174,7 +174,7 @@ namespace madness {
                         // The pointer is already registered, so we just need
                         // increment the counter.
                         result = it->second;
-                        std::cout << ">>> RemoteCounter::register_ptr_(existing): key= " << result->key() << ", pimpl= " << result << std::endl;
+//                        std::cout << ">>> RemoteCounter::register_ptr_(existing): key= " << result->key() << ", pimpl= " << result << std::endl;
                         result->add_ref();
                     }
                 }
@@ -182,7 +182,6 @@ namespace madness {
                 return result;
             }
 
-        private:
             RemoteCounter(const WorldPtr<implT>& p);
 
         public:
@@ -218,7 +217,7 @@ namespace madness {
                 ar & p;
                 RemoteCounter(p).swap(*this);
 
-                std::cout << ">>> RemoteCounter::load: pimpl= " << pimpl_ << std::endl;
+//                std::cout << ">>> RemoteCounter::load: pimpl= " << pimpl_ << std::endl;
             }
 
             template <typename Archive>
@@ -226,10 +225,11 @@ namespace madness {
                 ar & pimpl_;
 
                 if(! ar.count_only()) {
-                    std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << std::endl;
+//                    std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << std::endl;
                     if(pimpl_.is_local()) {
                         pimpl_->add_ref();
                     } else {
+//                        std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << " = NULL" << std::endl;
                         pimpl_ = WorldPtr<implT>();
                     }
                 }
