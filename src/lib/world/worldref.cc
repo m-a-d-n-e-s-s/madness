@@ -64,7 +64,22 @@ namespace madness {
             pimpl_ = WorldPtr<implT>();
         }
 
-        RemoteCounter::RemoteCounter(const WorldPtr<implT>& p) : pimpl_(p) { }
+        RemoteCounter::RemoteCounter(const WorldPtr<implT>& p) :
+            pimpl_(p)
+        {
+#ifndef NDEBUG
+            // Check to make sure the pimpl still exists.
+            if(p.is_local()) {
+                ScopedMutex<Mutex> buckleup(&mutex_);
+                pimpl_mapT::const_iterator it;
+                for(it = pimpl_map_.begin(); it != pimpl_map_.end(); ++it)
+                    if(it->second == p)
+                        break;
+
+                MADNESS_ASSERT(it != pimpl_map_.end());
+            }
+#endif
+        }
 
         RemoteCounter::RemoteCounter() : pimpl_() { }
 
