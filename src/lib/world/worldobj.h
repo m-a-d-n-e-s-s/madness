@@ -97,7 +97,7 @@ namespace madness {
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                ar & archive::wrap_opaque(*this); // Must be opaque ... see peek.
+                ar & id & requestor & archive::wrap_opaque(memfun) & ref & attr; // Must be opaque ... see peek.
             }
         };
 
