@@ -67,7 +67,6 @@ using namespace madness;
 
 typedef std::complex<double> complexd;
 typedef madness::Vector<double,NDIM> vector3D;
-//typedef Vector<double,NDIM> vector3D;
 typedef Function<complexd,NDIM> complex_functionT;
 typedef Function<double,NDIM> functionT;
 typedef FunctionFactory<complexd,NDIM> complex_factoryT;
@@ -116,11 +115,10 @@ public:
     complexd BB;
     complexd gammaBB;
     complexd expmIPIAArGammaBBmAA;
+    complexd expPIZ_2kXgamma1pIZ_k;
     complexd rGammaAA;
     complexd AAmBB;
     complexd mAA;
-    complexd expPIAAXgammaBBmAAr;
-    complexd expPIZ_2kXgamma1pIZ_k_;
     double   domain;
     int      n;
 protected:
@@ -184,6 +182,16 @@ private:
     double k;
     double costhK;
 };
+
+class Gaussian : public baseWF
+{
+public:
+    Gaussian(double a);
+    complexd operator()(const vector3D& r) const;
+private:
+    double a;
+};
+
 
 class Yl0 : public madness::FunctionFunctorInterface<double,NDIM> {
 public:

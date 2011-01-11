@@ -64,7 +64,8 @@ namespace madness {
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
             , gop(* (new WorldGopInterface(*this)))
-            , myrand_next(0) {
+            , myrand_next(0)
+    {
         worlds.push_back(this);
         srand();  // Initialize random number generator
         cpu_frequency();
@@ -78,10 +79,13 @@ namespace madness {
         }
         // The id of a new world is taken from the unique range of ids
         // assigned to the process with rank=0 in the sub-communicator
-        if(rank() == 0)
+        if(rank() == 0) {
             _id = idbase++;
+        }
         gop.broadcast(_id);
         gop.barrier();
+
+//        std::cout << "JUST MADE WORLD " << id() << std::endl
     }
 
 

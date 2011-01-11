@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
 	World world(MPI::COMM_WORLD);
         startup(world,argc,argv);
 
-        std::cout.precision(6);
+        std::cout.precision(12);
 
        // Function defaults
         FunctionDefaults<3>::set_k(k);
@@ -138,6 +138,8 @@ int main(int argc, char** argv) {
         functionT  zleft_n = factoryT(world).f( zleft_neumann  ) ;
         functionT zright_n = factoryT(world).f(zright_neumann  ) ;
 
+        print("Unorm", u.norm2());
+
         // Derivative in the x-direction
         test_axis = 0;
 
@@ -153,6 +155,8 @@ int main(int argc, char** argv) {
         Derivative<double,3> dx1(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx1 = dx1(u) ;
         compare(world, dudx1, dudxe, "dudx1") ;
+        print("D1Unorm", dudx1.norm2());
+        
 
         // X Right B.C.: Free
         // X Left  B.C.: Dirichlet

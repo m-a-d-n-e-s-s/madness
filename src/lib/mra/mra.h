@@ -216,6 +216,7 @@ namespace madness {
         Tensor<T> eval_cube(const Tensor<double>& cell,
                             const std::vector<long>& npt,
                             bool eval_refine = false) const {
+            MADNESS_ASSERT(cell.dim(0)>=NDIM && cell.dim(1)==2 && npt.size()>=NDIM);
             PROFILE_MEMBER_FUNC(Function);
             const double eps=1e-14;
             verify();
@@ -239,7 +240,6 @@ namespace madness {
                 simlo[d] += delta;
                 simhi[d] -= 2*delta;  // deliberate asymmetry
             }
-            //madness::print("plotbox in sim", simlo, simhi);
             return impl->eval_plot_cube(simlo, simhi, npt, eval_refine);
         }
 
@@ -1397,9 +1397,11 @@ namespace madness {
     }
 
 
+}
 
 #include <mra/funcplot.h>
 
+namespace madness {
     namespace archive {
         template <class T, int NDIM>
         struct ArchiveLoadImpl< ParallelInputArchive, Function<T,NDIM> > {

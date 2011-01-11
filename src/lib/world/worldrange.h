@@ -58,16 +58,12 @@ namespace madness {
 
         /// The motivated reader should look at the Intel TBB range,
         /// partitioner, split, concepts, etc..
-        ///
-        /// Default chunksize is to make 10 tasks per thread to
-        /// facilitate dynamic load balancing.
-        Range(const iterator& start, const iterator& finish, int chunk=-1)
+        Range(const iterator& start, const iterator& finish, int chunk=1)
             : n(distance(start,finish))
             , start(start)
             , finish(finish)
             , chunksize(chunk)
         {
-            if (chunksize == -1) chunksize = n / (10*(ThreadPool::size()+1));
             if (chunksize < 1) chunksize = 1;
         }
 

@@ -449,7 +449,7 @@ namespace madness {
         struct hashvoidp {
             inline std::size_t operator()(const void* p) const {
                 return std::size_t(p);    // The ptr's are guaranteed to be unique
-            };
+            }
         };
 
 //        Mutex globalmutex;  ///< Worldwide mutex

@@ -103,7 +103,11 @@ namespace SafeMPI {
 
         int Get_size() const { return numproc; }
 
-        MPI::Intracomm& Get_comm() const;
+        MPI::Intracomm Create(const MPI::Group& group) const;
+
+        MPI::Intracomm& Get_comm() const { return comm; }
+
+        MPI::Group Get_group() const;
 
         ::SafeMPI::Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const;
 

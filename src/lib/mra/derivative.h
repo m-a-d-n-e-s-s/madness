@@ -83,7 +83,8 @@ namespace madness {
             , bc(bc)
             , vk(NDIM,k)
         {
-            this->process_pending();
+            // No!  Cannot process incoming messages until the *derived* class is constructed.
+            // this->process_pending();
         }
 
         Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
@@ -300,7 +301,7 @@ namespace madness {
             tensorT bf, bdry_t;
             //left boundary
             if (l[this->axis] == 0) {
-                if (bc_left != BC_PERIODIC && bc_left != BC_FREE) {
+                if (bc_left != BC_PERIODIC && bc_left != BC_FREE && bc_left != BC_ZERO && bc_left != BC_ZERONEUMANN) {
                     bf = copy(bv_left);
                     found_argT = g1.get_impl()->find_me(key);
                 }
@@ -309,7 +310,7 @@ namespace madness {
                 }
             }
             else { //right boundary
-                if (bc_right != BC_PERIODIC && bc_right != BC_FREE) {
+                if (bc_right != BC_PERIODIC && bc_right != BC_FREE && bc_right != BC_ZERO && bc_right != BC_ZERONEUMANN) {
                     bf = copy(bv_right);
                     found_argT = g2.get_impl()->find_me(key);
                 }
@@ -489,6 +490,8 @@ namespace madness {
                 else
                     bv_right(i) = 0.0;
             }
+            
+            //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
 
     public:
@@ -516,6 +519,8 @@ namespace madness {
             initCoefficients();
             g1.reconstruct();
             g2.reconstruct();
+
+            this->process_pending();
         }
     };
 

@@ -38,6 +38,7 @@
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
 
+#include <vector>
 #include <world/bufar.h>
 #include <world/worldrmi.h>
 
@@ -274,8 +275,11 @@ namespace madness {
         World& world;            ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
+        volatile int cur_msg; ///< Index of next buffer to attempt to use
         volatile unsigned long nsent;     ///< Counts no. of AM sent for purpose of termination detection
         volatile unsigned long nrecv;     ///< Counts no. of AM received for purpose of termination detection
+
+        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to MPI::COMM_WORLD
 
         void free_managed_send_buf(int i);
 
@@ -292,14 +296,13 @@ namespace madness {
     public:
         WorldAmInterface(World& world);
 
-        virtual ~WorldAmInterface() {}
-
+        virtual ~WorldAmInterface();
 
         /// Currently a noop
         void fence() {}
 
         /// Sends an unmanaged non-blocking active message
-        RMI::Request isend_(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
+//        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
 
         /// Sends a managed non-blocking active message
         void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);

@@ -46,10 +46,11 @@ namespace madness {
 
     /// \ingroup nonlinearsolve
     class NonlinearSolver {
+        const unsigned int maxsub; //< Maximum size of subspace dimension
 	vector_real_function_3d ulist, rlist; ///< Subspace information
 	real_tensor Q;
     public:
-	NonlinearSolver() {}
+	NonlinearSolver(unsigned int maxsub = 10) : maxsub(maxsub) {}
 
 	/// Computes next trial solution vector
 
@@ -82,6 +83,12 @@ namespace madness {
 		unew.gaxpy(1.0,rlist[i],-c[i]); 
 	    }
 	    unew.truncate();
+
+            if (ulist.size() == maxsub) {
+                ulist.erase(ulist.begin());
+                rlist.erase(rlist.begin());
+                Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+            }
 	    return unew;
 	}
     };

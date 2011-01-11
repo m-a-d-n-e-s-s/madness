@@ -65,8 +65,6 @@ namespace madness {
 
     int WorldAmInterface::get_free_send_request() {
         // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
-        static volatile int cur_msg = 0; // Index of next buffer to attempt to use
-
 //             // Sequentially loop looking for next free request.
 //             while (!send_req[cur_msg].Test()) {
 //                 cur_msg++;
@@ -115,7 +113,8 @@ namespace madness {
         MADNESS_ASSERT(arg->get_world());
         MADNESS_ASSERT(arg->get_func());
 
-        // HERE NEED TO MAP DEST FROM WORLD'S COMMUNICATOR TO COMM_WORLD
+        // Map dest from world's communicator to comm_world
+        dest = map_to_comm_world[dest];
 
         lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         nsent++;
@@ -128,20 +127,40 @@ namespace madness {
 
     WorldAmInterface::WorldAmInterface(World& world)
             : world(world)
-            , rank(world.mpi.rank())
-            , nproc(world.size())
+            , rank(world.mpi.Get_rank())
+            , nproc(world.mpi.Get_size())
+            , cur_msg(0)
             , nsent(0)
             , nrecv(0)
+            , map_to_comm_world(nproc)
     {
         lock();
         for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
+
+        std::vector<int> fred(nproc);
+        for (int i=0; i<nproc; i++) fred[i] = i;
+        MPI::Group::Translate_ranks(world.mpi.comm().Get_group(), nproc, &fred[0],
+                                    MPI::COMM_WORLD.Get_group(), &map_to_comm_world[0]);
+
+        // for (int i=0; i<nproc; i++) {
+        //     std::cout << "map " << i << " " << map_to_comm_world[i] << std::endl;
+        // }
+
         unlock();
     }
 
-    RMI::Request WorldAmInterface::isend_(ProcessID dest, am_handlerT op, const AmArg* arg, int attr) {
-        std::cerr << "ISEND_ING AM\n";
-        return isend(dest, op, arg, attr, false);
+    WorldAmInterface::~WorldAmInterface() {
+        for (int i=0; i<NSEND; i++) {
+            while (!send_req[i].Test()) {
+                myusleep(100);
+            }
+            free_managed_send_buf(i);
+        }
     }
+//    RMI::Request WorldAmInterface::isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr) {
+//        std::cerr << "ISEND_ING AM\n";
+//        return isend(dest, op, arg, attr, false);
+//    }
 
     void WorldAmInterface::send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr) {
         isend(dest, op, arg, attr, true);

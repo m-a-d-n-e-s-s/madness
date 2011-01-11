@@ -43,10 +43,10 @@ namespace madness {
 
         static int bmax_default() {
             int bmax;
-            if (NDIM == 1) bmax = 7;
+            if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
             else if (NDIM == 3) bmax = 3;
-            else bmax = 2;
+            else                bmax = 2;
             return bmax;
         }
 
@@ -165,13 +165,16 @@ namespace madness {
             if (disp.size() == 0) {
                 make_disp(bmax_default());
 
-                Level nmax = 8*sizeof(Translation) - 2;
-                for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
+                if (NDIM <= 3) {
+                    Level nmax = 8*sizeof(Translation) - 2;
+                    for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
+                }
             }
         }
 
         const std::vector< Key<NDIM> >& get_disp(Level n, bool isperiodicsum) {
             if (isperiodicsum) {
+                MADNESS_ASSERT(NDIM <= 3);
                 return disp_periodicsum[n];
             }
             else {

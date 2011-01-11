@@ -66,7 +66,7 @@ namespace madness {
 
             void open(const char* filename,
                       std::ios_base::openmode mode = std::ios_base::binary | \
-                                                     std::ios_base::out |  std::ios_base::trunc);;
+                                                     std::ios_base::out |  std::ios_base::trunc);
 
             void close();
 

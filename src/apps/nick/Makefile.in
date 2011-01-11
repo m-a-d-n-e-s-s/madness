@@ -115,6 +115,7 @@ CCASDEPMODE = @CCASDEPMODE@
 CCASFLAGS = @CCASFLAGS@
 CCDEPMODE = @CCDEPMODE@
 CFLAGS = @CFLAGS@
+CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CXX = @CXX@
 CXXCPP = @CXXCPP@
@@ -254,7 +255,7 @@ lineplot_SOURCES = lineplot.cc
 test_SOURCES = test.cc wavef.cc wavef.h hyp.cc hyp.h mpreal.cc interp.h
 hello_SOURCES = hello.cc wavef.cc wavef.h
 projPsi_LDADD = $(MRALIBS)
-test_LDADD = $(MRALIBS) -lmpfr
+test_LDADD = $(MRALIBS)
 hello_LDADD = $(MRALIBS)
 lineplot_LDADD = $(MRALIBS)
 all: all-am

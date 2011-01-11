@@ -76,6 +76,16 @@ namespace SafeMPI {
         numproc = comm.Get_size();
     }
 
+    MPI::Intracomm Intracomm::Create(const MPI::Group& group) const {
+        SAFE_MPI_GLOBAL_MUTEX;
+        return comm.Create(group);
+    }
+
+    MPI::Group Intracomm::Get_group() const {
+        SAFE_MPI_GLOBAL_MUTEX;
+        return comm.Get_group();
+    }
+
     ::SafeMPI::Request Intracomm::Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
         SAFE_MPI_GLOBAL_MUTEX;
         return comm.Isend(buf,count,datatype,dest,tag);

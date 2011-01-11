@@ -62,7 +62,7 @@
 
     Step 2.  Calculate the velocity at time n+1.
     \f[
-    (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p +u_{n}}{ \mu }
+    (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p - u_n \cdot \nabla u_n }{ \mu } + \frac {u_n}{ \delta t \mu }
     \f]
     Again, \f$u_{n+1}\f$ is calculated by applying the BSH operator to the RHS.
 
@@ -88,13 +88,13 @@ typedef Vector<double, 3> coordT3d,coordT;
 typedef Vector<double, 1> coordT1d;
 typedef Function<double, 3> functionT;
 typedef std::vector<functionT> functT;
-const double WST_PI=madness::constants::pi;
+const double pi=madness::constants::pi;
 
-const double L = 2*WST_PI; //Cell length
+const double L = 2*pi; //Cell length
 const double N = 8.0;
 
 const double mu = 1; // Effective Viscosity
-const double deltaT = 0.0005; // Size of time step
+const double deltaT = pi*0.0001; // Size of time step
 const int Nts = L/deltaT+10; // Number of time steps
 const int k = 10; // Wavelet order (usually precision + 2)
 const double pthresh = 1.e-9; // Precision
@@ -107,7 +107,7 @@ double mytime = 0.0; // Global variable for the current time
 // This should be passed in thru the class or app context
 const double cc = 0;// L/(deltaT*Nts)/2;
 
-//wrapper, but now longer needed.
+//wrapper, but no longer needed.
 struct FunctorInterfaceWrapper : public FunctionFunctorInterface<double,3> {
     double (*f)(const coordT&);
 
@@ -234,12 +234,16 @@ void testNavierStokes(int argc, char**argv) {
 	FunctionDefaults<3>::set_bc(BC_PERIODIC);
 
 	// construct the periodic Coulomb operator for later use
-	//~ Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
 	SeparatedConvolution<double, 3> op = CoulombOperator (world, pthresh1, pthresh1);
 
 	// construct the periodic BSH operator for later use
 	double const dum = 1 / deltaT / mu;
 	SeparatedConvolution<double, 3> op1 = BSHOperator<3>(world,	sqrt(dum), uthresh1, uthresh1);
+
+	
+	// construct the periodic BSH operator for later use
+	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
+//	SeparatedConvolution<double, 3> op11 = PeriodicBSHOp<double, 3> (world, sqrt(dum), k, uthresh1, uthresh1, cellsize);
 
 	// Initialize the old solution and print out to vts files
 	mytime = 0.0;
@@ -252,7 +256,7 @@ void testNavierStokes(int argc, char**argv) {
 	u[2] = FunctionFactory<double, 3> (world).f(uzexact  ) .truncate_on_project();
 
 
-	print("col error",op(lap(u[0])).scale(-1. / (4. * WST_PI)).err(uxexact));
+	print("col error",op(lap(u[0])).scale(-1. / (4. * pi)).err(uxexact));
 	print("bsh error", op1(dum*u[0] - lap(u[0])).err(uxexact));
 
 
@@ -277,10 +281,10 @@ void testNavierStokes(int argc, char**argv) {
 		functionT divf = div(f-rhs);
 
 		Function<double,3> p = op(divf); // apply the Coulomb operator to compute the pressure \c p
-		p.scale(-1. / (4. * WST_PI));
+		p.scale(-1. / (4. * pi));
 
 		// Step 2.  Calculate the velocity at time t+1.
-		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p)/mu + u_t/(deltaT mu)
+		//            (1/(deltaT mu) - Laplace) u_t+1 = (f - grad p - u grad u)/mu + u_t/(deltaT mu)
 
 		// do the following calculation
 		//~ rhs[0] = (f[0] - diff(p, 0) -rhs[0])*(1. / mu) + u[0]*dum;

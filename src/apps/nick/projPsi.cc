@@ -53,6 +53,7 @@
 
 #include "wavef.h"
 #include "extra.h"
+#include <mra/lbdeux.h>
 #include <string>
 #include <fstream>
 using std::ofstream;
@@ -61,96 +62,106 @@ using std::ofstream;
 
 using namespace madness;
 
-/***************
- * <Yl0|Psi(t)>
- * Needs: wf.num input2 
- ***************/
-void projectL(World& world, const double L, const int n) {
-    //LOAD Psi(t)
-    std::ifstream f("wf.num");
-    if( !f.is_open() ) {
-        PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
-    } else {
-        std::string tag;
-        std::vector<WF> psiList;
-        complexd output;
-        PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
-        PRINT("\t\t\t\t\t\t");
-        while(f >> tag) {
-            if( !wave_function_exists(world, atoi(tag.c_str())) ) {
-                PRINTLINE("Function " << tag << " not found");
-            } else {
-                WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
-                psiList.push_back(WF(tag, psi_t.func));
-                PRINT("|" << tag << ">\t\t");
-            }
-        }// done loading wf.num
-        PRINTLINE("");
-        const double PI = M_PI;
-        const double dr = L/n;
-        const int smallN = 80;
-        const double dTH = PI/smallN;
-        const double dPHI = 2*PI/smallN;
-        const int lMAX = 1;
-        const bool debug = false;
-        clock_t before=0, after=0, middle=0;
-        std::vector<WF>::iterator psiT;
-        std::vector<complexd> YlPsi(n);
-        //complex_functionT phi100 = complex_factoryT(world).functor(functorT( new BoundWF(1.0, 1, 0, 0)));
-        for( int l=0; l<lMAX; l++) {
-            PRINT("Y"<< l << "0: \t\t\t\t\t\t");
-            for( psiT = psiList.begin(); psiT != psiList.end(); psiT++ ) {
-                psiT->func.reconstruct();
-                if(world.rank()==0) before = clock();
-                Yl0 yl0(L, l);
-                for( int i=0; i<n; i++ ) {
-                    YlPsi[i] = 0.0;
-                }
-                complexd psiPsi = 0.0;
-                for( int i=world.rank(); i<n; i+=world.size() ) {
-                    const double r = (0.5 + i)*dr;
-                    complexd Rl = 0.0;
-                    for( int j=0; j<smallN ; j++ ) {
-                        const double th = (0.5 + j)*dTH;
-                        for( int k=0; k<smallN; k++ ) {
-                            const double phi = k*dPHI;
-                            const double sinTH = std::sin(th);
-                            const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
-                            const vector3D rVec(a);
-                            Rl += psiT->func.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
-                            //Rl +=  phi100(rVec) * yl0(rVec) * sinTH*dTH*dPHI;
-                            //if(debug && i==0 && j==0 ) PRINTLINE(std::setprecision(2) << std::fixed << "Yl0(phi) = " << yl0(rVec) << "\t psi(phi=" << phi << ") = " <<
-                            //                                      std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
-                        }
-                        // const double sinTH = std::sin(th);
-                        // const double a[3] = {r*sinTH, r*sinTH, r*std::cos(th)};
-                        // const vector3D rVec(a);
-                        // if(debug && i==0) PRINTLINE(std::setprecision(2) << std::fixed      << "Yl0(th)  = " << yl0(rVec) << "\t psi(th="  << th  << " ) = " <<
-                        //                             std::setprecision(9) << std::scientific << real(psiT->func(rVec)));
-                    }
-                    YlPsi[i] = conj(Rl)*Rl * r*r*dr;
-                    if(debug) PRINT(r << "\t");
-                }
-                if(world.rank()==0) middle = clock();
-                world.gop.sum(&YlPsi[0], n);
-                world.gop.fence();
-                double Pl = 0.0;
-                for( int i=0; i<n; i++ ) {
-                    Pl += real( YlPsi[i] );
-                }
-                if(world.rank()==0) after = clock();
-                PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
-                PRINT("\t Summing took " << (after - middle)/CLOCKS_PER_SEC << " seconds ");
-                PRINT(std::setprecision(6));
-                PRINT( Pl << "\t");
-            }
-            PRINTLINE("");
+const double PI = M_PI;
+const complexd I(0,1);
+const complexd one(1,0);
+
+struct LBCost {
+    double leaf_value;
+    double parent_value;
+    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+        : leaf_value(leaf_value)
+        , parent_value(parent_value) 
+    {}
+
+    double operator()(const Key<3>& key, const FunctionNode<double_complex,3>& node) const {
+        if (key.level() <= 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
         }
     }
+};
+
+
+/******************************************************
+ * <Yl0|Psi(t)>
+ * Needs: input2 
+ * Parsing is set up to do only one time step at a time
+ ******************************************************/
+void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
+    complexd output;
+    PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
+    PRINT("\t\t\t\t\t\t");
+    //LOAD Psi(T)
+    complex_functionT psi;
+    if( !wave_function_exists(world, wf) ) {
+        PRINTLINE("Function " << wf << " not found");
+        exit(1);
+    } else {
+        psi = wave_function_load(world, wf);
+        psi.reconstruct();
+        LoadBalanceDeux<3> lb(world);
+        lb.add_tree(psi, LBCost(1.0,1.0));
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
+        PRINTLINE("|" << wf << ">\t\t");
+    }
+    PRINTLINE("");
+    const double PI = M_PI;
+    const double dr = L/n;
+    const int smallN = n;
+    const double dTH = PI/smallN;
+    const double dPHI = 2*PI/smallN;
+    const bool printR = true;
+    clock_t before=0, after=0, middle=0;
+    std::vector<WF>::iterator psiT;
+    std::vector<complexd> YlPsi(n);
+    for( int l=0; l<=lMAX; l++) {
+        PRINT("Y"<< l << "0: \t\t\t\t\t\t");
+        psi.reconstruct();
+        if(world.rank()==0) before = clock();
+        Yl0 yl0(L, l);
+        for( int i=0; i<n; i++ ) {
+            YlPsi[i] = 0.0;
+        }
+        for( int i=world.rank(); i<n; i+=world.size() ) {
+            const double r = (0.5 + i)*dr;
+            complexd Rl = 0.0;
+            for( int j=0; j<smallN ; j++ ) {
+                const double th = (0.5 + j)*dTH;
+                const double sinTH = std::sin(th);
+                for( int k=0; k<smallN; k++ ) {
+                    const double phi = k*dPHI;
+                    const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
+                    const vector3D rVec(a);
+                    Rl += psi.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
+                }
+            }
+            YlPsi[i] = conj(Rl)*Rl * r*r*dr;
+            if(printR) PRINT(std::real(YlPsi[i]) << "\t");
+        }
+        if(printR) PRINTLINE("");
+        if(world.rank()==0) middle = clock();
+        world.gop.sum(&YlPsi[0], n);
+        world.gop.fence();
+        double Pl = 0.0;
+        for( int i=0; i<n; i++ ) {
+            Pl += real( YlPsi[i] );
+        }
+        if(world.rank()==0) after = clock();
+        //PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
+        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
+    }
+    PRINTLINE("");
 }
-/****************************************
- * Needs: input input2
- ****************************************/
+
+
+///Needs: input input2
+///loads wf and prints its values along the z-axis
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
@@ -177,13 +188,6 @@ void zSlice(World& world, const int n, double L, double th, double phi, const in
 }
 
 
- 
-/************************************************************************************
- * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
- * wf.num                  Integer time step of the Psi(+) to be loaded
- * bound.num               Integer triplets of quantum numbers   2  1  0 
- * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
- ************************************************************************************/
 //Clunky code! Design out of this!
 struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
     PhiK& phik;
@@ -193,7 +197,55 @@ struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
     }
 };
 
+//Testing projPsi against mathematica via an integral that is very local and analytic
+void testIntegral(World& world, double L, const double Z, double k) {
+    double arr[3] = {0, 0, k};
+    const vector3D kVec(arr);
+    const double constCutoff = L;
+    PRINTLINE("    PhiK phik = PhiK(world, Z, kVec, constCutoff);");
+    PhiK phik = PhiK(world, Z, kVec, constCutoff);
+    PRINTLINE("    phik.Init(world);");
+    phik.Init(world);
+    PRINTLINE("    complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));");
+    complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+    complexd output;
+    for( int i=1; i<=5; i++ ) {
+        double a = 0.1*i*i*i*i;
+        complex_functionT guass = complex_factoryT(world).functor(functorT( new Gaussian(a) ));
+        output = inner(phiK, guass);
+        PRINT(std::setprecision(1) << std::fixed << "<k=" << k << "|exp(-" << a << "r^2)> = ");
+        PRINTLINE( std::setprecision(8) << output);
+    }
+}
+
+///Evaluate phi_k along the z-axis
+void debugSlice(World& world, const int n, double L, double Z, double k) {
+    const double dr = L/n;
+    const double a[3] = {0, 0, k};
+    const vector3D kVec(a);
+    ofstream fout;
+    fout.open("phi.dat");
+    PhiK phi = PhiK(world, Z, kVec, L);
+    phi.Init(world);
+    for( int i=1; i<n; i++ ) {
+        double r = i*dr;
+        const double b[3] = {0, 0, r};
+        const vector3D rVec(b);
+        fout << std::fixed << std::setprecision(2)
+             << r << " \t " << std::scientific << std::setprecision(16)
+             << real(phi(rVec)) << " \t " << imag(phi(rVec)) << std::endl;
+    }
+}
+
+
+/************************************************************************************
+ * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
+ * wf.num                  Integer time step of the Psi(+) to be loaded
+ * bound.num               Integer triplets of quantum numbers   2  1  0 
+ * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
+ ************************************************************************************/
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
+    bool usesPlaneWaves = false;
     PRINTLINE("\t\t\t\t\t\t|<basis|Psi(t)>|^2 ");
     std::ifstream f("wf.num");
     if( !f.is_open() ) {
@@ -204,6 +256,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             boundList.push_back("2 1 0");
         }
         //LOAD Psi(t)
+        //psiIT holds the time evolved wave functions
         std::string tag;
         std::vector<WF> psiList;
         complexd output;
@@ -212,13 +265,12 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             if( !wave_function_exists(world, atoi(tag.c_str())) ) {
                 PRINTLINE("Function " << tag << " not found");
             } else {
+                PRINT("|" << tag << ">\t\t");
                 WF psi_t = WF(tag, wave_function_load(world, atoi(tag.c_str())));
                 psiList.push_back(WF(tag, psi_t.func));
-                PRINT("|" << tag << ">\t\t");
             }
         }// done loading wf.num
         PRINT("\n");
-        //psiIT holds the time evolved wave functions
         //LOAD bound states
         complex_functionT psi0;
         if( wave_function_exists(world, 0) ) {
@@ -250,7 +302,8 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     PRINT(std::scientific <<"\t" << real(output*conj(output)));
                 }
                 PRINT("\n");
-            }            
+            }
+            PRINTLINE("");
         }
         clock_t before=0, after=0;
         //LOAD unbound states
@@ -268,34 +321,39 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
                     //PROJECT Psi_k into MADNESS
                     if(world.rank()==0) before = clock();
-                    const double constcutoff = cutoff;
-                    PhiK phik = PhiK(world, Z, kVec, constcutoff);
-                    phik.Init(world);
-                    complex_functionT phi_k = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+                    complex_functionT phiK;
+                    if( usesPlaneWaves ) {
+                        phiK = complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
+                    } else {
+                        const double constcutoff = cutoff;
+                        PhiK phik = PhiK(world, Z, kVec, constcutoff);
+                        phik.Init(world);
+                        phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+                    }
                     // W/O timing
-                    //complex_functionT phi_k = 
+                    //complex_functionT phiK = 
                     //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
-                     //<phi_k|Psi(0)>
-                    complexd k_overlap_0 = inner(phi_k,psi0);
+                     //<phiK|Psi(0)>
+                    complexd k_overlap_0 = inner(phiK,psi0);
                     //loop through time steps
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
-                        //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                        //<phi_k|PSI(t)> = <phi_k|Psi(t)>   - <phi_k||Psi(0)> <Psi(0)|Psi(t)>
-                        output =  inner(phi_k, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
+                        //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
+                        //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
+                        output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
                         PRINT( std::scientific << "\t" << real(output*conj(output)) );
                     }
+                    PRINTLINE("");
                     PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
-                    int WFsize = phi_k.size();
+                    int WFsize = phiK.size();
                     PRINT("and has " << WFsize << " coefficients.\n");
                 }
             }
         }
     }
 }
-
-void loadParameters2(World& world, int &n, double& th, double& phi, int wf) {
+void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& kMomentum, int& lMAX) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -321,6 +379,13 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int wf) {
             }
             else if (tag == "wf") {
                 f >> wf;
+            }
+            else if (tag == "kMomentum") {
+                f >> kMomentum;
+                PRINTLINE("kMomentum = " << kMomentum);
+            }
+            else if (tag == "lMAX") {
+                f >> lMAX;
             }
         }
     }
@@ -363,12 +428,12 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
             else if (tag == "omega") {
                 double omega;
                 f >> omega;
-                //E_n = n hbar omega
-                //I_p = 0.5 Z^2
-                //KE = E_n - I_p
-                //Atomic Units: hbar = m = 1
-                //v = sqrt( 2n omega - Z^2)
-                //cutoff > dMAX = v t
+                ///E_n = n hbar omega
+                ///I_p = 0.5 Z^2
+                ///KE = E_n - I_p
+                ///Atomic Units: hbar = m = 1
+                ///v = sqrt( 2n omega - Z^2)
+                ///cutoff > dMAX = v t
                 double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
                 cutoff = 0.0;
                 while( cutoff < dMAX ) { cutoff += L/16; }
@@ -396,11 +461,13 @@ int main(int argc, char**argv) {
     double cutoff = L;
     double th  = 0.0;
     double phi = 0.0;
+    double kMomentum   = 1.0;
     int    n   = 10;
     int    wf  = 0;
+    int   lMAX = 0;
     loadParameters(world, thresh, k, L, Z, cutoff);
-    loadParameters2(world, n, th, phi, wf);
-    FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
+    loadParameters2(world, n, th, phi, wf, kMomentum, lMAX);
+    FunctionDefaults<NDIM>::set_k(k);                 // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
@@ -413,14 +480,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //const int n1 = n;
-        //projectL(world, L, n1);
+        projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
-        //PRINTLINE("Z = " << Z);
-        //std::vector<WF> boundList;
-        //std::vector<WF> unboundList;
+        //testIntegral(world, L, Z, kMomentum);
+        //debugSlice(world, n, L, Z, kMomentum);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);

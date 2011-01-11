@@ -75,11 +75,11 @@ namespace madness {
             virtual void* key() const = 0;
             long use_count() const { return count_; }
             void add_ref() {
-                long c = count_++;
+//                long c = count_++;
 //                std::cout << ">>> RemoteCounterBase(" << this->key() << ") +ref count= " << c + 1 << std::endl;
             }
             bool release() {
-                long c = count_;
+//                long c = count_;
 //                std::cout << ">>> RemoteCounterBase(" << this->key() << ") -ref count= " << c - 1 << std::endl;
                 return count_.dec_and_test();
             }
