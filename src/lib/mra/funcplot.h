@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
@@ -181,7 +181,7 @@ namespace madness {
 
     /// VTK data writer for real-valued (not complex) madness::functions.
 
-    /// Set plot_refine=true to get a plot of the refinement levels of 
+    /// Set plot_refine=true to get a plot of the refinement levels of
     /// the given function.
     template<typename T, int NDIM>
     void plotvtk_data(const Function<T, NDIM> &function, const char *fieldname,
@@ -234,13 +234,13 @@ namespace madness {
     /// The complex-value is written as two reals (a vector from VTK's
     /// perspective.  The first (X) component is the real part and the second
     /// (Y) component is the imaginary part.
-    /// Set plot_refine=true to get a plot of the refinement levels of 
+    /// Set plot_refine=true to get a plot of the refinement levels of
     /// the given function.
     template<typename T, int NDIM>
     void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
         const char *fieldname, World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
-        const Vector<long, NDIM> &npt, bool binary = false, 
+        const Vector<long, NDIM> &npt, bool binary = false,
         bool plot_refine = false) {
 
         // this is the same as plotvtk_data for real functions, except the
@@ -274,7 +274,7 @@ namespace madness {
         }
 
         world.gop.fence();
-        Tensor<std::complex<T> > tmpr = function.eval_cube(cell, numpt, 
+        Tensor<std::complex<T> > tmpr = function.eval_cube(cell, numpt,
                                                            plot_refine);
         world.gop.fence();
 
@@ -316,7 +316,7 @@ namespace madness {
     }
 
     namespace detail {
-        inline unsigned short htons(unsigned short a) {
+        inline unsigned short htons_x(unsigned short a) {
             return (a>>8) | (a<<8);
         }
     }
@@ -324,7 +324,7 @@ namespace madness {
     /// Writes a Povray DF3 format file with a cube of points on a uniform grid
 
     /// Collective operation but only process 0 writes the file.  By convention Povray
-    /// files end in ".df3" but this choice is up to the user.  The dynamic range of 
+    /// files end in ".df3" but this choice is up to the user.  The dynamic range of
     /// function values is mapped onto [0,1] and values stored in 16-bit fixed precision.
     template <typename T>
     static void plotpovray(const Function<T,3>& function,
@@ -332,10 +332,10 @@ namespace madness {
                            const Tensor<double>& cell = FunctionDefaults<3>::get_cell(),
                            const std::vector<long>& npt = std::vector<long>(3,201L))
     {
-        using detail::htons;
+        using detail::htons_x;
 
         MADNESS_ASSERT(npt.size() == 3);
-        unsigned short dims[3] = {htons(npt[0]),htons(npt[1]),htons(npt[2])};
+        unsigned short dims[3] = {htons_x(npt[0]),htons_x(npt[1]),htons_x(npt[2])};
 
         World& world = const_cast< Function<T,3>& >(function).world();
         FILE *f=0;
@@ -359,8 +359,8 @@ namespace madness {
             for (unsigned int i2=0; i2<npt[2]; i2++) {
                 for (unsigned int i1=0; i1<npt[1]; i1++) {
                     for (unsigned int i0=0; i0<npt[0]; i0++) {
-                        d[i0] = (unsigned short)(htons((unsigned short)(fac*(r(i0,i1,i2) - rmin))));
-                        //printf("%d\n",htons(d[i0]));
+                        d[i0] = (unsigned short)(htons_x((unsigned short)(fac*(r(i0,i1,i2) - rmin))));
+                        //printf("%d\n",htons_x(d[i0]));
                     }
                     fwrite((void*) &d[0], sizeof(short), npt[0], f);
                 }
