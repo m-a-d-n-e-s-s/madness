@@ -188,8 +188,6 @@ real_function_3d approx2(World& world, double epsilon, const coord_3d& center) {
 
     // Make the Coulomb Green's function
     real_convolution_3d G = CoulombOperator(world, 0.1*epsilon, FunctionDefaults<3>::get_thresh());
-    // Initial guess for u is zero
-    real_function_3d u = real_factory_3d(world);
 
     // Initial guess for u is G Sg
     real_function_3d u = Sg * 0.25 * epsilon * epsilon;
