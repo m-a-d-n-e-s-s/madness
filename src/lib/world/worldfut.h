@@ -292,7 +292,8 @@ which merely blows instead of sucking.
                     remote_ref.reset();
                 }
                 else {
-                    world->am.send(remote_ref.owner(),
+                    const ProcessID owner = remote_ref.owner();
+                    world->am.send(owner,
                                    FutureImpl<T>::set_handler,
                                    new_am_arg(remote_ref, value));
                     set_assigned();
