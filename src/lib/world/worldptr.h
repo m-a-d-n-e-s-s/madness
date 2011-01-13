@@ -53,7 +53,7 @@ namespace madness {
             typedef void reference;
         };
 
-        /// A global pointer, valid anywhere in the world.
+        /// A global pointer address, valid anywhere in the world.
 
         /// Stores a globally addressable pointer. It can be sent to any
         /// process in the world.
@@ -76,6 +76,7 @@ namespace madness {
 
             /// \return The rank of the current node. If the pointer is not
             /// not set, then -2.
+            /// \note -2 is returned so it is not equal to the null value of -1.
             /// \throw nothing
             ProcessID local_rank() const { return (world_ != NULL ? world_->rank() : -2); }
 
