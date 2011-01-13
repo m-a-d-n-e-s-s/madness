@@ -50,15 +50,35 @@
 #include <map>                  // for std::map
 #include <iosfwd>               // for std::ostream
 
+//#define MADNESS_REMOTE_REFERENCE_DEBUG
+
 namespace madness {
 
     template <typename T> class RemoteReference;
+//
+//    template <typename T>
+//    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref);
 
-    template <typename T>
-    std::ostream& operator<<(std::ostream& s, const RemoteReference<T>& ref);
+    namespace archive {
+        template <typename, typename>
+        struct ArchiveLoadImpl;
+
+        template <typename, typename>
+        struct ArchiveStoreImpl;
+    }
 
     namespace detail {
 
+        /// Base class for remote counter implementation objects
+
+        /// This class only holds an atomic counter. The use counter tracks
+        /// local copies of the counter an references that have been copied as
+        /// part of the communication process. This class also provides a
+        /// mechanism for hiding the pointer type.
+        /// \note The actual counter manipulation is handled by RemoteCounter.
+        /// This class only provides the counter interface.
+        /// \note This class is considered an implementation detail and may
+        /// change at any time. You should not use this class directly.
         class RemoteCounterBase {
         private:
             madness::AtomicInt count_;          ///< reference count
@@ -72,22 +92,60 @@ namespace madness {
             RemoteCounterBase() { count_ = 1; }
             virtual ~RemoteCounterBase() { }
 
+            /// Counter key accessor
+
+            /// The key is the pointer for which the remote counter is counting
+            /// references.
+            /// \return The pointer that is being counted.
             virtual void* key() const = 0;
+
+            /// Remote and local counter accessor
+
+            /// The use counter tracks local copies of the counter an references
+            /// that have been copied as part othe communication process
             long use_count() const { return count_; }
+
+            /// Increment the reference count
+
+            /// The reference count should be incremented when a local copy of
+            /// the counter is created or the when the counter is serialized as
+            /// part of communication.
+            /// \throw nothing
             void add_ref() {
-//                long c = count_++;
-//                std::cout << ">>> RemoteCounterBase(" << this->key() << ") +ref count= " << c + 1 << std::endl;
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                long c = count_++;
+                print(">>> RemoteCounterBase(", this->key(), ") +ref count=", c + 1);
+#else
+                count_++;
+#endif
             }
+
+            /// Decrement the reference count
+
+            /// \return true if the reference count has dropped to zero
+            /// \throw nothing
             bool release() {
-//                long c = count_;
-//                std::cout << ">>> RemoteCounterBase(" << this->key() << ") -ref count= " << c - 1 << std::endl;
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                long c = count_;
+                print(">>> RemoteCounterBase(", this->key(), ") -ref count=", c - 1);
+#endif
                 return count_.dec_and_test();
             }
         }; // class RemoteCounterBase
 
+        /// Remote counter implementation object.
+
+        /// This class stores a shared pointer in memory to ensure that the
+        /// referenced object is valid as long as there are outstanding remote
+        /// references.
+        /// \tparam T The type of the referenced shared_ptr object.
+        /// \note This class is considered an implementation detail and may
+        /// change at any time. You should not use this class directly.
         template <typename T>
         class RemoteCounterImpl : public RemoteCounterBase {
         private:
+            // At some point this should probably be changed to a quick allocator
+            // When that happens, also uncomment the new and delete operators
 //            typedef std::allocator<RemoteCounterImpl<T> > A;
 
             // Keep a copy of the shared pointer to make sure it stays in memory
@@ -101,6 +159,11 @@ namespace madness {
 
             virtual ~RemoteCounterImpl() { }
 
+            /// Counter key accessor
+
+            /// The key is the pointer for which the remote counter is counting
+            /// references.
+            /// \return The pointer that is being counted.
             virtual void* key() const { return static_cast<void*>(pointer_.get()); }
 
 //            void* operator new(std::size_t) {
@@ -110,15 +173,22 @@ namespace madness {
 //            void operator delete(void * p) {
 //                A().deallocate(static_cast<RemoteCounterImpl<T> *>(p), 1);
 //            }
-        }; // clast class RemoteCounterImpl
+        }; // class RemoteCounterImpl
 
+        /// Remote reference counter
+
+        /// Automatically counts local and remote references to an object. The
+        /// reference count is incremented when the object is copied locally or
+        /// serialized as part of communication.
         class RemoteCounter {
         private:
             typedef RemoteCounterBase implT;
             typedef std::map<void*, WorldPtr<implT> > pimpl_mapT;
 
-            static Mutex mutex_;
-            static pimpl_mapT pimpl_map_;
+            static Mutex mutex_;            ///< Provide exclusive access to \c pimpl_map_
+            static pimpl_mapT pimpl_map_;   ///< A map of currently registered
+                                            ///< implementation objects. The key is
+                                            ///< it's referenced pointer.
 
             /// Pointer to the shared counter implementation object
             mutable WorldPtr<implT> pimpl_;
@@ -129,8 +199,6 @@ namespace madness {
             /// release the current reference. If the count drops to zero, then
             /// this is the last reference to the pimpl and it should be deleted.
             void destroy();
-
-            static void unregister_ptr_(void* k);
 
             /// Register a local shared pointer
 
@@ -165,7 +233,10 @@ namespace madness {
                                 = pimpl_map_.insert(std::make_pair(static_cast<void*>(p.get()), result));
                             MADNESS_ASSERT(insert_result.second);
 
-//                            std::cout << ">>> RemoteCounter::register_ptr_(new): key= " << p.get() << ", pimpl= " << pimpl << std::endl;
+
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                            print(">>> RemoteCounter::register_ptr_(new): key=", p.get(), ", pimpl=", pimpl);
+#endif
                         } catch(...) {
                             delete pimpl;
                             throw;
@@ -174,13 +245,21 @@ namespace madness {
                         // The pointer is already registered, so we just need
                         // increment the counter.
                         result = it->second;
-//                        std::cout << ">>> RemoteCounter::register_ptr_(existing): key= " << result->key() << ", pimpl= " << result << std::endl;
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                        print(">>> RemoteCounter::register_ptr_(existing): key=", result->key(), ", pimpl=", result);
+#endif
                         result->add_ref();
                     }
                 }
 
                 return result;
             }
+
+            /// Unregister a local shared pointer reference
+
+            /// \param key The key of the \c RemoteReference object to be unregistered.
+            /// \throw MadnessException If \c key is not found in the pointer map.
+            static void unregister_ptr_(void* key);
 
             RemoteCounter(const WorldPtr<implT>& p);
 
@@ -199,6 +278,10 @@ namespace madness {
 
             RemoteCounter& operator=(const RemoteCounter& other);
 
+            /// Counter accessor
+
+            /// \return The number of local and remote references
+            /// \throw none
             long use_count() const;
             bool unique() const;
             bool empty() const;
@@ -211,27 +294,37 @@ namespace madness {
             WorldPtr<implT>::worldidT get_worldid() const;
             void swap(RemoteCounter& other);
 
+        private:
+
+            template <typename, typename>
+            friend struct archive::ArchiveLoadImpl;
+
+            template <typename, typename>
+            friend struct archive::ArchiveStoreImpl;
+
             template <typename Archive>
-            void load_internal_(const Archive& ar) {
+            void load_(const Archive& ar) {
                 WorldPtr<implT> p;
                 ar & p;
                 RemoteCounter(p).swap(*this);
 
-//                std::cout << ">>> RemoteCounter::load: pimpl= " << pimpl_ << std::endl;
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                print(">>> RemoteCounter::load: pimpl=", pimpl_);
+#endif
             }
 
             template <typename Archive>
-            void store_internal_(const Archive& ar) const {
+            void store_(const Archive& ar) const {
                 ar & pimpl_;
 
                 if(! ar.count_only()) {
-//                    std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << std::endl;
-                    if(pimpl_.is_local()) {
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                    print(">>> RemoteCounter::store: pimpl=", pimpl_);
+#endif
+                    if(pimpl_.is_local())
                         pimpl_->add_ref();
-                    } else {
-//                        std::cout << ">>> RemoteCounter::store: pimpl= " << pimpl_ << " = NULL" << std::endl;
+                    else
                         pimpl_ = WorldPtr<implT>();
-                    }
                 }
             }
 
@@ -249,24 +342,14 @@ namespace madness {
 
     /// This class was intended only for internal use and is still rather
     /// poorly thought through, however, it seems to fill a wider need.
-    ///
-    /// Can be copied/sent as a simple, contiguous block of memory.
-    ///
-    /// !!! Unlike SharedPtr, copying or assigning does NOT cause any
-    /// reference count to be incremented.  A good policy is that
-    /// ownership is transferred to whomever you give a copy.
-    ///
-    /// !!! Every time you send a reference to another process use a
-    /// new RemoteReference so that any SharedPtr reference count is
-    /// correctly incremented.
-    ///
-    /// !!! If a shared pointer is passed into the constructor, its
-    /// reference count is incremented.  It is YOUR RESPONSIBILITY to
-    /// eventually invoke (locally or remotely) RemoteReference.dec()
-    /// to decrement the reference count.  This is so that you can
-    /// eliminate the implied communcation by invoking it locally as a
-    /// side-effect of other communication.  If dec() is not called,
-    /// you will have a memory leak.
+    /// \note Do not serialize via wrap_opaque().
+    /// \note Ownership of a reference is transfered when serialized on a remote
+    /// node. You should not attempt to send a remote reference to more than one
+    /// node except from the owning node. If you do serialize more than once,
+    /// this will cause an invalid memory access on the owning node.
+    /// \note !!! It is YOUR RESPONSIBILITY to release the reference count. This
+    /// can be done by sending the remote reference back to the owner or by
+    /// calling reset(). If this is not done, you will have a memory leak.
     template <typename T>
     class RemoteReference {
     public:
@@ -274,10 +357,8 @@ namespace madness {
         typedef T* pointerT;
 
     private:
-        friend std::ostream& operator<< <T> (std::ostream&, const RemoteReference<T>&);
-
-        mutable pointerT pointer_;  ///< World pointer
-        detail::RemoteCounter counter_;     ///< Remote reference counter
+        mutable pointerT pointer_;      ///< World pointer
+        detail::RemoteCounter counter_; ///< Remote reference counter
 
         // This is for RemoteReferences of other types, so they can still access
         // private members.
@@ -297,15 +378,27 @@ namespace madness {
         RemoteReference() :
             pointer_(), counter_() {};
 
-        /// Makes a shared reference and increments ptr reference count
+        /// Construct a remote reference to p.
+
+        /// \param w The world that \c p belongs to.
+        /// \param p The \c shared_ptr that is to be referenced.
+        /// \note \c p must be locally addressable pointer
         RemoteReference(World& w, const std::shared_ptr<T>& p) :
             pointer_(p.get()), counter_(w, p)
         { }
 
+        /// Copy constructor
+
+        /// \param other The reference to be copied
         RemoteReference(const RemoteReference<T>& other) :
             pointer_(other.pointer_), counter_(other.counter_)
         { }
 
+        /// Copy conversion constructor
+
+        /// \tparam U The remote reference type to be copied
+        /// \param other The reference to be copied
+        /// \note \c U* must be implicitly convertible to \c T*
         template <typename U>
         RemoteReference(const RemoteReference<U>& other) :
             pointer_(other.pointer_), counter_(other.counter_)
@@ -313,11 +406,19 @@ namespace madness {
 
         ~RemoteReference() { }
 
+        /// Copy conversion assignment operator
+
+        /// \param other The reference to be copied
         RemoteReference<T>& operator=(const RemoteReference<T>& other) {
             RemoteReference<T>(other).swap(*this);
             return *this;
         }
 
+        /// Copy conversion assignment operator
+
+        /// \tparam U The remote reference type to be copied
+        /// \param other The reference to be copied
+        /// \note \c U* must be implicitly convertible to \c T*
         template <typename U>
         RemoteReference<T>& operator=(const RemoteReference<U>& other) {
             RemoteReference<T>(other).swap(*this);
@@ -340,23 +441,39 @@ namespace madness {
                 RemoteReference<T>().swap(*this);
         }
 
-        /// Returns true if holding a non-zero pointer
+        /// Boolean conversion operator
+
+        /// \return true when the reference is initialized to a non zero value
+        /// or uninitialized, otherwise false
         operator bool() const {
             return pointer_;
         }
 
-        /// Returns possibly remote pointer which will be 0 if not initialized
+        /// Reference pointer accessor
+
+        /// \return The referenced pointer
+        /// \throw MadnessException If the pointer is not local
         pointerT get() const {
             MADNESS_ASSERT(counter_.is_local());
             return pointer_;
         }
 
+        /// Reference object accessor
+
+        /// \return A reference to the referenced object
+        /// \throw MadnessException If the pointer is uninitialized
+        /// \throw MadnessException If the pointer is not local
         referenceT operator*() const {
             MADNESS_ASSERT(pointer_ != NULL);
             MADNESS_ASSERT(counter_.is_local());
-            return *pointer_; }
+            return *pointer_;
+        }
 
-        /// Returns possibly remote pointer which will be 0 if not initialized
+        /// Reference object pointer accessor
+
+        /// \return A pointer to the referenced object
+        /// \throw MadnessException If the pointer is uninitialized
+        /// \throw MadnessException If the pointer is not local
         pointerT operator->() const {
             MADNESS_ASSERT(pointer_ != NULL);
             MADNESS_ASSERT(counter_.is_local());
@@ -375,35 +492,53 @@ namespace madness {
         /// \throw nothing
         bool unique() const { return counter_.unique(); }
 
-//        void print(const char* msg = "") const {
-//            std::cout << msg << wpointer_;
-//        }
+        /// Swap references
 
+        /// Exchange the value of this \c RemoteReference with \c other
+        /// \c RemoteReference
+        /// \tparam U The type of the other remote reference.
+        /// \note U* must be implicitly convertible to T*.
         template <typename U>
         void swap(RemoteReference<U>& other) {
             std::swap(pointer_, other.pointer_);
             madness::detail::swap(counter_, other.counter_);
         }
 
+        /// Locally owned reference
+
+        /// \return true if owner is equal to the current rank of the owning
+        /// world, otherwise false
+        /// \throw nothing
         inline bool is_local() const { return counter_.is_local(); }
 
-        /// Returns rank of owning process, or -1 if not initialized
-        inline ProcessID owner() const {
-            return counter_.owner();
-        }
+        /// Reference owner accessor
 
+        /// \return rank of owning process, or -1 if not initialized
+        /// \throw nothing
+        inline ProcessID owner() const { return counter_.owner(); }
+
+        /// Owning world accessor
+
+        /// \return A reference to the world that owns the pointer
+        /// \throw MadnessException If the reference is uninitialized
         World& get_world() const { return counter_.get_world(); }
 
+        /// Serialize the remote reference
+
+        /// \tparam Archive The serialization archive type
+        /// \param ar The serialization archive object.
         template <typename Archive>
-        void load_internal_(const Archive& ar) {
+        void serialize(const Archive& ar) const {
+            // All of the interesting stuff happens in the counter serialization.
             ar & archive::wrap_opaque(pointer_) & counter_;
         }
 
-        template <typename Archive>
-        void store_internal_(const Archive& ar) const {
-            ar & archive::wrap_opaque(pointer_) & counter_;
-        }
+    public:
 
+        /// Ad the remote reference to the given \c std::ostream, \c out.
+
+        /// \param out The output stream to add \c ref to.
+        /// \param ref The remote reference to add to the out stream
         friend std::ostream& operator<<(std::ostream& out, const RemoteReference<T>& ref) {
             out << "RemoteReference( pointer=" << ref.pointer_ << " counter=" << ref.counter_ << ")";
             return out;
@@ -411,44 +546,37 @@ namespace madness {
     }; // class RemoteReference
 
 
+    /// Swap the two remote references
 
+    /// \param l The left reference to be swapped with \c r
+    /// \param r The right reference to be swapped with \c l
+    /// \note T* must be implicitly convertible to U* and vis versa.
     template <typename T, typename U>
     void swap(RemoteReference<T>& l, RemoteReference<U>& r) {
         l.swap(r);
     }
 
     namespace archive {
-        template <typename, typename>
-        struct ArchiveLoadImpl;
 
-        template <typename, typename>
-        struct ArchiveStoreImpl;
+        // This function is not allowed. Therefore it is not implemented so that
+        // a compiler error is generated it it is called. This still does not
+        // prevent remote references from being wrapped as part of another object.
+        template <typename T>
+        archive_array<unsigned char> wrap_opaque(const RemoteReference<T>& t);
 
-        template <typename Archive, typename T>
-        struct ArchiveLoadImpl<Archive, RemoteReference<T> > {
-            static inline void load(const Archive& ar, RemoteReference<T>& r) {
-                r.load_internal_(ar);
-            }
-        };
-
-        template <typename Archive, typename T>
-        struct ArchiveStoreImpl<Archive, RemoteReference<T> > {
-            static inline void store(const Archive& ar, const RemoteReference<T>& r) {
-                r.store_internal_(ar);
-            }
-        };
+        // Remote counter serialization
 
         template <typename Archive>
         struct ArchiveLoadImpl<Archive, detail::RemoteCounter > {
             static inline void load(const Archive& ar, detail::RemoteCounter& c) {
-                c.load_internal_(ar);
+                c.load_(ar);
             }
         };
 
         template <typename Archive>
         struct ArchiveStoreImpl<Archive, detail::RemoteCounter > {
             static inline void store(const Archive& ar, const detail::RemoteCounter& c) {
-                c.store_internal_(ar);
+                c.store_(ar);
             }
         };
 

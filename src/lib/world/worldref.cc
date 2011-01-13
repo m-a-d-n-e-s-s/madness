@@ -51,11 +51,14 @@ namespace madness {
         /// release the current reference. If the count drops to zero, then
         /// this is the last reference to the pimpl and it should be deleted.
         void RemoteCounter::destroy() {
-            if(pimpl_ && pimpl_.is_local()) {
+            if(pimpl_.is_local()) {
                 if(pimpl_->release()) {
                     // No one else is referencing this pointer.
                     // We can safely dispose of it.
-                    std::cout << ">>> RemoteCounter::unregister_ptr_: key= " << pimpl_->key() << ", value= " << pimpl_ << std::endl;
+
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                    print(">>> RemoteCounter::unregister_ptr_: key=", pimpl_->key(), ", value=", pimpl_);
+#endif
                     unregister_ptr_(pimpl_->key());
                     delete pimpl_.get();
                 }
@@ -107,7 +110,7 @@ namespace madness {
             return *this;
         }
 
-        long RemoteCounter::use_count() const { return (pimpl_ && pimpl_.is_local() ? pimpl_->use_count() : 0); }
+        long RemoteCounter::use_count() const { return (pimpl_.is_local() ? pimpl_->use_count() : 0); }
         bool RemoteCounter::unique() const { return use_count() == 1; }
         bool RemoteCounter::empty() const { return pimpl_; }
         bool RemoteCounter::is_local() const { return pimpl_.is_local(); }
