@@ -70,36 +70,62 @@ namespace madness {
         // easily with send handlers since task layer is more restrictive on the
         // copy capability of arguments.
 
+        // It is also annoying that info needs to be broken into two parts so
+        // that it id and ref are properly serialized. We need to have id
+        // correctly aligned via opaque_wrap, but ref cannot be serialized that
+        // way. Thus we break the class into two parts.
+
         // Info stored for AM method forwarding
         template <typename memfunT>
-        struct info {
-            typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
-            typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
+        struct info_base {
             uniqueidT id; // Must be at front ... see peek.
             ProcessID requestor;
             memfunT memfun;
-            refT ref;
             TaskAttributes attr;
 
-            info() {};
+        protected:
 
-            info(const AmArg& arg) {
-                arg & *this;
-            }
+            info_base() {}
 
-            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
+            info_base(const uniqueidT& id, ProcessID requestor,  memfunT memfun,
                  const TaskAttributes& attr=TaskAttributes())
                     : id(id)
                     , requestor(requestor)
                     , memfun(memfun)
-                    , ref(ref)
-                    , attr(attr) {};
+                    , attr(attr) {}
+
 
             template <typename Archive>
             void serialize(const Archive& ar) {
-                ar & id & requestor & archive::wrap_opaque(memfun) & ref & attr; // Must be opaque ... see peek.
+                ar & archive::wrap_opaque(*this); // Must be opaque ... see peek.
             }
-        };
+        }; // struct info_base
+
+        template <typename memfunT>
+        struct info : public info_base<memfunT> {
+            typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
+            typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
+            refT ref;
+
+            info() : info_base<memfunT>() {}
+
+            info(const AmArg& arg) :
+                info_base<memfunT>()
+            {
+                arg & *this;
+            }
+
+            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
+                 const TaskAttributes& attr=TaskAttributes()) :
+                     info_base<memfunT>(id, requestor, memfun, attr), ref(ref)
+            {}
+
+            template <typename Archive>
+            void serialize(const Archive& ar) {
+                info_base<memfunT>::serialize(ar);
+                ar & ref;
+            }
+        }; // struct info
 
         // Extract the unique object ID from an incoming active message header
 
@@ -1036,7 +1062,7 @@ namespace madness {
             return const_cast<objT*>(this)->task(dest,memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr);
         }
 
-        ~WorldObject() {
+        virtual ~WorldObject() {
             world.unregister_ptr(static_cast<Derived*>(this));
         }
     };
@@ -1056,7 +1082,7 @@ namespace madness {
 
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,WorldObject<Derived>*> {
-            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
+            static inline void store(const BufferOutputArchive& ar, WorldObject<Derived>* const&  ptr) {
                 ar & ptr->id();
             }
         };
@@ -1075,7 +1101,7 @@ namespace madness {
 
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,const WorldObject<Derived>*> {
-            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
+            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>* const& ptr) {
                 ar & ptr->id();
             }
         };

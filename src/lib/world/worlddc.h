@@ -1434,7 +1434,7 @@ namespace madness {
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
         void serialize(const archive::BufferInputArchive& ar) {
-            WorldObject<implT>* ptr;
+            WorldObject<implT>* ptr = NULL;
             ar & ptr;
             MADNESS_ASSERT(ptr);
             p.reset(static_cast<implT*>(ptr), &detail::no_delete<implT>);
@@ -1447,7 +1447,7 @@ namespace madness {
         }
 
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        ~WorldContainer() { }
+        virtual ~WorldContainer() { }
 
         friend void swap<>(WorldContainer&, WorldContainer&);
     };
