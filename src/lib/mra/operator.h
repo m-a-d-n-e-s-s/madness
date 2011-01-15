@@ -91,7 +91,7 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
     private:
-        mutable std::vector< SharedPtr< Convolution1D<Q> > > ops;
+        mutable std::vector< ConvolutionND<Q,NDIM> > ops;
         const BoundaryConditions<NDIM> bc;
         const int k;
         const int rank;
@@ -273,7 +273,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (int d=0; d<NDIM; d++) {
-                op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
+                op.ops[d] = ops[mu].getop(d)->nonstandard(n, disp.translation()[d]);
             }
 
             op.norm = munorm2(n, op.ops)*facnorms[mu];
@@ -328,24 +328,24 @@ namespace madness {
 
     public:
 
-        // For general convolutions
+        // For general separated convolutions with same operator in
+        // each direction (isotropic)
         SeparatedConvolution(World& world,
-                             std::vector< SharedPtr< Convolution1D<Q> > >& ops,
+                             std::vector< SharedPtr< Convolution1D<Q> > >& argops,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , ops(ops)
                 , bc(bc)
                 , k(k)
-                , rank(ops.size())
+                , rank(argops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) 
+                , factors(rank,1.0)
+                , facnorms(rank,1.0) 
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -353,6 +353,36 @@ namespace madness {
             }
             check_cubic();
 
+            for (unsigned int mu=0; mu < ops.size(); mu++) {
+              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu],argops[mu]->sign));
+            }
+
+            this->process_pending();
+        }
+
+        // For general convolutions
+        SeparatedConvolution(World& world,
+                             std::vector< ConvolutionND<Q,NDIM> >& argops,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             long k = FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves = false)
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(bc(0,0)==BC_PERIODIC)
+                , ops(argops)
+                , bc(bc)
+                , k(k)
+                , rank(argops.size())
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max(2,NDIM),Slice(0,k-1))
+                , factors(rank,1.0)
+                , facnorms(rank,1.0)
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (int d=1; d<NDIM; d++) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
             this->process_pending();
         }
 
@@ -365,15 +395,14 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0) 
+                , factors(rank,1.0)
+                , facnorms(rank,1.0) 
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -391,7 +420,9 @@ namespace madness {
                 facnorms[i] = std::abs(factors[i]);
                 //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
 
-                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
+                SharedPtr<Convolution1D<Q> > cp =
+                    GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
+                ops.push_back(ConvolutionND<Q,NDIM>(cp, cp->sign));
 
             }
         }
@@ -452,7 +483,7 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu]->sign,
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu].getsign(),
                                 work1, work2, work5);
                     //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }

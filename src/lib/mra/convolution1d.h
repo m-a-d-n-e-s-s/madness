@@ -403,6 +403,46 @@ namespace madness {
         }
     };
 
+    // Array of 1D convolutions (one / dimension)
+    template <typename Q, int NDIM>
+    class ConvolutionND {
+      SharedPtr<Convolution1D<Q> > ops[NDIM];
+      double sign;
+
+    public:
+      ConvolutionND() {}
+
+      ConvolutionND(SharedPtr<Convolution1D<Q> > op, double s)
+      {
+        sign = s;
+        for (int i = 0; i < NDIM; i++)
+        {
+          ops[i] = op;
+        }
+      }
+
+      void setop(int dim, SharedPtr<Convolution1D<Q> > op)
+      {
+        ops[dim] = op;
+      }
+
+      SharedPtr<Convolution1D<Q> > getop(int dim) const
+      {
+        return ops[dim];
+      }
+
+      double getsign()
+      {
+        return sign;
+      }
+
+      void setsign(double s)
+      {
+        sign = s;
+      }
+
+    };
+
     // To test generic convolution by comparing with GaussianConvolution1D
     template <typename Q>
     class GaussianGenericFunctor {
