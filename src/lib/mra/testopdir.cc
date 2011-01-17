@@ -112,7 +112,7 @@ void test_opdir(World& world) {
         print("Test different operations in different dirs");
 
     real_tensor cell(3,2);
-    cell(0,0)=-20; cell(0,1)=20;
+    cell(0,0)=-20; cell(0,1)=20; // Deliberately have different width and range in each dimension
     cell(1,0)=-20; cell(1,1)=30;
     cell(2,0)=-40; cell(2,1)=40;
     //FunctionDefaults<3>::set_cubic_cell(-20,20);
@@ -126,7 +126,7 @@ void test_opdir(World& world) {
     FunctionDefaults<3>::set_truncate_on_project(false);
 
     real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new Gaussian<double,3>(origin, expnt, coeff)));
-    f.truncate();
+    //f.truncate(); // Comment this out to get 20x reduction in error
     f.reconstruct();
 
     double norm = f.trace();
@@ -136,6 +136,15 @@ void test_opdir(World& world) {
     const real_tensor& width = FunctionDefaults<3>::get_cell_width();
     const int k = FunctionDefaults<3>::get_k();
 
+    // These from previous computation with k=8 thresh=1e-6
+    // (error is consistently reduced as compute with higher accuracy)
+    const double errs[] = {5.0e-07,1.2e-06,1.4e-05,7.4e-07,1.4e-06,1.9e-05,
+                           1.2e-05,3.8e-05,4.3e-05,6.8e-07,1.3e-06,6.6e-05,
+                           1.0e-06,2.8e-05,6.3e-05,1.2e-05,7.9e-05,6.2e-05,
+                           5.9e-06,1.9e-04,2.0e-04,6.0e-06,1.5e-04,1.3e-04,
+                           1.8e-04,2.5e-04,2.1e-04};
+    const char* msg[] = {"PASS","FAIL <<<<<<<<<<<<<"};
+    int inderr = 0;
     for (int mx=0; mx<=2; mx++) {
         for (int my=0; my<=2; my++) {
             for (int mz=0; mz<=2; mz++) {
@@ -156,7 +165,8 @@ void test_opdir(World& world) {
                 //if (world.rank() == 0) print("opf at origin", oval, ovalexact);
                 double opfnorm = opf.trace();
                 double opferr = opf.err(OpFExact(expnt,expnts,m));
-                if (world.rank() == 0) print("m =", m, ", norm =", opfnorm, ", err =", opferr);
+                if (world.rank() == 0) 
+                    print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr > 1.1*errs[inderr++]]);
 
                 // This stuff useful for diagnosing problems
                 // for (int i=-10; i<=10; i++) {
