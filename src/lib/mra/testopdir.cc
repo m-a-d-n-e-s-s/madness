@@ -143,7 +143,7 @@ void test_opdir(World& world) {
                            1.0e-06,2.8e-05,6.3e-05,1.2e-05,7.9e-05,6.2e-05,
                            5.9e-06,1.9e-04,2.0e-04,6.0e-06,1.5e-04,1.3e-04,
                            1.8e-04,2.5e-04,2.1e-04};
-    const char* msg[] = {"PASS","FAIL <<<<<<<<<<<<<"};
+    const char* msg[] = {"FAIL <<<<<<<<<<<<<","PASS"};
     int inderr = 0;
     for (int mx=0; mx<=2; mx++) {
         for (int my=0; my<=2; my++) {
@@ -166,7 +166,7 @@ void test_opdir(World& world) {
                 double opfnorm = opf.trace();
                 double opferr = opf.err(OpFExact(expnt,expnts,m));
                 if (world.rank() == 0) 
-                    print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr > 1.1*errs[inderr++]]);
+                    print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr < 1.1*errs[inderr++]]);
 
                 // This stuff useful for diagnosing problems
                 // for (int i=-10; i<=10; i++) {
