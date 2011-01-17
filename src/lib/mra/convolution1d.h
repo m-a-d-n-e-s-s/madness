@@ -199,7 +199,6 @@ namespace madness {
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         int k;          ///< Wavelet order
         int npt;        ///< Number of quadrature points (is this used?)
-        double sign;    ///< Phase
         int maxR;       ///< Number of lattice translations for sum
         Tensor<double> quad_x;
         Tensor<double> quad_w;
@@ -214,10 +213,9 @@ namespace madness {
 
         virtual ~Convolution1D() {};
 
-        Convolution1D(int k, int npt, double sign, int maxR, double arg = 0.0)
+        Convolution1D(int k, int npt, int maxR, double arg = 0.0)
                 : k(k)
                 , npt(npt)
-                , sign(sign)
                 , maxR(maxR)
                 , quad_x(npt)
                 , quad_w(npt) 
@@ -480,7 +478,7 @@ namespace madness {
         GenericConvolution1D() {}
 
         GenericConvolution1D(int k, const opT& op, int maxR, double arg = 0.0)
-            : Convolution1D<Q>(k, 20, 1.0, maxR, arg), op(op), maxl(LONG_MAX-1) {
+            : Convolution1D<Q>(k, 20, maxR, arg), op(op), maxl(LONG_MAX-1) {
             PROFILE_MEMBER_FUNC(GenericConvolution1D);
 
             // For efficiency carefully compute outwards at the "natural" level
@@ -545,7 +543,10 @@ namespace madness {
     };
 
 
-    /// 1D Gaussian convolution with coeff and expnt given in *simulation* coordinates [0,1]
+    /// 1D convolution with (derivative) Gaussian; coeff and expnt given in *simulation* coordinates [0,1]
+
+    /// Note that the derivative is computed in *simulation* coordinates so 
+    /// you must be careful to scale the coefficients correctly.
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
         // Returns range of Gaussian for periodic lattice sum in simulation coords
@@ -558,19 +559,20 @@ namespace madness {
             }
         }
     public:
-        const Q coeff;
-        const double expnt;
-        const Level natlev;
-        const int m;
+        const Q coeff;          //< Coefficient
+        const double expnt;     //< Exponent
+        const Level natlev;     //< Level to evaluate
+        const int m;            //< Order of derivative (0, 1, or 2 only)
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
-        		double sign, int m, bool periodic, double arg = 0.0)
-            : Convolution1D<Q>(k,k+11,sign,maxR(periodic,expnt),arg)
+        		int m, bool periodic, double arg = 0.0)
+            : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),arg)
             , coeff(coeff)
             , expnt(expnt)
             , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
             , m(m)
         {
+            MADNESS_ASSERT(m>=0 && m<=2);
             // std::cout << "GC expnt=" << expnt << " coeff="  << coeff << " natlev=" << natlev << " maxR=" << maxR(periodic,expnt) << std::endl;
             // for (Level n=0; n<5; n++) {
             //     for (Translation l=0; l<(1<<n); l++) {
@@ -597,7 +599,7 @@ namespace madness {
         /// \endcode
         /// The kernel is coeff*exp(-expnt*z^2)*z^m (with m>0).  This is equivalent to
         /// \code
-        /// r(n,l,p) = 2^(-n*(m+1))*coeff * int( exp(-beta*z^2) * z^m * phi(p,z-l), z=l..l+1)
+        /// r(n,l,p) = 2^(-n*(m+1))*coeff * int( ((d/dz)^m exp(-beta*z^2)) * phi(p,z-l), z=l..l+1)
         /// \endcode
         /// where
         /// \code
@@ -642,6 +644,7 @@ namespace madness {
             // 2*k+20+m, which can be integrated with a quadrature rule
             // of npt=k+11+(m+1)/2.  npt is set in the constructor.
 
+            double fourn = std::pow(4.0,double(n));
             double beta = expnt * pow(0.25,double(n));
             double h = 1.0/sqrt(beta);  // 2.0*sqrt(0.5/beta);
             long nbox = long(1.0/h);
@@ -650,21 +653,35 @@ namespace madness {
 
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
-            // and subsequent boxes
-            double argmax = std::abs(log(1e-22/std::abs(scaledcoeff*h)));
+            // and subsequent boxes.
+
+            // The derivatives add a factor of expnt^m to the size of
+            // the function at long range.
+            double sch = std::abs(scaledcoeff*h);
+            if (m == 1) sch *= expnt;
+            else if (m == 2) sch *= expnt*expnt;
+            double argmax = std::abs(log(1e-22/sch)); // perhaps should be -log(1e-22/sch) ?
 
             for (long box=0; box<nbox; box++) {
                 double xlo = box*h + lx;
                 if (beta*xlo*xlo > argmax) break;
                 for (long i=0; i<this->npt; i++) {
 #ifdef IBMXLC
-                    double phix[70];
+                    double phix[80];
 #else
                     double phix[twok];
 #endif
                     double xx = xlo + h*this->quad_x(i);
                     Q ee = scaledcoeff*exp(-beta*xx*xx)*this->quad_w(i)*h;
-                    for (int mm=0; mm<m; mm++) ee *= xx;
+
+                    // Differentiate as necessary
+                    if (m == 1) {
+                        ee *= -2.0*expnt*xx;
+                    }
+                    else if (m == 2) {
+                        ee *= (4.0*xx*xx*expnt*expnt - 2.0*expnt*fourn);
+                    }
+
                     legendre_scaling_functions(xx-lx,twok,phix);
                     for (long p=0; p<twok; p++) v(p) += ee*phix[p];
                 }
@@ -672,8 +689,7 @@ namespace madness {
 
             if (lkeep < 0) {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
-                if ((m&0x1) == 1) 
-                    for (long p=0; p<twok; p++) v(p) = -v(p);
+                if (m == 1) for (long p=0; p<twok; p++) v(p) = -v(p);
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
             }
 
@@ -712,7 +728,6 @@ namespace madness {
                 map.insert(datumT(key, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
                                                                                                           Q(sqrt(expnt/constants::pi)),
                                                                                                           expnt,
-                                                                                                          1.0,
                                                                                                           m,
                                                                                                           periodic
                                                                                                           ))));

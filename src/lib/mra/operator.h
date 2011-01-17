@@ -354,7 +354,7 @@ namespace madness {
             check_cubic();
 
             for (unsigned int mu=0; mu < ops.size(); mu++) {
-              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu],argops[mu]->sign));
+              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu],1.0));
             }
 
             this->process_pending();
@@ -422,7 +422,7 @@ namespace madness {
 
                 SharedPtr<Convolution1D<Q> > cp =
                     GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
-                ops.push_back(ConvolutionND<Q,NDIM>(cp, cp->sign));
+                ops.push_back(ConvolutionND<Q,NDIM>(cp, 1.0));
 
             }
         }

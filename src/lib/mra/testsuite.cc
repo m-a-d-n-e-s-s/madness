@@ -1242,7 +1242,7 @@ int main(int argc, char**argv) {
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0, 0, false);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
