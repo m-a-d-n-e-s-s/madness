@@ -98,8 +98,6 @@ namespace madness {
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
-        std::vector<Q> factors;
-        std::vector<double> facnorms;
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
 
@@ -116,7 +114,7 @@ namespace madness {
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
                                   Tensor<Q>& work3,
-                                  const Q musign,
+                                  const Q mufac,
                                   Tensor<R>& result) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -160,9 +158,9 @@ namespace madness {
                 }
             }
             // Assuming here that result is contiguous and aligned
-            aligned_axpy(size, result.ptr(), w1, musign);
+            aligned_axpy(size, result.ptr(), w1, mufac);
             //    long one = 1;
-            //daxpy_(&size, &musign, w1, &one, result.ptr(), &one);
+            //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
         }
 
         /// Apply one of the separated terms, accumulating into the result
@@ -173,7 +171,7 @@ namespace madness {
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
                          double tol,
-                         const Q musign,
+                         const Q mufac,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
                          Tensor<Q>& work5) const {
@@ -211,7 +209,7 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
-            apply_transformation(n, twok, trans, f, work1, work2, work5, musign, result);
+            apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -235,7 +233,7 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
-                apply_transformation(n, k, trans, f0, work1, work2, work5, -musign, result0);
+                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -275,9 +273,7 @@ namespace madness {
             for (int d=0; d<NDIM; d++) {
                 op.ops[d] = ops[mu].getop(d)->nonstandard(n, disp.translation()[d]);
             }
-
-            op.norm = munorm2(n, op.ops)*facnorms[mu];
-            //op.norm = munorm(n, op.ops)*facnorms[mu];
+            op.norm = munorm2(n, op.ops)*std::abs(ops[mu].getfac());
 
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
@@ -328,8 +324,7 @@ namespace madness {
 
     public:
 
-        // For general separated convolutions with same operator in
-        // each direction (isotropic)
+        // For separated convolutions with same operator in each direction (isotropic)
         SeparatedConvolution(World& world,
                              std::vector< SharedPtr< Convolution1D<Q> > >& argops,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
@@ -344,8 +339,6 @@ namespace madness {
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , factors(rank,1.0)
-                , facnorms(rank,1.0) 
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -353,8 +346,8 @@ namespace madness {
             }
             check_cubic();
 
-            for (unsigned int mu=0; mu < ops.size(); mu++) {
-              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu],1.0));
+            for (unsigned int mu=0; mu < argops.size(); mu++) {
+              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
             }
 
             this->process_pending();
@@ -376,8 +369,6 @@ namespace madness {
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , factors(rank,1.0)
-                , facnorms(rank,1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
@@ -395,35 +386,32 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
+                , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max(2,NDIM),Slice(0,k-1))
-                , factors(rank,1.0)
-                , facnorms(rank,1.0) 
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (int d=1; d<NDIM; d++) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
             }
-            check_cubic();
 
-            double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
-            for (int i=0; i<rank; i++) {
-                Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
+            for (int mu=0; mu<rank; mu++) {
+                Q c = std::pow(sqrt(expnt(mu)/pi),NDIM); // Normalization coeff 
 
-                factors[i] = coeff(i)/std::pow(c,NDIM);
-                facnorms[i] = std::abs(factors[i]);
-                //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
-
-                SharedPtr<Convolution1D<Q> > cp =
-                    GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
-                ops.push_back(ConvolutionND<Q,NDIM>(cp, 1.0));
-
+                // We cache the normalized operator so the factor is the value we must multiply
+                // by to recover the coeff we want.
+                ops[mu].setfac(coeff(mu)/c);
+                
+                for (int d=0; d<NDIM; d++) {
+                    ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                }
             }
         }
 
@@ -483,9 +471,9 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu].getsign(),
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2, work5);
-                    //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }
             r(s0).gaxpy(1.0,r0,1.0);

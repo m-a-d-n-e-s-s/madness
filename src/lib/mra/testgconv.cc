@@ -83,7 +83,6 @@ void test_gconv(World& world) {
     ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, 
                                                                                   width/sqrt(constants::pi),
                                                                                   width*width,
-                                                                                  1.0,
                                                                                   0,
                                                                                   false));
     real_convolution_1d op(world, ops);
@@ -105,7 +104,6 @@ void test_gconv(World& world) {
     ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, 
                                                                                   width*width*sqrt(8.0),
                                                                                   width*width,
-                                                                                  1.0,
                                                                                   1,
                                                                                   false));
     real_convolution_1d oph(world, ops);

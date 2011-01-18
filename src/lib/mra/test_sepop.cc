@@ -48,7 +48,7 @@ namespace madness {
         {
             //cout << "Testing accuracy of rnlp against results from Maple" << endl;
             double a = 1e-4;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -367,7 +367,7 @@ namespace madness {
         }
         {
             double a = 1e-2;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -761,7 +761,7 @@ namespace madness {
         }
         {
             double a = 1e0;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-2;
             r = g.rnlp(n,l);
@@ -1255,7 +1255,7 @@ namespace madness {
         }
         {
             double a = 1e2;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -1750,7 +1750,7 @@ namespace madness {
         }
         {
             double a = 1e4;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -2337,7 +2337,7 @@ namespace madness {
         }
         {
             double a = 1e6;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -2837,7 +2837,7 @@ namespace madness {
         }
         {
             double a = 1e8;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-1;
             r = g.rnlp(n,l);
@@ -3318,7 +3318,7 @@ namespace madness {
         }
         {
             double a = 1e10;
-            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,1.0,0,false);
+            GaussianConvolution1D<double> g(8,sqrt(a/pi),a,0,false);
             n = 0;
             l=-1;
             r = g.rnlp(n,l);

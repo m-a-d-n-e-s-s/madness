@@ -1169,7 +1169,7 @@ void test_apply_push_1d(World& world) {
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
 
-    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 1.0, 0, false);
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, false);
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();

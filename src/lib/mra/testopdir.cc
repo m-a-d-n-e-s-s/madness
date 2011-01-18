@@ -150,7 +150,6 @@ void test_opdir(World& world) {
             for (int mz=0; mz<=2; mz++) {
                 const int m[3] = {mx,my,mz};
                 std::vector< ConvolutionND<double,3> > ops(1);
-                ops[0].setsign(1.0);
                 for (int d=0; d<3; d++) {
                     double e = expnts[d]*width[d]*width[d];              // Exponent in sim coords
                     double c = sqrt(expnts[d]/constants::pi)*width[d];   // Coeff of user-coords normalized gaussian scaled to sim coords
