@@ -719,25 +719,24 @@ namespace madness {
         Vector<Translation,NDIM> l = key.translation();
         const ProcessID me = world.rank();
         while (key.level() <= maxlevel) {
-            ProcessID owner = coeffs.owner(key);
-            if (owner == me) {
+            if (coeffs.owner(key) == me) {
                 typename dcT::futureT fut = coeffs.find(key);
                 typename dcT::iterator it = fut.get();
-                nodeT& node = it->second;
-                if (node.has_coeff()) {
-                    return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff()));
-                }
-                else {
-                    for (int i=0; i<NDIM; i++) {
-                        double xi = x[i]*2.0;
-                        int li = int(xi);
-                        if (li == 2) li = 1;
-                        x[i] = xi - li;
-                        l[i] = 2*l[i] + li;
+                if (it != coeffs.end()) {
+                    nodeT& node = it->second;
+                    if (node.has_coeff()) {
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff()));
                     }
-                    key = keyT(key.level()+1,l);
                 }
             }
+            for (int i=0; i<NDIM; i++) {
+                double xi = x[i]*2.0;
+                int li = int(xi);
+                if (li == 2) li = 1;
+                x[i] = xi - li;
+                l[i] = 2*l[i] + li;
+            }
+            key = keyT(key.level()+1,l);
         }
         return std::pair<bool,T>(false,0.0);
     }
