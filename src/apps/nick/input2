@@ -1,6 +1,6 @@
-n 1000
+n 16
 th 0.1
 phi 0.3
 wf 0
 kMomentum 0.5
-lMAX 11
+lMAX 2

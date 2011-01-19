@@ -94,7 +94,6 @@ struct LBCost {
  * Parsing is set up to do only one time step at a time
  ******************************************************/
 void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
-    complexd output;
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
@@ -113,47 +112,55 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     PRINTLINE("");
     const double PI = M_PI;
     const double dr = L/n;
-    const int smallN = n;
-    const double dTH = PI/smallN;
-    const double dPHI = 2*PI/smallN;
+    const double dTH = PI/n;
+    const double dPHI = 2*PI/n;
     const bool printR = true;
-    clock_t before=0, after=0, middle=0;
-    std::vector<WF>::iterator psiT;
-    std::vector<complexd> YlPsi(n);
+    const std::size_t maxLocalDepth = psi.max_local_depth();
+    std::pair<bool,complexd> psiVal;
+    Tensor<double> YlPsi(n);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
-        psi.reconstruct();
-        if(world.rank()==0) before = clock();
+        psi.reconstruct(); //What does this do?
         Yl0 yl0(L, l);
         for( int i=0; i<n; i++ ) {
-            YlPsi[i] = 0.0;
+            YlPsi(i) = 0.0;
         }
-        for( int i=world.rank(); i<n; i+=world.size() ) {
+        // PRINTLINE("Debuging");
+        // const double a[3] = {0.0, 0.0, 0.5};
+        // const vector3D rVec(a);
+        // PRINTLINE("Y00(0) = " << yl0(rVec));
+        // PRINTLINE("psi(0) = " << psi(rVec));
+        for( int i=0; i<n; i++ ) {
             const double r = (0.5 + i)*dr;
             complexd Rl = 0.0;
-            for( int j=0; j<smallN ; j++ ) {
+            for( int j=0; j<n ; j++ ) {
                 const double th = (0.5 + j)*dTH;
                 const double sinTH = std::sin(th);
-                for( int k=0; k<smallN; k++ ) {
+                for( int k=0; k<n; k++ ) {
                     const double phi = k*dPHI;
                     const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
                     const vector3D rVec(a);
-                    Rl += psi.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
+                    // parallelism introduced via eval_local_only
+                    psiVal = psi.eval_local_only(rVec, maxLocalDepth);
+                    if( psiVal.first ) { //boolean: true for local coeffs
+                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI;//returns the value of psi(rVec)
+                    }
                 }
             }
-            YlPsi[i] = conj(Rl)*Rl * r*r*dr;
-            if(printR) PRINT(std::real(YlPsi[i]) << "\t");
+            world.gop.sum(&Rl,0);
+            world.gop.fence();
+            YlPsi(i) = std::real(conj(Rl)*Rl * r*r*dr);
         }
-        if(printR) PRINTLINE("");
-        if(world.rank()==0) middle = clock();
-        world.gop.sum(&YlPsi[0], n);
-        world.gop.fence();
+        if(printR){
+            for( int i=0; i<n; i++) {
+                PRINT(YlPsi(i) << "\t");
+            }
+            PRINTLINE("");
+        }
         double Pl = 0.0;
         for( int i=0; i<n; i++ ) {
-            Pl += real( YlPsi[i] );
+            Pl += YlPsi(i);
         }
-        if(world.rank()==0) after = clock();
-        //PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
     }
     PRINTLINE("");
