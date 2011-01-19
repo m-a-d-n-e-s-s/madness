@@ -1684,6 +1684,14 @@ namespace madness {
                                  const std::vector<long>& npt,
                                  const bool eval_refine = false) const;
 
+
+        /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
+
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be 
+        /// computed with max_local_depth();
+        std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xin, Level maxlevel) ;
+
+
         /// Evaluate the function at a point in \em simulation coordinates
 
         /// Only the invoking process will get the result via the
@@ -2445,8 +2453,8 @@ namespace madness {
             return sum;
         }
 
-        /// Returns the maximum depth of the tree
-        std::size_t max_depth() const {
+        /// Returns the maximum local depth of the tree ... no communications.
+        std::size_t max_local_depth() const {
             std::size_t maxdepth = 0;
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
@@ -2454,9 +2462,17 @@ namespace madness {
                 if (N> maxdepth)
                     maxdepth = N;
             }
+            return maxdepth;
+        }
+
+
+        /// Returns the maximum depth of the tree ... collective ... global sum/broadcast
+        std::size_t max_depth() const {
+            std::size_t maxdepth  = max_local_depth();
             world.gop.max(maxdepth);
             return maxdepth;
         }
+
 
         /// Returns the max number of nodes on a processor
         std::size_t max_nodes() const {

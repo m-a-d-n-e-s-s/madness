@@ -1066,12 +1066,18 @@ void test_plot(World& world) {
     world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     world.gop.fence();
+    std::size_t maxlevel = f.max_local_depth();
     if (world.rank() == 0) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; i++) {
             double x = -L + i*h + 2e-13;
             T fplot = r(std::vector<long>(NDIM,i));
             T fnum  = f.eval(coordT(x)).get();
+            std::pair<bool,T> fnum2 = f.eval_local_only(coordT(x),maxlevel);
+            
+            if (world.size() == 1 && !fnum2.first) print("eval_local_only: non-local but nproc=1!");
+
+            if (fnum2.first) CHECK(fnum-fnum2.second,1e-12,"eval_local_only");
             CHECK(fplot-fnum,1e-12,"plot-eval");
             if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
                 print("bad", i, coordT(x), fplot, fnum, (*functor)(coordT(x)));

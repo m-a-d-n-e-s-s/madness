@@ -166,6 +166,36 @@ namespace madness {
             return result;
         }
 
+        /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
+
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be 
+        /// computed with max_local_depth();
+        std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xuser, Level maxlevel) const {
+            const double eps=1e-15;
+            verify();
+            MADNESS_ASSERT(!is_compressed());
+            coordT xsim;
+            user_to_sim(xuser,xsim);
+            // If on the boundary, move the point just inside the
+            // volume so that the evaluation logic does not fail
+            for (int d=0; d<NDIM; d++) {
+                if (xsim[d] < -eps) {
+                    MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                }
+                else if (xsim[d] < eps) {
+                    xsim[d] = eps;
+                }
+
+                if (xsim[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                }
+                else if (xsim[d] > 1.0-eps) {
+                    xsim[d] = 1.0-eps;
+                }
+            }
+            return impl->eval_local_only(xsim,maxlevel);
+        }
+
         /// Only the invoking process will receive the result via the future
         /// though other processes may be involved in the evaluation.
         ///
@@ -348,11 +378,19 @@ namespace madness {
         }
 
 
-        /// Returns the maximum depth of the function tree
+        /// Returns the maximum depth of the function tree ... collective global sum
         std::size_t max_depth() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0;
             return impl->max_depth();
+        }
+
+
+        /// Returns the maximum local depth of the function tree ... no communications
+        std::size_t max_local_depth() const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (!impl) return 0;
+            return impl->max_local_depth();
         }
 
 
