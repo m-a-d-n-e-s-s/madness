@@ -68,12 +68,12 @@ namespace madness {
 
         /// Construct a default deleter for a function pointer
         template <typename D>
-        static typename enable_if<is_same<D, void(*)(ptrT*)>, D>::type
+        static typename enable_if<std::is_same<D, void(*)(ptrT*)>, D>::type
         default_deleter() { return & detail::checked_delete<ptrT>; }
 
         /// Construct a default deleter for a functor
         template <typename D>
-        static typename disable_if<is_same<D, void(*)(ptrT*)>, D>::type
+        static typename disable_if<std::is_same<D, void(*)(ptrT*)>, D>::type
         default_deleter() { return D(); }
 
     public:

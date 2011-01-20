@@ -195,10 +195,12 @@ namespace madness {
         /// iterator for hash
         template <class hashT> class HashIterator {
         public:
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::entryT>::type entryT;
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::datumT>::type datumT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::entryT>::type,
+                    typename hashT::entryT>::type entryT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::datumT>::type,
+                    typename hashT::datumT>::type datumT;
             typedef std::forward_iterator_tag iterator_category;
             typedef datumT value_type;
             typedef std::ptrdiff_t difference_type;
@@ -336,10 +338,12 @@ namespace madness {
         class HashAccessor : NO_DEFAULTS {
             template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::entryT>::type entryT;
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::datumT>::type datumT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::entryT>::type,
+                    typename hashT::entryT>::type entryT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::datumT>::type,
+                    typename hashT::datumT>::type datumT;
             typedef datumT value_type;
             typedef datumT* pointer;
             typedef datumT& reference;

@@ -38,15 +38,12 @@
 /// \file worldam.h
 /// \brief Implements active message layer for World on top of RMI layer
 
-#include <vector>
 #include <world/bufar.h>
 #include <world/worldrmi.h>
+#include <vector>
+#include <cstddef>
 
 namespace madness {
-//    using archive::BufferOutputArchive;
-//    using archive::BufferInputArchive;
-//    using archive::bufar_size;
-
 
     /*
       The RMI layer just does transport and does not know about World
@@ -89,7 +86,7 @@ namespace madness {
         friend AmArg* alloc_am_arg(std::size_t nbyte);
 
         unsigned char header[RMI::HEADER_LEN]; // !!!!!!!!!  MUST BE FIRST !!!!!!!!!!
-        size_t nbyte;                   // Size of user payload
+        std::size_t nbyte;              // Size of user payload
         mutable unsigned long worldid;  // Id of associated world
         mutable am_handlerT func;       // User function to call
         mutable ProcessID src;          // Rank of process sending the message
@@ -108,7 +105,7 @@ namespace madness {
 
         void set_func(am_handlerT handler) const { func = handler; }
 
-        void set_size(size_t numbyte) { nbyte = numbyte; }
+        void set_size(std::size_t numbyte) { nbyte = numbyte; }
 
         void set_pending() const { flags |= 0x1ul; }
 
@@ -129,7 +126,7 @@ namespace madness {
         unsigned char* buf() const { return (unsigned char*)(this) + sizeof(AmArg); }
 
         /// Returns the size of the user's payload
-        size_t size() const { return nbyte; }
+        std::size_t size() const { return nbyte; }
 
         /// Used to deserialize arguments from incoming message
         template <typename T>
@@ -153,7 +150,7 @@ namespace madness {
 
     /// Allocates a new AmArg with nbytes of user data ... delete with free_am_arg
     inline AmArg* alloc_am_arg(std::size_t nbyte) {
-        size_t narg = 1 + (nbyte+sizeof(AmArg)-1)/sizeof(AmArg);
+        std::size_t narg = 1 + (nbyte+sizeof(AmArg)-1)/sizeof(AmArg);
         AmArg *arg = new AmArg[narg];
         arg->set_size(nbyte);
         return arg;
@@ -288,7 +285,7 @@ namespace madness {
         int get_free_send_request();
 
         /// This handles all incoming RMI messages for all instances
-        static void handler(void *buf, size_t nbyte);
+        static void handler(void *buf, std::size_t nbyte);
 
         /// Sends a non-blocking active message
         RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr, bool managed);

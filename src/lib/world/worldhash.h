@@ -63,7 +63,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::enable_if<std::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
         // Use heavily optimized hashword when sizeof(T) is multiple
         // of sizeof(hashT) and presumably correctly aligned.
@@ -80,7 +80,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::disable_if<std::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
         hashT h = Hash<T>::hash(t);
         if (initval) h = hashword(&h, 1, initval);
@@ -93,7 +93,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::enable_if<std::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
         // Use heavily optimized hashword when sizeof(T) is multiple
         // of sizeof(hashT)
@@ -114,7 +114,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::disable_if<std::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
         hashT sum=0;
         for (std::size_t i=0; i<n; i++) sum = hash(t[i],sum);

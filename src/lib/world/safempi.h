@@ -158,7 +158,7 @@ namespace SafeMPI {
         // !! Please ensure any additional routines follow this convention.
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
         Isend(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Isend(&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
@@ -173,7 +173,7 @@ namespace SafeMPI {
 
         /// Async receive datum from process dest with default tag=1
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
         Irecv(T& buf, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
         }
@@ -190,7 +190,7 @@ namespace SafeMPI {
 
         /// Disabled for pointers to reduce accidental misuse.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             Send((void*)&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
@@ -213,7 +213,7 @@ namespace SafeMPI {
 
         /// Receive datum from process src
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Recv(T& buf, int src, int tag=DEFAULT_SEND_RECV_TAG) const {
             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
         }
@@ -232,7 +232,7 @@ namespace SafeMPI {
 
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
             Bcast(&buffer, sizeof(T), MPI::BYTE,root);
         }

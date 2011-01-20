@@ -105,7 +105,7 @@ namespace madness {
 
     /// STL I/O already does char.
     template <typename T, std::size_t N>
-    typename disable_if<is_same<T,char>, std::ostream&>::type
+    typename disable_if<std::is_same<T,char>, std::ostream&>::type
     operator<<(std::ostream& s, const T(&v)[N]) {
         s << "[";
         for (std::size_t i=0; i<N; i++) {

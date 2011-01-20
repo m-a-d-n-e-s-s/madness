@@ -222,7 +222,7 @@
 /* define if std::tr1::shared_ptr is available. */
 #undef MADNESS_HAS_STD_TR1_SHARED_PTR
 
-/* define if std::tr1::shared_ptr is available. */
+/* define if std::tr1 type traits are available. */
 #undef MADNESS_HAS_STD_TR1_TYPE_TRAITS
 
 /* define if std type traits are available. */

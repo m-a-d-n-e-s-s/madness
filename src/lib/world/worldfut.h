@@ -110,17 +110,13 @@ which merely blows instead of sucking.
 
     /// \ingroup futures
     template <typename T>
-    struct is_future {
-        static const bool value = false;
-    };
+    struct is_future : public std::false_type { };
 
     /// Boost-type-trait-like testing of if a type is a future
 
     /// \ingroup futures
     template <typename T>
-    struct is_future< Future<T> > {
-        static const bool value = true;
-    };
+    struct is_future< Future<T> > : public std::true_type { };
 
     /// Boost-type-trait-like mapping of Future<T> to T
 

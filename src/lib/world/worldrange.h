@@ -119,15 +119,15 @@ namespace madness {
 
     private:
         template<typename integralT, typename distanceT>
-        inline static typename enable_if<is_integral<integralT>, void>::type
+        inline static typename enable_if<std::is_integral<integralT>, void>::type
         advance(integralT& i, distanceT n) { i += n; }
 
         template<typename iterT, typename distanceT>
-        inline static typename disable_if<is_integral<iterT>, void>::type
+        inline static typename disable_if<std::is_integral<iterT>, void>::type
         advance(iterT& it, distanceT n) { std::advance(it, n); }
 
         template<class integralT>
-        inline static typename enable_if<is_integral<integralT>, integralT>::type
+        inline static typename enable_if<std::is_integral<integralT>, integralT>::type
         distance(integralT first, integralT last) { return last - first; }
 
         template <class iterT>
@@ -136,7 +136,7 @@ namespace madness {
         };
 
         template<class iterT>
-        inline static typename lazy_disable_if<is_integral<iterT>, diff_type<iterT> >::type
+        inline static typename lazy_disable_if<std::is_integral<iterT>, diff_type<iterT> >::type
         distance(iterT first, iterT last) { return std::distance(first, last); }
     };
 
