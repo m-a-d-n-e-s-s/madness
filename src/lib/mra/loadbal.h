@@ -47,7 +47,7 @@
 #include <mra/funcimpl.h>
 
 namespace madness {
-    template <typename T, int NDIM> class FunctionImpl;
+    template <typename T, std::size_t NDIM> class FunctionImpl;
 
     typedef unsigned long Cost;
     typedef double CompCost;

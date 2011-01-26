@@ -29,7 +29,7 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
     AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
   fi
   if test "$acx_cv_std_shard_ptr$acx_cv_std_tr1_shard_ptr" = nono; then
-    AC_MSG_ERROR([Unable to find std::shared_ptr or std::tr1::shared_ptr. Reconfigure Madness with --with-boost option.])
+    AC_MSG_ERROR([std::shared_ptr and std::tr1::shared_ptr are not supported. Reconfigure Madness to use Boost with the --with-boost option.])
   fi
 ])
 
@@ -85,14 +85,50 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
     AC_DEFINE([MADNESS_HAS_STD_TR1_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
   fi
   if test "$acx_cv_std_type_traits$acx_cv_std_tr1_type_traits" = nono; then
-    AC_MSG_ERROR([Unable to find std or std::tr1 type traits. Reconfigure Madness with --with-boost option.])
+    AC_MSG_ERROR([std and std::tr1 type traits are not supported. Reconfigure Madness to use Boost with the --with-boost option.])
   fi
   
   AC_LANG_RESTORE
+])
+
+AC_DEFUN([ACX_CHECK_ARRAY], [
+  AC_CACHE_CHECK([for std::array], [acx_cv_std_array], [
+    AC_LANG_SAVE
+    AC_LANG([C++])
+    AC_TRY_COMPILE(
+      [#include <array>],
+      [std::array<int, 3> a;],
+      [acx_cv_std_array=yes],
+      [acx_cv_std_array=no]
+    )
+    AC_LANG_RESTORE
+  ])
+  if test "$acx_cv_std_array" = yes; then
+    AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::array is available.])
+  fi
+  
+  AC_CACHE_CHECK([for std::tr1::array], [acx_cv_std_tr1_array], [
+    AC_LANG_SAVE
+    AC_LANG_CPLUSPLUS
+    AC_TRY_COMPILE(
+      [#include <array>],
+      [std::tr1::array<int, 3> a;],
+      [acx_cv_std_tr1_array=yes],
+      [acx_cv_std_tr1_array=no]
+    )
+    AC_LANG_RESTORE
+  ])
+  if test "$acx_cv_std_tr1_array" = yes; then
+    AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])
+  fi
+  if test "$acx_cv_std_array$acx_cv_std_tr1_array" = nono; then
+    AC_MSG_ERROR([std::array and std::tr1::array are not supported. Reconfigure Madness to use Boost with the --with-boost option.])
+  fi
 ])
 
 AC_DEFUN([ACX_CHECK_TR1],
 [
   ACX_CHECK_SHARED_PTR
   ACX_CHECK_TYPE_TRAITS
+  ACX_CHECK_ARRAY
 ])

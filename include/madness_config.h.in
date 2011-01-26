@@ -216,8 +216,14 @@
 /* Define if should use libunwind for Google performance tools */
 #undef MADNESS_HAS_LIBUNWIND
 
+/* define if std::array is available. */
+#undef MADNESS_HAS_STD_ARRAY
+
 /* define if std::shared_ptr is available. */
 #undef MADNESS_HAS_STD_SHARED_PTR
+
+/* define if std::tr1::array is available. */
+#undef MADNESS_HAS_STD_TR1_ARRAY
 
 /* define if std::tr1::shared_ptr is available. */
 #undef MADNESS_HAS_STD_TR1_SHARED_PTR

@@ -44,7 +44,7 @@
 
 namespace madness {
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {
         typedef Key<NDIM> keyT;
         typedef std::pair<keyT,ProcessID> pairT;
@@ -54,7 +54,7 @@ namespace madness {
 
     public:
         LBDeuxPmap(const std::vector<pairT>& v) {
-            for (unsigned int i=0; i<v.size(); i++) {
+            for (unsigned int i=0; i<v.size(); ++i) {
                 map.insert(v[i]);
             }
         }
@@ -82,7 +82,7 @@ namespace madness {
 
 
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     class LBNodeDeux {
         static const int nchild = (1<<NDIM);
         typedef Key<NDIM> keyT;
@@ -97,14 +97,14 @@ namespace madness {
         /// Computes index of child key in this node using last bit of translations
         int index(const keyT& key) {
             int ind = 0;
-            for (int d=0; d<NDIM; d++) ind += ((key.translation()[d])&0x1) << d;
+            for (std::size_t d=0; d<NDIM; ++d) ind += ((key.translation()[d])&0x1) << d;
             return ind;
         }
 
     public:
         LBNodeDeux()
                 : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
-            for (int i=0; i<nchild; i++) child_cost[i] = 0.0;
+            for (int i=0; i<nchild; ++i) child_cost[i] = 0.0;
         }
 
         bool has_children() const {
@@ -127,7 +127,7 @@ namespace madness {
             child_cost[index(child)] = value;
             nsummed++;
             if (nsummed == nchild) {
-                for (int i=0; i<nchild; i++) total_cost += child_cost[i];
+                for (int i=0; i<nchild; ++i) total_cost += child_cost[i];
                 if (child.level() > 1) {
                     keyT key = child.parent();
                     keyT parent = key.parent();
@@ -165,8 +165,8 @@ namespace madness {
                     keys[ind] = child;
                     vals[ind] = child_cost[ind];
                 }
-                for (int i=0; i<nchild; i++) {
-                    for (int j=i+1; j<nchild; j++) {
+                for (int i=0; i<nchild; ++i) {
+                    for (int j=i+1; j<nchild; ++j) {
                         if (vals[i] < vals[j]) {
                             std::swap(vals[i],vals[j]);
                             std::swap(keys[i],keys[j]);
@@ -175,7 +175,7 @@ namespace madness {
                 }
 
                 // Split off subtrees in decreasing cost order
-                for (int i=0; i<nchild; i++) {
+                for (int i=0; i<nchild; ++i) {
                     if (total_cost <= avg) {
                         const_cast<treeT&>(tree).task(keys[i], &nodeT::deleter, tree, keys[i]);
                     }
@@ -195,7 +195,7 @@ namespace madness {
     };
 
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     class LoadBalanceDeux {
         typedef Key<NDIM> keyT;
         typedef LBNodeDeux<NDIM> nodeT;
@@ -263,7 +263,7 @@ namespace madness {
             Future<iteratorT> futit = tree.find(key);
             iteratorT it = futit.get();
             if (it != tree.end()) {
-                for (int i=0; i<key.level(); i++) std::cout << "  ";
+                for (int i=0; i<key.level(); ++i) std::cout << "  ";
                 print(key, it->second.get_total_cost());
 
                 if (it->second.has_children()) {
@@ -317,7 +317,7 @@ namespace madness {
                 std::sort(results.begin(), results.end(), compare);
                 if (printstuff) {
                     print("THESE ARE THE INITIAL SUBTREES");
-                    for (unsigned int i=0; i<results.size(); i++) print(i,results[i]);
+                    for (unsigned int i=0; i<results.size(); ++i) print(i,results[i]);
                 }
 
                 // Now use bin packing to cram the results together
@@ -326,7 +326,7 @@ namespace madness {
                 // Shove the first nproc entries directly into the queue
                 unsigned int nproc = world.size();
                 std::priority_queue<CostPerProc> costs;
-                for (unsigned int p=0; p<nproc && !results.empty(); p++) {
+                for (unsigned int p=0; p<nproc && !results.empty(); ++p) {
                     const std::pair<keyT,double>& f = results.back();
                     costs.push(CostPerProc(f.second,p));
                     map.push_back(std::make_pair(f.first,p));

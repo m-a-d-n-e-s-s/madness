@@ -41,7 +41,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -62,13 +62,13 @@ public:
     };
 };
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void squareit(const Key<NDIM>& key, Tensor<T>& t) {
     print("squareit", key,t);
     UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 *= *_p0);
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_unaryop(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;

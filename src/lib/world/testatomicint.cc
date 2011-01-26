@@ -100,10 +100,7 @@ int main() {
         sleep(1);
         cout << "SUM " << int(sum) << endl;
     }
-    catch (const char* e) {
-        cout << "string exception: " << e << endl;
-    }
-    catch (char const* e) {
+    catch (const char * e) {
         cout << "string exception: " << e << endl;
     }
 

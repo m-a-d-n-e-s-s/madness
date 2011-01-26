@@ -35,7 +35,7 @@
 
 namespace madness {
     /// Holds displacements for applying operators to avoid replicating for all operators
-    template <int NDIM>
+    template <std::size_t NDIM>
     class Displacements {
 
         static std::vector< Key<NDIM> > disp;
@@ -58,7 +58,7 @@ namespace madness {
             Translation twonm1 = (Translation(1)<<a.level())>>1;
 
             uint64_t suma=0, sumb=0;
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 Translation la = a.translation()[d];
                 if (la > twonm1) la -= twonm1*2;
                 if (la <-twonm1) la += twonm1*2;
@@ -77,7 +77,7 @@ namespace madness {
             Vector<Translation,NDIM> d(0);
 
             int num = 1;
-            for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
+            for (std::size_t i=0; i<NDIM; ++i) num *= (2*bmax + 1);
             disp.resize(num,Key<NDIM>(0));
 
             num = 0;
@@ -148,7 +148,7 @@ namespace madness {
             Vector<long,NDIM> lim(numb);
             for (IndexIterator index(lim); index; ++index) {
                 Vector<Translation,NDIM> d;
-                for (int i=0; i<NDIM; i++) {
+                for (std::size_t i=0; i<NDIM; ++i) {
                     d[i] = b[index[i]];
                 }
                 disp_periodicsum[n].push_back(Key<NDIM>(n,d));

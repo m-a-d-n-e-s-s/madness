@@ -126,7 +126,7 @@
 namespace madness {
 
     /// Compress a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void compress(World& world,
                   const std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
@@ -145,7 +145,7 @@ namespace madness {
 
 
     /// Reconstruct a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void reconstruct(World& world,
                      const std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
@@ -163,7 +163,7 @@ namespace madness {
 
 
     /// Generates non-standard form of a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void nonstandard(World& world,
                      std::vector< Function<T,NDIM> >& v,
                      bool fence=true) {
@@ -177,7 +177,7 @@ namespace madness {
 
 
     /// Generates standard form of a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void standard(World& world,
                   std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
@@ -190,7 +190,7 @@ namespace madness {
 
 
     /// Truncates a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void truncate(World& world,
                   std::vector< Function<T,NDIM> >& v,
                   double tol=0.0,
@@ -207,7 +207,7 @@ namespace madness {
     }
 
     /// Applies a derivative operator to a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     apply(World& world,
           const Derivative<T,NDIM>& D,
@@ -224,7 +224,7 @@ namespace madness {
     }
 
     /// Generates a vector of zero functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     zero_functions(World& world, int n) {
         PROFILE_BLOCK(Vzero_functions);
@@ -240,7 +240,7 @@ namespace madness {
 
     /// Uses sparsity in the transformation matrix --- set small elements to
     /// zero to take advantage of this.
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> >
     transform(World& world,
               const std::vector< Function<T,NDIM> >& v,
@@ -268,7 +268,7 @@ namespace madness {
     }
 
 
-    template <typename L, typename R, int NDIM>
+    template <typename L, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> >
     transform(World& world,  const std::vector< Function<L,NDIM> >& v, const Tensor<R>& c, double tol, bool fence) {
         PROFILE_BLOCK(Vtransform);
@@ -286,7 +286,7 @@ namespace madness {
     }
 
     /// Scales inplace a vector of functions by distinct values
-    template <typename T, typename Q, int NDIM>
+    template <typename T, typename Q, std::size_t NDIM>
     void scale(World& world,
                std::vector< Function<T,NDIM> >& v,
                const std::vector<Q>& factors,
@@ -297,7 +297,7 @@ namespace madness {
     }
 
     /// Computes the 2-norms of a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector<double> norm2s(World& world,
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
@@ -310,7 +310,7 @@ namespace madness {
     }
 
     /// Computes the 2-norm of a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     double norm2(World& world,
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
@@ -331,7 +331,7 @@ namespace madness {
     }
 
 
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     struct MatrixInnerTask : public TaskInterface {
         Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
         const Function<T,NDIM>& f;
@@ -357,7 +357,7 @@ namespace madness {
     /// For complex types symmetric is interpreted as Hermitian.
     ///
     /// The current parallel loop is non-optimal but functional.
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > matrix_inner(World& world,
             const std::vector< Function<T,NDIM> >& f,
             const std::vector< Function<R,NDIM> >& g,
@@ -399,7 +399,7 @@ namespace madness {
     }
 
     /// Computes the element-wise inner product of two function vectors - q(i) = inner(f[i],g[i])
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const std::vector< Function<T,NDIM> >& f,
                                             const std::vector< Function<R,NDIM> >& g) {
@@ -423,7 +423,7 @@ namespace madness {
 
 
     /// Computes the inner product of a function with a function vector - q(i) = inner(f,g[i])
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     Tensor< TENSOR_RESULT_TYPE(T,R) > inner(World& world,
                                             const Function<T,NDIM>& f,
                                             const std::vector< Function<R,NDIM> >& g) {
@@ -446,7 +446,7 @@ namespace madness {
 
 
     /// Multiplies a function against a vector of functions --- q[i] = a * v[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
         const Function<T,NDIM>& a,
@@ -460,7 +460,7 @@ namespace madness {
     }
 
     /// Multiplies a function against a vector of functions using sparsity of a and v[i] --- q[i] = a * v[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul_sparse(World& world,
                const Function<T,NDIM>& a,
@@ -479,7 +479,7 @@ namespace madness {
     }
 
     /// Makes the norm tree for all functions in a vector
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void norm_tree(World& world,
                    const std::vector< Function<T,NDIM> >& v,
                    bool fence=true)
@@ -492,7 +492,7 @@ namespace madness {
     }
 
     /// Multiplies two vectors of functions q[i] = a[i] * b[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     mul(World& world,
         const std::vector< Function<T,NDIM> >& a,
@@ -513,7 +513,7 @@ namespace madness {
 
 
     /// Computes the square of a vector of functions --- q[i] = v[i]**2
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     square(World& world,
            const std::vector< Function<T,NDIM> >& v,
@@ -529,7 +529,7 @@ namespace madness {
 
 
     /// Sets the threshold in a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true) {
         for (unsigned int j=0; j<v.size(); j++) {
             v[j].set_thresh(thresh,false);
@@ -538,7 +538,7 @@ namespace madness {
     }
 
     /// Returns the complex conjugate of the vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     conj(World& world,
          const std::vector< Function<T,NDIM> >& v,
@@ -554,7 +554,7 @@ namespace madness {
 
 
     /// Returns a deep copy of a vector of functions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     copy(World& world,
          const std::vector< Function<T,NDIM> >& v,
@@ -569,7 +569,7 @@ namespace madness {
     }
 
    /// Returns a vector of deep copies of of a function
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< Function<T,NDIM> >
     copy(World& world,
          const Function<T,NDIM>& v,
@@ -585,7 +585,7 @@ namespace madness {
     }
 
     /// Returns new vector of functions --- q[i] = a[i] + b[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     add(World& world,
         const std::vector< Function<T,NDIM> >& a,
@@ -605,7 +605,7 @@ namespace madness {
     }
 
      /// Returns new vector of functions --- q[i] = a + b[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     add(World& world,
         const Function<T,NDIM> & a,
@@ -622,7 +622,7 @@ namespace madness {
         if (fence) world.gop.fence();
         return r;
     }
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     inline std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     add(World& world,
         const std::vector< Function<R,NDIM> >& b,
@@ -632,7 +632,7 @@ namespace madness {
     }
 
     /// Returns new vector of functions --- q[i] = a[i] - b[i]
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     sub(World& world,
         const std::vector< Function<T,NDIM> >& a,
@@ -653,7 +653,7 @@ namespace madness {
 
 
     /// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i]
-    template <typename T, typename Q, typename R, int NDIM>
+    template <typename T, typename Q, typename R, std::size_t NDIM>
     void gaxpy(World& world,
                Q alpha,
                std::vector< Function<T,NDIM> >& a,
@@ -673,7 +673,7 @@ namespace madness {
 
 
     /// Applies a vector of operators to a vector of functions --- q[i] = apply(op[i],f[i])
-    template <typename opT, typename R, int NDIM>
+    template <typename opT, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> >
     apply(World& world,
           const std::vector< std::shared_ptr<opT> >& op,
@@ -703,7 +703,7 @@ namespace madness {
 
 
     /// Applies an operator to a vector of functions --- q[i] = apply(op,f[i])
-    template <typename T, typename R, int NDIM>
+    template <typename T, typename R, std::size_t NDIM>
     std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> >
     apply(World& world,
           const SeparatedConvolution<T,NDIM>& op,
@@ -729,7 +729,7 @@ namespace madness {
     }
 
     /// Normalizes a vector of functions --- v[i] = v[i].scale(1.0/v[i].norm2())
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void normalize(World& world, std::vector< Function<T,NDIM> >& v, bool fence=true) {
         PROFILE_BLOCK(Vnormalize);
         std::vector<double> nn = norm2s(world, v);

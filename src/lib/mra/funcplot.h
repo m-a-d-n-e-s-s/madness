@@ -61,7 +61,7 @@ namespace madness {
     ///
     /// To select the real/imaginary/absolute value of a complex number insert a compute
     /// element after the import.
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void plotdx(const Function<T,NDIM>& f,
                 const char* filename,
                 const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell(),
@@ -91,7 +91,7 @@ namespace madness {
     ///
     /// NOTE: Paraview expects the structured mesh points in a particular
     /// order, which is why the LowDimIndexIterator is used...
-    template<int NDIM>
+    template<std::size_t NDIM>
     void plotvtk_begin(World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
         const Vector<long, NDIM> &npt, bool binary = false) {
@@ -100,7 +100,7 @@ namespace madness {
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // how do we plot data in more than 3-D?
 
         Tensor<double> cell(NDIM, 2);
-        int i;
+        std::size_t i;
         for(i = 0; i < NDIM; ++i) {
             cell(i, 0) = plotlo[i];
             cell(i, 1) = plothi[i];
@@ -170,7 +170,7 @@ namespace madness {
 
     /// This templated function won't do anything except print a warning
     /// message.  Specialized versions of this function should be used.
-    template<typename T, int NDIM>
+    template<typename T, std::size_t NDIM>
     void plotvtk_data(const T &function, const char *fieldname, World &world,
         const char *filename, const Vector<double, NDIM> &plotlo,
         const Vector<double, NDIM> &plothi, const Vector<long, NDIM> &npt,
@@ -183,7 +183,7 @@ namespace madness {
 
     /// Set plot_refine=true to get a plot of the refinement levels of
     /// the given function.
-    template<typename T, int NDIM>
+    template<typename T, std::size_t NDIM>
     void plotvtk_data(const Function<T, NDIM> &function, const char *fieldname,
         World &world, const char *filename, const Vector<double, NDIM> &plotlo,
         const Vector<double, NDIM> &plothi, const Vector<long, NDIM> &npt,
@@ -193,7 +193,7 @@ namespace madness {
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
         Tensor<double> cell(NDIM, 2);
-        int i;
+        std::size_t i;
         for(i = 0; i < NDIM; ++i) {
             cell(i, 0) = plotlo[i];
             cell(i, 1) = plothi[i];
@@ -236,7 +236,7 @@ namespace madness {
     /// (Y) component is the imaginary part.
     /// Set plot_refine=true to get a plot of the refinement levels of
     /// the given function.
-    template<typename T, int NDIM>
+    template<typename T, std::size_t NDIM>
     void plotvtk_data(const Function<std::complex<T>, NDIM> &function,
         const char *fieldname, World &world, const char *filename,
         const Vector<double, NDIM> &plotlo, const Vector<double, NDIM> &plothi,
@@ -251,7 +251,7 @@ namespace madness {
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3); // no plotting high-D functions, yet...
 
         Tensor<double> cell(NDIM, 2);
-        int i;
+        std::size_t i;
         for(i = 0; i < NDIM; ++i) {
             cell(i, 0) = plotlo[i];
             cell(i, 1) = plothi[i];
@@ -293,7 +293,7 @@ namespace madness {
     //
     /// @param world World communicator
     /// @param binary (Optional) Boolean indicating whether to print in binary
-    template<int NDIM>
+    template<std::size_t NDIM>
     void plotvtk_end(World &world, const char *filename, bool binary = false) {
         PROFILE_FUNC;
         MADNESS_ASSERT(NDIM>=1 && NDIM<=3);
@@ -381,21 +381,21 @@ namespace madness {
     /// Generates ASCII file tabulating f(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
 
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
         sum = sqrt(sum);
 
         World& world = f.world();
         f.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
@@ -409,14 +409,14 @@ namespace madness {
     /// Generates ASCII file tabulating f(r) and g(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
-    template <typename T, typename U, int NDIM>
+    template <typename T, typename U, std::size_t NDIM>
     void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f, const Function<U,NDIM>& g) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
 
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
         sum = sqrt(sum);
 
         World& world = f.world();
@@ -424,7 +424,7 @@ namespace madness {
         g.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
@@ -440,14 +440,14 @@ namespace madness {
     /// Generates ASCII file tabulating f(r), g(r), and a(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
-    template <typename T, typename U, typename V, int NDIM>
+    template <typename T, typename U, typename V, std::size_t NDIM>
     void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f, const Function<U,NDIM>& g, const Function<V,NDIM>& a) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
 
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
         sum = sqrt(sum);
 
         World& world = f.world();
@@ -456,7 +456,7 @@ namespace madness {
         a.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));
@@ -472,14 +472,14 @@ namespace madness {
     /// Generates ASCII file tabulating f(r), g(r), a(r), b(r) at npoints along line r=lo,...,hi
 
     /// The ordinate is distance from lo
-    template <typename T, typename U, typename V, typename W, int NDIM>
+    template <typename T, typename U, typename V, typename W, std::size_t NDIM>
     void plot_line(const char* filename, int npt, const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi,
                    const Function<T,NDIM>& f, const Function<U,NDIM>& g, const Function<V,NDIM>& a, const Function<W,NDIM>& b) {
         typedef Vector<double,NDIM> coordT;
         coordT h = (hi - lo)*(1.0/(npt-1));
 
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) sum += h[i]*h[i];
+        for (std::size_t i=0; i<NDIM; ++i) sum += h[i]*h[i];
         sum = sqrt(sum);
 
         World& world = f.world();
@@ -489,7 +489,7 @@ namespace madness {
         b.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
                 plot_line_print_value(file, f.eval(r));

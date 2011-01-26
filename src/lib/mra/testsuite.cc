@@ -48,7 +48,7 @@ const double PI = 3.1415926535897932384;
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct lbcost {
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
         return 1.0;
@@ -69,7 +69,7 @@ template <> float_complex complexify<float_complex>(float_complex c) {
 }
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -82,7 +82,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -90,7 +90,7 @@ public:
     };
 };
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class DerivativeGaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -107,7 +107,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -128,12 +128,12 @@ inline T sum(L l, R r) {
 
 
 /// Makes a square-normalized Gaussian with random origin and exponent
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 Gaussian<T,NDIM>*
 RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
     typedef Vector<double,NDIM> coordT;
     coordT origin;
-    for (int i=0; i<NDIM; i++) {
+    for (std::size_t i=0; i<NDIM; ++i) {
         origin[i] = RandomValue<double>()*(cell(i,1)-cell(i,0)) + cell(i,0);
     }
     double lo = log(0.1);
@@ -145,7 +145,7 @@ RandomGaussian(const Tensor<double> cell, double expntmax=1e5) {
 }
 
 /// Returns a new functor combining two functors via operation op(left,right)
-template <typename resultT, typename L, typename R, typename opT, int NDIM>
+template <typename resultT, typename L, typename R, typename opT, std::size_t NDIM>
 class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<L,NDIM> > functorL;
@@ -179,7 +179,7 @@ double ttt, sss;
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_basic(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
@@ -190,7 +190,7 @@ void test_basic(World& world) {
               archive::get_type_name<T>(),", ndim =",NDIM);
 
     Tensor<double> cell(NDIM,2);
-    for (int i=0; i<NDIM; i++) {
+    for (std::size_t i=0; i<NDIM; ++i) {
         cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
         cell(i,1) =  10.0+i;
     }
@@ -207,7 +207,7 @@ void test_basic(World& world) {
 
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
-    for (int i=0; i<NDIM; i++) point[i] = 0.1*i;
+    for (std::size_t i=0; i<NDIM; ++i) point[i] = 0.1*i;
 
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
@@ -244,7 +244,7 @@ void test_basic(World& world) {
     if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_conv(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -278,7 +278,7 @@ void test_conv(World& world) {
     if (world.rank() == 0) print("test conv OK\n\n");
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct myunaryop {
     typedef T resultT;
     Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const {
@@ -288,7 +288,7 @@ struct myunaryop {
     void serialize(Archive& ar) {}
 };
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct myunaryop_square {
     typedef T resultT;
     Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const {
@@ -303,7 +303,7 @@ struct myunaryop_square {
     void serialize(Archive& ar) {}
 };
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_math(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
@@ -552,7 +552,7 @@ void test_math(World& world) {
 }
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_diff(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -592,7 +592,7 @@ void test_diff(World& world) {
     END_TIMER("reconstruct");
 
 
-    for (int axis=0; axis<NDIM; axis++) {
+    for (std::size_t axis=0; axis<NDIM; ++axis) {
         if (world.rank() == 0) print("doing axis", axis);
         Derivative<T,NDIM> D(world, axis);
 
@@ -626,7 +626,7 @@ namespace madness {
     extern bool test_rnlp();
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_op(World& world) {
 
     test_rnlp();
@@ -1039,7 +1039,7 @@ void test_qm(World& world) {
     return;
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_plot(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
@@ -1090,7 +1090,7 @@ void test_plot(World& world) {
     if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_io(World& world) {
     if (world.rank() == 0) {
         print("\nTest IO - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
@@ -1134,7 +1134,7 @@ void test_io(World& world) {
     world.gop.fence();
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_apply_push_1d(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;

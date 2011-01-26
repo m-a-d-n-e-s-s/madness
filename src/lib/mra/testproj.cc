@@ -42,7 +42,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -55,7 +55,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };

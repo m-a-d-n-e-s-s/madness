@@ -54,11 +54,11 @@ namespace madness {
     /// Tri-diagonal operator traversing tree primarily for derivative operator
 
     /// \ingroup mra
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     class DerivativeBase : public WorldObject< DerivativeBase<T, NDIM> > {
     protected:
         World& world;
-        const int axis      ;  // Axis along which the operation is performed
+        const std::size_t axis      ;  // Axis along which the operation is performed
         const int k         ;  // Number of wavelets of the function
         const BoundaryConditions<NDIM> bc;
         const std::vector<long> vk; ///< (k,...) used to initialize Tensors
@@ -75,7 +75,7 @@ namespace madness {
         typedef FunctionNode<T,NDIM> nodeT;
 
 
-        DerivativeBase(World& world, int axis, int k, BoundaryConditions<NDIM> bc)
+        DerivativeBase(World& world, std::size_t axis, int k, BoundaryConditions<NDIM> bc)
             : WorldObject< DerivativeBase<T, NDIM> >(world)
             , world(world)
             , axis(axis)
@@ -121,7 +121,7 @@ namespace madness {
                       const std::pair<keyT,tensorT>& left,
                       const std::pair<keyT,tensorT>& center,
                       const std::pair<keyT,tensorT>& right) const {
-            MADNESS_ASSERT(axis>=0 && axis<NDIM);
+            MADNESS_ASSERT(axis<NDIM);
 
             if (left.second.size()==0 || right.second.size()==0) {
                 // One of the neighbors is below us in the tree ... recur down
@@ -241,7 +241,7 @@ namespace madness {
 
 
     /// Implements derivatives operators with variety of boundary conditions on simulation domain
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     class Derivative : public DerivativeBase<T, NDIM> {
     public:
         typedef Tensor<T>               tensorT  ;
@@ -490,7 +490,7 @@ namespace madness {
                 else
                     bv_right(i) = 0.0;
             }
-            
+
             //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
 
@@ -506,7 +506,7 @@ namespace madness {
         /// @param g2 Function providing right boundary value (default empty)
         /// @param k Wavelet order (default from FunctionDefaults)
         Derivative(World& world,
-                   int axis,
+                   std::size_t axis,
                    const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                    const functionT g1=functionT(),
                    const functionT g2=functionT(),
@@ -515,7 +515,7 @@ namespace madness {
             , g1(g1)
             , g2(g2)
         {
-            MADNESS_ASSERT(0<=axis && axis<NDIM);
+            MADNESS_ASSERT(axis<NDIM);
             initCoefficients();
             g1.reconstruct();
             g2.reconstruct();
@@ -526,7 +526,7 @@ namespace madness {
 
 
     /// Convenience function returning derivative operator with free-space boundary conditions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Derivative<T,NDIM>
     free_space_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
         return Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_FREE), Function<T,NDIM>(), Function<T,NDIM>(), k);
@@ -534,14 +534,14 @@ namespace madness {
 
 
     /// Conveinence function returning derivative operator with periodic boundary conditions
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Derivative<T,NDIM>
     periodic_derivative(World& world, int axis, int k=FunctionDefaults<NDIM>::get_k()) {
         return Derivative<T, NDIM>(world, axis, BoundaryConditions<NDIM>(BC_PERIODIC), Function<T,NDIM>(), Function<T,NDIM>(), k);
     }
 
     /// Applies derivative operator to function (for syntactic equivalence to integral operator apply)
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Function<T,NDIM>
     apply(const Derivative<T,NDIM>& D, const Function<T,NDIM>& f, bool fence=true) {
         return D(f,fence);
@@ -552,13 +552,13 @@ namespace madness {
     /// This will only work for BC_ZERO, BC_PERIODIC, BC_FREE and
     /// BC_ZERONEUMANN since we are not passing in any boundary
     /// functions.
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::vector< std::shared_ptr< Derivative<T,NDIM> > >
     gradient_operator(World& world,
                       const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                       int k = FunctionDefaults<NDIM>::get_k()) {
         std::vector< std::shared_ptr< Derivative<T,NDIM> > > r(NDIM);
-        for (int d=0; d<NDIM; d++) {
+        for (std::size_t d=0; d<NDIM; ++d) {
             MADNESS_ASSERT(bc(d,0)!=BC_DIRICHLET && bc(d,1)!=BC_DIRICHLET);
             MADNESS_ASSERT(bc(d,0)!=BC_NEUMANN   && bc(d,1)!=BC_NEUMANN);
             r[d].reset(new Derivative<T,NDIM>(world,d,bc,Function<T,NDIM>(),Function<T,NDIM>(),k));
@@ -568,7 +568,7 @@ namespace madness {
 
 
     namespace archive {
-        template <class Archive, class T, int NDIM>
+        template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const DerivativeBase<T,NDIM>*> {
             static void load(const Archive& ar, const DerivativeBase<T,NDIM>*& ptr) {
                 WorldObject< DerivativeBase<T,NDIM> >* p;
@@ -577,7 +577,7 @@ namespace madness {
             }
         };
 
-        template <class Archive, class T, int NDIM>
+        template <class Archive, class T, std::size_t NDIM>
         struct ArchiveStoreImpl<Archive,const DerivativeBase<T,NDIM>*> {
             static void store(const Archive& ar, const DerivativeBase<T,NDIM>* const & ptr) {
                 ar & ptr->id();

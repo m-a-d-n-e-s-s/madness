@@ -45,7 +45,7 @@ namespace {
 
     TEST(VectorTest, InitializerWorks) {
         madness::Vector<double,33> v(1.0);
-        for (int i=0; i<v.size(); i++) {
+        for (std::size_t i=0; i<v.size(); ++i) {
             EXPECT_EQ(1.0, v[i]);
         }
     }

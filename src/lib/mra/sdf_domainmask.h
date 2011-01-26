@@ -70,7 +70,7 @@ namespace madness {
         \c NDIM is the dimensionality of the coordinate space.
 
         \ingroup mrabcint */
-    template <int NDIM>
+    template <std::size_t NDIM>
     class SignedDFInterface {
     public:
         /** \brief Returns the signed distance from the surface,
@@ -154,7 +154,7 @@ namespace madness {
         can toggle between the other options.
 
         \ingroup mrabcint */
-    template <int NDIM>
+    template <std::size_t NDIM>
     class DomainMaskSDFFunctor : public FunctionFunctorInterface<double,NDIM> {
 
     private:
@@ -248,19 +248,19 @@ namespace madness {
         virtual ~DomainMaskSDFFunctor() {}
     };
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     const int DomainMaskSDFFunctor<NDIM>::MASK = 1;
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     const int DomainMaskSDFFunctor<NDIM>::MASK_COMPLEMENT = 2;
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     const int DomainMaskSDFFunctor<NDIM>::DMASK = 3;
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     const int DomainMaskSDFFunctor<NDIM>::SURFACE = 4;
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     const int DomainMaskSDFFunctor<NDIM>::DSURFACE = 5;
 
     /** \brief Provides the Li-Lowengrub-Ratz-Voight (LLRV) domain mask

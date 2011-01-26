@@ -132,7 +132,7 @@ namespace madness {
         return new GenericConvolution1D<double_complex,BandlimitedPropagator>(k,BandlimitedPropagator(bandlimit,timestep,width),0);
     }
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     SeparatedConvolution<double_complex,NDIM>
     qm_free_particle_propagator(World& world, int k, double bandlimit, double timestep) {
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal
@@ -141,7 +141,7 @@ namespace madness {
         return SeparatedConvolution<double_complex,NDIM>(world, q, BoundaryConditions<NDIM>(BC_FREE), k, true);
     }
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     SeparatedConvolution<double_complex,NDIM>*
     qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep) {
         double width = FunctionDefaults<NDIM>::get_cell_min_width(); // Assuming cubic so all dim equal

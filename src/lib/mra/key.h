@@ -48,14 +48,14 @@ namespace madness {
     //     // this has problems when nproc is a large-ish power of 2 such as 256
     //     // and leads to bad data distribution.
     //     static inline unsigned int sdbm(int n, const unsigned char* c, unsigned int sum=0) {
-    //         for (int i=0; i<n; i++) sum = c[i] + (sum << 6) + (sum << 16) - sum;
+    //         for (int i=0; i<n; ++i) sum = c[i] + (sum << 6) + (sum << 16) - sum;
     //         return sum;
     //     }
 
     typedef int64_t Translation;
     typedef int Level;
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     class KeyChildIterator;
 
     /// Key is the index for a node of the 2^NDIM-tree
@@ -63,7 +63,7 @@ namespace madness {
     /// See KeyChildIterator for facile generation of children,
     /// and foreach_child(parent,op) for facile applicaiton of operators
     /// to child keys.
-    template<int NDIM>
+    template<std::size_t NDIM>
     class Key {
         friend class KeyChildIterator<NDIM> ;
     private:
@@ -84,7 +84,7 @@ namespace madness {
         int
         encode(int dig) const {
             int retval = 0;
-            for (int j = 0; j < NDIM; j++) {
+            for (std::size_t j = 0; j < NDIM; ++j) {
                 // retval += ((l[j]/2^{n-1-dig}) mod 2) * 2^j
                 retval += ((l[j] >> (n - 1 - dig)) % 2) << j;
             }
@@ -96,11 +96,11 @@ namespace madness {
         Vector<Translation, NDIM>
         decode(Level level, Translation k) const {
             Vector<Translation, NDIM> L(0);
-            int twotoD = power<NDIM> ();
+            int twotoD = power<static_cast<int>(NDIM)> ();
             int powr = 1, divisor = 2;
-            for (Level i = 0; i < level; i++) {
+            for (Level i = 0; i < level; ++i) {
                 Translation r = k % twotoD;
-                for (int j = 0; j < NDIM; j++) {
+                for (int j = 0; j < NDIM; ++j) {
                     L[NDIM - j - 1] += (r % divisor) * powr;
                     r /= divisor;
                 }
@@ -196,7 +196,7 @@ namespace madness {
                 nmin = this->n;
             }
 
-            for (Level i = 0; i < nmin; i++) {
+            for (Level i = 0; i < nmin; ++i) {
                 int tthis = this->encode(i), tother = other.encode(i);
                 if (tthis != tother) {
                     return (tthis < tother);
@@ -232,7 +232,7 @@ namespace madness {
         uint64_t
         distsq() const {
             uint64_t dist = 0;
-            for (int d = 0; d < NDIM; d++) {
+            for (std::size_t d = 0; d < NDIM; ++d) {
                 dist += l[d] * l[d];
             }
             return dist;
@@ -252,7 +252,7 @@ namespace madness {
             Vector<Translation, NDIM> pl;
             if (generation > n)
                 generation = n;
-            for (int i = 0; i < NDIM; i++)
+            for (std::size_t i = 0; i < NDIM; ++i)
                 pl[i] = l[i] >> generation;
             return Key(n - generation, pl);
         }
@@ -284,14 +284,14 @@ namespace madness {
         /// Assumes key and this are at the same level
         bool
         is_neighbor_of(const Key& key) const {
-        	for (int i=0; i<NDIM; i++) {
+        	for (std::size_t i=0; i<NDIM; ++i) {
         		if (std::abs(l[i]-key.l[i]) > 1) return false;
         	}
 			return true;
         }
     };
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     struct KeyHash {
         std::size_t
         operator()(const Key<NDIM>& t) const {
@@ -299,7 +299,7 @@ namespace madness {
         }
     };
 
-    template<int NDIM>
+    template<std::size_t NDIM>
     std::ostream&
     operator<<(std::ostream& s, const Key<NDIM>& key) {
         s << "(" << key.level() << "," << key.translation() << ")";
@@ -312,7 +312,7 @@ namespace madness {
     /// \code
     ///    for (KeyChildIterator<NDIM> it(key); it; ++it) print(it.key());
     /// \endcode
-    template<int NDIM>
+    template<std::size_t NDIM>
     class KeyChildIterator {
         Key<NDIM> parent;
         Key<NDIM> child;
@@ -334,12 +334,12 @@ namespace madness {
         operator++() {
             if (finished)
                 return *this;
-            int i;
-            for (i = 0; i < NDIM; i++) {
+            std::size_t i;
+            for (i = 0; i < NDIM; ++i) {
                 if (p[i] == 0) {
                     p[i]++;
                     child.l[i]++;
-                    for (int j = 0; j < i; j++) {
+                    for (std::size_t j = 0; j < i; ++j) {
                         p[j]--;
                         child.l[j]--;
                     }
@@ -370,7 +370,7 @@ namespace madness {
     };
 
     /// Applies op(key) to each child key of parent
-    template<int NDIM, typename opT>
+    template<std::size_t NDIM, typename opT>
     inline void
     foreach_child(const Key<NDIM>& parent, opT& op) {
         for (KeyChildIterator<NDIM>
@@ -379,7 +379,7 @@ namespace madness {
     }
 
     /// Applies member function of obj to each child key of parent
-    template<int NDIM, typename objT>
+    template<std::size_t NDIM, typename objT>
     inline void
     foreach_child(const Key<NDIM>& parent, objT* obj, void
                   (objT::*memfun)(const Key<NDIM>&)) {

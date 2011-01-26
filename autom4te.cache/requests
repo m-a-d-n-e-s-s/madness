@@ -110,6 +110,7 @@
                         'ACX_CRAYXT' => 1,
                         '_AC_AM_CONFIG_HEADER_HOOK' => 1,
                         'AU_DEFUN' => 1,
+                        'ACX_CHECK_ARRAY' => 1,
                         'AM_MAKE_INCLUDE' => 1
                       }
                     ], 'Autom4te::Request' ),

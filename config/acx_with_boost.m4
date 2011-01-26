@@ -22,6 +22,8 @@ AC_DEFUN([ACX_WITH_BOOST],
           [AC_MSG_ERROR([Unable to find the Boost TR1 memory header file.])])
         AC_CHECK_HEADER([boost/tr1/tr1/type_traits], [],
           [AC_MSG_ERROR([Unable to find the Boost TR1 type_traits header file.])])
+        AC_CHECK_HEADER([boost/tr1/tr1/array], [],
+          [AC_MSG_ERROR([Unable to find the Boost TR1 array header file.])])
     ;;
   esac
   ], [acx_with_boost="no"])

@@ -42,7 +42,7 @@ const double PI = 3.1415926535897932384;
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class GaussianFunctor : public FunctionFunctorInterface<T,NDIM> {
 private:
     typedef Vector<double,NDIM> coordT;
@@ -103,7 +103,7 @@ public:
 
 /// Returns a new functor combining two functors via operation op(left,right)
 
-template <typename resultT, typename L, typename R, typename opT, int NDIM>
+template <typename resultT, typename L, typename R, typename opT, std::size_t NDIM>
 class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<L,NDIM> > functorL;
@@ -127,12 +127,12 @@ double ttt, sss;
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s   %.6e   %.6e\n", msg, sss, ttt)
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 Cost a_cost_function(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
     return 1;
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -296,7 +296,7 @@ void print_results(Vector<double,20> t) {
 
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_ops(Function<T,NDIM>& f) {
   Vector<double, 20> t(0);
   int counter = 0;
@@ -348,7 +348,7 @@ void test_ops(Function<T,NDIM>& f) {
 }
 */
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_ops(Function<T,NDIM>& f) {
     World& world=f.world();
     START_TIMER;

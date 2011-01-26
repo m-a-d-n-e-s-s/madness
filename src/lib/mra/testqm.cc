@@ -115,7 +115,7 @@ functionT trotter(const functionT& expV,
     return psi1;
 }
 
-template<typename T, int NDIM>
+template<typename T, std::size_t NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
         UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););

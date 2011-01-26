@@ -52,14 +52,14 @@ namespace madness {
     // It cannot be an instance of FunctionFactory since we want to
     // set the defaults independent of the data type.
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionCommonData<T,NDIM>::_init_twoscale() {
         if (! two_scale_hg(k, &hg)) throw "failed to get twoscale coefficients";
         hgT = transpose(hg);
         hgsonly = copy(hg(Slice(0,k-1),_));
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionCommonData<T,NDIM>::_init_quadrature
     (int k, int npt, Tensor<double>& quad_x, Tensor<double>& quad_w,
      Tensor<double>& quad_phi, Tensor<double>& quad_phiw, Tensor<double>& quad_phit) {
@@ -69,10 +69,10 @@ namespace madness {
         quad_phiw = Tensor<double>(npt,k);
 
         gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-        for (int mu=0; mu<npt; mu++) {
+        for (int mu=0; mu<npt; ++mu) {
             double phi[200];
             legendre_scaling_functions(quad_x(mu),k,phi);
-            for (int j=0; j<k; j++) {
+            for (int j=0; j<k; ++j) {
                 quad_phi(mu,j) = phi[j];
                 quad_phiw(mu,j) = quad_w(mu)*phi[j];
             }
@@ -81,7 +81,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::verify_tree() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         world.gop.fence();  // Make sure nothing is going on
@@ -161,52 +161,52 @@ namespace madness {
         world.gop.fence();
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::eval_cube(Level n, coordT& x, const tensorT& c) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const int k = cdata.k;
         double px[NDIM][k];
         T sum = T(0.0);
 
-        for (int i=0; i<NDIM; i++) legendre_scaling_functions(x[i],k,px[i]);
+        for (std::size_t i=0; i<NDIM; ++i) legendre_scaling_functions(x[i],k,px[i]);
 
         if (NDIM == 1) {
-            for (int p=0; p<k; p++)
+            for (int p=0; p<k; ++p)
                 sum += c(p)*px[0][p];
         }
         else if (NDIM == 2) {
-            for (int p=0; p<k; p++)
-                for (int q=0; q<k; q++)
+            for (int p=0; p<k; ++p)
+                for (int q=0; q<k; ++q)
                     sum += c(p,q)*px[0][p]*px[1][q];
         }
         else if (NDIM == 3) {
-            for (int p=0; p<k; p++)
-                for (int q=0; q<k; q++)
-                    for (int r=0; r<k; r++)
+            for (int p=0; p<k; ++p)
+                for (int q=0; q<k; ++q)
+                    for (int r=0; r<k; ++r)
                         sum += c(p,q,r)*px[0][p]*px[1][q]*px[2][r];
         }
         else if (NDIM == 4) {
-            for (int p=0; p<k; p++)
-                for (int q=0; q<k; q++)
-                    for (int r=0; r<k; r++)
-                        for (int s=0; s<k; s++)
+            for (int p=0; p<k; ++p)
+                for (int q=0; q<k; ++q)
+                    for (int r=0; r<k; ++r)
+                        for (int s=0; s<k; ++s)
                             sum += c(p,q,r,s)*px[0][p]*px[1][q]*px[2][r]*px[3][s];
         }
         else if (NDIM == 5) {
-            for (int p=0; p<k; p++)
-                for (int q=0; q<k; q++)
-                    for (int r=0; r<k; r++)
-                        for (int s=0; s<k; s++)
-                            for (int t=0; t<k; t++)
+            for (int p=0; p<k; ++p)
+                for (int q=0; q<k; ++q)
+                    for (int r=0; r<k; ++r)
+                        for (int s=0; s<k; ++s)
+                            for (int t=0; t<k; ++t)
                                 sum += c(p,q,r,s,t)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t];
         }
         else if (NDIM == 6) {
-            for (int p=0; p<k; p++)
-                for (int q=0; q<k; q++)
-                    for (int r=0; r<k; r++)
-                        for (int s=0; s<k; s++)
-                            for (int t=0; t<k; t++)
-                                for (int u=0; u<k; u++)
+            for (int p=0; p<k; ++p)
+                for (int q=0; q<k; ++q)
+                    for (int r=0; r<k; ++r)
+                        for (int s=0; s<k; ++s)
+                            for (int t=0; t<k; ++t)
+                                for (int u=0; u<k; ++u)
                                     sum += c(p,q,r,s,t,u)*px[0][p]*px[1][q]*px[2][r]*px[3][s]*px[4][t]*px[5][u];
         }
         else {
@@ -215,7 +215,7 @@ namespace madness {
         return sum*pow(2.0,0.5*NDIM*n)/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const tensorT& s) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
@@ -261,14 +261,14 @@ namespace madness {
         return None;
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
 		fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
 	}
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
-    //~ template <typename T, int NDIM> template< typename FF>
+    //~ template <typename T, std::size_t NDIM> template< typename FF>
     //~ void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const Vector<Translation,NDIM>& l = key.translation();
@@ -281,26 +281,26 @@ namespace madness {
         const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
 
         if (NDIM == 1) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
                 fval(i) = f(c);
             }
         }
         else if (NDIM == 2) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; j++) {
+                for (int j=0; j<npt; ++j) {
                     c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
                     fval(i,j) = f(c);
                 }
             }
         }
         else if (NDIM == 3) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; j++) {
+                for (int j=0; j<npt; ++j) {
                     c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; k++) {
+                    for (int k=0; k<npt; ++k) {
                         c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
                         fval(i,j,k) = f(c);
                     }
@@ -308,13 +308,13 @@ namespace madness {
             }
         }
         else if (NDIM == 4) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; j++) {
+                for (int j=0; j<npt; ++j) {
                     c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; k++) {
+                    for (int k=0; k<npt; ++k) {
                         c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; m++) {
+                        for (int m=0; m<npt; ++m) {
                             c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
                             fval(i,j,k,m) = f(c);
                         }
@@ -323,15 +323,15 @@ namespace madness {
             }
         }
         else if (NDIM == 5) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; j++) {
+                for (int j=0; j<npt; ++j) {
                     c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; k++) {
+                    for (int k=0; k<npt; ++k) {
                         c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; m++) {
+                        for (int m=0; m<npt; ++m) {
                             c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
-                            for (int n=0; n<npt; n++) {
+                            for (int n=0; n<npt; ++n) {
                                 c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
                                 fval(i,j,k,m,n) = f(c);
                             }
@@ -341,17 +341,17 @@ namespace madness {
             }
         }
         else if (NDIM == 6) {
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
-                for (int j=0; j<npt; j++) {
+                for (int j=0; j<npt; ++j) {
                     c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
-                    for (int k=0; k<npt; k++) {
+                    for (int k=0; k<npt; ++k) {
                         c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
-                        for (int m=0; m<npt; m++) {
+                        for (int m=0; m<npt; ++m) {
                             c[3] = cell(3,0) + h*cell_width[3]*(l[3] + qx(m)); // xx
-                            for (int n=0; n<npt; n++) {
+                            for (int n=0; n<npt; ++n) {
                                 c[4] = cell(4,0) + h*cell_width[4]*(l[4] + qx(n)); // yy
-                                for (int p=0; p<npt; p++) {
+                                for (int p=0; p<npt; ++p) {
                                     c[5] = cell(5,0) + h*cell_width[5]*(l[5] + qx(p)); // zz
                                     fval(i,j,k,m,n,p) = f(c);
                                 }
@@ -366,7 +366,7 @@ namespace madness {
         }
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key,
                                                  bool do_refine,
                                                  const std::vector<Vector<double,NDIM> >& specialpts) {
@@ -376,7 +376,7 @@ namespace madness {
             // Restrict special points to this box
             std::vector<Vector<double,NDIM> > newspecialpts;
             if (key.level() < functor->special_level()) {
-                for (unsigned int i = 0; i < specialpts.size(); i++) {
+                for (unsigned int i = 0; i < specialpts.size(); ++i) {
                     coordT simpt;
                     user_to_sim(specialpts[i], simpt);
                     Key<NDIM> specialkey = simpt2key(simpt, key.level());
@@ -440,7 +440,7 @@ namespace madness {
         return None;
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::add_scalar_inplace(T t, bool fence) {
         std::vector<long> v0(NDIM,0L);
         if (is_compressed()) {
@@ -464,7 +464,7 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::insert_zero_down_to_initial_level(const keyT& key) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         if (compressed) initial_level = std::max(initial_level,1); // Otherwise zero function is confused
@@ -495,7 +495,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Future<bool> FunctionImpl<T,NDIM>::truncate_spawn(const keyT& key, double tol) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typename dcT::iterator it = coeffs.find(key).get();
@@ -531,11 +531,11 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     bool FunctionImpl<T,NDIM>::truncate_op(const keyT& key, double tol, const std::vector< Future<bool> >& v) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // If any child has coefficients, a parent cannot truncate
-        for (int i=0; i<(1<<NDIM); i++) if (v[i].get()) return true;
+        for (int i=0; i<(1<<NDIM); ++i) if (v[i].get()) return true;
         nodeT& node = coeffs.find(key).get()->second;
 
         // Interior nodes should always have coeffs but transform might
@@ -559,7 +559,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::print_tree(Level maxlevel) const {
         if (world.rank() == 0) do_print_tree(cdata.key0, maxlevel);
         world.gop.fence();
@@ -568,17 +568,17 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::do_print_tree(const keyT& key, Level maxlevel) const {
         typename dcT::const_iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
             //MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
-            for (int i=0; i<key.level(); i++) std::cout << "  ";
+            for (int i=0; i<key.level(); ++i) std::cout << "  ";
             std::cout << key << "  missing --> " << coeffs.owner(key) << "\n";
         }
         else {
             const nodeT& node = it->second;
-            for (int i=0; i<key.level(); i++) std::cout << "  ";
+            for (int i=0; i<key.level(); ++i) std::cout << "  ";
             std::cout << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
             if (key.level() < maxlevel  &&  node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
@@ -588,7 +588,7 @@ namespace madness {
         }
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::project(const keyT& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
@@ -608,7 +608,7 @@ namespace madness {
         return fast_transform(work,cdata.quad_phiw,fval,workq);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Future<double> FunctionImpl<T,NDIM>::get_norm_tree_recursive(const keyT& key) const {
         if (coeffs.probe(key)) {
             return Future<double>(coeffs.find(key).get()->second.get_norm_tree());
@@ -619,7 +619,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::sock_it_to_me(const keyT& key,
             const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -645,7 +645,7 @@ namespace madness {
     }
 
 // like sock_it_to_me, but it replaces empty node with averaged coeffs from further down the tree
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::sock_it_to_me_too(const keyT& key,
             const RemoteReference< FutureImpl< std::pair<keyT,tensorT> > >& ref) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -668,7 +668,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::eval(const Vector<double,NDIM>& xin,
                                     const keyT& keyin,
                                     const typename Future<T>::remote_refT& ref) {
@@ -696,7 +696,7 @@ namespace madness {
                     return None;
                 }
                 else {
-                    for (int i=0; i<NDIM; i++) {
+                    for (std::size_t i=0; i<NDIM; ++i) {
                         double xi = x[i]*2.0;
                         int li = int(xi);
                         if (li == 2) li = 1;
@@ -711,7 +711,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::evaldepthpt(const Vector<double,NDIM>& xin,
                                 const keyT& keyin,
                                 const typename Future<Level>::remote_refT& ref) {
@@ -739,7 +739,7 @@ namespace madness {
                     return None;
                 }
                 else {
-                    for (int i=0; i<NDIM; i++) {
+                    for (std::size_t i=0; i<NDIM; ++i) {
                         double xi = x[i]*2.0;
                         int li = int(xi);
                         if (li == 2) li = 1;
@@ -753,7 +753,7 @@ namespace madness {
         //MADNESS_EXCEPTION("should not be here",0);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // Chosen approach looks stupid but it is more accurate
@@ -776,7 +776,7 @@ namespace madness {
             template <typename Archive> void serialize(Archive& ar) {}
         };
 
-        template <typename T, int NDIM>
+        template <typename T, std::size_t NDIM>
         struct scaleinplace {
             T q;
             scaleinplace() {}
@@ -790,7 +790,7 @@ namespace madness {
             }
         };
 
-        template <typename T, int NDIM>
+        template <typename T, std::size_t NDIM>
         struct squareinplace {
             void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
                 t.emul(t);
@@ -799,32 +799,32 @@ namespace madness {
         };
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::scale_inplace(const T q, bool fence) {
         unary_op_coeff_inplace(detail::scaleinplace<T,NDIM>(q), fence);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::square_inplace(bool fence) {
         //unary_op_value_inplace(&implT::autorefine_square_test, detail::squareinplace<T,NDIM>(), fence);
         unary_op_value_inplace(detail::squareinplace<T,NDIM>(), fence);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::phi_for_mul(Level np, Translation lp, Level nc, Translation lc, Tensor<double>& phi) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         double p[200];
         double scale = pow(2.0,double(np-nc));
-        for (int mu=0; mu<cdata.npt; mu++) {
+        for (int mu=0; mu<cdata.npt; ++mu) {
             double xmu = scale*(cdata.quad_x(mu)+lc) - lp;
             MADNESS_ASSERT(xmu>-1e-15 && xmu<(1+1e-15));
             legendre_scaling_functions(xmu,cdata.k,p);
-            for (int i=0; i<k; i++) phi(i,mu) = p[i];
+            for (int i=0; i<k; ++i) phi(i,mu) = p[i];
         }
         phi.scale(pow(2.0,0.5*np));
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     const Tensor<T> FunctionImpl<T,NDIM>::parent_to_child(const tensorT& s, const keyT& parent, const keyT& child) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // An invalid parent/child means that they are out of the box
@@ -841,7 +841,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     T FunctionImpl<T,NDIM>::trace_local() const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         std::vector<long> v0(NDIM,0);
@@ -883,11 +883,11 @@ namespace madness {
         return true;
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Key<NDIM> FunctionImpl<T,NDIM>::neighbor(const keyT& key, const Key<NDIM>& disp, const std::vector<bool>& is_periodic) const {
         Vector<Translation,NDIM> l = key.translation();
 
-        for (int axis=0; axis<NDIM; axis++) {
+        for (std::size_t axis=0; axis<NDIM; ++axis) {
             l[axis] += disp.translation()[axis];
 
             //if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
@@ -899,7 +899,7 @@ namespace madness {
     }
 
 
-   template <typename T, int NDIM>
+   template <typename T, std::size_t NDIM>
     Future< std::pair< Key<NDIM>,Tensor<T> > >
     FunctionImpl<T,NDIM>::find_me(const Key<NDIM>& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -911,7 +911,7 @@ namespace madness {
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
@@ -919,7 +919,7 @@ namespace madness {
             const nodeT& node = it->second;
 
             Vector<Translation,NDIM> l;
-            for (int i=0; i<NDIM; i++) l[map[i]] = key.translation()[i];
+            for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
             tensorT c = node.coeff();
             if (c.size()) c = copy(c.mapdim(map));
 
@@ -928,7 +928,7 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(coeffs.probe(key));
@@ -949,7 +949,7 @@ namespace madness {
         }
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,
                                                 const keyT& key,
                                                 const coordT& plotlo, const coordT& plothi, const std::vector<long>& npt,
@@ -958,7 +958,7 @@ namespace madness {
         Tensor<T>& r = *ptr;
 
         coordT h; // Increment between points in each dimension
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             if (npt[i] > 1) {
                 h[i] = (plothi[i]-plotlo[i])/(npt[i]-1);
             }
@@ -979,7 +979,7 @@ namespace madness {
         Vector<int,NDIM> boxnpt;
         double fac = pow(0.5,double(key.level()));
         int npttotal = 1;
-        for (int d=0; d<NDIM; d++) {
+        for (std::size_t d=0; d<NDIM; ++d) {
             // Coords of box
             boxlo[d] = fac*key.translation()[d];
             boxhi[d] = boxlo[d]+fac;
@@ -1015,7 +1015,7 @@ namespace madness {
         //print("    box", boxlo, boxhi, boxnpt, npttotal);
         if (npttotal > 0) {
             for (IndexIterator it(boxnpt); it; ++it) {
-                for (int d=0; d<NDIM; d++) {
+                for (std::size_t d=0; d<NDIM; ++d) {
                     double xd = boxlo[d] + it[d]*h[d]; // Sim. coords of point
                     x[d] = twon*xd - l[d]; // Offset within box
                     MADNESS_ASSERT(x[d]>=0.0 && x[d] <=1.0);  // sanity
@@ -1043,7 +1043,7 @@ namespace madness {
 
     /// Set plot_refine=true to get a plot of the refinment levels of
     /// the given function (defaulted to false in prototype).
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::eval_plot_cube(const coordT& plotlo,
                                                    const coordT& plothi,
                                                    const std::vector<long>& npt,
@@ -1079,7 +1079,7 @@ namespace madness {
         fprintf(f,"%.6e %.6e\n", t.real(), t.imag());
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void plotdx(const Function<T,NDIM>& function,
                 const char* filename,
                 const Tensor<double>& cell,
@@ -1097,33 +1097,33 @@ namespace madness {
             if (!f) MADNESS_EXCEPTION("plotdx: failed to open the plot file", 0);
 
             fprintf(f,"object 1 class gridpositions counts ");
-            for (int d=0; d<NDIM; d++) fprintf(f," %ld",npt[d]);
+            for (std::size_t d=0; d<NDIM; ++d) fprintf(f," %ld",npt[d]);
             fprintf(f,"\n");
 
             fprintf(f,"origin ");
-            for (int d=0; d<NDIM; d++) fprintf(f, " %.6e", cell(d,0));
+            for (std::size_t d=0; d<NDIM; ++d) fprintf(f, " %.6e", cell(d,0));
             fprintf(f,"\n");
 
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 fprintf(f,"delta ");
-                for (int c=0; c<d; c++) fprintf(f, " 0");
+                for (std::size_t c=0; c<d; ++c) fprintf(f, " 0");
                 double h = 0.0;
                 if (npt[d]>1) h = (cell(d,1)-cell(d,0))/(npt[d]-1);
                 fprintf(f," %.6e", h);
-                for (int c=d+1; c<NDIM; c++) fprintf(f, " 0");
+                for (std::size_t c=d+1; c<NDIM; ++c) fprintf(f, " 0");
                 fprintf(f,"\n");
             }
             fprintf(f,"\n");
 
             fprintf(f,"object 2 class gridconnections counts ");
-            for (int d=0; d<NDIM; d++) fprintf(f," %ld",npt[d]);
+            for (std::size_t d=0; d<NDIM; ++d) fprintf(f," %ld",npt[d]);
             fprintf(f,"\n");
             fprintf(f, "attribute \"element type\" string \"%s\"\n", element[NDIM-1]);
             fprintf(f, "attribute \"ref\" string \"positions\"\n");
             fprintf(f,"\n");
 
             int npoint = 1;
-            for (int d=0; d<NDIM; d++) npoint *= npt[d];
+            for (std::size_t d=0; d<NDIM; ++d) npoint *= npt[d];
             const char* iscomplex = "";
             if (TensorTypeData<T>::iscomplex) iscomplex = "category complex";
             const char* isbinary = "";
@@ -1160,7 +1160,7 @@ namespace madness {
         world.gop.fence();
     }
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     void FunctionDefaults<NDIM>::set_defaults(World& world) {
         k = 6;
         thresh = 1e-4;
@@ -1183,30 +1183,30 @@ namespace madness {
         //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     const FunctionCommonData<T,NDIM>* FunctionCommonData<T,NDIM>::data[MAXK] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 
-    template <int NDIM> int FunctionDefaults<NDIM>::k;
-    template <int NDIM> double FunctionDefaults<NDIM>::thresh;
-    template <int NDIM> int FunctionDefaults<NDIM>::initial_level;
-    template <int NDIM> int FunctionDefaults<NDIM>::max_refine_level;
-    template <int NDIM> int FunctionDefaults<NDIM>::truncate_mode;
-    template <int NDIM> bool FunctionDefaults<NDIM>::refine;
-    template <int NDIM> bool FunctionDefaults<NDIM>::autorefine;
-    template <int NDIM> bool FunctionDefaults<NDIM>::debug;
-    template <int NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;
-    template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
-    template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
-    template <int NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc;
-    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
-    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
-    template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
-    template <int NDIM> double FunctionDefaults<NDIM>::cell_volume;
-    template <int NDIM> double FunctionDefaults<NDIM>::cell_min_width;
-    template <int NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::k;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::thresh;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::initial_level;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::max_refine_level;
+    template <std::size_t NDIM> int FunctionDefaults<NDIM>::truncate_mode;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::refine;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::autorefine;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::debug;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::truncate_on_project;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
+    template <std::size_t NDIM> bool FunctionDefaults<NDIM>::project_randomize;
+    template <std::size_t NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc;
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
+    template <std::size_t NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume;
+    template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width;
+    template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
 
-    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
-    template <int NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
+    template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
+    template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
 
 }
 

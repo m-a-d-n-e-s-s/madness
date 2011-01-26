@@ -44,7 +44,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct lbcost {
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
         return 1.0;
@@ -290,10 +290,10 @@ public:
         MADNESS_ASSERT(plot_cell.dim(0)==ndim && plot_cell.dim(1)==2);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dolineplot(const Function<T,NDIM>& f) {
         Vector<double,NDIM> lo, hi;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
@@ -302,7 +302,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dovolumeplot(const Function<T,NDIM>& f) {
         if(output_format == "dx") {
             plotdx(f, output_filename.c_str(), plot_cell, npt, binary);
@@ -310,7 +310,7 @@ public:
         else if(output_format == "vtk") {
             Vector<double, NDIM> plotlo, plothi;
             Vector<long, NDIM> numpt;
-            for(int i = 0; i < NDIM; ++i) {
+            for(std::size_t i = 0; i < NDIM; ++i) {
                 plotlo[i] = plot_cell(i, 0);
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
@@ -325,10 +325,10 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dolineplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
         Vector<double,NDIM> lo, hi;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
@@ -337,7 +337,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dovolumeplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
         if(output_format == "dx") {
           MADNESS_EXCEPTION("plot type not supported with user functions!",0);
@@ -345,7 +345,7 @@ public:
         else if(output_format == "vtk") {
             Vector<double, NDIM> plotlo, plothi;
             Vector<long, NDIM> numpt;
-            for(int i = 0; i < NDIM; ++i) {
+            for(std::size_t i = 0; i < NDIM; ++i) {
                 plotlo[i] = plot_cell(i, 0);
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
@@ -362,7 +362,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void doplot1() {
 
         // Set up environment for this dimension

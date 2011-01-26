@@ -55,7 +55,7 @@
 namespace madness {
 
 
-    extern void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e, 
+    extern void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
       double L, bool discardG0);
 
     extern void bsh_fit(double mu, double lo, double hi, double eps,
@@ -64,13 +64,13 @@ namespace madness {
     extern void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
                                  Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
-    template <typename Q, int NDIM>
+    template <typename Q, std::size_t NDIM>
     struct SeparatedConvolutionInternal {
         double norm;
         const ConvolutionData1D<Q>* ops[NDIM];
     };
 
-    template <typename Q, int NDIM>
+    template <typename Q, std::size_t NDIM>
     struct SeparatedConvolutionData {
         std::vector< SeparatedConvolutionInternal<Q,NDIM> > muops;
         double norm;
@@ -84,7 +84,7 @@ namespace madness {
 
 
     /// Convolutions in separated form (including Gaussian)
-    template <typename Q, int NDIM>
+    template <typename Q, std::size_t NDIM>
     class SeparatedConvolution : public WorldObject< SeparatedConvolution<Q,NDIM> > {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
@@ -121,7 +121,7 @@ namespace madness {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             long size = 1;
-            for (int i=0; i<NDIM; i++) size *= dimk;
+            for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
             long dimi = size/dimk;
 
             R* restrict w1=work1.ptr();
@@ -134,7 +134,7 @@ namespace madness {
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
-            for (int d=1; d<NDIM; d++) {
+            for (std::size_t d=1; d<NDIM; ++d) {
                 U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
                 mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
                 size = trans[d].r * size / dimk;
@@ -144,10 +144,10 @@ namespace madness {
 
             // If all blocks are full rank we can skip the transposes
             bool doit = false;
-            for (int d=0; d<NDIM; d++) doit = doit || trans[d].VT;
+            for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
 
             if (doit) {
-                for (int d=0; d<NDIM; d++) {
+                for (std::size_t d=0; d<NDIM; ++d) {
                     if (trans[d].VT) {
                         dimi = size/trans[d].r;
                         mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
@@ -182,7 +182,7 @@ namespace madness {
             Transformation trans[NDIM];
 
             double Rnorm = 1.0;
-            for (int d=0; d<NDIM; d++) Rnorm *= ops[d]->Rnorm;
+            for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
             if (Rnorm == 0.0) return;
 
             tol = tol/(Rnorm*NDIM);  // Errors are relative within here
@@ -194,7 +194,7 @@ namespace madness {
             else if (NDIM==2) break_even = long(0.6*twok);
             else if (NDIM==3) break_even=long(0.65*twok);
             else break_even=long(0.7*twok);
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 long r;
                 for (r=0; r<twok; r++) {
                     if (ops[d]->Rs[r] < tol) break;
@@ -218,7 +218,7 @@ namespace madness {
                 else if (NDIM==2) break_even = long(0.6*k);
                 else if (NDIM==3) break_even=long(0.65*k);
                 else break_even=long(0.7*k);
-                for (int d=0; d<NDIM; d++) {
+                for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<k; r++) {
                         if (ops[d]->Ts[r] < tol) break;
@@ -244,7 +244,7 @@ namespace madness {
         double munorm2(Level n, const ConvolutionData1D<Q>* ops[]) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             double prodR=1.0, prodT=1.0;
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 prodR *= ops[d]->Rnormf;
                 prodT *= ops[d]->Tnormf;
 
@@ -253,7 +253,7 @@ namespace madness {
 
             if (prodR < 1e-8*prodT) {
                 double prod=1.0, sum=0.0;
-                for (int d=0; d<NDIM; d++) {
+                for (std::size_t d=0; d<NDIM; ++d) {
                     double a = ops[d]->NSnormf;
                     double b = ops[d]->Tnormf;
                     double aa = std::min(a,b);
@@ -272,7 +272,7 @@ namespace madness {
         const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Key<NDIM>& disp) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
             }
 
@@ -321,7 +321,7 @@ namespace madness {
             // !!! NB ... cell volume obtained from global defaults
             const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
             // Check that the cell is cubic since currently is assumed
-            for (long d=1; d<NDIM; d++) {
+            for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(fabs(cell_width(d)-cell_width(0L)) < 1e-14*cell_width(0L));
             }
         }
@@ -343,12 +343,12 @@ namespace madness {
                 , rank(ops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
-                , s0(std::max(2,NDIM),Slice(0,k-1))
+                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
                 , factors(ops.size(),1.0)
                 , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
-            for (int d=1; d<NDIM; d++) {
+            for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
             }
             check_cubic();
@@ -371,12 +371,12 @@ namespace madness {
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
-                , s0(std::max(2,NDIM),Slice(0,k-1))
+                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
                 , factors(ops.size(),1.0)
                 , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
-            for (int d=1; d<NDIM; d++) {
+            for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
             }
             check_cubic();
@@ -387,7 +387,7 @@ namespace madness {
             for (int i=0; i<rank; i++) {
                 Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
 
-                factors[i] = coeff(i)/std::pow(c,NDIM);
+                factors[i] = coeff(i)/std::pow(c,static_cast<int>(NDIM));
                 facnorms[i] = std::abs(factors[i]);
                 //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
 
@@ -518,7 +518,7 @@ namespace madness {
 
 
     /// Factory function generating separated kernel for convolution with BSH kernel in general NDIM
-    template <int NDIM>
+    template <std::size_t NDIM>
     static
     inline
     SeparatedConvolution<double,NDIM> BSHOperator(World& world,
@@ -585,7 +585,7 @@ namespace madness {
     }
 
     namespace archive {
-        template <class Archive, class T, int NDIM>
+        template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
                 WorldObject< SeparatedConvolution<T,NDIM> >* p;
@@ -594,7 +594,7 @@ namespace madness {
             }
         };
 
-        template <class Archive, class T, int NDIM>
+        template <class Archive, class T, std::size_t NDIM>
         struct ArchiveStoreImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void store(const Archive& ar, const SeparatedConvolution<T,NDIM>*const& ptr) {
                 ar & static_cast< const WorldObject< SeparatedConvolution<T,NDIM> >* >(ptr);

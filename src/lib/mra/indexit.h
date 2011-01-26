@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_INDEXIT_H__INCLUDED
@@ -67,14 +67,14 @@ namespace madness {
         template<typename V>
         IndexIterator(const V& limits) :
                 n(limits.size()), i(limits.size(), 0), finished(false) {
-            for (unsigned int d = 0; d < n.size(); d++)
+            for (unsigned int d = 0; d < n.size(); ++d)
                 n[d] = limits[d];
         }
 
         /// Iterates dimension d from 0 to limts[d]-1 inclusive
         IndexIterator(int ndim, const long limits[]) :
                 n(ndim), i(ndim, 0), finished(false) {
-            for (unsigned int d = 0; d < n.size(); d++)
+            for (unsigned int d = 0; d < n.size(); ++d)
                 n[d] = limits[d];
         }
 
@@ -87,7 +87,7 @@ namespace madness {
 
         IndexIterator&
         reset() {
-            for (unsigned int d = 0; d < n.size(); d++)
+            for (unsigned int d = 0; d < n.size(); ++d)
                 i[d] = 0;
             finished = false;
             return *this;
@@ -112,7 +112,7 @@ namespace madness {
         /// this function should be abstracted and deprecated
         virtual IndexIterator&
         operator++() {
-            for (int d = n.size() - 1; d >= 0; d--) {
+            for (int d = n.size() - 1; d >= 0; --d) {
                 i[d]++;
                 if (i[d] < n[d])
                     return *this;
@@ -161,7 +161,7 @@ namespace madness {
         /// up through dimension 0
         virtual IndexIterator&
         operator++() {
-            for (int d = n.size() - 1; d >= 0; d--) {
+            for (int d = n.size() - 1; d >= 0; --d) {
                 i[d]++;
                 if (i[d] < n[d])
                     return *this;
@@ -201,7 +201,7 @@ namespace madness {
         virtual IndexIterator&
         operator++() {
             int ndim = n.size();
-            for (int d = 0; d < ndim; d++) {
+            for (int d = 0; d < ndim; ++d) {
                 i[d]++;
                 if (i[d] < n[d])
                     return *this;
@@ -323,7 +323,7 @@ namespace madness {
         virtual IndexIterator&
         operator++() {
             int ndim = n.size();
-            for (int d = 0; d < ndim; d++) {
+            for (int d = 0; d < ndim; ++d) {
                 i[dim[d]]++;
                 if (i[dim[d]] < n[dim[d]])
                     return *this;

@@ -42,7 +42,7 @@ const double PI = 3.1415926535897932384;
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct lbcost {
     double leaf_value;
     double parent_value;
