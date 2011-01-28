@@ -410,7 +410,50 @@ namespace madness {
                 ops[mu].setfac(coeff(mu)/c);
                 
                 for (int d=0; d<NDIM; d++) {
-                    ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                }
+            }
+        }
+
+        /// WSTHORNTON Constructor for Gaussian Convolutions (mostly for backward compatability)
+        SeparatedConvolution(World& world,
+                             Vector<double,NDIM> args,
+                             const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             int k=FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves=false)
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(bc(0,0)==BC_PERIODIC)
+                , ops(coeff.dim(0))
+                , bc(bc)
+                , k(k)
+                , rank(coeff.dim(0))
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max(2,NDIM),Slice(0,k-1))
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (int d=1; d<NDIM; d++) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
+
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
+            const double pi = constants::pi;
+
+            for (int mu=0; mu<rank; mu++) {
+                Q c = std::pow(sqrt(expnt(mu)/pi),NDIM); // Normalization coeff
+
+                // We cache the normalized operator so the factor is the value we must multiply
+                // by to recover the coeff we want.
+                ops[mu].setfac(coeff(mu)/c);
+
+                for (int d=0; d<NDIM; d++) {
+                  SharedPtr<GaussianConvolution1D<Q> > gcptr =
+                      GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum);
+                  gcptr->setarg(args[d]);
+                  ops[mu].setop(d,gcptr);
+//                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
                 }
             }
         }
@@ -481,6 +524,34 @@ namespace madness {
         }
 
     };
+
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    static
+    inline
+    SeparatedConvolution<double_complex,3> PeriodicHFExchangeOperator(World& world,
+                                                   Vector<double,3> args,
+                                                   double lo,
+                                                   double eps,
+                                                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                   int k=FunctionDefaults<3>::get_k())
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+        const double pi = constants::pi;
+
+        // bsh_fit generates representation for 1/4Pir but we want 1/r
+        // so have to scale eps by 1/4Pi
+
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+
+        if (bc(0,0) == BC_PERIODIC) {
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+        }
+        coeff.scale(4.0*pi);
+        return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k, false);
+    }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static
