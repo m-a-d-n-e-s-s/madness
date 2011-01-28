@@ -164,15 +164,18 @@ public:
             // while    while exp
             // if       if exp
             // elif     elif exp
+            // trace    trace exp
 
             if      (s == "()") file << "(";
             else if (s == "-") file << "-";
             else if (s == "greek");
+            else if (s == "trace") file << "<"; 
             else file << s << " ";
 
             c[0]->regenerate(file);
 
             if (s == "()") file << ")";
+            else if (s == "trace") file << ">"; 
         }
         else if (c.size() == 2) {
             // decl     varlist in field
@@ -357,6 +360,7 @@ public:
             // while    while exp
             // plot     plot  exp
             // lap
+            // trace    trace exp
             
             if      (s == "()") file << "\\left(";
             else if (s == "{}") file << "{";
@@ -364,12 +368,14 @@ public:
             else if (s == "F") file << "\\mathcal{F}\\ ";
             else if (s == "greek") file << "\\";
             else if (s == "lap") file << " \\nabla^2 ";
+            else if (s == "trace") file << " \\langle ";
             else file << "\\textsf{" << s << "}\\ ";
             
             c[0]->generate_tex(file);
             
             if      (s == "{}") file << "}";
             else if (s == "()") file << "\\right)";
+            else if (s == "trace") file << " \\rangle ";
         }
         else if (c.size() == 2) {
             // decl     varlist in field
@@ -633,6 +639,7 @@ public:
             // print    print arglist
             // plot     plot  exp
             // lap
+            // trace
 
             if      (s == "()") file << "(";
             else if (s == "{}") file << "{";
@@ -649,6 +656,7 @@ public:
             else if (s == "while")  file << "while (";
             else if (s == "greek") ;
             else if (s == "not") file << "!";
+            else if (s == "trace") file << "(";
             else file << s << " ";
 
             c[0]->generate_cxx(file);
@@ -657,6 +665,7 @@ public:
             if (s == "()" || s == "print" || s == "plot" || s == "if" || s=="elif" || s=="while" || s=="lap") file << ")";
             else if (s == "F") file << "))";
             else if (s == "()") file << ")";
+            else if (s == "trace") file << ").trace()";
         }
         else if (c.size() == 2) {
             // decl     varlist in field
@@ -837,6 +846,7 @@ public:
                 file << "template <typename T> double normf(const T& t) {return t.normf();}\n";
                 file << "template <typename T> double norm(const Function<T,D>& t) {return t.norm2();}\n";
                 file << "#define BSH(mu) BSHOperator<D>(world, mu, 1e-4, epsilon)";
+
             }
             else if (s == "^_") {
                 if (c[1]->str() == "2") {

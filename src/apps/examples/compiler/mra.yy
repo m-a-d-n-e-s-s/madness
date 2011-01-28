@@ -193,6 +193,7 @@ bsh:
 
 braket:
           LANGLE mline RANGLE                      { $$ = $2; }
+        | LANGLE exp RANGLE                        { $$ = new Exp("trace",$2,Exp::brakettype($2->type(),$2->type())); }
 
 
 normf:
