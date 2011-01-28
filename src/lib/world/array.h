@@ -243,7 +243,7 @@ namespace madness {
 
         /// Support for MADNESS hashing
         hashT hash() const {
-            return madness::hash(*this);
+            return madness::hash(data_.data(), N);
         }
 
         // comparisons
