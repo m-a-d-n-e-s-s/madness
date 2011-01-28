@@ -105,7 +105,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         psi = wave_function_load(world, wf);
         psi.reconstruct();
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(psi, LBCost(1.0,1.0));
+        lb.add_tree(psi, LBCost(1.0,0.0));
         FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
     }
@@ -117,21 +117,13 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
-    Tensor<double> YlPsi(n);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
         psi.reconstruct(); //What does this do?
         Yl0 yl0(L, l);
+        Tensor<double> YlPsi2(n); // default is zero
         for( int i=0; i<n; i++ ) {
-            YlPsi(i) = 0.0;
-        }
-        // PRINTLINE("Debuging");
-        // const double a[3] = {0.0, 0.0, 0.5};
-        // const vector3D rVec(a);
-        // PRINTLINE("Y00(0) = " << yl0(rVec));
-        // PRINTLINE("psi(0) = " << psi(rVec));
-        for( int i=0; i<n; i++ ) {
-            const double r = (0.5 + i)*dr;
+            const double r = (i+1e-10)*dr;
             complexd Rl = 0.0;
             for( int j=0; j<n ; j++ ) {
                 const double th = (0.5 + j)*dTH;
@@ -143,24 +135,26 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                     // parallelism introduced via eval_local_only
                     psiVal = psi.eval_local_only(rVec, maxLocalDepth);
                     if( psiVal.first ) { //boolean: true for local coeffs
-                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI;//returns the value of psi(rVec)
+                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI;//psiVal.second returns psi(rVec)
+                        //PRINTLINE("psiVal.second = " << psiVal.second << "\t yl0(rVec) = " << yl0(rVec) << * "\t sinTH*dTH*dPHI = " <<sinTH*dTH*dPHI);
                     }
                 }
             }
-            world.gop.sum(&Rl,0);
-            world.gop.fence();
-            YlPsi(i) = std::real(conj(Rl)*Rl * r*r*dr);
+            YlPsi2(i) = std::real(conj(Rl)*Rl);
         }
-        if(printR){
-            for( int i=0; i<n; i++) {
-                PRINT(YlPsi(i) << "\t");
-            }
-            PRINTLINE("");
-        }
+        world.gop.sum(&YlPsi2,n);
+
         double Pl = 0.0;
-        for( int i=0; i<n; i++ ) {
-            Pl += YlPsi(i);
+        for (int i=1; i<n; i++) { //i=1
+            double Rl2_im1 = YlPsi2(i-1);
+            double Rl2_i = YlPsi2(i);
+            double r = (i+1e-10)*dr;
+            double Plr = 0.5*(Rl2_im1 + Rl2_i) * r*r*dr;
+            Pl += Plr;
+            //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi2(i-1) = "<< YlPsi2(i-1) <<  "\t YlPsi2(i) = "<< YlPsi2(i) );
+            if(printR) PRINT(Plr << "\t");
         }
+        if(printR) PRINTLINE("");
         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
     }
     PRINTLINE("");
