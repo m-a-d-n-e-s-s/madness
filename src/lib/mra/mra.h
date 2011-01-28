@@ -295,6 +295,20 @@ namespace madness {
             return result;
         }
 
+        /// Evaluates the function at a point in user coordinates.  Collective operation.
+
+        /// See "operator()(const coordT& xuser)" for more info
+        T operator()(double x, double y=0, double z=0, double xx=0, double yy=0, double zz=0) const {
+            coordT r; 
+            r[0] = x;
+            if (NDIM>=2) r[1] = y;
+            if (NDIM>=3) r[2] = z;
+            if (NDIM>=4) r[3] = xx;
+            if (NDIM>=5) r[4] = yy;
+            if (NDIM>=6) r[5] = zz;
+            return (*this)(r);
+        }
+
         /// Throws if function is not initialized.
         ///
         /// This function mimics operator() by going through the
@@ -1000,8 +1014,8 @@ namespace madness {
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
             if (VERIFY_TREE) left.verify_tree();
             if (VERIFY_TREE) right.verify_tree();
-            impl = SharedPtr<implT>(new implT(*left.impl, left.get_pmap(), false));
-            impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
+            impl = SharedPtr<implT>(new implT(*left.get_impl(), left.get_pmap(), false));
+            impl->gaxpy(alpha,*left.get_impl(),beta,*right.get_impl(),fence);
             return *this;
         }
 
