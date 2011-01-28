@@ -62,6 +62,7 @@ typedef std::complex<double> double_complex;
 #include <tensor/mxm.h>
 #include <tensor/mtxmq.h>
 
+//#define TENSOR_BOUNDS_CHECKING 1
 
 /*!
   \file tensor.h
@@ -406,6 +407,14 @@ namespace madness {
 
         /// @param[in] d0 Size of dimension 0
         explicit Tensor(long d0) : _p(0) {
+            _dim[0] = d0;
+            allocate(1, _dim, true);
+        }
+
+        /// Create and zero new 1-d tensor
+
+        /// @param[in] d0 Size of dimension 0
+        explicit Tensor(unsigned int d0) : _p(0) {
             _dim[0] = d0;
             allocate(1, _dim, true);
         }
@@ -1575,7 +1584,13 @@ namespace madness {
 
         /// Test if \c *this and \c t conform.
         template <class Q> bool conforms(const Tensor<Q>& t) const {
-            return BaseTensor::conforms(&t);
+            if (!BaseTensor::conforms(&t)) {
+            	print("non-conforming tensors found");
+            	print(this->ndim(),this->size(),this->dim(0));
+            	print(t.ndim(),t.size(),t.dim(0));
+
+            }
+        	return BaseTensor::conforms(&t);
         }
 
         /// Returns the sum of all elements of the tensor

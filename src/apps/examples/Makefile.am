@@ -1,6 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop helium_mp2
+#bin_PROGRAMS = helium_mp2
 
 dataloadbal_SOURCES = dataloadbal.cc
 
