@@ -168,6 +168,17 @@ namespace madness {
         static const bool value = true;
     };
 
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A, int B>
+    struct is_eq {
+        static const bool value = false;
+    };
+    
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A>
+    struct is_eq<A,A> {
+        static const bool value = true;
+    };
 
     /// remove_reference<&T>::type will be T
     template <typename T>
@@ -989,6 +1000,7 @@ namespace madness {
 #define DISABLE_IF(CONDITION,TYPEIFTRUE) typename disable_if< CONDITION, TYPEIFTRUE >::type
 #define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename  enable_if< CONDITION, TYPEIFTRUE >::type
 #define IS_SAME(A, B) is_same< A, B >
+#define IS_EQ(A, B) is_eq< A, B >
 
 } // end of namespace madness
 #endif // MADNESS_WORLD_TYPESTUFF_H__INCLUDED
