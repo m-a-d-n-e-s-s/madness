@@ -95,24 +95,24 @@ namespace madness {
 
             if (is_compressed()) {
                 if (node.has_children()) {
-                    bad = node.coeff().dim(0) != 2*cdata.k;
+                    bad = node.tensor()->dim(0) != 2*cdata.k;
                 }
                 else {
-                    bad = node.coeff().size() != 0;
+                    bad = node.tensor()->size() != 0;
                 }
             }
             else {
                 if (node.has_children()) {
-                    bad = node.coeff().size() != 0;
+                    bad = node.tensor()->size() != 0;
                 }
                 else {
-                    bad = node.coeff().dim(0) != cdata.k;
+                    bad = node.tensor()->dim(0) != cdata.k;
                 }
             }
 
             if (bad) {
                 print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
-                      ", dim[0] =",node.coeff().dim(0),", compressed =",is_compressed());
+                      ", dim[0] =",node.tensor()->dim(0),", compressed =",is_compressed());
                 std::cout.flush();
                 MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
             }
@@ -241,7 +241,7 @@ namespace madness {
         }
 
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
-            tensorT d = node.coeff();
+            tensorT d = node.full_tensor_copy();
             if (d.size() == 0) d = tensorT(cdata.v2k);
             if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
             d = unfilter(d);
@@ -371,6 +371,7 @@ namespace madness {
                                                  bool do_refine,
                                                  const std::vector<Vector<double,NDIM> >& specialpts) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
+        print("project_refine_op working on key ",key);
         if (do_refine && key.level() < max_refine_level) {
 
             // Restrict special points to this box
@@ -407,7 +408,14 @@ namespace madness {
             // If have special points always refine.  If don't have special points
             // refine if difference norm is big
             if (newspecialpts.size() > 0 || dnorm >=truncate_tol(thresh,key.level())) {
-                coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
+
+            	// flo
+            	// don't need r and s0 any more; be more conscious about memory
+            	r.clear();
+            	s0.clear();
+            	// flo
+
+                coeffs.replace(key,nodeT(tensorT(),true).ftr2sr(thresh)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
                     ProcessID p;
@@ -423,20 +431,21 @@ namespace madness {
             }
             else {
                 if (truncate_on_project) {
-                    coeffs.replace(key,nodeT(s0,false));
+                    coeffs.replace(key,nodeT(s0,false).ftr2sr(thresh));
                 }
                 else {
-                    coeffs.replace(key,nodeT(tensorT(),true)); // Insert empty node for parent
+                    coeffs.replace(key,nodeT(tensorT(),true).ftr2sr(thresh)); // Insert empty node for parent
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false));
+                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false).ftr2sr(thresh));
                     }
                 }
             }
         }
         else {
-            coeffs.replace(key,nodeT(project(key),false));
+            coeffs.replace(key,nodeT(project(key),false).ftr2sr(thresh));
         }
+
         return None;
     }
 
@@ -449,7 +458,9 @@ namespace madness {
                 MADNESS_ASSERT(it != coeffs.end());
                 nodeT& node = it->second;
                 MADNESS_ASSERT(node.has_coeff());
-                node.coeff()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                node.node_to_full_rank();
+                node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                node.node_to_low_rank();
             }
         }
         else {
@@ -457,7 +468,9 @@ namespace madness {
                 Level n = it->first.level();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    node.coeff()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+                	node.node_to_full_rank();
+                    node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+                    node.node_to_low_rank();
                 }
             }
         }
@@ -521,7 +534,7 @@ namespace madness {
             // in which case we want something sensible to happen
             //MADNESS_ASSERT(!node.has_coeff());
             if (node.has_coeff() && key.level()>1) {
-                double dnorm = node.coeff().normf();
+                double dnorm = node.tensor()->normf();
                 if (dnorm < truncate_tol(tol,key)) {
                     node.clear_coeff();
                 }
@@ -544,7 +557,7 @@ namespace madness {
         if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
 
         if (key.level() > 1) { // >1 rather >0 otherwise reconstruct might get confused
-            double dnorm = node.coeff().normf();
+            double dnorm = node.tensor()->normf();
             if (dnorm < truncate_tol(tol,key)) {
                 node.clear_coeff();
                 if (node.has_children()) {
@@ -628,7 +641,7 @@ namespace madness {
             Future< std::pair<keyT,tensorT> > result(ref);
             if (node.has_coeff()) {
                 //madness::print("sock found it with coeff",key);
-                result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+                result.set(std::pair<keyT,tensorT>(key,node.full_tensor_copy()));
             }
             else {
                 //madness::print("sock found it without coeff",key);
@@ -653,10 +666,10 @@ namespace madness {
             const nodeT& node = coeffs.find(key).get()->second;
             Future< std::pair<keyT,tensorT> > result(ref);
             if (node.has_coeff()) {
-               result.set(std::pair<keyT,tensorT>(key,node.coeff()));
+               result.set(std::pair<keyT,tensorT>(key,node.full_tensor_copy()));
             }
             else {
-                result.set(std::pair<keyT,tensorT>(key,nodeT(project(key),false).coeff()));
+                result.set(std::pair<keyT,tensorT>(key,nodeT(project(key),false).full_tensor_copy()));
             }
         }
         else {
@@ -692,7 +705,7 @@ namespace madness {
                 typename dcT::iterator it = fut.get();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff()));
+                    Future<T>(ref).set(eval_cube(key.level(), x, node.full_tensor_copy()));
                     return None;
                 }
                 else {
@@ -725,7 +738,7 @@ namespace madness {
                 if (it != coeffs.end()) {
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff()));
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.full_tensor_copy()));
                     }
                 }
             }
@@ -816,6 +829,9 @@ namespace madness {
             void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
                 t.scale(q);
             }
+            void operator()(const Key<NDIM>& key, FloNode<T,NDIM>& node) const {
+                node.scale(q);
+            }
             template <typename Archive> void serialize(Archive& ar) {
                 ar & q;
             }
@@ -882,7 +898,7 @@ namespace madness {
                 typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
                 if (it != coeffs.end()) {
                     const nodeT& node = it->second;
-                    if (node.has_coeff()) sum = node.coeff()(v0);
+                    if (node.has_coeff()) sum = node.full_tensor_copy()(v0);
                 }
             }
         }
@@ -890,7 +906,7 @@ namespace madness {
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
-                if (node.has_coeff()) sum += node.coeff()(v0)*pow(0.5,NDIM*key.level()*0.5);
+                if (node.has_coeff()) sum += node.full_tensor_copy()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
@@ -951,7 +967,7 @@ namespace madness {
 
             Vector<Translation,NDIM> l;
             for (int i=0; i<NDIM; i++) l[map[i]] = key.translation()[i];
-            tensorT c = node.coeff();
+            tensorT c = node.full_tensor_copy();
             if (c.size()) c = copy(c.mapdim(map));
 
             coeffs.replace(keyT(key.level(),l), nodeT(c,node.has_children()));
@@ -963,18 +979,20 @@ namespace madness {
     Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(coeffs.probe(key));
+        // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;
         if (node.has_children()) {
             std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 PROFILE_BLOCK(compress_send);
+                // readily available
                 v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
             }
             return task(world.rank(),&implT::compress_op, key, v, nonstandard);
         }
         else {
-            Future<tensorT> result(node.coeff());
+            Future<tensorT> result(node.full_tensor_copy());
             if (!keepleaves) node.clear_coeff();
             return result;
         }
@@ -1002,7 +1020,8 @@ namespace madness {
         const Level n = key.level();
         const Vector<Translation,NDIM>& l = key.translation();
         const double twon = pow(2.0,double(n));
-        const tensorT& coeff = coeffs.find(key).get()->second.coeff(); // Ugh!
+        const tensorT& coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
+//        const tensorT coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
         long ind[NDIM];
         coordT x;
 
@@ -1200,10 +1219,11 @@ namespace madness {
         refine = true;
         autorefine = true;
         debug = false;
-        truncate_on_project = false;
+        truncate_on_project = true;
         apply_randomize = false;
         project_randomize = false;
         bc = BoundaryConditions<NDIM>(BC_FREE);
+        tt = TT_FULL;
         cell = Tensor<double>(NDIM,2);
         cell(_,1) = 1.0;
         recompute_cell_info();
@@ -1228,6 +1248,7 @@ namespace madness {
     template <int NDIM> bool FunctionDefaults<NDIM>::apply_randomize;
     template <int NDIM> bool FunctionDefaults<NDIM>::project_randomize;
     template <int NDIM> BoundaryConditions<NDIM> FunctionDefaults<NDIM>::bc;
+    template <int NDIM> TensorType FunctionDefaults<NDIM>::tt;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::cell_width;
     template <int NDIM> Tensor<double> FunctionDefaults<NDIM>::rcell_width;

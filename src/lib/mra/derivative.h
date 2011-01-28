@@ -71,8 +71,13 @@ namespace madness {
         typedef std::pair<keyT,tensorT> argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
+#if HAVE_FLONODE
+        typedef WorldContainer<Key<NDIM> , FloNode<T, NDIM> > dcT;
+        typedef FloNode<T,NDIM> nodeT;
+#else
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
+#endif
         
         
         DerivativeBase(World& world, int axis, int k, BoundaryConditions<NDIM> bc) 
@@ -249,8 +254,13 @@ namespace madness {
         typedef std::pair<keyT,tensorT> argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
+#if HAVE_FLONODE
+        typedef WorldContainer< Key<NDIM> , FloNode<T, NDIM> > dcT;
+        typedef FloNode<T,NDIM> nodeT;
+#else
         typedef WorldContainer< Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
+#endif
 
     private:
         const functionT g1;  ///< Function describing the boundary condition on the right side

@@ -52,6 +52,7 @@ namespace madness {
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
+    enum TensorType {TT_NONE, TT_FULL, TT_2D, TT_3D};
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -187,6 +188,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
+        static TensorType tt;			///< structure of the tensor in FunctionNode
         static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
         static void recompute_cell_info() {
@@ -344,6 +346,16 @@ namespace madness {
         /// Sets the default boundary conditions
         static void set_bc(const BoundaryConditions<NDIM>& value) {
             bc=value;
+        }
+
+        /// Returns the default tensor type
+        static const TensorType get_tensor_type() {
+        	return tt;
+        }
+
+        /// Sets the default tensor type
+        static void set_tensor_type(const TensorType& t) {
+        	tt=t;
         }
 
         /// Gets the user cell for the simulation

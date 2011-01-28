@@ -211,9 +211,15 @@ namespace madness {
             LoadBalanceDeux* lb;
             const costT& costfn;
             add_op(LoadBalanceDeux* lb, const costT& costfn) : lb(lb), costfn(costfn) {}
+#if HAVE_FLONODE
+            void operator()(const keyT& key, const FloNode<T,NDIM>& node) const {
+                lb->tree.send(key, &nodeT::add, costfn(key,node), node.has_children());
+            }
+#else
             void operator()(const keyT& key, const FunctionNode<T,NDIM>& node) const {
                 lb->tree.send(key, &nodeT::add, costfn(key,node), node.has_children());
             }
+#endif
         };
 
         /// Sums costs up the tree returning to everyone the total cost

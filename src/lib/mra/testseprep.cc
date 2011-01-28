@@ -1,16 +1,9 @@
-/*
- * testSepRep.cc
- *
- *  Created on: Jan 17, 2011
- *      Author: fbischoff
- */
 
-/*
- * test the SeparatedRepresentation (SepRep) for representing matrices
- */
+/// \file testSepRep.cc
+/// \brief test the SeparatedRepresentation (SepRep) for representing matrices
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "mra/SepRep.h"
+#include "mra/seprep.h"
 #include "mra/mra.h"
 
 using namespace madness;

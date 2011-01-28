@@ -88,6 +88,7 @@ namespace madness {
 
     public:
         typedef FunctionImpl<T,NDIM> implT;
+        typedef FloNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef typename implT::coordT coordT; ///< Type of vector holding coordinates
 
@@ -648,7 +649,7 @@ namespace madness {
 
 
         struct autorefine_square_op {
-            bool operator()(implT* impl, const Key<NDIM>& key, const Tensor<T>& t) const {
+            bool operator()(implT* impl, const Key<NDIM>& key, const nodeT& t) const {
                 return impl->autorefine_square_test(key, t);
             }
 
@@ -733,6 +734,12 @@ namespace madness {
             impl->unary_op_node_inplace(op, fence);
         }
 
+//        template <typename Q>
+
+        void ftr2sr(bool fence = true) const {
+        	  const_cast<Function<T,NDIM>*>(this)->impl->ftr2sr();
+        	  if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+        }
 
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
             PROFILE_MEMBER_FUNC(Function);
