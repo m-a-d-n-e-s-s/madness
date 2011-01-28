@@ -48,7 +48,6 @@
 #include <cstddef>
 #include <type_traits>
 #include <stdint.h>
-#include <boost/utility/enable_if.hpp>
 
 #include <madness_config.h>
 
