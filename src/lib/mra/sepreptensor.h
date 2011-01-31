@@ -33,14 +33,66 @@
 
 #ifndef SEPREPTENSOR_H_
 #define SEPREPTENSOR_H_
-
-/// \file SepRepTensor.h
-/// \brief Provides a tensor with taking advantage of possibly low rank
-
-/**
+/*!
+ *
+ * \file SepRepTensor.h
+ * \brief Provides a tensor with taking advantage of possibly low rank
+ *
+ * a SepRepTensor is a generalized form of a Tensor
+ *
+ * for now only little functionality shall be implemented; feel free to extend
+ *
+ * a consequence is that we (usually) can't directly access individual
+ * matrix elements
+ *
+ * LowRankTensors' ctors will most likely not be shallow
+ *
  * note that a LowRankTensor might have zero rank, but is still a valid
  * tensor, and should therefore return a FullTensor with zeros in it.
+ *
+ * \par Slicing in LowRankTensors:
+ *
+ * LowRankTensors differ from FullTensors in that we can't directly access
+ * individual matrix elements, and thus can't directly assign or manipulate slices
+ * as lvalues. For rvalues we simply provide a slices of the constituent vectors
+ * in SRConf, which are valid LowRankTensors by themselves
+ * \code
+ *  lhs = rhs(s)
+ * \endcode
+ *
+ * However, for manipulations like
+ * \code
+ *  lhs(s) = rhs
+ * \endcode
+ * we introduce the SliceLowRankTensor, which has no further effect than to
+ * indicate that the operation is done on a slice. Effectively we turn the rhs
+ * into a slice (which is larger than the original LRT), and assign
+ * that to lhs. Actually, we wouldn't need to do that, but if we don't we
+ * render it impossible for the user to check if the shapes conform.
+ *
+ * Manipulations of slices of LowRankTensors are heavily restricted, but should
+ * cover the most important cases:
+ * - assignment to a slice that was zero before, as in (t being some Tensor of
+ *   dimensions 2,2,2,2, and s being the (2,2,2,2) slice); this is performed
+ *   by inplace addition
+ * 	  \code
+ *    LowRankTensor lrt1(3,3,3,3), lrt2(t);
+ *    lrt1(s) = lrt2;
+ * 	  \endcode
+ * - assignment to zero; done by inplace subtraction of the slice
+ *    \code
+ *    LowRankTensor lrt1(t);
+ *    lrt1(s) = 0.0;
+ *    \endcode
+ * - in-place addition
+ *    \code
+ *    LowRankTensor lrt1(3,3,3,3), lrt2(t);
+ *    lrt1(s) += lrt2;
+ *    \endcode
+ *
+ * Note that *all* of these operation increase the rank of lhs
  */
+
 
 #include "tensor/tensor.h"
 #include <mra/funcdefaults.h>
@@ -62,6 +114,9 @@ namespace madness {
 
     	/// implement the virtual constructor idiom
     	virtual SepRepTensor* clone() const =0;
+
+    	/// add-to-this operator; in LowRank requires reallocation and is expensive!
+//    	virtual SepRepTensor& operator+=(const SepRepTensor& rhs)=0;
 
     	/// virtual destructor
     	virtual ~SepRepTensor() {};
@@ -103,29 +158,69 @@ namespace madness {
     private:
     	typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
 
+    public:
     	SepRep<T> data;		///< the tensor data
 
-    public:
 
-       	/// default constructor
+       	/// default constructor (tested)
     	LowRankTensor<T>() : data(SepRep<T>()) {
     	};
 
-    	/// copy constructor
+    	/// copy constructor (tested)
     	LowRankTensor<T>(const LowRankTensor<T>& rhs) {
     		data=rhs.data;
     	};
 
-    	/// ctor with regular Tensor
+    	/// ctor with a SepRep
+    	LowRankTensor<T>(const SepRep<T>& rhs) : data(rhs) {
+    	}
+
+    	/// ctor with regular Tensor (tested)
     	LowRankTensor<T>(const Tensor<T>& t, const double& eps, const TensorType& tt) {
 			data=SepRep<T>(t,eps,tt);
+    	}
+
+    	/// ctor with ndim tensors for each dimension
+    	LowRankTensor<T>(const Tensor<double>& weights,
+    			const std::vector<Tensor<T> >& t, const TensorType& tt)
+    			: data(weights,t,tt) {
     	}
 
     	/// dtor
     	~LowRankTensor<T>() {}
 
-    	/// virtual assignment
-    	LowRankTensor<T>& operator=(const LowRankTensor<T>& rhs) {};
+    	/// assignment with rhs=LowRankTensor
+    	LowRankTensor<T>& operator=(const LowRankTensor<T>& rhs) {
+    		MADNESS_ASSERT(0);
+    	};
+
+    	/// assignment to a number
+    	LowRankTensor<T>& operator=(const T& a) {
+    		MADNESS_ASSERT(0);
+    	}
+
+    	/// slicing to assign lhs=rhs(s) (tested)
+    	LowRankTensor<T> operator()(const std::vector<Slice>& s) const {
+
+    		LowRankTensor<T> result(this->data(s));
+    		return result;
+    	}
+
+
+#if 0
+    	/// enlarge the dimensions of this, while keeping the information
+    	void project(const std::vector<Slice>& s) {
+    		// symbolically: MADNESS_ASSERT( s > dim );
+    		MADNESS_ASSERT(0);
+    	}
+
+    	/// set a slices of this to zero; will double the rank iff not the
+    	/// whole tensor is set to zero
+    	/// *this(s) = 0.0;
+    	void zero_out(const std::vector<Slice>& s) {
+    		MADNESS_ASSERT(0);
+    	}
+#endif
 
     	/// implement the virtual constructor idiom
     	LowRankTensor<T>* clone() const {
@@ -181,6 +276,38 @@ namespace madness {
 
     };
 
+    /// derived from LowRankTensor, intended only for assignment
+
+    /// we need this for all assignments of the form (s being Slices):
+    /// \code
+    ///  lhs(s) = rhs
+    /// \endcode
+    /// for assignments like
+    /// \code
+    /// lhs = rhs(s)
+    /// use the LowRankTensor class directly
+    template<typename T>
+    class SliceLowRankTensor : private LowRankTensor<T> {
+
+    private:
+    	SliceLowRankTensor<T>() {};
+
+    public:
+
+    	/// ctor
+    	SliceLowRankTensor<T>(const LowRankTensor<T>& lrt, const std::vector<Slice>& s) {
+    	}
+
+    	/// assignment
+    	SliceLowRankTensor<T>& operator=(const LowRankTensor<T>& rhs) {
+    	}
+
+    	SliceLowRankTensor<T>& operator=(const SliceLowRankTensor<T>& rhs) {
+    	}
+
+
+    };
+
     /// the case of a full rank tensor, as tensor.h
 
     /**
@@ -203,17 +330,17 @@ namespace madness {
     		data=Tensor<T>() ;
     	};
 
-    	/// copy constructor
+    	/// copy constructor (tested)
 		FullTensor<T>(const FullTensor<T>& rhs) {
 			*this=rhs;
 		};
 
-		/// ctor with a regular Tensor
+		/// ctor with a regular Tensor (tested)
 		FullTensor<T>(const Tensor<T>& t) {
 			data=t;
 		}
 
-    	/// assignment operator
+    	/// assignment with rhs=FullTensor (tested)
     	FullTensor<T>& operator=(const FullTensor<T>& rhs) {
     		if (this!=&rhs) {
     			data=rhs.data;
@@ -221,13 +348,47 @@ namespace madness {
     		return *this;
     	}
 
-    	/// assignment operator
+    	/// assignment with rhs=Tensor (tested)
     	FullTensor<T>& operator=(const Tensor<T>& rhs) {
     		if (&this->data!=&rhs) {
     			data=rhs;
     		}
     		return *this;
     	}
+
+    	/// assignment to a number (tested)
+    	FullTensor<T>& operator=(const T& a) {
+    		data=a;
+    		return *this;
+    	}
+
+    	/// general slicing (tested)
+    	SliceTensor<T> operator()(const std::vector<Slice>& s) {
+//    		return SliceTensor<T> (data,&(s[0]));
+    		return data(s);
+    	}
+
+    	/// add-to-this operator
+    	FullTensor<T>& operator+=(const FullTensor<T>& rhs) {
+    		MADNESS_ASSERT(0);
+    	}
+
+    	/// add-to-this operator
+    	FullTensor<T>& operator+=(const Tensor<T>& rhs) {
+    		MADNESS_ASSERT(0);
+    	}
+
+        /// Inplace generalized saxpy ... this = this*alpha + other*beta
+    	FullTensor<T>& gaxpy(T alpha, const FullTensor<T>& t, T beta) {
+    		MADNESS_ASSERT(0);
+    	}
+
+        /// Inplace generalized saxpy ... this = this*alpha + other*beta
+     	FullTensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
+     		MADNESS_ASSERT(0);
+     	}
+
+
 
     	/// implement the virtual constructor idiom
     	FullTensor<T>* clone() const {
@@ -245,8 +406,6 @@ namespace madness {
 
         /// Returns if this Tensor exists
         bool has_data() const {return size()!=0;};
-
-    	/// reimplement some basic inquiries about the shape
 
     	/// the number of elements of this tensor
     	long size() const {return data.size();};
@@ -318,6 +477,36 @@ namespace madness {
      		throw std::runtime_error("unknown TensorType in to_full_tensor");
      	}
      }
+
+
+    /// Often used to transform all dimensions from one basis to another
+    /// \code
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
+    /// \endcode
+	/// cf tensor/tensor.h
+    template <class T, class Q>
+    FullTensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const FullTensor<Q>& c) {
+
+    	FullTensor<TENSOR_RESULT_TYPE(T,Q)> result=FullTensor<TENSOR_RESULT_TYPE(T,Q)>(transform(t.data,c));
+    	return result;
+    }
+
+    /// Often used to transform all dimensions from one basis to another
+    /// \code
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
+    /// \endcode
+	/// cf tensor/tensor.h
+    template <class T, class Q>
+    LowRankTensor<TENSOR_RESULT_TYPE(T,Q)> transform(const Tensor<T>& t, const LowRankTensor<Q>& c) {
+
+    	MADNESS_ASSERT(c.dim(0)==c.dim(1) && c.iscontiguous() and t.dim(0)==c.dim(0));
+    	typedef TENSOR_RESULT_TYPE(T,Q) TQ;
+
+    	Tensor<TQ> result(c.dim(0),c.dim(1),false);
+    	for (long idim=0; idim<c.ndim(); idim++) {
+    	}
+
+    }
 
 }
 

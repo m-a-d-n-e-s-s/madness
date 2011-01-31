@@ -42,6 +42,24 @@
 
 namespace madness {
 
+	/// compute the dimensions of SRConf, given the TensorType and the dimensions
+	/// of the SepRep; the latter are the ones that are visible to the
+	void compute_effective_dimensions(const int& dim, const int& k, int& dim_eff,
+		int& k_eff, const TensorType& tt) {
+
+		// compute the effective dimension
+		if (tt==TT_3D) dim_eff=3;
+		else if (tt==TT_2D) dim_eff=2;
+		else MADNESS_ASSERT(0);
+
+		// make sure dim is an integer multiple of dim_eff
+		MADNESS_ASSERT(dim%dim_eff==0);
+
+		// compute the effective dimension for SRConf
+		k_eff=pow(k,dim/dim_eff);
+
+	}
+
 	/**
 	 * This is a separated representation as described in BM2005:
 	 * Beylkin, Mohlenkamp, Siam J Sci Comput, 2005 vol. 26 (6) pp. 2133-2159
@@ -71,30 +89,11 @@ namespace madness {
 			, maxk_(maxk)
 			, dim_(dim) {
 
-			unsigned int dim_eff;
-			if (this->tensor_type()==TT_3D) dim_eff=3;
-			else if (this->tensor_type()==TT_2D) dim_eff=2;
-			else MADNESS_ASSERT(0);
-
-			// make sure dim is an integer multiple of dim_eff
-			MADNESS_ASSERT(dim%dim_eff==0);
-
-			// compute the effective dimension for SRConf
-			const unsigned int k_eff=pow(maxk_,dim/dim_eff);
+			int dim_eff, k_eff;
+			compute_effective_dimensions(dim,maxk,dim_eff,k_eff,tt);
 
 			// construct empty SRConf
 			configs_=SRConf<T>(dim_eff,k_eff);
-
-
-#if 0
-			if (this->tensor_type()==TT_3d) configs_=SRConf<T>(dim,1,maxk);
-			else if (this->tensor_type()==three_of_six) configs_=SRConf<T>(dim,1,maxk*maxk);
-			else if (this->tensor_type()==two_of_six) configs_=SRConf<T>(dim,1,maxk*maxk*maxk);
-			else {
-				std::cout << "unknown rep in SepRep::ctor " << std::endl;
-				assert(0);
-			}
-#endif
 		}
 
 		/// ctor with a polynomial values
@@ -162,6 +161,17 @@ namespace madness {
 #endif
 		}
 
+		/// ctor with weights and vectors provided
+		SepRep(const Tensor<double>& weights, const std::vector<Tensor<T> > vectors,
+				const TensorType& tt)
+			: tensortype_(tt)
+			, dim_(vectors.size()) {
+
+			maxk_=vectors[0].dim(1);
+			configs_=SRConf<T>(weights,vectors);
+
+		}
+
 		/// copy ctor
 		SepRep(const SepRep& rhs)
 			: tensortype_(rhs.tensortype_)
@@ -203,6 +213,50 @@ namespace madness {
 			configs_-=rhs.configs_;
 
 			return *this;
+		}
+
+		/// return a slice of this
+		SepRep operator()(const std::vector<Slice>& s) const {
+
+			// consistency check
+			MADNESS_ASSERT(s.size()==this->dim());
+			MADNESS_ASSERT(s[0].step==1);
+
+			// get dimensions
+			const TensorType tt=this->tensor_type();
+			const int dim=this->dim();
+			const int k=this->get_k();
+			const int rank=this->rank();
+			const int k_new=s[0].end-s[0].start+1;
+			int dim_eff, k_eff, k_eff_new;
+			compute_effective_dimensions(dim,k,dim_eff,k_eff,tt);
+			compute_effective_dimensions(dim,k_new,dim_eff,k_eff_new,tt);
+			const int merged_dim=dim/dim_eff;
+
+			// get and reshape the vectors, slice and re-reshape again;
+			std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
+			for (int idim=0; idim<dim_eff; idim++) {
+
+				// assignment from/to slice is deep-copy
+				if (merged_dim==1) {
+					vectors[idim]=configs_.refVector(idim)(Slice(_),s[idim]);
+				} else if (merged_dim==2) {
+					vectors[idim]=configs_.refVector(idim).reshape(rank,k,k);
+					vectors[idim]=copy(vectors[idim](Slice(_),s[2*idim],s[2*idim+1]));
+					vectors[idim]=vectors[idim].reshape(rank,k_eff_new);
+				} else if (merged_dim==3) {
+					vectors[idim]=configs_.refVector(idim).reshape(rank,k,k,k);
+					vectors[idim]=copy(vectors[idim](Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
+					vectors[idim]=vectors[idim].reshape(rank,k_eff_new);
+				} else MADNESS_ASSERT(0);
+			}
+
+			// construct SepRep
+			SepRep<T> result(tt,k_new,this->dim());
+			result.configs_=SRConf<T> (this->configs_.weights_,vectors);
+
+			return result;
+
 		}
 
 		/// is this a valid tensor? Note that the rank might still be zero.
@@ -279,7 +333,7 @@ namespace madness {
 		/// return the polynomial order
 		unsigned int get_k() const {return maxk_;};
 
-		/// return the number length of the underlying vectors (i.e. maxk_ or nroots)
+		/// return the number length of the underlying vectors
 		unsigned int kVec() const {
 
 			unsigned int dim_eff;
@@ -1066,6 +1120,7 @@ namespace madness {
 		static const double sqrtMachinePrecision=1.e-7;
 
 	};
+
 }
 
 

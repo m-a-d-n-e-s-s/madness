@@ -42,21 +42,10 @@
 
 namespace madness {
 
-	/**
+	/*!
 	 * A SRConf handles all the configurations in a Separated Representation.
 	 *
-	 * Generally a SRConf for d dimensions has d Tensors (r,k) or (r,k',k)
-	 * for vectors and operators, respectively, where r is the slow index and
-	 * k is the leading one. Guideline for a SRConf is efficiency, so that BLAS
-	 * routines can be employed and not too many system calls for Tensor allocations
-	 * are needed.
 	 *
-	 * We distinguish between the logical rank (==Tensor.dim(0)), which gives the actual
-	 * number of terms in the expansion, and the physical rank (maxRank), which
-	 * gives the dimensions of the underlying Tensors. The logical rank is always
-	 * smaller or equal the physical rank. Increasing the physical rank requires
-	 * reallocation and should be avoided as much as possible. The leading
-	 * dimension is k, and that is always dense.
 	 */
 
 	template <typename T>
@@ -81,6 +70,24 @@ namespace madness {
 		/// copy ctor (tested); deep copy
 		SRConf(const SRConf& rhs)  {
 			*this=rhs;
+		}
+
+
+		/// ctor with provided weights and effective vectors; deep copy
+		SRConf(const Tensor<double>& weights, const std::vector<Tensor<T> >& vectors) {
+
+			// consistency check
+			MADNESS_ASSERT(vectors.size()>0);
+			MADNESS_ASSERT(weights.ndim()==1 and weights.dim(0)==vectors[0].dim(0));
+
+			rank_=weights.dim(0);
+			maxk_=vectors[0].dim(1);
+			weights_=copy(weights);
+			vector_=std::vector<Tensor<T> > (vectors.size());
+			for (unsigned int idim=0; idim<vectors.size(); idim++) {
+				vector_[idim]=copy(vectors[idim]);
+			}
+
 		}
 
 		/// assignment operator (tested), deep copy of vectors
@@ -454,15 +461,15 @@ namespace madness {
 			inner_result(lhs2,rhs2,-1,-1,B);
 		}
 
-	private:
+	public:
+
+		/// for each configuration the weight; length should be r
+		Tensor<double>  weights_;
 
 	public:
 		/// for each (physical) dimension one Tensor of (logical) dimension (r,k)
 		/// for vectors or (r,kprime,k) for operators
 		std::vector<Tensor<T> > vector_;
-
-		/// for each configuration the weight; length should be r
-		Tensor<double>  weights_;
 
 		/// what is the rank of this
 		long rank_;

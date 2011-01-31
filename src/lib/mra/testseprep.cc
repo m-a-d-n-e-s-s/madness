@@ -16,7 +16,7 @@ int testLowRankTensor(const long& k, const long& dim, const double& eps) {
 	return 0;
 }
 
-int testFullTensor(const long& k, const long& dim, const double& eps) {
+int testFullTensor_ctor(const long& k, const long& dim, const double& eps) {
 
 
 	Tensor<double> t0=Tensor<double>(3,3,3,3);
@@ -31,7 +31,7 @@ int testFullTensor(const long& k, const long& dim, const double& eps) {
 
 	// ctor with rhs=FullTensor
 	FullTensor<double> t3(t1);
-	print("ctor with rhs=FullTensor/1", (t0-t3.fullTensor()).normf());
+	print("ctor with rhs=FullTensor/1", (t1.fullTensor()-t3.fullTensor()).normf());
 	FullTensor<double> t4(t2);
 	print("ctor with rhs=FullTensor/2", (t0-t4.fullTensor()).normf());
 
@@ -40,13 +40,120 @@ int testFullTensor(const long& k, const long& dim, const double& eps) {
 	print("assignment with rhs=Tensor", (t0-t3.fullTensor()).normf());
 
 	// assignment with rhs=FullTensor
-	t3=t1;
-	print("assignment with rhs=FullTensor", (t0-t1.fullTensor()).normf());
+	t3=t2;
+	print("assignment with rhs=FullTensor", (t3.fullTensor()-t2.fullTensor()).normf());
 
 	// virtual ctor
 	SepRepTensor<double>* sr1=t3.clone();
 	print("virtual ctor with rhs=FullTensor", (sr1->fullTensor()-t3.fullTensor()).normf());
 
+	print("all done");
+	return 0;
+}
+
+int testFullTensor_assignment(const long& k, const long& dim, const double& eps) {
+
+
+	Tensor<double> t0=Tensor<double>(4,4,4);
+	t0.fillrandom();
+	std::vector<Slice> s(3,Slice(0,2,1));
+
+	// ctor with rhs=Tensor
+	FullTensor<double> t2(copy(t0));
+	print("ctor with rhs=Tensor      ", (t0-t2.fullTensor()).normf());
+
+	// assignment to a number
+	t2=1.4;
+	t0=1.4;
+	print("assignment to a number    ", (t0-t2.fullTensor()).normf());
+
+
+	// assignment with SliceTensor on both sides
+	t0(s)=3.1;
+	t2(s)=t0(s);
+	print("sliced assignment/1       ", (t0-t2.fullTensor()).normf());
+
+	// assignment with SliceTensor on one side
+	Tensor<double> t1=t0(s);
+	t2(s)=t1;
+	Tensor<double> t11=t2(s);
+
+	// test Slice
+	print("sliced assignment/2       ", (t1-t11).normf());
+
+	// test rest
+	t0=1.1;
+	t2=copy(t0);
+	t1=copy(t0);
+	t2(s)=2.8*t0(s);
+	t1(s)=2.8*t0(s);
+	print("sliced assignment/3       ", (t1-t2.fullTensor()).normf());
+
+	print("all done");
+	return 0;
+}
+
+int testLowRankTensor_ctor(const long& k, const long& dim, const double& eps) {
+
+
+	Tensor<double> t0=Tensor<double>(7,7,7);
+	Tensor<double> t1=Tensor<double>(7,7,7,7);
+	t0.fillindex();
+	std::vector<Slice> s(4,Slice(0,5));
+	t1(s).fillrandom();
+	// t1 is now sort of low-rank
+
+	// default ctor
+	LowRankTensor<double> lrt1();
+
+	// ctor with a regular tensor
+	LowRankTensor<double> lrt2(t0,eps,TT_3D);
+	LowRankTensor<double> lrt3(t1,eps,TT_2D);
+	print("LRT, 3-way ctor   ", lrt2.rank(), (lrt2.reconstructTensor()-t0).normf());
+	print("LRT, 2-way ctor   ", lrt3.rank(), (lrt3.reconstructTensor()-t1).normf());
+
+	// copy ctor
+	LowRankTensor<double> lrt4(lrt2);
+	print("copy ctor         ", (lrt2.reconstructTensor()-lrt4.reconstructTensor()).normf());
+
+
+
+	print("all done");
+	return 0;
+}
+
+
+int testLowRankTensor_assignment(const long& k, const long& dim, const double& eps) {
+
+	std::vector<long> d(6,k);
+	Tensor<double> t0=Tensor<double>(d);
+	t0.fillindex();
+	std::vector<Slice> s(6,Slice(0,k/2));
+
+	// sliced assignment
+	LowRankTensor<double> lrt1(t0,eps,TT_3D);
+	LowRankTensor<double> lrt2=lrt1(s);
+	Tensor<double> t1=lrt1.reconstructTensor();
+	Tensor<double> t2=lrt2.reconstructTensor();
+	print("sliced assignment/1 ", (t1(s)-t2).normf(),t2.normf());
+
+	// sliced assignment
+	LowRankTensor<double> lrt3(t0,eps,TT_2D);
+	LowRankTensor<double> lrt4=lrt3(s);
+	t1=lrt3.reconstructTensor();
+	t2=lrt4.reconstructTensor();
+	print("sliced assignment/2 ", (t1(s)-t2).normf(),t2.normf());
+
+	// sliced assignment
+	t0.reshape(k*k,k*k,k*k);
+	LowRankTensor<double> lrt5(t0,eps,TT_3D);
+	LowRankTensor<double> lrt6=lrt3(s);
+	t1=lrt5.reconstructTensor();
+	t2=lrt6.reconstructTensor();
+	print("sliced assignment/3 ", (t1(s)-t2).normf(),t2.normf());
+
+
+	print("all done");
 	return 0;
 }
 
@@ -59,7 +166,7 @@ int main(int argc, char**argv) {
 
     // the parameters
     const long k=5;
-    const unsigned int dim=3;
+    const unsigned int dim=6;
     double eps=1.e-3;
 
 #if 0
@@ -122,7 +229,11 @@ int main(int argc, char**argv) {
 
     print("hello world");
 
-    testFullTensor(k,dim,eps);
+    testFullTensor_ctor(k,dim,eps);
+    testFullTensor_assignment(k,dim,eps);
+
+    testLowRankTensor_ctor(k,dim,eps);
+    testLowRankTensor_assignment(k,dim,eps);
 
     world.gop.fence();
     finalize();
