@@ -140,7 +140,6 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                     // control for endpoint quadrature
                     double ifEndPtk = 1.0;
                     if (k==0 || k==(n-1)) ifEndPtk = 0.5;
-
                     // parallelism introduced via eval_local_only
                     psiVal = psi.eval_local_only(rVec, maxLocalDepth);
                     if( psiVal.first ) { //boolean: true for local coeffs
@@ -150,7 +149,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                     }
                 }
             }
-            YlPsi(i) = Rl;//
+            YlPsi(i) = Rl;
         }
         world.gop.sum(&YlPsi,n);
 
@@ -173,16 +172,17 @@ void projectL(World& world, const double L, const int wf, const int n, const int
 //         PRINT( "my routine: " );
 //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
 
-        complexd thesum = 0.0;
+        double Pl = 0.0;
         for (long i=0; i<n; i++) {
             double ifEndPti = 1.0;  // control for endpoint quadrature
             if (i==0 || i==(n-1)) ifEndPti = 0.5;
-            const double r = (i*dr + 1e-10);
-            thesum += YlPsi(i)*conj(YlPsi(i))*r*r*dr*ifEndPti;
-            if(printR) print(r,thesum,YlPsi(i));
+            const double r = i*dr + 1e-10;
+            complexd YlPsii = YlPsi(i);
+            Pl += real(YlPsii*conj(YlPsii)*r*r*dr*ifEndPti);
+            if(printR) PRINT(real(YlPsii) << "\t");
         }
-        if(printR) PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << real(thesum));
+        if (printR) PRINTLINE("");
+        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
 
     }
     PRINTLINE("");
