@@ -1781,7 +1781,7 @@ namespace madness
     void apply_hf_exchange(vecfuncT& phisa, vecfuncT& phisb,
                            vecfuncT& funcsa, vecfuncT& funcsb)
     {
-      for (unsigned int ink1 = 0, ik1 = 0; ik1 < _phisa.size(); ink1++)
+      for (unsigned int ink1 = 0, ik1 = 0; ink1 < _phisa.size(); ink1++)
       {
         for (unsigned int ink2 = 0, ik2 = 0; ink2 < _phisa.size(); ink2++)
         {
@@ -1795,7 +1795,7 @@ namespace madness
           {
             rfunctionT prod = abs_square(phisa[ink1]);
             rfunctionT fr = apply(*_cop,prod);
-            funcsa[ink1] += funcsa[ink1]*fr;
+            funcsa[ink1] -= funcsa[ink1]*fr;
           }
           else
           {
@@ -1809,8 +1809,8 @@ namespace madness
             SeparatedConvolution<double_complex,3> hfexop =
                 PeriodicHFExchangeOperator(_world, q, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1);
             functionT fr = apply(hfexop,f);
-            funcsa[ink1] += funcsa[ink1]*fr*conj(cexp);
-            funcsa[ink2] += funcsa[ink2]*conj(fr)*cexp;
+            funcsa[ink1] -= funcsa[ink1]*fr*conj(cexp);
+            funcsa[ink2] -= funcsa[ink2]*conj(fr)*cexp;
           }
         }
       }
