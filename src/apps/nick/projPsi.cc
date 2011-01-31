@@ -154,24 +154,24 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         }
         world.gop.sum(&YlPsi,n);
 
-        //Volume of the central spherical element with radius = dr/2 and a linear correction
-        double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
-                     + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
-                    ) * 0.125*dr*dr*dr; 
-        for (int i=1; i<n-1; i++) { // i elem [1, n-2]
-            double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
-            double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
-            double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
-            double r = i*dr + 1e-10;
-            //           volume      slope correction    concavity correction
-            double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
-            Pl += Plr;
-            //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
-            if(printR) PRINT(Plr << "\t");
-        }
-        if(printR) PRINTLINE("");
-        PRINT( "my routine: " );
-        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
+//         //Volume of the central spherical element with radius = dr/2 and a linear correction
+//         double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
+//                      + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
+//                     ) * 0.125*dr*dr*dr; 
+//         for (int i=1; i<n-1; i++) { // i elem [1, n-2]
+//             double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
+//             double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
+//             double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
+//             double r = i*dr + 1e-10;
+//             //           volume      slope correction    concavity correction
+//             double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
+//             Pl += Plr;
+//             //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
+//             if(printR) PRINT(Plr << "\t");
+//         }
+//         if(printR) PRINTLINE("");
+//         PRINT( "my routine: " );
+//         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
 
         complexd thesum = 0.0;
         for (long i=0; i<n; i++) {
