@@ -110,7 +110,7 @@ namespace madness {
         /// Initialize all elements to value t
         template <typename Q>
         explicit Vector(Q t) {
-            data_.assign(t);
+            data_.fill(t);
         }
 
         /// Construct from a C-style array of the same dimension
@@ -164,7 +164,7 @@ namespace madness {
 
         /// Fill from scalar value
         Vector<T,N>& operator=(const T& t) {
-            data_.assign(t);
+            data_.fill(t);
             return *this;
         }
 
@@ -202,7 +202,7 @@ namespace madness {
 
          // modifiers
          void swap(Vector<T, N>& other) { data_.swap(other.data_); }
-         void assign(const T& t) { data_.assign(t); }
+         void fill(const T& t) { data_.fill(t); }
 
         /// In-place element-wise multiplcation by a scalar
 
