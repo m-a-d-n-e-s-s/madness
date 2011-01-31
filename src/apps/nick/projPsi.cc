@@ -98,6 +98,8 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
     complex_functionT psi;
+    //PRINTLINE("\n before loading file ");
+    //PRINTLINE(wave_function_filename(wf));
     if( !wave_function_exists(world, wf) ) {
         PRINTLINE("Function " << wf << " not found");
         exit(1);
@@ -108,54 +110,81 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         lb.add_tree(psi, LBCost(1.0,0.0));
         FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
-    }
+    } 
     PRINTLINE("");
     const double PI = M_PI;
-    const double dr = L/n;
-    const double dTH = PI/n;
-    const double dPHI = 2*PI/n;
-    const bool printR = true;
+    const double dr = L*0.99/(n-1);
+    const double dTH = PI/(n-1);
+    const double dPHI = 2*PI/(n-1);
+    const bool printR = false;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
-        psi.reconstruct(); //What does this do?
+        if( !printR ) PRINTLINE("");
+        psi.reconstruct(); //Transforms to scaling function basis
         Yl0 yl0(L, l);
-        Tensor<double> YlPsi2(n); // default is zero
+        Tensor<complexd> YlPsi(n); // default is zero
         for( int i=0; i<n; i++ ) {
-            const double r = (i+1e-10)*dr;
+            const double r = i*dr + 1e-10; //Allows for near zero evaluation
             complexd Rl = 0.0;
             for( int j=0; j<n ; j++ ) {
-                const double th = (0.5 + j)*dTH;
+                const double th = j*dTH;
                 const double sinTH = std::sin(th);
+                // control for endpoint quadrature
+                double ifEndPtj = 1.0;
+                if (j==0 || j==(n-1)) ifEndPtj = 0.5;
                 for( int k=0; k<n; k++ ) {
                     const double phi = k*dPHI;
-                    const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
-                    const vector3D rVec(a);
+                    const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+                    // control for endpoint quadrature
+                    double ifEndPtk = 1.0;
+                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+
                     // parallelism introduced via eval_local_only
                     psiVal = psi.eval_local_only(rVec, maxLocalDepth);
                     if( psiVal.first ) { //boolean: true for local coeffs
-                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI;//psiVal.second returns psi(rVec)
+                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
+                        //psiVal.second returns psi(rVec)
                         //PRINTLINE("psiVal.second = " << psiVal.second << "\t yl0(rVec) = " << yl0(rVec) << * "\t sinTH*dTH*dPHI = " <<sinTH*dTH*dPHI);
                     }
                 }
             }
-            YlPsi2(i) = std::real(conj(Rl)*Rl);
+            YlPsi(i) = Rl;//
         }
-        world.gop.sum(&YlPsi2,n);
+        world.gop.sum(&YlPsi,n);
 
-        double Pl = 0.0;
-        for (int i=1; i<n; i++) { //i=1
-            double Rl2_im1 = YlPsi2(i-1);
-            double Rl2_i = YlPsi2(i);
-            double r = (i+1e-10)*dr;
-            double Plr = 0.5*(Rl2_im1 + Rl2_i) * r*r*dr;
+        //Volume of the central spherical element with radius = dr/2 and a linear correction
+        double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
+                     + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
+                    ) * 0.125*dr*dr*dr; 
+        for (int i=1; i<n-1; i++) { // i elem [1, n-2]
+            double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
+            double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
+            double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
+            double r = i*dr + 1e-10;
+            //           volume      slope correction    concavity correction
+            double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
             Pl += Plr;
-            //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi2(i-1) = "<< YlPsi2(i-1) <<  "\t YlPsi2(i) = "<< YlPsi2(i) );
+            //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
             if(printR) PRINT(Plr << "\t");
         }
         if(printR) PRINTLINE("");
+        PRINT( "my routine: " );
         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
+
+        complexd thesum = 0.0;
+        for (long i=0; i<n; i++) {
+            double ifEndPti = 1.0;  // control for endpoint quadrature
+            if (i==0 || i==(n-1)) ifEndPti = 0.5;
+            const double r = (i*dr + 1e-10);
+            thesum += YlPsi(i)*conj(YlPsi(i))*r*r*dr*ifEndPti;
+            if(printR) print(r,thesum,YlPsi(i));
+        }
+        if(printR) PRINTLINE("");
+        PRINT( "trapazoid:  " );
+        PRINTLINE(std::setprecision(6) << std::scientific << real(thesum));
+
     }
     PRINTLINE("");
 }
