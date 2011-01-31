@@ -116,7 +116,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     const double dr = L*0.99/(n-1);
     const double dTH = PI/(n-1);
     const double dPHI = 2*PI/(n-1);
-    const bool printR = false;
+    const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
     for( int l=0; l<=lMAX; l++) {
@@ -182,7 +182,6 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if(printR) print(r,thesum,YlPsi(i));
         }
         if(printR) PRINTLINE("");
-        PRINT( "trapazoid:  " );
         PRINTLINE(std::setprecision(6) << std::scientific << real(thesum));
 
     }
