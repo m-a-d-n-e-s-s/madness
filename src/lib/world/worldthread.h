@@ -37,6 +37,9 @@
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
 
 #include <world/dqueue.h>
+#include <vector>
+#include <cstddef>
+#include <pthread.h>
 
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
@@ -362,10 +365,10 @@ namespace madness {
         static bool run_task();
 
         /// Returns number of threads in the pool
-        static size_t size();
+        static std::size_t size();
 
         /// Returns number of tasks in the queue
-        static size_t queue_size();
+        static std::size_t queue_size();
 
         /// Returns queue statistics
         static const DQStats& get_stats();
