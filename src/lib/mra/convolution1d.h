@@ -261,11 +261,6 @@ namespace madness {
         //}
         virtual Level natural_level() const {return 13;}
 
-        virtual void setarg(double arg)
-        {
-          this->arg = arg;
-        }
-
         /// Computes the transition matrix elements for the convolution for n,l
 
         /// Returns the tensor

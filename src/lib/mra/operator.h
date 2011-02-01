@@ -439,21 +439,14 @@ namespace madness {
             }
 
             const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
-            const double pi = constants::pi;
 
             for (int mu=0; mu<rank; mu++) {
-                Q c = std::pow(sqrt(expnt(mu)/pi),NDIM); // Normalization coeff
-
-                // We cache the normalized operator so the factor is the value we must multiply
-                // by to recover the coeff we want.
-                ops[mu].setfac(coeff(mu)/c);
-
                 for (int d=0; d<NDIM; d++) {
                   SharedPtr<GaussianConvolution1D<Q> > gcptr =
-                      GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum);
-                  gcptr->setarg(args[d]);
+                      SharedPtr<GaussianConvolution1D<Q> >(
+                          new GaussianConvolution1D<Q>(k, coeff[mu], expnt(mu)*width[d]*width[d],
+                              0, isperiodicsum, args[d]));
                   ops[mu].setop(d,gcptr);
-//                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
                 }
             }
         }
