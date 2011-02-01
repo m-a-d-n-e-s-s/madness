@@ -187,54 +187,54 @@ void test_opdir(World& world) {
 
 /// Returns a 3-vector containing the convolution operator for the x,
 /// y, and z components of grad(1/r)
-static
-inline
-std::vector< SharedPtr< SeparatedConvolution<double,3> > > 
-GradCoulombOperator(World& world,
-                    double lo,
-                    double eps,
-                    const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-                    int k=FunctionDefaults<3>::get_k())
-{
-    const double pi = constants::pi;
-    const Tensor<double>& width = FunctionDefaults<3>::get_width();
-    double hi = width.normf(); // Diagonal width of cell
-    const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
-    if (isperiodicsum) hi *= 100; // Extend range for periodic summation
+// static
+// inline
+// std::vector< SharedPtr< SeparatedConvolution<double,3> > > 
+// GradCoulombOperator(World& world,
+//                     double lo,
+//                     double eps,
+//                     const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+//                     int k=FunctionDefaults<3>::get_k())
+// {
+//     const double pi = constants::pi;
+//     const Tensor<double>& width = FunctionDefaults<3>::get_width();
+//     double hi = width.normf(); // Diagonal width of cell
+//     const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
+//     if (isperiodicsum) hi *= 100; // Extend range for periodic summation
     
-    // bsh_fit generates representation for 1/4Pir but we want 1/r
-    // so have to scale eps by 1/4Pi
-    Tensor<double> coeff, expnt;
-    bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+//     // bsh_fit generates representation for 1/4Pir but we want 1/r
+//     // so have to scale eps by 1/4Pi
+//     Tensor<double> coeff, expnt;
+//     bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
     
-    if (bc(0,0) == BC_PERIODIC) {
-        truncate_periodic_expansion(coeff, expnt, width.max(), true);
-    }
+//     if (bc(0,0) == BC_PERIODIC) {
+//         truncate_periodic_expansion(coeff, expnt, width.max(), true);
+//     }
     
-    coeff.scale(4.0*pi);
-    int rank = coeff.dim(0);
+//     coeff.scale(4.0*pi);
+//     int rank = coeff.dim(0);
 
-    std::vector< SharedPtr< SeparatedConvolution<double,3> > > gradG(3);
+//     std::vector< SharedPtr< SeparatedConvolution<double,3> > > gradG(3);
 
-    for (int dir=0; dir<3; dir++) {
-        std::vector< ConvolutionND<double,3> > ops(rank);
-        for (int mu=0; mu<rank; mu++) {
-            // We cache the normalized operator so the factor is the value we must multiply
-            // by to recover the coeff we want.
-            Q c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff 
-            ops[mu].setfac(coeff(mu)/c);
+//     for (int dir=0; dir<3; dir++) {
+//         std::vector< ConvolutionND<double,3> > ops(rank);
+//         for (int mu=0; mu<rank; mu++) {
+//             // We cache the normalized operator so the factor is the value we must multiply
+//             // by to recover the coeff we want.
+//             Q c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff 
+//             ops[mu].setfac(coeff(mu)/c);
                 
-            for (int d=0; d<3; d++) {
-                if (d != dir)
-                    ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
-            }
-            ops[mu].setop(dir,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
-        }
-        ops(dir) = new SeparatedConvolution<double,3>(world, ops);
-    }
+//             for (int d=0; d<3; d++) {
+//                 if (d != dir)
+//                     ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+//             }
+//             ops[mu].setop(dir,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+//         }
+//         ops(dir) = new SeparatedConvolution<double,3>(world, ops);
+//     }
 
-    return gradG;
-}
+//     return gradG;
+// }
 
 void testgradG(World& world) {
 
