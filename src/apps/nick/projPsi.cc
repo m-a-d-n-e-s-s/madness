@@ -48,7 +48,7 @@
  *    belkic:     Reproduces an analytic integral
  * 3) projectPsi needs the following files
  *    wf.num                      a list of wave function ID numbers
- *    bound.num OR unbound.num    a list of states to project on
+  *    bound.num OR unbound.num    a list of states to project on
  ***************************************************************************************/
 
 #include "wavef.h"
@@ -98,8 +98,6 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
     complex_functionT psi;
-    //PRINTLINE("\n before loading file ");
-    //PRINTLINE(wave_function_filename(wf));
     if( !wave_function_exists(world, wf) ) {
         PRINTLINE("Function " << wf << " not found");
         exit(1);
@@ -112,8 +110,10 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         PRINTLINE("|" << wf << ">\t\t");
     } 
     PRINTLINE("");
+    double rMIN = ((50.0<L) ? 50.0 : L);
+    PRINTLINE("Integrating out to " << rMIN);
+    const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
-    const double dr = L*0.99/(n-1);
     const double dTH = PI/(n-1);
     const double dPHI = 2*PI/(n-1);
     const bool printR = true;
@@ -137,12 +137,12 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                 for( int k=0; k<n; k++ ) {
                     const double phi = k*dPHI;
                     const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
-                    // control for endpoint quadrature
-                    double ifEndPtk = 1.0;
-                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
                     // parallelism introduced via eval_local_only
                     psiVal = psi.eval_local_only(rVec, maxLocalDepth);
                     if( psiVal.first ) { //boolean: true for local coeffs
+                        // control for endpoint quadrature
+                        double ifEndPtk = 1.0;
+                        if (k==0 || k==(n-1)) ifEndPtk = 0.5;
                         Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
                         //psiVal.second returns psi(rVec)
                         //PRINTLINE("psiVal.second = " << psiVal.second << "\t yl0(rVec) = " << yl0(rVec) << * "\t sinTH*dTH*dPHI = " <<sinTH*dTH*dPHI);
@@ -151,8 +151,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             }
             YlPsi(i) = Rl;
         }
-        world.gop.sum(&YlPsi,n);
-
+        world.gop.sum(&YlPsi(0L), (std::size_t)n);
 //         //Volume of the central spherical element with radius = dr/2 and a linear correction
 //         double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
 //                      + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
