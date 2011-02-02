@@ -45,9 +45,7 @@
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
-//#include "../../../../../wavechem/SepRep.h"
 #include "mra/flonode.h"
-//#include "/Users/fbischoff/devel/wavechem/SepRep.h"
 
 namespace madness {
     template <typename T, int NDIM>

@@ -215,7 +215,7 @@ namespace madness {
 			return *this;
 		}
 
-		/// return a slice of this
+		/// return a slice of this (deep copy)
 		SepRep operator()(const std::vector<Slice>& s) const {
 
 			// consistency check
@@ -257,6 +257,11 @@ namespace madness {
 
 			return result;
 
+		}
+
+		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
+		void inplace_add(const SepRep<T>& rhs) {
+			this->configs_.inplace_add(rhs.configs_);
 		}
 
 		/// is this a valid tensor? Note that the rank might still be zero.
@@ -881,12 +886,6 @@ namespace madness {
 //			std::vector<Tensor<T> > B(dim,Tensor<T> (rF,rF));
 			std::vector<Tensor<T> > B(dim);
 			for (unsigned int idim=0; idim<dim; idim++) B[idim]=Tensor<T> (rF,rF);
-
-			// the tuple(d) tells you where the entry in the configurations
-			// of the reference is, as in i \in [0,k); all other entries are zero
-			// it's dim, although we cycle only thru dim-1 dimensions ( eq. (3.4) BM2005);
-			// idim is left out in incrementing - see increment()
-			std::vector<long> tuple(dim,0);
 
 
 			/*

@@ -90,7 +90,7 @@ namespace madness {
 
 		}
 
-		/// assignment operator (tested), deep copy of vectors
+		/// assignment operator (tested), shallow copy of vectors
 		SRConf& operator=(const SRConf& rhs)  {
 
 			// check for self-assignment
@@ -118,15 +118,14 @@ namespace madness {
 				return *this;
 			}
 
-			// assign vectors; deep copy
+			// assign vectors; shallow copy
 			vector_.resize(rhs.vector_.size());
 			for (unsigned int i=0; i<rhs.vector_.size(); i++) {
-				vector_[i]=copy(rhs.refVector(i));
+				vector_[i]=(rhs.refVector(i));
 			}
 
-			// deep copy; note that rank is >=1 here
-//			weights_=copy(rhs.weights_(Slice(0,rhs.rank()-1)));
-			weights_=copy(rhs.weights_);
+			// shallow copy; note that rank is >=1 here
+			weights_=(rhs.weights_);
 
 			rank_=rhs.rank();
 			maxk_=rhs.maxk_;
@@ -158,6 +157,10 @@ namespace madness {
 
 			assert(compatible(*this,rhs));
 
+			this->inplace_add(rhs);
+			return *this;
+
+#if 0
 			// for convenience
 			const long oldRank=this->rank();
 			const long rhsRank=rhs.rank();
@@ -198,6 +201,51 @@ namespace madness {
 #endif
 			rank_=newRank;
 			return *this;
+#endif
+
+		}
+
+		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
+		/// bounds checking should have been performed by caller
+		void inplace_add(const SRConf<T>& rhs) {
+
+			// fast return if possible
+			if (this->rank()==0) {
+				*this=rhs;
+				return;
+			} else if (rhs.rank()==0) {
+				return;
+			}
+
+			MADNESS_ASSERT(this->vector_[0].dim(1)>=rhs.vector_[0].dim(1));
+
+			// for convenience
+			const long oldRank=this->rank();
+			const long rhsRank=rhs.rank();
+			const long newRank=this->rank()+rhs.rank();
+
+			// take larger k!
+			const long rhs_k=rhs.vector_[0].dim(1);
+			const long lhs_k=this->vector_[0].dim(1);
+			const long k_max=std::max(rhs_k,lhs_k);
+
+			// assign weights
+			Tensor<double> newWeights(newRank);
+			newWeights(Slice(0,oldRank-1))=this->weights_(Slice(0,oldRank-1));
+			newWeights(Slice(oldRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
+			weights_=newWeights;
+
+			// assign vectors
+			for (unsigned int idim=0; idim<this->dim(); idim++) {
+				Tensor<T> newVector(newRank,k_max);
+
+				// note conforming slice for this, not for rhs
+				newVector(Slice(0,oldRank-1),Slice(0,lhs_k-1))=this->refVector(idim);
+				newVector(Slice(oldRank,newRank-1),Slice(0,rhs_k-1))=rhs.refVector(idim);
+				vector_[idim]=copy(newVector);
+
+			}
+			rank_=newRank;
 
 		}
 
@@ -242,7 +290,7 @@ namespace madness {
 //		void selfTransform(std::vector<const Tensor<T> *>& matrices, const double& dfac);
 
 		/// return const reference to one of the vectors F
-		const Tensor<T>  refVector(const unsigned int& idim) const {
+		const Tensor<T>& refVector(const unsigned int& idim) const {
 //				if (this->rank()==0) return Tensor<T>(0,vector_[0].dim(1));
 				MADNESS_ASSERT(this->rank()==vector_[idim].dim(0));
 				return vector_[idim];
@@ -251,8 +299,8 @@ namespace madness {
 
 
 		/// return reference to one of the vectors F
-		Tensor<T>  refVector(const unsigned int& idim) {
-			if (this->rank()==0) return Tensor<T>(0,vector_[0].dim(1));
+		Tensor<T>& refVector(const unsigned int& idim) {
+//			if (this->rank()==0) return Tensor<T>(0,vector_[0].dim(1));
 			MADNESS_ASSERT(this->rank()==vector_[idim].dim(0));
 			return vector_[idim];
 //			return vector_[idim](Slice(0,this->rank()-1),Slice(_));

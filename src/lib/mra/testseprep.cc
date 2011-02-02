@@ -8,6 +8,11 @@
 
 using namespace madness;
 
+std::string is_small(const double& val, const double& eps) {
+	if (val<eps) return "ok   ";
+	return "fail ";
+}
+
 int testLowRankTensor(const long& k, const long& dim, const double& eps) {
 
 
@@ -130,12 +135,25 @@ int testLowRankTensor_assignment(const long& k, const long& dim, const double& e
 	t0.fillindex();
 	std::vector<Slice> s(6,Slice(0,k/2));
 
+	// regular assignment
+	LowRankTensor<double> lrt0(t0,eps,TT_3D);
+	LowRankTensor<double> lrt0a;
+	lrt0a=lrt0;
+	print("LRT assignment      ", (lrt0.reconstructTensor()-lrt0a.reconstructTensor()).normf());
+
+
 	// sliced assignment
 	LowRankTensor<double> lrt1(t0,eps,TT_3D);
 	LowRankTensor<double> lrt2=lrt1(s);
+	LowRankTensor<double> lrt2a=lrt1;
+	lrt2a=lrt1(s);
+
 	Tensor<double> t1=lrt1.reconstructTensor();
 	Tensor<double> t2=lrt2.reconstructTensor();
-	print("sliced assignment/1 ", (t1(s)-t2).normf(),t2.normf());
+	Tensor<double> t2a=lrt2a.reconstructTensor();
+	const Tensor<double> t3=t1(s);
+	print("sliced assignment/1 ", (t3-t2).normf(),t2.normf());
+	print("sliced assignment/1a", (t3-t2a).normf(),t2.normf());
 
 	// sliced assignment
 	LowRankTensor<double> lrt3(t0,eps,TT_2D);
@@ -150,13 +168,51 @@ int testLowRankTensor_assignment(const long& k, const long& dim, const double& e
 	LowRankTensor<double> lrt6=lrt3(s);
 	t1=lrt5.reconstructTensor();
 	t2=lrt6.reconstructTensor();
-	print("sliced assignment/3 ", (t1(s)-t2).normf(),t2.normf());
+	print("sliced assignment/3 ", (t1(s)-t2).normf()>1.e-3*eps,t2.normf());
 
 
 	print("all done");
 	return 0;
 }
 
+int testLowRankTensor_algebra(const long& k, const long& dim, const double& eps) {
+
+	std::vector<Slice> s(3,Slice(0,k/2));
+
+	Tensor<double> t0=Tensor<double>(k,k,k);
+	Tensor<double> t1=Tensor<double>(k,k,k);
+	t0.fillrandom();
+	t1.fillindex();
+
+	LowRankTensor<double> lrt1(t0,eps,TT_3D);
+	LowRankTensor<double> lrt2(t1,eps,TT_3D);
+
+	t0+=t1;
+	lrt1+=lrt2;
+	print(is_small((t0-lrt1.reconstructTensor()).normf(),eps),"inplace addition LRT   ",
+			(t0-lrt1.reconstructTensor()).normf());
+
+	FullTensor<double> f0(t0);
+	FullTensor<double> f1(t1);
+	t0+=t1;
+	f0+=f1;
+	print(is_small((t0-f0.fullTensor()).normf(),1.e-14), "inplace addition full   ", (t0-f0.fullTensor()).normf());
+
+	// lhs slice testing
+	LowRankTensor<double> lrt3(copy(t0),eps,TT_3D);
+	LowRankTensor<double> lrt4=lrt3(s);
+	lrt3.scale(-1.0);
+
+	lrt3(s)+=lrt4;
+
+	Tensor<double> p4=lrt3.reconstructTensor();
+	Tensor<double> p4slice=p4(s);
+
+	print(is_small(p4slice.normf(),1.e-13), "inplace addition slice LRT", p4slice.normf());
+
+	print("all done\n");
+	return 0;
+}
 
 int main(int argc, char**argv) {
 
@@ -234,6 +290,8 @@ int main(int argc, char**argv) {
 
     testLowRankTensor_ctor(k,dim,eps);
     testLowRankTensor_assignment(k,dim,eps);
+
+    testLowRankTensor_algebra(k,dim,1.e-5);
 
     world.gop.fence();
     finalize();

@@ -100,6 +100,7 @@
 
 namespace madness {
 
+	template <class T> class SliceLowRankTensor;
 
     /// abstract base class for the SepRepTensor
     template<typename T>
@@ -159,39 +160,43 @@ namespace madness {
     	typedef typename TensorTypeData<T>::float_scalar_type float_scalar_type;
 
     public:
-    	SepRep<T> data;		///< the tensor data
+    	SepRep<T> _data;		///< the tensor data
 
 
        	/// default constructor (tested)
-    	LowRankTensor<T>() : data(SepRep<T>()) {
+    	LowRankTensor<T>() : _data(SepRep<T>()) {
     	};
 
     	/// copy constructor (tested)
-    	LowRankTensor<T>(const LowRankTensor<T>& rhs) {
-    		data=rhs.data;
+    	LowRankTensor<T>(const LowRankTensor<T>& rhs) : _data(rhs._data) {
+    	};
+
+    	/// constructor w/ slice on rhs
+    	LowRankTensor<T>(const SliceLowRankTensor<T>& rhs) : _data(rhs.ref_data()(rhs._s)) {
     	};
 
     	/// ctor with a SepRep
-    	LowRankTensor<T>(const SepRep<T>& rhs) : data(rhs) {
+    	LowRankTensor<T>(const SepRep<T>& rhs) : _data(rhs) {
     	}
 
     	/// ctor with regular Tensor (tested)
     	LowRankTensor<T>(const Tensor<T>& t, const double& eps, const TensorType& tt) {
-			data=SepRep<T>(t,eps,tt);
-    	}
-
-    	/// ctor with ndim tensors for each dimension
-    	LowRankTensor<T>(const Tensor<double>& weights,
-    			const std::vector<Tensor<T> >& t, const TensorType& tt)
-    			: data(weights,t,tt) {
+			_data=SepRep<T>(t,eps,tt);
     	}
 
     	/// dtor
     	~LowRankTensor<T>() {}
 
-    	/// assignment with rhs=LowRankTensor
+    	/// shallow assignment with rhs=LowRankTensor (tested)
     	LowRankTensor<T>& operator=(const LowRankTensor<T>& rhs) {
-    		MADNESS_ASSERT(0);
+    		_data=rhs._data;
+    		return *this;
+    	};
+
+    	/// deep assignment with rhs=SliceLowRankTensor
+    	LowRankTensor<T>& operator=(const SliceLowRankTensor<T>& rhs) {
+    		_data=rhs.ref_data()(rhs._s);
+    		return *this;
     	};
 
     	/// assignment to a number
@@ -199,13 +204,15 @@ namespace madness {
     		MADNESS_ASSERT(0);
     	}
 
-    	/// slicing to assign lhs=rhs(s) (tested)
-    	LowRankTensor<T> operator()(const std::vector<Slice>& s) const {
-
-    		LowRankTensor<T> result(this->data(s));
-    		return result;
+    	/// general slicing
+    	const SliceLowRankTensor<T> operator()(const std::vector<Slice>& s) const {
+    		return SliceLowRankTensor<T>(*this,s);
     	}
 
+    	/// general slicing
+    	SliceLowRankTensor<T> operator()(const std::vector<Slice>& s) {
+    		return SliceLowRankTensor<T>(*this,s);
+    	}
 
 #if 0
     	/// enlarge the dimensions of this, while keeping the information
@@ -227,32 +234,38 @@ namespace madness {
     		return new LowRankTensor<T>(*this);
     	}
 
+    	/// inplace addition
+    	LowRankTensor<T>& operator+=(const LowRankTensor<T>& rhs) {
+    		_data+=rhs._data;
+    		return *this;
+    	}
+
        	/// return this tensor type
-        TensorType type() const {return data.tensor_type();};
+        TensorType type() const {return _data.tensor_type();};
 
         /// return the type of the derived class for me
         std::string what_am_i() const {return "LowRank";};
 
         /// return the rank of this
-        long rank() const {return data.rank();};
+        long rank() const {return _data.rank();};
 
         /// Returns if this Tensor exists
-        bool has_data() const {return data.is_valid();};
+        bool has_data() const {return _data.is_valid();};
 
         /// Return the number of coefficients (valid for all SPR)
         long size() const {
         	if (!this->has_data()) return 0;
-        	return data.nCoeff();
+        	return _data.nCoeff();
         };
 
-    	virtual long dim(const int) const {return data.get_k();};
+    	virtual long dim(const int) const {return _data.get_k();};
 
-		virtual long ndim() const {return data.dim();};
+		virtual long ndim() const {return _data.dim();};
 
 		/// reconstruct this to a full tensor
 		Tensor<T> reconstructTensor() const {
-			MADNESS_ASSERT(data.is_valid());
-			return data.reconstructTensor();
+			MADNESS_ASSERT(_data.is_valid());
+			return _data.reconstructTensor();
 
 		};
 
@@ -272,39 +285,57 @@ namespace madness {
     	float_scalar_type normf() const {throw;};
 
     	/// scale by a number
-    	void scale(T a) {throw;};
+    	void scale(T a) {_data.scale(a);};
 
     };
 
-    /// derived from LowRankTensor, intended only for assignment
+    /// Slices of a LowRankTensor
 
-    /// we need this for all assignments of the form (s being Slices):
-    /// \code
-    ///  lhs(s) = rhs
-    /// \endcode
-    /// for assignments like
-    /// \code
-    /// lhs = rhs(s)
-    /// use the LowRankTensor class directly
+    /// publicly accessible are only very few functions;
+    /// the only operations that are possible are in-place addition
+    /// and assignment, all other operations must be reexpressed in
+    /// terms of those
     template<typename T>
-    class SliceLowRankTensor : private LowRankTensor<T> {
+    class SliceLowRankTensor {
+
+    	friend class LowRankTensor<T>;
 
     private:
+
+    	LowRankTensor<T>& _refLRT;
+    	std::vector<Slice> _s;
+
+    	/// default ctor
     	SliceLowRankTensor<T>() {};
 
+    	/// ctor; with a LowRankTensor and a slice; to be called only by LowRankTensor
+    	SliceLowRankTensor<T>(LowRankTensor<T>& lrt, const std::vector<Slice>& s)
+    		: _refLRT(lrt)
+    		, _s(s) {
+    	}
+
+    	/// getter for LowRankTensor
+    	SepRep<T>& ref_data() {return _refLRT._data;};
+
+    	/// getter for LowRankTensor
+    	const SepRep<T>& ref_data() const {return _refLRT._data;};
+
     public:
+    	/// inplace addition
+    	SliceLowRankTensor<T>& operator+=(const LowRankTensor<T>& rhs) {
 
-    	/// ctor
-    	SliceLowRankTensor<T>(const LowRankTensor<T>& lrt, const std::vector<Slice>& s) {
+    		// make sure the slices conform
+    		MADNESS_ASSERT(long(_s.size())==rhs.ndim());
+    		for (unsigned int idim=0; idim<_s.size(); idim++) {
+    			MADNESS_ASSERT(_s[idim].step==1);
+    			MADNESS_ASSERT(_s[idim].end-_s[idim].start+1==rhs.dim(idim));
+    		}
+
+    		// perform addition
+    		_refLRT._data.inplace_add(rhs._data);
+
+    		return *this;
     	}
-
-    	/// assignment
-    	SliceLowRankTensor<T>& operator=(const LowRankTensor<T>& rhs) {
-    	}
-
-    	SliceLowRankTensor<T>& operator=(const SliceLowRankTensor<T>& rhs) {
-    	}
-
 
     };
 
@@ -370,7 +401,8 @@ namespace madness {
 
     	/// add-to-this operator
     	FullTensor<T>& operator+=(const FullTensor<T>& rhs) {
-    		MADNESS_ASSERT(0);
+    		data+=rhs.data;
+    		return *this;
     	}
 
     	/// add-to-this operator
