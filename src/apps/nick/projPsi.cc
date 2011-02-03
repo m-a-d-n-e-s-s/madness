@@ -119,7 +119,9 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
+    clock_t before=0, after=0;
     for( int l=0; l<=lMAX; l++) {
+        if(world.rank()==0) before = clock();
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
         if( !printR ) PRINTLINE("");
         psi.reconstruct(); //Transforms to scaling function basis
@@ -181,8 +183,9 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if(printR) PRINT(real(YlPsii) << "\t");
         }
         if (printR) PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
-
+        if(world.rank()==0) after = clock();
+        PRINT(std::setprecision(6) << std::scientific << Pl);
+        PRINTLINE(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
     }
     PRINTLINE("");
 }
