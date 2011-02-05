@@ -71,7 +71,7 @@ typedef SeparatedConvolution<double,4> operatorT;
 typedef SharedPtr< FunctionFunctorInterface<double_complex,4> > complex_functorT;
 typedef Function<double_complex,4> complex_functionT;
 typedef FunctionFactory<double_complex,4> complex_factoryT;
-typedef SeparatedConvolution<double_complex,4> complex_operatorT;
+typedef Convolution1D<double_complex> complex_operatorT;
 typedef SharedPtr< WorldDCPmapInterface< Key<4> > > pmapT;
 
 double real(double a) {return a;}
@@ -266,12 +266,11 @@ static double smoothed_potential(double r) {
 // Potential - nuclear-nuclear repulsion
 static double Vn(const coordT& r) {
     double s=r[3];
+    double R = R0 + s/sqrtmu;
+    if (R < 0.0) R = 0.0;// Do something vaguely sensible for non-physical bond length
 
-    s = s + s0;
-    if (s < 0.0) s = 0.0; // Do something vaguely sensible for non-physical bond length
-
-    double cut = 10.0;
-    return sqrtmu*smoothed_potential(s/cut)/cut;
+    double cut = 0.5;
+    return smoothed_potential(R/cut)/cut;
 }
 
 // Potential - electron-nuclear attraction
@@ -361,12 +360,14 @@ double myreal(const double_complex& t) {return real(t);}
 template <typename T>
 double energy(World& world, const Function<T,4>& psi, const functionT& pote, const functionT& potn, const functionT& potf) {
     // First do all work in the scaling function basis
-    bool DOFENCE = false;
+    //bool DOFENCE = false;
+    bool DOFENCE = true;
     psi.reconstruct();
-    Function<T,4> dx = Derivative<T,4>(world,0)(psi,DOFENCE);
-    Function<T,4> dy = Derivative<T,4>(world,1)(psi,DOFENCE);
-    Function<T,4> dz = Derivative<T,4>(world,2)(psi,DOFENCE);
-    Function<T,4> ds = Derivative<T,4>(world,3)(psi,DOFENCE);
+    Derivative<T,4> Dx(world,0), Dy(world,1), Dz(world,2), Ds(world,3);
+    Function<T,4> dx = Dx(psi,DOFENCE);
+    Function<T,4> dy = Dy(psi,DOFENCE);
+    Function<T,4> dz = Dz(psi,DOFENCE);
+    Function<T,4> ds = Ds(psi,DOFENCE);
     Function<T,4> Vepsi = psi*pote;
     Function<T,4> Vnpsi = psi*potn;
     Function<T,4> Vfpsi = psi*potf;
@@ -432,7 +433,7 @@ void testbsh(World& world) {
 
 void converge(World& world, functionT& potn, functionT& pote, functionT& pot, functionT& psi, double& eps) {
     functionT zero = factoryT(world);
-    for (int iter=0; iter<5; iter++) {
+    for (int iter=0; iter<35; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
 
         functionT Vpsi = pot*psi;// - 0.5*psi; // TRY SHIFTING POTENTIAL AND ENERGY DOWN
@@ -440,36 +441,53 @@ void converge(World& world, functionT& potn, functionT& pote, functionT& pot, fu
 
         operatorT op = BSHOperator<4>(world, sqrt(-2*eps), param.cut, param.thresh);
         if (world.rank() == 0) print("made V*psi", wall_time());
-        Vpsi.scale(-20.0).truncate();
+        Vpsi.scale(-2.0).truncate();
         if (world.rank() == 0) print("tryuncated V*psi", wall_time());
         functionT tmp = apply(op,Vpsi).truncate(param.thresh);
         if (world.rank() == 0) print("applied operator", wall_time());
-        tmp.scale(0.1);
         double norm = tmp.norm2();
         functionT r = tmp-psi;
         double rnorm = r.norm2();
-        double eps_new = eps - 0.05*inner(Vpsi,r)/(norm*norm);
+        double eps_new = eps - 0.5*inner(Vpsi,r)/(norm*norm);
         if (world.rank() == 0) {
             print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
         }
 
-        // update with damping
-        double d = 0.25;
-        psi = (psi.scale(d) + tmp.scale((1.0-d)/norm));
-        //psi = tmp;
+        tmp.scale(1.0/norm);
+
+        double d = 0.3;
+        psi = tmp*d + psi*(1.0-d);
 
         psi.scale(1.0/psi.norm2());
 
-        //eps = eps_new;
-        eps = energy(world, psi, pote, potn, zero);
+        eps = eps_new;
+        energy(world, psi, pote, potn, zero);
 
         if (rnorm < std::max(1e-5,param.thresh)) break;
     }
 }
 
+complex_functionT APPLY(const complex_operatorT* Ge, const complex_operatorT* Gn, const complex_functionT& psi) {
+    complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
+
+    r.reconstruct();
+    r.broaden();
+    r.broaden();
+    r.broaden();
+    r.broaden();
+
+    r = apply_1d_realspace_push(*Gn, r, 3); r.sum_down();
+    r = apply_1d_realspace_push(*Ge, r, 2); r.sum_down();
+    r = apply_1d_realspace_push(*Ge, r, 1); r.sum_down();
+    r = apply_1d_realspace_push(*Ge, r, 0); r.sum_down();
+
+    return r;
+}
+
 complex_functionT trotter(World& world,
                           const complex_functionT& expV,
-                          const complex_operatorT& G,
+                          const complex_operatorT* Ge,
+                          const complex_operatorT* Gn,
                           const complex_functionT& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V(t/2)*t) exp(-i*T*t/2) psi(0)
 
@@ -477,7 +495,7 @@ complex_functionT trotter(World& world,
 
     unsigned long size = psi0.size();
     if (world.rank() == 0) print("APPLYING G", size);
-    psi1 = apply(G,psi0);  psi1.truncate();  size = psi1.size();
+    psi1 = APPLY(Ge,Gn,psi0);  psi1.truncate();  size = psi1.size();
     if (world.rank() == 0) print("APPLYING expV", size);
     psi1 = expV*psi1;      psi1.truncate();  size = psi1.size();
 
@@ -488,7 +506,7 @@ complex_functionT trotter(World& world,
     psi1 = copy(psi1, FunctionDefaults<4>::get_pmap(), true);
 
     if (world.rank() == 0) print("APPLYING G again", size);
-    psi1 = apply(G,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
+    psi1 = APPLY(Ge,Gn,psi1);  psi1.truncate(param.thresh);  size = psi1.size();
     if (world.rank() == 0) print("DONE", size);
 
     FunctionDefaults<4>::set_pmap(oldpmap);
@@ -586,22 +604,7 @@ void loadbal(World& world,
     LoadBalanceDeux<4> lb(world);
     lb.add_tree(vt, lbcost<double,4>(1.0,1.0));
     lb.add_tree(psi, lbcost<double_complex,4>(10.0,10.0));
-    FunctionDefaults<4>::set_pmap(lb.load_balance());
-    world.gop.fence();
-    if (world.rank() == 0) print("starting LB copies");
-    world.gop.fence();
-    pote = copy(pote, FunctionDefaults<4>::get_pmap(), true);
-    potn = copy(potn, FunctionDefaults<4>::get_pmap(), true);
-    pot = copy(pot, FunctionDefaults<4>::get_pmap(), true);
-    vt = copy(vt, FunctionDefaults<4>::get_pmap(), true);
-    psi = copy(psi, FunctionDefaults<4>::get_pmap(), true);
-    psi0 = copy(psi0, FunctionDefaults<4>::get_pmap(), true);
-    x = copy(x, FunctionDefaults<4>::get_pmap(), true);
-    y = copy(y, FunctionDefaults<4>::get_pmap(), true);
-    z = copy(z, FunctionDefaults<4>::get_pmap(), true);
-    R = copy(R, FunctionDefaults<4>::get_pmap(), true);
-    world.gop.fence();
-    if (world.rank() == 0) print("done with LB");
+    FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
     world.gop.fence();
 }
 
@@ -623,8 +626,10 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     world.gop.broadcast(time_step);
     world.gop.broadcast(nstep);
 
-    // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
-    SeparatedConvolution<double_complex,4> G = qm_free_particle_propagator<4>(world, param.k, c, 0.5*time_step);
+    // Free particle propagator 
+    complex_operatorT* Ge = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step, 2.0*param.L);
+    complex_operatorT* Gn = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step,  s0+param.L);
+
 
     // Dipole moment functions for laser field and for printing statistics
     functionT x = factoryT(world).f(xdipole);
@@ -675,7 +680,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
 
         // Apply Trotter to advance from time t to time t+step
         complex_functionT expV = make_exp(time_step, vhalf);
-        psi = trotter(world, expV, G, psi);
+        psi = trotter(world, expV, Ge, Gn, psi);
 
         // Update counters, print info, dump/plot as necessary
         step++;
@@ -706,7 +711,14 @@ void doit(World& world) {
     FunctionDefaults<4>::set_k(param.k);                        // Wavelet order
     FunctionDefaults<4>::set_thresh(param.thresh*param.safety);       // Accuracy
     FunctionDefaults<4>::set_initial_level(4);
-    FunctionDefaults<4>::set_cubic_cell(-param.L,param.L);
+
+    real_tensor cell(4,2);
+    cell(0,0)=-param.L; cell(0,1)=param.L;
+    cell(1,0)=-param.L; cell(1,1)=param.L;
+    cell(2,0)=-param.L; cell(2,1)=param.L;
+    cell(3,0)=-s0;      cell(3,1)=param.L;
+    FunctionDefaults<4>::set_cell(cell);
+    //FunctionDefaults<4>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<4>::set_apply_randomize(true);
     FunctionDefaults<4>::set_autorefine(false);
     FunctionDefaults<4>::set_truncate_mode(1);
@@ -745,12 +757,8 @@ void doit(World& world) {
 
     LoadBalanceDeux<4> lb(world);
     lb.add_tree(pot, lbcost<double,4>());
-    FunctionDefaults<4>::set_pmap(lb.load_balance());
+    FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
     world.gop.fence();
-    pote = copy(pote, FunctionDefaults<4>::get_pmap());
-    potn = copy(potn, FunctionDefaults<4>::get_pmap());
-    pot = copy(pot, FunctionDefaults<4>::get_pmap());
-
 
     if (!exists) {
         if (step0 == 0) {
