@@ -36,11 +36,9 @@
 
 namespace madness {
     namespace detail {
-        madness::Mutex RemoteCounter::mutex_;
         RemoteCounter::pimpl_mapT RemoteCounter::pimpl_map_;
 
         void RemoteCounter::unregister_ptr_(void* k) {
-            ScopedMutex<Mutex> buckleup(&mutex_);
             std::size_t ereased = pimpl_map_.erase(k);
             MADNESS_ASSERT(ereased > 0);
         }
@@ -70,16 +68,16 @@ namespace madness {
         RemoteCounter::RemoteCounter(const WorldPtr<implT>& p) :
             pimpl_(p)
         {
-#ifndef NDEBUG
+#ifdef MADNESS_ASSERTIONS_DISABLE
             // Check to make sure the pimpl still exists.
             if(p.is_local()) {
-                ScopedMutex<Mutex> buckleup(&mutex_);
                 pimpl_mapT::const_iterator it;
-                for(it = pimpl_map_.begin(); it != pimpl_map_.end(); ++it)
+                const pimpl_mapT::const_iterator end = pimpl_map_.end();
+                for(it = pimpl_map_.begin(); it != end; ++it)
                     if(it->second == p)
                         break;
 
-                MADNESS_ASSERT(it != pimpl_map_.end());
+                MADNESS_ASSERT(it != end);
             }
 #endif
         }

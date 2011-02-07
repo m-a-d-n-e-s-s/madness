@@ -137,6 +137,15 @@ namespace madness {
         }
     };
 
+    /// Default \c Hash<T>::hash(t) invokes t.hash()
+    template <typename T>
+    struct Hash<T*> {
+        static hashT hash(void* p) {
+            unsigned long n = reinterpret_cast<unsigned long>(p);
+            return madness::hash(n);
+        };
+    };
+
 }
 
 

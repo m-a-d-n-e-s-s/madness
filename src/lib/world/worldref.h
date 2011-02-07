@@ -47,6 +47,7 @@
 #include <world/archive.h>      // for wrap_opaque
 #include <world/worldam.h>      // for new_am_arg
 #include <world/worldptr.h>     // for WorldPtr
+#include <world/worldhashmap.h> // for ConcurrentHashMap
 #include <map>                  // for std::map
 #include <iosfwd>               // for std::ostream
 
@@ -183,9 +184,8 @@ namespace madness {
         class RemoteCounter {
         private:
             typedef RemoteCounterBase implT;
-            typedef std::map<void*, WorldPtr<implT> > pimpl_mapT;
+            typedef ConcurrentHashMap<void*, WorldPtr<implT> > pimpl_mapT;
 
-            static Mutex mutex_;            ///< Provide exclusive access to \c pimpl_map_
             static pimpl_mapT pimpl_map_;   ///< A map of currently registered
                                             ///< implementation objects. The key is
                                             ///< it's referenced pointer.
@@ -215,44 +215,37 @@ namespace madness {
             /// into the pointer registration map.
             template <typename T>
             static WorldPtr<implT> register_ptr_(World& w, const std::shared_ptr<T>& p) {
-                WorldPtr<implT> result;
-                if(p.get() != NULL) {
-                    ScopedMutex<Mutex> buckleup(&mutex_);
+                // Check for a null pointer
+                if(p.get() == NULL)
+                    return WorldPtr<implT>(w, NULL);
 
-                    // Pointer is local and non-null
-                    pimpl_mapT::const_iterator it =
-                        pimpl_map_.find(static_cast<void*>(p.get()));
+                pimpl_mapT::accessor acc;
+                // Pointer is local and non-null
+                if(pimpl_map_.insert(acc,static_cast<void*>(p.get()))) {
+                    // The pointer is not registered so we need to make a
+                    // new pimpl.
+                    implT* pimpl = new RemoteCounterImpl<T>(p);
 
-                    if(it == pimpl_map_.end()) {
-                        // The pointer is not registered so we need to make a new one.
-                        implT* pimpl = new RemoteCounterImpl<T>(p);
-                        try {
-                            MADNESS_ASSERT(pimpl != NULL);
-                            result = WorldPtr<implT>(w, pimpl);
-                            std::pair<pimpl_mapT::const_iterator, bool> insert_result
-                                = pimpl_map_.insert(std::make_pair(static_cast<void*>(p.get()), result));
-                            MADNESS_ASSERT(insert_result.second);
-
-
-#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
-                            print(">>> RemoteCounter::register_ptr_(new): key=", p.get(), ", pimpl=", pimpl);
-#endif
-                        } catch(...) {
-                            delete pimpl;
-                            throw;
-                        }
-                    } else {
-                        // The pointer is already registered, so we just need
-                        // increment the counter.
-                        result = it->second;
-#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
-                        print(">>> RemoteCounter::register_ptr_(existing): key=", result->key(), ", pimpl=", result);
-#endif
-                        result->add_ref();
+                    try{
+                        acc->second = WorldPtr<implT>(w, pimpl);
+                    } catch(...) {
+                        delete pimpl;
+                        throw;
                     }
+
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                        print(">>> RemoteCounter::register_ptr_(new): key=", p.get(), ", pimpl=", acc->second);
+#endif
+                } else {
+                    // The pointer is already registered, so we just need
+                    // increment the counter.
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                    print(">>> RemoteCounter::register_ptr_(existing): key=", acc->second->key(), ", pimpl=", acc->second);
+#endif
+                    acc->second->add_ref();
                 }
 
-                return result;
+                return acc->second;
             }
 
             /// Unregister a local shared pointer reference
