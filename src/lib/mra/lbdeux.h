@@ -125,7 +125,7 @@ namespace madness {
         /// Accumulates cost up the tree from children
         Void sum(const treeT& tree, const keyT& child, double value) {
             child_cost[index(child)] = value;
-            nsummed++;
+            ++nsummed;
             if (nsummed == nchild) {
                 for (int i=0; i<nchild; ++i) total_cost += child_cost[i];
                 if (child.level() > 1) {

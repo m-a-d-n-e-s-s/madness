@@ -264,7 +264,7 @@ void test_conv(World& world) {
         if (world.rank() == 0) printf("k=%d\n", k);
         int ntop = 5;
         if (NDIM > 2 && k>5) ntop = 4;
-        for (int n=1; n<=ntop; n++) {
+        for (int n=1; n<=ntop; ++n) {
             Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
             double err2 = f.err(*functor);
             std::size_t size = f.size();
@@ -294,7 +294,7 @@ struct myunaryop_square {
     Tensor<T> operator()(const Key<NDIM>& key, const Tensor<T>& t) const {
         Tensor<T> result = copy(t);
         T* r = result.ptr();
-        for (int i = 0; i < result.size(); i++) {
+        for (int i = 0; i < result.size(); ++i) {
             r[i] = r[i]*r[i];
         }
         return result;
@@ -452,7 +452,7 @@ void test_math(World& world) {
 
     int nfunc = 100;
     if (NDIM >= 3) nfunc = 20;
-    for (int i=0; i<nfunc; i++) {
+    for (int i=0; i<nfunc; ++i) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T(*p)(T,T) = &product<T,T,T>;
@@ -491,14 +491,14 @@ void test_math(World& world) {
         const int nvfunc = 10;
         std::vector< Function<T,NDIM> > vin(nvfunc);
         std::vector<functorT> funcres(nvfunc);
-        for (int i=0; i<nvfunc; i++) {
+        for (int i=0; i<nvfunc; ++i) {
             functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
             T(*p)(T,T) = &product<T,T,T>;
             funcres[i] = functorT(new BinaryOp<T,T,T,T(*)(T,T),NDIM>(f1,f2,p));
             vin[i] = FunctionFactory<T,NDIM>(world).functor(f2);
         }
         std::vector< Function<T,NDIM> > vres = mul(world, left, vin);
-        for (int i=0; i<nvfunc; i++) {
+        for (int i=0; i<nvfunc; ++i) {
             double err = vres[i].err(*funcres[i]);
             CHECK(err, 1e-8, "err");
             vres[i].verify_tree();
@@ -508,7 +508,7 @@ void test_math(World& world) {
 
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
-    for (int i=0; i<10; i++) {
+    for (int i=0; i<10; ++i) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T(*p)(T,T) = &sum<T,T,T>;
@@ -529,7 +529,7 @@ void test_math(World& world) {
     }
 
     if (world.rank() == 0) print("\nTest adding random functions in place");
-    for (int i=0; i<10; i++) {
+    for (int i=0; i<10; ++i) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         functorT f2(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),100.0));
         T(*p)(T,T) = &sum<T,T,T>;
@@ -561,7 +561,7 @@ void test_diff(World& world) {
         print("\nTest differentiation - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
     const coordT origin(0.0);
-    //for (int i=0; i<NDIM; i++) origin[i] = i/31.4;
+    //for (int i=0; i<NDIM; ++i) origin[i] = i/31.4;
     const double expnt = 1.0;
     const double coeff = pow(2.0/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
@@ -604,7 +604,7 @@ void test_diff(World& world) {
 
 //         coordT p(0.0);
 //         if (world.rank() == 0) {
-//             for (int i=0; i<=40; i++) {
+//             for (int i=0; i<=40; ++i) {
 //                 p[axis] = (i-20.0)*0.1;
 //                 print("     x, analytic, err",p[axis],df(p), dfdx(p)-df(p));
 //             }
@@ -666,7 +666,7 @@ void test_op(World& world) {
 
 //     f.reconstruct();
 //     Function<T,NDIM> fff = copy(f);
-//     for (int i=0; i<10; i++) {
+//     for (int i=0; i<10; ++i) {
 //         fff.compress().reconstruct();
 //     }
 //     f.compress();
@@ -674,7 +674,7 @@ void test_op(World& world) {
 //     if (world.rank() == 0) print("error after 10 compress-reconstruct",ecr);
 
 //     fff.reconstruct();
-//     for (int i=0; i<10; i++) {
+//     for (int i=0; i<10; ++i) {
 //         fff.nonstandard(false,true);
 //         fff.standard();
 //         fff.reconstruct();
@@ -711,7 +711,7 @@ void test_op(World& world) {
         print("      op*f norm is", rn);
         print("  op*f total error", re);
     }
-//     for (int i=0; i<=100; i++) {
+//     for (int i=0; i<=100; ++i) {
 //         coordT c(-10.0+20.0*i/100.0);
 //         print("           ",i,c[0],r(c),r(c)-(*fexact)(c));
 //     }
@@ -732,7 +732,7 @@ public:
 
     double operator()(const coordT& x) const {
         double sum = 00;
-        for (int i=0; i<3; i++) {
+        for (int i=0; i<3; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -829,7 +829,7 @@ void test_coulomb(World& world) {
         print("analytic at origin", analytic);
         print("      op*f norm is", rnorm);
         print("  op*f total error", rerr);
-//         for (int i=0; i<=100; i++) {
+//         for (int i=0; i<=100; ++i) {
 //             coordT c(i*0.01);
 //             print("           ",i,r(c),(*fexact)(c));
 //         }
@@ -908,7 +908,7 @@ void test_qm(World& world) {
 
 //     QMtest f(1,1,0.1);
 
-//     for (int i=0; i<10; i++) {
+//     for (int i=0; i<10; ++i) {
 //         double x = i*0.1;
 //         print(x,f(x));
 //     }
@@ -966,7 +966,7 @@ void test_qm(World& world) {
 
     Convolution1D<double_complex>* q1d = qm_1d_free_particle_propagator(k, c, tstep, 1400.0);
 
-    for (int i=0; i<nstep; i++) {
+    for (int i=0; i<nstep; ++i) {
         world.gop.fence();
 
         psi.reconstruct();
@@ -1004,7 +1004,7 @@ void test_qm(World& world) {
         //print("ERROR", pperr, pp.norm2());
 
 //         if (pperr > 1e-4) {
-//             for (int i=0; i<1001; i++) {
+//             for (int i=0; i<1001; ++i) {
 //                 double x = (i-500)*0.01;
 //                 print(x, pp(x), psi(x));
 //             }
@@ -1028,7 +1028,7 @@ void test_qm(World& world) {
 //     double lo = FunctionDefaults<1>::get_cell()(0,0);
 //     double hi = FunctionDefaults<1>::get_cell()(0,1);
 //     double h = (hi-lo)/(npt-1);
-//     for (int i=0; i<npt; i++) {
+//     for (int i=0; i<npt; ++i) {
 //         double x = lo + i*h;
 //         double_complex numeric = psi(x);
 //         double_complex exact = QMtest(a,v,tstep*nstep)(x);
@@ -1068,7 +1068,7 @@ void test_plot(World& world) {
     world.gop.fence();
     if (world.rank() == 0) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
-        for (int i=0; i<npt[0]; i++) {
+        for (int i=0; i<npt[0]; ++i) {
             double x = -L + i*h + 2e-13;
             T fplot = r(std::vector<long>(NDIM,i));
             T fnum  = f.eval(coordT(x)).get();

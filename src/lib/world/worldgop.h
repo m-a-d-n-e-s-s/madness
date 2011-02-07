@@ -214,11 +214,11 @@ namespace madness {
 
             if (child0 != -1) {
                 await(req0);
-                for (long i=0; i<(long)nelem; i++) buf[i] = op(buf[i],buf0[i]);
+                for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf0[i]);
             }
             if (child1 != -1) {
                 await(req1);
-                for (long i=0; i<(long)nelem; i++) buf[i] = op(buf[i],buf1[i]);
+                for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf1[i]);
             }
 
             delete [] buf0;
@@ -310,10 +310,10 @@ namespace madness {
                 await(req1);
                 archive::BufferInputArchive ar(buf1, bufsz);
                 ar & right;
-                for (unsigned int i=0; i<right.size(); i++) left.push_back(right[i]);
+                for (unsigned int i=0; i<right.size(); ++i) left.push_back(right[i]);
             }
 
-            for (unsigned int i=0; i<v.size(); i++) left.push_back(v[i]);
+            for (unsigned int i=0; i<v.size(); ++i) left.push_back(v[i]);
 
             if (parent != -1) {
                 archive::BufferOutputArchive ar(buf0, bufsz);

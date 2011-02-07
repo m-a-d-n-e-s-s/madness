@@ -45,8 +45,8 @@ AtomicInt sum;
 AtomicInt ndone;
 
 void* doit(void *args) {
-    for (int j=0; j<1000; j++) {
-        for (int i=0; i<100000; i++) {
+    for (int j=0; j<1000; ++j) {
+        for (int i=0; i<100000; ++i) {
             sum++;
         }
         sched_yield();
@@ -86,13 +86,13 @@ int main() {
 
     try {
         sum = ndone = 0;
-        for (int i=0; i<nthread; i++) threads[i].start(doit,0);
+        for (int i=0; i<nthread; ++i) threads[i].start(doit,0);
         while (ndone != nthread) sleep(1);
         cout << "SUM " << sum << endl;
 
         sum = ndone = 0;
         ThreadPool::add(new Greet());
-        for (int i=0; i<(NDO+1000); i++) ThreadPool::add(new Adder());
+        for (int i=0; i<(NDO+1000); ++i) ThreadPool::add(new Adder());
         while (!ndone) {
             sleep(1);
             cout << int(ndone) << " " << int(sum) << endl;

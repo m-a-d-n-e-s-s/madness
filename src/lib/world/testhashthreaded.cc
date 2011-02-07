@@ -91,9 +91,9 @@ void test_coverage() {
     if (a[-1] != -99) cout << "was expecting -99 " << a[-1] << endl;
     if (a.size() != 1) cout << "was expecting size to be 1" << endl;
 
-    for (int i=0; i<10000; i++) a.insert(datumT(i,i*99));
+    for (int i=0; i<10000; ++i) a.insert(datumT(i,i*99));
 
-    for (int i=0; i<10000; i++) {
+    for (int i=0; i<10000; ++i) {
         pair<iteratorT,bool> r = a.insert(datumT(i,i*99));
         if (r.second) cout << "expected second insert to fail " << i << endl;
         if (r.first->first != i) cout << "key mismatch " << i << " " << r.first->first << endl;
@@ -101,7 +101,7 @@ void test_coverage() {
     }
     if (a.size() != 10001) cout << "was expecting size to be 10001 " << a.size() << endl;
 
-    for (int i=0; i<10000; i++) {
+    for (int i=0; i<10000; ++i) {
         iteratorT it = a.find(i);
         if (it == a.end()) cout << "expected to find this element " << i << endl;
         if (it->first != i) cout << "key mismatch on find" << i << " " << it->first << endl;
@@ -109,7 +109,7 @@ void test_coverage() {
     }
 
     const ConcurrentHashMap<int,int>* ca = &a;
-    for (int i=0; i<10000; i++) {
+    for (int i=0; i<10000; ++i) {
         const_iteratorT it = ca->find(i);
         if (it == ca->end()) cout << "expected to find this element " << i << endl;
         if (it->first != i) cout << "key mismatch on find" << i << " " << it->first << endl;
@@ -166,19 +166,19 @@ void test_coverage() {
     for (int nelem=1; nelem<=10000; nelem*=10) {
         cout << "nelem " << nelem << endl;
         a.clear();
-        for (int i=0; i<nelem; i++) a.insert(datumT(i,i*99));
+        for (int i=0; i<nelem; ++i) a.insert(datumT(i,i*99));
         //a.print_stats();
         if (a.size() != size_t(std::distance(a.begin(),a.end())))
             cout << "size not equal to end-start\n";
 
-        for (int stride=1; stride<=13; stride++) {
+        for (int stride=1; stride<=13; ++stride) {
             cout << "    stride " << stride << endl;
             iteratorT it1 = a.begin();
             iteratorT it2 = a.begin();
             while (it1 != a.end()) {
                 iteratorT it1_save = it1;
                 it1.advance(stride);
-                for (int i=0; i<stride; i++) ++it2;
+                for (int i=0; i<stride; ++i) ++it2;
                 if (it1 != it2) {
                     cout << "failed iterator stride\n";
                     it1_save.advance(stride);
@@ -195,8 +195,8 @@ void test_coverage() {
 
 vector<int> random_perm(int n) {
     vector<int> v(n);
-    for (int i=0; i<n; i++) v[i] = i;
-    for (int i=0; i<n; i++) swap(v[i],v[int(drand()*n)]);
+    for (int i=0; i<n; ++i) v[i] = i;
+    for (int i=0; i<n; ++i) swap(v[i],v[int(drand()*n)]);
     return v;
 }
 
@@ -211,13 +211,13 @@ void test_time() {
             ConcurrentHashMap<int,double> a(nbins);
             vector<int> v = random_perm(nentries);
             double insert_used = madness::cpu_time();
-            for (int i=0; i<nentries; i++) {
+            for (int i=0; i<nentries; ++i) {
                 a.insert(datumT(i,i));
             }
             insert_used = madness::cpu_time()-insert_used;
             v = random_perm(nentries);
             double del_used = madness::cpu_time();
-            for (int i=0; i<nentries; i++) {
+            for (int i=0; i<nentries; ++i) {
                 a.erase(i);
             }
             del_used = madness::cpu_time()-del_used;
@@ -236,7 +236,7 @@ void do_test_random(ConcurrentHashMap<int,double>& a, size_t& count, double& sum
     const int nbin = 131; // A small # bins means more chance of bad thread interaction
     count = 0;
     sum = 0.0;
-    for (int i=0; i<100000000; i++) {
+    for (int i=0; i<100000000; ++i) {
         int key = int(drand()*4*nbin);
         double value = key;
         bool choice = (drand() < 0.5);
@@ -319,7 +319,7 @@ void test_thread() {
 
     size_t count = 0;
     double sum = 0;
-    for (int i=0; i<nthread; i++) {
+    for (int i=0; i<nthread; ++i) {
         sum += sums[i];
         count += counts[i];
     }
@@ -350,7 +350,7 @@ public:
     }
 
     void run() {
-        for (int i=0; i<10000000; i++) {
+        for (int i=0; i<10000000; ++i) {
             ConcurrentHashMap<int,double>::accessor r;
             if (!a.find(r, 1)) MADNESS_EXCEPTION("OK ... where is it?", 0);
             r->second++;

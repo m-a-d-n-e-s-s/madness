@@ -52,7 +52,7 @@ using namespace std;
 //         a[2] += b[2];
 //         a[3] += b[3];
 //     }
-//     for (long i=0; i<rem; i++) *a++ += *b++;
+//     for (long i=0; i<rem; ++i) *a++ += *b++;
 // }
 
 // void aligned_sub(long n, double* restrict a, const double* restrict b) {
@@ -64,7 +64,7 @@ using namespace std;
 //         a[2] -= b[2];
 //         a[3] -= b[3];
 //     }
-//     for (long i=0; i<rem; i++) *a++ -= *b++;
+//     for (long i=0; i<rem; ++i) *a++ -= *b++;
 // }
 
 int main() {
@@ -81,7 +81,7 @@ int main() {
 
     vector< Tensor<double> > Xlist, Ylist, Zlist;
     vector< Tensor<double> > XlistS, YlistS, ZlistS;
-    for (long m=0; m<RANK*27; m++) {
+    for (long m=0; m<RANK*27; ++m) {
         Xlist.push_back(Tensor<double>(twok,twok));
         Ylist.push_back(Tensor<double>(twok,twok));
         Zlist.push_back(Tensor<double>(twok,twok));
@@ -95,18 +95,18 @@ int main() {
 
     // Significant boxes and their coefficients are normally obtained
     // by iterating thru entries in a sparse array (hash table)
-    for (long box=0; box<NBOX; box++) {
+    for (long box=0; box<NBOX; ++box) {
         const Tensor<double> c(twok,twok,twok); // The coefficients for box
 
         if ((box%10) == 0) print("doing box", box);
 
         // Each of the neighbors of a cube in 3D including self
-        for (long neighbor=0; neighbor<27; neighbor++) {
+        for (long neighbor=0; neighbor<27; ++neighbor) {
             Tensor<double> r(twok,twok,twok); // This will hold the result
             Tensor<double> s(k,k,k);          // This will hold the result
 
             // Loop thru terms in the expansion of this operator
-            for (long m=0; m<RANK; m++) {
+            for (long m=0; m<RANK; ++m) {
                 // In practice low-rank approximations are used
 
                 const Tensor<double>& X = Xlist[neighbor*27+m];

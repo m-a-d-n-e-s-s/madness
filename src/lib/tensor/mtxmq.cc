@@ -134,12 +134,12 @@ namespace madness {
             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
             //std::cout << "slow\n";
             // CALL SLOW CODE
-            for (long i=0; i<dimi; i++,c+=dimj,a++) {
-                for (long j=0; j<dimj; j++) c[j] = 0.0;
+            for (long i=0; i<dimi; ++i,c+=dimj,++a) {
+                for (long j=0; j<dimj; ++j) c[j] = 0.0;
                 const double *ai = a;
-                for (long k=0; k<dimk; k++,ai+=dimi) {
+                for (long k=0; k<dimk; ++k,ai+=dimi) {
                     double aki = *ai;
-                    for (long j=0; j<dimj; j++) {
+                    for (long j=0; j<dimj; ++j) {
                         c[j] += aki*b[k*dimj+j];
                     }
                 }
@@ -353,7 +353,7 @@ namespace madness {
             long nj = std::min(dimj-jlo,jtile);
             double_complex* restrict ci = c;
             a = asave;
-            for (long i=0; i<dimi; i++,ci+=dimj,a++) {
+            for (long i=0; i<dimi; ++i,ci+=dimj,++a) {
                 const double_complex *ai = a;
                 const double_complex *bk = b;
                 switch (nj) {
@@ -776,7 +776,7 @@ namespace madness {
         ni = (ni >= itile) ? itile : ni;
         if (ni == 1)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -804,7 +804,7 @@ namespace madness {
         }
         else if (ni == 2)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -835,7 +835,7 @@ namespace madness {
         }
         else if (ni == 3)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -869,7 +869,7 @@ namespace madness {
         }
         else if (ni == 4)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -906,7 +906,7 @@ namespace madness {
         }
         if (ni == 5)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -946,7 +946,7 @@ namespace madness {
         }
         else if (ni == 6)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -989,7 +989,7 @@ namespace madness {
         }
         else if (ni == 7)
          {
-           for (long j = 0; j < dimj; j++)
+           for (long j = 0; j < dimj; ++j)
            {
              __asm__ volatile
              (
@@ -1035,7 +1035,7 @@ namespace madness {
          }
        else if (ni == 8)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1084,7 +1084,7 @@ namespace madness {
         }
         else if (ni == 9)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1136,7 +1136,7 @@ namespace madness {
         }
         if (ni == 10)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1191,7 +1191,7 @@ namespace madness {
         }
         else if (ni == 11)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1249,7 +1249,7 @@ namespace madness {
         }
         else if (ni == 12)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1310,7 +1310,7 @@ namespace madness {
         }
         else if (ni == 13)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1374,7 +1374,7 @@ namespace madness {
         }
         else if (ni == 14)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (

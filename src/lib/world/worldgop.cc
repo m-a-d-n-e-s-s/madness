@@ -138,7 +138,7 @@ namespace madness {
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;
             broadcast(&sum, sizeof(sum), 0, dowork);
-            npass++;
+            ++npass;
 
 //            madness::print("GOPFENCE", npass, sum[0], nsent_prev, sum[1], nrecv_prev);
 

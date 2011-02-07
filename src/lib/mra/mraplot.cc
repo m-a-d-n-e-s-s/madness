@@ -177,14 +177,14 @@ public:
         double v[65];
         int n = 0;
         while (s >> v[n]) {
-            n++;
+            ++n;
             MADNESS_ASSERT(n < 65);
         }
         // There should be an even number
         int ndim = n/2;
         MADNESS_ASSERT(n==ndim*2 && ndim>=1);
         Tensor<double> cell(ndim,2);
-        for (int i=0; i<ndim; i++) {
+        for (int i=0; i<ndim; ++i) {
             cell(i,0) = v[2*i  ];
             cell(i,1) = v[2*i+1];
         }
@@ -268,7 +268,7 @@ public:
         if (cell.size() <= 0) {
             MADNESS_ASSERT(ndim>0 && ndim<=6);
             cell = Tensor<double>(ndim,2);
-            for (int i=0; i<ndim; i++) cell(i,1) = 1.0;
+            for (int i=0; i<ndim; ++i) cell(i,1) = 1.0;
         }
         if (plot_cell.size() <= 0) plot_cell = copy(cell);
         while (int(npt.size()) < ndim) npt.push_back(101);
@@ -425,7 +425,7 @@ int main(int argc, char**argv) {
         World world(MPI::COMM_WORLD);
         bool done = false;
         if (world.rank() == 0) {
-            for (int i=0; i<argc; i++) {
+            for (int i=0; i<argc; ++i) {
                 if (!strcmp(argv[i],"--help")) {
                     print(help);
                     done = true;

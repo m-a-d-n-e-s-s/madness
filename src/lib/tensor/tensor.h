@@ -87,9 +87,9 @@ typedef std::complex<double> double_complex;
   dimension it is 5.  For the left-most dimension it is 20.  Thus,
   the loops
   \code
-  for (i=0; i<3; i++)
-      for (j=0; j<4; j++)
-          for (k=0; k<5; k++)
+  for (i=0; i<3; ++i)
+      for (j=0; j<4; ++j)
+          for (k=0; k<5; ++k)
               a(i,j,k) = ...
   \endcode
   will go sequentially (and thus efficiently) through memory.
@@ -286,7 +286,7 @@ namespace madness {
 
             TENSOR_ASSERT(nd>0 && nd <= TENSOR_MAXDIM,"invalid ndim in new tensor", nd, 0);
             // sanity check ... 2GB in doubles
-            for (int i=0; i<nd; i++) {
+            for (int i=0; i<nd; ++i) {
                 TENSOR_ASSERT(d[i]>=0 && d[i]<268435456, "invalid dimension size in new tensor",d[i],0);
             }
             set_dims_and_size(nd, d);
@@ -310,7 +310,7 @@ namespace madness {
                 }
                 //std::printf("allocated %p [%ld]  %ld\n", _p, size, p.use_count());
                 if (dozero) {
-                    //T zero = 0; for (long i=0; i<_size; i++) _p[i] = zero;
+                    //T zero = 0; for (long i=0; i<_size; ++i) _p[i] = zero;
                     // or
 #ifdef HAVE_MEMSET
                     memset((void *) _p, 0, _size*sizeof(T));
@@ -378,7 +378,7 @@ namespace madness {
                 _shptr = t._shptr;
                 _size = t._size;
                 _ndim = t._ndim;
-                for (int i=0; i<TENSOR_MAXDIM; i++) {
+                for (int i=0; i<TENSOR_MAXDIM; ++i) {
                     _dim[i] = t._dim[i];
                     _stride[i] = t._stride[i];
                 }
@@ -673,9 +673,9 @@ namespace madness {
         /// \code
         /// Tensor<float> t(5,6,7,...)
         /// long index=0;
-        /// for (long i=0; i<_dim[0]; i++)
-        ///    for (long j=0; j<_dim[1]; j++)
-        ///       for (long k=0; k<_dim[2]; k++)
+        /// for (long i=0; i<_dim[0]; ++i)
+        ///    for (long j=0; j<_dim[1]; ++j)
+        ///       for (long k=0; k<_dim[2]; ++k)
         ///          ...
         ///          tensor(i,j,k,...) = index++
         /// \endcode
@@ -935,7 +935,7 @@ namespace madness {
         /// @return %Reference to element
         T& operator()(const long ind[]) {
             long offset = 0;
-            for (int d=0; d<_ndim; d++) {
+            for (int d=0; d<_ndim; ++d) {
                 long i = ind[d];
 #ifdef TENSOR_BOUNDS_CHECKING
                 TENSOR_ASSERT(i>=0 && i<_dim[0],"non-PC general indexing bounds check failed dim=",d,this);
@@ -951,7 +951,7 @@ namespace madness {
         /// @return %Reference to element
         const T& operator()(const long ind[]) const {
             long offset = 0;
-            for (int d=0; d<_ndim; d++) {
+            for (int d=0; d<_ndim; ++d) {
                 long i = ind[d];
 #ifdef TENSOR_BOUNDS_CHECKING
                 TENSOR_ASSERT(i>=0 && i<_dim[0],"non-PC general indexing bounds check failed dim=",d,this);
@@ -968,7 +968,7 @@ namespace madness {
         T& operator()(const std::vector<long> ind) {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
             long index=0;
-            for (long d=0; d<_ndim; d++) {
+            for (long d=0; d<_ndim; ++d) {
                 TENSOR_ASSERT(ind[d]>=0 && ind[d]<_dim[d],"out-of-bounds access",ind[d],this);
                 index += ind[d]*_stride[d];
             }
@@ -982,7 +982,7 @@ namespace madness {
         const T& operator()(const std::vector<long> ind) const {
             TENSOR_ASSERT(ind.size()>=(unsigned int) _ndim,"invalid number of dimensions",ind.size(),this);
             long index=0;
-            for (long d=0; d<_ndim; d++) {
+            for (long d=0; d<_ndim; ++d) {
                 TENSOR_ASSERT(ind[d]>=0 && ind[d]<_dim[d],"out-of-bounds access",ind[d],this);
                 index += ind[d]*_stride[d];
             }
@@ -1603,12 +1603,12 @@ namespace madness {
         T min(long* ind=0) const {
             T result = *(this->_p);
             if (ind) {
-                for (long i=0; i<_ndim; i++) ind[i]=0;
+                for (long i=0; i<_ndim; ++i) ind[i]=0;
                 long nd = _ndim-1;
                 UNARY_UNOPTIMIZED_ITERATOR(const T,(*this),
                                            if (result > *_p0) {
                                                result = *_p0;
-                                               for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                                               for (long i=0; i<nd; ++i) ind[i]=iter.ind[i];
                                                ind[nd] = _j;
                                            }
                                            );
@@ -1623,12 +1623,12 @@ namespace madness {
         T max(long* ind=0) const {
             T result = *(this->_p);
             if (ind) {
-                for (long i=0; i<_ndim; i++) ind[i]=0;
+                for (long i=0; i<_ndim; ++i) ind[i]=0;
                 long nd = _ndim-1;
                 UNARY_UNOPTIMIZED_ITERATOR(const T,(*this),
                                            if (result < *_p0) {
                                                result = *_p0;
-                                               for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                                               for (long i=0; i<nd; ++i) ind[i]=iter.ind[i];
                                                ind[nd] = _j;
                                            }
                                            );
@@ -1653,13 +1653,13 @@ namespace madness {
         scalar_type absmin(long *ind = 0) const {
             scalar_type result = std::abs(*(this->_p));
             if (ind) {
-                for (long i=0; i<_ndim; i++) ind[i]=0;
+                for (long i=0; i<_ndim; ++i) ind[i]=0;
                 long nd = _ndim-1;
                 UNARY_UNOPTIMIZED_ITERATOR(const T,(*this),
                                            scalar_type absval = std::abs(*_p0);
                                            if (result > absval) {
                                                result = absval;
-                                               for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                                               for (long i=0; i<nd; ++i) ind[i]=iter.ind[i];
                                                ind[nd] = _j;
                                            }
                                            );
@@ -1674,13 +1674,13 @@ namespace madness {
         scalar_type absmax(long *ind = 0) const {
             scalar_type result = std::abs(*(this->_p));
             if (ind) {
-                for (long i=0; i<_ndim; i++) ind[i]=0;
+                for (long i=0; i<_ndim; ++i) ind[i]=0;
                 long nd = _ndim-1;
                 UNARY_UNOPTIMIZED_ITERATOR(T,(*this),
                                            scalar_type absval = std::abs(*_p0);
                                            if (result < absval) {
                                                result = absval;
-                                               for (long i=0; i<nd; i++) ind[i]=iter.ind[i];
+                                               for (long i=0; i<nd; ++i) ind[i]=iter.ind[i];
                                                ind[nd] = _j;
                                            }
                                            );
@@ -1726,10 +1726,10 @@ namespace madness {
                 T* restrict a = ptr();
                 const T* restrict b = t.ptr();
                 if (alpha == T(1.0)) {
-                    for (long i=0; i<_size; i++) a[i] += b[i]*beta;
+                    for (long i=0; i<_size; ++i) a[i] += b[i]*beta;
                 }
                 else {
-                    for (long i=0; i<_size; i++) a[i] = a[i]*alpha + b[i]*beta;
+                    for (long i=0; i<_size; ++i) a[i] = a[i]*alpha + b[i]*beta;
                 }
             }
             else {
@@ -1950,7 +1950,7 @@ namespace madness {
             // directly access the base class elements ... must explicitly reference.
 
             long nd = 0, size=1;
-            for (long i=0; i<t._ndim; i++) {
+            for (long i=0; i<t._ndim; ++i) {
                 long start=s[i].start, end=s[i].end, step=s[i].step;
                 //std::printf("%ld input start=%ld end=%ld step=%ld\n",
                 //i, start, end, step);
@@ -1976,12 +1976,12 @@ namespace madness {
                     size *= len;
                     this->_dim[nd] = len;
                     this->_stride[nd] = step * t._stride[i];
-                    nd++;
+                    ++nd;
                 }
             }
             //For Python interface need to be able to return a scalar inside a tensor with nd=0
             //TENSOR_ASSERT(nd>0,"slicing produced a scalar, but cannot return one",nd,this);
-            for (long i=nd; i<TENSOR_MAXDIM; i++) { // So can iterate over missing dimensions
+            for (long i=nd; i<TENSOR_MAXDIM; ++i) { // So can iterate over missing dimensions
                 this->_dim[i] = 1;
                 this->_stride[i] = 0;
             }
@@ -2041,7 +2041,7 @@ namespace madness {
 
         long maxdim = 0;
         long index_width = 0;
-        for (int i = 0; i<(t.ndim()-1); i++) {
+        for (int i = 0; i<(t.ndim()-1); ++i) {
             if (maxdim < t.dim(i)) maxdim = t.dim(i);
         }
         if (maxdim < 10)
@@ -2066,14 +2066,14 @@ namespace madness {
             long dimj = iter.dimj;
             s.unsetf(std::ios::scientific);
             s << '[';
-            for (long i=0; i<iter.ndim; i++) {
+            for (long i=0; i<iter.ndim; ++i) {
                 s.width(index_width);
                 s << iter.ind[i];
                 if (i != iter.ndim) s << ",";
             }
             s << "*]";
             s.setf(std::ios::scientific);
-            for (long j=0; j<dimj; j++, p+=inc) {
+            for (long j=0; j<dimj; ++j, p+=inc) {
                 s.precision(4);
                 s.width(12);
                 s << *p;
@@ -2098,8 +2098,8 @@ namespace madness {
         TENSOR_ASSERT(nd <= TENSOR_MAXDIM,"too many dimensions in result",
                       nd,0);
         long d[TENSOR_MAXDIM];
-        for (long i=0; i<left.ndim(); i++) d[i] = left.dim(i);
-        for (long i=0; i<right.ndim(); i++) d[i+left.ndim()] = right.dim(i);
+        for (long i=0; i<left.ndim(); ++i) d[i] = left.dim(i);
+        for (long i=0; i<right.ndim(); ++i) d[i+left.ndim()] = right.dim(i);
         Tensor<T> result(nd,d,false);
         T* ptr = result.ptr();
 
@@ -2111,7 +2111,7 @@ namespace madness {
                 long dimj = iter.dimj;
                 T* _p0 = iter._p0;
                 long Tstride = iter._s0;
-                for (long _j=0; _j<dimj; _j++, _p0+=Tstride) {
+                for (long _j=0; _j<dimj; ++_j, _p0+=Tstride) {
                     *ptr++ = val1 * (*_p0);
                 }
             }
@@ -2146,12 +2146,12 @@ namespace madness {
         long d[TENSOR_MAXDIM];
 
         long base=0;
-        for (long i=0; i<k0; i++) d[i] = left.dim(i);
-        for (long i=k0+1; i<left.ndim(); i++) d[i-1] = left.dim(i);
+        for (long i=0; i<k0; ++i) d[i] = left.dim(i);
+        for (long i=k0+1; i<left.ndim(); ++i) d[i-1] = left.dim(i);
         base = left.ndim()-1;
-        for (long i=0; i<k1; i++) d[i+base] = right.dim(i);
+        for (long i=0; i<k1; ++i) d[i+base] = right.dim(i);
         base--;
-        for (long i=k1+1; i<right.ndim(); i++) d[i+base] = right.dim(i);
+        for (long i=k1+1; i<right.ndim(); ++i) d[i+base] = right.dim(i);
 
         Tensor<TENSOR_RESULT_TYPE(T,Q)> result(nd,d);
 
@@ -2231,7 +2231,7 @@ namespace madness {
                 Q* restrict p1 = iter1._p0;
                 long s1 = iter1._s0;
                 resultT sum = 0;
-                for (long j=0; j<dimj; j++,p0+=s0,p1+=s1) {
+                for (long j=0; j<dimj; ++j,p0+=s0,p1+=s1) {
                     sum += (*p0) * (*p1);
                 }
                 *ptr++ += sum;
@@ -2264,7 +2264,7 @@ namespace madness {
         }
         else {
             Tensor<resultT> result = t;
-            for (long i=0; i<t.ndim(); i++) {
+            for (long i=0; i<t.ndim(); ++i) {
                 result = inner(result,c,0,0);
             }
             return result;
@@ -2285,7 +2285,7 @@ namespace madness {
     Tensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const Tensor<T>& t, const Tensor<Q> c[]) {
         typedef TENSOR_RESULT_TYPE(T,Q) resultT;
         Tensor<resultT> result = t;
-        for (long i=0; i<t.ndim(); i++) {
+        for (long i=0; i<t.ndim(); ++i) {
             result = inner(result,c[i],0,0);
         }
         return result;
@@ -2331,23 +2331,23 @@ namespace madness {
 
         long dimj = c.dim(1);
         long dimi = 1;
-        for (int n=1; n<t.ndim(); n++) dimi *= dimj;
+        for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
         long nij = dimi*dimj;
 
 
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
                 IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
-            for (long i=0; i<nij; i++) t0[i] = 0.0;
+            for (long i=0; i<nij; ++i) t0[i] = 0.0;
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); n++) {
-                for (long i=0; i<nij; i++) t1[i] = 0.0;
+            for (int n=1; n<t.ndim(); ++n) {
+                for (long i=0; i<nij; ++i) t1[i] = 0.0;
                 mTxm(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
             }
         }
         else {
             mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); n++) {
+            for (int n=1; n<t.ndim(); ++n) {
                 mTxmq(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
             }

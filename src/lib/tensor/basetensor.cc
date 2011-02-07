@@ -52,7 +52,7 @@ namespace madness {
 
 
     /// Reshape the size and number of dimensions.
-    
+
     /// Modifies the current tensor to have the number and size of
     /// dimensions as described in the \c vector \c d .  The total number
     /// of elements must be the same before and after, and the current
@@ -62,13 +62,13 @@ namespace madness {
                       "cannot reshape non-contiguous tensor ... consider fuse/splitdim",
                       0,this);
         long newsize=1;
-        for (long i=0; i<nd; i++) newsize *= d[i];
+        for (long i=0; i<nd; ++i) newsize *= d[i];
         TENSOR_ASSERT(_size == newsize,"old and new sizes do not match",_size,this);
         set_dims_and_size(nd,&(d[0]));
     }
 
     /// Reshape the size and number of dimensions.
-    
+
     /// Modifies the current tensor to have the number and size of
     /// dimensions as described in the \c vector \c d .  The total number
     /// of elements must be the same before and after, and the current
@@ -92,7 +92,7 @@ namespace madness {
                       _dim[i], this);
         TENSOR_ASSERT(_ndim+1 <= TENSOR_MAXDIM, "resulting tensor has too many dimensions",
                       _ndim+1, this);
-        for (long j=_ndim-1; j>i; j--) {
+        for (long j=_ndim-1; j>i; --j) {
             _dim[j+1] = _dim[j];
             _stride[j+1] = _stride[j];
         }
@@ -100,7 +100,7 @@ namespace madness {
         _stride[i+1] = _stride[i];
         _dim[i] = dimi0;
         _stride[i] *= dimi1;
-        _ndim++;
+        ++_ndim;
     }
 
     /// Fuse the contiguous dimensions i and i+1.
@@ -111,7 +111,7 @@ namespace madness {
                       i, this);
         _dim[i] *= _dim[i+1];
         _stride[i] = _stride[i+1];
-        for (long j=i+1; j<=_ndim-1; j++) {
+        for (long j=i+1; j<=_ndim-1; ++j) {
             _dim[j] = _dim[j+1];
             _stride[j] = _stride[j+1];
         }
@@ -139,11 +139,11 @@ namespace madness {
         TENSOR_ASSERT(end>=0 && end>=start,"invalid end dimension",end,this);
 
         ndshift = end - start + 1;
-        for (long i=start; i<=end; i++) {
+        for (long i=start; i<=end; ++i) {
             dimtmp[i] = _dim[i];
             _stridetmp[i] = _stride[i];
         }
-        for (long i=end; i>=start; i--) {
+        for (long i=end; i>=start; --i) {
             long j = i + nshift;
             while (j > end) j -= ndshift;
             while (j < start) j += ndshift;
@@ -156,11 +156,11 @@ namespace madness {
     void BaseTensor::mapdim_inplace(const std::vector<long>& map) {
         TENSOR_ASSERT(_ndim == (int) map.size(),"map[] must include all dimensions",map.size(),this);
         long tmpd[TENSOR_MAXDIM], tmps[TENSOR_MAXDIM];
-        for (long i=0; i<_ndim; i++) {
+        for (long i=0; i<_ndim; ++i) {
             tmpd[map[i]] = _dim[i];
             tmps[map[i]] = _stride[i];
         }
-        for (long i=0; i<_ndim; i++) {
+        for (long i=0; i<_ndim; ++i) {
             _dim[i] = tmpd[i];
             _stride[i] = tmps[i];
         }

@@ -303,7 +303,7 @@
   (de)serialize an entire list using a single statement.
   \code
   linked_list list(0);
-  for (int i=1; i<=10; i++) list.append(i);
+  for (int i=1; i<=10; ++i) list.append(i);
   BinaryFstreamOutputArchive ar('list.dat');
   ar & list;
   \endcode
@@ -619,7 +619,7 @@ namespace madness {
         typename enable_if_c< ! is_serializable<T>::value && is_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
-            for (unsigned int i=0; i<n; i++) ar & t[i];
+            for (unsigned int i=0; i<n; ++i) ar & t[i];
         }
 
 
@@ -926,7 +926,7 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
-                for (std::size_t i=0; i<n; i++) b[i] = v[i];
+                for (std::size_t i=0; i<n; ++i) b[i] = v[i];
                 ar & n & wrap(b,v.size());
                 delete [] b;
             }
@@ -946,7 +946,7 @@ namespace madness {
                 }
                 bool* b = new bool[n];
                 ar & wrap(b,v.size());
-                for (std::size_t i=0; i<n; i++) v[i] = b[i];
+                for (std::size_t i=0; i<n; ++i) v[i] = b[i];
                 delete [] b;
             }
         };

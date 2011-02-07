@@ -79,7 +79,7 @@ namespace madness {
 
         void grow() {
             // ASSUME WE ALREADY HAVE THE MUTEX WHEN IN HERE
-            stats.ngrow++;
+            ++(stats.ngrow);
             if (sz != n) MADNESS_EXCEPTION("assertion failure in dqueue::grow", static_cast<int>(sz));
             size_t oldsz = sz;
             if (sz < 32768)
@@ -90,11 +90,11 @@ namespace madness {
                 sz += 1048576;
             volatile T* volatile nbuf = new T[sz];
             int lo = sz/2 - oldsz/2;
-            for (int i=_front; i<int(oldsz); i++,lo++) {
+            for (int i=_front; i<int(oldsz); ++i,++lo) {
                 nbuf[lo] = buf[i];
             }
             if (_front > 0) {
-                for (int i=0; i<=_back; i++,lo++) {
+                for (int i=0; i<=_back; ++i,++lo) {
                     nbuf[lo] = buf[i];
                 }
             }
@@ -121,7 +121,7 @@ namespace madness {
                 grow();
                 ss = sz;
             }
-            nn++;
+            ++nn;
             if (nn > stats.nmax) stats.nmax = nn;
             n = nn;
 
@@ -129,7 +129,7 @@ namespace madness {
             if (b >= int(ss)) b = 0;
             buf[b] = value;
             _back = b;
-            stats.npush_back++;
+            ++(stats.npush_back);
 
             signal();
         }
@@ -158,7 +158,7 @@ namespace madness {
                 grow();
                 ss = sz;
             }
-            nn++;
+            ++nn;
             if (nn > stats.nmax) stats.nmax = nn;
             n = nn;
 
@@ -166,7 +166,7 @@ namespace madness {
             if (f < 0) f = ss - 1;
             buf[f] = value;
             _front = f;
-            stats.npush_front++;
+            ++(stats.npush_front);
 
             //sanity_check();
             signal();
@@ -195,7 +195,7 @@ namespace madness {
             while (nn--) {
                 T* p = const_cast<T*>(buf + f);
                 if (!op(p)) break;
-                f++;
+                ++f;
                 if (f >= size) f = 0;
             }
         }
@@ -218,7 +218,7 @@ namespace madness {
                 nn = n;
             }
 
-            stats.npop_front++;
+            ++(stats.npop_front);
             if (nn) {
                 size_t thesize = sz;
                 //sanity_check();
@@ -249,9 +249,9 @@ namespace madness {
                     }
                     else if (ptr) { // Null pointer indicates stolen task
                         *r++ = ptr;
-                        f++;
+                        ++f;
                         if (f >= int(thesize)) f = 0;
-                        retval++;
+                        ++retval;
                     }
                 }
 

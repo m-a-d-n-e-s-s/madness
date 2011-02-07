@@ -182,13 +182,13 @@ int main(int argc, char**argv) {
         functionT u; // This will be current solution
         functionT c; // This will be the value of the constraint
 
-        for (int muiter=0; muiter<5; muiter++) {
-            //            for (int lamiter=0; lamiter<20; lamiter++) {
+        for (int muiter=0; muiter<5; ++muiter) {
+            //            for (int lamiter=0; lamiter<20; ++lamiter) {
                 vecfuncT rvec;
                 vecfuncT fvec;
                 std::vector<double> rnorms;
                 tensorT Q;
-                for (int m=0; m<20; m++) {
+                for (int m=0; m<20; ++m) {
                     f.truncate();
                     fvec.push_back(f);
                     u = op(fvec[m]);
@@ -210,7 +210,7 @@ int main(int argc, char**argv) {
                         Qnew(Slice(0,m-1),Slice(0,m-1)) = Q;
                     }
                     Q = Qnew;
-                    for (int i=0; i<=m; i++) {
+                    for (int i=0; i<=m; ++i) {
                         Q(i,m) = fvec[i].inner(rvec[m]);
                         if (m != i) Q(m,i) = fvec[m].inner(rvec[i]);
                     }
@@ -223,7 +223,7 @@ int main(int argc, char**argv) {
 //                     print(coeff);
 
                     f = coeff[0]*(fvec[0]-rvec[0]);
-                    for (int i=1; i<=m; i++) {
+                    for (int i=1; i<=m; ++i) {
                         f.gaxpy(1.0,fvec[i]-rvec[i],coeff[i]);
                     }
 

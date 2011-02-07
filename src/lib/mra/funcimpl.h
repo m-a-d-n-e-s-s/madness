@@ -1623,9 +1623,9 @@ namespace madness {
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
                 if (node.is_leaf())
-                    nleaf++;
+                    ++nleaf;
                 else
-                    ninterior++;
+                    ++ninterior;
             }
             this->send(0, &implT::put_in_box, world.rank(), nleaf, ninterior);
             world.gop.fence();
@@ -1825,11 +1825,11 @@ namespace madness {
                             }
                         }
                         else {
-                            nsmall++;
+                            ++nsmall;
                         }
                     }
                     else {
-                        nsmall++;
+                        ++nsmall;
                     }
                 }
                 if (nsmall >= 4) {
@@ -2487,7 +2487,7 @@ namespace madness {
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
                 if (node.has_coeff())
-                    sum++;
+                    ++sum;
             }
             if (is_compressed())
                 for (std::size_t i=0; i<NDIM; ++i)

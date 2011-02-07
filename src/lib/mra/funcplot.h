@@ -356,9 +356,9 @@ namespace madness {
                    filename,rmin,rmean,rmax,rrange);
 
             std::vector<unsigned short> d(npt[0]);
-            for (unsigned int i2=0; i2<npt[2]; i2++) {
-                for (unsigned int i1=0; i1<npt[1]; i1++) {
-                    for (unsigned int i0=0; i0<npt[0]; i0++) {
+            for (unsigned int i2=0; i2<npt[2]; ++i2) {
+                for (unsigned int i1=0; i1<npt[1]; ++i1) {
+                    for (unsigned int i0=0; i0<npt[0]; ++i0) {
                         d[i0] = (unsigned short)(htons_x((unsigned short)(fac*(r(i0,i1,i2) - rmin))));
                         //printf("%d\n",htons_x(d[i0]));
                     }

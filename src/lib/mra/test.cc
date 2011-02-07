@@ -45,7 +45,7 @@ Cost lbcost(const Key<N>& key, const FunctionNode<T,N>& node) {
 
 double myfun(const double x[]) {
     double r2=0.0;
-    for (int i=0; i < 3; i++)
+    for (int i=0; i < 3; ++i)
         r2 += x[i]*x[i];
     return r2;
 }
@@ -65,7 +65,7 @@ double myg(const Vector<double,3>& r) {
 void vector_myg(long npt, const double *x, const double *y,
                 const double *z, double* restrict f) {
     const double fac = pow(2.0*myg_expnt/PI,0.75);
-    for (int i=0; i<npt; i++) {
+    for (int i=0; i<npt; ++i) {
         double xx = x[i] - 0.5;
         double yy = y[i] - 0.5;
         double zz = z[i] - 0.5;

@@ -79,7 +79,7 @@ namespace madness {
             const double hx = constants::pi/kmax;
             std::vector<double_complex> s(N);
 
-            for (int i=0; i<N/2; i++) {
+            for (int i=0; i<N/2; ++i) {
                 double k = i*hk;
                 s[i] = g0_filtered(k, c, t)*fac;
                 if (i) s[N-i] = g0_filtered(-k, c, t)*fac;
@@ -88,8 +88,8 @@ namespace madness {
             CFFT::Inverse(&s[0], N);
 
             int n;
-            for (n=N/3; n>=0 && std::abs(s[n])<1e-14; n--);
-            n++;
+            for (n=N/3; n>=0 && std::abs(s[n])<1e-14; --n);
+            ++n;
 
             s.resize(n);
 
@@ -100,7 +100,7 @@ namespace madness {
             //std::cout.precision(12);
             //print(0.001,(*this)(0.001));
             //print(0.002,(*this)(0.002));
-//             for (int i=0; i<10001; i++) {
+//             for (int i=0; i<10001; ++i) {
 //                 double x = i*xmax/10000.0/width;
 //                 double_complex value = (*this)(x);
 //                 print(x,value.real(),value.imag());

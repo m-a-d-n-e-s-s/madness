@@ -165,7 +165,7 @@ void test_bsh(World& world) {
     print("opf norm", opf.norm2());
 
     opf.reconstruct();
-//     for (int i=0; i<nn; i++) {
+//     for (int i=0; i<nn; ++i) {
 //         double z=lo + i*range/double(nn-1);
 
 //         double r = fabs(z)*sqrt(3.0);
@@ -180,7 +180,7 @@ void test_bsh(World& world) {
 
     opf.truncate();
     Function<T,3> opinvopf = opf*(mu*mu);
-    for (int axis=0; axis<3; axis++) {
+    for (int axis=0; axis<3; ++axis) {
         //print("diffing",axis);
         //opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
     }
@@ -199,7 +199,7 @@ void test_bsh(World& world) {
 //     f.reconstruct();
 //     error.reconstruct();
 
-// //     for (int i=0; i<101; i++) {
+// //     for (int i=0; i<101; ++i) {
 // //         double z=-4 + 0.08*i;
 // //         coordT p(z);
 // //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
@@ -209,7 +209,7 @@ void test_bsh(World& world) {
     opinvopf.clear();
 
     Function<T,3> g = (mu*mu)*f;
-    for (int axis=0; axis<3; axis++) {
+    for (int axis=0; axis<3; ++axis) {
         //g = g - diff(diff(f,axis),axis);
     }
     g = op(g);

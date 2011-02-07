@@ -76,9 +76,9 @@ public:
 
     T operator()(const coordT& x) const {
         T retval = 0;
-        for (unsigned int j=0; j<center.size(); j++) {
+        for (unsigned int j=0; j<center.size(); ++j) {
             double sum = 0.0;
-            for (int i=0; i<NDIM; i++) {
+            for (int i=0; i<NDIM; ++i) {
                 double xx = center[j][i]-x[i];
                 sum += xx*xx;
             }
@@ -99,7 +99,7 @@ public:
 
     void print() const {
         madness::print("Sum of", center.size(), "gaussians:");
-        for (unsigned int i = 0; i < center.size(); i++) {
+        for (unsigned int i = 0; i < center.size(); ++i) {
             madness::print("   g[", i, "] : =", coefficient[i], "* exp(", -exponent[i], "(", center[i], "- x )^2 )");
         }
     };
@@ -113,7 +113,7 @@ void test_loadbal(World& world) {
 
     if (world.rank() == 0) print("at beginning of test_loadbal");
 
-    //    for (int i=0; i<NDIM; i++) {
+    //    for (int i=0; i<NDIM; ++i) {
     //        FunctionDefaults<NDIM>::cell(i,0) = -10.0;
     //        FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     //    }
@@ -127,15 +127,15 @@ void test_loadbal(World& world) {
     const double expnt1 = 4096;
     std::vector<double> vexpnt(nspikes);
     Vector<double, NDIM> dcell, avgcell;
-    for (int i = 0; i < NDIM; i++) {
+    for (int i = 0; i < NDIM; ++i) {
         double cell0 = FunctionDefaults<NDIM>::get_cell()(i,0);
         double cell1 = FunctionDefaults<NDIM>::get_cell()(i,1);
         dcell[i] = cell0 - cell1;
         avgcell[i] = (cell0 + cell1)/2;
     }
-    for (int i = 0; i < nspikes; i++) {
+    for (int i = 0; i < nspikes; ++i) {
         Vector<double, NDIM> v(0);
-        for (int j = 0; j < NDIM; j++) {
+        for (int j = 0; j < NDIM; ++j) {
             v[j] = 0.2;
             //v[j] = ((double) rand()/(double) RAND_MAX)*dcell[j] - FunctionDefaults<NDIM>::cell(j,1);
         }

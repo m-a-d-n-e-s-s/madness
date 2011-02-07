@@ -610,7 +610,7 @@ namespace madness {
         // Second phase moves data and cleans up
         void redistribute_phase2() {
             std::vector<keyT>& mvlist = *move_list;
-            for (unsigned int i=0; i<move_list->size(); i++) {
+            for (unsigned int i=0; i<move_list->size(); ++i) {
                 typename internal_containerT::iterator iter = local.find(mvlist[i]);
                 MADNESS_ASSERT(iter != local.end());
                 insert(*iter);
@@ -1492,7 +1492,7 @@ namespace madness {
                 if (ar.is_io_node()) {
                     BinaryFstreamOutputArchive& localar = ar.local_archive();
                     localar & magic & ar.num_io_clients();
-                    for (ProcessID p=0; p<world->size(); p++) {
+                    for (ProcessID p=0; p<world->size(); ++p) {
                         if (p == me) {
                             localar & t;
                         }

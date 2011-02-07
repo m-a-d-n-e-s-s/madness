@@ -42,7 +42,7 @@ std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     const std::vector<double>& expnt = c.get_expnt();
 
     p += sprintf(p,"%s [",tag[c.angular_momentum()]);
-    for (int i=0; i<c.nprim(); i++) {
+    for (int i=0; i<c.nprim(); ++i) {
         p += sprintf(p, "%.6f(%.6f)",coeff[i],expnt[i]);
         if (i != (c.nprim()-1)) p += sprintf(p, ", ");
     }
@@ -53,7 +53,7 @@ std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
 
 std::ostream& operator<<(std::ostream& s, const AtomicBasis& c) {
     const std::vector<ContractedGaussianShell>& shells = c.get_shells();
-    for (int i=0; i<c.nshell(); i++) {
+    for (int i=0; i<c.nshell(); ++i) {
         s << "     " << shells[i] << std::endl;
     }
     if (c.has_guess_info()) {
@@ -77,10 +77,10 @@ void AtomicBasisFunction::print_me(std::ostream& s) const {
 void AtomicBasisSet::print(const Molecule& molecule) const {
     molecule.print();
     std::cout << "\n " << name << " atomic basis set" << std::endl;
-    for (int i=0; i<molecule.natom(); i++) {
+    for (int i=0; i<molecule.natom(); ++i) {
         const Atom& atom = molecule.get_atom(i);
         const unsigned int atn = atom.atomic_number;
-        for (int j=0; j<i; j++) {
+        for (int j=0; j<i; ++j) {
             if (molecule.get_atom(j).atomic_number == atn)
                 goto doneitalready;
         }
@@ -95,7 +95,7 @@ doneitalready:
 /// Print basis info for all supported atoms
 void AtomicBasisSet::print_all() const {
     std::cout << "\n " << name << " atomic basis set" << std::endl;
-    for (unsigned int i=0; i<ag.size(); i++) {
+    for (unsigned int i=0; i<ag.size(); ++i) {
         if (ag[i].nbf() > 0) {
             std::cout << "   " <<  get_atomic_data(i).symbol << std::endl;
             std::cout << ag[i];

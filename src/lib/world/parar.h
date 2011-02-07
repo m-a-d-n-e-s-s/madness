@@ -151,7 +151,7 @@ namespace madness {
                 // Count #client
                 ProcessID me = world.rank();
                 nclient=0;
-                for (ProcessID p=0; p<world.size(); p++) if (io_node(p) == me) nclient++;
+                for (ProcessID p=0; p<world.size(); ++p) if (io_node(p) == me) ++nclient;
 
 //                 if (is_io_node()) {
 //                     madness::print("I am an IO node with",nclient,"clients and file",buf);
@@ -202,7 +202,7 @@ namespace madness {
                 if (world.rank() == 0) {
                     char buf[256];
                     MADNESS_ASSERT(strlen(filename)+7 <= sizeof(buf));
-                    for (ProcessID p=0; p<world.size(); p++) {
+                    for (ProcessID p=0; p<world.size(); ++p) {
                         sprintf(buf, "%s.%5.5d", filename, p);
                         if (::remove(buf)) break;
                     }

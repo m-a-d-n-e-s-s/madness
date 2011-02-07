@@ -108,7 +108,7 @@ namespace madness {
     typename disable_if<std::is_same<T,char>, std::ostream&>::type
     operator<<(std::ostream& s, const T(&v)[N]) {
         s << "[";
-        for (std::size_t i=0; i<N; i++) {
+        for (std::size_t i=0; i<N; ++i) {
             s << v[i];
             if (i != (N-1)) s << ",";
         }

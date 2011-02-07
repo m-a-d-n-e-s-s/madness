@@ -65,12 +65,12 @@ static inline void mxm(long dimi, long dimj, long dimk,
       stride and the dimensions are as provided.
     */
 
-    for (long i=0; i<dimi; i++) {
-        for (long k=0; k<dimk; k++) {
+    for (long i=0; i<dimi; ++i) {
+        for (long k=0; k<dimk; ++k) {
 #ifdef _CRAY
 #pragma _CRI prefervector
 #endif
-            for (long j=0; j<dimj; j++) {
+            for (long j=0; j<dimj; ++j) {
                 c[i*dimj+j] += a[i*dimk+k]*b[k*dimj+j];
             }
         }
@@ -93,12 +93,12 @@ void mTxm(long dimi, long dimj, long dimk,
       i loop might be long in anticipated application
     */
 
-    for (long k=0; k<dimk; k++) {
-        for (long j=0; j<dimj; j++) {
+    for (long k=0; k<dimk; ++k) {
+        for (long j=0; j<dimj; ++j) {
 #ifdef _CRAY
 #pragma _CRI prefervector
 #endif
-            for (long i=0; i<dimi; i++) {
+            for (long i=0; i<dimi; ++i) {
                 c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
             }
         }
@@ -119,10 +119,10 @@ static inline void mxmT(long dimi, long dimj, long dimk,
       i loop might be long in anticipated application
     */
 
-    for (long i=0; i<dimi; i++) {
-        for (long j=0; j<dimj; j++) {
+    for (long i=0; i<dimi; ++i) {
+        for (long j=0; j<dimj; ++j) {
             T sum = 0;
-            for (long k=0; k<dimk; k++) {
+            for (long k=0; k<dimk; ++k) {
                 sum += a[i*dimk+k]*b[j*dimk+k];
             }
             c[i*dimj+j] += sum;
@@ -142,12 +142,12 @@ static inline void mTxmT(long dimi, long dimj, long dimk,
       stride and the dimensions are as provided.
     */
 
-    for (long i=0; i<dimi; i++) {
+    for (long i=0; i<dimi; ++i) {
 #ifdef _CRAY
 #pragma _CRI prefervector
 #endif
-        for (long j=0; j<dimj; j++) {
-            for (long k=0; k<dimk; k++) {
+        for (long j=0; j<dimj; ++j) {
+            for (long k=0; k<dimk; ++k) {
                 c[i*dimj+j] += a[k*dimi+i]*b[j*dimk+k];
             }
         }
@@ -181,7 +181,7 @@ inline void mTxm(long dimi, long dimj, long dimk,
     */
 
     long dimk4 = (dimk/4)*4;
-    for (long i=0; i<dimi; i++,c+=dimj) {
+    for (long i=0; i<dimi; ++i,c+=dimj) {
         const double* ai = a+i;
         const double* p = b;
         for (long k=0; k<dimk4; k+=4,ai+=4*dimi,p+=4*dimj) {
@@ -193,14 +193,14 @@ inline void mTxm(long dimi, long dimj, long dimk,
             const double* bk1 = p+dimj;
             const double* bk2 = p+dimj+dimj;
             const double* bk3 = p+dimj+dimj+dimj;
-            for (long j=0; j<dimj; j++) {
+            for (long j=0; j<dimj; ++j) {
                 c[j] += ak0i*bk0[j] + ak1i*bk1[j] + ak2i*bk2[j] + ak3i*bk3[j];
             }
         }
-        for (long k=dimk4; k<dimk; k++) {
+        for (long k=dimk4; k<dimk; ++k) {
             double aki = a[k*dimi+i];
             const double* bk = b+k*dimj;
-            for (long j=0; j<dimj; j++) {
+            for (long j=0; j<dimj; ++j) {
                 c[j] += aki*bk[j];
             }
         }
@@ -233,11 +233,11 @@ inline void mxmT(long dimi, long dimj, long dimk,
         const double* ai1 = a+i*dimk+dimk;
         double* restrict ci0 = c+i*dimj;
         double* restrict ci1 = c+i*dimj+dimj;
-        for (long j=0; j<dimj; j++) {
+        for (long j=0; j<dimj; ++j) {
             double sum0 = 0;
             double sum1 = 0;
             const double* bj = b + j*dimk;
-            for (long k=0; k<dimk; k++) {
+            for (long k=0; k<dimk; ++k) {
                 sum0 += ai0[k]*bj[k];
                 sum1 += ai1[k]*bj[k];
             }
@@ -245,13 +245,13 @@ inline void mxmT(long dimi, long dimj, long dimk,
             ci1[j] += sum1;
         }
     }
-    for (long i=dimi2; i<dimi; i++) {
+    for (long i=dimi2; i<dimi; ++i) {
         const double* ai = a+i*dimk;
         double* restrict ci = c+i*dimj;
-        for (long j=0; j<dimj; j++) {
+        for (long j=0; j<dimj; ++j) {
             double sum = 0;
             const double* bj = b+j*dimk;
-            for (long k=0; k<dimk; k++) {
+            for (long k=0; k<dimk; ++k) {
                 sum += ai[k]*bj[k];
             }
             ci[j] += sum;
@@ -274,7 +274,7 @@ inline void mxm(long dimi, long dimj, long dimk,
     */
 
     long dimk4 = (dimk/4)*4;
-    for (long i=0; i<dimi; i++, c+=dimj,a+=dimk) {
+    for (long i=0; i<dimi; ++i, c+=dimj,a+=dimk) {
         const double* p = b;
         for (long k=0; k<dimk4; k+=4,p+=4*dimj) {
             double aik0 = a[k  ];
@@ -285,13 +285,13 @@ inline void mxm(long dimi, long dimj, long dimk,
             const double* bk1 = bk0+dimj;
             const double* bk2 = bk1+dimj;
             const double* bk3 = bk2+dimj;
-            for (long j=0; j<dimj; j++) {
+            for (long j=0; j<dimj; ++j) {
                 c[j] += aik0*bk0[j] + aik1*bk1[j] + aik2*bk2[j] + aik3*bk3[j];
             }
         }
-        for (long k=dimk4; k<dimk; k++) {
+        for (long k=dimk4; k<dimk; ++k) {
             double aik = a[k];
-            for (long j=0; j<dimj; j++) {
+            for (long j=0; j<dimj; ++j) {
                 c[j] += aik*b[k*dimj+j];
             }
         }
@@ -324,16 +324,16 @@ inline void mTxmT(long dimi, long dimj, long dimk,
 
         a = asave;
         c = csave;
-        for (long i=0; i<dimi; i++,c+=dimj,a++) {
+        for (long i=0; i<dimi; ++i,c+=dimj,++a) {
             const double* q = a;
-            for (long k=0; k<nk; k++,q+=dimi) ai[k] = *q;
+            for (long k=0; k<nk; ++k,q+=dimi) ai[k] = *q;
 
             const double* bj0 = b;
             for (long j=0; j<dimj2; j+=2,bj0+=2*dimk) {
                 const double* bj1 = bj0+dimk;
                 double sum0 = 0;
                 double sum1 = 0;
-                for (long k=0; k<nk; k++) {
+                for (long k=0; k<nk; ++k) {
                     sum0 += ai[k]*bj0[k];
                     sum1 += ai[k]*bj1[k];
                 }
@@ -341,9 +341,9 @@ inline void mTxmT(long dimi, long dimj, long dimk,
                 c[j+1] += sum1;
             }
 
-            for (long j=dimj2; j<dimj; j++,bj0+=dimk) {
+            for (long j=dimj2; j<dimj; ++j,bj0+=dimk) {
                 double sum = 0;
-                for (long k=0; k<nk; k++) {
+                for (long k=0; k<nk; ++k) {
                     sum += ai[k]*bj0[k];
                 }
                 c[j] += sum;

@@ -64,7 +64,7 @@ namespace std {
     template <typename T, std::size_t N>
     std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
         s << "[";
-        for(std::size_t i=0; i<N; i++) {
+        for(std::size_t i=0; i<N; ++i) {
             s << a[i];
             if (i != (N-1)) s << ",";
         }

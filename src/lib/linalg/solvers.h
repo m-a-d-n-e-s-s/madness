@@ -107,9 +107,9 @@ namespace madness {
 
         Tensor<T> A(m,m);
         Tensor<T> b(m);
-        for (long i=0; i<m; i++) {
+        for (long i=0; i<m; ++i) {
             b(i) = Q(m,m) - Q(i,m);
-            for (long j=0; j<m; j++) {
+            for (long j=0; j<m; ++j) {
                 A(i,j) = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m);
             }
         }
@@ -131,7 +131,7 @@ namespace madness {
 
         Tensor<T> c(nvec);
         T sumC = 0.0;
-        for (long i=0; i<m; i++) sumC += x(i);
+        for (long i=0; i<m; ++i) sumC += x(i);
         c(Slice(0,m-1)) = x;
 //         print("SUMC", nvec, m, sumC);
         c(m) = 1.0 - sumC;

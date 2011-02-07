@@ -76,7 +76,7 @@ namespace madness {
             template <class T>
             typename madness::enable_if< madness::is_serializable<T>, void >::type
             store(const T* t, long n) const {
-                for (long i=0; i<n; i++) os << t[i] << std::endl;
+                for (long i=0; i<n; ++i) os << t[i] << std::endl;
             }
 
             void store(const char* t, long /*n*/) const {
@@ -103,7 +103,7 @@ namespace madness {
             };
 
             void store(const unsigned char* t, long n) const {
-                for (long i=0; i<n; i++) os << (unsigned int) t[i] << std::endl;
+                for (long i=0; i<n; ++i) os << (unsigned int) t[i] << std::endl;
             }
 
             void open(const char* filename,
@@ -118,7 +118,7 @@ namespace madness {
                         ARCHIVE_MAJOR_VERSION, ARCHIVE_MINOR_VERSION);
                 os << tag << std::endl;
                 os << "<typemap>" << std::endl;
-                for (int i=0; i<256; i++) {
+                for (int i=0; i<256; ++i) {
                     sprintf(tag,"%d \"%s\"",i,archive_type_names[i]);
                     store(tag,strlen(tag)); // Must use store to escape characters
                 }
@@ -192,12 +192,12 @@ namespace madness {
             template <class T>
             typename madness::enable_if< madness::is_serializable<T>, void >::type
             load(T* t, long n) const {
-                for (long i=0; i<n; i++) is >> t[i];
+                for (long i=0; i<n; ++i) is >> t[i];
                 eat_eol();
             }
 
             void load(unsigned char* t, long n) const {
-                for (long i=0; i<n; i++) {
+                for (long i=0; i<n; ++i) {
                     unsigned int x;
                     is >> x;
                     t[i] = (unsigned char) x;
@@ -206,7 +206,7 @@ namespace madness {
             };
 
             void load(char* t, long n) const {
-                for (long i=0; i<n; i++) {
+                for (long i=0; i<n; ++i) {
                     char c0;
                     is.get(c0);
                     if (c0 == '\\') {
@@ -250,7 +250,7 @@ namespace madness {
                 }
 
                 // For now just skip over typemap
-                for (int i=0; i<258; i++) is.getline(buf,256);
+                for (int i=0; i<258; ++i) is.getline(buf,256);
             };
 
             void close() {

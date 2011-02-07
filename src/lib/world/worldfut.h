@@ -683,7 +683,7 @@ which merely blows instead of sucking.
         Future() : v() {}
 
         Future(const vectorT& v) : DependencyInterface(v.size()), v(v) {
-            for (int i=0; i<(int)v.size(); i++) {
+            for (int i=0; i<(int)v.size(); ++i) {
                 this->v[i].register_callback(this);
             }
         }

@@ -1,26 +1,26 @@
 /*
-                 __________                                      
-    _____   __ __\______   \_____  _______  ______  ____ _______ 
+                 __________
+    _____   __ __\______   \_____  _______  ______  ____ _______
    /     \ |  |  \|     ___/\__  \ \_  __ \/  ___/_/ __ \\_  __ \
   |  Y Y  \|  |  /|    |     / __ \_|  | \/\___ \ \  ___/ |  | \/
-  |__|_|  /|____/ |____|    (____  /|__|  /____  > \___  >|__|   
-        \/                       \/            \/      \/        
+  |__|_|  /|____/ |____|    (____  /|__|  /____  > \___  >|__|
+        \/                       \/            \/      \/
   Copyright (C) 2004-2008 Ingo Berg
 
-  Permission is hereby granted, free of charge, to any person obtaining a copy of this 
+  Permission is hereby granted, free of charge, to any person obtaining a copy of this
   software and associated documentation files (the "Software"), to deal in the Software
-  without restriction, including without limitation the rights to use, copy, modify, 
-  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to 
+  without restriction, including without limitation the rights to use, copy, modify,
+  merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
   permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-  The above copyright notice and this permission notice shall be included in all copies or 
+  The above copyright notice and this permission notice shall be included in all copies or
   substantial portions of the Software.
 
   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
-  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND 
-  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, 
-  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, 
-  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE. 
+  NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+  NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+  DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 */
 #include <cassert>
 #include <cstdio>
@@ -49,11 +49,11 @@ namespace mu
       \sa Assign
       \throw nothrow
   */
-  ParserTokenReader::ParserTokenReader(const ParserTokenReader &a_Reader) 
-  { 
+  ParserTokenReader::ParserTokenReader(const ParserTokenReader &a_Reader)
+  {
     Assign(a_Reader);
   }
-    
+
   //---------------------------------------------------------------------------
   /** \brief Assignement operator.
 
@@ -62,7 +62,7 @@ namespace mu
       \param a_Reader Object to copy to this token reader.
       \throw nothrow
   */
-  ParserTokenReader& ParserTokenReader::operator=(const ParserTokenReader &a_Reader) 
+  ParserTokenReader& ParserTokenReader::operator=(const ParserTokenReader &a_Reader)
   {
     if (&a_Reader!=this)
       Assign(a_Reader);
@@ -71,8 +71,8 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Assign state of a token reader to this token reader. 
-      
+  /** \brief Assign state of a token reader to this token reader.
+
       \param a_Reader Object from which the state should be copied.
       \throw nothrow
   */
@@ -82,7 +82,7 @@ namespace mu
     m_strFormula = a_Reader.m_strFormula;
     m_iPos = a_Reader.m_iPos;
     m_iSynFlags = a_Reader.m_iSynFlags;
-    
+
     m_UsedVar = a_Reader.m_UsedVar;
     m_pFunDef = a_Reader.m_pFunDef;
     m_pConstDef = a_Reader.m_pConstDef;
@@ -100,9 +100,9 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Constructor. 
-      
-      Create a Token reader and bind it to a parser object. 
+  /** \brief Constructor.
+
+      Create a Token reader and bind it to a parser object.
 
       \pre [assert] a_pParser may not be NULL
       \post #m_pParser==a_pParser
@@ -133,10 +133,10 @@ namespace mu
     assert(m_pParser);
     SetParent(m_pParser);
   }
-    
+
   //---------------------------------------------------------------------------
-  /** \brief Create instance of a ParserTokenReader identical with this 
-              and return its pointer. 
+  /** \brief Create instance of a ParserTokenReader identical with this
+              and return its pointer.
 
       This is a factory method the calling function must take care of the object destruction.
 
@@ -171,7 +171,7 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Return the current position of the token reader in the formula string. 
+  /** \brief Return the current position of the token reader in the formula string.
 
       \return #m_iPos
       \throw nothrow
@@ -182,7 +182,7 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Return a reference to the formula. 
+  /** \brief Return a reference to the formula.
 
       \return #m_strFormula
       \throw nothrow
@@ -200,8 +200,8 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Initialize the token Reader. 
-  
+  /** \brief Initialize the token Reader.
+
       Sets the formula position index to zero and set Syntax flags to default for initial formula parsing.
       \pre [assert] triggered if a_szFormula==0
   */
@@ -212,12 +212,12 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Set Flag that contronls behaviour in case of undefined variables beeing found. 
-  
-    If true, the parser does not throw an exception if an undefined variable is found. 
+  /** \brief Set Flag that contronls behaviour in case of undefined variables beeing found.
+
+    If true, the parser does not throw an exception if an undefined variable is found.
     otherwise it does. This variable is used internally only!
-    It supresses a "undefined variable" exception in GetUsedVar().  
-    Those function should return a complete list of variables including 
+    It supresses a "undefined variable" exception in GetUsedVar().
+    Those function should return a complete list of variables including
     those the are not defined by the time of it's call.
   */
   void ParserTokenReader::IgnoreUndefVar(bool bIgnore)
@@ -226,9 +226,9 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Reset the token reader to the start of the formula. 
+  /** \brief Reset the token reader to the start of the formula.
 
-      The syntax flags will be reset to a value appropriate for the 
+      The syntax flags will be reset to a value appropriate for the
       start of a formula.
       \post #m_iPos==0, #m_iSynFlags = noOPT | noBC | noPOSTOP | noSTR
       \throw nothrow
@@ -244,7 +244,7 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Read the next token from the string. */ 
+  /** \brief Read the next token from the string. */
   ParserTokenReader::token_type ParserTokenReader::ReadNextToken()
   {
     assert(m_pParser);
@@ -253,7 +253,7 @@ namespace mu
     const char_type *szFormula = m_strFormula.c_str();
     token_type tok;
 
-    while (szFormula[m_iPos]==' ') 
+    while (szFormula[m_iPos]==' ')
       ++m_iPos;
 
     if ( IsEOF(tok) ) return SaveBeforeReturn(tok);        // Check for end of formula
@@ -268,20 +268,20 @@ namespace mu
     if ( IsInfixOpTok(tok) ) return SaveBeforeReturn(tok); // Check for unary operators
     if ( IsPostOpTok(tok) )  return SaveBeforeReturn(tok); // Check for unary operators
 
-    // Check String for undefined variable token. Done only if a 
+    // Check String for undefined variable token. Done only if a
     // flag is set indicating to ignore undefined variables.
-    // This is a way to conditionally avoid an error if 
-    // undefined variables occur. 
+    // This is a way to conditionally avoid an error if
+    // undefined variables occur.
     // The GetUsedVar function must supress the error for
-    // undefined variables in order to collect all variable 
+    // undefined variables in order to collect all variable
     // names including the undefined ones.
-    if ( (m_bIgnoreUndefVar || m_pFactory) && IsUndefVarTok(tok) )  
+    if ( (m_bIgnoreUndefVar || m_pFactory) && IsUndefVarTok(tok) )
       return SaveBeforeReturn(tok);
 
     // Check for unknown token
-    // 
+    //
     // !!! From this point on there is no exit without an exception possible...
-    // 
+    //
     string_type strTok;
     int iEnd = ExtractToken(m_pParser->ValidNameChars(), strTok, m_iPos);
     if (iEnd!=m_iPos)
@@ -294,7 +294,7 @@ namespace mu
   //---------------------------------------------------------------------------
   void ParserTokenReader::SetParent(ParserBase *a_pParent)
   {
-    m_pParser  = a_pParent; 
+    m_pParser  = a_pParent;
     m_pFunDef  = &a_pParent->m_FunDef;
     m_pOprtDef = &a_pParent->m_OprtDef;
     m_pInfixOprtDef = &a_pParent->m_InfixOprtDef;
@@ -307,14 +307,14 @@ namespace mu
   //---------------------------------------------------------------------------
   /** \brief Extract all characters that belong to a certain charset.
 
-    \param a_szCharSet [in] Const char array of the characters allowed in the token. 
+    \param a_szCharSet [in] Const char array of the characters allowed in the token.
     \param a_strTok [out]  The string that consists entirely of characters listed in a_szCharSet.
     \param a_iPos [in] Position in the string from where to start reading.
     \return The Position of the first character not listed in a_szCharSet.
     \throw nothrow
   */
-  int ParserTokenReader::ExtractToken( const char_type *a_szCharSet, 
-                                       string_type &a_sTok, 
+  int ParserTokenReader::ExtractToken( const char_type *a_szCharSet,
+                                       string_type &a_sTok,
                                        int a_iPos ) const
   {
     int iEnd = (int)m_strFormula.find_first_not_of(a_szCharSet, a_iPos);
@@ -339,7 +339,7 @@ namespace mu
 
     // Compare token with function and operator strings
     // check string for operator/function
-    for (int i=0; pOprtDef[i]; i++)
+    for (int i=0; pOprtDef[i]; ++i)
     {
       std::size_t len( std::char_traits<char_type>::length(pOprtDef[i]) );
       if ( string_type(pOprtDef[i]) == string_type(szFormula + m_iPos, szFormula + m_iPos + len) )
@@ -353,7 +353,7 @@ namespace mu
 		    case cmGT:
 		    case cmLE:
 		    case cmGE:
-		    case cmNEQ:  
+		    case cmNEQ:
 		    case cmEQ:
 		    case cmADD:
 		    case cmSUB:
@@ -369,12 +369,12 @@ namespace mu
                 Error(ecUNEXPECTED_OPERATOR, m_iPos, pOprtDef[i]);
 
               if (!m_pParser->HasBuiltInOprt()) continue;
-              if (m_iSynFlags & noOPT) 
+              if (m_iSynFlags & noOPT)
               {
                 // Maybe its an infix operator not an operator
-                // Both operator types can share characters in 
+                // Both operator types can share characters in
                 // their identifiers
-                if ( IsInfixOpTok(a_Tok) ) 
+                if ( IsInfixOpTok(a_Tok) )
                   return true;
 
                 Error(ecUNEXPECTED_OPERATOR, m_iPos, pOprtDef[i]);
@@ -387,7 +387,7 @@ namespace mu
 		    case cmBO:
               if (m_iSynFlags & noBO)
 	              Error(ecUNEXPECTED_PARENS, m_iPos, pOprtDef[i]);
-              
+
               if (m_lastTok.GetCode()==cmFUNC)
                 m_iSynFlags = noOPT | noEND | noARG_SEP | noPOSTOP | noASSIGN;
               else
@@ -405,7 +405,7 @@ namespace mu
               if (--m_iBrackets<0)
                 Error(ecUNEXPECTED_PARENS, m_iPos, pOprtDef[i]);
               break;
-      	
+
 		    default:      // The operator is listed in c_DefaultOprt, but not here. This is a bad thing...
               Error(ecINTERNAL_ERROR);
 	      } // switch operator id
@@ -415,7 +415,7 @@ namespace mu
         return true;
 	    } // if operator string found
     } // end of for all operator strings
-  
+
     return false;
   }
 
@@ -435,7 +435,7 @@ namespace mu
         Error(ecUNEXPECTED_ARG_SEP, m_iPos, szSep);
 
       m_iSynFlags  = noBC | noOPT | noEND | noARG_SEP | noPOSTOP | noASSIGN;
-      m_iPos++;
+      ++m_iPos;
       a_Tok.Set(cmARG_SEP, szSep);
       return true;
     }
@@ -473,7 +473,7 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Check if a string position contains a unary infix operator. 
+  /** \brief Check if a string position contains a unary infix operator.
       \return true if a function token has been found false otherwise.
   */
   bool ParserTokenReader::IsInfixOpTok(token_type &a_Tok)
@@ -490,10 +490,10 @@ namespace mu
     a_Tok.Set(item->second, sTok);
     m_iPos = (int)iEnd;
 
-    if (m_iSynFlags & noINFIXOP) 
+    if (m_iSynFlags & noINFIXOP)
       Error(ecUNEXPECTED_OPERATOR, m_iPos, a_Tok.GetAsString());
 
-    m_iSynFlags = noPOSTOP | noINFIXOP | noOPT | noBC | noSTR | noASSIGN; 
+    m_iSynFlags = noPOSTOP | noINFIXOP | noOPT | noBC | noSTR | noASSIGN;
     return true;
   }
 
@@ -543,15 +543,15 @@ namespace mu
 
     a_Tok.Set(item->second, strTok);
 
-    if (m_iSynFlags & noOPT) 
+    if (m_iSynFlags & noOPT)
     {
       // An operator was found but is not expected to occur at
-      // this position of the formula, maybe it is an infix 
+      // this position of the formula, maybe it is an infix
       // operator, not a binary operator. Both operator types
       // can share characters in their identifiers.
       if ( IsInfixOpTok(a_Tok) ) return true;
       // nope, no infix operator
-      Error(ecUNEXPECTED_OPERATOR, m_iPos, a_Tok.GetAsString()); 
+      Error(ecUNEXPECTED_OPERATOR, m_iPos, a_Tok.GetAsString());
     }
 
     m_iPos = (int)iEnd;
@@ -564,13 +564,13 @@ namespace mu
   bool ParserTokenReader::IsPostOpTok(token_type &a_Tok)
   {
     // Tricky problem with equations like "3m+5":
-    //     m is a postfix operator, + is a valid sign for postfix operators and 
-    //     for binary operators parser detects "m+" as operator string and 
+    //     m is a postfix operator, + is a valid sign for postfix operators and
+    //     for binary operators parser detects "m+" as operator string and
     //     finds no matching postfix operator.
-    // 
+    //
     // This is a special case so this routine slightly differs from the other
     // token readers.
-    
+
     // Test if there could be a postfix operator
     string_type sTok;
     int iEnd = ExtractToken(m_pParser->ValidOprtChars(), sTok, m_iPos);
@@ -617,7 +617,7 @@ namespace mu
     string_type strTok;
     value_type fVal(0);
     int iEnd(0);
-    
+
     // 2.) Check for user defined constant
     // Read everything that could be a constant name
     iEnd = ExtractToken(m_pParser->ValidNameChars(), strTok, m_iPos);
@@ -632,7 +632,7 @@ namespace mu
         if (m_iSynFlags & noVAL)
           Error(ecUNEXPECTED_VAL, m_iPos - (int)strTok.length(), strTok);
 
-        m_iSynFlags = noVAL | noVAR | noFUN | noBO | noINFIXOP | noSTR | noASSIGN; 
+        m_iSynFlags = noVAL | noVAR | noFUN | noBO | noINFIXOP | noSTR | noASSIGN;
         return true;
       }
     }
@@ -663,7 +663,7 @@ namespace mu
   }
 
   //---------------------------------------------------------------------------
-  /** \brief Check wheter a token at a given position is a variable token. 
+  /** \brief Check wheter a token at a given position is a variable token.
       \param a_Tok [out] If a variable token has been found it will be placed here.
 	    \return true if a variable token has been found.
   */
@@ -722,7 +722,7 @@ namespace mu
 
 
   //---------------------------------------------------------------------------
-  /** \brief Check wheter a token at a given position is an undefined variable. 
+  /** \brief Check wheter a token at a given position is an undefined variable.
 
       \param a_Tok [out] If a variable tom_pParser->m_vStringBufken has been found it will be placed here.
 	    \return true if a variable token has been found.
@@ -737,8 +737,8 @@ namespace mu
 
     if (m_iSynFlags & noVAR)
     {
-      // <ibg/> 20061021 added token string strTok instead of a_Tok.GetAsString() as the 
-      //                 token identifier. 
+      // <ibg/> 20061021 added token string strTok instead of a_Tok.GetAsString() as the
+      //                 token identifier.
       // related bug report:
       // http://sourceforge.net/tracker/index.php?func=detail&aid=1578779&group_id=137191&atid=737979
       Error(ecUNEXPECTED_VAR, m_iPos - (int)a_Tok.GetAsString().length(), strTok);
@@ -782,7 +782,7 @@ namespace mu
   */
   bool ParserTokenReader::IsString(token_type &a_Tok)
   {
-    if (m_strFormula[m_iPos]!='"') 
+    if (m_strFormula[m_iPos]!='"')
       return false;
 
     string_type strBuf(&m_strFormula[m_iPos+1]);
@@ -793,7 +793,7 @@ namespace mu
     {
       if (strBuf[iEnd-1]!='\\') break;
       strBuf.replace(iEnd-1, 2, _T("\"") );
-      iSkip++;
+      ++iSkip;
     }
 
     if (iEnd==string_type::npos)
@@ -823,8 +823,8 @@ namespace mu
     \param a_strTok [in] The token string representation associated with the error.
     \throw ParserException always throws thats the only purpose of this function.
   */
-  void  ParserTokenReader::Error( EErrorCodes a_iErrc, 
-                                  int a_iPos, 
+  void  ParserTokenReader::Error( EErrorCodes a_iErrc,
+                                  int a_iPos,
                                   const string_type &a_sTok) const
   {
     m_pParser->Error(a_iErrc, a_iPos, a_sTok);

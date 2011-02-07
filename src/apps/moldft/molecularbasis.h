@@ -66,12 +66,12 @@ class ContractedGaussianShell {
         double f = 1.0e00;
         for (int n=l_lim; n>1; n-=2) f *= n;
 
-        for (int n=0; n<np; n++)
+        for (int n=0; n<np; ++n)
             coeff[n] *= pow(2.e0*expnt[n]/madness::constants::pi,0.75e0)*pow(4.e0*expnt[n],0.5E0*type)/sqrt(f);
 
         double sum = 0.0;
-        for (int n1=0; n1<np; n1++) {
-            for (int n2=0; n2<np; n2++) {
+        for (int n1=0; n1<np; ++n1) {
+            for (int n2=0; n2<np; ++n2) {
                 double S =pi32/pow(expnt[n1]+expnt[n2],1.5e0+type)/pow(2e0,type);
                 sum = sum + coeff[n1]*coeff[n2]*S;
             }
@@ -79,7 +79,7 @@ class ContractedGaussianShell {
         sum *= f;
 
         f = 1e0/sqrt(sum);
-        for (int n=0; n<np; n++) coeff[n] *= f;
+        for (int n=0; n<np; ++n) coeff[n] *= f;
     }
 
 public:
@@ -93,7 +93,7 @@ public:
             : type(type), coeff(coeff), expnt(expnt), numbf((type+1)*(type+2)/2) {
         if (donorm) normalize();
         double minexpnt = expnt[0];
-        for (unsigned int i=1; i<expnt.size(); i++)
+        for (unsigned int i=1; i<expnt.size(); ++i)
             minexpnt = std::min(minexpnt,expnt[i]);
         rsqmax = 18.4/minexpnt;  // 18.4 = 8*ln(10)
     }
@@ -109,7 +109,7 @@ public:
     double eval_radial(double rsq) const {
         if (rsq > rsqmax) return 0.0;
         double sum = 0.0;
-        for (unsigned int i=0; i<coeff.size(); i++) {
+        for (unsigned int i=0; i<coeff.size(); ++i) {
             double ersq = expnt[i]*rsq;
             if (ersq < 18.4) sum += coeff[i]*exp(-ersq);
         }
@@ -121,7 +121,7 @@ public:
     double* eval(double rsq, double x, double y, double z, double* bf) const {
         double R = eval_radial(rsq);
         if (fabs(R) < 1e-8) {
-            for (int i=0; i<numbf; i++) bf[i] = 0.0;
+            for (int i=0; i<numbf; ++i) bf[i] = 0.0;
 
         }
         else {
@@ -221,7 +221,7 @@ public:
             : g(g) {
         rmaxsq = 0.0;
         numbf = 0;
-        for (unsigned int i=0; i<g.size(); i++) {
+        for (unsigned int i=0; i<g.size(); ++i) {
             rmaxsq = std::max(rmaxsq, g[i].rangesq());
             numbf += g[i].nbf();
         }
@@ -257,12 +257,12 @@ public:
     double* eval(double x, double y, double z, double* bf) const {
         double rsq = x*x + y*y + z*z;
         if (rsq > rmaxsq) {
-            for (int i=0; i<numbf; i++) bf[i] = 0.0;
+            for (int i=0; i<numbf; ++i) bf[i] = 0.0;
             return bf+numbf;
         }
 
         double* bfstart = bf;
-        for (unsigned int i=0; i<g.size(); i++) {
+        for (unsigned int i=0; i<g.size(); ++i) {
             bf = g[i].eval(rsq, x, y, z, bf);
         }
         // paranoia is good
@@ -280,7 +280,7 @@ public:
         eval(x, y, z, bf);
         const double* p = dmat.ptr();
         double sum = 0.0;
-        for (int i=0; i<numbf; i++, p+=numbf) {
+        for (int i=0; i<numbf; ++i, p+=numbf) {
             double sumj = 0.0;
             for (int j=0; j<numbf; ++j)
                 sumj += p[j]*bf[j];
@@ -292,7 +292,7 @@ public:
     /// Return shell that contains basis function ibf and also return index of function in the shell
     const ContractedGaussianShell& get_shell_from_basis_function(int ibf, int& ibf_in_shell) const {
         int n=0;
-        for (unsigned int i=0; i<g.size(); i++) {
+        for (unsigned int i=0; i<g.size(); ++i) {
             int nbf_in_shell = g[i].nbf();
             if (ibf>=n && ibf<(n+nbf_in_shell)) {
                 ibf_in_shell = ibf-n;
@@ -391,7 +391,7 @@ class AtomicBasisSet {
         MADNESS_ASSERT(child);
         std::istringstream s(child->GetText());
         std::vector<T> r(n);
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             MADNESS_ASSERT(s >> r[i]);
         }
         return r;
@@ -403,8 +403,8 @@ class AtomicBasisSet {
         MADNESS_ASSERT(child);
         std::istringstream s(child->GetText());
         Tensor<T> r(n,m);
-        for (int i=0; i<n; i++) {
-            for (int j=0; j<m; j++) {
+        for (int i=0; i<n; ++i) {
+            for (int j=0; j<m; ++j) {
                 MADNESS_ASSERT(s >> r(i,j));
             }
         }
@@ -454,7 +454,7 @@ public:
                     else {
                         static const char* tag[] = {"S","P","D","F","G"};
                         int i;
-                        for (i=0; i<5; i++) {
+                        for (i=0; i<5; ++i) {
                             if (strcmp(type,tag[i]) == 0) goto foundit;
                         }
                         MADNESS_EXCEPTION("Loading atomic basis set: bad shell type?",0);
@@ -490,7 +490,7 @@ foundit:
         at_nbf   = std::vector<int>(molecule.natom());
 
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
@@ -505,7 +505,7 @@ foundit:
     int basisfn_to_atom(const Molecule& molecule, int ibf) const {
         MADNESS_ASSERT(ibf >= 0);
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
@@ -525,7 +525,7 @@ foundit:
     AtomicBasisFunction get_atomic_basis_function(const Molecule& molecule, int ibf) const {
         MADNESS_ASSERT(ibf >= 0);
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             // Is the desired function on this atom?
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
@@ -548,7 +548,7 @@ foundit:
     /// Given a molecule count the number of basis functions
     int nbf(const Molecule& molecule) const {
         int n = 0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             MADNESS_ASSERT(is_supported(atn));
@@ -559,7 +559,7 @@ foundit:
 
     /// Evaluates the basis functions
     void eval(const Molecule& molecule, double x, double y, double z, double *bf) const {
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             bf = ag[atn].eval(x-atom.x, y-atom.y, z-atom.z, bf);
@@ -570,7 +570,7 @@ foundit:
     /// Evaluates the guess density
     double eval_guess_density(const Molecule& molecule, double x, double y, double z) const {
         double sum = 0.0;
-        for (int i=0; i<molecule.natom(); i++) {
+        for (int i=0; i<molecule.natom(); ++i) {
             const Atom& atom = molecule.get_atom(i);
             const int atn = atom.atomic_number;
             sum += ag[atn].eval_guess_density(x-atom.x, y-atom.y, z-atom.z);
@@ -613,7 +613,7 @@ foundit:
         long nbf = int(v.dim(0));
         long list[nbf];
         long ngot=0;
-        for (long i=0; i<nbf; i++) {
+        for (long i=0; i<nbf; ++i) {
             if (std::abs(v(i)) > thresh) {
                 list[ngot++] = i;
             }
@@ -634,7 +634,7 @@ foundit:
             format = "  %2s(%4d)%4s(%5ld)%6.3f  ";
         }
         printf("         ");
-        for (long ii=0; ii<ngot; ii++) {
+        for (long ii=0; ii<ngot; ++ii) {
             long ibf = list[ii];
 
             const int iat = basisfn_to_atom(molecule, ibf);

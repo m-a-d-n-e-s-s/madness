@@ -96,10 +96,10 @@ void test0(World& world) {
 
     world.gop.fence();
 
-    for (int i=0; i<10000; i++)
+    for (int i=0; i<10000; ++i)
         MADNESS_ASSERT(c.find(key1).get()->second.get() == 1);
 
-    for (int i=3; i<100; i++)
+    for (int i=3; i<100; ++i)
         MADNESS_ASSERT(c.find(Key(i)).get() == c.end());
 
 
@@ -129,7 +129,7 @@ void test1(World& world) {
     WorldContainer<int,double> c(world,pmap0), d(world,pmap0), e(world,pmap0);
 
     if (world.rank() == 0) {
-        for (int i=0; i<100; i++) {
+        for (int i=0; i<100; ++i) {
             c.replace(i,i+1.0);
             d.replace(i,i+2.0);
             e.replace(i,i+3.0);
@@ -138,7 +138,7 @@ void test1(World& world) {
 
     pmap0->redistribute(world, pmap1);
 
-    for (int i=0; i<100; i++) {
+    for (int i=0; i<100; ++i) {
         MADNESS_ASSERT(c.find(i).get()->second == (i+1.0));
         MADNESS_ASSERT(d.find(i).get()->second == (i+2.0));
         MADNESS_ASSERT(e.find(i).get()->second == (i+3.0));

@@ -64,7 +64,7 @@ double CorePotential::eval(double r) const {
     double u = 0.0;
     double rr = r*r;
     double sp_n = smoothed_potential(r*rcut)*rcut;
-    for (unsigned int i=0; i<A.size(); i++) {
+    for (unsigned int i=0; i<A.size(); ++i) {
         double rn = 1.0;
         double sp = sp_n;
         if (i==0) {
@@ -86,7 +86,7 @@ double CorePotential::eval(double r) const {
 double CorePotential::eval_derivative(double xi, double r) const {
     double u = 0.0;
     double rr = r*r;
-    for (unsigned int i=0; i<A.size(); i++) {
+    for (unsigned int i=0; i<A.size(); ++i) {
         double rn = 1.0;
         double sp = smoothed_potential(r*rcut)*rcut;
         if (i==0) {
@@ -108,7 +108,7 @@ double CorePotential::eval_derivative(double xi, double r) const {
 
 string CorePotential::to_string () const {
     std::ostringstream oss;
-    for (unsigned int i=0; i<A.size(); i++) {
+    for (unsigned int i=0; i<A.size(); ++i) {
         oss.precision(8);
         oss << std::scientific;
         std::string sep = "    ";
@@ -119,7 +119,7 @@ string CorePotential::to_string () const {
 
 double CoreOrbital::eval_radial(double rsq) const {
     double s=0.0;
-    for (unsigned int k=0; k<expnt.size(); k++) {
+    for (unsigned int k=0; k<expnt.size(); ++k) {
         s += coeff[k] * pow((2 * expnt[k] / madness::constants::pi), 0.75) * exp(-1.0 * expnt[k] * rsq);
     }
     return s;
@@ -127,7 +127,7 @@ double CoreOrbital::eval_radial(double rsq) const {
 
 double CoreOrbital::eval_radial_derivative(double rsq, double xi) const {
     double s=0.0;
-    for (unsigned int k=0; k<expnt.size(); k++) {
+    for (unsigned int k=0; k<expnt.size(); ++k) {
         s += coeff[k] * pow((2 * expnt[k] / madness::constants::pi), 0.75) * exp(-1.0 * expnt[k] * rsq) * (-2.0 * expnt[k] * xi);
     }
     return s;
@@ -349,7 +349,7 @@ void CorePotentialManager::read_file(string filename, std::set<unsigned int> ato
     }
 
     vector<unsigned int> atns;
-    for (std::map<unsigned int, AtomCore>::iterator it = atom_core.begin(); it != atom_core.end(); it++) {
+    for (std::map<unsigned int, AtomCore>::iterator it = atom_core.begin(); it != atom_core.end(); ++it) {
         atns.push_back(it->first);
     }
     madness::print("MCP parameters loaded for atomic numbers:", atns);

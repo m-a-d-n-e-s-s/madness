@@ -915,7 +915,7 @@ namespace madness {
         static std::vector< std::shared_ptr< FunctionImpl<Q,D> > > vimpl(const std::vector< Function<Q,D> >& v) {
             PROFILE_MEMBER_FUNC(Function);
             std::vector< std::shared_ptr< FunctionImpl<Q,D> > > r(v.size());
-            for (unsigned int i=0; i<v.size(); i++) r[i] = v[i].get_impl();
+            for (unsigned int i=0; i<v.size(); ++i) r[i] = v[i].get_impl();
             return r;
         }
 
@@ -931,7 +931,7 @@ namespace madness {
 
             std::vector<FunctionImpl<T,NDIM>*> vresult(right.size());
             std::vector<const FunctionImpl<R,NDIM>*> vright(right.size());
-            for (unsigned int i=0; i<right.size(); i++) {
+            for (unsigned int i=0; i<right.size(); ++i) {
                 result[i].set_impl(left,false);
                 vresult[i] = result[i].impl.get();
                 vright[i] = right[i].impl.get();

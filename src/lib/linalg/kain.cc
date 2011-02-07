@@ -69,9 +69,9 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 
     Tensor<T> A(m,m);
     Tensor<T> b(m);
-    for (long i=0; i<m; i++) {
+    for (long i=0; i<m; ++i) {
         b(i) = Q(m,m) - Q(i,m);
-        for (long j=0; j<m; j++) {
+        for (long j=0; j<m; ++j) {
             A(i,j) = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m);
         }
     }
@@ -94,7 +94,7 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 
     Tensor<T> c(nvec);
     T sumC = 0.0;
-    for (long i=0; i<m; i++) sumC += x(i);
+    for (long i=0; i<m; ++i) sumC += x(i);
     c(Slice(0,m-1)) = x;
     print("SUMC", nvec, m, sumC);
     c(m) = 1.0 - sumC;
@@ -156,7 +156,7 @@ struct OptimizationTargetInterface {
         Tensor<double> tt = gradient(x);
         int n = int(tt.dim[0]);
         double maxerr = 0.0;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             x[i] += eps;
             double fp = value(x);
             x[i] -= 2.0*eps;
@@ -220,7 +220,7 @@ public:
         Tensor<double> g;
         target->value_and_gradient(x,f,g);
         gnorm = g.normf();
-        for (int i=0; i<100; i++) {
+        for (int i=0; i<100; ++i) {
             while (1) {
                 Tensor<double> gnew;
                 x.gaxpy(1.0, g, -step);
@@ -346,8 +346,8 @@ private:
         double dgdg  = dg.trace(dg);
 
         if ( (dxdx > 0.0) && (dgdg > 0.0) && (abs(dxdg/sqrt(dxdx*dgdg)) > 1.e-8) ) {
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<n; j++) {
+            for (int i=0; i<n; ++i) {
+                for (int j=0; j<n; ++j) {
                     h(i,j) += dg[i]*dg[j]/dxdg - hdx[i]*hdx[j]/dxhdx;
                 }
             }
@@ -369,7 +369,7 @@ private:
         Tensor<double> gv = inner(g,v);
 
         // Take step applying restriction
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             if (e[i] < -tol) {
                 printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = -2.0*e[i]; // Enforce positive search direction
@@ -423,12 +423,12 @@ public:
         bool h_is_identity = (h.size == 0);
         if (h_is_identity) {
             h = Tensor<double>(n,n);
-            for (int i=0; i<n; i++) h(i,i) = 1.0;
+            for (int i=0; i<n; ++i) h(i,i) = 1.0;
         }
 
         Tensor<double> gp, dx;
         double fp;
-        for (int iter=0; iter<20; iter++) {
+        for (int iter=0; iter<20; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();
@@ -487,7 +487,7 @@ struct Test2 : public OptimizationTargetInterface {
 
     double value(const Tensor<double>& x) {
         double v = 1.0;
-        for (int i=0; i<x.dim[0]; i++) {
+        for (int i=0; i<x.dim[0]; ++i) {
             v *= cos((i+1)*x[i]);
         }
         return v;
@@ -496,7 +496,7 @@ struct Test2 : public OptimizationTargetInterface {
     Tensor<double> gradient(const Tensor<double>& x) {
         double v = value(x);
         Tensor<double> g(x.dim[0]);
-        for (int i=0; i<x.dim[0]; i++) {
+        for (int i=0; i<x.dim[0]; ++i) {
             g[i]= -v*(i+1)*sin((i+1)*x[i])/cos((i+1)*x[i]);
         }
         return g;
@@ -508,9 +508,9 @@ struct Test2 : public OptimizationTargetInterface {
 Tensor<double> op(const Tensor<double>& x) {
     const long n = x.dim[0];
     Tensor<double> f(n);
-    for (long i=0; i<n; i++) {
+    for (long i=0; i<n; ++i) {
         f(i) = (i + 1)*x[i]; // + 0.01*i*x[i]*x[i]*x[i];
-        for (long j=0; j<n; j++)
+        for (long j=0; j<n; ++j)
             f(i) += 0.0001*i*j*x[i]*x[i]*x[j]*x[j]/((i+1)*(j+1));
     }
     return f;
@@ -537,14 +537,14 @@ int main() {
 
 //     int m = 0;
 //     x(0,_).fillrandom();
-//     for (int iter=0; iter<maxiter; iter++) {
+//     for (int iter=0; iter<maxiter; ++iter) {
 //         print("\nITERATION", iter, m);
 //         f(m,_) = op(x(m,_));
 //         print("x");
 //         print(x(m,_));
 //         print(f(m,_));
 
-//         for (int j=0; j<=m; j++) {
+//         for (int j=0; j<=m; ++j) {
 //             Q(j,m) = dot_product(x(j,_),f(m,_));
 //             Q(m,j) = dot_product(x(m,_),f(j,_));
 //         }
@@ -554,10 +554,10 @@ int main() {
 //         print(c);
 
 //         {
-//             m++;
+//             ++m;
 
 //             Tensor<double> xnew(n);
-//             for (int j=0; j<m; j++) {
+//             for (int j=0; j<m; ++j) {
 //                 xnew += c(j)*(x(j,_) - f(j,_));
 //             }
 
@@ -571,7 +571,7 @@ int main() {
 //             }
 
 //             if (m == maxnvec) {
-//                 for (int i=1; i<m; i++) {
+//                 for (int i=1; i<m; ++i) {
 //                     f(i-1,_) = f(i,_);
 //                     x(i-1,_) = f(i,_);
 //                 }

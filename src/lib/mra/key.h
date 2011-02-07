@@ -337,11 +337,11 @@ namespace madness {
             std::size_t i;
             for (i = 0; i < NDIM; ++i) {
                 if (p[i] == 0) {
-                    p[i]++;
-                    child.l[i]++;
+                    ++(p[i]);
+                    ++(child.l[i]);
                     for (std::size_t j = 0; j < i; ++j) {
-                        p[j]--;
-                        child.l[j]--;
+                        --(p[j]);
+                        --(child.l[j]);
                     }
                     break;
                 }

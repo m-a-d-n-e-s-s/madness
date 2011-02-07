@@ -100,7 +100,7 @@ namespace madness {
         size_t sz = nv.size();
         if (sz == 0) nv.reserve(1000); // Avoid resizing during execution ... stupid code somewhere below not thread safe?
         if (sz >=1000) MADNESS_EXCEPTION("WorldProfile: did not reserve enough space!", sz);
-        for (unsigned int i=0; i<nv.size(); i++) {
+        for (unsigned int i=0; i<nv.size(); ++i) {
             if (name == nv[i].name) return i;
         }
         return -1;
@@ -137,7 +137,7 @@ namespace madness {
         cpu_start = madness::cpu_time();
         wall_start = madness::wall_time();
         std::vector<WorldProfileEntry>& nv = nvitems();
-        for (unsigned int i=0; i<nv.size(); i++) {
+        for (unsigned int i=0; i<nv.size(); ++i) {
             nv[i].clear();
         }
     }
@@ -152,7 +152,7 @@ namespace madness {
 #ifdef WORLD_PROFILE_ENABLE
     static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
         double cpu_total = 0.0;
-        for (unsigned int i=0; i<v.size(); i++)
+        for (unsigned int i=0; i<v.size(); ++i)
             cpu_total += v[i].xcpu.sum;
 
         double cpu_sum = 0.0;
@@ -160,7 +160,7 @@ namespace madness {
         std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
 
         //
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             double cpu = v[i].xcpu.sum;
             double inc = v[i].icpu.sum;
             double count = v[i].count.sum;
@@ -195,12 +195,12 @@ namespace madness {
 
     void WorldProfile::print(World& world) {
 #ifdef WORLD_PROFILE_ENABLE
-        for (int i=0; i<100; i++) est_profile_overhead();
+        for (int i=0; i<100; ++i) est_profile_overhead();
 
         std::vector<WorldProfileEntry>& nv = const_cast<std::vector<WorldProfileEntry>&>(items);
 
         ProcessID me = world.rank();
-        for (unsigned int i=0; i<nv.size(); i++) {
+        for (unsigned int i=0; i<nv.size(); ++i) {
             nv[i].init_par_stats(me);
         }
 
@@ -270,7 +270,7 @@ namespace madness {
         archive::MPIInputArchive ar(world, p);
         const std::vector<WorldProfileEntry> v;
         ar & v;
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             int id = find(v[i].name);
             if (id != -1) {
                 WorldProfileEntry& d = get_entry(id);
@@ -287,7 +287,7 @@ namespace madness {
     WorldProfileObj::WorldProfileObj(int id) : prev(call_stack), id(id), cpu_base(madness::cpu_time()) {
         cpu_start = cpu_base;
         call_stack = this;
-        WorldProfile::get_entry(id).depth++; // Keep track of recursive calls to avoid double counting time in self
+        ++(WorldProfile::get_entry(id).depth); // Keep track of recursive calls to avoid double counting time in self
         if (prev) prev->pause(cpu_start);
     }
 
@@ -308,7 +308,7 @@ namespace madness {
         WorldProfileEntry& d = WorldProfile::get_entry(id);
         {
             ScopedMutex<Spinlock> martha(d);
-            d.count.value++;
+            ++(d.count.value);
             d.xcpu.value += (now - cpu_start);
             d.depth--;
             if (d.depth == 0) d.icpu.value += (now - cpu_base); // Don't double count recursive calls

@@ -5,13 +5,13 @@
 
 
    CALL WOPEN(UNIT, NAME, BLOCKS, STATS, IERR)
-                    ----  
-   
+                    ----
+
    CALL WCLOSE(UNIT, IERR)
 
    CALL GETWA(UNIT, RESULT, ADDR, COUNT, IERR)
 
-   CALL PUTWA(UNIT, SOURCE, ADDR, COUNT, IERR) 
+   CALL PUTWA(UNIT, SOURCE, ADDR, COUNT, IERR)
 
    Currently the I/O is syncronous and unbuffered */
 
@@ -68,7 +68,7 @@ static int CheckUnit(integer unit)
 {
   if ( (unit < 0) || (unit >= max_file) )
     return -1;
-  
+
   if ( file_array[unit].fds == -1 )
     return -1;
 
@@ -130,10 +130,10 @@ void PrintFileStats(struct w_file *unit, struct w_file *file)
   (void) fprintf(stdout,"CRAYIO: oper :  #req.  :  #seek  :   #words  :");
   (void) fprintf(stdout," #w/#req : time(s) :  MW/s \n");
   (void) fprintf(stdout,"CRAYIO: read : %7d : %7d : %9d : %7d : %7.1f : %6.3f\n",
-		 file->n_read, file->seek_read, (long) file->words_read, 
+		 file->n_read, file->seek_read, (long) file->words_read,
 		 (long) ave_read, file->time_read, rate_read);
   (void) fprintf(stdout,"CRAYIO:write : %7d : %7d : %9d : %7d : %7.1f : %6.3f\n",
-		 file->n_write, file->seek_write, (long) file->words_write, 
+		 file->n_write, file->seek_write, (long) file->words_write,
 		 (long) ave_write, file->time_write, rate_write);
   (void) fflush(stdout);
 }
@@ -151,7 +151,7 @@ void FirstCall()
 {
   int i;
 
-  for (i=0; i<max_file; i++) {
+  for (i=0; i<max_file; ++i) {
 
     InitFileData(&file_array[i]);
 
@@ -177,7 +177,7 @@ void wclose_(integer* unit, integer* ierr)
 
   if (file->stats)
     PrintFileStats(*unit, file);
-  
+
   InitFileData(file);
 
   InitFileStats(file);
@@ -197,7 +197,7 @@ void wopen_(integer* unit, char* name, integer* blocks, integer* stats, integer*
     *ierr = -1;
     return;
   }
-    
+
   file = file_array + *unit;
 
   file->stats = *stats;
@@ -212,7 +212,7 @@ void wopen_(integer* unit, char* name, integer* blocks, integer* stats, integer*
     (void) sprintf(file->path,"fort.%.2d",*unit);
   }
 
-  if (( file->fds = open(file->path, (int)(O_RDWR|O_CREAT), (int) 0660)) 
+  if (( file->fds = open(file->path, (int)(O_RDWR|O_CREAT), (int) 0660))
       == -1) {
     *ierr = -6;
     return;
@@ -255,7 +255,7 @@ void getwa_(integer* unit, double* result, integer* addr, integer* count, intege
     walltm_(&start);
 
   if (where != file->position) {
-    file->seek_read++;
+    ++(file->seek_read);
     if ( (file->position = lseek(file->fds, where, L_SET)) == (off_t) -1) {
       *ierr = -4;
       return;
@@ -266,19 +266,19 @@ void getwa_(integer* unit, double* result, integer* addr, integer* count, intege
     *ierr = -6;
     return;
   }
-  
+
   file->position += nbytes;
 
   if (file->stats) {
     walltm_(&end);
-    file->n_read++;
+    ++(file->n_read);
     file->words_read += (double) *count;
     file->time_read +=  end - start;
   }
 
   *ierr = 0;
 }
-  
+
 void putwa_(integer* unit, double* source, integer* addr, integer* count, integer* ierr)
 {
   long nbytes;
@@ -307,7 +307,7 @@ void putwa_(integer* unit, double* source, integer* addr, integer* count, intege
     walltm_(&start);
 
   if (where != file->position) {
-    file->seek_write++;
+    ++(file->seek_write);
     if ( (file->position = lseek(file->fds, where, L_SET)) == (off_t) -1) {
       *ierr = -4;
       return;
@@ -323,11 +323,11 @@ void putwa_(integer* unit, double* source, integer* addr, integer* count, intege
   file->position += nbytes;
   if (file->length < where)
     file->length = where;
-  
+
 
   if (file->stats) {
     walltm_(&end);
-    file->n_write++;
+    ++(file->n_write);
     file->words_write += (double) *count;
     file->time_write +=  end - start;
   }

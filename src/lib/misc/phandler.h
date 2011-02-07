@@ -92,7 +92,7 @@ class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
 
     virtual T operator() (const coordT &vals_in) const {
       r = 0;
-      for (int i = 0; i < NDIM; i++) {
+      for (int i = 0; i < NDIM; ++i) {
         vars[i] = vals_in[i];
         r += vals_in[i]*vals_in[i];
       }

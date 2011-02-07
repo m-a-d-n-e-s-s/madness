@@ -395,9 +395,9 @@ namespace madness {
             double kphase = -1.0;
             if (this->k%2 == 0) kphase = 1.0;
             double iphase = 1.0;
-            for (int i=0; i<this->k; i++) {
+            for (int i=0; i<this->k; ++i) {
                 double jphase = 1.0;
-                for (int j=0; j<this->k; j++) {
+                for (int j=0; j<this->k; ++j) {
                     double gammaij = sqrt(double((2*i+1)*(2*j+1)));
                     double Kij;
                     if (((i-j)>0) && (((i-j)%2)==1))
@@ -415,7 +415,7 @@ namespace madness {
 
                         double phi_tmpj_left = 0;
 
-                        for (int l=0; l<this->k; l++) {
+                        for (int l=0; l<this->k; ++l) {
                             double gammalj = sqrt(double((2*l+1)*(2*j+1)));
                             double Klj;
 
@@ -444,7 +444,7 @@ namespace madness {
                         right_rp(i,j) = -0.5*(iphase + kphase / this->k)*gammaij;
 
                         double phi_tmpj_right = 0;
-                        for (int l=0; l<this->k; l++) {
+                        for (int l=0; l<this->k; ++l) {
                             double gammalj = sqrt(double((2*l+1)*(2*j+1)));
                             double Klj;
                             if (((l-j)>0) && (((l-j)%2)==1))  Klj = 2.0;
@@ -473,7 +473,7 @@ namespace madness {
 
             // Coefficients for the boundary contributions
             iphase = 1.0;
-            for (int i=0; i<this->k; i++) {
+            for (int i=0; i<this->k; ++i) {
                 iphase = -iphase;
 
                 if (bc_left == BC_DIRICHLET)

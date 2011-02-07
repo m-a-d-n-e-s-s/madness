@@ -55,13 +55,13 @@ namespace madness {
       The base class manages the size, dimension and
       stride information, and provides operations to manipulate
       them.
-      
+
       It also provides methods for type-safe operation on tensors using
       just the base class pointers. This interface is primarily useful
       only to the interface to Python, since Python is largely neutral
       to (and ignorant of) the type.  These are still being
       re-implemented after the big clean up.
-      
+
       Since the base tensor class is virtual, you cannot have an
       instance of it.  Thus, in addition to methods that return information
       or perform checks, there are two types of base tensor
@@ -89,12 +89,12 @@ namespace madness {
             _ndim = nd;
             _size = 1;
             if (_ndim < 0) _size=0;
-            for (long i=_ndim-1; i>=0; i--) {
+            for (long i=_ndim-1; i>=0; --i) {
                 _dim[i] = d[i];
                 _stride[i] = _size;
                 _size *= d[i];
             }
-            for (long i=std::max(_ndim,0L); i<TENSOR_MAXDIM; i++) { // So can iterate over missing dimensions
+            for (long i=std::max(_ndim,0L); i<TENSOR_MAXDIM; ++i) { // So can iterate over missing dimensions
                 _dim[i] = 1;
                 _stride[i] = 0;
             }
@@ -134,10 +134,10 @@ namespace madness {
 
         /// Returns the size of dmension \c i
         long dim(int i) const {return _dim[i];}
-        
+
         /// Returns the stride associated with dimension \c i
         long stride(int i) const {return _stride[i];}
-        
+
         /// Returns the array of tensor dimensions
         const long* dims() const {return _dim;}
 
@@ -147,7 +147,7 @@ namespace madness {
         /// Returns true if this and *t are the same shape and size
         bool conforms(const BaseTensor *t) const {
             if (_ndim != t->_ndim) return false;
-            for (long i=0; i<_ndim; i++) {
+            for (long i=0; i<_ndim; ++i) {
                 if (_dim[i] != t->_dim[i]) return false;
             }
             return true;
@@ -157,7 +157,7 @@ namespace madness {
         bool iscontiguous() const {
             if (_size <= 0) return true;
             long sz = 1;
-            for (long i=_ndim-1; i>=0; i--) {
+            for (long i=_ndim-1; i>=0; --i) {
                 if (_stride[i] != sz) return false;
                 sz *= _dim[i];
             }
@@ -165,7 +165,7 @@ namespace madness {
         }
 
     protected:
-        
+
         /// Reshapes the tensor inplace
         void reshape_inplace(const std::vector<long>& d);
 

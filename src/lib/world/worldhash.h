@@ -99,7 +99,7 @@ namespace madness {
         // of sizeof(hashT)
         if (((sizeof(T)/sizeof(hashT))*sizeof(hashT)) == sizeof(T)) {
             //std::cout << "hashing words ";
-            //for (int i=0; i<n; i++) std::cout << t[i] << " ";
+            //for (int i=0; i<n; ++i) std::cout << t[i] << " ";
             hashT result = hashword((const hashT *) t, n*sizeof(T)/sizeof(hashT), initval);
             //std::cout << " ---> " << result << std::endl;
             return result;
@@ -117,7 +117,7 @@ namespace madness {
     typename madness::disable_if<std::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
         hashT sum=0;
-        for (std::size_t i=0; i<n; i++) sum = hash(t[i],sum);
+        for (std::size_t i=0; i<n; ++i) sum = hash(t[i],sum);
         return sum;
     }
 

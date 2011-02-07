@@ -131,7 +131,7 @@ namespace madness {
         int ncpu = num_hw_processors();
 
         // impose sanity and compute cpuhi
-        for (int i=0; i<3; i++) {
+        for (int i=0; i<3; ++i) {
             if (cpulo[i] < 0) cpulo[i] = 0;
             if (cpulo[i] >= ncpu) cpulo[i] = ncpu-1;
 
@@ -174,7 +174,7 @@ namespace madness {
 #ifndef ON_A_MAC
         cpu_set_t mask;
         CPU_ZERO(&mask);
-        for (int i=lo; i<=hi; i++) CPU_SET(i,&mask);
+        for (int i=lo; i<=hi; ++i) CPU_SET(i,&mask);
         if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
             perror("system error message");
             std::cout << "ThreadBase: set_affinity: Could not set cpu Affinity" << std::endl;
@@ -257,7 +257,7 @@ namespace madness {
             MADNESS_EXCEPTION("memory allocation failed", 0);
         }
 
-        for (int i=0; i<nthreads; i++) {
+        for (int i=0; i<nthreads; ++i) {
             threads[i].set_pool_thread_index(i);
             threads[i].start(pool_thread_main, (void *)(threads+i));
         }
@@ -305,7 +305,7 @@ namespace madness {
         static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
         PoolTaskInterface* taskbuf[nmax];
         int ntask = queue.pop_front(nmax, taskbuf, wait);
-        for (int i=0; i<ntask; i++) {
+        for (int i=0; i<ntask; ++i) {
             PROFILE_BLOCK(working);
             if (taskbuf[i]) { // Task pointer might be zero due to stealing
                 if (taskbuf[i]->run_multi_threaded()) {
@@ -353,7 +353,7 @@ namespace madness {
     void ThreadPool::end() {
         if (!instance_ptr) return;
         instance()->finish = true;
-        for (int i=0; i<instance()->nthreads; i++) {
+        for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);

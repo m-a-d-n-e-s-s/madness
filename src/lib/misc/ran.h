@@ -101,7 +101,7 @@ namespace madness {
                 if (cur >= r) generate();
                 int ndo = std::min(n,r-cur);
                 const double* ucur = const_cast<const double*>(u) + cur;
-                for (int i=0; i<ndo; i++) v[i] = (T)(ucur[i]);
+                for (int i=0; i<ndo; ++i) v[i] = (T)(ucur[i]);
                 n -= ndo;
                 v += ndo;
                 cur += ndo;
@@ -150,7 +150,7 @@ namespace madness {
     template <> float_complex RandomValue<float_complex> ();
 
     template <class T> void RandomVector(int n, T* t) {
-        for (int i=0; i<n; i++) t[i] = RandomValue<T>();
+        for (int i=0; i<n; ++i) t[i] = RandomValue<T>();
     }
 
     template <> void RandomVector<double>(int n, double* t);

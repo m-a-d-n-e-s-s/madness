@@ -62,7 +62,7 @@ namespace madness {
         int k = 0;
         while (me != 0) {
             if (me%d == 0) {
-                k++;
+                ++k;
                 me/=d;
             }
             else {
@@ -117,7 +117,7 @@ namespace madness {
             maxcost = 0;
             cost_left = skel_cost;
             partition_number = p;
-            step_num++;
+            ++step_num;
         }
 
         template <typename Archive>
@@ -210,7 +210,7 @@ namespace madness {
 
         /// Determines whether node has any children at all
         bool has_children() const {
-            for (int i = 0; i < dim; i++)
+            for (int i = 0; i < dim; ++i)
                 if (c[i]) return true;
             return false;
         };
@@ -225,8 +225,8 @@ namespace madness {
 
         int get_num_children() const {
             int nkids = 0;
-            for (int i=0; i < dim; i++) {
-                if (has_child(i)) nkids++;
+            for (int i=0; i < dim; ++i) {
+                if (has_child(i)) ++nkids;
             }
             return nkids;
         }
@@ -339,7 +339,7 @@ namespace madness {
         ProcMapImpl() {};
         ProcMapImpl(std::vector< TreeCoords<D> > v) {
             int vlen = v.size();
-            for (int i = 0; i < vlen; i++) {
+            for (int i = 0; i < vlen; ++i) {
                 themap.insert(std::make_pair(v[i].key, v[i].owner));
             }
         };
@@ -408,7 +408,7 @@ namespace madness {
 
         void prepare_not_so_simple_map(World& world) {
 	    std::vector<long> vdim(D);
-            for (int i=0; i<D; i++) vdim[i] = 1L<<n;
+            for (int i=0; i<D; ++i) vdim[i] = 1L<<n;
             simple_key_map = Tensor<ProcessID>(vdim);
 
             std::list< std::pair<KeyD,double> > costmap;
@@ -416,7 +416,7 @@ namespace madness {
             long cent = (1L<<n) / 2;
             for (TensorIterator<ProcessID> iter=simple_key_map.unary_iterator(0,false,false); iter._p0; ++iter) {
                 double dist = 0.01;
-                for (int i=0; i<D; i++) {
+                for (int i=0; i<D; ++i) {
                     l[i] = iter.ind[i];
                     dist += (l[i] - cent)*(l[i] - cent);
                 }
@@ -434,7 +434,7 @@ namespace madness {
             for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
                 const long *l = (const long *) &(it->first.translation()[0]);
                 simple_key_map(l)  = p;
-                p++;
+                ++p;
                 if (p == world.size()) p = 0;
             }
 //             if (world.rank() == 0) {
@@ -554,7 +554,7 @@ namespace madness {
 //             //if (world.rank() == 0) madness::print("DIM",D,"N IN MAP IS",n);
 
 //             std::vector<long> vdim(D);
-//             for (int i=0; i<D; i++) vdim[i] = 1L<<n;
+//             for (int i=0; i<D; ++i) vdim[i] = 1L<<n;
 //             simple_key_map = Tensor<ProcessID>(vdim);
 
 //             std::list< std::pair<KeyD,double> > costmap;
@@ -562,7 +562,7 @@ namespace madness {
 //             long cent = (1L<<n) / 2;
 //             for (TensorIterator<ProcessID> iter=simple_key_map.unary_iterator(0,false,false); iter._p0; ++iter) {
 //                 double dist = 0.01;
-//                 for (int i=0; i<D; i++) {
+//                 for (int i=0; i<D; ++i) {
 //                     l[i] = iter.ind[i];
 //                     dist += (l[i] - cent)*(l[i] - cent);
 //                 }
@@ -580,7 +580,7 @@ namespace madness {
 //             for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
 //                 const long *l = (const long *) &(it->first.translation()[0]);
 //                 simple_key_map(l)  = p;
-//                 p++;
+//                 ++p;
 //                 if (p == world.size()) p = 0;
 //             }
 // //             if (world.rank() == 0) {
@@ -729,7 +729,7 @@ namespace madness {
         void print(const Key<D>& key) {
             typename LBTree<D>::iterator it = impl.find(key);
             if (it == impl.end()) return;
-            for (Level i = 0; i < key.level(); i++) std::cout << "  ";
+            for (Level i = 0; i < key.level(); ++i) std::cout << "  ";
             madness::print(key, it->second);
             for (KeyChildIterator<D> kit(key); kit; ++kit) {
                 print(kit.key());

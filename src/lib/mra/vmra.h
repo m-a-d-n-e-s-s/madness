@@ -133,7 +133,7 @@ namespace madness {
 
         PROFILE_BLOCK(Vcompress);
         bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             if (!v[i].is_compressed()) {
                 v[i].compress(false);
                 must_fence = true;
@@ -151,7 +151,7 @@ namespace madness {
                      bool fence=true) {
         PROFILE_BLOCK(Vreconstruct);
         bool must_fence = false;
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             if (v[i].is_compressed()) {
                 v[i].reconstruct(false);
                 must_fence = true;
@@ -169,7 +169,7 @@ namespace madness {
                      bool fence=true) {
         PROFILE_BLOCK(Vnonstandard);
         reconstruct(world, v);
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             v[i].nonstandard(false,false);
         }
         if (fence) world.gop.fence();
@@ -182,7 +182,7 @@ namespace madness {
                   std::vector< Function<T,NDIM> >& v,
                   bool fence=true) {
         PROFILE_BLOCK(Vstandard);
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             v[i].standard(false);
         }
         if (fence) world.gop.fence();
@@ -199,7 +199,7 @@ namespace madness {
 
         compress(world, v);
 
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             v[i].truncate(tol, false);
         }
 
@@ -216,7 +216,7 @@ namespace madness {
     {
         reconstruct(world, v);
         std::vector< Function<T,NDIM> > df(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             df[i] = D(v[i],false);
         }
         if (fence) world.gop.fence();
@@ -229,7 +229,7 @@ namespace madness {
     zero_functions(World& world, int n) {
         PROFILE_BLOCK(Vzero_functions);
         std::vector< Function<T,NDIM> > r(n);
-        for (int i=0; i<n; i++)
+        for (int i=0; i<n; ++i)
             r[i] = Function<T,NDIM>(FunctionFactory<T,NDIM>(world));
 
         return r;
@@ -257,8 +257,8 @@ namespace madness {
         compress(world, v);
         compress(world, vc);
 
-        for (int i=0; i<m; i++) {
-            for (int j=0; j<n; j++) {
+        for (int i=0; i<m; ++i) {
+            for (int j=0; j<n; ++j) {
                 if (c(j,i) != R(0.0)) vc[i].gaxpy(1.0,v[j],c(j,i),false);
             }
         }
@@ -275,7 +275,7 @@ namespace madness {
         MADNESS_ASSERT(v.size() == (unsigned int)(c.dim(0)));
 
         std::vector< Function<TENSOR_RESULT_TYPE(L,R),NDIM> > vresult(c.dim(1));
-        for (int i=0; i<c.dim(1); i++) {
+        for (int i=0; i<c.dim(1); ++i) {
             vresult[i] = Function<TENSOR_RESULT_TYPE(L,R),NDIM>(FunctionFactory<TENSOR_RESULT_TYPE(L,R),NDIM>(world));
         }
         compress(world, v, false);
@@ -292,7 +292,7 @@ namespace madness {
                const std::vector<Q>& factors,
                bool fence=true) {
         PROFILE_BLOCK(Vscale);
-        for (unsigned int i=0; i<v.size(); i++) v[i].scale(factors[i],false);
+        for (unsigned int i=0; i<v.size(); ++i) v[i].scale(factors[i],false);
         if (fence) world.gop.fence();
     }
 
@@ -302,9 +302,9 @@ namespace madness {
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
-        for (unsigned int i=0; i<v.size(); i++) norms[i] = v[i].norm2sq_local();
+        for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
-        for (unsigned int i=0; i<v.size(); i++) norms[i] = sqrt(norms[i]);
+        for (unsigned int i=0; i<v.size(); ++i) norms[i] = sqrt(norms[i]);
         world.gop.fence();
         return norms;
     }
@@ -315,9 +315,9 @@ namespace madness {
                               const std::vector< Function<T,NDIM> >& v) {
         PROFILE_BLOCK(Vnorm2);
         std::vector<double> norms(v.size());
-        for (unsigned int i=0; i<v.size(); i++) norms[i] = v[i].norm2sq_local();
+        for (unsigned int i=0; i<v.size(); ++i) norms[i] = v[i].norm2sq_local();
         world.gop.sum(&norms[0], norms.size());
-        for (unsigned int i=1; i<v.size(); i++) norms[0] += norms[i];
+        for (unsigned int i=1; i<v.size(); ++i) norms[0] += norms[i];
         world.gop.fence();
         return sqrt(norms[0]);
     }
@@ -345,7 +345,7 @@ namespace madness {
                 : result(result), f(f), g(g), jtop(jtop) {}
 
         void run(World& world) {
-            for (long j=0; j<jtop; j++) {
+            for (long j=0; j<jtop; ++j) {
                 result(j) = f.inner_local(g[j]);
             }
         }
@@ -371,16 +371,16 @@ namespace madness {
         compress(world, f);
         if (&f != &g) compress(world, g);
 
-//         for (long i=0; i<n; i++) {
+//         for (long i=0; i<n; ++i) {
 //             long jtop = m;
 //             if (sym) jtop = i+1;
-//             for (long j=0; j<jtop; j++) {
+//             for (long j=0; j<jtop; ++j) {
 //                 r(i,j) = f[i].inner_local(g[j]);
 //                 if (sym) r(j,i) = conj(r(i,j));
 //             }
 //         }
 
-        for (long i=n-1; i>=0; i--) {
+        for (long i=n-1; i>=0; --i) {
             long jtop = m;
             if (sym) jtop = i+1;
             world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
@@ -389,8 +389,8 @@ namespace madness {
         world.gop.sum(r.ptr(),n*m);
 
         if (sym) {
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<i; j++) {
+            for (int i=0; i<n; ++i) {
+                for (int j=0; j<i; ++j) {
                     r(j,i) = conj(r(i,j));
                 }
             }
@@ -411,7 +411,7 @@ namespace madness {
         compress(world, f);
         compress(world, g);
 
-        for (long i=0; i<n; i++) {
+        for (long i=0; i<n; ++i) {
             r(i) = f[i].inner_local(g[i]);
         }
 
@@ -434,7 +434,7 @@ namespace madness {
         f.compress();
         compress(world, g);
 
-        for (long i=0; i<n; i++) {
+        for (long i=0; i<n; ++i) {
             r(i) = f.inner_local(g[i]);
         }
 
@@ -471,7 +471,7 @@ namespace madness {
         a.reconstruct(false);
         reconstruct(world, v, false);
         world.gop.fence();
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             v[i].norm_tree(false);
         }
         a.norm_tree();
@@ -485,7 +485,7 @@ namespace madness {
                    bool fence=true)
     {
         PROFILE_BLOCK(Vnorm_tree);
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             v[i].norm_tree(false);
         }
         if (fence) world.gop.fence();
@@ -504,7 +504,7 @@ namespace madness {
         world.gop.fence();
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > q(a.size());
-        for (unsigned int i=0; i<a.size(); i++) {
+        for (unsigned int i=0; i<a.size(); ++i) {
             q[i] = mul(a[i], b[i], false);
         }
         if (fence) world.gop.fence();
@@ -520,7 +520,7 @@ namespace madness {
            bool fence=true) {
         return mul<T,T,NDIM>(world, v, v, fence);
 //         std::vector< Function<T,NDIM> > vsq(v.size());
-//         for (unsigned int i=0; i<v.size(); i++) {
+//         for (unsigned int i=0; i<v.size(); ++i) {
 //             vsq[i] = square(v[i], false);
 //         }
 //         if (fence) world.gop.fence();
@@ -531,7 +531,7 @@ namespace madness {
     /// Sets the threshold in a vector of functions
     template <typename T, std::size_t NDIM>
     void set_thresh(World& world, std::vector< Function<T,NDIM> >& v, double thresh, bool fence=true) {
-        for (unsigned int j=0; j<v.size(); j++) {
+        for (unsigned int j=0; j<v.size(); ++j) {
             v[j].set_thresh(thresh,false);
         }
         if (fence) world.gop.fence();
@@ -545,7 +545,7 @@ namespace madness {
          bool fence=true) {
         PROFILE_BLOCK(Vconj);
         std::vector< Function<T,NDIM> > r = copy(world, v); // Currently don't have oop conj
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             r[i].conj(false);
         }
         if (fence) world.gop.fence();
@@ -561,7 +561,7 @@ namespace madness {
          bool fence=true) {
         PROFILE_BLOCK(Vcopy);
         std::vector< Function<T,NDIM> > r(v.size());
-        for (unsigned int i=0; i<v.size(); i++) {
+        for (unsigned int i=0; i<v.size(); ++i) {
             r[i] = copy(v[i], false);
         }
         if (fence) world.gop.fence();
@@ -577,7 +577,7 @@ namespace madness {
          bool fence=true) {
         PROFILE_BLOCK(Vcopy1);
         std::vector< Function<T,NDIM> > r(n);
-        for (unsigned int i=0; i<n; i++) {
+        for (unsigned int i=0; i<n; ++i) {
             r[i] = copy(v, false);
         }
         if (fence) world.gop.fence();
@@ -597,7 +597,7 @@ namespace madness {
         compress(world, b);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > r(a.size());
-        for (unsigned int i=0; i<a.size(); i++) {
+        for (unsigned int i=0; i<a.size(); ++i) {
             r[i] = add(a[i], b[i], false);
         }
         if (fence) world.gop.fence();
@@ -616,7 +616,7 @@ namespace madness {
         compress(world, b);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > r(b.size());
-        for (unsigned int i=0; i<b.size(); i++) {
+        for (unsigned int i=0; i<b.size(); ++i) {
             r[i] = add(a, b[i], false);
         }
         if (fence) world.gop.fence();
@@ -644,7 +644,7 @@ namespace madness {
         compress(world, b);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R),NDIM> > r(a.size());
-        for (unsigned int i=0; i<a.size(); i++) {
+        for (unsigned int i=0; i<a.size(); ++i) {
             r[i] = sub(a[i], b[i], false);
         }
         if (fence) world.gop.fence();
@@ -665,7 +665,7 @@ namespace madness {
         compress(world, a);
         compress(world, b);
 
-        for (unsigned int i=0; i<a.size(); i++) {
+        for (unsigned int i=0; i<a.size(); ++i) {
             a[i].gaxpy(alpha, b[i], beta, false);
         }
         if (fence) world.gop.fence();
@@ -688,7 +688,7 @@ namespace madness {
         nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
-        for (unsigned int i=0; i<f.size(); i++) {
+        for (unsigned int i=0; i<f.size(); ++i) {
             result[i] = apply_only(*op[i], f[i], false);
         }
 
@@ -716,7 +716,7 @@ namespace madness {
         nonstandard(world, ncf);
 
         std::vector< Function<TENSOR_RESULT_TYPE(T,R), NDIM> > result(f.size());
-        for (unsigned int i=0; i<f.size(); i++) {
+        for (unsigned int i=0; i<f.size(); ++i) {
             result[i] = apply_only(op, f[i], false);
         }
 
@@ -733,7 +733,7 @@ namespace madness {
     void normalize(World& world, std::vector< Function<T,NDIM> >& v, bool fence=true) {
         PROFILE_BLOCK(Vnormalize);
         std::vector<double> nn = norm2s(world, v);
-        for (unsigned int i=0; i<v.size(); i++) v[i].scale(1.0/nn[i],false);
+        for (unsigned int i=0; i<v.size(); ++i) v[i].scale(1.0/nn[i],false);
         if (fence) world.gop.fence();
     }
 

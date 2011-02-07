@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
 
     Foo a(world,world.rank()), b(world,world.rank()*10);
 
-    for (ProcessID p=0; p<world.size(); p++) {
+    for (ProcessID p=0; p<world.size(); ++p) {
         Future<int> futa = a.send(p,&Foo::get);
         Future<int> futb = b.send(p,&Foo::get);
         // Could work here until the results are available

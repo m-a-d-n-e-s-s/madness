@@ -82,43 +82,43 @@ namespace madness {
 
             num = 0;
             if (NDIM == 1) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
                     disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 2) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
                         disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 3) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
                             disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 4) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
                                 disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 5) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
+                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
 
                                     disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 6) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                    for (d[5]=-bmax; d[5]<=bmax; d[5]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
+                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
+                                    for (d[5]=-bmax; d[5]<=bmax; ++d[5])
                                         disp[num++] = Key<NDIM>(0,d);
             }
             else {
@@ -136,7 +136,7 @@ namespace madness {
             // Make permissible 1D translations
             Translation b[4*bmax+1];
             int i=0;
-            for (Translation lx=-bmax; lx<=bmax; lx++) {
+            for (Translation lx=-bmax; lx<=bmax; ++lx) {
                 b[i++] = lx;
                 if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
                 if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
@@ -167,7 +167,7 @@ namespace madness {
 
                 if (NDIM <= 3) {
                     Level nmax = 8*sizeof(Translation) - 2;
-                    for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
+                    for (Level n=0; n<nmax; ++n) make_disp_periodicsum(bmax_default(), n);
                 }
             }
         }

@@ -89,7 +89,7 @@ void test_periodic(World& world) {
 
     std::cout.precision(10);
     double width = 2*L;
-    for (int i=-4; i<=20; i++) {
+    for (int i=-4; i<=20; ++i) {
         double expnt = pow(2.0,double(i));
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
@@ -146,7 +146,7 @@ void test_periodic1(World& world) {
 
     std::cout.precision(10);
     double width = 2*L;
-    for (int i=-4; i<=20; i++) {
+    for (int i=-4; i<=20; ++i) {
         double expnt = pow(2.0,double(i));
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
@@ -199,7 +199,7 @@ void test_periodic2(World& world) {
     // const double acut = 0.25 / (4.0*width*width);
     // std::vector< std::shared_ptr< Convolution1D<double> > > ops;
     // print("expansion of 1/r in gaussians");
-    // for (int i=0; i<coeff.dim(0); i++) {
+    // for (int i=0; i<coeff.dim(0); ++i) {
     //     if (expnt[i] > acut) {
     //         double c = pow(4*constants::pi*coeff[i],1.0/3.0);
     //         ops.push_back(std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, expnt[i], 1.0, 0, true)));
@@ -215,7 +215,7 @@ void test_periodic2(World& world) {
     opf.reconstruct();
 
     //print("i,value,exact,relerr");
-    for (int i=0; i<101; i++) {
+    for (int i=0; i<101; ++i) {
         coordT r = coordT(-L + i*2*L/100.0);
         double value = opf(r);
         double exact = potential(r);

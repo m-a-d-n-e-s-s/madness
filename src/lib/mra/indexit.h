@@ -113,7 +113,7 @@ namespace madness {
         virtual IndexIterator&
         operator++() {
             for (int d = n.size() - 1; d >= 0; --d) {
-                i[d]++;
+                ++(i[d]);
                 if (i[d] < n[d])
                     return *this;
                 else
@@ -162,7 +162,7 @@ namespace madness {
         virtual IndexIterator&
         operator++() {
             for (int d = n.size() - 1; d >= 0; --d) {
-                i[d]++;
+                ++(i[d]);
                 if (i[d] < n[d])
                     return *this;
                 else
@@ -202,7 +202,7 @@ namespace madness {
         operator++() {
             int ndim = n.size();
             for (int d = 0; d < ndim; ++d) {
-                i[d]++;
+                ++(i[d]);
                 if (i[d] < n[d])
                     return *this;
                 else
@@ -324,7 +324,7 @@ namespace madness {
         operator++() {
             int ndim = n.size();
             for (int d = 0; d < ndim; ++d) {
-                i[dim[d]]++;
+                ++(i[dim[d]]);
                 if (i[dim[d]] < n[dim[d]])
                     return *this;
                 else

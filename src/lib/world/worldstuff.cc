@@ -90,7 +90,7 @@ namespace madness {
 
 
     void World::args(int argc, char** argv) {
-        for (int arg=1; arg<argc; arg++) {
+        for (int arg=1; arg<argc; ++arg) {
             if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
 //             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
 //            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
@@ -127,7 +127,7 @@ namespace madness {
         srandom(seed);
 #else
         myrand_next = seed;
-        for (int i=0; i<1000; i++) rand(); // Warmup
+        for (int i=0; i<1000; ++i) rand(); // Warmup
 #endif
     }
 
@@ -198,7 +198,7 @@ namespace madness {
         const char* sbind = getenv("MAD_BIND");
         if (!sbind) sbind = MAD_BIND_DEFAULT;
         std::istringstream s(sbind);
-        for (int i=0; i<3; i++) {
+        for (int i=0; i<3; ++i) {
             int t;
             s >> t;
             if (t < 0) {
@@ -395,7 +395,7 @@ namespace madness {
 
 #ifdef HAVE_PAPI
         double val[NUMEVENTS], max_val[NUMEVENTS], min_val[NUMEVENTS];
-        for (int i=0; i<NUMEVENTS; i++) {
+        for (int i=0; i<NUMEVENTS; ++i) {
             val[i] = max_val[i] = min_val[i] = values[i];
         }
         world.gop.sum(val, NUMEVENTS);
@@ -443,15 +443,15 @@ namespace madness {
 #ifdef HAVE_PAPI
             printf("         PAPI statistics (min / avg / max)\n");
             printf("         ---------------\n");
-            for (int i=0; i<NUMEVENTS; i++) {
+            for (int i=0; i<NUMEVENTS; ++i) {
                 printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
                        i, min_val[i], val[i]/world.size(), max_val[i]);
             }
-            for (int i=0; i<NUMEVENTS; i++) {
+            for (int i=0; i<NUMEVENTS; ++i) {
                 printf("  %3d #events systemwide    %.2e\n", i, val[i]);
             }
             if (total_wall_time > 0) {
-                for (int i=0; i<NUMEVENTS; i++) {
+                for (int i=0; i<NUMEVENTS; ++i) {
                     printf("  %3d   #op/s systemwide    %.2e\n", i, val[i]/total_wall_time);
                 }
             }

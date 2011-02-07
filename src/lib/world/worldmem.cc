@@ -67,8 +67,8 @@ namespace madness {
     }
 
     void WorldMemInfo::do_new(void *p, std::size_t size) {
-        num_new_calls++;
-        cur_num_frags++;
+        ++num_new_calls;
+        ++cur_num_frags;
         if (cur_num_frags > max_num_frags) max_num_frags = cur_num_frags;
         cur_num_bytes += size;
         if (cur_num_bytes > max_num_bytes) max_num_bytes = cur_num_bytes;
@@ -78,8 +78,8 @@ namespace madness {
     }
 
     void WorldMemInfo::do_del(void *p, std::size_t size) {
-        num_del_calls++;
-        cur_num_frags--;
+        ++num_del_calls;
+        --cur_num_frags;
         cur_num_bytes -= size;
 
         if (trace)

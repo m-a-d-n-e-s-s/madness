@@ -148,7 +148,7 @@ public:
 
     double hugh(vector< Future<int> >& a) {
         double sum = 0.0;
-        for (int i=0; i<(int)a.size(); i++) sum += a[i].get();
+        for (int i=0; i<(int)a.size(); ++i) sum += a[i].get();
         return sum;
     };
 };
@@ -201,7 +201,7 @@ void test5(World& world) {
 
     vector< Future<int> > futv = future_vector_factory<int>(7);
     Future<double> hugh = world.taskq.add(ttt,&TTT::hugh,futv);
-    for (int i=0; i<7; i++) {
+    for (int i=0; i<7; ++i) {
         print("assigning",i,futv[i]);
         futv[i].set(i);
     }
@@ -253,8 +253,8 @@ public:
 
         int nthread = env.nthread();
         int id = env.id();
-        for (int i=0; i<100; i++) {
-            for (int p=0; p<nthread; p++) {
+        for (int i=0; i<100; ++i) {
+            for (int p=0; p<nthread; ++p) {
                 env.barrier();
                 if (p == id) count += (p+1);
             }
@@ -278,7 +278,7 @@ public:
     void run(World& world, const TaskThreadEnv& env) {
         // Barrier a zillion times
 
-		for (int i=0; i<1000000; i++) {
+		for (int i=0; i<1000000; ++i) {
 	        env.barrier();
 		}
     }
@@ -288,7 +288,7 @@ public:
 // test multithreaded tasks
 void test_multi(World& world) {
     // Test the correctness and performance of the barrier
-    for (unsigned int i=1; i<=ThreadPool::size()+1; i++) {
+    for (unsigned int i=1; i<=ThreadPool::size()+1; ++i) {
         world.taskq.add(new TestBarrier(TaskAttributes::multi_threaded(i)));
         double start = cpu_time();
         world.taskq.add(new TimeBarrier(TaskAttributes::multi_threaded(i)));
@@ -359,7 +359,7 @@ void test6(World& world) {
 
     if (me == 0) {
         print(a.id());
-        for (ProcessID p=0; p<nproc; p++) {
+        for (ProcessID p=0; p<nproc; ++p) {
             MADNESS_ASSERT(a.send(p,&Foo::get0).get() == p*100);
             MADNESS_ASSERT(a.task(p,&Foo::get0).get() == p*100);
 
@@ -461,7 +461,7 @@ void test7(World& world) {
     for (int i=me; i<1000; i+=nproc) c.replace(i,(double) i);
     world.gop.fence();
 
-    for (int i=999; i>=0; i--) {
+    for (int i=999; i>=0; --i) {
         futureT fut = c.find(i);
         iterator it = fut.get();
         MADNESS_ASSERT(it != c.end());
@@ -471,7 +471,7 @@ void test7(World& world) {
     world.gop.fence();
 
     // Check that unset keys return end correctly
-    for (int i=10001; i<10020; i++) {
+    for (int i=10001; i<10020; ++i) {
         MADNESS_ASSERT(c.find(i).get() == c.end());
     }
 
@@ -528,7 +528,7 @@ void test9(World& world) {
     const int ntask = 100000;
 
     double used = -cpu_time();
-    for (int i=0; i<ntask; i++) world.taskq.add(null_func);
+    for (int i=0; i<ntask; ++i) world.taskq.add(null_func);
     used += cpu_time();
     print("Time to add",ntask,"null, local tasks",used,"time/task",used/ntask);
 
@@ -539,7 +539,7 @@ void test9(World& world) {
 
     vector< Future<int> > v = future_vector_factory<int>(ntask);
     used = -cpu_time();
-    for (int i=0; i<ntask; i++) v[i] = world.taskq.add(val_func);
+    for (int i=0; i<ntask; ++i) v[i] = world.taskq.add(val_func);
     used += cpu_time();
     print("Time to add",ntask,"value, local tasks",used,"time/task",used/ntask);
 
@@ -559,7 +559,7 @@ void test9(World& world) {
     used = -cpu_time();
     print("AAAAAAAAAAAAAAAA2");
     std::cout.flush();
-    for (int i=0; i<ntask; i++) {
+    for (int i=0; i<ntask; ++i) {
         result = world.taskq.add(val1d_func,result);
     }
     used += cpu_time();
@@ -642,7 +642,7 @@ public:
 };
 
 Void pounder(const WorldContainer<int,Mary>& m, int ind) {
-    for (int i=0; i<1000; i++)
+    for (int i=0; i<1000; ++i)
         m.send(ind, &Mary::inc);
     return None;
 }
@@ -656,7 +656,7 @@ void test10(World& world) {
     typedef WorldContainer<int,Mary>::iterator iterator;
     //world.gop.fence();
 
-    for (int i=0; i<nproc; i++)
+    for (int i=0; i<nproc; ++i)
         m.send(i,&Mary::inc);
     world.gop.fence();
 
@@ -666,7 +666,7 @@ void test10(World& world) {
     }
     world.gop.fence();
 
-    for (int i=0; i<nproc; i++)
+    for (int i=0; i<nproc; ++i)
         m.send(i,&Mary::add,me);
     world.gop.fence();
 
@@ -676,7 +676,7 @@ void test10(World& world) {
     }
     world.gop.fence();
 
-    for (int i=0; i<nproc; i++)
+    for (int i=0; i<nproc; ++i)
         m.send(i,&Mary::fred,2,me);
     world.gop.fence();
 
@@ -715,7 +715,7 @@ void test10(World& world) {
     vector< Future<string> > results = future_vector_factory<string>(nproc);
     vector< Future<bool> > b = future_vector_factory<bool>(nproc);
     print("main finished making vector of results");
-    for (int i=0; i<nproc; i++) {
+    for (int i=0; i<nproc; ++i) {
         print("main making task",i);
         results[i] = m.task(i,&Mary::alan,3,4);
         b[i] = m.send(i,&Mary::get_me_twice,&world,m);
@@ -724,7 +724,7 @@ void test10(World& world) {
     print("about to fence");
     world.gop.fence();
 
-    for (int i=0; i<nproc; i++) {
+    for (int i=0; i<nproc; ++i) {
         MADNESS_ASSERT(results[i].probe());
         MADNESS_ASSERT(b[i].probe());
         print("results",i,results[i].get(),b[i].get());
@@ -756,9 +756,9 @@ struct Key {
         ulong i2 = i<<1;
         ulong j2 = j<<1;
         ulong k2 = k<<1;
-        for (int p=0; p<2; p++)
-            for (int q=0; q<2; q++)
-                for (int r=0; r<2; r++)
+        for (int p=0; p<2; ++p)
+            for (int q=0; q<2; ++q)
+                for (int r=0; r<2; ++r)
                     op(Key(n2,i2+p,j2+q,k2+r));
     }
 
@@ -947,7 +947,7 @@ void test12(World& world) {
     WorldContainer<int,double> d(world);
 
     // Everyone puts 100 distinct entries in the container
-    for (int i=0; i<100; i++) d.replace(me*100 + i, me*100+i);
+    for (int i=0; i<100; ++i) d.replace(me*100 + i, me*100+i);
 
     world.gop.fence();
 
@@ -963,7 +963,7 @@ void test12(World& world) {
 
     world.gop.fence();
 
-    for (int i=0; i<100; i++) {
+    for (int i=0; i<100; ++i) {
         int key = me*100+i;
         MADNESS_ASSERT(c.probe(key));
         MADNESS_ASSERT(c.find(key).get()->second == key);
@@ -1002,7 +1002,7 @@ void test13(World& world) {
     ProcessID me = world.rank();
     WorldContainer<int,double> d(world);
     // Everyone puts 100 distinct entries in the container
-    for (int i=0; i<100; i++) {
+    for (int i=0; i<100; ++i) {
         int key = me*100+i;
         d.replace(key, double(key));
     }
@@ -1017,7 +1017,7 @@ void test13(World& world) {
     fin.open(world,"fred");
     fin & c;
 
-    for (int i=0; i<100; i++) {
+    for (int i=0; i<100; ++i) {
         int key = me*100+i;
         MADNESS_ASSERT(c.find(key).get()->second == key);
     }
@@ -1082,8 +1082,8 @@ void test_multi_world(World& world) {
     std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
 
     std::vector<int> odd, even;
-    for (int i=0; i<world.size(); i++) {
-        if (is_odd(i)) 
+    for (int i=0; i<world.size(); ++i) {
+        if (is_odd(i))
             odd.push_back(i);
         else
             even.push_back(i);
@@ -1097,11 +1097,11 @@ void test_multi_world(World& world) {
             work_odd(world_odd);
         }
         comm_odd.Free();
-        
+
     }
     else {                      // Even processes
         MPI::Group g_even = world.mpi.comm().Get_group().Incl(even.size(),&even[0]);
-        MPI::Intracomm comm_even = world.mpi.comm().Create(g_even); 
+        MPI::Intracomm comm_even = world.mpi.comm().Create(g_even);
         {
             World world_even(comm_even);
             work_even(world_even);
@@ -1149,7 +1149,7 @@ int main(int argc, char** argv) {
         test12(world);
         test13(world);
 
-        // for (int i=0; i<100; i++) {
+        // for (int i=0; i<100; ++i) {
         //     print("REPETITION",i);
         //     test_multi_world(world);
         // }

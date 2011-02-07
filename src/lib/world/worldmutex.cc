@@ -56,7 +56,7 @@ namespace madness {
         // 200 --> 3.6us
         // 100 --> 40+us (ouch!)
 
-        for (int i=0; i<300; i++)  cpu_relax();
+        for (int i=0; i<300; ++i)  cpu_relax();
 #else
         const unsigned int nspin  = 1000;    // Spin for 1,000 calls
         const unsigned int nsleep = 100000;  // Sleep 10us for 100,000 calls = 1s
@@ -91,7 +91,7 @@ namespace madness {
     bool MutexReaderWriter::try_read_lock() const {
         ScopedMutex<Spinlock> protect(this);
         bool gotit = !writeflag;
-        if (gotit) nreader++;
+        if (gotit) ++nreader;
         return gotit;
     }
 
@@ -163,7 +163,7 @@ namespace madness {
 
     void MutexReaderWriter::convert_write_lock_to_read_lock() const {
         ScopedMutex<Spinlock> protect(this);
-        nreader++;
+        ++nreader;
         writeflag=false;
     }
 
@@ -178,7 +178,7 @@ namespace madness {
         volatile bool myturn = false;
         int b = back;
         q[b] = &myturn;
-        b++;
+        ++b;
         if (b >= MAX_NTHREAD) back = 0;
         else back = b;
 
@@ -210,7 +210,7 @@ namespace madness {
     void MutexFair::lock() const {
         volatile bool myturn = false;
         Spinlock::lock();
-        n++;
+        ++n;
         if (n == 1) {
             myturn = true;
         }
@@ -274,7 +274,7 @@ namespace madness {
                 __asm__ __volatile__("" : : : "memory");
 
                 // Notify everyone including me
-                for (int i = 0; i < nthread; i++)
+                for (int i = 0; i < nthread; ++i)
                     *(pflags[i]) = lsense;
             } else {
                 volatile bool* myflag = pflags[id]; // Local flag;

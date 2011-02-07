@@ -204,7 +204,7 @@ namespace madness {
     template <typename T>
     DistributedMatrix<T> column_distributed_matrix(World& world, int64_t n, int64_t m, int64_t coltile=0) {
         if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
-        if ((coltile&0x1)) coltile++;
+        if ((coltile&0x1)) ++coltile;
         coltile = std::min(coltile,n);
 
         return DistributedMatrix<T>(world, n, m, coltile, m);
@@ -288,7 +288,7 @@ namespace madness {
             int threadid = env.id();
             int nthread = env.nthread();
 
-            for (int loop=0; loop<(neven-1); loop++) {
+            for (int loop=0; loop<(neven-1); ++loop) {
 
                 // This loop is parallelized over threads
                 for (int pair=env.id(); pair<nlocal; pair+=nthread) {
@@ -326,7 +326,7 @@ namespace madness {
             Tensor<T>& t = A.data();
             Tensor<T> tmp(2L, t.dims(), false);
             T* tp = tmp.ptr();
-            for (int64_t i=0; i<nlocal; i++) {
+            for (int64_t i=0; i<nlocal; ++i) {
                 memcpy(tp+i*rowdim, iptr[i], rowdim*sizeof(T));
                 if (jptr[i]) {
                     memcpy(tp+(i+nlocal)*rowdim, jptr[i], rowdim*sizeof(T));
@@ -417,7 +417,7 @@ namespace madness {
             T* jfirst = jptr[0];
 
             // Cycle local pointers
-            for (int64_t i=0; i<nlocal-1; i++) {
+            for (int64_t i=0; i<nlocal-1; ++i) {
                 iptr[nlocal-i-1] = iptr[nlocal-i-2];
                 jptr[i] = jptr[i+1];
             }
@@ -477,7 +477,7 @@ namespace madness {
 
             //madness::print(nproc, coldim, rowdim, nlocal, rank, tag);
 
-            for (int64_t i=0; i<nlocal; i++) {
+            for (int64_t i=0; i<nlocal; ++i) {
                 iptr[i] = &t(i,0);
                 jptr[i] = &t(i+nlocal,0);
             }
@@ -489,12 +489,12 @@ namespace madness {
 
             int neven = (coldim+1)/2;
             int ii=0;
-            for (ProcessID p=0; p<nproc; p++) {
+            for (ProcessID p=0; p<nproc; ++p) {
                 int64_t lo, hi;
                 A.get_colrange(p, lo, hi);
                 int p_nlocal = (hi - lo + 2)/2;
                 //print("I think process",p,"has",lo,hi,p_nlocal);
-                for (int i=0; i<p_nlocal; i++) {
+                for (int i=0; i<p_nlocal; ++i) {
                     map[ii+i] = lo+i;
                     //map[coldim-ii-nlocal+i] = lo+i+nlocal;
                     map[ii+i+neven] = lo+i+p_nlocal;
@@ -584,7 +584,7 @@ namespace madness {
         }
 
         void kernel(int i, int j, T* rowi, T* rowj) {
-            for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); k++) {
+            for (int k=0; k < SystolicMatrixAlgorithm<T>::get_rowdim(); ++k) {
                 MADNESS_ASSERT(rowi[k] == i);
                 MADNESS_ASSERT(rowj[k] == j);
             }
@@ -593,7 +593,7 @@ namespace madness {
         void start_iteration_hook(const TaskThreadEnv& env) {
             int id = env.id();
             if (id == 0) {
-                niter++;
+                ++niter;
             }
         }
 
@@ -621,18 +621,18 @@ int main(int argc, char** argv) {
     redirectio(world);
 
     try {
-        for (int64_t n=1; n<100; n++) {
+        for (int64_t n=1; n<100; ++n) {
             int64_t m = 2*n;
             DistributedMatrix<double> A = column_distributed_matrix<double>(world, n, m);
             int64_t ilo, ihi;
             A.local_colrange(ilo, ihi);
-            for (int i=ilo; i<=ihi; i++) A.data()(i-ilo,_) = i;
+            for (int i=ilo; i<=ihi; ++i) A.data()(i-ilo,_) = i;
 
             world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
             world.taskq.fence();
 
-            for (int i=ilo; i<=ihi; i++) {
-                for (int k=0; k<m; k++) {
+            for (int i=ilo; i<=ihi; ++i) {
+                for (int k=0; k<m; ++k) {
                     MADNESS_ASSERT(A.data()(i-ilo,k) == i);
                 }
             }

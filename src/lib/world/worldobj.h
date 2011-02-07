@@ -579,7 +579,7 @@ namespace madness {
                 while (tmp.size()) {
                     tmp.front().invokehandler();
                     tmp.pop_front();
-                    //ndone++;
+                    //++ndone;
                 }
             }
             //if (ndone) std::cout << world.rank() << ":pending:" << ndone << std::endl;

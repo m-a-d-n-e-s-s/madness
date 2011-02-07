@@ -196,7 +196,7 @@ namespace madness {
             else break_even=long(0.7*twok);
             for (std::size_t d=0; d<NDIM; ++d) {
                 long r;
-                for (r=0; r<twok; r++) {
+                for (r=0; r<twok; ++r) {
                     if (ops[d]->Rs[r] < tol) break;
                 }
                 if (r >= break_even) {
@@ -220,7 +220,7 @@ namespace madness {
                 else break_even=long(0.7*k);
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
-                    for (r=0; r<k; r++) {
+                    for (r=0; r<k; ++r) {
                         if (ops[d]->Ts[r] < tol) break;
                     }
                     if (r >= break_even) {
@@ -283,7 +283,7 @@ namespace madness {
 //             // This rescaling empirically based upon BSH separated expansion
 //             // ... needs more testing.  OK also for TDSE.
 //             // All is good except for some 000 blocks which are up to sqrt(k^d) off.
-//             for (int d=0; d<NDIM; d++)  {
+//             for (int d=0; d<NDIM; ++d)  {
 //                 if (disp[d] == 0) newnorm *= 0.5;
 //                 else if (std::abs(disp[d]) == 1) newnorm *= 0.8;
 //             }
@@ -302,12 +302,12 @@ namespace madness {
             if (p) return p;
 
             SeparatedConvolutionData<Q,NDIM> op(rank);
-            for (int mu=0; mu<rank; mu++) {
+            for (int mu=0; mu<rank; ++mu) {
                 op.muops[mu] = getmuop(mu, n, d);
             }
 
             double norm = 0.0;
-            for (int mu=0; mu<rank; mu++) {
+            for (int mu=0; mu<rank; ++mu) {
                 const double munorm = op.muops[mu].norm;
                 norm += munorm*munorm;
             }
@@ -384,7 +384,7 @@ namespace madness {
             double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
             const double pi = constants::pi;
 
-            for (int i=0; i<rank; i++) {
+            for (int i=0; i<rank; ++i) {
                 Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
 
                 factors[i] = coeff(i)/std::pow(c,static_cast<int>(NDIM));
@@ -448,7 +448,7 @@ namespace madness {
             Tensor<Q> work5(2*k,2*k);
 
             const Tensor<T> f0 = copy(coeff(s0));
-            for (int mu=0; mu<rank; mu++) {
+            for (int mu=0; mu<rank; ++mu) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {

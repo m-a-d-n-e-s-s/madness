@@ -73,7 +73,7 @@ int main() {
     cout << "Finished making vector" << endl;
 
     cout << "Assigning vector values" << endl;
-    for (int i=0; i<(int)v.size(); i++) v[i].set(i+1);
+    for (int i=0; i<(int)v.size(); ++i) v[i].set(i+1);
     cout << "Finished assigning vector values" << endl;
 
     cout << "Making empty vector" << endl;
@@ -85,7 +85,7 @@ int main() {
     cout << "Finished assigning to empty vector" << endl;
 
     cout << "Reassigning vector values" << endl;
-    for (int i=0; i<(int)v.size(); i++) v[i].set(i+5);
+    for (int i=0; i<(int)v.size(); ++i) v[i].set(i+5);
     cout << "Finished reassigning vector values" << endl;
 
     cout << "Assigning to existing vector from vector(3)" << endl;

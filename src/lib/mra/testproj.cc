@@ -88,7 +88,7 @@ void test_proj(World& world) {
     //double x = 0.0;
     const coordT origin(x);
 
-    for (int i=7; i<=7; i++) {
+    for (int i=7; i<=7; ++i) {
         double L = pow(2.0,double(i));
         FunctionDefaults<3>::set_cubic_cell(-L,L);
         print("I think the cell volume is", FunctionDefaults<3>::get_cell_volume());

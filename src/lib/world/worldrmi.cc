@@ -85,12 +85,12 @@ namespace madness {
                           << " messages just arrived" << std::endl;
 
             if (narrived) {
-                for (int m=0; m<narrived; m++) {
+                for (int m=0; m<narrived; ++m) {
                     int src = status[m].Get_source();
                     size_t len = status[m].Get_count(MPI::BYTE);
                     int i = ind[m];
 
-                    stats.nmsg_recv++;
+                    ++(stats.nmsg_recv);
                     stats.nbyte_recv += len;
 
                     const header* h = (const header*)(recv_buf[i]);
@@ -109,7 +109,7 @@ namespace madness {
                                       << " count=" << count
                                       << std::endl;
 
-                        if (is_ordered(attr)) recv_counters[src]++;
+                        if (is_ordered(attr)) ++(recv_counters[src]);
                         func(recv_buf[i], len);
                         post_recv_buf(i);
                     }
@@ -140,7 +140,7 @@ namespace madness {
                 // is necessary and if we cannot process a message we
                 // save it at the beginning of the queue
                 int nleftover = 0;
-                for (int m=0; m<n_in_q; m++) {
+                for (int m=0; m<n_in_q; ++m) {
                     int src = q[m].src;
                     if (q[m].count == recv_counters[src]) {
                         if (debugging)
@@ -152,7 +152,7 @@ namespace madness {
                                       << " count=" << q[m].count
                                       << std::endl;
 
-                        recv_counters[src]++;
+                        ++(recv_counters[src]);
                         q[m].func(recv_buf[q[m].i], q[m].len);
                         post_recv_buf(q[m].i);
                     }
@@ -207,12 +207,12 @@ namespace madness {
         //delete send_counters;
         //delete recv_counters;
         //         if (!MPI::Is_finalized()) {
-        //             for (int i=0; i<NRECV; i++) {
+        //             for (int i=0; i<NRECV; ++i) {
         //                 if (!recv_req[i].Test())
         //                     recv_req[i].Cancel();
         //             }
         //         }
-        //for (int i=0; i<NRECV; i++) free(recv_buf[i]);
+        //for (int i=0; i<NRECV; ++i) free(recv_buf[i]);
     }
 
     RMI::RMI()
@@ -223,10 +223,10 @@ namespace madness {
             , finished(false)
             , send_counters(new unsigned short[nproc])
             , recv_counters(new unsigned short[nproc]) {
-        for (int i=0; i<nproc; i++) send_counters[i] = 0;
-        for (int i=0; i<nproc; i++) recv_counters[i] = 0;
+        for (int i=0; i<nproc; ++i) send_counters[i] = 0;
+        for (int i=0; i<nproc; ++i) recv_counters[i] = 0;
         if (nproc > 1) {
-            for (int i=0; i<NRECV; i++) {
+            for (int i=0; i<NRECV; ++i) {
                 if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN))
                     MADNESS_EXCEPTION("RMI:initialize:failed allocating aligned recv buffer", 1);
                 post_recv_buf(i);
@@ -305,7 +305,7 @@ namespace madness {
         h->func = func;
         h->attr = attr;
 
-        stats.nmsg_sent++;
+        ++(stats.nmsg_sent);
         stats.nbyte_sent += nbyte;
 
         Request result = comm.Isend(buf, nbyte, MPI::BYTE, dest, tag);

@@ -135,14 +135,14 @@ namespace madness {
             , map_to_comm_world(nproc)
     {
         lock();
-        for (int i=0; i<NSEND; i++) managed_send_buf[i] = 0;
+        for (int i=0; i<NSEND; ++i) managed_send_buf[i] = 0;
 
         std::vector<int> fred(nproc);
-        for (int i=0; i<nproc; i++) fred[i] = i;
+        for (int i=0; i<nproc; ++i) fred[i] = i;
         MPI::Group::Translate_ranks(world.mpi.comm().Get_group(), nproc, &fred[0],
                                     MPI::COMM_WORLD.Get_group(), &map_to_comm_world[0]);
 
-        // for (int i=0; i<nproc; i++) {
+        // for (int i=0; i<nproc; ++i) {
         //     std::cout << "map " << i << " " << map_to_comm_world[i] << std::endl;
         // }
 
@@ -150,7 +150,7 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        for (int i=0; i<NSEND; i++) {
+        for (int i=0; i<NSEND; ++i) {
             while (!send_req[i].Test()) {
                 myusleep(100);
             }
@@ -171,7 +171,7 @@ namespace madness {
         lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         int n = SafeMPI::Request::Testsome(NSEND, send_req, ind);
         if (n != MPI_UNDEFINED) {
-            for (int i=0; i<n; i++) {
+            for (int i=0; i<n; ++i) {
                 free_managed_send_buf(ind[i]);
             }
         }

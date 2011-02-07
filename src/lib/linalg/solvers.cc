@@ -46,7 +46,7 @@ namespace madness {
         Tensor<double> tt = gradient(x);
         int n = int(tt.dim(0));
         double maxerr = 0.0;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             x[i] += eps;
             double fp = value(x);
             x[i] -= 2.0*eps;
@@ -83,7 +83,7 @@ namespace madness {
         Tensor<double> g;
         target->value_and_gradient(x,f,g);
         gnorm = g.normf();
-        for (int i=0; i<100; i++) {
+        for (int i=0; i<100; ++i) {
             while (1) {
                 Tensor<double> gnew;
                 x.gaxpy(1.0, g, -step);
@@ -193,8 +193,8 @@ namespace madness {
         double dgdg  = dg.trace(dg);
 
         if ( (dxdx > 0.0) && (dgdg > 0.0) && (std::abs(dxdg/std::sqrt(dxdx*dgdg)) > 1.e-8) ) {
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<n; j++) {
+            for (int i=0; i<n; ++i) {
+                for (int j=0; j<n; ++j) {
                     h(i,j) += dg[i]*dg[j]/dxdg - hdx[i]*hdx[j]/dxhdx;
                 }
             }
@@ -216,7 +216,7 @@ namespace madness {
         Tensor<double> gv = inner(g,v);
 
         // Take step applying restriction
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             if (e[i] < -tol) {
                 printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = -2.0*e[i]; // Enforce positive search direction
@@ -270,12 +270,12 @@ namespace madness {
         bool h_is_identity = (h.size() == 0);
         if (h_is_identity) {
             h = Tensor<double>(n,n);
-            for (int i=0; i<n; i++) h(i,i) = 1.0;
+            for (int i=0; i<n; ++i) h(i,i) = 1.0;
         }
 
         Tensor<double> gp, dx;
         double fp;
-        for (int iter=0; iter<maxiter; iter++) {
+        for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();

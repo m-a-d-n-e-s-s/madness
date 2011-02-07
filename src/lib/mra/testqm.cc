@@ -163,7 +163,7 @@ void test_trotter(World& world) {
     operatorT G = qm_free_particle_propagator<1>(world, k, c, tstep*0.5, 2*L);
     functionT expV = make_exp(tstep,v);
 
-    for (int step=0; step<100; step++) {
+    for (int step=0; step<100; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
@@ -209,7 +209,7 @@ void test_chin_chen(World& world) {
     functionT expV = make_exp(tstep/6.0, v);
     functionT expVtilde = make_exp(2.0*tstep/3.0, vtilde);
 
-    for (int step=0; step<10000; step++) {
+    for (int step=0; step<10000; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
