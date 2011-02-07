@@ -89,7 +89,11 @@ Molecule::Molecule(const std::string& filename) {
 void Molecule::read_file(const std::string& filename) {
     atoms.clear();
     rcut.clear();
-    std::ifstream f(filename.c_str());
+    std::ifstream f(filename);
+    if(f.fail()) {
+        std::string errmsg = std::string("Failed to open file: ") + filename;
+        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+    }
     madness::position_stream(f, "geometry");
     double scale = 1.0; // Default is atomic units
 
@@ -296,7 +300,7 @@ static void apply_sigma(double xaxis, double yaxis, double zaxis, double& x, dou
     double dx = x*xaxis*xaxis/raxissq;
     double dy = y*yaxis*yaxis/raxissq;
     double dz = z*zaxis*zaxis/raxissq;
-    
+
     x = x - 2.0*dx;
     y = y - 2.0*dy;
     z = z - 2.0*dz;
@@ -353,9 +357,9 @@ void Molecule::swapaxes(int ix, int iy) {
 }
 
 void Molecule::identify_point_group() {
-    // C2 axes must be along the Cartesian axes and 
+    // C2 axes must be along the Cartesian axes and
     // mirror planes must be orthogonal to them
-    
+
     bool x_is_c2 = test_for_c2(1.0,0.0,0.0);
     bool y_is_c2 = test_for_c2(0.0,1.0,0.0);
     bool z_is_c2 = test_for_c2(0.0,0.0,1.0);
@@ -363,14 +367,14 @@ void Molecule::identify_point_group() {
     bool xz_is_sigma = test_for_sigma(0.0,1.0,0.0);
     bool yz_is_sigma = test_for_sigma(1.0,0.0,0.0);
     bool inverse = test_for_inverse();
-    
+
     /*
       .   (i,c,s)
       Ci  (1,0,0) --- i
       C2h (1,1,1) --- c2z, sxy, i
       D2h (1,3,3) --- c2z, c2y, c2x, sxy, sxz, syz, i
 
-      C1  (0,0,0) --- 
+      C1  (0,0,0) ---
       Cs  (0,0,1) --- sxy
       C2  (0,1,0) --- c2z
       C2v (0,1,2) --- c2z, sxz, syz
@@ -413,7 +417,7 @@ void Molecule::identify_point_group() {
     }
     else if (!inverse && nc2==3 && nsi==0) {
         pointgroup = "D2";
-    }        
+    }
     else {
         throw "Confused assigning pointgroup";
     }
@@ -446,7 +450,7 @@ void Molecule::orient() {
     for (unsigned int i=0; i<atoms.size(); i++) {
         r[0]=atoms[i].x; r[1]=atoms[i].y, r[2]= atoms[i].z;
         rU = inner(r,U);
-        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2]; 
+        atoms[i].x=rU[0]; atoms[i].y=rU[1]; atoms[i].z=rU[2];
     }
 
     // field rotation
