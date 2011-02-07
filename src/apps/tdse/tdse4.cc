@@ -296,15 +296,15 @@ static double guess(const coordT& r) {
     const double R = R0 + s/sqrtmu;
 
     // These from fitting to Predrag's exact function form for psinuc in BO approx
-    const double a = 4.42162;
-    const double alpha = 1.28164;
-    const double beta = -1.06379;
-    //const double Rp = 2.12902;
-    const double Rp = R0;
-    const double Rmax = Rp + sqrt(23.0/a);
+    static const double a = 4.42162;
+    static const double alpha = 1.28164;
+    static const double beta = -1.06379;
+
+    static const double empirical_norm = 43.0;
 
     // Screen on size of nuclear wave function
-    if (R > Rmax) return 0.0;
+    static const double Rmax = R0 + sqrt(46.0/a);
+    if (R-R0 > Rmax) return 0.0;
 
     // Note in electronic part we are using R0 not R ... OR SHOULD THIS BE R? TRY BOTH!
     static const double face = sqrt(3.14*Z*Z*Z);
@@ -316,10 +316,10 @@ static double guess(const coordT& r) {
     double psib = face*exp(-Z*rr);
 
     // Nuclear part
-    double R2 = (R-Rp)*(R-Rp);
-    double psinuc = alpha*exp(-alpha*R2) + beta*(R-Rp)*exp(-1.5*alpha*R2);
+    double R2 = (R-R0)*(R-R0);
+    double psinuc = alpha*exp(-a*R2) + beta*(R-R0)*exp(-1.5*a*R2);
 
-    return (psia + psib)*psinuc;
+    return (psia + psib)*psinuc / empirical_norm;;
 }
 
 // x-dipole electronic
@@ -382,12 +382,12 @@ double energy(World& world, const Function<T,4>& psi, const functionT& pote, con
     dz.compress(DOFENCE);
     ds.compress(true);
     double S = real(psi.inner(psi));
-    double PEe = real(psi.inner(Vepsi));
-    double PEn = real(psi.inner(Vnpsi));
-    double PEf = real(psi.inner(Vfpsi));
-    double KEe = real(0.5*(inner(dx,dx) + inner(dy,dy) + inner(dz,dz)));
-    double KEn = real(0.5*inner(ds,ds));
-    double E = (KEe + KEn + PEe + PEn + PEf)/S;
+    double PEe = real(psi.inner(Vepsi))/S;
+    double PEn = real(psi.inner(Vnpsi))/S;
+    double PEf = real(psi.inner(Vfpsi))/S;
+    double KEe = real(0.5*(inner(dx,dx) + inner(dy,dy) + inner(dz,dz)))/S;
+    double KEn = real(0.5*inner(ds,ds))/S;
+    double E = (KEe + KEn + PEe + PEn + PEf);
 
     dx.clear(); dy.clear(); dz.clear(); ds.clear(); Vepsi.clear(); Vepsi.clear(); Vfpsi.clear(); // To free memory on return
     world.gop.fence();
@@ -433,7 +433,7 @@ void testbsh(World& world) {
 
 void converge(World& world, functionT& potn, functionT& pote, functionT& pot, functionT& psi, double& eps) {
     functionT zero = factoryT(world);
-    for (int iter=0; iter<35; iter++) {
+    for (int iter=0; iter<55; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
 
         functionT Vpsi = pot*psi;// - 0.5*psi; // TRY SHIFTING POTENTIAL AND ENERGY DOWN
@@ -548,6 +548,7 @@ void print_stats_header(World& world) {
 void print_stats(World& world, int step, double t, const functionT& pote,  const functionT& potn, const functionT& potf,
                  const functionT& x, const functionT& y, const functionT& z, const functionT& R,
                  const complex_functionT& psi0, const complex_functionT& psi) {
+    double start = wall_time();
     double norm = psi.norm2();
     double current_energy = energy(world, psi, pote, potn, potf);
     double xdip = real(inner(psi, x*psi))/(norm*norm);
@@ -557,7 +558,9 @@ void print_stats(World& world, int step, double t, const functionT& pote,  const
     double overlap0 = std::abs(psi.inner(psi0))/norm;
     if (world.rank() == 0) {
         printf("%7d %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %9.1f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, Ravg, wall_time());
+        printf("printing used %.1f\n", wall_time() - start);
     }
+
 }
 
 const char* wave_function_filename(int step) {
@@ -603,10 +606,26 @@ void loadbal(World& world,
     if (world.rank() == 0) print("starting LB");
     LoadBalanceDeux<4> lb(world);
     lb.add_tree(vt, lbcost<double,4>(1.0,1.0));
-    lb.add_tree(psi, lbcost<double_complex,4>(10.0,10.0));
+    lb.add_tree(psi, lbcost<double_complex,4>(10.0,5.0));
     FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
     world.gop.fence();
 }
+
+template <typename T>
+void initial_loadbal(World& world,
+                     functionT& pote, functionT& potn, functionT& pot, 
+                     Function<T,4>& psi) {
+    if (world.size() < 2) return;
+    if (world.rank() == 0) print("starting initial LB");
+    LoadBalanceDeux<4> lb(world);
+    lb.add_tree(pote, lbcost<double,4>(1.0,1.0));
+    lb.add_tree(potn, lbcost<double,4>(1.0,1.0));
+    lb.add_tree(psi, lbcost<T,4>(10.0,5.0));
+    FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
+    world.gop.fence();
+}
+
+
 
 
 // Evolve the wave function in real time starting from given time step on disk
@@ -639,6 +658,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
 
     // Wave function at time t=0 for printing statistics
     complex_functionT psi0 = wave_function_load(world, 0);
+    initial_loadbal(world, pote, potn, pot, psi0);
 
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
@@ -687,7 +707,8 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         t += time_step;
         vt = pot+laser(t)*x;
 
-        print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
+        if ((step%param.nprint)==0 || step==nstep) 
+            print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
 
         if ((step%param.ndump) == 0 || step==nstep) {
             double start = wall_time();
@@ -721,7 +742,8 @@ void doit(World& world) {
     //FunctionDefaults<4>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<4>::set_apply_randomize(true);
     FunctionDefaults<4>::set_autorefine(false);
-    FunctionDefaults<4>::set_truncate_mode(1);
+    FunctionDefaults<4>::set_truncate_mode(1); 
+    FunctionDefaults<4>::set_truncate_on_project(true);
     FunctionDefaults<4>::set_pmap(pmapT(new LevelPmap(world)));
 
     // Read restart information
@@ -755,10 +777,10 @@ void doit(World& world) {
     functionT pote = factoryT(world).f(Ve);  pote.truncate();
     functionT pot = potn + pote;
 
-    LoadBalanceDeux<4> lb(world);
-    lb.add_tree(pot, lbcost<double,4>());
-    FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
-    world.gop.fence();
+    //LoadBalanceDeux<4> lb(world);
+    //lb.add_tree(pot, lbcost<double,4>());
+    //FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
+    //world.gop.fence();
 
     if (!exists) {
         if (step0 == 0) {
@@ -768,6 +790,10 @@ void doit(World& world) {
             psi.scale(1.0/norm0);
             psi.truncate();
             if (world.rank() == 0) print("computed norm", norm0, "at", wall_time());
+            norm0 = psi.norm2();
+            psi.scale(1.0/norm0);
+
+            initial_loadbal(world, pote, potn, pot, psi);
 
             double eps = energy(world, psi, pote, potn, functionT(factoryT(world)));
             if (world.rank() == 0) print("guess energy", eps, wall_time());
