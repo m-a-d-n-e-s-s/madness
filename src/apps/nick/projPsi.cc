@@ -88,11 +88,13 @@ struct LBCost {
 };
 
 
-/******************************************************
- * <Yl0|Psi(t)>
- * Needs: input2 
- * Parsing is set up to do only one time step at a time
- ******************************************************/
+/******************************************************************************************
+ * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
+ * input
+ * input2 
+ * Only one time step is done at a time
+ * printR = true prints the angular resolved radial wave function 
+ *****************************************************************************************/
 void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
@@ -126,7 +128,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         Y.push_back(Yl0(L,l));
     }
     psi.reconstruct(); //Transforms to scaling function basis 
-    Tensor<complexd> YlPsi(n,lMAX+1); // default is zero
+    Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
     for( int i=0; i<n; i++ ) {
         const double r = i*dr + 1e-10; //Allows for near zero evaluation
         Tensor<complexd> R(lMAX+1);
@@ -148,7 +150,6 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                     for( int l=0; l<=lMAX; l++) {
                         R(l) += psiVal.second * Y[l](rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
                     }         //psiVal.second returns psi(rVec)
-                    //PRINTLINE("psiVal.second = " << psiVal.second << "\t yl0(rVec) = " << yl0(rVec) << * "\t sinTH*dTH*dPHI = " <<sinTH*dTH*dPHI);
                 }
             }
         }
@@ -194,8 +195,12 @@ void projectL(World& world, const double L, const int wf, const int n, const int
 }
 
 
-///Needs: input input2
-///loads wf and prints its values along the z-axis
+/***********************************************************
+ * Loads wf and prints Psi(r) along the ray defined byth phi 
+ * input
+ * input2: n th phi
+ * loads wf and prints its values along the z-axis
+ ***********************************************************/
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
@@ -364,9 +369,6 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         phik.Init(world);
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
-                    // W/O timing
-                    //complex_functionT phiK = 
-                    //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>
@@ -387,6 +389,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
+
 void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& kMomentum, int& lMAX) {
     std::string tag;
     std::ifstream f("input2");
