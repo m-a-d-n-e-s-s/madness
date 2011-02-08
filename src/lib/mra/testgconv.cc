@@ -81,7 +81,7 @@ void test_gconv(World& world) {
 
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
     ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
-            width*width, 1.0, 0, false));
+            width*width, 0, false));
     real_convolution_1d op(world, ops);
 
     real_function_1d opf = op(f);
@@ -99,7 +99,7 @@ void test_gconv(World& world) {
     print("norm2(g conv h - exact)", (opq-exact).norm2());
 
     ops[0].reset(new GaussianConvolution1D<double>(k, width*width*sqrt(8.0),
-            width*width, 1.0, 1, false));
+            width*width, 1, false));
     real_convolution_1d oph(world, ops);
 
     opq = oph(f);

@@ -95,7 +95,7 @@ int main(int argc, char**argv) {
         print("The tree after projection");
         f.print_tree();
 
-        Vector<double,3> x = VectorFactory(0.5,0.5,0.5);
+        Vector<double,3> x = vec(0.5,0.5,0.5);
         print("the result is",f.eval(x).get()-myg(x));
 
         print("entering fence after eval");

@@ -411,6 +411,51 @@ namespace madness {
         return l;
     }
 
+
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,1> vec(T x) {
+        Vector<T,1> r; r[0] = x;
+        return r;
+    }
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,2> vec(T x, T y) {
+        Vector<T,2> r; r[0] = x; r[1] = y;
+        return r;
+    }
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,3> vec(T x, T y, T z) {
+        Vector<T,3> r; r[0] = x; r[1] = y; r[2] = z;
+        return r;
+    }
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,4> vec(T x, T y, T z, T xx) {
+        Vector<T,4> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx;
+        return r;
+    }
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,5> vec(T x, T y, T z, T xx, T yy) {
+        Vector<T,5> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx; r[4] = yy;
+        return r;
+    }
+
+    /// Your friendly neighborhood factory function
+    template <typename T>
+    Vector<T,6> vec(T x, T y, T z, T xx, T yy, T zz) {
+        Vector<T,6> r; r[0] = x; r[1] = y; r[2] = z; r[3] = xx; r[4] = yy; r[5] = zz;
+        return r;
+    }
+
+
     /// A simple, fixed-size, stack
     template <typename T, std::size_t N>
     class Stack {

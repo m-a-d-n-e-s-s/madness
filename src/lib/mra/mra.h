@@ -166,6 +166,36 @@ namespace madness {
             return result;
         }
 
+        /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
+
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be 
+        /// computed with max_local_depth();
+        std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xuser, Level maxlevel) const {
+            const double eps=1e-15;
+            verify();
+            MADNESS_ASSERT(!is_compressed());
+            coordT xsim;
+            user_to_sim(xuser,xsim);
+            // If on the boundary, move the point just inside the
+            // volume so that the evaluation logic does not fail
+            for (std::size_t d=0; d<NDIM; ++d) {
+                if (xsim[d] < -eps) {
+                    MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                }
+                else if (xsim[d] < eps) {
+                    xsim[d] = eps;
+                }
+
+                if (xsim[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                }
+                else if (xsim[d] > 1.0-eps) {
+                    xsim[d] = 1.0-eps;
+                }
+            }
+            return impl->eval_local_only(xsim,maxlevel);
+        }
+
         /// Only the invoking process will receive the result via the future
         /// though other processes may be involved in the evaluation.
         ///
@@ -265,6 +295,20 @@ namespace madness {
             return result;
         }
 
+        /// Evaluates the function at a point in user coordinates.  Collective operation.
+
+        /// See "operator()(const coordT& xuser)" for more info
+        T operator()(double x, double y=0, double z=0, double xx=0, double yy=0, double zz=0) const {
+            coordT r; 
+            r[0] = x;
+            if (NDIM>=2) r[1] = y;
+            if (NDIM>=3) r[2] = z;
+            if (NDIM>=4) r[3] = xx;
+            if (NDIM>=5) r[4] = yy;
+            if (NDIM>=6) r[5] = zz;
+            return (*this)(r);
+        }
+
         /// Throws if function is not initialized.
         ///
         /// This function mimics operator() by going through the
@@ -348,11 +392,19 @@ namespace madness {
         }
 
 
-        /// Returns the maximum depth of the function tree
+        /// Returns the maximum depth of the function tree ... collective global sum
         std::size_t max_depth() const {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return 0;
             return impl->max_depth();
+        }
+
+
+        /// Returns the maximum local depth of the function tree ... no communications
+        std::size_t max_local_depth() const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (!impl) return 0;
+            return impl->max_local_depth();
         }
 
 
@@ -962,8 +1014,8 @@ namespace madness {
             MADNESS_ASSERT(left.is_compressed() && right.is_compressed());
             if (VERIFY_TREE) left.verify_tree();
             if (VERIFY_TREE) right.verify_tree();
-            impl.reset(new implT(*left.impl, left.get_pmap(), false));
-            impl->gaxpy(alpha,*left.impl,beta,*right.impl,fence);
+            impl.reset(new implT(*left.get_impl(), left.get_pmap(), false));
+            impl->gaxpy(alpha,*left.get_impl(),beta,*right.get_impl(),fence);
             return *this;
         }
 

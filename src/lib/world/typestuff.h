@@ -156,6 +156,14 @@ namespace madness {
     template <class CondA, class CondB>
     class type_and: public type_and_c<CondA::value, CondB::value> { };
 
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A, int B>
+    struct is_eq  : public std::false_type { };
+
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A>
+    struct is_eq<A,A> : public std::true_type { };
+
     /// enable_if_c from Boost for conditionally instantiating templates based on type
 
     /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
@@ -917,6 +925,7 @@ namespace madness {
 #define DISABLE_IF(CONDITION,TYPEIFTRUE) typename disable_if< CONDITION, TYPEIFTRUE >::type
 #define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename  enable_if< CONDITION, TYPEIFTRUE >::type
 #define IS_SAME(A, B) std::is_same< A, B >
+#define IS_EQ(A, B) is_eq< A, B >
 
 } // end of namespace madness
 #endif // MADNESS_WORLD_TYPESTUFF_H__INCLUDED

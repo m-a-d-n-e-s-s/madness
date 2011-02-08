@@ -48,7 +48,7 @@
  *    belkic:     Reproduces an analytic integral
  * 3) projectPsi needs the following files
  *    wf.num                      a list of wave function ID numbers
- *    bound.num OR unbound.num    a list of states to project on
+  *    bound.num OR unbound.num    a list of states to project on
  ***************************************************************************************/
 
 #include "wavef.h"
@@ -88,13 +88,14 @@ struct LBCost {
 };
 
 
-/******************************************************
- * <Yl0|Psi(t)>
- * Needs: input2 
- * Parsing is set up to do only one time step at a time
- ******************************************************/
+/******************************************************************************************
+ * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
+ * input
+ * input2 
+ * Only one time step is done at a time
+ * printR = true prints the angular resolved radial wave function 
+ *****************************************************************************************/
 void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
-    complexd output;
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
@@ -106,62 +107,100 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         psi = wave_function_load(world, wf);
         psi.reconstruct();
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(psi, LBCost(1.0,1.0));
+        lb.add_tree(psi, LBCost(1.0,0.0));
         FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
-    }
+    } 
     PRINTLINE("");
+    double before = 0, after = 0;
+    if(world.rank()==0) before =  wall_time();
+    double rMIN = ((50.0<L) ? 50.0 : L);
+    PRINTLINE("Integrating out to " << rMIN);
+    const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
-    const double dr = L/n;
-    const int smallN = n;
-    const double dTH = PI/smallN;
-    const double dPHI = 2*PI/smallN;
+    const double dTH = PI/(n-1);
+    const double dPHI = 2*PI/(n-1);
     const bool printR = true;
-    clock_t before=0, after=0, middle=0;
-    std::vector<WF>::iterator psiT;
-    std::vector<complexd> YlPsi(n);
+    const std::size_t maxLocalDepth = psi.max_local_depth();
+    std::pair<bool,complexd> psiVal;
+    std::vector<Yl0> Y;
     for( int l=0; l<=lMAX; l++) {
-        PRINT("Y"<< l << "0: \t\t\t\t\t\t");
-        psi.reconstruct();
-        if(world.rank()==0) before = clock();
-        Yl0 yl0(L, l);
-        for( int i=0; i<n; i++ ) {
-            YlPsi[i] = 0.0;
-        }
-        for( int i=world.rank(); i<n; i+=world.size() ) {
-            const double r = (0.5 + i)*dr;
-            complexd Rl = 0.0;
-            for( int j=0; j<smallN ; j++ ) {
-                const double th = (0.5 + j)*dTH;
-                const double sinTH = std::sin(th);
-                for( int k=0; k<smallN; k++ ) {
-                    const double phi = k*dPHI;
-                    const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
-                    const vector3D rVec(a);
-                    Rl += psi.eval(rVec).get() * yl0(rVec) * sinTH*dTH*dPHI;
+        Y.push_back(Yl0(L,l));
+    }
+    psi.reconstruct(); //Transforms to scaling function basis 
+    Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
+    for( int i=0; i<n; i++ ) {
+        const double r = i*dr + 1e-10; //Allows for near zero evaluation
+        Tensor<complexd> R(lMAX+1);
+        for( int j=0; j<n ; j++ ) {
+            const double th = j*dTH;
+            const double sinTH = std::sin(th);
+            // control for endpoint quadrature
+            double ifEndPtj = 1.0;
+            if (j==0 || j==(n-1)) ifEndPtj = 0.5;
+            for( int k=0; k<n; k++ ) {
+                const double phi = k*dPHI;
+                const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+                // parallelism introduced via eval_local_only
+                psiVal = psi.eval_local_only(rVec, maxLocalDepth);
+                if( psiVal.first ) { //boolean: true for local coeffs
+                    // control for endpoint quadrature
+                    double ifEndPtk = 1.0;
+                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+                    for( int l=0; l<=lMAX; l++) {
+                        R(l) += psiVal.second * Y[l](rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
+                    }         //psiVal.second returns psi(rVec)
                 }
             }
-            YlPsi[i] = conj(Rl)*Rl * r*r*dr;
-            if(printR) PRINT(std::real(YlPsi[i]) << "\t");
         }
-        if(printR) PRINTLINE("");
-        if(world.rank()==0) middle = clock();
-        world.gop.sum(&YlPsi[0], n);
-        world.gop.fence();
-        double Pl = 0.0;
-        for( int i=0; i<n; i++ ) {
-            Pl += real( YlPsi[i] );
+        for( int l=0; l<=lMAX; l++) {
+            YlPsi(i,l) = R(l);
         }
-        if(world.rank()==0) after = clock();
-        //PRINT(" Integration took " << (middle - before)/CLOCKS_PER_SEC << " seconds ");
-        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
     }
-    PRINTLINE("");
+    world.gop.sum(&YlPsi(0L,0L), n*(lMAX+1));
+    //         //Volume of the central spherical element with radius = dr/2 and a linear correction
+    //         double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
+    //                      + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
+    //                     ) * 0.125*dr*dr*dr; 
+    //         for (int i=1; i<n-1; i++) { // i elem [1, n-2]
+    //             double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
+    //             double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
+    //             double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
+    //             double r = i*dr + 1e-10;
+    //             //           volume      slope correction    concavity correction
+    //             double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
+    //             Pl += Plr;
+    //             //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
+    //             if(printR) PRINT(Plr << "\t");
+    //         }
+    //         if(printR) PRINTLINE("");
+    //         PRINT( "my routine: " );
+    //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
+    Tensor<double> P(lMAX+1);
+    for( int l=0; l<=lMAX; l++) {
+        PRINT("Y"<< l << "0: \t\t\t\t\t\t");
+        for (long i=0; i<n; i++) {
+            double ifEndPti = 1.0;  // control for endpoint quadrature
+            if (i==0 || i==(n-1)) ifEndPti = 0.5;
+            const double r = i*dr + 1e-10;
+            complexd YlPsii = YlPsi(i,l);
+            P(l) += real(YlPsii*conj(YlPsii)*r*r*dr*ifEndPti);
+            if(printR) PRINT(real(YlPsii) << "\t");
+        }
+        PRINTLINE("");
+        PRINTLINE(std::setprecision(6) << std::scientific << P(l));
+    }
+    if(world.rank()==0) after = wall_time();
+    PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
 }
 
 
-///Needs: input input2
-///loads wf and prints its values along the z-axis
+/***********************************************************
+ * Loads wf and prints Psi(r) along the ray defined byth phi 
+ * input
+ * input2: n th phi
+ * loads wf and prints its values along the z-axis
+ ***********************************************************/
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
@@ -330,9 +369,6 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         phik.Init(world);
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
-                    // W/O timing
-                    //complex_functionT phiK = 
-                    //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
                     if(world.rank()==0) after = clock();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>

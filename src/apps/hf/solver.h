@@ -90,6 +90,32 @@ namespace madness
   }
   //***************************************************************************
 
+  // NOTE: so this is totally hacked because of the requirement of using a box
+  //       of L*L*L rather than the convention of using a combination of
+  //       lattice vectors and reciprocal lattice vectors (FOR NOW)
+  // On second thought, it might be ok for general use if used "right".
+  //***************************************************************************
+  template <std::size_t NDIM>
+  class ComplexExp : public FunctionFunctorInterface<double_complex,NDIM> {
+  public:
+      typedef Vector<double,NDIM> coordT;
+      typedef Vector<double,NDIM> vec3dT;
+      const double_complex coeff;
+      const vec3dT exponent;
+
+      ComplexExp(vec3dT exponent, double_complex coeff)
+              : exponent(exponent), coeff(coeff) {}
+
+      double_complex operator()(const coordT& x) const {
+          double sum = 0.0;
+          for (std::size_t i=0; i<NDIM; ++i) {
+              sum += x[i]*exponent[i];
+          };
+          return coeff*exp(double_complex(0.0,sum));
+      }
+  };
+  //***************************************************************************
+
 
   /*!
    \ingroup periodic_solver
@@ -1764,6 +1790,46 @@ namespace madness
         print("Coulomb energy:\t\t ", ce);
         print("Exchage energy:\t\t ", xc, "\n");
         print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
+      }
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    void apply_hf_exchange(vecfuncT& phisa, vecfuncT& phisb,
+                           vecfuncT& funcsa, vecfuncT& funcsb)
+    {
+      for (unsigned int ink1 = 0, ik1 = 0; ink1 < _phisa.size(); ++ink1)
+      {
+        for (unsigned int ink2 = 0, ik2 = 0; ink2 < _phisa.size(); ++ink2)
+        {
+          KPoint k1 = _kpoints[ik1];
+          KPoint k2 = _kpoints[ik2];
+
+          if (ink1 == k1.end) ik1++;
+          if (ink2 == k2.end) ik2++;
+
+          if (ink1 == ink2)
+          {
+            rfunctionT prod = abs_square(phisa[ink1]);
+            rfunctionT fr = apply(*_cop,prod);
+            funcsa[ink1] -= funcsa[ink1]*fr;
+          }
+          else
+          {
+            Vector<double,3> q = vec(k1.k[0]-k2.k[0],
+                                     k1.k[1]-k2.k[1],
+                                     k1.k[2]-k2.k[2]);
+            functionT cexp = factoryT(_world).functor(functorT(new ComplexExp<3>(q, double_complex(1.0,0.0))));
+            cexp.truncate();
+
+            functionT f = phisa[ink1]*conj(phisa[ink2])*cexp;
+            SeparatedConvolution<double_complex,3> hfexop =
+                PeriodicHFExchangeOperator(_world, q, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1);
+            functionT fr = apply(hfexop,f);
+            funcsa[ink1] -= funcsa[ink1]*fr*conj(cexp);
+            funcsa[ink2] -= funcsa[ink2]*conj(fr)*cexp;
+          }
+        }
       }
     }
     //*************************************************************************

@@ -1066,12 +1066,18 @@ void test_plot(World& world) {
     world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     world.gop.fence();
+    std::size_t maxlevel = f.max_local_depth();
     if (world.rank() == 0) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; ++i) {
             double x = -L + i*h + 2e-13;
             T fplot = r(std::vector<long>(NDIM,i));
             T fnum  = f.eval(coordT(x)).get();
+            std::pair<bool,T> fnum2 = f.eval_local_only(coordT(x),maxlevel);
+            
+            if (world.size() == 1 && !fnum2.first) print("eval_local_only: non-local but nproc=1!");
+
+            if (fnum2.first) CHECK(fnum-fnum2.second,1e-12,"eval_local_only");
             CHECK(fplot-fnum,1e-12,"plot-eval");
             if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
                 print("bad", i, coordT(x), fplot, fnum, (*functor)(coordT(x)));
@@ -1169,7 +1175,7 @@ void test_apply_push_1d(World& world) {
     coordT lo(-L), hi(L);
     plot_line("fplot.dat", 201, lo, hi, f);
 
-    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 1.0, 0, false);
+    GaussianConvolution1D<double> op(6, coeff*2.0*L, expnt*L*L*4.0, 0, false);
     Function<T,NDIM> opf = apply_1d_realspace_push(op, f, 0);
 
     opf.sum_down();
@@ -1242,7 +1248,7 @@ int main(int argc, char**argv) {
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
-        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 1.0, 0, false);
+        GaussianConvolution1D<double> gau(10, 100.0, 100.0, 0, false);
         Tensor<double> gg = gen.rnlp(4,0);
         Tensor<double> hh = gau.rnlp(4,0);
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);

@@ -712,6 +712,36 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
+    std::pair<bool,T>
+    FunctionImpl<T,NDIM>::eval_local_only(const Vector<double,NDIM>& xin, Level maxlevel) {
+        Vector<double,NDIM> x = xin;
+        keyT key(0);
+        Vector<Translation,NDIM> l = key.translation();
+        const ProcessID me = world.rank();
+        while (key.level() <= maxlevel) {
+            if (coeffs.owner(key) == me) {
+                typename dcT::futureT fut = coeffs.find(key);
+                typename dcT::iterator it = fut.get();
+                if (it != coeffs.end()) {
+                    nodeT& node = it->second;
+                    if (node.has_coeff()) {
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff()));
+                    }
+                }
+            }
+            for (std::size_t i=0; i<NDIM; ++i) {
+                double xi = x[i]*2.0;
+                int li = int(xi);
+                if (li == 2) li = 1;
+                x[i] = xi - li;
+                l[i] = 2*l[i] + li;
+            }
+            key = keyT(key.level()+1,l);
+        }
+        return std::pair<bool,T>(false,0.0);
+    }
+
+    template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::evaldepthpt(const Vector<double,NDIM>& xin,
                                 const keyT& keyin,
                                 const typename Future<Level>::remote_refT& ref) {

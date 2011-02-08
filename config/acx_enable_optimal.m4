@@ -45,8 +45,8 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         fi
 
         case $host_cpu in
-          ?86*)
-            acx_enable_optimal_flags="$acx_enable_optimal_flags -mfpmath=sse -msse"
+          ??86*)
+            acx_enable_optimal_flags="$acx_enable_optimal_flags -mfpmath=sse -msse -mpc64"
            ;;
         esac
       ;;

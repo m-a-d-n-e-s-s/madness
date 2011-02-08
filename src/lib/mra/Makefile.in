@@ -43,7 +43,7 @@ bin_PROGRAMS = testsuite$(EXEEXT) testperiodic$(EXEEXT) \
 	testbsh$(EXEEXT) testbc$(EXEEXT) testproj$(EXEEXT) \
 	systolic$(EXEEXT) mraplot$(EXEEXT) testpdiff$(EXEEXT) \
 	testdiff1Db$(EXEEXT) testdiff1D$(EXEEXT) testdiff2D$(EXEEXT) \
-	testdiff3D$(EXEEXT) testgconv$(EXEEXT)
+	testdiff3D$(EXEEXT) testgconv$(EXEEXT) testopdir$(EXEEXT)
 subdir = src/lib/mra
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -152,6 +152,11 @@ testgconv_OBJECTS = $(am_testgconv_OBJECTS)
 testgconv_LDADD = $(LDADD)
 testgconv_DEPENDENCIES = libMADmra.a $(LIBLINALG) $(LIBLINALG) \
 	$(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
+am_testopdir_OBJECTS = testopdir.$(OBJEXT)
+testopdir_OBJECTS = $(am_testopdir_OBJECTS)
+testopdir_LDADD = $(LDADD)
+testopdir_DEPENDENCIES = libMADmra.a $(LIBLINALG) $(LIBLINALG) \
+	$(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
 am_testpdiff_OBJECTS = testpdiff.$(OBJEXT)
 testpdiff_OBJECTS = $(am_testpdiff_OBJECTS)
 testpdiff_LDADD = $(LDADD)
@@ -189,14 +194,14 @@ SOURCES = $(libMADmra_a_SOURCES) $(mraplot_SOURCES) \
 	$(systolic_SOURCES) $(testbc_SOURCES) $(testbsh_SOURCES) \
 	$(testdiff1D_SOURCES) $(testdiff1Db_SOURCES) \
 	$(testdiff2D_SOURCES) $(testdiff3D_SOURCES) \
-	$(testgconv_SOURCES) $(testpdiff_SOURCES) \
+	$(testgconv_SOURCES) $(testopdir_SOURCES) $(testpdiff_SOURCES) \
 	$(testperiodic_SOURCES) $(testproj_SOURCES) \
 	$(testsuite_SOURCES)
 DIST_SOURCES = $(libMADmra_a_SOURCES) $(mraplot_SOURCES) \
 	$(systolic_SOURCES) $(testbc_SOURCES) $(testbsh_SOURCES) \
 	$(testdiff1D_SOURCES) $(testdiff1Db_SOURCES) \
 	$(testdiff2D_SOURCES) $(testdiff3D_SOURCES) \
-	$(testgconv_SOURCES) $(testpdiff_SOURCES) \
+	$(testgconv_SOURCES) $(testopdir_SOURCES) $(testpdiff_SOURCES) \
 	$(testperiodic_SOURCES) $(testproj_SOURCES) \
 	$(testsuite_SOURCES)
 DATA = $(data_DATA)
@@ -376,6 +381,7 @@ testbsh_SOURCES = testbsh.cc
 testbc_SOURCES = testbc.cc
 testproj_SOURCES = testproj.cc
 testgconv_SOURCES = testgconv.cc
+testopdir_SOURCES = testopdir.cc
 systolic_SOURCES = systolic.cc
 mraplot_SOURCES = mraplot.cc
 testpdiff_SOURCES = testpdiff.cc
@@ -517,6 +523,9 @@ testdiff3D$(EXEEXT): $(testdiff3D_OBJECTS) $(testdiff3D_DEPENDENCIES)
 testgconv$(EXEEXT): $(testgconv_OBJECTS) $(testgconv_DEPENDENCIES) 
 	@rm -f testgconv$(EXEEXT)
 	$(CXXLINK) $(testgconv_OBJECTS) $(testgconv_LDADD) $(LIBS)
+testopdir$(EXEEXT): $(testopdir_OBJECTS) $(testopdir_DEPENDENCIES) 
+	@rm -f testopdir$(EXEEXT)
+	$(CXXLINK) $(testopdir_OBJECTS) $(testopdir_LDADD) $(LIBS)
 testpdiff$(EXEEXT): $(testpdiff_OBJECTS) $(testpdiff_DEPENDENCIES) 
 	@rm -f testpdiff$(EXEEXT)
 	$(CXXLINK) $(testpdiff_OBJECTS) $(testpdiff_LDADD) $(LIBS)
@@ -557,6 +566,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testdiff2D.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testdiff3D.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testgconv.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testopdir.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testpdiff.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testperiodic.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/testproj.Po@am__quote@

@@ -91,15 +91,13 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
     private:
-        mutable std::vector< std::shared_ptr< Convolution1D<Q> > > ops;
+        mutable std::vector< ConvolutionND<Q,NDIM> > ops;
         const BoundaryConditions<NDIM> bc;
         const int k;
         const int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
         const std::vector<Slice> s0;
-        std::vector<Q> factors;
-        std::vector<double> facnorms;
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
 
@@ -116,7 +114,7 @@ namespace madness {
                                   Tensor<R>& work1,
                                   Tensor<R>& work2,
                                   Tensor<Q>& work3,
-                                  const Q musign,
+                                  const Q mufac,
                                   Tensor<R>& result) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -160,9 +158,9 @@ namespace madness {
                 }
             }
             // Assuming here that result is contiguous and aligned
-            aligned_axpy(size, result.ptr(), w1, musign);
+            aligned_axpy(size, result.ptr(), w1, mufac);
             //    long one = 1;
-            //daxpy_(&size, &musign, w1, &one, result.ptr(), &one);
+            //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
         }
 
         /// Apply one of the separated terms, accumulating into the result
@@ -173,7 +171,7 @@ namespace madness {
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
                          double tol,
-                         const Q musign,
+                         const Q mufac,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
                          Tensor<Q>& work5) const {
@@ -211,7 +209,7 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
-            apply_transformation(n, twok, trans, f, work1, work2, work5, musign, result);
+            apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -235,7 +233,7 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
-                apply_transformation(n, k, trans, f0, work1, work2, work5, -musign, result0);
+                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -273,11 +271,9 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (std::size_t d=0; d<NDIM; ++d) {
-                op.ops[d] = ops[mu]->nonstandard(n, disp.translation()[d]);
+                op.ops[d] = ops[mu].getop(d)->nonstandard(n, disp.translation()[d]);
             }
-
-            op.norm = munorm2(n, op.ops)*facnorms[mu];
-            //op.norm = munorm(n, op.ops)*facnorms[mu];
+            op.norm = munorm2(n, op.ops)*std::abs(ops[mu].getfac());
 
 //             double newnorm = munorm2(n, op.ops);
 //             // This rescaling empirically based upon BSH separated expansion
@@ -328,24 +324,21 @@ namespace madness {
 
     public:
 
-        // For general convolutions
+        // For separated convolutions with same operator in each direction (isotropic)
         SeparatedConvolution(World& world,
-                             std::vector< std::shared_ptr< Convolution1D<Q> > >& ops,
+                             std::vector< std::shared_ptr< Convolution1D<Q> > >& argops,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                              long k = FunctionDefaults<NDIM>::get_k(),
                              bool doleaves = false)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , ops(ops)
                 , bc(bc)
                 , k(k)
-                , rank(ops.size())
+                , rank(argops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
-                , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (std::size_t d=1; d<NDIM; ++d) {
@@ -353,6 +346,34 @@ namespace madness {
             }
             check_cubic();
 
+            for (unsigned int mu=0; mu < argops.size(); ++mu) {
+              this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
+            }
+
+            this->process_pending();
+        }
+
+        // For general convolutions
+        SeparatedConvolution(World& world,
+                             std::vector< ConvolutionND<Q,NDIM> >& argops,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             long k = FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves = false)
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(bc(0,0)==BC_PERIODIC)
+                , ops(argops)
+                , bc(bc)
+                , k(k)
+                , rank(argops.size())
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (std::size_t d=1; d<NDIM; ++d) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
             this->process_pending();
         }
 
@@ -372,27 +393,60 @@ namespace madness {
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
                 , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
-                , factors(ops.size(),1.0)
-                , facnorms(ops.size(),1.0)
         {
             // Presently we must have periodic or non-periodic in all dimensions.
             for (std::size_t d=1; d<NDIM; ++d) {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
             }
-            check_cubic();
 
-            double width = FunctionDefaults<NDIM>::get_cell_width()(0L);
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
             const double pi = constants::pi;
 
-            for (int i=0; i<rank; ++i) {
-                Q c = sqrt(expnt(i)/pi); // Normalize the Gaussian in 1D
+            for (int mu=0; mu<rank; ++mu) {
+                Q c = std::pow(sqrt(expnt(mu)/pi),NDIM); // Normalization coeff
 
-                factors[i] = coeff(i)/std::pow(c,static_cast<int>(NDIM));
-                facnorms[i] = std::abs(factors[i]);
-                //print("FACTORS", i, "coeff", coeff(i), "expnt", expnt(i), "coeff", coeff(i), "c", c, "facn", facnorms[i]);
+                // We cache the normalized operator so the factor is the value we must multiply
+                // by to recover the coeff we want.
+                ops[mu].setfac(coeff(mu)/c);
 
-                ops[i] = GaussianConvolution1DCache<Q>::get(k, expnt(i)*width*width, 0, isperiodicsum);
+                for (std::size_t d=0; d<NDIM; ++d) {
+                  ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                }
+            }
+        }
 
+        /// WSTHORNTON Constructor for Gaussian Convolutions (mostly for backward compatability)
+        SeparatedConvolution(World& world,
+                             Vector<double,NDIM> args,
+                             const Tensor<Q>& coeff, const Tensor<double>& expnt,
+                             const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
+                             int k=FunctionDefaults<NDIM>::get_k(),
+                             bool doleaves=false)
+                : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
+                , doleaves(doleaves)
+                , isperiodicsum(bc(0,0)==BC_PERIODIC)
+                , ops(coeff.dim(0))
+                , bc(bc)
+                , k(k)
+                , rank(coeff.dim(0))
+                , vk(NDIM,k)
+                , v2k(NDIM,2*k)
+                , s0(std::max<std::size_t>(2,NDIM),Slice(0,k-1))
+        {
+            // Presently we must have periodic or non-periodic in all dimensions.
+            for (std::size_t d=1; d<NDIM; ++d) {
+                MADNESS_ASSERT(bc(d,0)==bc(0,0));
+            }
+
+            const Tensor<double>& width = FunctionDefaults<NDIM>::get_cell_width();
+
+            for (int mu=0; mu<rank; ++mu) {
+                for (std::size_t d=0; d<NDIM; ++d) {
+                  std::shared_ptr<GaussianConvolution1D<Q> >
+                      gcptr(new GaussianConvolution1D<Q>(k, coeff[mu], expnt(mu)*width[d]*width[d],
+                              0, isperiodicsum, args[d]));
+                  ops[mu].setop(d,gcptr);
+                }
             }
         }
 
@@ -452,9 +506,9 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/facnorms[mu], factors[mu]*ops[mu]->sign,
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2, work5);
-                    //muopxv(source.level(), muop.ops, *input, f0, r, tol, ops[mu]->sign);
                 }
             }
             r(s0).gaxpy(1.0,r0,1.0);
@@ -462,6 +516,34 @@ namespace madness {
         }
 
     };
+
+    /// Factory function generating separated kernel for convolution with 1/r in 3D.
+    static
+    inline
+    SeparatedConvolution<double_complex,3> PeriodicHFExchangeOperator(World& world,
+                                                   Vector<double,3> args,
+                                                   double lo,
+                                                   double eps,
+                                                   const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                                                   int k=FunctionDefaults<3>::get_k())
+    {
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+        const double pi = constants::pi;
+
+        // bsh_fit generates representation for 1/4Pir but we want 1/r
+        // so have to scale eps by 1/4Pi
+
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+
+        if (bc(0,0) == BC_PERIODIC) {
+            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+        }
+        coeff.scale(4.0*pi);
+        return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k, false);
+    }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static
