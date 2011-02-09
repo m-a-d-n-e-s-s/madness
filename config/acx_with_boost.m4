@@ -13,7 +13,7 @@ AC_DEFUN([ACX_WITH_BOOST],
       ;;
       *)
         acx_with_boost=$withval
-        CPPFLAGS="-I$withval/include/boost/tr1/tr1 -I$with_boost/include $CPPFLAGS"
+        CPPFLAGS="-I$withval/include/boost/tr1/tr1 -I$withval/include -I$withval/boost/tr1/tr1 -I$withval $CPPFLAGS"
         AC_DEFINE([MADNESS_HAS_BOOST_TR1], [1], 
           [Madness will use Boost.TR1 where the comiler lacks support for TR1.])
                     
