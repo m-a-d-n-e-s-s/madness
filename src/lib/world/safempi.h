@@ -44,6 +44,7 @@
 
 #include <world/worldmutex.h>
 #include <world/typestuff.h>
+#include <world/enable_if.h>
 
 namespace SafeMPI {
 

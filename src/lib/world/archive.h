@@ -422,6 +422,7 @@
 #include <map>
 #include <world/typestuff.h>
 //#include <world/worldprofile.h>
+#include <world/enable_if.h>
 #include <world/worldexc.h>
 
 #define ARCHIVE_COOKIE "archive"

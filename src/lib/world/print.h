@@ -45,6 +45,7 @@
 #include <list>
 #include <vector>
 #include <world/typestuff.h>
+#include <world/enable_if.h>
 
 #ifdef BRAINDEAD
 // Cray XT nonsense

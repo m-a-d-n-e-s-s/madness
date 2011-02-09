@@ -41,6 +41,7 @@
 
 #include <madness_config.h>
 #include <world/typestuff.h>
+#include <world/enable_if.h>
 #include <cstddef>
 
 namespace madness {
