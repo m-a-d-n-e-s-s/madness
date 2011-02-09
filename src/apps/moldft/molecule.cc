@@ -89,7 +89,7 @@ Molecule::Molecule(const std::string& filename) {
 void Molecule::read_file(const std::string& filename) {
     atoms.clear();
     rcut.clear();
-    std::ifstream f(filename);
+    std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
