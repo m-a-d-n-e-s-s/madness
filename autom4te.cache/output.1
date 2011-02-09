@@ -6074,7 +6074,7 @@ if test "${with_boost+set}" = set; then :
       ;;
       *)
         acx_with_boost=$withval
-        CPPFLAGS="-I$withval/include/boost/tr1/tr1 -I$with_boost/include $CPPFLAGS"
+        CPPFLAGS="-I$withval/include/boost/tr1/tr1 -I$withval/include -I$withval/boost/tr1/tr1 -I$withval $CPPFLAGS"
         
 $as_echo "@%:@define MADNESS_HAS_BOOST_TR1 1" >>confdefs.h
 

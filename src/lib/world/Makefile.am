@@ -7,13 +7,15 @@ bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/world
-thisinclude_HEADERS = archive.h print.h      worldam.h       worldfut.h   worldmpi.h        worldtask.h \
-                     array.h    sharedptr.h  worldgop.h   worldobj.h \
-                     binfsar.h  mpiar.h       textfsar.h   worlddc.h       world.h      worldprofile.h  worldtime.h \
-                     bufar.h    nodefaults.h  typestuff.h  worlddep.h      worldhash.h  worldref.h      worldtypes.h \
-                     dqueue.h   parar.h       vecar.h      worldexc.h      worldmem.h   worldser.h \
-                     worldthread.h worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h \
-                     worldhashmap.h          worldrange.h  atomicint.h     posixmem.h
+thisinclude_HEADERS = archive.h      print.h        worldam.h      worldfut.h   \
+                      worldmpi.h     worldtask.h    array.h        sharedptr.h  \
+                      worldgop.h     worldobj.h     bufar.h        nodefaults.h \
+                      typestuff.h    enable_if.h    worlddep.h     worldhash.h  \
+                      worldref.h     worldtypes.h   dqueue.h       parar.h      \
+                      vecar.h        worldexc.h     worldmem.h     worldser.h   \
+                      worldthread.h  worldrmi.h     safempi.h      worldpapi.h  \
+                      worldmutex.h   print_seq.h    worldhashmap.h worldrange.h \
+                      atomicint.h     posixmem.h
 
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
