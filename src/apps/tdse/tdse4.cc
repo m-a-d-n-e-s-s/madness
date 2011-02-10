@@ -683,7 +683,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     }
 
     print_stats_header(world);
-    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi0);
+    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
     world.gop.fence();
 
     psi.truncate();
