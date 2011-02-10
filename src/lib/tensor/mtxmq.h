@@ -79,17 +79,17 @@ namespace madness {
 			  double_complex *c, const long *ldc, int la, int lb);
 
     template <>
-    static inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
-	double one=1.0;
-	double zero=0.0;
-	dgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
+    inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
+            double one=1.0;
+            double zero=0.0;
+            dgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
     template <>
-    static inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
-	double_complex one=1.0;
-	double_complex zero=0.0;
-	zgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
+    inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
+            double_complex one=1.0;
+            double_complex zero=0.0;
+            zgemm("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
     
 #elif defined(X86_64) && !defined(DISABLE_SSE3)
