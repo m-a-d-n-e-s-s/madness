@@ -296,7 +296,7 @@ namespace madness {
 #define TENSOR_ALIGNMENT 16
 #ifdef WORLD_GATHER_MEM_STATS
                     _p = new T[size];
-                    _shptr = SharedPtr<T>(p);
+                    _shptr = SharedPtr<T>(_p);
 #else
                     if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
                     _shptr = SharedPtr<T>(_p, ::madness::detail::del_free);
