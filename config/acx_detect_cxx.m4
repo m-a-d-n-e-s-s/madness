@@ -1,6 +1,6 @@
 AC_DEFUN([AC_DETECT_CXX], [
     # Sets environment variable CXXVENDOR to one of
-    # [GNU,Intel,Portland,Pathscale,unknown]
+    # [GNU,Intel,Portland,Pathscale,IBM,unknown]
     CXXVENDOR=unknown
     if test $CXXVENDOR = unknown; then
         $CXX --version 2>&1 | egrep -q "GCC|GNU|gcc|gnu|g\+\+|Free S"
@@ -32,6 +32,13 @@ AC_DEFUN([AC_DETECT_CXX], [
         if test $? = 0; then
            echo Pathscale C++ compiler detected by MADNESS
            CXXVENDOR=Pathscale
+        fi
+    fi
+    if test $CXXVENDOR = unknown; then
+        $CXX -qversion 2>&1 | grep -q "IBM"
+        if test $? = 0; then
+           echo IBM C++ compiler detected by MADNESS
+           CXXVENDOR=IBM
         fi
     fi
     if test $CXXVENDOR = unknown; then
