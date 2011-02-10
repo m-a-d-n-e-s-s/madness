@@ -95,24 +95,24 @@ namespace madness {
 
             if (is_compressed()) {
                 if (node.has_children()) {
-                    bad = node.tensor()->dim(0) != 2*cdata.k;
+                    bad = node.tensor().dim(0) != 2*cdata.k;
                 }
                 else {
-                    bad = node.tensor()->size() != 0;
+                    bad = node.tensor().size() != 0;
                 }
             }
             else {
                 if (node.has_children()) {
-                    bad = node.tensor()->size() != 0;
+                    bad = node.tensor().size() != 0;
                 }
                 else {
-                    bad = node.tensor()->dim(0) != cdata.k;
+                    bad = node.tensor().dim(0) != cdata.k;
                 }
             }
 
             if (bad) {
                 print(world.rank(), "FunctionImpl: verify: INCONSISTENT TREE NODE, key =", key, ", node =", node,
-                      ", dim[0] =",node.tensor()->dim(0),", compressed =",is_compressed());
+                      ", dim[0] =",node.tensor().dim(0),", compressed =",is_compressed());
                 std::cout.flush();
                 MADNESS_EXCEPTION("FunctionImpl: verify: INCONSISTENT TREE NODE", 0);
             }
@@ -534,7 +534,7 @@ namespace madness {
             // in which case we want something sensible to happen
             //MADNESS_ASSERT(!node.has_coeff());
             if (node.has_coeff() && key.level()>1) {
-                double dnorm = node.tensor()->normf();
+                double dnorm = node.tensor().normf();
                 if (dnorm < truncate_tol(tol,key)) {
                     node.clear_coeff();
                 }
@@ -557,7 +557,7 @@ namespace madness {
         if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
 
         if (key.level() > 1) { // >1 rather >0 otherwise reconstruct might get confused
-            double dnorm = node.tensor()->normf();
+            double dnorm = node.tensor().normf();
             if (dnorm < truncate_tol(tol,key)) {
                 node.clear_coeff();
                 if (node.has_children()) {
@@ -976,23 +976,29 @@ namespace madness {
     }
 
     template <typename T, int NDIM>
-    Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+//    Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+    Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(coeffs.probe(key));
         // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;
         if (node.has_children()) {
-            std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
+//            std::vector< Future<tensorT> > v = future_vector_factory<tensorT>(1<<NDIM);
+            std::vector< Future<GenTensor<T> > > v = future_vector_factory<GenTensor<T> >(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 PROFILE_BLOCK(compress_send);
                 // readily available
                 v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
             }
-            return task(world.rank(),&implT::compress_op, key, v, nonstandard);
+//            return task(world.rank(),&implT::flo_compress_op<FullTensor<T> >, key, v, nonstandard);
+            return task(world.rank(),&implT::flo_compress_op, key, v, nonstandard);
+
+            return v[0];
         }
         else {
-            Future<tensorT> result(node.full_tensor_copy());
+//            Future<tensorT> result(node.full_tensor_copy());
+            Future<GenTensor<T> > result(node.tensor());
             if (!keepleaves) node.clear_coeff();
             return result;
         }

@@ -42,24 +42,6 @@
 
 namespace madness {
 
-	/// compute the dimensions of SRConf, given the TensorType and the dimensions
-	/// of the SepRep; the latter are the ones that are visible to the
-	void compute_effective_dimensions(const int& dim, const int& k, int& dim_eff,
-		int& k_eff, const TensorType& tt) {
-
-		// compute the effective dimension
-		if (tt==TT_3D) dim_eff=3;
-		else if (tt==TT_2D) dim_eff=2;
-		else MADNESS_ASSERT(0);
-
-		// make sure dim is an integer multiple of dim_eff
-		MADNESS_ASSERT(dim%dim_eff==0);
-
-		// compute the effective dimension for SRConf
-		k_eff=pow(k,dim/dim_eff);
-
-	}
-
 	/**
 	 * This is a separated representation as described in BM2005:
 	 * Beylkin, Mohlenkamp, Siam J Sci Comput, 2005 vol. 26 (6) pp. 2133-2159
@@ -75,55 +57,47 @@ namespace madness {
 	class SepRep {
 	public:
 
+
+	private:
+		/// the actual data stored in a vector of length rank_
+		SRConf<T> configs_;
+
+		/// the machine precision
+		static const double machinePrecision=1.e-14;
+
+		/// sqrt of the machine precision
+		static const double sqrtMachinePrecision=1.e-7;
+
 		static const double facReduce=1.e-4;
 
+	public:
 		/// default ctor, an invalid tensor
-		SepRep()
-			: tensortype_(TT_NONE)
-			, dim_(0) {
-		}
+		SepRep() : configs_() {}
+
+		/// ctor w/ configs, shallow
+		SepRep(const SRConf<T>& config) : configs_(config) {}
 
 		/// the default ctor with a given representation, is a valid tensor
 		SepRep(const TensorType& tt, const unsigned int& maxk, const unsigned int& dim)
-			: tensortype_(tt)
-			, maxk_(maxk)
-			, dim_(dim) {
-
-			int dim_eff, k_eff;
-			compute_effective_dimensions(dim,maxk,dim_eff,k_eff,tt);
-
+			: configs_(SRConf<T>(dim,maxk,tt)) {
 			// construct empty SRConf
-			configs_=SRConf<T>(dim_eff,k_eff);
 		}
 
 		/// ctor with a polynomial values
-		SepRep(const Tensor<T>& values, const double& eps, const TensorType& tt)
-			: tensortype_(tt) {
+		SepRep(const Tensor<T>& values, const double& eps, const TensorType& tt) {
 
 			MADNESS_ASSERT(values.ndim()>0);
 
 			// for convenience
-			dim_=values.ndim();
-			maxk_=values.dim(0);
-
-			// figure out effective dimensions
-			unsigned int dim_eff;
-			if (this->tensor_type()==TT_3D) dim_eff=3;
-			else if (this->tensor_type()==TT_2D) dim_eff=2;
-			else MADNESS_ASSERT(0);
-
-			// make sure dim is an integer multiple of dim_eff
-			MADNESS_ASSERT(dim_%dim_eff==0);
-
-			// compute the effective dimension for SRConf
-			const unsigned int k_eff=pow(maxk_,dim_/dim_eff);
-
-			// adapt form of values
-			std::vector<long> d(dim_eff,k_eff);
-			Tensor<T> values_eff=values.reshape(d);
+			const long dim=values.ndim();
+			const long maxk=values.dim(0);
 
 			// construct empty SRConf
-			configs_=SRConf<T>(dim_eff,k_eff);
+			configs_=SRConf<T>(dim,maxk,tt);
+
+			// adapt form of values
+			std::vector<long> d(configs_.dim_eff(),configs_.kVec());
+			Tensor<T> values_eff=values.reshape(d);
 
 			// direct reduction on the polynomial values on the Tensor
 			if (this->tensor_type()==TT_3D) {
@@ -134,50 +108,16 @@ namespace madness {
 				MADNESS_ASSERT(0);
 			}
 
-#if 0
-			// for construction: note that SepRep::maxk_ is always the polynomial order,
-			// whereas k in the construction of SRConf is the actual dimension of the vectors
-			// guess some trial rank of 20; doesn't really matter..
-			if (tt==three_of_three) {
-				maxk_=values.dim(0);
-				configs_=(SRConf<T>(dim,20,maxk_));
-
-			} else if (tt==three_of_six) {
-				maxk_=sqrt(values.dim(0));
-				assert(maxk_*maxk_==values.dim(0));
-				configs_=(SRConf<T>(dim,20,maxk_*maxk_));
-
-			} else if (tt==two_of_six) {
-				maxk_=std::pow(values.dim(0),1.0/3.0);
-				assert(maxk_*maxk_*maxk_==values.dim(0));
-				configs_=(SRConf<T>(dim,20,maxk_*maxk_));
-			} else {
-				MADNESS_ASSERT(0);
-			}
-
-
-			// direct reduction on the polynomial values on the Tensor
-			this->reduceRank(eps,values);
-#endif
 		}
 
-		/// ctor with weights and vectors provided
-		SepRep(const Tensor<double>& weights, const std::vector<Tensor<T> > vectors,
-				const TensorType& tt)
-			: tensortype_(tt)
-			, dim_(vectors.size()) {
-
-			maxk_=vectors[0].dim(1);
-			configs_=SRConf<T>(weights,vectors);
-
-		}
-
-		/// copy ctor
+		/// copy ctor (shallow)
 		SepRep(const SepRep& rhs)
-			: tensortype_(rhs.tensortype_)
-			, maxk_(rhs.maxk_)
-			, dim_(rhs.dim_)
-			, configs_(rhs.configs_)	{
+			: configs_(rhs.configs_)	{
+		}
+
+		/// deep copy of rhs by deep copying rhs.configs
+		friend SepRep<T> copy(const SepRep<T>& rhs) {
+			return SepRep<T>(copy(rhs.configs_));
 		}
 
 		/// dtor
@@ -186,19 +126,16 @@ namespace madness {
 		/// assignment operator
 		SepRep& operator=(const SepRep& rhs) {
 			configs_=rhs.configs_;
-			tensortype_=rhs.tensortype_;
-			maxk_=rhs.maxk_;
-			dim_=rhs.dim_;
 			return *this;
 		}
 
 		/// add another SepRep to this one
 		SepRep& operator+=(const SepRep& rhs) {
 
-			assert(tensortype_=rhs.tensortype_);
+			assert(this->tensor_type()==rhs.tensor_type());
 			assert(this->get_k()==rhs.get_k());
 			assert(this->dim()==rhs.dim());
-			if (&(*this)==&rhs) throw std::runtime_error("no SepRep::operator+= with this==rhs");
+			MADNESS_ASSERT(&(*this)!=&rhs);
 
 			configs_+=rhs.configs_;
 			return *this;
@@ -209,7 +146,7 @@ namespace madness {
 
 			assert(tensor_type()==rhs.tensor_type());
 			assert(this->get_k()==rhs.get_k());
-			if (&(*this)==&rhs) throw std::runtime_error("no SepRep::operator-= with this==rhs");
+			MADNESS_ASSERT(&(*this)!=&rhs);
 			configs_-=rhs.configs_;
 
 			return *this;
@@ -221,53 +158,47 @@ namespace madness {
 			// consistency check
 			MADNESS_ASSERT(s.size()==this->dim());
 			MADNESS_ASSERT(s[0].step==1);
+			MADNESS_ASSERT(this->configs_.is_unflat());
 
 			// get dimensions
 			const TensorType tt=this->tensor_type();
-			const int dim=this->dim();
-			const int k=this->get_k();
-			const int rank=this->rank();
 			const int k_new=s[0].end-s[0].start+1;
-			int dim_eff, k_eff, k_eff_new;
-			compute_effective_dimensions(dim,k,dim_eff,k_eff,tt);
-			compute_effective_dimensions(dim,k_new,dim_eff,k_eff_new,tt);
-			const int merged_dim=dim/dim_eff;
+			const int merged_dim=this->configs_.dim_per_vector();
+			const int dim_eff=this->configs_.dim_eff();
 
 			// get and reshape the vectors, slice and re-reshape again;
+			// this is shallow
+			const SepRep<T> sr=this->configs_.unflatten();
+
 			std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
 			for (int idim=0; idim<dim_eff; idim++) {
 
 				// assignment from/to slice is deep-copy
 				if (merged_dim==1) {
-					vectors[idim]=configs_.refVector(idim)(Slice(_),s[idim]);
+					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[idim]));
 				} else if (merged_dim==2) {
-					vectors[idim]=configs_.refVector(idim).reshape(rank,k,k);
-					vectors[idim]=copy(vectors[idim](Slice(_),s[2*idim],s[2*idim+1]));
-					vectors[idim]=vectors[idim].reshape(rank,k_eff_new);
+					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[2*idim],s[2*idim+1]));
 				} else if (merged_dim==3) {
-					vectors[idim]=configs_.refVector(idim).reshape(rank,k,k,k);
-					vectors[idim]=copy(vectors[idim](Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
-					vectors[idim]=vectors[idim].reshape(rank,k_eff_new);
+					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
 				} else MADNESS_ASSERT(0);
 			}
 
-			// construct SepRep
-			SepRep<T> result(tt,k_new,this->dim());
-			result.configs_=SRConf<T> (this->configs_.weights_,vectors);
+			const SRConf<T> conf(copy(this->configs_.weights_),vectors,this->dim(),k_new,tt);
 
-			return result;
+			return SepRep<T>(conf);
 
 		}
 
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
-		void inplace_add(const SepRep<T>& rhs) {
-			this->configs_.inplace_add(rhs.configs_);
+		void inplace_add(const SepRep<T>& rhs, const std::vector<Slice>& lhs_s,
+				const std::vector<Slice>& rhs_s) {
+			this->configs_.inplace_add(rhs.configs_,lhs_s,rhs_s);
 		}
 
 		/// is this a valid tensor? Note that the rank might still be zero.
 		bool is_valid() const {
 
-			bool it_is=dim_>0;
+			bool it_is=this->dim()>0;
 
 			// double check
 			if (it_is) MADNESS_ASSERT((this->get_k()>0) || (this->tensor_type()!=TT_NONE));
@@ -308,6 +239,12 @@ namespace madness {
 		/// multiply with a scalar
 		void scale(const double& dfac) {configs_.scale(dfac);};
 
+		/// don't multiply with a complex number
+		void scale(const double_complex& dfac) {
+			print("no seprep::scale with double_complex");
+			MADNESS_ASSERT(0);
+		};
+
 		/// normalize
 		void normalize() {configs_.normalize();};
 
@@ -330,40 +267,19 @@ namespace madness {
 		unsigned int rank() const {return configs_.rank();};
 
 		/// return the dimension
-		unsigned int dim() const {return dim_;};
-
-		/// return the dimension of the underlying vectors
-		unsigned int config_dim() const {return this->configs_.dim();};
+		unsigned int dim() const {return configs_.dim();};
 
 		/// return the polynomial order
-		unsigned int get_k() const {return maxk_;};
+		unsigned int get_k() const {return configs_.get_k();};
 
 		/// return the number length of the underlying vectors
-		unsigned int kVec() const {
-
-			unsigned int dim_eff;
-			if (this->tensor_type()==TT_3D) dim_eff=3;
-			else if (this->tensor_type()==TT_2D) dim_eff=2;
-			else MADNESS_ASSERT(0);
-
-			// make sure dim is an integer multiple of dim_eff
-			MADNESS_ASSERT(dim_%dim_eff==0);
-
-			// compute the effective dimension for SRConf
-			const unsigned int k_eff=pow(maxk_,dim_/dim_eff);
-
-			// seems to make sense
-			MADNESS_ASSERT(k_eff>0);
-
-			return k_eff;
-
-		};
+		unsigned int kVec() const {return configs_.kVec();};
 
 		/// return the number of coefficients
 		unsigned int nCoeff() const {return configs_.nCoeff();};
 
 		/// return the representation
-		TensorType tensor_type() const {return tensortype_;};
+		TensorType tensor_type() const {return configs_.type();};
 
 		/// return a vector of Tensor views of an SRConf
 	//	const std::vector<tensor<T> > refSRConf(const unsigned int& srIndex) const;
@@ -377,6 +293,7 @@ namespace madness {
 
 			// SVD works only with matrices (2D)
 			MADNESS_ASSERT(values_eff.ndim()==2);
+			MADNESS_ASSERT(this->tensor_type()==TT_2D);
 
 			// fast return if possible
 			if (values_eff.normf()<eps*facReduce) return;
@@ -404,10 +321,11 @@ namespace madness {
 				this->configs_.vector_[0]=transpose(U(Slice(_),Slice(0,i)));
 				this->configs_.vector_[1]=(VT(Slice(0,i),Slice(_)));
 				this->configs_.rank_=i+1;
-				MADNESS_ASSERT(this->configs_.get_k()==this->configs_.vector_[0].dim(1));
+				MADNESS_ASSERT(this->configs_.kVec()==this->configs_.vector_[0].dim(1));
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.vector_[0].dim(0));
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.weights_.dim(0));
 			}
+			*this=this->configs_.unflatten();
 
 		}
 
@@ -430,6 +348,7 @@ namespace madness {
 			 * 	1. this exists and is to be reduced
 			 * 	2. this doesn't exist, but values are provided
 			 */
+			this->configs_.semi_flatten();
 			SepRep& reference=*this;
 			const bool haveSR=(reference.rank()!=0);
 			const bool haveVal=(values.ndim()!=-1);
@@ -469,7 +388,7 @@ namespace madness {
 			const bool print=false;
 			double norm=1.0;
 
-			const unsigned int config_dim=this->config_dim();
+			const unsigned int config_dim=this->configs_.dim_eff();
 			const unsigned int rG1=reference.rank();
 
 			// scratch Tensor for this and the reference
@@ -509,7 +428,7 @@ namespace madness {
 				bool successful=trial.optimize(reference,facSR,residual,0.0,
 								values,facVal,threshold,10,B1,B2);
 
-				if (not successful)	throw std::runtime_error("SepRep::reduceRank() failed");
+				MADNESS_ASSERT(successful);
 
 			}
 			if (print) std::cout << "final trial norm in reduceRank " << trial.rank() << " " << norm  << std::endl;
@@ -526,11 +445,12 @@ namespace madness {
 				printf("this' condition number  %24.16f\n", this->conditionNumber());
 				printf("trial' condition number %24.16f\n", trial.conditionNumber());
 				printf("norm(this) %12.8f\n", this->FrobeniusNorm());
-				throw std::runtime_error("no convergence in SepRep::reduceRank()");
+				printf("no convergence in SepRep::reduceRank()");
+				MADNESS_ASSERT(0);
 			}
 #endif
 
-			*this=trial;
+			*this=trial.configs_.unflatten();
 //			timeReduce_.end();
 
 		}
@@ -580,7 +500,7 @@ namespace madness {
 		void printCoeff(const std::string title) const {
 			print("printing SepRep",title);
 			print(configs_.weights_);
-			for (unsigned int idim=0; idim<this->config_dim(); idim++) {
+			for (unsigned int idim=0; idim<this->configs_.dim_eff(); idim++) {
 				print("coefficients for dimension",idim);
 				print(configs_.vector_[idim]);
 			}
@@ -610,7 +530,7 @@ namespace madness {
 			 */
 
 			// for convenience
-			const unsigned int conf_dim=this->configs_.dim();
+			const unsigned int conf_dim=this->configs_.dim_eff();
 			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
 			const unsigned int rank=this->rank();
 			long d[TENSOR_MAXDIM];
@@ -629,6 +549,9 @@ namespace madness {
 			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
 			Tensor<T> s(conf_dim,d,true);
 
+			// flatten this
+			const SepRep<T> sr=this->configs_.semi_flatten();
+
 			// and a scratch Tensor
 			Tensor<T>  scr(rank);
 			Tensor<T>  scr1(rank);
@@ -638,7 +561,7 @@ namespace madness {
 				MADNESS_ASSERT(0);
 
 				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=this->configs_.weights_;
+					scr=sr.configs_.weights_;
 //					scr.emul(F[0][i0]);
 					T buffer=scr.sum();
 					s(i0)=buffer;
@@ -646,12 +569,13 @@ namespace madness {
 
 			} else if (conf_dim==2) {
 
+
 				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(this->configs_.weights_);
-					scr.emul(this->configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
+					scr=copy(sr.configs_.weights_);
+					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
 					for (unsigned int i1=0; i1<conf_k; i1++) {
 						scr1=copy(scr);
-						scr1.emul(this->configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
+						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
 						s(i0,i1)=scr1.sum();
 					}
 				}
@@ -660,20 +584,21 @@ namespace madness {
 			} else if (conf_dim==3) {
 
 				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(this->configs_.weights_);
-					scr.emul(this->configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
+					scr=copy(sr.configs_.weights_);
+					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
 					for (unsigned int i1=0; i1<conf_k; i1++) {
 						scr1=copy(scr);
-						scr1.emul(this->configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
+						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
 						for (unsigned int i2=0; i2<conf_k; i2++) {
 							scr2=copy(scr1);
-							scr2.emul(this->configs_.refVector(2)(Slice(_),Slice(i2,i2,0)));
+							scr2.emul(sr.configs_.refVector(2)(Slice(_),Slice(i2,i2,0)));
 							s(i0,i1,i2)=scr2.sum();
 						}
 					}
 				}
 			} else {
-				throw std::runtime_error("only config_dim=1,2,3 in SepRep::reconstructTensor");
+				print("only config_dim=1,2,3 in SepRep::reconstructTensor");
+				MADNESS_ASSERT(0);
 			}
 
 
@@ -690,7 +615,7 @@ namespace madness {
 		/// check compatibility
 		friend bool compatible(const SepRep& rhs, const SepRep& lhs) {
 	//		return ((rhs.rep_==lhs.rep_) and (rhs.maxk_==lhs.maxk_) and (rhs.dim()==lhs.dim()));
-			return ((rhs.tensortype_==lhs.tensortype_) and (rhs.get_k()==lhs.get_k()) and (rhs.dim()==lhs.dim()));
+			return ((rhs.tensor_type()==lhs.tensor_type()) and (rhs.get_k()==lhs.get_k()) and (rhs.dim()==lhs.dim()));
 		};
 
 		/// check consistency of this
@@ -781,7 +706,7 @@ namespace madness {
 
 
 			// for convenience
-			const unsigned int config_dim=this->config_dim();
+			const unsigned int config_dim=this->configs_.dim_eff();
 			const unsigned int rF=this->rank();
 			const unsigned int rG1=ref1.rank();
 			const unsigned int rG2=ref2.rank();
@@ -838,7 +763,7 @@ namespace madness {
 				std::vector<Tensor<T> >& B1, std::vector<Tensor<T> >& B2) {
 
 			// for convenience
-			const unsigned int dim=this->configs_.dim();
+			const unsigned int dim=this->configs_.dim_eff();
 			const unsigned int kvec=this->kVec();
 			SepRep& trial=*this;
 
@@ -1099,24 +1024,7 @@ namespace madness {
 		}
 
 
-	private:
-		/// how will this be represented
-		TensorType tensortype_;
 
-		/// the number of underlying basis functions
-		unsigned int maxk_;
-
-		/// the number of dimensions (the order of the tensor)
-		unsigned int dim_;
-
-		/// the actual data stored in a vector of length rank_
-		SRConf<T> configs_;
-
-		/// the machine precision
-		static const double machinePrecision=1.e-14;
-
-		/// sqrt of the machine precision
-		static const double sqrtMachinePrecision=1.e-7;
 
 	};
 

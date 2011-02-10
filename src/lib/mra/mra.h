@@ -736,10 +736,10 @@ namespace madness {
 
 //        template <typename Q>
 
-        void ftr2sr(bool fence = true) const {
-        	  const_cast<Function<T,NDIM>*>(this)->impl->ftr2sr();
-        	  if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
-        }
+//        void ftr2sr(bool fence = true) const {
+//        	  const_cast<Function<T,NDIM>*>(this)->impl->ftr2sr();
+//        	  if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
+//        }
 
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
             PROFILE_MEMBER_FUNC(Function);

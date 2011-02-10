@@ -42,6 +42,16 @@
 
 namespace madness {
 
+	/// return the number of vectors (i.e. dim_eff) according to the TensorType
+	static unsigned int compute_nvec(const TensorType& tt) {
+		if (tt==TT_2D) return 2;
+		if (tt==TT_3D) return 3;
+		print("unknown TensorType",tt);
+		MADNESS_ASSERT(0);
+	}
+
+
+
 	/*!
 	 * A SRConf handles all the configurations in a Separated Representation.
 	 *
@@ -50,44 +60,84 @@ namespace madness {
 
 	template <typename T>
 	class SRConf {
+
+	public:
+
+		/// the number of dimensions (the order of the tensor)
+		unsigned int dim_;
+
+		/// for each configuration the weight; length should be r
+		Tensor<double>  weights_;
+
+		/// for each (physical) dimension one Tensor of (logical) dimension (r,k)
+		/// for vectors or (r,kprime,k) for operators
+		std::vector<Tensor<T> > vector_;
+
+		/// what is the rank of this
+		long rank_;
+
+		/// the number of underlying basis functions
+		/// the dimensions of vector_ will be
+		/// vector_(rank,maxk),
+		/// vector_(rank,maxk,maxk), etc
+		unsigned int maxk_;
+
+		/// how will this be represented
+		TensorType tensortype_;
+
 	public:
 
 		/// default ctor
-		SRConf() : rank_(0), maxk_(0) {
+		SRConf() : dim_(0), rank_(0), maxk_(0), tensortype_(TT_NONE) {
 		};
 
 
 		/// ctor with dimensions for a vector configuration (tested)
-		SRConf(const unsigned int& dim, const unsigned int& k)
-			: rank_(0)
-			, maxk_(k) {
+		SRConf(const unsigned int& dim, const unsigned int& k, const TensorType& tt)
+			: dim_(dim)
+			, rank_(0)
+			, maxk_(k)
+			, tensortype_(tt) {
+
+			// make sure dim is integer multiple of requested TT
+			const unsigned int nvec=compute_nvec(tt);
+			MADNESS_ASSERT(dim%nvec==0);
 
 			// construct empty vector
-			vector_=std::vector<Tensor<T> > (dim);
+			weights_=Tensor<T>(0);
+			vector_=std::vector<Tensor<T> > (nvec);
+			for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,this->kVec());
 
 		}
 
-		/// copy ctor (tested); deep copy
+		/// copy ctor (tested); shallow copy
 		SRConf(const SRConf& rhs)  {
 			*this=rhs;
 		}
 
 
-		/// ctor with provided weights and effective vectors; deep copy
-		SRConf(const Tensor<double>& weights, const std::vector<Tensor<T> >& vectors) {
+		/// ctor with provided weights and effective vectors; shallow copy
+		SRConf(const Tensor<double>& weights, const std::vector<Tensor<T> >& vectors,
+				const unsigned int& dim, const unsigned int maxk, const TensorType& tt)
+			: dim_(dim)
+			, maxk_(maxk)
+			, tensortype_(tt) {
 
 			// consistency check
 			MADNESS_ASSERT(vectors.size()>0);
 			MADNESS_ASSERT(weights.ndim()==1 and weights.dim(0)==vectors[0].dim(0));
 
+			// compute dimension
+			unsigned int nvec=compute_nvec(tt);
+			MADNESS_ASSERT(vectors.size()==nvec);
+			MADNESS_ASSERT(dim%nvec==0);
+
 			rank_=weights.dim(0);
-			maxk_=vectors[0].dim(1);
-			weights_=copy(weights);
+			weights_=weights;
 			vector_=std::vector<Tensor<T> > (vectors.size());
 			for (unsigned int idim=0; idim<vectors.size(); idim++) {
-				vector_[idim]=copy(vectors[idim]);
+				vector_[idim]=vectors[idim];
 			}
-
 		}
 
 		/// assignment operator (tested), shallow copy of vectors
@@ -96,27 +146,13 @@ namespace madness {
 			// check for self-assignment
 			if (&rhs==this) return *this;
 
+			// these always hold
+			dim_=rhs.dim_;
+			tensortype_=rhs.tensortype_;
+			maxk_=rhs.maxk_;
+
 			// fast return iff rhs is invalid
-			if (rhs.vector_.size()==0) {
-				weights_=Tensor<double>();
-				vector_.clear();
-				maxk_=rhs.maxk_;
-				rank_=0;
-				return *this;
-			}
-
-			// fast return if possible; but construct a valid configuration
-			if (rhs.rank()==0) {
-
-				maxk_=rhs.maxk_;
-				rank_=0;
-
-				const unsigned int dim=rhs.dim();
-				weights_=Tensor<double>();
-				vector_=std::vector<Tensor<T> > (dim);
-
-				return *this;
-			}
+			MADNESS_ASSERT(rhs.dim_eff()>0);
 
 			// assign vectors; shallow copy
 			vector_.resize(rhs.vector_.size());
@@ -128,12 +164,10 @@ namespace madness {
 			weights_=(rhs.weights_);
 
 			rank_=rhs.rank();
-			maxk_=rhs.maxk_;
 
 			// consistency check
-			for (unsigned int idim=0; idim<dim(); idim++) {
+			for (unsigned int idim=0; idim<dim_eff(); idim++) {
 				assert(weights_.dim(0)==vector_[idim].dim(0));
-				assert(vector_[idim].dim(1)==maxk_);
 			}
 
 			return *this;
@@ -149,7 +183,7 @@ namespace madness {
 
 			// fast return if possible
 			if (this->rank()==0) {
-				*this=rhs;
+				*this=copy(rhs);
 				return *this;
 			} else if (rhs.rank()==0) {
 				return *this;
@@ -157,109 +191,136 @@ namespace madness {
 
 			assert(compatible(*this,rhs));
 
-			this->inplace_add(rhs);
+			// pass some dummy slice
+			std::vector<Slice> s(this->dim(),Slice(_));
+			this->inplace_add(rhs,s,s);
 			return *this;
-
-#if 0
-			// for convenience
-			const long oldRank=this->rank();
-			const long rhsRank=rhs.rank();
-			const long k=rhs.vector_[0].dim(1);
-
-			// make sure we have enough space
-			const long newRank=this->rank()+rhs.rank();
-#if 1
-			// assign weights
-			Tensor<double> newWeights(newRank);
-			newWeights(Slice(0,oldRank-1))=this->weights_(Slice(0,oldRank-1));
-			newWeights(Slice(oldRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
-			weights_=newWeights;
-
-			// assign vectors
-			for (unsigned int idim=0; idim<this->dim(); idim++) {
-				Tensor<T> newVector(newRank,k);
-
-				newVector(Slice(0,oldRank-1),Slice(_))=this->refVector(idim);
-				newVector(Slice(oldRank,newRank-1),Slice(_))=rhs.refVector(idim);
-				vector_[idim]=copy(newVector);
-
-//				vector_[idim](Slice(oldRank,newRank-1),Slice(_))=rhs.refVector(idim);
-			}
-
-
-#else
-			this->ensureSpace(newRank);
-
-
-			// assign weights
-			weights_(Slice(oldRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
-
-			// assign vectors
-			for (unsigned int idim=0; idim<this->dim(); idim++) {
-				vector_[idim](Slice(oldRank,newRank-1),Slice(_))=rhs.refVector(idim);
-			}
-#endif
-			rank_=newRank;
-			return *this;
-#endif
 
 		}
 
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
+
 		/// bounds checking should have been performed by caller
-		void inplace_add(const SRConf<T>& rhs) {
+		/// s denotes where in lhs the new contribution from rhs will be inserted
+		void inplace_add(const SRConf<T>& rhs2, std::vector<Slice> lhs_s,
+				std::vector<Slice> rhs_s) {
 
 			// fast return if possible
 			if (this->rank()==0) {
-				*this=rhs;
+				MADNESS_ASSERT(0);
+				// this is shallow!
+				*this=rhs2;
 				return;
-			} else if (rhs.rank()==0) {
+			} else if (rhs2.rank()==0) {
 				return;
 			}
 
-			MADNESS_ASSERT(this->vector_[0].dim(1)>=rhs.vector_[0].dim(1));
+			// unflatten this and rhs; shallow wrt vector_
+			SRConf<T> lhs=this->unflatten();
+			const SRConf<T> rhs=rhs2.unflatten();
 
 			// for convenience
-			const long oldRank=this->rank();
+			const long lhsRank=lhs.rank();
 			const long rhsRank=rhs.rank();
-			const long newRank=this->rank()+rhs.rank();
+			const long newRank=lhs.rank()+rhs.rank();
 
-			// take larger k!
-			const long rhs_k=rhs.vector_[0].dim(1);
-			const long lhs_k=this->vector_[0].dim(1);
-			const long k_max=std::max(rhs_k,lhs_k);
+			const long rhs_k=rhs.get_k();
+			const long lhs_k=lhs.get_k();
+
+			const long dim_pv=lhs.dim_per_vector();
+
+			// adapt slices for use
+			for (unsigned int idim=0; idim<lhs.dim(); idim++) {
+				if (lhs_s[idim].end<0) lhs_s[idim].end+=lhs_k;
+				if (rhs_s[idim].end<0) rhs_s[idim].end+=rhs_k;
+				// make sure slices conform
+				MADNESS_ASSERT((lhs_s[idim].end-lhs_s[idim].start) == (rhs_s[idim].end-rhs_s[idim].start));
+				// make sure lhs can actually hold rhs(s)
+				MADNESS_ASSERT(lhs_k>=(rhs_s[idim].end-rhs_s[idim].start+1));
+			}
 
 			// assign weights
 			Tensor<double> newWeights(newRank);
-			newWeights(Slice(0,oldRank-1))=this->weights_(Slice(0,oldRank-1));
-			newWeights(Slice(oldRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
-			weights_=newWeights;
+			newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1));
+			newWeights(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
+			std::swap(lhs.weights_,newWeights);
+
 
 			// assign vectors
-			for (unsigned int idim=0; idim<this->dim(); idim++) {
-				Tensor<T> newVector(newRank,k_max);
+			for (unsigned int idim=0; idim<lhs.dim_eff(); idim++) {
 
-				// note conforming slice for this, not for rhs
-				newVector(Slice(0,oldRank-1),Slice(0,lhs_k-1))=this->refVector(idim);
-				newVector(Slice(oldRank,newRank-1),Slice(0,rhs_k-1))=rhs.refVector(idim);
-				vector_[idim]=copy(newVector);
+				if (dim_pv==1) {
+					Tensor<T> newVector(newRank,lhs_k);
 
+					// lhs unchanged
+					newVector(Slice(0,lhsRank-1),Slice(_))=
+							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_));
+
+					// insert rhs at the right place
+					newVector(Slice(lhsRank,newRank-1),lhs_s[idim])=
+							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[idim]);
+
+					std::swap(lhs.refVector(idim),newVector);
+
+				} else if (dim_pv==2) {
+
+					Tensor<T> newVector(newRank,lhs_k,lhs_k);
+
+					// lhs unchanged
+					newVector(Slice(0,lhsRank-1),Slice(_),Slice(_))=
+							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_));
+
+					// insert rhs at the right place
+					newVector(Slice(lhsRank,newRank-1),lhs_s[2*idim],lhs_s[2*idim+1])=
+							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[2*idim],lhs_s[2*idim+1]);
+
+					std::swap(lhs.refVector(idim),newVector);
+
+				} else if (dim_pv==3) {
+
+					Tensor<T> newVector(newRank,lhs_k,lhs_k,lhs_k);
+
+					// lhs unchanged
+					newVector(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_))=
+							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_));
+
+					// insert rhs at the right place
+					newVector(Slice(lhsRank,newRank-1),lhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2])=
+							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2]);
+
+					std::swap(lhs.refVector(idim),newVector);
+				} else {
+					print("extend dim_pv in srconf::inplace_add");
+					MADNESS_ASSERT(0);
+				}
 			}
-			rank_=newRank;
 
+			lhs.rank_=newRank;
+			*this=lhs.semi_flatten();
 		}
 
 		/// append an SRConf to this
 //		SRConf& operator-=(const SRConf& rhs);
+
+		/// deep copy of rhs
+		friend SRConf<T> copy(const SRConf<T>& rhs) {
+
+			// pass a copy of the weights and vectors of rhs to ctor
+			std::vector<Tensor<T> > vector(rhs.dim_eff());
+			for (unsigned int idim=0; idim<rhs.dim_eff(); idim++)
+				vector[idim]=copy(rhs.refVector(idim));
+
+			return SRConf<T>(copy(rhs.weights_),vector,rhs.dim(),rhs.get_k(),rhs.type());
+		}
 
 		/// reassign weight and data for a specific SRConf only
 		void reassign(const unsigned int& idim, const unsigned int& r,
 				const double& weight, const Tensor<T> & data, const unsigned int& maxk) {
 
 			// some checks
-	        assert(idim<this->dim());
+	        assert(idim<this->dim_eff());
 	        assert(r<this->rank());
-	        assert(this->isVector());
+	        assert(this->is_flat());
 
 	        // assign weight
 	        weights_(r)=weight;
@@ -271,7 +332,7 @@ namespace madness {
 	        }
 
 	        // make sure the ranks comply for all dimensions
-	        for (unsigned int idim=0; idim<dim(); idim++) {
+	        for (unsigned int idim=0; idim<dim_eff(); idim++) {
                 assert(weights_.dim(0)==vector_[idim].dim(0));
 	        }
 
@@ -312,18 +373,14 @@ namespace madness {
 		/// fill this SRConf with 1 random configurations (tested)
 		void fillWithRandom(const unsigned int& rank=1) {
 
-//			this->ensureSpace(rank);
 			rank_=rank;
 
 			// assign; note that Slice(0,_) is inclusive
-//			weights_(Slice(0,this->rank()-1))=1.0;
 			weights_=Tensor<double>(rank);
 			weights_=1.0;
 
-			for (unsigned int idim=0; idim<this->dim(); idim++) {
-//				vector_[idim](Slice(0,this->rank()-1),Slice(_)).fillrandom();
-//				this->refVector(idim).fillrandom();
-				vector_[idim]=Tensor<T>(rank_,maxk_);
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				vector_[idim]=Tensor<T>(rank_,this->kVec());
 				vector_[idim].fillrandom();
 			}
 
@@ -335,11 +392,7 @@ namespace madness {
 		void normalize() {
 
 	        // for convenience
-	        const unsigned int dim=this->dim();
 	        const unsigned int rank=this->rank();
-
-	        // some checks
-	        assert(dim!=0);
 
 	        // we calculate the norm sum_i < F^r_i | F^r_i > for each dimension for each r
 
@@ -347,7 +400,7 @@ namespace madness {
 	        for (unsigned int r=0; r<rank; r++) {
 
 	        	// loop over all dimensions
-	        	for (unsigned int idim=0; idim<dim; idim++) {
+	        	for (unsigned int idim=0; idim<dim_eff(); idim++) {
 
 	        		Tensor<T> config=this->refVector(idim)(Slice(r,r),Slice(_));
 
@@ -366,21 +419,86 @@ namespace madness {
 //		void truncate(const double& thresh);
 
 		/// return if this is a vector or an operator (tested)
-		bool isVector() const {
-			return vector_[0].ndim()==2;
+		bool is_flat() const {
+			return (not is_unflat());
+		}
+
+		/// return
+		bool is_unflat() const {
+			return (vector_[0].dim(1)==this->get_k());
 		}
 
 		/// return the dimension of this
-		unsigned int dim() const {return vector_.size();}
+		unsigned int dim() const {return dim_;}
+
+		/// return the number of vectors
+		unsigned int dim_eff() const {return vector_.size();}
 
 		/// return the logicalrank
 		unsigned int rank() const {return rank_;};
 
-		/// return the number of vector elements (tested)
+		/// return the number of physical matrix elements per dimension
 		unsigned int get_k() const {return maxk_;};
+
+		/// return the length of the vector (dim_pv*maxk)
+		unsigned int kVec() const {return pow(this->get_k(),this->dim_per_vector());};
+
+		/// return the tensor type
+		TensorType type() const {return tensortype_;};
+
+		/// return the number of physical dimensions
+		int dim_per_vector() const {
+			const int nvec=vector_.size();
+			const int dim=this->dim();
+			MADNESS_ASSERT(dim%nvec==0);
+			return dim/nvec;
+		}
+
+		/// shallow flatten the vectors (reverse of unflatten)
+		/// vector_[i](rank,maxk,maxk) -> vector_[i](rank,maxk*maxk)
+		SRConf<T> semi_flatten() const {
+
+			// shallow ctor
+			SRConf<T> result(*this);
+			const int dim_pv=this->dim_per_vector();
+			const int maxk=this->get_k();
+
+			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				if (dim_pv==1) ;
+				else if (dim_pv==2)
+					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk);
+				else if (dim_pv==3)
+					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk*maxk);
+			}
+			return result;
+		}
+
+		/// shallow unflatten the vectors (reverse of semi_flatten)
+		/// vector_[i](rank,maxk*maxk) -> vector_[i](rank,maxk,maxk)
+		SRConf unflatten() const {
+
+			// shallow assignment
+			SRConf<T> result(*this);
+
+			const int dim_pv=this->dim_per_vector();
+			const int maxk=this->get_k();
+
+			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				if (dim_pv==1) ;
+				else if (dim_pv==2)
+					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk);
+				else if (dim_pv==3)
+					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk,maxk);
+			}
+			return result;
+		}
+
 
 		/// return the number of coefficients
 		unsigned int nCoeff() const {
+			MADNESS_ASSERT(0);
 			return this->dim()*maxk_*rank_;
 		};
 
@@ -391,31 +509,31 @@ namespace madness {
 //		void reserve(const unsigned int& maxRank);
 
 
-		/// make sure there is at least maxRank space in this
-		void ensureSpace(const unsigned int& minRank) {
-			MADNESS_ASSERT(0);
-
-			// if the first (slow) dimension of the vectors is too small, reallocate
-			// keep the second dimension
-			if (weights_.dim(0)<minRank) {
-
-				// for convenience
-				const long k=vector_[0].dim(1);
-				const long r=this->rank();
-
-				// reallocate the weigths
-				Tensor<double> tmp(minRank);
-				if (r>0) tmp(Slice(0,r-1))=weights_(Slice(0,r-1));
-				std::swap(weights_,tmp);
-
-				// reallocate all vectors
-				for (unsigned int idim=0; idim<this->dim(); idim++) {
-					Tensor<T> t2(minRank,k);
-					if (r>0) t2(Slice(0,r-1),Slice(_))=this->refVector(idim);
-					std::swap(t2,vector_[idim]);
-				}
-			}
-		}
+//		/// make sure there is at least maxRank space in this
+//		void ensureSpace(const unsigned int& minRank) {
+//			MADNESS_ASSERT(0);
+//
+//			// if the first (slow) dimension of the vectors is too small, reallocate
+//			// keep the second dimension
+//			if (weights_.dim(0)<minRank) {
+//
+//				// for convenience
+//				const long k=vector_[0].dim(1);
+//				const long r=this->rank();
+//
+//				// reallocate the weigths
+//				Tensor<double> tmp(minRank);
+//				if (r>0) tmp(Slice(0,r-1))=weights_(Slice(0,r-1));
+//				std::swap(weights_,tmp);
+//
+//				// reallocate all vectors
+//				for (unsigned int idim=0; idim<this->dim(); idim++) {
+//					Tensor<T> t2(minRank,k);
+//					if (r>0) t2(Slice(0,r-1),Slice(_))=this->refVector(idim);
+//					std::swap(t2,vector_[idim]);
+//				}
+//			}
+//		}
 
 		/// chop off all configurations after r
 //		void chopoff(const unsigned int& r);
@@ -437,24 +555,21 @@ namespace madness {
 			 */
 
 			// some checks
-			assert(rhs.isVector()==lhs.isVector());
+			assert(rhs.is_flat()==lhs.is_flat());
 			assert(rhs.dim()==lhs.dim());
 			assert(rhs.dim()>0);
-
-			// for now
-			assert(rhs.isVector());
 
 			// fast return if either rank is 0
 			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
 
-			const unsigned int dim=rhs.dim();
+			const unsigned int dim_eff=rhs.dim_eff();
 //			const unsigned int k=rhs.vector_[0].dim(1);
 
 			// get the weight matrix
 			Tensor<T> weightMatrix=outer(lhs.weights_,rhs.weights_);
 
 			// calculate the overlap matrices for each dimension at a time
-			for (unsigned int idim=0; idim<dim; idim++) {
+			for (unsigned int idim=0; idim<dim_eff; idim++) {
 //				dgemm_NT(lhs.refVector(idim),rhs.refVector(idim),ovlp,
 //						lhs.rank(),rhs.rank());
 				const Tensor<T>& lhs2=lhs.refVector(idim);
@@ -481,9 +596,9 @@ namespace madness {
 		/// return the maximum weight
 		double maxWeight() const {return weights_(Slice(0,this->rank()-1)).max();};
 
-		/// return a specific elements of this
-		T getElement(const unsigned int& r, const unsigned int& idim, const unsigned int& k) const
-		{assert(this->isVector()); assert(r<rank()); assert(idim<dim()); return refVector(idim)(r,k);};
+//		/// return a specific elements of this
+//		T getElement(const unsigned int& r, const unsigned int& idim, const unsigned int& k) const
+//		{assert(this->isVector()); assert(r<rank()); assert(idim<dim()); return refVector(idim)(r,k);};
 
 		/// the weights and vectors
 //		void print(const std::string& title="") const;
@@ -491,7 +606,7 @@ namespace madness {
 		/// check compatibility
 		friend bool compatible(const SRConf& lhs, const SRConf& rhs) {
 			return ((lhs.dim()==rhs.dim()) and (lhs.vector_[0].dim(1)==rhs.vector_[0].dim(1))
-					and (lhs.isVector()==rhs.isVector()));
+					and (lhs.is_flat()==rhs.is_flat()));
 		}
 
 		/// make one of the terms in the B matrix (BM2005)
@@ -500,7 +615,7 @@ namespace madness {
 			assert(compatible(rhs,lhs));
 			assert(lhs.rank()==B.dim(0));
 			assert(rhs.rank()==B.dim(1));
-			assert(idim<rhs.dim());
+			assert(idim<rhs.dim_eff());
 
 //			dgemm_NT(lhs.refVector(idim),rhs.refVector(idim),B,lhs.rank(),rhs.rank());
 			Tensor<T> lhs2=lhs.refVector(idim)(Slice(0,lhs.rank()-1),Slice(_));
@@ -511,33 +626,19 @@ namespace madness {
 
 	public:
 
-		/// for each configuration the weight; length should be r
-		Tensor<double>  weights_;
-
-	public:
-		/// for each (physical) dimension one Tensor of (logical) dimension (r,k)
-		/// for vectors or (r,kprime,k) for operators
-		std::vector<Tensor<T> > vector_;
-
-		/// what is the rank of this
-		long rank_;
-
-		/// the number of underlying basis functions
-		unsigned int maxk_;
-
 
 	private:
 
-		/// return the physical rank (the size of the Tensor)
+//		/// return the physical rank (the size of the Tensor)
 //		unsigned int physicalRank() const {return weights_.pSize();}
-
-		/// make a matrix of the weights (lhs.r, rhs.r)
-		void friend makeWeightMatrix(Tensor<T> & matrix, const SRConf& lhs, const SRConf& rhs) {
-			// some checks
-			assert(compatible(rhs,lhs));
-
-			matrix=outer(lhs.weights_,rhs.weights_);
-		}
+//
+//		/// make a matrix of the weights (lhs.r, rhs.r)
+//		void friend makeWeightMatrix(Tensor<T> & matrix, const SRConf& lhs, const SRConf& rhs) {
+//			// some checks
+//			assert(compatible(rhs,lhs));
+//
+//			matrix=outer(lhs.weights_,rhs.weights_);
+//		}
 
 	};
 }
