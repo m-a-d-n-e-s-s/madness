@@ -975,6 +975,7 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+    /// recursively spawns compression using its child nodes and return the sum coefficients
     template <typename T, int NDIM>
 //    Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
@@ -991,10 +992,8 @@ namespace madness {
                 // readily available
                 v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
             }
-//            return task(world.rank(),&implT::flo_compress_op<FullTensor<T> >, key, v, nonstandard);
+//            return task(world.rank(),&implT::compress_op, key, v, nonstandard);
             return task(world.rank(),&implT::flo_compress_op, key, v, nonstandard);
-
-            return v[0];
         }
         else {
 //            Future<tensorT> result(node.full_tensor_copy());

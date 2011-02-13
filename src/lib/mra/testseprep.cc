@@ -28,20 +28,21 @@ int testGenTensor_ctor(const long& k, const long& dim, const double& eps, const 
 	int nerror=0;
 
 	// default ctor
-	GenTensor<double> t1;
+//	GenTensor<double> t1;
 
+	{
+		// ctor with rhs=Tensor, deep
+		GenTensor<double> t2(t0,eps,tt);
+		norm=(t0-t2.full_tensor_copy()).normf();
+		print(ok(is_small(norm, eps)), "ctor with rhs=Tensor/1 ",t2.what_am_i(),t2.rank(),norm);
+		if (!is_small(norm,eps)) nerror++;
 
-	// ctor with rhs=Tensor, deep
-	GenTensor<double> t2(t0,eps,tt);
-	norm=(t0-t2.full_tensor_copy()).normf();
-	print(ok(is_small(norm, eps)), "ctor with rhs=Tensor/1 ",t2.what_am_i(),t2.rank(),norm);
-	if (!is_small(norm,eps)) nerror++;
-
-	// test deepness
-	t0.scale(2.0);
-	norm=(t0-t2.full_tensor_copy()).normf();
-	print(ok(is_large(norm, eps)), "ctor with rhs=Tensor/2 ",t2.what_am_i(),t2.rank(),norm);
-	if (!is_large(norm,eps)) nerror++;
+		// test deepness
+		t0.scale(2.0);
+		norm=(t0-t2.full_tensor_copy()).normf();
+		print(ok(is_large(norm, eps)), "ctor with rhs=Tensor/2 ",t2.what_am_i(),t2.rank(),norm);
+		if (!is_large(norm,eps)) nerror++;
+	}
 
 	{
 		// ctor with rhs=GenTensor, shallow
@@ -177,6 +178,13 @@ int testGenTensor_assignment(const long& k, const long& dim, const double& eps, 
 
 	// sliced assignment: g1(s)=number
 	{
+		GenTensor<double> g1(t1,eps,tt);
+		Tensor<double> t2=copy(t1);
+		g1(s)=0.0;
+		t2(s)=0.0;
+		norm=(t2-g1.full_tensor_copy()).normf();
+		print(ok(is_small(norm,eps)),"sliced assignment with rhs=0.0",g1.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
 
 	}
 	print("all done\n");
@@ -190,8 +198,9 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
 	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
 
-	std::vector<Slice> s(dim,Slice(0,k/2));
-	std::vector<Slice> s2(dim,Slice(k/2+1,k-1));
+	std::vector<Slice> s(dim,Slice(0,k/2-1));
+	std::vector<Slice> s2(dim,Slice(k/2,k-1));
+//	print(s,s2);
 	t0.fillrandom();
 	t1.fillindex();
 
@@ -238,6 +247,16 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 		if (!is_small(norm,eps)) nerror++;
 
 	}
+	// test inplace add: g0(s)+=g1(s)
+	{
+		GenTensor<double> g0(t0,eps,tt);
+		g0(s2)+=g1(s);
+		t0(s2)+=t1(s);
+		norm=(g0.full_tensor_copy()-t0).normf();
+		print(ok(is_small(norm,eps)),"algebra g0(s)+=g1(s)",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
 
 
 
@@ -246,136 +265,7 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 }
 
 
-int testFullTensor_assignment(const long& k, const long& dim, const double& eps) {
 
-
-	Tensor<double> t0=Tensor<double>(4,4,4);
-	t0.fillrandom();
-	std::vector<Slice> s(3,Slice(0,2,1));
-
-	// ctor with rhs=Tensor
-	FullTensor<double> t2(copy(t0));
-	print("ctor with rhs=Tensor      ", (t0-t2.fullTensor()).normf());
-
-	// assignment to a number
-	t2=1.4;
-	t0=1.4;
-	print("assignment to a number    ", (t0-t2.fullTensor()).normf());
-
-
-	// assignment with SliceTensor on both sides
-	t0(s)=3.1;
-	t2(s)=t0(s);
-	print("sliced assignment/1       ", (t0-t2.fullTensor()).normf());
-
-	// assignment with SliceTensor on one side
-	Tensor<double> t1=t0(s);
-	t2(s)=t1;
-	Tensor<double> t11=t2(s).fullTensor();
-
-	// test Slice
-	print("sliced assignment/2       ", (t1-t11).normf());
-
-	// test rest
-	t0=1.1;
-	t2=copy(t0);
-	t1=copy(t0);
-	t2(s)=2.8*t0(s);
-	t1(s)=2.8*t0(s);
-	print("sliced assignment/3       ", (t1-t2.fullTensor()).normf());
-
-	print("all done");
-	return 0;
-}
-
-//int testLowRankTensor_ctor(const long& k, const long& dim, const double& eps) {
-//
-//	const double tol=1.e-13;
-//	const double safety=1.e-3;
-//
-//	Tensor<double> t0=Tensor<double>(7,7,7);
-//	Tensor<double> t1=Tensor<double>(7,7,7,7);
-//	t0.fillindex();
-//	std::vector<Slice> s(4,Slice(0,5));
-//	t1(s).fillrandom();
-//	// t1 is now sort of low-rank
-//
-//	// default ctor
-//	LowRankTensor<double> lrt1();
-//
-//	// ctor with a regular tensor
-//	LowRankTensor<double> lrt2(t0,eps,TT_3D);
-//	LowRankTensor<double> lrt3(t1,eps,TT_2D);
-//	double norm=(lrt2.reconstructTensor()-t0).normf();
-//	print(is_small(norm,eps*safety), "LRT, 3-way ctor   ", norm, lrt2.rank());
-//	norm=(lrt3.reconstructTensor()-t1).normf();
-//	print(is_small(norm,eps*safety), "LRT, 2-way ctor   ", norm, lrt3.rank());
-//
-//	// copy ctor
-//	LowRankTensor<double> lrt4(lrt2);
-//	norm=(lrt2.reconstructTensor()-lrt4.reconstructTensor()).normf();
-//	print(is_small(norm,tol), "copy ctor         ", norm);
-//
-//	/// virtual ctor should be shallow
-//	SepRepTensor<double>* sr;
-//	sr=lrt4.clone();
-//	lrt4.scale(0.5);
-//	norm=(lrt4.reconstructTensor()-sr->reconstructTensor()).normf();
-//	print(is_small(norm,tol), "LRT, virtual ctor ",norm);
-//
-//
-//
-//
-//	print("all done");
-//	return 0;
-//}
-
-//int testLowRankTensor_assignment(const long& k, const long& dim, const double& eps) {
-//
-//	std::vector<long> d(6,k);
-//	Tensor<double> t0=Tensor<double>(d);
-//	t0.fillindex();
-//	std::vector<Slice> s(6,Slice(0,k/2));
-//
-//	// regular assignment
-//	LowRankTensor<double> lrt0(t0,eps,TT_3D);
-//	LowRankTensor<double> lrt0a;
-//	lrt0a=lrt0;
-//	print("LRT assignment      ", (lrt0.reconstructTensor()-lrt0a.reconstructTensor()).normf());
-//
-//
-//	// sliced assignment
-//	LowRankTensor<double> lrt1(t0,eps,TT_3D);
-//	LowRankTensor<double> lrt2=lrt1(s);
-//	LowRankTensor<double> lrt2a=lrt1;
-//	lrt2a=lrt1(s);
-//
-//	Tensor<double> t1=lrt1.reconstructTensor();
-//	Tensor<double> t2=lrt2.reconstructTensor();
-//	Tensor<double> t2a=lrt2a.reconstructTensor();
-//	const Tensor<double> t3=t1(s);
-//	print("sliced assignment/1 ", (t3-t2).normf(),t2.normf());
-//	print("sliced assignment/1a", (t3-t2a).normf(),t2.normf());
-//
-//	// sliced assignment
-//	LowRankTensor<double> lrt3(t0,eps,TT_2D);
-//	LowRankTensor<double> lrt4=lrt3(s);
-//	t1=lrt3.reconstructTensor();
-//	t2=lrt4.reconstructTensor();
-//	print("sliced assignment/2 ", (t1(s)-t2).normf(),t2.normf());
-//
-//	// sliced assignment
-//	t0.reshape(k*k,k*k,k*k);
-//	LowRankTensor<double> lrt5(t0,eps,TT_3D);
-//	LowRankTensor<double> lrt6=lrt3(s);
-//	t1=lrt5.reconstructTensor();
-//	t2=lrt6.reconstructTensor();
-//	print("sliced assignment/3 ", (t1(s)-t2).normf()>1.e-3*eps,t2.normf());
-//
-//
-//	print("all done");
-//	return 0;
-//}
 
 
 int main(int argc, char**argv) {
@@ -385,7 +275,7 @@ int main(int argc, char**argv) {
     srand(time(NULL));
 
     // the parameters
-    const long k=3;
+    const long k=4;
     const unsigned int dim=6;
     double eps=1.e-3;
 

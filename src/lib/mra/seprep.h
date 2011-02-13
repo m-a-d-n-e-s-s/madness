@@ -72,7 +72,13 @@ namespace madness {
 
 	public:
 		/// default ctor, an invalid tensor
-		SepRep() : configs_() {}
+		SepRep() : configs_() {
+			print("There is no default ctor for SepRep w/o TensorType");
+			MADNESS_ASSERT(0);
+		}
+
+		/// default ctor, an invalid tensor
+		SepRep(const TensorType& tt) : configs_(tt) {}
 
 		/// ctor w/ configs, shallow
 		SepRep(const SRConf<T>& config) : configs_(config) {}
@@ -84,16 +90,10 @@ namespace madness {
 		}
 
 		/// ctor with a polynomial values
-		SepRep(const Tensor<T>& values, const double& eps, const TensorType& tt) {
+		SepRep(const Tensor<T>& values, const double& eps, const TensorType& tt)
+			: configs_(SRConf<T>(values.ndim(),values.dim(0),tt)) {
 
 			MADNESS_ASSERT(values.ndim()>0);
-
-			// for convenience
-			const long dim=values.ndim();
-			const long maxk=values.dim(0);
-
-			// construct empty SRConf
-			configs_=SRConf<T>(dim,maxk,tt);
 
 			// adapt form of values
 			std::vector<long> d(configs_.dim_eff(),configs_.kVec());
@@ -158,13 +158,14 @@ namespace madness {
 			// consistency check
 			MADNESS_ASSERT(s.size()==this->dim());
 			MADNESS_ASSERT(s[0].step==1);
-			MADNESS_ASSERT(this->configs_.is_unflat());
+			MADNESS_ASSERT(this->configs_.has_structure());
 
 			// get dimensions
 			const TensorType tt=this->tensor_type();
 			const int k_new=s[0].end-s[0].start+1;
 			const int merged_dim=this->configs_.dim_per_vector();
 			const int dim_eff=this->configs_.dim_eff();
+			const int rank=this->rank();
 
 			// get and reshape the vectors, slice and re-reshape again;
 			// this is shallow
@@ -175,15 +176,36 @@ namespace madness {
 
 				// assignment from/to slice is deep-copy
 				if (merged_dim==1) {
-					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[idim]));
+					if (rank>0) {
+						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[idim]));
+					} else {
+						vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
+					}
 				} else if (merged_dim==2) {
-					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[2*idim],s[2*idim+1]));
+					if (rank>0) {
+						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[2*idim],s[2*idim+1]));
+					} else {
+						vectors[idim]=Tensor<T>(0,s[2*idim].end-s[2*idim].start+1,s[2*idim+1].end-s[2*idim+1].start+1);
+					}
 				} else if (merged_dim==3) {
-					vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
+					if (rank>0) {
+						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
+					} else {
+						vectors[idim]=Tensor<T>(0,s[3*idim].end-s[3*idim].start+1,s[3*idim+1].end-s[3*idim+1].start+1,
+								s[3*idim+2].end-s[3*idim+2].start+1);
+
+					}
 				} else MADNESS_ASSERT(0);
 			}
 
-			const SRConf<T> conf(copy(this->configs_.weights_),vectors,this->dim(),k_new,tt);
+			// work-around for rank==0
+			Tensor<double> weights;
+			if (rank>0) {
+				weights=copy(this->configs_.weights_);
+			} else {
+				weights=Tensor<double>(int(0));
+			}
+			const SRConf<T> conf(weights,vectors,this->dim(),k_new,tt);
 
 			return SepRep<T>(conf);
 
@@ -331,8 +353,8 @@ namespace madness {
 
 		/// reduce the separation rank of this to a near optimal value
 		/// follow section 3 in BM2005
-		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>(),
-				const SepRep& trial2=SepRep()) {
+		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
+//				const SepRep& trial2=SepRep()) {
 			/*
 			 * basic idea is to use the residual Frobenius norm to check
 			 * convergence. Don't know if this is rigorous, probably not..
@@ -370,7 +392,7 @@ namespace madness {
 			 * function in real space, we don't want to represent its
 			 * representation in the space of Legendre polynomials
 			 */
-			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
+//			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
 
 //			timeReduce_.start();
 
@@ -400,7 +422,7 @@ namespace madness {
 
 			// set up a trial function
 			SepRep trial(reference.tensor_type(),reference.get_k(),reference.dim());
-			if (useTrial) trial=trial2;
+//			if (useTrial) trial=trial2;
 //			else trial.configs_.ensureSpace(maxTrialRank);
 
 			// and the residual

@@ -67,16 +67,6 @@
  *  lhs = rhs(s)
  * \endcode
  *
- * However, for manipulations like
- * \code
- *  lhs(s) = rhs
- * \endcode
- * we introduce the SliceLowRankTensor, which has no further effect than to
- * indicate that the operation is done on a slice. Effectively we turn the rhs
- * into a slice (which is larger than the original LRT), and assign
- * that to lhs. Actually, we wouldn't need to do that, but if we don't we
- * render it impossible for the user to check if the shapes conform.
- *
  * Manipulations of slices of LowRankTensors are heavily restricted, but should
  * cover the most important cases:
  * - assignment to a slice that was zero before, as in (t being some Tensor of
@@ -113,7 +103,7 @@ namespace madness {
 	template <class T> class LowRankTensor;
 	template <class T> class SliceGenTensor;
 
-	TensorType default_tt(const int& ndim) {
+	static TensorType default_tt(const int& ndim) {
 		TensorType tt=TT_NONE;
 		if (ndim==1) tt=FunctionDefaults<1>::get_tensor_type();
 		if (ndim==2) tt=FunctionDefaults<2>::get_tensor_type();
@@ -136,9 +126,9 @@ namespace madness {
 	///
 	/// Behavior (in particular shallow and deep construction/assignment) should
 	/// resemble the one of Tensor as far as possible:
-	/// Assignments to/from other GenTensors are shallow
-	/// Assignments from Tensor is deep
-	/// Assignments to/from Slices are deep
+	/// assignments/construction to/from other GenTensors are shallow
+	/// assignments/construction from Tensor is deep
+	/// assignments/construction to/from Slices are deep
 	template<typename T>
 	class GenTensor {
 
@@ -152,13 +142,13 @@ namespace madness {
 	public:
 
 		/// default ctor
-		GenTensor() : _ptr(0) {}
-
-		/// ctor with a SepRepTensor, shallow
-		GenTensor(SepRepTensor<T>* sr) : _ptr(sr) {}
+		GenTensor(const TensorType& tt=default_tt(1)) : _ptr(0) {
+			if (tt==TT_FULL) _ptr=new FullTensor<T>();
+			else _ptr=new LowRankTensor<T>(tt);
+		}
 
 		/// copy ctor, shallow
-		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr) {};
+		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr->clone()) {};
 
 		/// ctor with dimensions
 		GenTensor(const std::vector<long>& dim) {
@@ -166,18 +156,20 @@ namespace madness {
 			TensorType tt=default_tt(ndim);
 
 			if (tt==TT_FULL) _ptr=new FullTensor<T>(dim);
-			else _ptr=new LowRankTensor<T>(dim);
+			else _ptr=new LowRankTensor<T>(dim,tt);
 		}
 
 		/// ctor with a regular Tensor, deep
 		GenTensor(const Tensor<T>& rhs, double eps=0.0, TensorType tt=TT_NONE) {
 
-			MADNESS_ASSERT(rhs.iscontiguous());
 			if (eps==0.0) tt=TT_FULL;
 			if (tt==TT_NONE) tt=TT_FULL;
 
 			if (tt==TT_FULL) _ptr=new FullTensor<T> (copy(rhs));
-			else if (tt==TT_3D or tt==TT_2D) _ptr=new LowRankTensor<T> (rhs,eps,tt);
+			else if (tt==TT_3D or tt==TT_2D) {
+				if (rhs.iscontiguous()) _ptr=new LowRankTensor<T> (rhs,eps,tt);
+				else _ptr=new LowRankTensor<T> (copy(rhs),eps,tt);
+			}
 
 		}
 
@@ -192,13 +184,17 @@ namespace madness {
 			_ptr=0;
 		}
 
-		/// release memory
-		void clear() {if (not _ptr) delete _ptr; _ptr=0;};
-
 		/// shallow assignment
 		GenTensor<T>& operator=(const GenTensor<T>& rhs) {
 			this->clear();
-			_ptr=rhs._ptr;
+			_ptr=rhs._ptr->clone();
+			return *this;
+		}
+
+		/// deep assignment with slices: g0 = g1(s)
+		GenTensor<T>& operator=(const SliceGenTensor<T>& rhs) {
+			this->clear();
+			_ptr=rhs._refGT._ptr->clone(rhs._s);
 			return *this;
 		}
 
@@ -207,21 +203,14 @@ namespace madness {
 			return GenTensor<T> (rhs._ptr->copy_this());
 		}
 
-		/// general slicing
+		/// general slicing, shallow; for temporary use only!
 		SliceGenTensor<T> operator()(const std::vector<Slice>& s) {
 			return SliceGenTensor<T>(*this,s);
 		}
 
-		/// general slicing, for g0 = g1(s)
+		/// general slicing, for g0 = g1(s), shallow, for temporary use only!
 		const SliceGenTensor<T> operator()(const std::vector<Slice>& s) const {
 			return SliceGenTensor<T>(*this,s);
-		}
-
-		/// assignment: g0 = g1(s)
-		GenTensor<T>& operator=(const SliceGenTensor<T>& rhs) {
-			this->clear();
-			_ptr=rhs._refGT._ptr->clone(rhs._s);
-			return *this;
 		}
 
 		/// assign a number
@@ -239,10 +228,23 @@ namespace madness {
 
 		}
 
+		/// inplace addition
+		GenTensor<T>& operator+=(const SliceGenTensor<T>& rhs) {
+
+			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
+			static const std::vector<Slice> s(this->ndim(),Slice(_));
+			this->_ptr->inplace_add(rhs._refGT._ptr,s,rhs._s);
+			return *this;
+
+		}
+
+		/// reduce the rank of this; don't do nothing if FullTensor
+		void reduceRank(const double& eps) {_ptr->reduceRank(eps);};
+
 		/// returns if this GenTensor exists
 		bool exists() const {
-			if (_ptr) return false;
-			return true;
+			if (!_ptr) return false;
+			return _ptr->has_data();
 		}
 
 		/// returns the number of coefficients (might return zero, although tensor exists)
@@ -267,8 +269,9 @@ namespace madness {
 		double normf() const {return _ptr->normf();};
 
 		/// returns the trace of <this|rhs>
-		T trace_conj(const GenTensor<T>& rhs) {
-			MADNESS_ASSERT(0);
+		T trace_conj(const GenTensor<T>& rhs) const {
+			MADNESS_ASSERT(this->type()==rhs.type());
+			return _ptr->trace_conj(rhs._ptr);
 		}
 
 		/// scale this by a number
@@ -299,6 +302,12 @@ namespace madness {
         void serialize(Archive& ar) {}
 
 	private:
+
+		/// release memory
+		void clear() {if (not _ptr) delete _ptr; _ptr=0;};
+
+		/// ctor with a SepRepTensor, shallow
+		GenTensor(SepRepTensor<T>* sr) : _ptr(sr->clone()) {}
 
 		/// inplace add rhs to this, provided slices: *this(s1)+=rhs(s2)
 		GenTensor<T>& inplace_add(const GenTensor<T>& rhs, const std::vector<Slice>& lhs_s,
@@ -336,13 +345,14 @@ namespace madness {
 
 		/// assignment as in g(s) = g1;
 		SliceGenTensor<T>& operator=(const GenTensor<T>& rhs) {
-//			_refGT._ptr->inplace_add()
+			print("You don't want to assign to a SliceGenTensor; use operator+= instead");
 			MADNESS_ASSERT(0);
 			return *this;
 		};
 
 		/// assignment as in g(s) = g1(s);
 		SliceGenTensor<T>& operator=(const SliceGenTensor<T>& rhs) {
+			print("You don't want to assign to a SliceGenTensor; use operator+= instead");
 			MADNESS_ASSERT(0);
 			return *this;
 		};
@@ -363,6 +373,10 @@ namespace madness {
 		/// inplace zero-ing
 		SliceGenTensor<T>& operator=(const double& number) {
 			MADNESS_ASSERT(number==0.0);
+			GenTensor<T> tmp=*this;
+			if (this->_refGT.type()==TT_FULL) tmp=copy(tmp);
+			tmp.scale(-1.0);
+			_refGT.inplace_add(tmp,_s,_s);
 			return *this;
 		}
 
@@ -379,26 +393,14 @@ namespace madness {
     	/// default ctor
     	SepRepTensor() {};
 
-    	/// implement the virtual constructor idiom; "default constructor"
-    	virtual SepRepTensor* create() const =0;
-
-    	/// implement the virtual constructor idiom; "shaped constructor"
-    	virtual SepRepTensor* create(const std::vector<long>& s) const =0;
-
     	/// implement the virtual constructor idiom; "sliced copy constructor"
     	virtual SepRepTensor* clone(const std::vector<Slice>& s) const =0;
 
-//    	/// implement the virtual constructor idiom; "copy constructor"
-//    	virtual SepRepTensor* clone() const =0;
+    	/// implement the virtual constructor idiom; "copy constructor"
+    	virtual SepRepTensor* clone() const =0;
 
     	/// implement the virtual constructor idiom, deep copy
     	virtual SepRepTensor* copy_this() const =0;
-
-    	/// add-to-this operator; in LowRank requires reallocation and is expensive!
-//    	virtual SepRepTensor& operator+=(const SepRepTensor<T>* rhs)=0;
-
-    	/// sliced assignment
-//    	virtual SepRepTensor<T>* assign(const SepRepTensor<T>* rhs, const std::vector<Slice>& s) =0;
 
     	/// virtual destructor
     	virtual ~SepRepTensor() {};
@@ -424,9 +426,15 @@ namespace madness {
 
     	virtual long rank() const =0;
 
+    	virtual void reduceRank(const double& eps) =0;
+
     	virtual T trace_conj(const SepRepTensor<T>* rhs) const =0;
 
-    	virtual Tensor<T> reconstructTensor() const =0;
+    	virtual Tensor<T> reconstructTensor() const {
+    		print("reconstructTensor not implemented for",this->what_am_i());
+    		MADNESS_ASSERT(0);
+    	}
+
     	virtual Tensor<T>& fullTensor() =0;
     	virtual const Tensor<T>& fullTensor() const =0;
 
@@ -452,17 +460,24 @@ namespace madness {
 
        	/// default constructor (tested)
     	LowRankTensor<T>() : _data(SepRep<T>()) {
+    		print("there is no default ctor for LowRankTensor; provide a TensorType!");
+    		MADNESS_ASSERT(0);
+    	};
+
+    	/// default constructor (tested)
+    	LowRankTensor<T>(const TensorType& tt) : _data(SepRep<T>(tt)) {
     	};
 
     	/// construct am empty tensor
-    	LowRankTensor<T> (const std::vector<long>& s) {
+    	LowRankTensor<T> (const std::vector<long>& s, const TensorType& tt)
+    			: _data(SepRep<T>(tt,s[0],s.size())) {
+
     		// check consistency
     		const long ndim=s.size();
     		const long maxk=s[0];
     		for (long idim=0; idim<ndim; idim++) {
     			MADNESS_ASSERT(maxk==s[0]);
     		}
-    		_data=SepRep<T>(this->type(),maxk,ndim);
     	}
 
     	/// copy constructor, shallow (tested)
@@ -478,9 +493,8 @@ namespace madness {
     	}
 
     	/// ctor with regular Tensor (tested)
-    	LowRankTensor<T>(const Tensor<T>& t, const double& eps, const TensorType& tt) {
-			_data=SepRep<T>(t,eps,tt);
-    	}
+    	LowRankTensor<T>(const Tensor<T>& t, const double& eps, const TensorType& tt)
+    			: _data(SepRep<T>(t,eps,tt)) {}
 
     	/// dtor
     	~LowRankTensor<T>() {}
@@ -502,26 +516,16 @@ namespace madness {
     		MADNESS_ASSERT(0);
     	}
 
-    	/// implement the virtual constructor idiom; "default constructor"
-    	LowRankTensor<T>* create() const {
-    		return new LowRankTensor<T>();
-    	}
-
-    	/// implement the virtual constructor idiom; "shaped constructor"
-    	LowRankTensor<T>* create(const std::vector<long>& s) const {
-    		return new LowRankTensor(s);
-    	}
-
     	/// implement the virtual constructor idiom; "sliced copy constructor"
     	LowRankTensor<T>* clone(const std::vector<Slice>& s) const {
     		return new LowRankTensor<T>((this->_data)(s));
     	}
 
 
-//    	/// implement the virtual constructor idiom, shallow
-//    	LowRankTensor<T>* clone() const {
-//    		return new LowRankTensor<T>(*this);
-//    	}
+    	/// implement the virtual constructor idiom, shallow
+    	LowRankTensor<T>* clone() const {
+    		return new LowRankTensor<T>(*this);
+    	}
 
     	/// implement the virtual constructor idiom, deep
     	LowRankTensor* copy_this() const {
@@ -545,6 +549,9 @@ namespace madness {
         		MADNESS_ASSERT(0);
         	}
         };
+
+        /// reduce the rank of this; return if FullTensor
+        void reduceRank(const double& eps) {_data.reduceRank(eps);};
 
         /// return the rank of this
         long rank() const {return _data.rank();};
@@ -674,14 +681,7 @@ namespace madness {
     	/// general slicing (tested)
     	FullTensor<T> operator()(const std::vector<Slice>& s) const {
 //    		return SliceTensor<T> (data,&(s[0]));
-    		return data(s);
-    	}
-
-    	/// sliced assignment
-    	FullTensor<T>* assign(const SepRepTensor<T>* rhs, const std::vector<Slice>& s) {
-    		const FullTensor<T>* rhs2=dynamic_cast<const FullTensor<T>* > (rhs);
-    		*this=(*rhs2)(s);
-    		return this;
+    		return copy(data(s));
     	}
 
         /// Inplace generalized saxpy ... this = this*alpha + other*beta
@@ -693,17 +693,6 @@ namespace madness {
      	FullTensor<T>& gaxpy(T alpha, const Tensor<T>& t, T beta) {
      		MADNESS_ASSERT(0);
      	}
-
-
-       	/// implement the virtual constructor idiom; "default constructor"
-       	virtual FullTensor<T>* create() const {
-       		return new FullTensor<T>();
-       	}
-
-       	/// implement the virtual constructor idiom; "shaped constructor"
-       	virtual FullTensor<T>* create(const std::vector<long>& s) const {
-       		return new FullTensor(s);
-       	}
 
     	/// implement the virtual constructor idiom
     	FullTensor<T>* clone() const {
@@ -726,6 +715,9 @@ namespace madness {
         /// return the type of the derived class for me
         std::string what_am_i() const {return "FullRank";};
 
+        /// reduce the rank of this; return if FullTensor
+        void reduceRank(const double& eps) {return;};
+
         /// return the rank of this
         long rank() const {return -1;};
 
@@ -746,8 +738,6 @@ namespace madness {
 
     	/// return a const tensor of this
     	const Tensor<T>& fullTensor() const {return data;};
-
-    	Tensor<T> reconstructTensor() const {throw;};
 
     	/// compute the Frobenius norm
        	float_scalar_type normf() const {return data.normf();};
@@ -790,22 +780,21 @@ namespace madness {
     template <typename T>
     void to_full_rank(GenTensor<T>& arg) {
 
-//    	print("to_full_rank");
-    	if (arg.type()==TT_FULL) {
-    		;
-    	} else if (arg.type()==TT_3D) {
-    		Tensor<T> t;
-    		if (arg.exists()) {
-    			t=arg.reconstruct_tensor();
-        		arg.clear();
-        		arg=new FullTensor<T>(t);
-    		} else {
-        		arg.clear();
-        		arg=new FullTensor<T>();
-    		}
+    	if (arg.exists()) {
+        	if (arg.type()==TT_FULL) {
+        		;
+        	} else if (arg.type()==TT_3D) {
+        		Tensor<T> t=arg.reconstruct_tensor();
+            	arg=GenTensor<T>(t,0.0,TT_FULL);
+        	} else {
+        		throw std::runtime_error("unknown TensorType in to_full_tensor");
+        	}
+
     	} else {
-    		throw std::runtime_error("unknown TensorType in to_full_tensor");
+    		arg=GenTensor<T>(TT_FULL);
     	}
+
+//    	print("to_full_rank");
     }
 
     /// transform the argument SepRepTensor to LowRankTensor form
@@ -814,19 +803,18 @@ namespace madness {
 
 //    	print("to_low_rank");
 
-    	if (arg.type()==TT_FULL) {
-			if (arg.exists()) {
+    	if (arg.exists()) {
+        	if (arg.type()==TT_FULL) {
 				const Tensor<T> t1=arg.full_tensor();
-				arg.clear();
-				arg=(new LowRankTensor<T>(t1,eps,target_type));
-			} else {
-				arg=new LowRankTensor<T>();
-			}
-     	} else if (arg.type()==TT_3D) {
-     		;
-     	} else {
-     		throw std::runtime_error("unknown TensorType in to_full_tensor");
-     	}
+				arg=(GenTensor<T>(t1,eps,target_type));
+	     	} else if (arg.type()==TT_3D) {
+         		;
+         	} else {
+         		throw std::runtime_error("unknown TensorType in to_full_tensor");
+         	}
+    	} else {
+    		arg=GenTensor<T>(target_type);
+    	}
      }
 
     /// Often used to transform all dimensions from one basis to another

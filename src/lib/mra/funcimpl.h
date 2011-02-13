@@ -1993,13 +1993,17 @@ namespace madness {
             //return transform(s,cdata.hgT);
         }
 
-        GenTensor<T> filter(const GenTensor<T> s) const {
-            GenTensor<T> r(cdata.v2k);
-            GenTensor<T> w(cdata.v2k);
-            GenTensor<T> result;//=fast_transform(s.fullTensor(),cdata.hgT,r.fullTensor(),w.fullTensor());
-//            return fast_transform(s,cdata.hgT,r,w);
-            //return transform(s,cdata.hgT);
-        	return result;
+        GenTensor<T> filter(const GenTensor<T>& s) const {
+//            GenTensor<T> r(cdata.v2k);
+//            GenTensor<T> w;
+//            GenTensor<T> result(cdata.v2k);//=fast_transform(s.fullTensor(),cdata.hgT,r.fullTensor(),w.fullTensor());
+////            return fast_transform(s,cdata.hgT,r,w);
+//            //return transform(s,cdata.hgT);
+            tensorT r(cdata.v2k,false);
+            tensorT w(cdata.v2k,false);
+            tensorT result=fast_transform(s.full_tensor_copy(),cdata.hgT,r,w);
+
+        	return GenTensor<T>(result,thresh,FunctionDefaults<NDIM>::get_tensor_type());
         }
 
         ///  Transform sums+differences at level n to sum coefficients at level n+1
@@ -2185,7 +2189,7 @@ namespace madness {
             this->compressed = true;
             this->nonstandard = nonstandard;
 
-            const TensorType tt=FunctionDefaults<NDIM >::get_tensor_type();
+//            const TensorType tt=FunctionDefaults<NDIM >::get_tensor_type();
 
             this->ftr2sr();
             if (world.rank() == coeffs.owner(cdata.key0)) {
@@ -2202,7 +2206,7 @@ namespace madness {
 
         void ftr2sr() {
     		if (world.rank()==0) print("ftr2sr on ",this->tree_size()," boxes");
-    		flo_unary_op_node_inplace(do_low_rank_inplace(),true);
+    		flo_unary_op_node_inplace(do_low_rank_inplace(thresh),true);
     }
 
 
@@ -2243,27 +2247,28 @@ namespace madness {
             }
         }
 
-        /// R is either FullTensor or LowRankTensor
+        /// calculate the wavelet coefficients using the sum coefficients of all child nodes
+
+        /// @param[in] key 	this's key
+        /// @param[in] v 	sum coefficients of the child nodes
+        /// @return 		the sum coefficients
         GenTensor<T> flo_compress_op(const keyT& key, const std::vector< Future<GenTensor<T> > >& v, bool nonstandard) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             print("in new compress_op");
-            // Copy child scaling coeffs into contiguous block
-//            srT d(cdata.v2k,false);
-            // virtual constructor; will return either LowRankTensor or FullTensor,
-            // depending on type of v[0].get
-            GenTensor<T> d(cdata.v2k);
 
+            // Copy child scaling coeffs into contiguous block
+            GenTensor<T> d(cdata.v2k);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 d(child_patch(kit.key())) += v[i].get();
             }
+
             d = filter(d);
 
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc, key));
 
             if (acc->second.has_coeff()) {
-//                const tensorT& c = acc->second.full_tensor_reference();
                 const GenTensor<T>& c = acc->second.tensor();
                 if (c.dim(0) == k) {
                     d(cdata.s0) += c;
@@ -2273,20 +2278,21 @@ namespace madness {
                 }
             }
 
-            GenTensor<T> s= copy(d(cdata.s0));
+            // this is deep copy
+            GenTensor<T> s= d(cdata.s0);
 
             if (key.level()> 0 && !nonstandard)
                 d(cdata.s0) = 0.0;
 
             acc->second.set_coeff(d);
 
+            s.reduceRank(thresh);
             return s;
         }
 
         tensorT compress_op(const keyT& key, const std::vector< Future<tensorT> >& v, bool nonstandard) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             print("in compress_op");
-            MADNESS_ASSERT(0);
             // Copy child scaling coeffs into contiguous block
             tensorT d(cdata.v2k,false);
             int i=0;

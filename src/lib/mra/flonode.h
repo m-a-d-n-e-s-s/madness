@@ -64,7 +64,7 @@ namespace madness {
 
         /// Default constructor makes node without coeff or children
         FloNode() :
-                _coeffs(0), _norm_tree(1e300), _has_children(false) {
+                _coeffs(), _norm_tree(1e300), _has_children(false) {
         }
 
         /// Constructor from given coefficients with optional children
@@ -77,21 +77,19 @@ namespace madness {
         /// node will be in tensor product representation TPR
         explicit
         FloNode(const Tensor<T>& coeff, bool has_children = false) :
-                _coeffs(0), _norm_tree(1e300), _has_children(has_children) {
-        	_coeffs=new FullTensor<T>(coeff);
+                _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
         }
 
         explicit
         FloNode(const Tensor<T>& coeff, double norm_tree, bool has_children) :
-            _coeffs(0), _norm_tree(norm_tree), _has_children(has_children) {
-        	_coeffs=new FullTensor<T>(coeff);
+            _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children) {
         }
 
         FloNode(const FloNode<T, NDIM>& other) {
             *this = other;
         }
 
-        ~FloNode() {_coeffs.clear();};
+        ~FloNode() {};
 
         /// assignment will keep the data structure of the coeffs (TPR, SR)
         /// deep copy!
@@ -99,9 +97,7 @@ namespace madness {
         operator=(const FloNode<T, NDIM>& other) {
             if (this != &other) {
 //                coeff() = copy(other.coeff());
-            	_coeffs.clear();
-            	// use virtual constructor
-            	if (other.has_coeff()) _coeffs=copy(other.tensor());
+            	_coeffs=copy(other.tensor());
                 _norm_tree = other._norm_tree;
                 _has_children = other._has_children;
             }
@@ -276,8 +272,7 @@ namespace madness {
 
         /// temporary template specializtion
         void set_coeff(const Tensor<T>& coeffs) {
-        	_coeffs.clear();
-        	_coeffs = new FullTensor<T>(coeffs);
+        	_coeffs = coeffs;
         	to_low_rank(_coeffs,FunctionDefaults<NDIM>::get_thresh(),
         			FunctionDefaults<NDIM>::get_tensor_type());
             if ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK)) {
@@ -292,7 +287,6 @@ namespace madness {
 
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const GenTensor<T>& coeffs) {
-        	_coeffs.clear();
         	_coeffs=coeffs;
 //        	_coeffs = new FullTensor<T>(coeffs);
 //        	to_low_rank(_coeffs,FunctionDefaults<NDIM>::get_thresh(),
@@ -308,7 +302,8 @@ namespace madness {
 
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {
-        	_coeffs.clear();
+        	const TensorType tt=_coeffs.type();
+        	_coeffs=GenTensor<T>(tt);
         }
 
         /// Scale the coefficients of this node

@@ -91,6 +91,10 @@ namespace madness {
 		SRConf() : dim_(0), rank_(0), maxk_(0), tensortype_(TT_NONE) {
 		};
 
+		/// default ctor
+		SRConf(const TensorType& tt) : dim_(0), rank_(0), maxk_(0), tensortype_(tt) {
+		};
+
 
 		/// ctor with dimensions for a vector configuration (tested)
 		SRConf(const unsigned int& dim, const unsigned int& k, const TensorType& tt)
@@ -104,7 +108,7 @@ namespace madness {
 			MADNESS_ASSERT(dim%nvec==0);
 
 			// construct empty vector
-			weights_=Tensor<T>(0);
+			weights_=Tensor<double>(int(0));
 			vector_=std::vector<Tensor<T> > (nvec);
 			for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,this->kVec());
 
@@ -151,16 +155,13 @@ namespace madness {
 			tensortype_=rhs.tensortype_;
 			maxk_=rhs.maxk_;
 
-			// fast return iff rhs is invalid
-			MADNESS_ASSERT(rhs.dim_eff()>0);
-
 			// assign vectors; shallow copy
 			vector_.resize(rhs.vector_.size());
 			for (unsigned int i=0; i<rhs.vector_.size(); i++) {
 				vector_[i]=(rhs.refVector(i));
 			}
 
-			// shallow copy; note that rank is >=1 here
+			// shallow copy
 			weights_=(rhs.weights_);
 
 			rank_=rhs.rank();
@@ -205,13 +206,9 @@ namespace madness {
 		void inplace_add(const SRConf<T>& rhs2, std::vector<Slice> lhs_s,
 				std::vector<Slice> rhs_s) {
 
-			// fast return if possible
-			if (this->rank()==0) {
-				MADNESS_ASSERT(0);
-				// this is shallow!
-				*this=rhs2;
-				return;
-			} else if (rhs2.rank()==0) {
+			// fast return if possible; no fast return for this.rank()==0
+			// since we might work with slices!
+			if (rhs2.rank()==0) {
 				return;
 			}
 
@@ -241,7 +238,7 @@ namespace madness {
 
 			// assign weights
 			Tensor<double> newWeights(newRank);
-			newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1));
+			if (lhsRank>0) newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1));
 			newWeights(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
 			std::swap(lhs.weights_,newWeights);
 
@@ -253,7 +250,7 @@ namespace madness {
 					Tensor<T> newVector(newRank,lhs_k);
 
 					// lhs unchanged
-					newVector(Slice(0,lhsRank-1),Slice(_))=
+					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_))=
 							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_));
 
 					// insert rhs at the right place
@@ -267,12 +264,12 @@ namespace madness {
 					Tensor<T> newVector(newRank,lhs_k,lhs_k);
 
 					// lhs unchanged
-					newVector(Slice(0,lhsRank-1),Slice(_),Slice(_))=
+					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_),Slice(_))=
 							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_));
 
 					// insert rhs at the right place
 					newVector(Slice(lhsRank,newRank-1),lhs_s[2*idim],lhs_s[2*idim+1])=
-							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[2*idim],lhs_s[2*idim+1]);
+							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[2*idim],rhs_s[2*idim+1]);
 
 					std::swap(lhs.refVector(idim),newVector);
 
@@ -281,12 +278,12 @@ namespace madness {
 					Tensor<T> newVector(newRank,lhs_k,lhs_k,lhs_k);
 
 					// lhs unchanged
-					newVector(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_))=
+					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_))=
 							lhs.refVector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_));
 
 					// insert rhs at the right place
 					newVector(Slice(lhsRank,newRank-1),lhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2])=
-							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2]);
+							rhs.refVector(idim)(Slice(0,rhsRank-1),rhs_s[3*idim],rhs_s[3*idim+1],rhs_s[3*idim+2]);
 
 					std::swap(lhs.refVector(idim),newVector);
 				} else {
@@ -304,6 +301,9 @@ namespace madness {
 
 		/// deep copy of rhs
 		friend SRConf<T> copy(const SRConf<T>& rhs) {
+
+			// if rhs is non-existent simply construct a new SRConf
+			if (rhs.rank()==0) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
 
 			// pass a copy of the weights and vectors of rhs to ctor
 			std::vector<Tensor<T> > vector(rhs.dim_eff());
@@ -418,13 +418,13 @@ namespace madness {
 		/// remove all configurations whose weight is smaller than the threshold
 //		void truncate(const double& thresh);
 
-		/// return if this is a vector or an operator (tested)
+		/// return if this has only one additional dimension (apart from rank)
 		bool is_flat() const {
-			return (not is_unflat());
+			return (vector_[0].ndim()==2);
 		}
 
-		/// return
-		bool is_unflat() const {
+		/// return if this has a tensor structure (has not been flattened)
+		bool has_structure() const {
 			return (vector_[0].dim(1)==this->get_k());
 		}
 
@@ -498,7 +498,6 @@ namespace madness {
 
 		/// return the number of coefficients
 		unsigned int nCoeff() const {
-			MADNESS_ASSERT(0);
 			return this->dim()*maxk_*rank_;
 		};
 
