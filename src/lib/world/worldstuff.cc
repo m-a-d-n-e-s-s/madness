@@ -261,7 +261,7 @@ namespace madness {
 
     void exception_break(bool message) {
         if(message)
-            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to bebug.\n";
+            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
     }
 
     double wall_time() {
