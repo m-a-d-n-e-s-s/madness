@@ -656,7 +656,10 @@ namespace madness {
             impl.process_pending();
             this->process_pending();
             this->cost_fun=cost_f;
-        };
+        }
+
+        virtual ~LBTree() { }
+
         /// Initialize the LBTree by converting a FunctionImpl to a LBTree
         template <typename T, typename costfunT>
         inline void init_tree(const std::shared_ptr< FunctionImpl<T,D> >& f, const costfunT& costfun) {

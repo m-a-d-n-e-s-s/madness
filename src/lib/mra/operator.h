@@ -403,7 +403,7 @@ namespace madness {
             const double pi = constants::pi;
 
             for (int mu=0; mu<rank; ++mu) {
-                Q c = std::pow(sqrt(expnt(mu)/pi),NDIM); // Normalization coeff
+                Q c = std::pow(sqrt(expnt(mu)/pi),static_cast<int>(NDIM)); // Normalization coeff
 
                 // We cache the normalized operator so the factor is the value we must multiply
                 // by to recover the coeff we want.
@@ -449,6 +449,8 @@ namespace madness {
                 }
             }
         }
+
+        virtual ~SeparatedConvolution() { }
 
         const BoundaryConditions<NDIM>& get_bc() const {return bc;}
 

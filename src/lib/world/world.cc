@@ -306,49 +306,51 @@ public:
             : WorldObject<Foo>(world)
             , a(a) {
         process_pending();
-    };
+    }
+
+    virtual ~Foo() { }
 
     int get0() {
         return a;
-    };
+    }
     int get1(int a1) {
         return a+a1;
-    };
+    }
     int get2(int a1, char a2) {
         return a+a1+a2;
-    };
+    }
     int get3(int a1, char a2, short a3) {
         return a+a1+a2+a3;
-    };
+    }
     int get4(int a1, char a2, short a3, long a4) {
         return a+a1+a2+a3+a4;
-    };
+    }
     int get5(int a1, char a2, short a3, long a4, short a5) {
         return a+a1+a2+a3+a4+a5;
-    };
+    }
 
     int get0c() const {
         return a;
-    };
+    }
     int get1c(int a1) const {
         return a+a1;
-    };
+    }
     int get2c(int a1, char a2) const {
         return a+a1+a2;
-    };
+    }
     int get3c(int a1, char a2, short a3) const {
         return a+a1+a2+a3;
-    };
+    }
     int get4c(int a1, char a2, short a3, long a4) const {
         return a+a1+a2+a3+a4;
-    };
+    }
     int get5c(int a1, char a2, short a3, long a4, short a5) const {
         return a+a1+a2+a3+a4+a5;
-    };
+    }
 
     Future<int> get0f() {
         return Future<int>(a);
-    };
+    }
 };
 
 void test6(World& world) {
@@ -413,6 +415,8 @@ public:
             : WorldObject<TestFutureForwarding>(world) {
         this->process_pending();
     }
+
+    virtual ~TestFutureForwarding() { }
 
     Future<int> test(int state) {
         if (state < 99) {

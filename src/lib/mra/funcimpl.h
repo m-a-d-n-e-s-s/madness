@@ -708,6 +708,8 @@ namespace madness {
             this->process_pending();
         }
 
+        virtual ~FunctionImpl() { }
+
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             return coeffs.get_pmap();
         }
@@ -1687,7 +1689,7 @@ namespace madness {
 
         /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
 
-        /// maxlevel is the maximum depth to search down to --- the max local depth can be 
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be
         /// computed with max_local_depth();
         std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xin, Level maxlevel) ;
 

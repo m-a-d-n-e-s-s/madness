@@ -45,12 +45,14 @@ public:
             : WorldObject<Array>(world), v((size-1)/world.size()+1) {
         // do something ordered during construction
         process_pending();
-    };
+    }
+
+    virtual ~Array() { }
 
     /// Return the process in which element i resides
     ProcessID owner(size_t i) const {
         return i/v.size();
-    };
+    }
 
     /// Read element i
     Future<double> read(size_t i) const {
@@ -58,7 +60,7 @@ public:
             return Future<double>(v[i-world.rank()*v.size()]);
         else
             return send(owner(i), &Array::read, i);
-    };
+    }
 
     /// Write element i
     Void write(size_t i, double value) {
@@ -67,7 +69,7 @@ public:
         else
             send(owner(i), &Array::write, i, value);
         return None;
-    };
+    }
 };
 
 int main(int argc, char** argv) {

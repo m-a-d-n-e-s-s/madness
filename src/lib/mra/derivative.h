@@ -87,6 +87,8 @@ namespace madness {
             // this->process_pending();
         }
 
+        virtual ~DerivativeBase() { }
+
         Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
                               const std::pair<keyT,tensorT>& left,
                               const std::pair<keyT,tensorT>& center,
@@ -522,6 +524,8 @@ namespace madness {
 
             this->process_pending();
         }
+
+        virtual ~Derivative() { }
     };
 
 

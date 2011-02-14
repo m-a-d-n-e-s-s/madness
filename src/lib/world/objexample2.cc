@@ -41,11 +41,13 @@ class Foo : public WorldObject<Foo> {
 public:
     Foo(World& world, int bar) : WorldObject<Foo>(world), bar(bar) {
         process_pending();
-    };
+    }
+
+    virtual ~Foo() { }
 
     int get() const {
         return bar;
-    };
+    }
 };
 
 

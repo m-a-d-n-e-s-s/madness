@@ -154,6 +154,8 @@ namespace madness {
     ///    a) invokes WorldObject<Derived>(world) constructor
     ///    b) invokes process_pending()
     /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
+    /// 4) Derived class must have at least one virtual function for serialization
+    ///    of derived class pointers to be cast to the appropriate type.
     ///
     /// This class is deliberately not default constructible and does
     /// not support assignment or copying.  This ensures that each instance
