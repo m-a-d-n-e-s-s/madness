@@ -76,6 +76,11 @@
 
 #  define dlamch_ dlamch
 #  define slamch_ slamch
+#else
+  // only lowercase with zero and one underscores are handled -- if detected another convention complain loudly
+#  ifndef FORTRAN_LINKAGE_LCU
+#    error "clapack.h does not support the current Fortran symbol convention -- please, edit and check in the changes."
+#  endif
 #endif
 
 extern "C"

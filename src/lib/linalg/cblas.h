@@ -38,6 +38,19 @@
 
 #include <fortran_ctypes.h>
 
+#ifdef FORTRAN_LINKAGE_LC
+#  define sgemm_ sgemm
+#  define dgemm_ dgemm
+#  define cgemm_ cgemm
+#  define zgemm_ zgemm
+#else
+  // only lowercase with zero and one underscores are handled -- if detected another convention complain loudly
+#  ifndef FORTRAN_LINKAGE_LCU
+#    error "cblas.h does not support the current Fortran symbol convention -- please, edit and check in the changes."
+#  endif
+#endif
+
+
 namespace madness {
 
     /// BLAS gemm exists only for float, double, float_complex, double_complex.
