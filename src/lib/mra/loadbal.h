@@ -758,9 +758,19 @@ namespace madness {
 
         void meld(LBTree<D>::iterator it);
 
+    private:
+        // This function was created because there is a bug in the Intel 12.0.0
+        // compiler that prevents it from correctly generating the type for
+        // member function pointers in template classes
+        Void make_partition_internal(const Key<D>& key, Cost partition_size,
+                            Cost used_up, PartitionInfo<D> pi, bool downward);
+    public:
 
         Void make_partition(const Key<D>& key, Cost partition_size,
-                            Cost used_up, PartitionInfo<D> pi, bool downward = false);
+                            Cost used_up, PartitionInfo<D> pi, bool downward = false) {
+            return make_partition_internal(key, partition_size, used_up, pi, downward);
+        }
+
         Void totally_reset(PartitionInfo<D> pi);
         Void add_to_partition(TreeCoords<D> p);
 

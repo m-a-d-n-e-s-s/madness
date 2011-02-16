@@ -322,7 +322,7 @@ namespace madness {
     /// Arguments: PartitionInfo<D> lbi -- a convenient class that stores load balancing partition information
     /// Return: none
     /// Side effect: lbi is altered
-    /// Communication: manager sends message to launch make_partition; broadcast of boolean to determine
+    /// Communication: manager sends message to launch make_partition_internal; broadcast of boolean to determine
     ///                whether to continue; fences
     template <int D>
     void LBTree<D>::find_partitions(PartitionInfo<D>& lbi) {
@@ -357,9 +357,9 @@ namespace madness {
                 Cost tpart = compute_partition_size(lbi.skel_cost, npieces);
                 used_up = 0;
                 //this->print(root);
-                //madness::print("find_partitions: about to send make_partition");
-                this->send(impl.owner(root), &LBTree<D>::make_partition, root, tpart, used_up, lbi, true);
-                //madness::print("find_partitions: back from send make_partition");
+                //madness::print("find_partitions: about to send make_partition_internal");
+                this->send(impl.owner(root), &LBTree<D>::make_partition_internal, root, tpart, used_up, lbi, true);
+                //madness::print("find_partitions: back from send make_partition_internal");
                 //madness::print("");
                 this->world.gop.fence();
                 //madness::print("find_partitions: P0 outside of the fence now");
@@ -754,7 +754,7 @@ namespace madness {
     }
 
 
-    /// make_partition creates a partition.  It's called by find_partitions to actually do all the dirty
+    /// make_partition_internal creates a partition.  It's called by find_partitions to actually do all the dirty
     /// work for each partition.
     /// Arguments: const Key<D> key -- node at which we begin
     ///            Cost partition_size -- the target size for the partition
@@ -763,25 +763,25 @@ namespace madness {
     ///            bool downward -- whether we are traversing down the tree at this time
     /// Return: none
     /// Side effect: lbi altered, some nodes in tree altered
-    /// Communication: spawns either another make_partition for the next node in depth-first partition,
+    /// Communication: spawns either another make_partition_internal for the next node in depth-first partition,
     ///                or sends totally_reset to manager, marking the end of this round of partitioning;
     ///                may also send add_to_partition to manager if node is to be added to list
 
 
     template <int D>
-    Void LBTree<D>::make_partition(const Key<D>& key, Cost partition_size, Cost used_up, PartitionInfo<D> lbi, bool downward) {
+    Void LBTree<D>::make_partition_internal(const Key<D>& key, Cost partition_size, Cost used_up, PartitionInfo<D> lbi, bool downward) {
 
         // The fudge factor is the fraction by which you are willing to let the
         // partitions exceed the ideal partition size
         double fudge_factor = 0.1;
         Cost maxAddl = (Cost)(fudge_factor*partition_size);
 
-//    madness::print("starting make_partition");
+//    madness::print("starting make_partition_internal");
 
         typename LBTree<D>::iterator it = impl.find(key);
         if (it == impl.end()) {
             const Key<D> parent = key.parent();
-            this->send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
+            this->send(impl.owner(parent), &LBTree::make_partition_internal, parent, partition_size, used_up, lbi, false);
             //madness::print("RETURN 1");
             return None;
         }
@@ -796,14 +796,14 @@ namespace madness {
         if ((downward) && (((used_up == 0) && (!node.has_children())) ||
                            ((used_up < partition_size) && (d.subcost+used_up <= partition_size+maxAddl)))) {
             used_up += d.subcost;
-            //madness::print("make_partition: adding", key, "to partition");
+            //madness::print("make_partition_internal: adding", key, "to partition");
             this->send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
             if (key == root) {
-                //madness::print("make_partition: about to totally_reset");
+                //madness::print("make_partition_internal: about to totally_reset");
                 this->send(impl.owner(root), &LBTree::totally_reset, lbi);
             }
             else {
-                this->send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
+                this->send(impl.owner(parent), &LBTree::make_partition_internal, parent, partition_size, used_up, lbi, false);
             }
             //madness::print("RETURN 2");
             return None;
@@ -822,7 +822,7 @@ namespace madness {
             if (node.rpit) {
                 const Key<D>& child = node.rpit.key();
                 impl.replace(key,node);
-                this->send(impl.owner(child), &LBTree::make_partition, child, partition_size, used_up, lbi, true);
+                this->send(impl.owner(child), &LBTree::make_partition_internal, child, partition_size, used_up, lbi, true);
                 //madness::print("RETURN 3");
                 return None;
             }
@@ -832,12 +832,12 @@ namespace madness {
         if (((used_up == 0) && (!node.has_children())) ||
                 ((used_up < partition_size) && (d.cost+used_up <= partition_size+maxAddl))) {
             used_up += d.cost;
-            //madness::print("make_partition: adding", key, "to partition");
+            //madness::print("make_partition_internal: adding", key, "to partition");
             this->send(impl.owner(root), &LBTree::add_to_partition, TreeCoords<D>(key, lbi.partition_number));
             if (key == root) {
-                //madness::print("make_partition: key == root");
+                //madness::print("make_partition_internal: key == root");
             } else {
-	      this->send(impl.owner(parent), &LBTree::make_partition, parent, partition_size, used_up, lbi, false);
+	      this->send(impl.owner(parent), &LBTree::make_partition_internal, parent, partition_size, used_up, lbi, false);
             }
             //madness::print("RETURN 4");
             return None;
@@ -845,16 +845,16 @@ namespace madness {
         else {
             bool continue_as_normal = reset_partition(partition_size, used_up, lbi);
             if (continue_as_normal) {
-	      this->send(impl.owner(key), &LBTree::make_partition, key, partition_size, used_up, lbi, downward);
+	      this->send(impl.owner(key), &LBTree::make_partition_internal, key, partition_size, used_up, lbi, downward);
             }
             else {
-                //madness::print("make_partition: about to totally_reset (else of else)");
+                //madness::print("make_partition_internal: about to totally_reset (else of else)");
                 this->send(impl.owner(root), &LBTree<D>::totally_reset, lbi);
             }
             //madness::print("RETURN 5");
             return None;
         }
-        //madness::print("make_partition: we should not be here");
+        //madness::print("make_partition_internal: we should not be here");
         //return None;
     }
 
