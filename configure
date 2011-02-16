@@ -5201,7 +5201,7 @@ fi
         acx_enable_warn_flags=""
       ;;
       Intel)
-        acx_enable_warn_flags="-Wall -diag-disable remark"
+        acx_enable_warn_flags="-Wall -diag-disable remark,654"
       ;;
       *)
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Warning flags not set for $acx_enable_optimal_compile compiler" >&5

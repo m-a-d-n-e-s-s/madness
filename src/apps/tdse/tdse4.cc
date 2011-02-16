@@ -612,7 +612,7 @@ void loadbal(World& world,
 
 template <typename T>
 void initial_loadbal(World& world,
-                     functionT& pote, functionT& potn, functionT& pot, 
+                     functionT& pote, functionT& potn, functionT& pot,
                      Function<T,4>& psi) {
     if (world.size() < 2) return;
     if (world.rank() == 0) print("starting initial LB");
@@ -642,7 +642,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     world.gop.broadcast(time_step);
     world.gop.broadcast(nstep);
 
-    // Free particle propagator 
+    // Free particle propagator
     complex_operatorT* Ge = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step, 2.0*param.L);
     complex_operatorT* Gn = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step,  s0+param.L);
 
@@ -704,7 +704,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         t += time_step;
         vt = pot+laser(t)*x;
 
-        if ((step%param.nprint)==0 || step==nstep) 
+        if ((step%param.nprint)==0 || step==nstep)
         print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
 
         if ((step%param.ndump) == 0 || step==nstep) {
@@ -830,10 +830,10 @@ int main(int argc, char** argv) {
     } catch (const madness::TensorException& e) {
         print(e); std::cout.flush();
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    } catch (char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
-    } catch (char* s) {
+    } catch (const char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
     } catch (const std::string& s) {

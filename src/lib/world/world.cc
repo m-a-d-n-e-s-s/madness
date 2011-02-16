@@ -99,6 +99,9 @@ typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
 public:
+
+    using PoolTaskInterface::run;
+
     void run(World& world) {
         print("Hi, I am running!");
     }
@@ -238,6 +241,9 @@ void test5(World& world) {
 class TestBarrier : public TaskInterface {
     volatile int count;
 public:
+
+    using PoolTaskInterface::run;
+
     TestBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
         , count(0)
@@ -268,6 +274,9 @@ public:
 class TimeBarrier : public TaskInterface {
     volatile int count;
 public:
+
+    using PoolTaskInterface::run;
+
     TimeBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
         , count(0)

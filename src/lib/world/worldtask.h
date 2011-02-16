@@ -97,7 +97,7 @@ namespace madness {
         void register_submit_callback();
 
     protected:
-        void run(const TaskThreadEnv& env);
+        virtual void run(const TaskThreadEnv& env);
 
     public:
         static bool debug;
@@ -734,6 +734,8 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
+        using PoolTaskInterface::run;
+
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg & info;
@@ -766,6 +768,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -807,6 +811,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -850,6 +856,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -898,6 +906,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -951,6 +961,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -1008,6 +1020,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -1072,6 +1086,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -1141,6 +1157,8 @@ namespace madness {
 		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
+
+        using PoolTaskInterface::run;
 
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
@@ -1215,6 +1233,8 @@ namespace madness {
         typedef Future<REMFUTURE(resultT)> futureT;
         typedef RemoteReference< FutureImpl<REMFUTURE(resultT)> > refT;
 
+        using PoolTaskInterface::run;
+
         static void handler(const AmArg& arg) {
             TaskHandlerInfo<refT,functionT> info;
             arg1T arg1;
@@ -1281,6 +1301,8 @@ namespace madness {
         typedef resultT(objT::*memfunT)();
         typedef Future<REMFUTURE(resultT)> futureT;
 
+        using PoolTaskInterface::run;
+
         futureT result;
         objT& obj;
         const memfunT memfun;
@@ -1299,6 +1321,8 @@ namespace madness {
         typedef resultT(objT::*memfunT)(arg1_type);
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1323,6 +1347,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1350,6 +1376,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1381,6 +1409,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1415,6 +1445,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1453,6 +1485,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1494,6 +1528,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1538,6 +1574,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
 		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1586,6 +1624,8 @@ namespace madness {
 		typedef REMFUTURE(REMCONST(REMREF(arg9_type))) arg9T;
         typedef Future<REMFUTURE(resultT)> futureT;
 
+        using PoolTaskInterface::run;
+
         futureT result;
         objT& obj;
         const memfunT memfun;
@@ -1630,6 +1670,8 @@ namespace madness {
         typedef resultT(objT::*memfunT)()const;
         typedef Future<REMFUTURE(resultT)> futureT;
 
+        using PoolTaskInterface::run;
+
         futureT result;
         objT& obj;
         const memfunT memfun;
@@ -1648,6 +1690,8 @@ namespace madness {
         typedef resultT(objT::*memfunT)(arg1_type)const;
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1673,6 +1717,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg1_type))) arg1T;
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1701,6 +1747,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg2_type))) arg2T;
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1732,6 +1780,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg3_type))) arg3T;
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1766,6 +1816,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg4_type))) arg4T;
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1803,6 +1855,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg5_type))) arg5T;
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1843,6 +1897,8 @@ namespace madness {
         typedef REMFUTURE(REMCONST(REMREF(arg6_type))) arg6T;
 		typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;
@@ -1886,6 +1942,8 @@ namespace madness {
 		typedef REMFUTURE(REMCONST(REMREF(arg7_type))) arg7T;
 		typedef REMFUTURE(REMCONST(REMREF(arg8_type))) arg8T;
         typedef Future<REMFUTURE(resultT)> futureT;
+
+        using PoolTaskInterface::run;
 
         futureT result;
         objT& obj;

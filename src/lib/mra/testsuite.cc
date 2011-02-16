@@ -1074,7 +1074,7 @@ void test_plot(World& world) {
             T fplot = r(std::vector<long>(NDIM,i));
             T fnum  = f.eval(coordT(x)).get();
             std::pair<bool,T> fnum2 = f.eval_local_only(coordT(x),maxlevel);
-            
+
             if (world.size() == 1 && !fnum2.first) print("eval_local_only: non-local but nproc=1!");
 
             if (fnum2.first) CHECK(fnum-fnum2.second,1e-12,"eval_local_only");
@@ -1308,11 +1308,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }
