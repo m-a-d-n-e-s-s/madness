@@ -2558,11 +2558,11 @@ int main(int argc, char** argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a string exception");
     }
