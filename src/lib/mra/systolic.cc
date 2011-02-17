@@ -274,6 +274,8 @@ namespace madness {
         std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
         std::vector<int64_t> map;       //< Used to keep track of actual row indices
 
+        using PoolTaskInterface::run;
+
         void iteration(const TaskThreadEnv& env) {
             start_iteration_hook(env);
             env.barrier();
@@ -650,11 +652,11 @@ int main(int argc, char** argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }
