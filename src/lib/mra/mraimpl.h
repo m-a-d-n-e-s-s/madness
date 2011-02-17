@@ -38,10 +38,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <world/worldhashmap.h>
-
-
-extern "C" double round(double x);
-
+#include <math.h>
 
 /// \file mra/mraimpl.h
 /// \brief Declaration and initialization of static data, some implementation, some instantiation
