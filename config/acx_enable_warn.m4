@@ -33,7 +33,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
         acx_enable_warn_flags=""
       ;;
       Intel)
-        acx_enable_warn_flags="-Wall -diag-disable remark,654"
+        acx_enable_warn_flags="-Wall -diag-disable remark,279,654"
       ;;
       *)
         AC_MSG_WARN([Warning flags not set for $acx_enable_optimal_compile compiler])
