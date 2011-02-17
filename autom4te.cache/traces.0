@@ -764,7 +764,7 @@ m4trace:config/acx_crayxt.m4:1: -1- AC_DEFUN([ACX_CRAYXT], [
 ])
 m4trace:config/acx_detect_cxx.m4:1: -1- AC_DEFUN([ACX_DETECT_CXX], [
     # Sets environment variable CXXVENDOR to one of
-    # [GNU,Intel,Portland,Pathscale,unknown]
+    # [GNU,Intel,Portland,Pathscale,IBM,unknown]
     AC_CACHE_CHECK([compiler vendor], [acx_cv_detect_cxx], [
       acx_cv_detect_cxx=unknown
       if test $acx_cv_detect_cxx = unknown; then
@@ -789,6 +789,12 @@ m4trace:config/acx_detect_cxx.m4:1: -1- AC_DEFUN([ACX_DETECT_CXX], [
           $CXX -v 2>&1 | grep -q "Pathscale"
           if test $? = 0; then
              acx_cv_detect_cxx=Pathscale
+          fi
+      fi
+      if test $acx_cv_detect_cxx = unknown; then
+          $CXX -qversion 2>&1 | grep -q "IBM"
+          if test $? = 0; then
+             acx_cv_detect_cxx=IBM
           fi
       fi
     ])
@@ -831,7 +837,7 @@ m4trace:config/acx_enable_optimal.m4:1: -1- AC_DEFUN([ACX_ENABLE_OPTIMAL], [
   acx_enable_optimal_flags=""
   acx_enable_optimal_compiler="$CXXVENDOR"
   AC_ARG_ENABLE([optimal],
-    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel@:>@],
+    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@],
       [Auto detect optimal CXXFLAGS for compiler, or specify compiler vendor.@<:@default=yes@:>@])],
     [
       case $enableval in
@@ -879,7 +885,7 @@ m4trace:config/acx_enable_optimal.m4:1: -1- AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
 
       Pathscale)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -Ofast"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
         if test "x$HAVE_CRAYXT" = xyes; then
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=barcelona],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=barcelona"])
@@ -900,8 +906,13 @@ m4trace:config/acx_enable_optimal.m4:1: -1- AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl -ansi"
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
       ;;
-     *)
-       AC_MSG_WARN([Optimal flags not set for $acx_enable_optimal_compile compiler])
+      
+      IBM)
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
+      ;;
+      
+      *)
+        AC_MSG_WARN([Optimal flags not set for $acx_enable_optimal_compile compiler])
       ;;
     esac
 
@@ -924,6 +935,9 @@ m4trace:config/acx_enable_optimization.m4:1: -1- AC_DEFUN([ACX_ENABLE_OPTIMIZATI
       default_optimization="3"
     ;;
     Intel)
+      default_optimization="3"
+    ;;
+    IBM)
       default_optimization="3"
     ;;
     *)

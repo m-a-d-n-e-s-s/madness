@@ -1,6 +1,6 @@
 AC_DEFUN([ACX_DETECT_CXX], [
     # Sets environment variable CXXVENDOR to one of
-    # [GNU,Intel,Portland,Pathscale,unknown]
+    # [GNU,Intel,Portland,Pathscale,IBM,unknown]
     AC_CACHE_CHECK([compiler vendor], [acx_cv_detect_cxx], [
       acx_cv_detect_cxx=unknown
       if test $acx_cv_detect_cxx = unknown; then
@@ -25,6 +25,12 @@ AC_DEFUN([ACX_DETECT_CXX], [
           $CXX -v 2>&1 | grep -q "Pathscale"
           if test $? = 0; then
              acx_cv_detect_cxx=Pathscale
+          fi
+      fi
+      if test $acx_cv_detect_cxx = unknown; then
+          $CXX -qversion 2>&1 | grep -q "IBM"
+          if test $? = 0; then
+             acx_cv_detect_cxx=IBM
           fi
       fi
     ])

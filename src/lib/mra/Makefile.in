@@ -104,7 +104,7 @@ libMADmra_a_LIBADD =
 am_libMADmra_a_OBJECTS = mra1.$(OBJEXT) mra2.$(OBJEXT) mra3.$(OBJEXT) \
 	mra4.$(OBJEXT) mra5.$(OBJEXT) mra6.$(OBJEXT) loadbal.$(OBJEXT) \
 	startup.$(OBJEXT) legendre.$(OBJEXT) twoscale.$(OBJEXT) \
-	test_sepop.$(OBJEXT) gfit.$(OBJEXT) qmprop.$(OBJEXT)
+	gfit.$(OBJEXT) qmprop.$(OBJEXT)
 libMADmra_a_OBJECTS = $(am_libMADmra_a_OBJECTS)
 PROGRAMS = $(bin_PROGRAMS)
 am_mraplot_OBJECTS = mraplot.$(OBJEXT)
@@ -172,7 +172,7 @@ testproj_OBJECTS = $(am_testproj_OBJECTS)
 testproj_LDADD = $(LDADD)
 testproj_DEPENDENCIES = libMADmra.a $(LIBLINALG) $(LIBLINALG) \
 	$(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
-am_testsuite_OBJECTS = testsuite.$(OBJEXT)
+am_testsuite_OBJECTS = testsuite.$(OBJEXT) test_sepop.$(OBJEXT)
 testsuite_OBJECTS = $(am_testsuite_OBJECTS)
 testsuite_LDADD = $(LDADD)
 testsuite_DEPENDENCIES = libMADmra.a $(LIBLINALG) $(LIBLINALG) \
@@ -369,13 +369,13 @@ thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  op
 
 LDADD = libMADmra.a $(LIBLINALG) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
 libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
-                      loadbal.cc startup.cc legendre.cc twoscale.cc test_sepop.cc gfit.cc qmprop.cc \
+                      loadbal.cc startup.cc legendre.cc twoscale.cc gfit.cc qmprop.cc \
                       \
                       adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
                       funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h \
                       funcplot.h
 
-testsuite_SOURCES = testsuite.cc
+testsuite_SOURCES = testsuite.cc test_sepop.cc
 testperiodic_SOURCES = testperiodic.cc
 testbsh_SOURCES = testbsh.cc
 testbc_SOURCES = testbc.cc

@@ -1413,7 +1413,7 @@ Optional Features:
   --enable-warning@<:@=yes|no|GNU|Pathscale|Portland|Intel@:>@ 
                           Automatically set warnings for
                           compiler.@<:@default=yes@:>@
-  --enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel@:>@ 
+  --enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@ 
                           Auto detect optimal CXXFLAGS for compiler, or
                           specify compiler vendor.@<:@default=yes@:>@
   --enable-madex=arg      Specifies behavior of MADNESS assertions: throw
@@ -4830,7 +4830,7 @@ CXXFLAGS="$initial_CXXFLAGS"
 
 
     # Sets environment variable CXXVENDOR to one of
-    # [GNU,Intel,Portland,Pathscale,unknown]
+    # [GNU,Intel,Portland,Pathscale,IBM,unknown]
     { $as_echo "$as_me:${as_lineno-$LINENO}: checking compiler vendor" >&5
 $as_echo_n "checking compiler vendor... " >&6; }
 if ${acx_cv_detect_cxx+:} false; then :
@@ -4860,6 +4860,12 @@ else
           $CXX -v 2>&1 | grep -q "Pathscale"
           if test $? = 0; then
              acx_cv_detect_cxx=Pathscale
+          fi
+      fi
+      if test $acx_cv_detect_cxx = unknown; then
+          $CXX -qversion 2>&1 | grep -q "IBM"
+          if test $? = 0; then
+             acx_cv_detect_cxx=IBM
           fi
       fi
     
@@ -5021,6 +5027,9 @@ fi
       default_optimization="3"
     ;;
     Intel)
+      default_optimization="3"
+    ;;
+    IBM)
       default_optimization="3"
     ;;
     *)
@@ -5481,7 +5490,7 @@ fi
       ;;
 
       Pathscale)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -Ofast"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
         if test "x$HAVE_CRAYXT" = xyes; then
           
   
@@ -5601,8 +5610,13 @@ fi
         acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl -ansi"
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
       ;;
-     *)
-       { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Optimal flags not set for $acx_enable_optimal_compile compiler" >&5
+      
+      IBM)
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
+      ;;
+      
+      *)
+        { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Optimal flags not set for $acx_enable_optimal_compile compiler" >&5
 $as_echo "$as_me: WARNING: Optimal flags not set for $acx_enable_optimal_compile compiler" >&2;}
       ;;
     esac

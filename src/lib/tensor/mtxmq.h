@@ -71,14 +71,14 @@ namespace madness {
 
 #ifdef HAVE_IBMBGP
     template <>
-    static inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
+    inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
 	double one=1.0;
 	double zero=0.0;
 	dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
     template <>
-    static inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
+    inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
 	double_complex one=1.0;
 	double_complex zero=0.0;
 	zgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);

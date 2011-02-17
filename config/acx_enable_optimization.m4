@@ -13,6 +13,9 @@ AC_DEFUN([ACX_ENABLE_OPTIMIZATION], [
     Intel)
       default_optimization="3"
     ;;
+    IBM)
+      default_optimization="3"
+    ;;
     *)
       default_optimization="2"
     ;;

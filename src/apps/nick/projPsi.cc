@@ -516,12 +516,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        projectL(world, L, wf, n, lMAX);
+        //projectL(world, L, wf, n, lMAX);
         //zSlice(world, n1, L, th, phi);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);

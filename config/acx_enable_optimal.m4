@@ -4,7 +4,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
   acx_enable_optimal_flags=""
   acx_enable_optimal_compiler="$CXXVENDOR"
   AC_ARG_ENABLE([optimal],
-    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel@:>@],
+    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@],
       [Auto detect optimal CXXFLAGS for compiler, or specify compiler vendor.@<:@default=yes@:>@])],
     [
       case $enableval in
@@ -52,7 +52,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
 
       Pathscale)
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -Ofast"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
         if test "x$HAVE_CRAYXT" = xyes; then
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=barcelona],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=barcelona"])
@@ -73,8 +73,13 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl -ansi"
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
       ;;
-     *)
-       AC_MSG_WARN([Optimal flags not set for $acx_enable_optimal_compile compiler])
+      
+      IBM)
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
+      ;;
+      
+      *)
+        AC_MSG_WARN([Optimal flags not set for $acx_enable_optimal_compile compiler])
       ;;
     esac
 
