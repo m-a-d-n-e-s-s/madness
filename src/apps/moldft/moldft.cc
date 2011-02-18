@@ -2511,9 +2511,10 @@ public:
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    World world(MPI::COMM_WORLD);
+    { // limit lifetime of world so that finalize() can execute cleanly
+      World world(MPI::COMM_WORLD);
 
-    try {
+      try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
@@ -2525,65 +2526,65 @@ int main(int argc, char** argv) {
 
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
-            print("\n\n");
-            print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-            print(" ----------------------------------------------------------\n");
-            print("\n");
-            calc.molecule.print();
-            print("\n");
-            calc.param.print(world);
+          print("\n\n");
+          print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+          print(" ----------------------------------------------------------\n");
+          print("\n");
+          calc.molecule.print();
+          print("\n");
+          calc.param.print(world);
         }
 
         // Come up with an initial OK data map
         if (world.size() > 1) {
-            calc.set_protocol(world,1e-4);
-            calc.make_nuclear_potential(world);
-            calc.initial_load_bal(world);
+          calc.set_protocol(world,1e-4);
+          calc.make_nuclear_potential(world);
+          calc.initial_load_bal(world);
         }
 
         MolecularEnergy E(world, calc);
         E.value(calc.molecule.get_all_coords().flat()); // ugh!
         calc.do_plots(world);
 
-    }
-    catch (const MPI::Exception& e) {
+      }
+      catch (const MPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
-    }
-    catch (const madness::MadnessException& e) {
+      }
+      catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
-    }
-    catch (const madness::TensorException& e) {
+      }
+      catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    }
-    catch (char* s) {
+      }
+      catch (char* s) {
         print(s);
         error("caught a string exception");
-    }
-    catch (const char* s) {
+      }
+      catch (const char* s) {
         print(s);
         error("caught a string exception");
-    }
-    catch (const std::string& s) {
+      }
+      catch (const std::string& s) {
         print(s);
         error("caught a string (class) exception");
-    }
-    catch (const std::exception& e) {
+      }
+      catch (const std::exception& e) {
         print(e.what());
         error("caught an STL exception");
-    }
-    catch (...) {
+      }
+      catch (...) {
         error("caught unhandled exception");
-    }
+      }
 
-    // Nearly all memory will be freed at this point
-    world.gop.fence();
-    world.gop.fence();
-    ThreadPool::end();
-    print_stats(world);
-
+      // Nearly all memory will be freed at this point
+      world.gop.fence();
+      world.gop.fence();
+      ThreadPool::end();
+      print_stats(world);
+    } // world is dead -- ready to finalize
     finalize();
 
     return 0;
