@@ -50,13 +50,13 @@ struct AtomicData {
     // (1997), 207.
     //
     // http://dirac.chem.sdu.dk/doc/FiniteNuclei/FiniteNuclei.shtml
-    char* const symbol;
-    char* const symbol_lowercase;
-    unsigned int atomic_number;
-    int isotope_number;
-    double nuclear_radius;     ///< Radius of the nucleus for the finite nucleus models (in atomic units).
-    double nuclear_half_charge_radius; ///< Half charge radius in the Fermi Model (in atomic units).
-    double nuclear_gaussian_exponent; ///< Exponential parameter in the Gaussian Model (in atomic units).
+    const char* const symbol;
+    const char* const symbol_lowercase;
+    const unsigned int atomic_number;
+    const int isotope_number;
+    const double nuclear_radius;     ///< Radius of the nucleus for the finite nucleus models (in atomic units).
+    const double nuclear_half_charge_radius; ///< Half charge radius in the Fermi Model (in atomic units).
+    const double nuclear_gaussian_exponent; ///< Exponential parameter in the Gaussian Model (in atomic units).
 
     /// Covalent radii stolen without shame from NWChem
     double covalent_radius;
