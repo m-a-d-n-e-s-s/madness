@@ -59,7 +59,7 @@ struct AtomicData {
     const double nuclear_gaussian_exponent; ///< Exponential parameter in the Gaussian Model (in atomic units).
 
     /// Covalent radii stolen without shame from NWChem
-    double covalent_radius;
+    const double covalent_radius;
 };
 
 const AtomicData& get_atomic_data(unsigned int atn);
