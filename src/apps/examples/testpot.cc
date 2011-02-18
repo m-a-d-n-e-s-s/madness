@@ -143,15 +143,18 @@ int main(int argc, char **argv) {
         // http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
         NonlinearSolver solver;
         for (int iter=0; iter<20; iter++) {
-            real_function_3d r = 
-                (u - op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u)))).truncate();
+            real_function_3d surface_charge = 
+                rfourpi*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u));
+            real_function_3d r = (u - op(charge + surface_charge)).truncate();
 
             real_function_3d unew = solver.update(u, r);
 
             double change = (unew-u).norm2();
             double err = (u-exact).norm2();
             print("iter", iter, "change", change, "err", err, 
-                  "exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)));
+                  "exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)),
+                  "surface charge", surface_charge.trace());
+
             if (change > 0.3*unorm) 
                 u = 0.5*unew + 0.5*u;
             else 
@@ -164,11 +167,13 @@ int main(int argc, char **argv) {
         // This section employs a simple iteration with damping (step restriction)
         for (int iter=0; iter<20; iter++) {
             real_function_3d u_prev = u;
-            u = op(charge + (rfourpi)*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate();
+            real_function_3d surface_charge = 
+                rfourpi*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u));
+            u = op(charge + surface_charge).truncate();
             
             double change = (u-u_prev).norm2();
             double err = (u-exact).norm2();
-            print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)));
+            print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)), surface_charge.trace());
             if (change > 0.3*unorm) u = 0.5*u + 0.5*u_prev;
             if (change < 10.0*thresh) break;
         }
