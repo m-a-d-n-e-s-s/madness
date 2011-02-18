@@ -37,7 +37,7 @@
 
 #include <world/sharedptr.h>
 #include <world/typestuff.h>
-#include <world/world.h>
+#include <world/deferred_cleanup.h>
 
 namespace madness {
 
@@ -51,11 +51,11 @@ namespace madness {
     /// DeferredDeleter constructor to handle cleanup. If no deleter function
     /// pointer/functor is provided by the user, the pointer will be freed with
     /// the \c delete operator.
-    /// \tparam T The pointer type that will be deleted
-    /// \tparam D The deleter function pointer/functor type that will be use to
-    /// cleanup the pointer [Default = void(*)(T*) ].
+    /// \tparam ptrT The pointer type that will be deleted
+    /// \tparam deleterT The deleter function pointer/functor type that will be use to
+    /// cleanup the pointer [Default = void(*)(ptrT*) ].
     /// \note D type must be void(*)(T*) for function pointers or a functor type
-    /// that includes a void D::operator() (T*) function and have an accessible
+    /// that includes a void D::operator() (ptrT*) function and have an accessible
     /// copy constructor and assignment operator.
     template <typename ptrT, typename deleterT = void(*)(ptrT*)>
     class DeferredDeleter {
@@ -66,6 +66,7 @@ namespace madness {
         deleterT deleter_;  ///< The deleter function or functor that deletes
                             ///< the pointer
 
+    public:
         /// Construct a default deleter for a function pointer
         template <typename D>
         static typename enable_if<std::is_same<D, void(*)(ptrT*)>, D>::type
@@ -76,7 +77,6 @@ namespace madness {
         static typename disable_if<std::is_same<D, void(*)(ptrT*)>, D>::type
         default_deleter() { return D(); }
 
-    public:
         /// Constructs a deferred deleter object.
 
         /// The deleter function pointer \c d will be used to delete the pointer
@@ -87,7 +87,7 @@ namespace madness {
         /// \c == \c void(*)(ptrT*) then \c d \c = \c &detail::checked_delete<ptrT>
         /// else \c d \c = \c D() ].
         DeferredDeleter(World& w, deleterT d = default_deleter<deleterT>()) :
-            deferred_(w.gop.deferred), deleter_(d)
+            deferred_(detail::DeferredCleanup::get_deferred_cleanup(w)), deleter_(d)
         { }
 
         /// Copy constructor
@@ -95,9 +95,7 @@ namespace madness {
         /// \param other The deleter object to be copied.
         DeferredDeleter(const DeferredDeleter<ptrT, deleterT>& other) :
             deferred_(other.deferred_), deleter_(other.deleter_)
-        {
-
-        }
+        { }
 
         /// Copy assignment operator.
 
@@ -154,6 +152,5 @@ namespace madness {
     }
 
 }  // namespace madness
-
 
 #endif // MADNESS_WORLD_DEFERRED_DELETER_H__INCLUDED

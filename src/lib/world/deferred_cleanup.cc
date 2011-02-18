@@ -33,6 +33,7 @@
 */
 
 #include <world/deferred_cleanup.h>
+#include <world/world.h>
 
 namespace madness {
     namespace detail {
@@ -67,6 +68,11 @@ namespace madness {
                 cleaner.swap(deferred_);
                 mutex_.unlock();
             } while(! cleaner.empty());
+        }
+
+
+        std::shared_ptr<DeferredCleanup> DeferredCleanup::get_deferred_cleanup(const World& w) {
+            return w.gop.deferred;
         }
 
     }  // namespace detail

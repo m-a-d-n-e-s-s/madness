@@ -50,9 +50,15 @@
 
 namespace madness {
 
+    // Forward declarations
     class World;
     class WorldAmInterface;
     class WorldTaskQueue;
+    namespace detail {
+
+        class DeferredCleanup;
+
+    }  // namespace detail
 
     template <typename T>
     struct WorldSumOp {
@@ -108,9 +114,7 @@ namespace madness {
         std::shared_ptr<detail::DeferredCleanup> deferred; ///< Deferred cleanup object.
         bool debug;             ///< Debug mode
 
-        // The only way to put something in the deferred cleanup list
-        template<typename T, typename D>
-        friend class DeferredDeleter;
+        friend class detail::DeferredCleanup;
 
         static void await(SafeMPI::Request& req);
         ProcessID rank() const { return mpi.rank(); }

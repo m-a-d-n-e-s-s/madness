@@ -40,6 +40,12 @@
 #include <list>
 
 namespace madness {
+
+    // Forward declarations
+    template <typename, typename>
+    class DeferredDeleter;
+    class World;
+
     namespace detail {
 
         /// Deferred cleanup of shared_ptr's
@@ -64,6 +70,15 @@ namespace madness {
             // not allowed
             DeferredCleanup(const DeferredCleanup&);
             DeferredCleanup& operator=(const DeferredCleanup&);
+
+            template <typename, typename>
+            friend class ::madness::DeferredDeleter;
+
+            /// Access deferred cleanup object of world
+
+            /// \param w The \c World object that holds the \c DeferredCleanup object
+            /// \return A shared pointer to the deferred cleanup object of world \c w.
+            static std::shared_ptr<DeferredCleanup> get_deferred_cleanup(const World& w);
 
         public:
             /// Construct a deferred deleter object.
@@ -90,7 +105,7 @@ namespace madness {
 
             /// Deletes/frees any pointers that are in the list
             void do_cleanup();
-        };
+        }; // class DeferredCleanup
 
     }  // namespace detail
 }  // namespace madness
