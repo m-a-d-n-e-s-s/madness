@@ -56,6 +56,7 @@ namespace madness {
     /// \ingroup mra
     template <typename T, std::size_t NDIM>
     class DerivativeBase : public WorldObject< DerivativeBase<T, NDIM> > {
+        typedef WorldObject< DerivativeBase<T, NDIM> > woT;
     protected:
         World& world;
         const std::size_t axis      ;  // Axis along which the operation is performed
@@ -99,18 +100,24 @@ namespace madness {
 
             if (owner == world.rank()) {
                 if (left.second.size() == 0) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key, find_neighbor(f, key,-1), center, right, TaskAttributes::hipri());
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1,
+                            f, df, key, find_neighbor(f, key,-1), center, right,
+                            TaskAttributes::hipri());
                 }
                 else if (right.second.size() == 0) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key, left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1,
+                            f, df, key, left, center, find_neighbor(f, key,1),
+                            TaskAttributes::hipri());
                 }
                 // Boundary node
                 else if (left.first.is_invalid() || right.first.is_invalid()) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff2b, f, df, key, left, center, right);
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff2b,
+                            f, df, key, left, center, right);
                 }
                 // Interior node
                 else {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff2i, f, df, key, left, center, right);
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff2i,
+                            f, df, key, left, center, right);
                 }
             }
             else {
@@ -245,6 +252,9 @@ namespace madness {
     /// Implements derivatives operators with variety of boundary conditions on simulation domain
     template <typename T, std::size_t NDIM>
     class Derivative : public DerivativeBase<T, NDIM> {
+    private:
+        typedef DerivativeBase<T, NDIM> baseT;
+
     public:
         typedef Tensor<T>               tensorT  ;
         typedef Key<NDIM>               keyT     ;
@@ -276,15 +286,15 @@ namespace madness {
             //left boundary
             if (l[this->axis] == 0) {
                 d = madness::inner(left_rm ,
-                                   df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
-                                   1, 0);
+                        df->parent_to_child(right.second, right.first,
+                            baseT::neighbor(key,1)).swapdim(this->axis,0), 1, 0);
                 inner_result(left_r0,
                              df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                              1, 0, d);
             }
             else {
                 d = madness::inner(right_rp,
-                                   df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
+                                   df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
                                    1, 0);
                 inner_result(right_r0,
                              df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
@@ -361,13 +371,13 @@ namespace madness {
                        const std::pair<keyT,tensorT>& right) const
         {
             tensorT d = madness::inner(rp,
-                                       df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
+                                       df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
                                        1, 0);
             inner_result(r0,
                          df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
                          1, 0, d);
             inner_result(rm,
-                         df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
+                         df->parent_to_child(right.second, right.first, baseT::neighbor(key,1)).swapdim(this->axis,0),
                          1, 0, d);
             if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));

@@ -582,6 +582,9 @@ namespace madness {
     /// The LB stuff might have to be an exception.
     template <typename T, std::size_t NDIM>
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
+    private:
+        typedef WorldObject< FunctionImpl<T,NDIM> > woT; ///< Base class world object type
+
     public:
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeffs
@@ -659,7 +662,7 @@ namespace madness {
                 typename dcT::const_iterator end = coeffs.end();
                 for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                     if (it->second.is_leaf())
-                        task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
+                        woT::task(coeffs.owner(it->first), &implT::project_refine_op, it->first, do_refine,
                              functor->special_points());
                 }
             }
@@ -699,7 +702,7 @@ namespace madness {
                 , compressed(other.compressed)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
                 //, bc(other.bc)
-            {
+        {
             if (dozero) {
                 initial_level = 1;
                 insert_zero_down_to_initial_level(cdata.key0);
@@ -1246,7 +1249,7 @@ namespace madness {
                         double tol,
                         bool fence) {
             for (unsigned int j=0; j<vright.size(); ++j) {
-                task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
+                woT::task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
             }
             if (fence)
                 world.gop.fence();
@@ -1353,7 +1356,7 @@ namespace madness {
                             vv[i] = copy(vrss[i](cp));
                     }
 
-                    task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
+                    woT::task(coeffs.owner(child), &implT:: template mulXXveca<L,R>, child, left, ll, vright, vv, vresult, tol);
                 }
             }
             return None;
@@ -1430,7 +1433,7 @@ namespace madness {
                 if (rc.size())
                     rr = copy(rss(child_patch(child)));
 
-                task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
+                woT::task(coeffs.owner(child), &implT:: template mulXXa<L,R>, child, left, ll, right, rr, tol);
             }
 
             return None;
@@ -1492,7 +1495,7 @@ namespace madness {
                 if (rc.size())
                     rr = copy(rss(child_patch(child)));
 
-                task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op);
+                woT::task(coeffs.owner(child), &implT:: template binaryXXa<L,R,opT>, child, left, ll, right, rr, op);
             }
 
             return None;
@@ -1535,7 +1538,7 @@ namespace madness {
                 coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
-                    task(coeffs.owner(child), &implT:: template unaryXXa<Q,opT>, child, func, op);
+                    woT::task(coeffs.owner(child), &implT:: template unaryXXa<Q,opT>, child, func, op);
                 }
             }
             else {
@@ -1782,7 +1785,7 @@ namespace madness {
                     const keyT& child = kit.key();
                     if (d.size() > 0) ss = copy(d(child_patch(child)));
                     //print(key,"sending",ss.normf(),"to",child);
-                    task(coeffs.owner(child), &implT::sum_down_spawn, child, ss);
+                    woT::task(coeffs.owner(child), &implT::sum_down_spawn, child, ss);
                 }
             }
             else {
@@ -1818,16 +1821,16 @@ namespace madness {
                 for (int direction=-1; direction<=maxdir; direction+=2) {
                     lnew[axis] = lold + direction*s;
                     if (lnew[axis] >= 0 && lnew[axis] < maxs) { // NON-ZERO BOUNDARY CONDITIONS IGNORED HERE !!!!!!!!!!!!!!!!!!!!
-                        const Tensor<typename opT::opT>& R = op->rnlij(n, s*direction, true);
-                        double Rnorm = R.normf();
+                        const Tensor<typename opT::opT>& r = op->rnlij(n, s*direction, true);
+                        double Rnorm = r.normf();
 
                         if (Rnorm == 0.0) {
                             return None; // Hard zero means finished!
                         }
 
-                        if (s <= 1  ||  R.normf()*cnorm > tol) { // Always do kernel and neighbor
+                        if (s <= 1  ||  r.normf()*cnorm > tol) { // Always do kernel and neighbor
                             nsmall = 0;
-                            tensorT result = transform_dir(c,R,axis);
+                            tensorT result = transform_dir(c,r,axis);
 
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
@@ -1866,7 +1869,7 @@ namespace madness {
                 if (node.has_coeff()) {
                     const keyT& key = it->first;
                     const Tensor<R>& c = node.coeff();
-                    task(me, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
+                    woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
                 }
             }
             if (fence) world.gop.fence();
@@ -1893,7 +1896,7 @@ namespace madness {
                     Future<argT> left  = D->find_neighbor(f, key,-1);
                     argT center(key,node.coeff());
                     Future<argT> right = D->find_neighbor(f, key, 1);
-                    task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                    woT::task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
                 }
                 else {
                     coeffs.replace(key,nodeT(tensorT(),true)); // Empty internal node
@@ -2015,10 +2018,10 @@ namespace madness {
             nodeT& node = coeffs.find(key).get()->second;
             if (node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit)
-                    task(coeffs.owner(kit.key()), &implT:: template refine_spawn<opT>, op, kit.key(), TaskAttributes::hipri());
+                    woT::task(coeffs.owner(kit.key()), &implT:: template refine_spawn<opT>, op, kit.key(), TaskAttributes::hipri());
             }
             else {
-                task(coeffs.owner(key), &implT:: template refine_op<opT>, op, key);
+                woT::task(coeffs.owner(key), &implT:: template refine_op<opT>, op, key);
             }
             return None;
         }
@@ -2027,7 +2030,7 @@ namespace madness {
         template <typename opT>
         void refine(const opT& op, bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
-                task(coeffs.owner(cdata.key0), &implT:: template refine_spawn<opT>, op, cdata.key0, TaskAttributes::hipri());
+                woT::task(coeffs.owner(cdata.key0), &implT:: template refine_spawn<opT>, op, cdata.key0, TaskAttributes::hipri());
             if (fence)
                 world.gop.fence();
         }
@@ -2092,7 +2095,7 @@ namespace madness {
                             v[i++].set(false);
                         }
                     }
-                    task(world.rank(), &implT::broaden_op, key, v);
+                    woT::task(world.rank(), &implT::broaden_op, key, v);
                 }
             }
             // Reset value of norm tree so that can repeat broadening
@@ -2107,7 +2110,7 @@ namespace madness {
             // Must set true here so that successive calls without fence do the right thing
             nonstandard = compressed = false;
             if (world.rank() == coeffs.owner(cdata.key0))
-                task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
             if (fence)
                 world.gop.fence();
         }
@@ -2155,9 +2158,9 @@ namespace madness {
                 std::vector< Future<double> > v = future_vector_factory<double>(1<<NDIM);
                 int i=0;
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                    v[i] = task(coeffs.owner(kit.key()), &implT::norm_tree_spawn, kit.key());
+                    v[i] = woT::task(coeffs.owner(kit.key()), &implT::norm_tree_spawn, kit.key());
                 }
-                return task(world.rank(),&implT::norm_tree_op, key, v);
+                return woT::task(world.rank(),&implT::norm_tree_op, key, v);
             }
             else {
                 return Future<double>(node.coeff().normf());
@@ -2280,7 +2283,7 @@ namespace madness {
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
                         } else {
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
@@ -2305,7 +2308,7 @@ namespace madness {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
                     }
                 }
             }

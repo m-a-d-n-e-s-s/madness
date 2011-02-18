@@ -248,7 +248,7 @@ namespace madness {
                 const keyT& child = kit.key();
                 tensorT ss = copy(d(child_patch(child)));
                 PROFILE_BLOCK(recon_send);
-                task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
+                woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
             }
         }
         else {
@@ -415,7 +415,7 @@ namespace madness {
                         p = coeffs.owner(child);
                     }
                     PROFILE_BLOCK(proj_refine_send);
-                    task(p, &implT::project_refine_op, child, do_refine, newspecialpts);
+                    woT::task(p, &implT::project_refine_op, child, do_refine, newspecialpts);
                 }
             }
             else {
@@ -508,9 +508,9 @@ namespace madness {
             std::vector< Future<bool> > v = future_vector_factory<bool>(1<<NDIM);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                v[i] = task(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol, TaskAttributes::generator());
+                v[i] = woT::task(coeffs.owner(kit.key()), &implT::truncate_spawn, kit.key(), tol, TaskAttributes::generator());
             }
-            return task(world.rank(),&implT::truncate_op, key, tol, v);
+            return woT::task(world.rank(),&implT::truncate_op, key, tol, v);
         }
         else {
             // In compressed form leaves should not have coeffs ... however the
@@ -612,7 +612,7 @@ namespace madness {
         }
         MADNESS_ASSERT(key.level());
         keyT parent = key.parent();
-        return task(coeffs.owner(parent), &implT::get_norm_tree_recursive, parent, TaskAttributes::hipri());
+        return woT::task(coeffs.owner(parent), &implT::get_norm_tree_recursive, parent, TaskAttributes::hipri());
     }
 
 
@@ -636,7 +636,7 @@ namespace madness {
             keyT parent = key.parent();
             //madness::print("sock forwarding to parent",key,parent);
             PROFILE_BLOCK(sitome_send);
-            task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
+            woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me, parent, ref, TaskAttributes::hipri());
         }
         return None;
     }
@@ -659,7 +659,7 @@ namespace madness {
         else {
             keyT parent = key.parent();
             PROFILE_BLOCK(sitome2_send);
-            task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me_too, parent, ref, TaskAttributes::hipri());
+            woT::task(coeffs.owner(parent), &FunctionImpl<T,NDIM>::sock_it_to_me_too, parent, ref, TaskAttributes::hipri());
         }
         return None;
     }
@@ -681,7 +681,7 @@ namespace madness {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
                 PROFILE_BLOCK(eval_send);
-                task(owner, &implT::eval, x, key, ref, TaskAttributes::hipri());
+                woT::task(owner, &implT::eval, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
             else {
@@ -754,7 +754,7 @@ namespace madness {
             ProcessID owner = coeffs.owner(key);
             if (owner != me) {
                 PROFILE_BLOCK(eval_send);
-                task(owner, &implT::evaldepthpt, x, key, ref, TaskAttributes::hipri());
+                woT::task(owner, &implT::evaldepthpt, x, key, ref, TaskAttributes::hipri());
                 return None;
             }
             else {
@@ -933,7 +933,7 @@ namespace madness {
         typedef std::pair< Key<NDIM>,Tensor<T> > argT;
         Future<argT> result;
         PROFILE_BLOCK(find_me_send);
-        task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
+        woT::task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
         return result;
     }
 
@@ -965,9 +965,9 @@ namespace madness {
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 PROFILE_BLOCK(compress_send);
-                v[i] = task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
+                v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
             }
-            return task(world.rank(),&implT::compress_op, key, v, nonstandard);
+            return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard);
         }
         else {
             Future<tensorT> result(node.coeff());
@@ -1084,7 +1084,7 @@ namespace madness {
             const keyT& key = it->first;
             const nodeT& node = it->second;
             if (node.has_coeff()) {
-                task(world.rank(), &implT::plot_cube_kernel,
+                woT::task(world.rank(), &implT::plot_cube_kernel,
                     archive::archive_ptr< Tensor<T> >(&r), key, plotlo, plothi, npt, eval_refine);
             }
         }

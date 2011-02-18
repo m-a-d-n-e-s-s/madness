@@ -140,7 +140,7 @@ public:
             double x = lo + h7*i;
             T fit = (*this)(x);
             T exact = f(x);
-            maxabserr = max(fabs(fit-exact),maxabserr);
+            maxabserr = std::max(fabs(fit-exact),maxabserr);
         }
         return maxabserr;
     }

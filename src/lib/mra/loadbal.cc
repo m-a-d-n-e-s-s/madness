@@ -628,7 +628,7 @@ namespace madness {
         if ((node.nrecvd == node.dim) && (key.level()!=0)) {
             Key<D> parent = key.parent();
 //	    madness::print("fix_cost_sum:", key, "sending cost", d.subcost, "to parent", parent);
-            task(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, d.subcost);
+            woT::task(impl.owner(parent), &LBTree<D>::fix_cost_sum, parent, d.subcost);
         }
         return None;
 
