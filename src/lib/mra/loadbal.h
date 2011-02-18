@@ -186,7 +186,7 @@ namespace madness {
         void all_children(bool status=false) {
             c.clear();
             c.assign(dim, status);
-        };
+        }
 
     public:
         mutable KeyChildIterator<D> rpit;
@@ -198,12 +198,12 @@ namespace madness {
             data = NodeData();
             all_children();
             nrecvd = 0;
-        };
+        }
 
         LBNode(const NodeData& d, bool children=false, int n=0) : data(d), nrecvd(n) {
             rpit = KeyChildIterator<D>();
             all_children(children);
-        };
+        }
 
         LBNode(const LBNode& node) : data(node.data), c(node.c), rpit(node.rpit), nrecvd(node.nrecvd) { };
 
@@ -213,15 +213,15 @@ namespace madness {
             for (int i = 0; i < dim; ++i)
                 if (c[i]) return true;
             return false;
-        };
+        }
 
         bool has_child(unsigned int i) const {
             return c[i];
-        };
+        }
 
         bool has_child(int i) const {
             return c[i];
-        };
+        }
 
         int get_num_children() const {
             int nkids = 0;
@@ -233,7 +233,7 @@ namespace madness {
 
         void set_child(int i, bool setto = true) {
             c[i] = setto;
-        };
+        }
 
         void set_all_children(bool setto = true) {
             all_children(setto);
@@ -241,25 +241,25 @@ namespace madness {
 
         void set_data(const NodeData& d) {
             data = d;
-        };
+        }
 
         template <typename functionT>
         void set_cost(functionT function) {
-            data.set_cost<functionT>(function);
+            data.set_data<functionT>(function);
         }
 
         template <typename functionT, typename arg1T>
         void set_cost(functionT function, const arg1T& arg1) {
-            data.set_cost<functionT, arg1T>(function, arg1);
+            data.set_data<functionT, arg1T>(function, arg1);
         }
 
         NodeData get_data() const {
             return data;
-        };
+        }
 
         std::vector<bool> get_c() const {
             return c;
-        };
+        }
 
         template <typename Archive>
         void serialize(const Archive& ar) {
@@ -308,11 +308,11 @@ namespace madness {
         TreeCoords() : key(Key<D>()), owner(-1) {};
         void print() const {
             madness::print(key, "   owner =", owner);
-        };
+        }
 
         bool operator< (const TreeCoords t) const {
             return (this->key < t.key);
-        };
+        }
 
         template <typename Archive>
         void serialize(const Archive& ar) {
@@ -342,17 +342,17 @@ namespace madness {
             for (int i = 0; i < vlen; ++i) {
                 themap.insert(std::make_pair(v[i].key, v[i].owner));
             }
-        };
+        }
 
         ProcMapImpl(const TreeCoords<D>& t) {
             themap.insert(std::make_pair(t.key, t.owner));
-        };
+        }
         void insert(const TreeCoords<D>& t) {
             themap.insert(std::make_pair(t.key, t.owner));
-        };
+        }
         void erase(const TreeCoords<D>& t) {
             themap.erase(t.key);
-        };
+        }
 
         ProcessID find_owner(const Key<D>& key) const {
             typename std::map< const Key<D>,ProcessID>::const_iterator it = themap.find(key);
@@ -366,7 +366,7 @@ namespace madness {
             else {
                 return this->find_owner(key.parent());
             }
-        };
+        }
 
         void print() {
             for (iterator it = themap.begin(); it != themap.end(); ++it) {
@@ -394,17 +394,17 @@ namespace madness {
         /// private method that builds the Tree underlying the procmap
         void build_tree_map(std::vector< TreeCoords<D> > v) {
             tree_map = std::shared_ptr< ProcMapImpl<D> > (new ProcMapImpl<D>(v));
-        };
+        }
 
         ProcessID simple_hash(const KeyD& key) const {
 	    if (key.level() == 0) return 0;
             KeyD parent = (key.level() > n) ? key.parent(key.level()-n) : key;
             return (parent.hash()%nproc);
-        };
+        }
         ProcessID not_so_simple_hash(const KeyD& key) const {
             KeyD parent = (key.level() > n) ? key.parent(key.level()-n) : key;
             return simple_key_map((const long *) &(parent.translation()[0]));
-        };
+        }
 
         void prepare_not_so_simple_map(World& world) {
 	    std::vector<long> vdim(D);
@@ -425,11 +425,11 @@ namespace madness {
                 costmap.push_back(std::pair<KeyD,double>(KeyD(n,l),cost));
             }
             costmap.sort(costmapcmp);
-//             if (world.rank() == 0) {
-//                 for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
-//                     madness::print("costmap", it->first, it->second);
-//                 }
-//             }
+//            if (world.rank() == 0) {
+//                for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
+//                    madness::print("costmap", it->first, it->second);
+//                }
+//            }
             ProcessID p = 0;
             for (typename std::list< std::pair<KeyD,double> >::iterator it=costmap.begin(); it!=costmap.end(); ++it) {
                 const long *l = (const long *) &(it->first.translation()[0]);
@@ -437,17 +437,17 @@ namespace madness {
                 ++p;
                 if (p == world.size()) p = 0;
             }
-//             if (world.rank() == 0) {
-//                 madness::print("SIMPLE MAP", D,"\n", simple_key_map);
-//             }
-	}
+//            if (world.rank() == 0) {
+//                madness::print("SIMPLE MAP", D,"\n", simple_key_map);
+//            }
+        }
 
     public:
         MyPmap() : map_type(2) {};
 
         static bool costmapcmp(const std::pair<KeyD,double>& a, const std::pair<KeyD,double>& b) {
             return a.second > b.second;
-        };
+        }
         MyPmap(World& world)
                 : map_type(1)
                 , nproc(world.nproc())
@@ -459,22 +459,22 @@ namespace madness {
             // enable the user to provide a function.
 
             //if (world.rank() == 0) madness::print("DIM",D,"N IN MAP IS",n);
-	    prepare_not_so_simple_map(world);
-        };
+            prepare_not_so_simple_map(world);
+        }
 
         MyPmap(World& world, unsigned int map_type, int n=100)
                 : map_type(map_type)
-		  , nproc(world.nproc())
-		  , n(n) {
-	    if (map_type==1) {
-	        n =int((std::log((double)world.size())/std::log(2.0)+3)/D) + 2; // 16*nproc = 2^(nD)
-	        prepare_not_so_simple_map(world);
-	    }
-	};
+                , nproc(world.nproc())
+                , n(n) {
+            if (map_type==1) {
+                n =int((std::log((double)world.size())/std::log(2.0)+3)/D) + 2; // 16*nproc = 2^(nD)
+                prepare_not_so_simple_map(world);
+            }
+        }
 
         MyPmap(World& world, std::vector<TreeCoords<D> > v) : map_type(2), nproc(world.nproc()), n(0) {
             build_tree_map(v);
-        };
+        }
 
         MyPmap(const MyPmap<D>& other) : map_type(other.map_type), nproc(other.nproc), n(other.n), tree_map(other.tree_map) {};
 
@@ -487,7 +487,7 @@ namespace madness {
                 tree_map = other.tree_map;
             }
             return *this;
-        };
+        }
 
         void print() const {
             if (map_type == 2) {
@@ -497,7 +497,7 @@ namespace madness {
 	    } else {
                 madness::print("MyPmap: simple map with n =", n);
             }
-        };
+        }
 
         /// Find the owner of a given key
         ProcessID owner(const KeyD& key) const {
@@ -508,7 +508,7 @@ namespace madness {
             } else {
                 return tree_map->find_owner(key);
             }
-        };
+        }
     };
 
 
@@ -676,19 +676,19 @@ namespace madness {
                 LBNode<D> lbnode(nd,node.has_children());
                 impl.replace(key, lbnode);
 
-//             	if (!(it->second.has_children())) {
-// 		  nd.cost = (*cost_fun)();
-// 		  nd.subcost = nd.cost;
-// 		  LBNode<D> lbnode(nd,false);
-// 		  // insert into impl
-// 		  impl.insert(key, lbnode);
-//             	} else {
-// 		  nd.cost = (*cost_fun)();
-// 		  nd.subcost = nd.cost;
-// 		  LBNode<D> lbnode(nd,true);
-// 		  // insert into impl
-// 		  impl.insert(key, lbnode);
-//                 }
+//             	  if (!(it->second.has_children())) {
+//                    nd.cost = (*cost_fun)();
+//                    nd.subcost = nd.cost;
+//                    LBNode<D> lbnode(nd,false);
+// 	                  // insert into impl
+//                    impl.insert(key, lbnode);
+//                } else {
+// 	                  nd.cost = (*cost_fun)();
+// 	                  nd.subcost = nd.cost;
+// 	                  LBNode<D> lbnode(nd,true);
+// 	                  // insert into impl
+// 	                  impl.insert(key, lbnode);
+//                }
             }
         }
 
@@ -782,7 +782,7 @@ namespace madness {
 
         MyPmap<D>& get_mypmap() {
             return *static_cast< MyPmap<D>* >(impl.get_pmap().get());
-        };
+        }
 
         template <typename Archive>
         void serialize(const Archive& ar) {
@@ -848,7 +848,7 @@ namespace madness {
         /// Returns a shared pointer to a new process map, which can then be used to redistribute the function
         std::shared_ptr< WorldDCPmapInterface< Key<D> > > load_balance() {
             return std::shared_ptr< WorldDCPmapInterface< Key<D> > >(new MyPmap<D>(world, find_best_partition()));
-        };
+        }
 
         std::vector< TreeCoords<D> > find_best_partition();
         std::vector< std::vector< TreeCoords<D> > > find_all_partitions();
