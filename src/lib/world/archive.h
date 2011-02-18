@@ -440,9 +440,21 @@
 
 namespace madness {
 
+
+    // Forward declarations
     template <typename T> class Tensor;
 
     namespace archive {
+
+        // Forward declarations
+        template <class>
+        class archive_array;
+        template <class T>
+        inline archive_array<T> wrap(const T*, unsigned int);
+        template <class T>
+        inline archive_array<unsigned char> wrap_opaque(const T*, unsigned int);
+        template <class T>
+        inline archive_array<unsigned char> wrap_opaque(const T&);
 
         // There are 64 empty slots for user types.  Free space for
         // registering user types begins at cookie=128.
