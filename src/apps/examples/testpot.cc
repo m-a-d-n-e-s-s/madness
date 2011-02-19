@@ -1,3 +1,100 @@
+/*
+  This file is part of MADNESS.
+  
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+  
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+  
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+  
+  For more information please contact:
+  
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+  
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+  
+  $Id$
+*/
+
+/*!
+  \file examples/testpot.cc
+  \brief Example solution of Poisson's equation in a dielectric (polarizable) medium
+  \defgroup exampledielectric Poisson's equation in a dielectric medium
+  \ingroup examples
+  
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/testpot.cc>here</a>.
+
+  \par Points of interest
+  - use of iterative equation solver 
+  - convolution with the Green's function
+  - unary operator to compute reciprocal of a function
+  - use of diffuse domain approximation to represent interior surfaces
+
+  \par Background
+
+  We wish to solve Poisson's equation within a non-homogeneous medium, i.e., 
+  in which the permittivity is not constant. 
+  \f[
+  \nabla . \left( \epsilon(r) \nabla u(r)  \right) = - 4 \pi \rho(r)
+  \f]
+  Expanding and rearranging yields,
+  \f[
+     \nabla^2 u(r) = - \frac{1}{\epsilon(r)} \left( 4 \pi \rho(r) + \nabla \epsilon(r) .  \nabla u(r) \right)
+  \f]
+  We can interpret $\rho / \epsilon$ as the effective free charge density
+  and $\nabla \epsilon . \nabla u / \epsilon$ as the induced surface charge density.
+  Assuming free-space boundary conditions at long range we can invert the Laplacian
+  by convolution with the free-space Green's function that is $-1 / 4 \pi |r-s|$.
+  Note that MADNESS provides convolution with $G(r,s) = 1/|r-s|$ so you have to 
+  keep track of the $-1/4\pi$ yourself.
+
+  Thus, our equation becomes (deliberately written in the form of a
+  fixed point iteration --- given a guess for $u$ we can compute
+  the r\.h\.s\. and directly obtain a new value for $u$ that hopefully
+  is closer to the solution)
+  \f[
+     u = G * \left(\rho_{\mbox{eff}} + \sigma \right)
+  \f]
+  where 
+  \f[
+     \rho_{\mbox{eff}} = \frac{\rho}{\epsilon}
+  \f]
+  and
+  \f[
+     \sigma = \frac{\nabla \epsilon(r) .  \nabla u(r)}{4 \pi \epsilon}
+  \f]
+  
+  Let's solve a problem to which we know the exact answer --- a point
+  charge at the center of a sphere $R=2$.  Inside the sphere the permittivity
+  is $\epsilon_1 = 1$ and outside it is $\epsilon_2 = 10$.  The exact
+  solution is 
+  \f[
+     u(r) = \left \lbrace 
+               \begin{matrix}
+                    \frac{1}{\epsilon_2 |r|} & |r| > R \\
+                    \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1}\frac{1}{R}  \right)
+               \end{matrix}
+            \right none
+  \f]
+  
+*/
+
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
