@@ -32,18 +32,19 @@
 */
 
 /*!
-  \file examples/testpot.cc
+  \file examples/dielectric.cc
   \brief Example solution of Poisson's equation in a dielectric (polarizable) medium
   \defgroup exampledielectric Poisson's equation in a dielectric medium
   \ingroup examples
   
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/testpot.cc>here</a>.
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric.cc>here</a>.
 
   \par Points of interest
   - use of iterative equation solver 
   - convolution with the Green's function
   - unary operator to compute reciprocal of a function
   - use of diffuse domain approximation to represent interior surfaces
+  - line and volume plots
 
   \par Background
 
@@ -56,16 +57,16 @@
   \f[
      \nabla^2 u(r) = - \frac{1}{\epsilon(r)} \left( 4 \pi \rho(r) + \nabla \epsilon(r) .  \nabla u(r) \right)
   \f]
-  We can interpret $\rho / \epsilon$ as the effective free charge density
-  and $\nabla \epsilon . \nabla u / \epsilon$ as the induced surface charge density.
+  We can interpret \f$\rho / \epsilon\f$ as the effective free charge density
+  and \f$\nabla \epsilon . \nabla u / \epsilon\f$ as the induced surface charge density.
   Assuming free-space boundary conditions at long range we can invert the Laplacian
-  by convolution with the free-space Green's function that is $-1 / 4 \pi |r-s|$.
-  Note that MADNESS provides convolution with $G(r,s) = 1/|r-s|$ so you have to 
-  keep track of the $-1/4\pi$ yourself.
+  by convolution with the free-space Green's function that is \f$-1 / 4 \pi |r-s|\f$.
+  Note that MADNESS provides convolution with \f$G(r,s) = 1/|r-s|\f$ so you have to 
+  keep track of the \f$-1/4\pi\f$ yourself.
 
   Thus, our equation becomes (deliberately written in the form of a
-  fixed point iteration --- given a guess for $u$ we can compute
-  the r\.h\.s\. and directly obtain a new value for $u$ that hopefully
+  fixed point iteration --- given a guess for \f$u\f$ we can compute
+  the r\.h\.s\. and directly obtain a new value for \f$u\f$ that hopefully
   is closer to the solution)
   \f[
      u = G * \left(\rho_{\mbox{eff}} + \sigma \right)
@@ -76,21 +77,46 @@
   \f]
   and
   \f[
-     \sigma = \frac{\nabla \epsilon(r) .  \nabla u(r)}{4 \pi \epsilon}
+     \sigma = \frac{\nabla \epsilon .  \nabla u}{4 \pi \epsilon}
   \f]
   
   Let's solve a problem to which we know the exact answer --- a point
-  charge at the center of a sphere $R=2$.  Inside the sphere the permittivity
-  is $\epsilon_1 = 1$ and outside it is $\epsilon_2 = 10$.  The exact
+  charge at the center of a sphere \f$R=2\f$.  Inside the sphere the permittivity
+  is \f$\epsilon_1 = 1\f$ and outside it is \f$\epsilon_2 = 10\f$.  The exact
   solution is 
   \f[
-     u(r) = \left \lbrace 
-               \begin{matrix}
+     u(r) = 
+            \left \lbrace 
+               \begin{array}{cc}
                     \frac{1}{\epsilon_2 |r|} & |r| > R \\
-                    \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1}\frac{1}{R}  \right)
-               \end{matrix}
-            \right none
+                    \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
+               \end{array}
+            \right .
+            
   \f]
+
+  To implement the problem in MADNESS we want the permittivity defined
+  as a function over all space, so we define a characteristic function
+  \f$C(r)\f$ (or mask) that is defined to be one inside the sphere and
+  zero outside
+  \f[ 
+    C(r) = H(R-|r|) 
+  \f] 
+  where \f$H(x)\f$ is the Heaviside step function.  Hence, we have
+  \f[
+     \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 left( 1 - C(r) right)
+  \f]
+  To smooth the discontinuity we replace the Heaviside step function
+  with 
+  \f[
+     H(x,h) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{h} \right)
+  \f]
+  where \f$h\f is the effective width of the step. 
+
+  Starting from an initial guess we could in principle simply iterate
+  our equation for \f$u\f$ 
+
+  XXXXXXXXXXXXXXX not yet finished.
   
 */
 
