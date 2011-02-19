@@ -411,6 +411,11 @@ namespace madness {
     public:
         ConvolutionND() : fac(1.0) {}
 
+        ConvolutionND(const ConvolutionND& other) : fac(other.fac)
+        {
+          ops = other.ops;
+        }
+
         ConvolutionND(std::shared_ptr<Convolution1D<Q> > op, Q fac=1.0) : fac(fac)
         {
             ops.fill(op);
