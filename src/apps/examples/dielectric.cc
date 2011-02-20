@@ -66,18 +66,18 @@
 
   Thus, our equation becomes (deliberately written in the form of a
   fixed point iteration --- given a guess for \f$u\f$ we can compute
-  the r\.h\.s\. and directly obtain a new value for \f$u\f$ that hopefully
+  the r.h.s. and directly obtain a new value for \f$u\f$ that hopefully
   is closer to the solution)
   \f[
-     u = G * \left(\rho_{\mbox{eff}} + \sigma \right)
+     u = G * \left(\rho_{\mbox{vol}} + \rho_{\mbox{surf}} \right)
   \f]
   where 
   \f[
-     \rho_{\mbox{eff}} = \frac{\rho}{\epsilon}
+     \rho_{\mbox{vol}} = \frac{\rho}{\epsilon}
   \f]
   and
   \f[
-     \sigma = \frac{\nabla \epsilon .  \nabla u}{4 \pi \epsilon}
+     \rho_{\mbox{surf}} = \frac{\nabla \epsilon .  \nabla u}{4 \pi \epsilon}
   \f]
   
   Let's solve a problem to which we know the exact answer --- a point
@@ -94,6 +94,10 @@
             \right .
             
   \f]
+  The surface charge density integrated over the suface has the value
+  \f[
+     q_{\mbox{surface}} = -\frac{\epsilon_2 - \epsilon_1}{\epsilon_2} = -0.9
+  \f]
 
   To implement the problem in MADNESS we want the permittivity defined
   as a function over all space, so we define a characteristic function
@@ -104,19 +108,59 @@
   \f] 
   where \f$H(x)\f$ is the Heaviside step function.  Hence, we have
   \f[
-     \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 left( 1 - C(r) right)
+     \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 \left( 1 - C(r) \right)
   \f]
   To smooth the discontinuity we replace the Heaviside step function
   with 
   \f[
-     H(x,h) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{h} \right)
+     H(x,h) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right)
   \f]
-  where \f$h\f is the effective width of the step. 
+  where \f$\sigma\f$ is the effective width of the step (0.2 in the code).  Similarly, the
+  point charge is replaced by a suitably normalized Gaussian with a an
+  exponent sufficiently large as to appear as a point charge (delta
+  function) on the scale of interest (we pick \f$\xi=100\f$)
+  \f[
+     \rho(r) = \pi^{-3/2} e^{-\xi |r|^2}
+  \f]
 
-  Starting from an initial guess we could in principle simply iterate
-  our equation for \f$u\f$ 
+  Starting from an initial guess we could try to iterate
+  our equation for \f$u(r)\f$ but, sadly, this does not converge reliably.
+  The simplest approach is to introduce some damping or step restriction.
+  With \f$m\f$ indicating the iteration number, we write
+  \f[
+     u^{(m+1)} = \alpha u^{(m)} + (1-\alpha) G * \left(\rho^{(m)}_{\mbox{vol}} + \rho^{(m)}_{\mbox{surf}} \right)
+  \f]
+  with \f$ \alpha \in [0,1]\f$ .  This works (for sufficiently small \f$\alpha\f$)
+  and is implemented in the code.
+  
+  A more robust approach is to use a solver that exploits information
+  from previous iterations (the Krylov subspace) to estimate the
+  optimal direction and length of the step to take.  Such a 
+  solver is provided by nonlinsol.h.  Each iteration we pass
+  the current solution and corresponding residual to the solver
+  and it provides the next trial vector.
 
-  XXXXXXXXXXXXXXX not yet finished.
+  One final point is how to compute the reciprocal of the
+  permittivity.  This operation is not provided explicity by MADNESS,
+  in part because even functions that are
+  analytically never zero, might be (nearly) zero due to numerical truncation.
+  Handling this issue correctly is problem specific.  More generally,
+  we want to compute a function-of-a-function.  If \f$f(r)\f$ 
+  is a MADNESS function that takes a d-dimensional vector as its
+  argument (in this examaple \f$d=3\f$) and \f$F(x)\f$ is computable
+  function that takes a scalar argument, we want to compute the
+  new MADNESS function
+  \f[
+      g(r) = F(f(r))
+  \f]
+  There are various ways to do this.  The simplest is employed here ---
+  we define a function (\c reciprocal() ) that is passed into the
+  \c unaryop() method that modifies the function \em in-place.
+  This simple approach is justified here since we know our 
+  input function is never zero even due to numerical noise,
+  and the output function is about as smooth as the input.
+  If it were not, we might have to refine the input function
+  to obtain the desired precision.
   
 */
 
@@ -150,13 +194,9 @@ double XXstart;
                     if (world.rank() == 0) print("timer:",MSG,"used",wall_time()-XXstart) \
 
 
-template <typename T, int NDIM>
-struct Reciprocal {
-    void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
-        UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = 1.0/(*_p0));
-    }
-    template <typename Archive> void serialize(Archive& ar) {}
-};
+double reciprocal(double x) {
+    return 1.0/x;
+}
 
 double charge_function(const coord_3d& r) {
     const double expnt = 100.0;
@@ -232,7 +272,7 @@ int main(int argc, char **argv) {
     
     // Reciprocal of the dielectric function
     real_function_3d rdielectric = epsilon_0*volume + epsilon_1*(1.0-volume);
-    rdielectric.unaryop(Reciprocal<double,3>());
+    rdielectric.unaryop(reciprocal);
 
     // Gradient of the dielectric function
     real_function_3d di_gradx = (epsilon_0-epsilon_1)*gradx;
@@ -252,10 +292,10 @@ int main(int argc, char **argv) {
     gradz.clear();
 
     const double rfourpi = 1.0/(4.0*constants::pi);
-    charge = (1.0/epsilon_0)*charge;
+    charge = rdielectric*charge;
 
     // Initial guess is constant dielectric
-    real_function_3d u = op(charge).truncate();
+    real_function_3d u = op(charge).truncate() ;
     double unorm = u.norm2();
 
     const bool USE_SOLVER = true;
