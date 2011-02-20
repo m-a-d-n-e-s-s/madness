@@ -113,7 +113,7 @@
   To smooth the discontinuity we replace the Heaviside step function
   with 
   \f[
-     H(x,h) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right)
+     H(x,\sigma) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right)
   \f]
   where \f$\sigma\f$ is the effective width of the step (0.2 in the code).  Similarly, the
   point charge is replaced by a suitably normalized Gaussian with a an
