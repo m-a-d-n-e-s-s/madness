@@ -52,21 +52,21 @@
 
 extern "C" void dgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
                        const real8 *alpha, const real8 *a, const integer *lda, const real8 *b, const integer *ldb,
-                       const real8 *beta, real8 *c, const integer *ldc, char_len opblen, char_len opblen);
+                       const real8 *beta, real8 *c, const integer *ldc, char_len opalen, char_len opblen);
 
 extern "C" void sgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
                        const real4 *alpha, const real4 *a, const integer *lda, const real4 *b, const integer *ldb,
-                       const real4 *beta, real4 *c, const integer *ldc, char_len opblen, char_len opblen);
+                       const real4 *beta, real4 *c, const integer *ldc, char_len opalen, char_len opblen);
 
 extern "C" void zgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
                        const complex_real8 *alpha,
                        const complex_real8 *a, const integer *lda, const complex_real8 *b, const integer *ldb,
-                       const complex_real8 *beta, complex_real8 *c, const integer *ldc,  char_len opblen, char_len opblen);
+                       const complex_real8 *beta, complex_real8 *c, const integer *ldc,  char_len opalen, char_len opblen);
 
 extern "C" void cgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
                        const complex_real4 *alpha,
                        const complex_real4 *a, const integer *lda, const complex_real4 *b, const integer *ldb,
-                       const complex_real4 *beta, complex_real4 *c, const integer *ldc, char_len opblen, char_len opblen);
+                       const complex_real4 *beta, complex_real4 *c, const integer *ldc, char_len opalen, char_len opblen);
 
 namespace madness {
 
