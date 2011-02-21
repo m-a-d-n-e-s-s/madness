@@ -458,7 +458,7 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 f >> thresh;
                 PRINTLINE("thresh = " << thresh);
             }
-            else if (tag == "kMAD") {
+            else if (tag == "k") {
                 f >> kMAD;
                 PRINTLINE("kMAD = " << kMAD);
             }
