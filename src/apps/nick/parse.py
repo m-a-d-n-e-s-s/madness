@@ -38,7 +38,7 @@ for file in fileList:
                         break
                 if re.match("\A\s+\d+",line):
                         word = line.split()
-                        number.append( word[0])
+                        number.append( word[-1])
                         time.append(   word[1])
                         field.append(  word[2])
                         energy.append( word[3])

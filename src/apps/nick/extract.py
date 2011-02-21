@@ -3,8 +3,8 @@ import sys, re, os, os.path
 try:
     sys.argv[1]
 except:
-    print "Which file?"
-    sys.exit()
+    print "Which file? "
+    sys.exit("tellme")
 inputFile = sys.argv[1]
 if not os.path.isfile(inputFile):
     print inputFile, "doesn't exist"
@@ -24,7 +24,7 @@ while 1:
         line = lines.pop(0)
         exState = re.match( "^[1-9]", line)
         kState = re.match( "^0", line)
-        Rl = re.match( "^Y(\d+)0", line)
+        Yl = re.match( "^Y(\d+)0", line)
         if exState:
             words = line.split()
             exFile.write(' '.join(words) + '\n')
@@ -36,15 +36,18 @@ while 1:
                     break
                 ionFile.write(word + "\t")
             ionFile.write("\n")
-        if Rl:
+        if Yl:
             doRl = True
             words = line.split()
-            l = Rl.group(1)
+            l = Yl.group(1)
             Pl = lines.pop(0)[0:-1]
             RlFile.write( l + "\t" + Pl + "\t" + " ".join(words[1:]) + "\n" )
     else:
         break
 f.close()
+exFile.close()
+ionFile.close()
+RlFile.close()
 
 #Sort STEP, atomic time, and walltime
 f = open("time.dat", 'r')
@@ -81,7 +84,6 @@ if( doRl ):
     inputFile = thisDIR  + '/input'
     input2File = thisDIR + '/input2'
     if os.path.isfile(inputFile):
-        print 'here'
         f = open("input", 'r')
         lines = f.readlines()
         for line in lines:
@@ -89,14 +91,16 @@ if( doRl ):
                 word = line.split()
                 if word[0] == 'L':
                     L = float(word[1])
+                    print 'L = ', L
         f.close()
         if os.path.isfile(input2File):
+            print 'here'
             f = open("input2", 'r')
             lines = f.readlines()
             for line in lines:
                 if line:
                     word = line.split()
-                    if word[0] == 'n':
+                    if word[0] == 'nGrid':
                         n = int(word[1])
             f.close()
             f = open("dr.dat", 'w')
