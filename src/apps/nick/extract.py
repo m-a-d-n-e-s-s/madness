@@ -10,7 +10,6 @@ if not os.path.isfile(inputFile):
     print inputFile, "doesn't exist"
     sys.exit()
 print inputFile
-
 #Parse projPsi's output 
 doRl = False
 f = open(inputFile, 'r')
@@ -18,13 +17,13 @@ exFile = open("ex.dat", 'w')
 ionFile = open("ion.dat", 'w')
 RlFile = open("Rl.dat", 'w')
 lines = f.readlines()
-
+cleanComplex = re.compile( r'(\d\d)(\+|j)' )
 while 1:
     if(lines):
         line = lines.pop(0)
         exState = re.match( "^[1-9]", line)
         kState = re.match( "^0", line)
-        Yl = re.match( "^Y(\d+)0", line)
+        Yl = re.match( "^Y(\d)0", line)
         if exState:
             words = line.split()
             exFile.write(' '.join(words) + '\n')
@@ -40,7 +39,8 @@ while 1:
             doRl = True
             words = line.split()
             l = Yl.group(1)
-            Pl = lines.pop(0)[0:-1]
+            Pl = cleanComplex.sub( r'\1 ', lines.pop(0)[0:-1] )
+            print Pl
             RlFile.write( l + "\t" + Pl + "\t" + " ".join(words[1:]) + "\n" )
     else:
         break
@@ -91,10 +91,8 @@ if( doRl ):
                 word = line.split()
                 if word[0] == 'L':
                     L = float(word[1])
-                    print 'L = ', L
         f.close()
         if os.path.isfile(input2File):
-            print 'here'
             f = open("input2", 'r')
             lines = f.readlines()
             for line in lines:
