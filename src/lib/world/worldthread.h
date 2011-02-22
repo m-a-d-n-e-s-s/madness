@@ -166,6 +166,8 @@ namespace madness {
 
         TaskAttributes(const TaskAttributes& attr) : flags(attr.flags) {}
 
+        virtual ~TaskAttributes() {}
+
         bool is_generator() const { return flags&GENERATOR; }
 
         bool is_stealable() const { return flags&STEALABLE; }

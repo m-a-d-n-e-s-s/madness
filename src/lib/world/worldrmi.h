@@ -128,7 +128,7 @@ namespace madness {
                 : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0) {}
     };
 
-    class RMI : private madness::ThreadBase , madness::Mutex {
+    class RMI : private madness::ThreadBase , private madness::Mutex {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
     public:

@@ -2190,7 +2190,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimj = right.stride(0);
                 long dimi = left.stride(0);
-                mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                ::mTxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==(right.ndim()-1)) {
@@ -2198,7 +2198,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.size()/dimk;
-                mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                ::mxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==0 && k1==(right.ndim()-1)) {
@@ -2206,7 +2206,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.stride(0);
                 long dimj = right.size()/dimk;
-                mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                ::mTxmT(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
             else if (k0==(left.ndim()-1) && k1==0) {
@@ -2214,7 +2214,7 @@ namespace madness {
                 long dimk = left.dim(k0);
                 long dimi = left.size()/dimk;
                 long dimj = right.stride(0);
-                mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
+                ::mxm(dimi,dimj,dimk,ptr,left.ptr(),right.ptr());
                 return;
             }
         }

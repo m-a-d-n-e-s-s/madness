@@ -21,7 +21,6 @@ AC_DEFUN([ACX_POSIX_MEMALIGN], [
 extern "C"  int posix_memalign(void **memptr, size_t alignment, size_t size) throw();]],
 [[void *m; posix_memalign(&m, 16, 1024);]])],
          [AC_MSG_RESULT([no])
-          AC_DEFINE([HAVE_POSIX_MEMALIGN_DECL_THROW], [1], [Set if posix_memalign is declared throw()])
           gotpmh=1
          ]
         )

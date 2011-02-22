@@ -75,6 +75,9 @@
 /* Set if have posix_memalign */
 #undef HAVE_POSIX_MEMALIGN
 
+/* Set if the posix_memalign prototype is missing */
+#undef MISSING_POSIX_MEMALIGN_PROTO
+
 /* Define to 1 if you have the `pow' function. */
 #undef HAVE_POW
 
@@ -236,9 +239,6 @@
 
 /* The default binding for threads */
 #undef MAD_BIND_DEFAULT
-
-/* Set if the posix_memalign prototype is missing */
-#undef MISSING_POSIX_MEMALIGN_PROTO
 
 /* Define if should use never use spinlocks */
 #undef NEVER_SPIN
