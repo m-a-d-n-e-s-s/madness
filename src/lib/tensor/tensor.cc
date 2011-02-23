@@ -98,7 +98,7 @@ namespace madness {
                 out << "invalid_type_id>(";
             }
             if (e.t->ndim()>=0 && e.t->ndim()<TENSOR_MAXDIM) {
-                for (int i=0; i<e.t->ndim(); i++) {
+                for (int i=0; i<e.t->ndim(); ++i) {
                     out << e.t->dim(i);
                     if (i != (e.t->ndim()-1)) out << ",";
                 }

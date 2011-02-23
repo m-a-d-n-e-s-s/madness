@@ -402,13 +402,13 @@ template <class T> void Test7() {
 
     ITERATOR2(mary,
               T sum = 0;
-              for (int k=0; k<fred.dim(1); k++) sum += fred(_i,k)*dave(_j,k);
+              for (int k=0; k<fred.dim(1); ++k) sum += fred(_i,k)*dave(_j,k);
               if (std::abs(sum-mary(_i,_j))> std::abs(sum)*1e-6) error("test7: failed",2));
     dave = dave.swapdim(0,1);
     mary = inner(fred,dave);
     ITERATOR2(mary,
               T sum = 0;
-              for (int k=0; k<fred.dim(1); k++) sum += fred(_i,k)*dave(k,_j);
+              for (int k=0; k<fred.dim(1); ++k) sum += fred(_i,k)*dave(k,_j);
               if (std::abs(sum-mary(_i,_j))> std::abs(sum)*1e-6) error("test7: failed",3));
 
     Tensor<T> alfred(3,4,5,6),samantha(7,5,8,2);
@@ -417,7 +417,7 @@ template <class T> void Test7() {
     Tensor<T> john = inner(alfred,samantha,2,1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim(2); k++) sum += alfred(_i,_j,k,_k)*samantha(_l,k,_m,_n);
+              for (int k=0; k<alfred.dim(2); ++k) sum += alfred(_i,_j,k,_k)*samantha(_l,k,_m,_n);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",4));
 
 
@@ -429,7 +429,7 @@ template <class T> void Test7() {
     john = inner(alfred,samantha,0,0);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim(0); k++) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
+              for (int k=0; k<alfred.dim(0); ++k) sum += alfred(k,_i,_j,_k)*samantha(k,_l,_m,_n);
     if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) {
         std::cout << sum << " " << john(_i,_j,_k,_l,_m,_n) << " " << sum - john(_i,_j,_k,_l,_m,_n) << std::endl;
             error("test7: failed",410);
@@ -439,19 +439,19 @@ template <class T> void Test7() {
     john = inner(alfred,samantha,0,-1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim(0); k++) sum += alfred(k,_i,_j,_k)*samantha(_l,_m,_n,k);
+              for (int k=0; k<alfred.dim(0); ++k) sum += alfred(k,_i,_j,_k)*samantha(_l,_m,_n,k);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",411));
 
     john = inner(alfred,samantha,-1,0);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim(0); k++) sum += alfred(_i,_j,_k,k)*samantha(k,_l,_m,_n);
+              for (int k=0; k<alfred.dim(0); ++k) sum += alfred(_i,_j,_k,k)*samantha(k,_l,_m,_n);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",412));
 
     john = inner(alfred,samantha,-1,-1);
     ITERATOR6(john,
               T sum = 0;
-              for (int k=0; k<alfred.dim(0); k++) sum += alfred(_i,_j,_k,k)*samantha(_l,_m,_n,k);
+              for (int k=0; k<alfred.dim(0); ++k) sum += alfred(_i,_j,_k,k)*samantha(_l,_m,_n,k);
               if (std::abs(sum-john(_i,_j,_k,_l,_m,_n))> std::abs(sum)*1e-6) error("test7: failed",413));
 
 
@@ -467,12 +467,12 @@ template <class T> void Test7() {
     std::cout << c;
     Tensor<T> q = inner(x,c,0,0);
     Tensor<T> qq(n,n,n,n);
-    for (int i=0; i<n; i++) {
-        for (int j=0; j<n; j++) {
-            for (int k=0; k<n; k++) {
-                for (int l=0; l<n; l++) {
+    for (int i=0; i<n; ++i) {
+        for (int j=0; j<n; ++j) {
+            for (int k=0; k<n; ++k) {
+                for (int l=0; l<n; ++l) {
                     T sum = 0;
-                    for (int ii=0; ii<n; ii++) {
+                    for (int ii=0; ii<n; ++ii) {
                         sum += x(ii,j,k,l)*c(ii,i);
                     }
                     if (!check(sum,q(j,k,l,i),1e-5)) {
@@ -487,15 +487,15 @@ template <class T> void Test7() {
     Tensor<T> y = transform(x,c);
     r.fill(0);
     // stupid n^8 loop (rather than n^5 optimal) to ensure correctness
-    for (int i=0; i<n; i++) {
-        for (int ii=0; ii<n; ii++) {
-            for (int j=0; j<n; j++) {
-                for (int jj=0; jj<n; jj++) {
-                    for (int k=0; k<n; k++) {
+    for (int i=0; i<n; ++i) {
+        for (int ii=0; ii<n; ++ii) {
+            for (int j=0; j<n; ++j) {
+                for (int jj=0; jj<n; ++jj) {
+                    for (int k=0; k<n; ++k) {
 
-                        for (int kk=0; kk<n; kk++) {
-                            for (int l=0; l<n; l++) {
-                                for (int ll=0; ll<n; ll++) {
+                        for (int kk=0; kk<n; ++kk) {
+                            for (int l=0; l<n; ++l) {
+                                for (int ll=0; ll<n; ++ll) {
                                     r(i,j,k,l) += x(ii,jj,kk,ll)*c(ii,i)*c(jj,j)*c(kk,k)*c(ll,l);
                                 }
                             }
@@ -541,9 +541,9 @@ template <class T> void Test7() {
         error("test7: failed",6);
 
     c = inner(r,x);
-    for (int i=0; i<7; i++) {
+    for (int i=0; i<7; ++i) {
         T sum = 0;
-        for (int j=0; j<9; j++) sum += r(i,j)*x(j);
+        for (int j=0; j<9; ++j) sum += r(i,j)*x(j);
         //std::cout << i << " -> " << sum << " " << c(i) << std::endl;
         if (std::abs(sum-c(i)) > tol) error("test7: failed",7);
     }
@@ -557,7 +557,7 @@ template <class T> void Test7() {
     x.fillrandom();
     c.fillrandom();
     double start = std::clock();
-    for (long i=0; i<10000; i++) {
+    for (long i=0; i<10000; ++i) {
         fast_transform(x,c,r,y);
     }
     double used = (std::clock()-start)/CLOCKS_PER_SEC;

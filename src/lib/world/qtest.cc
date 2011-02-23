@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <sstream>
+#include <stdio.h>
 
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
@@ -71,7 +72,7 @@ public:
     int process(const opT& op) {
         lock();
         int n = ninq;
-        for (int i=0; i<ninq; i++) op(q[i]);
+        for (int i=0; i<ninq; ++i) op(q[i]);
         clear();
         unlock();
         return n;
@@ -99,11 +100,11 @@ class DQueue {
 
         T* nbuf = new T[len];
         int lo = len/2 - oldlen/2;
-        for (int i=front; i<int(oldlen); i++,lo++) {
+        for (int i=front; i<int(oldlen); ++i,++lo) {
             nbuf[lo] = buf[i];
         }
         if (front > 0) {
-            for (int i=0; i<=back; i++,lo++) {
+            for (int i=0; i<=back; ++i,++lo) {
                 nbuf[lo] = buf[i];
             }
         }
@@ -141,7 +142,7 @@ public:
     /// Insert value at front of queue
     void push_front(const T& value) {
         if (n == len) grow();
-        n++;
+        ++n;
 
         front--;
         if (front < 0) front = len - 1;
@@ -151,9 +152,9 @@ public:
     /// Insert element at back of queue
     void push_back(const T& value) {
         if (n == len) grow();
-        n++;
+        ++n;
 
-        back++;
+        ++back;
         if (back >= len) back = 0;
         buf[back] = value;
     }
@@ -280,12 +281,12 @@ class ThreadPool {
 
         itmq.lock();            // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
         bool terminate = false;
-        for (int i=0; i<itmq.size(); i++) {
+        for (int i=0; i<itmq.size(); ++i) {
             const InterThreadMessage& msg = itmq[i];
             if (msg.msgtype == STEAL) {
                 int n = std::min(taskq.size()/2,msg.n);
                 PoolTaskInterface** buf = msg.buf;
-                for (int j=0; j<n; j++) buf[j] = taskq.pop_front().second;
+                for (int j=0; j<n; ++j) buf[j] = taskq.pop_front().second;
                 __asm__ __volatile__ ("" : : : "memory");
                 *msg.count = n;
             }
@@ -322,7 +323,7 @@ class ThreadPool {
         while (count == -1) process_messages(t);
 
         int num = count;
-        for (int i=0; i<num; i++) taskq.push_back(buf[i]);
+        for (int i=0; i<num; ++i) taskq.push_back(buf[i]);
 
         //std::cout << get_thread_id() << " from " << target << " got " << count << " " << taskq.size() << " " << t->ntask << endl;
     }
@@ -398,7 +399,7 @@ public:
         nthread = numthread;
 
         // For detecting correct initialization
-        for (int i=0; i<MAXNTHREAD; i++) {
+        for (int i=0; i<MAXNTHREAD; ++i) {
             thread_to_hwthread[i] = -99;
             hwthread_to_core[i] = -99;
             hwcore_to_socket[i] = -99;
@@ -414,7 +415,7 @@ public:
         }
         else {
             ncore = num_hw_processors();
-            for (int i=0; i<nthread; i++)
+            for (int i=0; i<nthread; ++i)
                 hwcore_to_socket[i] = 0;
         }
 
@@ -423,7 +424,7 @@ public:
         }
         else {
             nhwthread = ncore;
-            for (int i=0; i<nhwthread; i++)
+            for (int i=0; i<nhwthread; ++i)
                 hwthread_to_core[i] = i % ncore;
         }
 
@@ -432,12 +433,12 @@ public:
             MADNESS_ASSERT(nthreadmap >= nthread);
         }
         else {
-            for (int i=0; i<nthread; i++)
+            for (int i=0; i<nthread; ++i)
                 thread_to_hwthread[i] = i % nhwthread;
         }
 
         // Ensure each thread maps to a valid hwthread to a valid core to a valid socket
-        for (int i=0; i<nthread; i++) {
+        for (int i=0; i<nthread; ++i) {
             int hwt = thread_to_hwthread[i];
             if (hwt < -1 || hwt >= nhwthread) {
                 cout << "Fixing invalid thread_to_hwthread[" << i << "]=" << hwt << " -> -1" << endl;
@@ -462,7 +463,7 @@ public:
                nthread, nhwthread, ncore);
         printf("  thread   hwthread    core   socket\n");
         printf("  ------   --------    ----   ------\n");
-        for (int i=0; i<nthread; i++) {
+        for (int i=0; i<nthread; ++i) {
             int hwt = thread_to_hwthread[i], hwc=-1, hws=-1;
             if (hwt >= 0) {
                 hwc = hwthread_to_core[hwt];
@@ -480,7 +481,7 @@ public:
         // queue structures to accomodate NUMA heap.  Done counts
         // threads that are ready
         done = 1;
-        for (int i=1; i<nthread; i++) start_thread(i);
+        for (int i=1; i<nthread; ++i) start_thread(i);
         while (done != nthread);
     }
 
@@ -499,11 +500,11 @@ public:
             if (p.first) {
                 p.second->run();
                 delete p.second;
-                ntask++;
+                ++ntask;
             }
             else if (nthread > 1) {
                 do {
-                    target++;
+                    ++target;
                     if (target >= nthread) target = 0;
                 } while (target == id);
                 steal(target, t);
@@ -513,7 +514,7 @@ public:
 
     static void end() {
         done = nthread-1;
-        for (int i=1; i<nthread; i++) {
+        for (int i=1; i<nthread; ++i) {
             data[i]->itmq.push(end_msg());
         }
         while (done != 0);
@@ -567,7 +568,7 @@ int main() {
     q.push(2); MADNESS_ASSERT(q.size() == 3 && !q.empty());
 
     q.lock();
-    for (int i=0; i<q.size(); i++) MADNESS_ASSERT(q[i] == i);
+    for (int i=0; i<q.size(); ++i) MADNESS_ASSERT(q[i] == i);
     q.clear(); MADNESS_ASSERT(q.size() == 0 && q.empty());
     q.unlock();
 
@@ -585,7 +586,7 @@ int main() {
     while(1) {
         std::pair<bool,int> item = dq.pop_front();
         if (item.first) {
-            MADNESS_ASSERT(item.second == j++);
+            MADNESS_ASSERT(item.second == ++j);
             MADNESS_ASSERT(dq.size() == 6-j);
         }
         else {
@@ -597,12 +598,12 @@ int main() {
     ThreadPool::initialize(30);
 
     cnt = 0;
-    for (int i=0; i<NTASK; i++)
+    for (int i=0; i<NTASK; ++i)
         ThreadPool::add(new Task(NGEN));
 
     ThreadPool::work(Task::finished);
 
-    for (int i=0; i<ThreadPool::size(); i++) cout << i << " " << ThreadPool::ntaskdone(i) << endl;
+    for (int i=0; i<ThreadPool::size(); ++i) cout << i << " " << ThreadPool::ntaskdone(i) << endl;
 
     ThreadPool::end();
 

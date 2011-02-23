@@ -835,8 +835,8 @@ public:
                 file << "typedef FunctionFactory<double,D> real_factory;\n";
                 file << "typedef FunctionFactory<double_complex,D> complex_factory;\n";
                 file << "typedef Vector<double,D> coord;\n\n";
-                file << "std::vector< SharedPtr < Derivative<double,D> > > real_grad;\n";
-                file << "std::vector< SharedPtr < Derivative<double_complex,D> > > complex_grad;\n";
+                file << "std::vector< std::shared_ptr < Derivative<double,D> > > real_grad;\n";
+                file << "std::vector< std::shared_ptr < Derivative<double_complex,D> > > complex_grad;\n";
                 file << "template <typename functionT>\n";
                 file << "void plot(const functionT& f, const char* filename = \"plot.dx\") {\n";
                 file << "    plotdx(f, filename, FunctionDefaults<D>::get_cell(), std::vector<long>(D,101));\n";

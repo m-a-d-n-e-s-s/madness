@@ -32,10 +32,9 @@
   $Id$
 */
 
-
-#include <madness_config.h>
 #include <world/world.h>
 #include <world/worldmem.h>
+#include <world/worldtime.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -55,6 +54,132 @@ namespace madness {
     static double start_wall_time;
     const int WorldAmInterface::NSEND;
 
+    std::list<World*> World::worlds;
+    unsigned long World::idbase = 0;
+
+    World::World(MPI::Intracomm& comm)
+            : obj_id(1)          ///< start from 1 so that 0 is an invalid id
+            , user_state(0)
+            , mpi(*(new WorldMpiInterface(comm)))
+            , am(* (new WorldAmInterface(*this)))
+            , taskq(*(new WorldTaskQueue(*this)))
+            , gop(* (new WorldGopInterface(*this)))
+            , myrand_next(0)
+    {
+        worlds.push_back(this);
+        srand();  // Initialize random number generator
+        cpu_frequency();
+
+        // Assign a globally (within COMM_WORLD) unique ID to this
+        // world by assigning to each processor a unique range of indices
+        // and broadcasting from node 0 of the current communicator.
+        // Each process in COMM_WORLD is given unique ids for 10K new worlds
+        if(idbase == 0 && rank()) {
+            idbase = rank()*10000;
+        }
+        // The id of a new world is taken from the unique range of ids
+        // assigned to the process with rank=0 in the sub-communicator
+        if(rank() == 0) {
+            _id = idbase++;
+        }
+        gop.broadcast(_id);
+        gop.barrier();
+
+//        std::cout << "JUST MADE WORLD " << id() << std::endl
+    }
+
+
+    void World::args(int argc, char** argv) {
+        for (int arg=1; arg<argc; ++arg) {
+            if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
+//             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
+//            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
+//             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
+        }
+    }
+
+
+    /// Returns new universe-wide unique ID for objects created in this world.  No comms.
+
+    /// You should consider using register_ptr(), unregister_ptr(),
+    /// id_from_ptr() and ptr_from_id() rather than using this directly.
+    ///
+    /// Currently relies on this being called in the same order on
+    /// every process within the current world in order to avoid
+    /// synchronization.
+    ///
+    /// The value objid=0 is guaranteed to be invalid.
+    uniqueidT World::unique_obj_id() {
+        return uniqueidT(_id,obj_id++);
+    }
+
+    World* World::world_from_id(unsigned long id) {
+        // This is why C++ iterators are stupid, stupid, stupid, ..., gack!
+        for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
+            if ((*it) && (*it)->_id == id) return *it;
+        }
+        return 0;
+    }
+
+    void World::srand(unsigned long seed) {
+        if (seed == 0) seed = rank();
+#ifdef HAVE_RANDOM
+        srandom(seed);
+#else
+        myrand_next = seed;
+        for (int i=0; i<1000; ++i) rand(); // Warmup
+#endif
+    }
+
+
+    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
+
+    /// Each process has a distinct seed for the generator.
+    int World::rand() {
+#ifdef HAVE_RANDOM
+        return int(random() & 0xfffffful);
+#else
+        myrand_next = myrand_next * 1103515245UL + 12345UL;
+        return int((myrand_next>>8) & 0xfffffful);
+#endif
+    }
+
+
+    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
+    double World::drand() {
+        return rand()/16777216.0;
+    }
+
+
+    /// Returns a random process number [0,world.size())
+    ProcessID World::random_proc() {
+        return rand()%size();
+    }
+
+
+    /// Returns a random process number [0,world.size()) != current process
+
+    /// Makes no sense to call this with just one process, but just in case you
+    /// do it returns -1 in the hope that you won't actually use the result.
+    ProcessID World::random_proc_not_me() {
+        if (size() == 1) return -1;
+        ProcessID p;
+        do {
+            p = rand()%size();
+        }
+        while (p == rank());
+        return p;
+    }
+
+
+    World::~World() {
+        worlds.remove(this);
+        delete &taskq;
+        delete &gop;
+        delete &am;
+        delete &mpi;
+    }
+
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
         MPI_Abort(MPI_COMM_WORLD,1);
@@ -73,7 +198,7 @@ namespace madness {
         const char* sbind = getenv("MAD_BIND");
         if (!sbind) sbind = MAD_BIND_DEFAULT;
         std::istringstream s(sbind);
-        for (int i=0; i<3; i++) {
+        for (int i=0; i<3; ++i) {
             int t;
             s >> t;
             if (t < 0) {
@@ -115,10 +240,6 @@ namespace madness {
         MPI::Finalize();
     }
 
-    std::list<World*> World::worlds;
-    unsigned long World::idbase = 0;
-    bool TaskInterface::debug = false;
-
     // Enables easy printing of MadnessExceptions
     std::ostream& operator<<(std::ostream& out, const MadnessException& e) {
         out << "MadnessException : ";
@@ -138,7 +259,10 @@ namespace madness {
         return s;
     }
 
-
+    void exception_break(bool message) {
+        if(message)
+            std::cerr << "A madness exception occurred. Place a break point at madness::exception_break to debug.\n";
+    }
 
     double wall_time() {
 #ifdef __CYGWIN__
@@ -195,163 +319,6 @@ namespace madness {
     std::ostream& operator<<(std::ostream& out, const Future<Void>& f) {
         out << "<Void>";
         return out;
-    }
-
-    void World::args(int argc, char** argv) {
-        for (int arg=1; arg<argc; arg++) {
-            if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
-//             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
-//            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
-//             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);
-        }
-    }
-
-
-    __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
-
-    Spinlock WorldProfile::mutex;
-    volatile std::vector<WorldProfileEntry> WorldProfile::items;
-    double WorldProfile::cpu_start = madness::cpu_time();
-    double WorldProfile::wall_start = madness::wall_time();
-
-
-#ifdef WORLD_PROFILE_ENABLE
-    static void profile_do_print(World& world, const std::vector<WorldProfileEntry>& v) {
-        double cpu_total = 0.0;
-        for (unsigned int i=0; i<v.size(); i++)
-            cpu_total += v[i].xcpu.sum;
-
-        double cpu_sum = 0.0;
-        std::printf(" cum%% cpu%%   cpu/s   cpu-min  cpu-avg  cpu-max  cpu-eff   inc/s   inc-min  inc-avg  inc-max  inc-eff   calls  call-min call-avg call-max call-eff name\n");
-        std::printf(" ---- ---- -------- -------- -------- -------- -------- -------- -------- -------- -------- --------  ------- -------- -------- -------- -------- --------------------\n");
-
-        //
-        for (unsigned int i=0; i<v.size(); i++) {
-            double cpu = v[i].xcpu.sum;
-            double inc = v[i].icpu.sum;
-            double count = v[i].count.sum;
-
-            cpu_sum += cpu;
-
-            double cum_cpu_percent = cpu_total ? 100.0*cpu_sum/cpu_total : 0.0;
-            double cpu_percent = cpu_total ? 100.0*cpu/cpu_total : 0.0;
-
-            double cpu_mean = cpu/world.size();
-            double count_mean = count/world.size();
-            double count_eff = v[i].count.max ? count_mean/v[i].count.max : 1.0;
-            double cpu_eff = v[i].xcpu.max ? cpu_mean/v[i].xcpu.max : 1.0;
-
-            double inc_mean = inc/world.size();
-            double inc_eff = v[i].icpu.max ? inc_mean/v[i].icpu.max : 1.0;
-
-            printf("%5.1f%5.1f%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e%9.2e %s\n",
-                   cum_cpu_percent,
-                   cpu_percent,
-                   cpu, v[i].xcpu.min, cpu_mean, v[i].xcpu.max, cpu_eff,
-                   inc, v[i].icpu.min, inc_mean, v[i].icpu.max, inc_eff,
-                   double(count), double(v[i].count.min), count_mean, double(v[i].count.max), count_eff,
-                   v[i].name.c_str());
-            printf("                %9d         %9d                  %9d         %9d                  %9d         %9d\n",
-                   v[i].xcpu.pmin, v[i].xcpu.pmax,
-                   v[i].icpu.pmin, v[i].icpu.pmax,
-                   v[i].count.pmin, v[i].count.pmax);
-        }
-    }
-#endif
-
-    static void est_profile_overhead() {
-        PROFILE_MEMBER_FUNC(WorldProfile);
-    }
-
-    void WorldProfile::print(World& world) {
-#ifdef WORLD_PROFILE_ENABLE
-        for (int i=0; i<100; i++) est_profile_overhead();
-
-        std::vector<WorldProfileEntry>& nv = const_cast<std::vector<WorldProfileEntry>&>(items);
-
-        ProcessID me = world.rank();
-        for (unsigned int i=0; i<nv.size(); i++) {
-            nv[i].init_par_stats(me);
-        }
-
-        recv_stats(world, 2*me+1);
-        recv_stats(world, 2*me+2);
-
-        if (me) {
-            MPIOutputArchive ar(world, (me-1)/2);
-            ar & nv;
-        }
-        else {
-            double overhead = 0.0;
-            int overid = find("WorldProfile::est_profile_overhead");
-            if (overid != -1) {
-                overhead = get_entry(overid).xcpu.sum/get_entry(overid).count.sum;
-            }
-
-            std::printf("\n    MADNESS global parallel profile\n");
-            std::printf("    -------------------------------\n\n");
-            std::printf("    o  estimated profiling overhead %.1e seconds per call\n", overhead);
-            std::printf("    o  total  cpu time on process zero %.1f seconds\n", madness::cpu_time()-WorldProfile::cpu_start);
-            std::printf("    o  total wall time on process zero %.1f seconds\n", madness::wall_time()-WorldProfile::wall_start);
-            std::printf("    o  exclusive cpu time excludes called profiled routines\n");
-            std::printf("    o  inclusive cpu time includes called profiled routines and\n");
-            std::printf("       does not double count recursive calls\n");
-            std::printf("    o  process with max/min value is printed under the entry\n");
-            std::printf("    o  first printed with items sorted in descending order by total exclusive\n");
-            std::printf("       cpu time and then sorted by total inclusive cpu time\n");
-            std::printf("    o  in emacs use toggle-truncate-lines to toggle wrapping long lines\n");
-            std::printf("\n");
-            std::printf("      cum%% - percent cumulative exclusive cpu time (summed over all nodes)\n");
-            std::printf("      cpu%% - percent exclusive cpu time (summed over all nodes)\n");
-            std::printf("       cpu - total exclusive cpu time (summed over all nodes)\n");
-            std::printf("   cpu-min - minimum exclusive cpu time on any processor\n");
-            std::printf("   cpu-avg - mean exclusive cpu time per processor\n");
-            std::printf("   cpu-max - maximum exclusive cpu time on any processor\n");
-            std::printf("   cpu-eff - cpu efficiency = avg/max\n");
-            std::printf("       inc - total inclusive cpu time (summed over all nodes)\n");
-            std::printf("   inc-min - minimum inclusive cpu time on any processor\n");
-            std::printf("   inc-avg - mean inclusive cpu time per processor\n");
-            std::printf("   inc-max - maximum inclusive cpu time on any processor\n");
-            std::printf("   inc-eff - inclusive cpu efficiency = avg/max\n");
-            std::printf("     calls - total number calls time\n");
-            std::printf(" calls-min - minimum number calls on any processor\n");
-            std::printf(" calls-avg - mean number calls per processor\n");
-            std::printf(" calls-max - maximum number calls on any processor\n");
-            std::printf(" calls-eff - calls efficiency = avg/max\n");
-            std::printf("\n");
-
-            std::vector<WorldProfileEntry> v(nv);
-            std::sort(v.begin(), v.end(), &WorldProfileEntry::exclusivecmp);
-            std::printf("  ** sorted by exclusive cpu time **\n");
-            profile_do_print(world, v);
-
-            std::sort(v.begin(), v.end(), &WorldProfileEntry::inclusivecmp);
-            std::printf("  ** sorted by inclusive cpu time **\n");
-            profile_do_print(world, v);
-
-        }
-        world.gop.fence();
-
-#endif
-    }
-
-    void WorldProfile::recv_stats(World& world, ProcessID p) {
-        if (p >= world.size()) return;
-        archive::MPIInputArchive ar(world, p);
-        const std::vector<WorldProfileEntry> v;
-        ar & v;
-        for (unsigned int i=0; i<v.size(); i++) {
-            int id = find(v[i].name);
-            if (id != -1) {
-                WorldProfileEntry& d = get_entry(id);
-                d.par_reduce(v[i]);
-            }
-            else {
-                id = register_id(v[i].name.c_str());
-                WorldProfileEntry& d = get_entry(id);
-                d = v[i];
-            }
-        }
     }
 
     void print_stats(World& world) {
@@ -428,7 +395,7 @@ namespace madness {
 
 #ifdef HAVE_PAPI
         double val[NUMEVENTS], max_val[NUMEVENTS], min_val[NUMEVENTS];
-        for (int i=0; i<NUMEVENTS; i++) {
+        for (int i=0; i<NUMEVENTS; ++i) {
             val[i] = max_val[i] = min_val[i] = values[i];
         }
         world.gop.sum(val, NUMEVENTS);
@@ -476,15 +443,15 @@ namespace madness {
 #ifdef HAVE_PAPI
             printf("         PAPI statistics (min / avg / max)\n");
             printf("         ---------------\n");
-            for (int i=0; i<NUMEVENTS; i++) {
+            for (int i=0; i<NUMEVENTS; ++i) {
                 printf("  %3d   #events per node    %.2e / %.2e / %.2e\n",
                        i, min_val[i], val[i]/world.size(), max_val[i]);
             }
-            for (int i=0; i<NUMEVENTS; i++) {
+            for (int i=0; i<NUMEVENTS; ++i) {
                 printf("  %3d #events systemwide    %.2e\n", i, val[i]);
             }
             if (total_wall_time > 0) {
-                for (int i=0; i<NUMEVENTS; i++) {
+                for (int i=0; i<NUMEVENTS; ++i) {
                     printf("  %3d   #op/s systemwide    %.2e\n", i, val[i]/total_wall_time);
                 }
             }

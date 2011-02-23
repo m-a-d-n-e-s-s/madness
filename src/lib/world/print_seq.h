@@ -43,7 +43,7 @@ namespace madness {
         if (world.rank() == 0) {
             printf("%6d : ",0);
             print(a, b, c, d);
-            for (int p=1; p<world.size(); p++) {
+            for (int p=1; p<world.size(); ++p) {
                 A aa;
                 B bb;
                 C cc;
@@ -67,7 +67,7 @@ namespace madness {
         if (world.rank() == 0) {
             printf("%6d : ",0);
             print(a, b, c);
-            for (int p=1; p<world.size(); p++) {
+            for (int p=1; p<world.size(); ++p) {
                 A aa;
                 B bb;
                 C cc;
@@ -90,7 +90,7 @@ namespace madness {
         if (world.rank() == 0) {
             printf("%6d : ",0);
             print(a, b);
-            for (int p=1; p<world.size(); p++) {
+            for (int p=1; p<world.size(); ++p) {
                 A aa;
                 B bb;
                 archive::MPIOutputArchive(world,p) & 1;
@@ -112,7 +112,7 @@ namespace madness {
         if (world.rank() == 0) {
             printf("%6d : ",0);
             print(a);
-            for (int p=1; p<world.size(); p++) {
+            for (int p=1; p<world.size(); ++p) {
                 A aa;
                 archive::MPIOutputArchive(world,p) & 1;
                 archive::MPIInputArchive(world, p) & aa;

@@ -197,15 +197,15 @@ public:
                             double ao = aofunc(xx*R+x[0], yy*R+x[1], zz*R+x[2]);
                             if (fabs(ao) > 1e-8) {
                                 std::complex<double> t1 = tx[xx+NTRANS]*ty[yy+NTRANS]*tz[zz+NTRANS];
-                                double kx0 = kpt.k[0] * x[0];
-                                double kx1 = kpt.k[1] * x[1];
-                                double kx2 = kpt.k[2] * x[2];
-                                std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
+            double kx0 = kpt.k[0] * x[0];
+            double kx1 = kpt.k[1] * x[1];
+            double kx2 = kpt.k[2] * x[2];
+            std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
                                 value += t1 * t2 * ao;
-                            }
-                        }
-                    }
-                }
+          }
+        }
+      }
+    }
             }
         }
     }

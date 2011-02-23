@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef OUTPUTWRITER_H_
@@ -50,21 +50,21 @@ public:
   //***************************************************************************
   void init_debug(char* filename)
   {
-    dostr = new ofstream(filename);
+    dostr = new std::ofstream(filename);
   }
   //***************************************************************************
 
   //***************************************************************************
   void init_log(char* filename)
   {
-    lostr = new ofstream(filename);
+    lostr = new std::ofstream(filename);
   }
   //***************************************************************************
 
   //***************************************************************************
   void init_eigv(char* filename)
   {
-    evostr = new ofstream(filename);
+    evostr = new std::ofstream(filename);
   }
   //***************************************************************************
 
@@ -78,21 +78,21 @@ public:
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* debug_stream()
+  std::ofstream* debug_stream()
   {
     return dostr;
   }
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* log_stream()
+  std::ofstream* log_stream()
   {
     return lostr;
   }
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* eigv_stream()
+  std::ofstream* eigv_stream()
   {
     return evostr;
   }
@@ -113,15 +113,15 @@ private:
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* dostr;
+  std::ofstream* dostr;
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* lostr;
+  std::ofstream* lostr;
   //***************************************************************************
 
   //***************************************************************************
-  ofstream* evostr;
+  std::ofstream* evostr;
   //***************************************************************************
 };
 

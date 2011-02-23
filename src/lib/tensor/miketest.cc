@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <iostream>
 #include <cstdio>
 #include <complex>
@@ -61,7 +61,7 @@ int main() {
     Tensor<double> c = Tensor<double>(2*k,2*k);
 
     start = std::clock();
-    for (long i=0; i<times; i++) {
+    for (long i=0; i<times; ++i) {
         r = transform(x,c);
     }
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;
@@ -71,7 +71,7 @@ int main() {
 
 
     start = std::clock();
-    for (long i=0; i<times; i++) {
+    for (long i=0; i<times; ++i) {
         fast_transform(x,c,r,w);
     }
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;
@@ -80,7 +80,7 @@ int main() {
     << used << "   "<< times << "   "<< ops << "   "<< million << std::endl;
 
     start = std::clock();
-    for (long i=0; i<times; i++) {
+    for (long i=0; i<times; ++i) {
         r = transform3d(x,c);
     }
     used = (double)(std::clock()-start)/(double)CLOCKS_PER_SEC;

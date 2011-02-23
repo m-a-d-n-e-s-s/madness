@@ -1,43 +1,44 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #include <madness_config.h>
 #include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
+#include <world/worldprofile.h>
 
 // For x86-32/64 have assembly versions for double precision
 // For x86-64 have assembly versions for complex double precision
 
-#if defined(X86_32) || defined(X86_64) 
+#if defined(X86_32) || defined(X86_64)
 
 #ifdef X86_64
 extern "C" void mTxm26(long dimi, long dimj, long dimk,
@@ -121,35 +122,35 @@ extern "C" void TmTxm2(long dimi, long dimj, long dimk,
                        double* c, const double* a, const double* b) ;
 
 namespace madness {
-    
+
     template<>
     void mTxmq(const long dimi, const long dimj, const long dimk,
                double* restrict c, const double* a, const double* b) {
         PROFILE_BLOCK(mTxmq_double_asm);
         //std::cout << "IN DOUBLE ASM VERSION " << dimi << " " << dimj << " " << dimk << "\n";
 
-        
+
         if (IS_ODD(dimi) || IS_ODD(dimj) || IS_ODD(dimk) ||
             IS_UNALIGNED(a) || IS_UNALIGNED(b) || IS_UNALIGNED(c)) {
             //std::cout << "slow\n";
             // CALL SLOW CODE
-            for (long i=0; i<dimi; i++,c+=dimj,a++) {
-                for (long j=0; j<dimj; j++) c[j] = 0.0;
+            for (long i=0; i<dimi; ++i,c+=dimj,++a) {
+                for (long j=0; j<dimj; ++j) c[j] = 0.0;
                 const double *ai = a;
-                for (long k=0; k<dimk; k++,ai+=dimi) {
+                for (long k=0; k<dimk; ++k,ai+=dimi) {
                     double aki = *ai;
-                    for (long j=0; j<dimj; j++) {
+                    for (long j=0; j<dimj; ++j) {
                         c[j] += aki*b[k*dimj+j];
                     }
                 }
             }
             return;
         }
-        
-        /* 
-           Choice is to unroll i or j 
+
+        /*
+           Choice is to unroll i or j
         */
-        
+
 #if   defined(AMD_QUADCORE_TUNE)
         bool test = dimj>=14 && dimj<=26;
 #elif defined(OPTERON_TUNE)
@@ -171,65 +172,65 @@ namespace madness {
 #else
                 long numj = (nj>10) ? 10 : nj;
 #endif
-                
+
                 switch (numj) {
 #ifdef X86_64
                 case 26:
                     TmTxm26(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 24:
                     TmTxm24(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 22:
                     TmTxm22(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 20:
                     TmTxm20(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 18:
                     TmTxm18(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 16:
                     TmTxm16(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 14:
                     TmTxm14(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 12:
                     TmTxm12(dimj, dimi, dimk, c, b, a) ;
-                    break; 
+                    break;
 #endif
-                    
+
                 case 10:
                     TmTxm10(dimj, dimi, dimk, c, b, a) ;
-                    break; 
-                    
+                    break;
+
                 case 8:
                     TmTxm8(dimj, dimi, dimk, c, b, a) ;
                     break;
-                    
+
                 case 6:
                     TmTxm6(dimj, dimi, dimk, c, b, a) ;
                     break;
-                    
+
                 case 4:
                     TmTxm4(dimj, dimi, dimk, c, b, a) ;
                     break;
-                    
+
                 case 2:
                     TmTxm2(dimj, dimi, dimk, c, b, a) ;
                     break;
-                    
+
                 default:
                     throw "mtxmq_byj: should not be here";
-                    
+
                 }
                 nj -= numj;
                 c += numj;
@@ -244,62 +245,62 @@ namespace madness {
 #else
                 long numi = (ni>10) ? 10 : ni;
 #endif
-                
+
                 switch (numi) {
 #ifdef X86_64
                 case 26:
                     mTxm26(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 24:
                     mTxm24(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 22:
                     mTxm22(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 20:
                     mTxm20(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 18:
                     mTxm18(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 16:
                     mTxm16(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 14:
                     mTxm14(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 12:
                     mTxm12(dimi, dimj, dimk, c, a, b) ;
-                    break; 
+                    break;
 #endif
-                    
+
                 case 10:
                     mTxm10(dimi, dimj, dimk, c, a, b) ;
-                    break; 
-                    
+                    break;
+
                 case 8:
                     mTxm8(dimi, dimj, dimk, c, a, b) ;
                     break;
-                    
+
                 case 6:
                     mTxm6(dimi, dimj, dimk, c, a, b) ;
                     break;
-                    
+
                 case 4:
                     mTxm4(dimi, dimj, dimk, c, a, b) ;
                     break;
-                    
+
                 case 2:
                     mTxm2(dimi, dimj, dimk, c, a, b) ;
                     break;
-                    
+
                 default:
                     throw "mtxmq: should not be here!";
                 }
@@ -307,7 +308,7 @@ namespace madness {
                 c += numi*dimj;
                 a += numi;
             } while (ni);
-            
+
         }
     }
 }
@@ -352,13 +353,13 @@ namespace madness {
             long nj = std::min(dimj-jlo,jtile);
             double_complex* restrict ci = c;
             a = asave;
-            for (long i=0; i<dimi; i++,ci+=dimj,a++) {
+            for (long i=0; i<dimi; ++i,ci+=dimj,++a) {
                 const double_complex *ai = a;
                 const double_complex *bk = b;
                 switch (nj) {
                 case 1:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
+                                          ZERO(%%xmm4)
 
                                           ENTRY(.KLOOP1)
                                           LOADA
@@ -375,8 +376,8 @@ namespace madness {
 
                 case 2:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
 
                                           ENTRY(.KLOOP2)
                                           LOADA
@@ -395,9 +396,9 @@ namespace madness {
 
                 case 3:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
 
                                           ENTRY(.KLOOP3)
                                           LOADA
@@ -418,10 +419,10 @@ namespace madness {
 
                 case 4:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
 
                                           ENTRY(.KLOOP4)
                                           LOADA
@@ -444,11 +445,11 @@ namespace madness {
 
                 case 5:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
 
                                           ENTRY(.KLOOP5)
                                           LOADA
@@ -473,12 +474,12 @@ namespace madness {
 
                 case 6:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
 
                                           ENTRY(.KLOOP6)
                                           LOADA
@@ -506,13 +507,13 @@ namespace madness {
 
                 case 7:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
 
                                           ENTRY(.KLOOP7)
                                           LOADA
@@ -541,13 +542,13 @@ namespace madness {
 
                 case 8:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
                                           ZERO(%%xmm11)
 
                                           ENTRY(.KLOOP8)
@@ -579,13 +580,13 @@ namespace madness {
 
                 case 9:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
                                           ZERO(%%xmm11)
                                           ZERO(%%xmm12)
 
@@ -620,13 +621,13 @@ namespace madness {
 
                 case 10:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
                                           ZERO(%%xmm11)
                                           ZERO(%%xmm12)
                                           ZERO(%%xmm13)
@@ -664,13 +665,13 @@ namespace madness {
 
                 case 11:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
                                           ZERO(%%xmm11)
                                           ZERO(%%xmm12)
                                           ZERO(%%xmm13)
@@ -711,13 +712,13 @@ namespace madness {
 
                 case 12:
                     __asm__ __volatile__ (
-                                          ZERO(%%xmm4) 
-                                          ZERO(%%xmm5) 
-                                          ZERO(%%xmm6) 
-                                          ZERO(%%xmm7) 
-                                          ZERO(%%xmm8) 
-                                          ZERO(%%xmm9) 
-                                          ZERO(%%xmm10) 
+                                          ZERO(%%xmm4)
+                                          ZERO(%%xmm5)
+                                          ZERO(%%xmm6)
+                                          ZERO(%%xmm7)
+                                          ZERO(%%xmm8)
+                                          ZERO(%%xmm9)
+                                          ZERO(%%xmm10)
                                           ZERO(%%xmm11)
                                           ZERO(%%xmm12)
                                           ZERO(%%xmm13)
@@ -775,7 +776,7 @@ namespace madness {
         ni = (ni >= itile) ? itile : ni;
         if (ni == 1)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -803,7 +804,7 @@ namespace madness {
         }
         else if (ni == 2)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -834,7 +835,7 @@ namespace madness {
         }
         else if (ni == 3)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -868,7 +869,7 @@ namespace madness {
         }
         else if (ni == 4)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -905,7 +906,7 @@ namespace madness {
         }
         if (ni == 5)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -945,7 +946,7 @@ namespace madness {
         }
         else if (ni == 6)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -988,7 +989,7 @@ namespace madness {
         }
         else if (ni == 7)
          {
-           for (long j = 0; j < dimj; j++)
+           for (long j = 0; j < dimj; ++j)
            {
              __asm__ volatile
              (
@@ -1034,7 +1035,7 @@ namespace madness {
          }
        else if (ni == 8)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1083,7 +1084,7 @@ namespace madness {
         }
         else if (ni == 9)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1135,7 +1136,7 @@ namespace madness {
         }
         if (ni == 10)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1190,7 +1191,7 @@ namespace madness {
         }
         else if (ni == 11)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1248,7 +1249,7 @@ namespace madness {
         }
         else if (ni == 12)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1309,7 +1310,7 @@ namespace madness {
         }
         else if (ni == 13)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (
@@ -1373,7 +1374,7 @@ namespace madness {
         }
         else if (ni == 14)
         {
-          for (long j = 0; j < dimj; j++)
+          for (long j = 0; j < dimj; ++j)
           {
             __asm__ volatile
             (

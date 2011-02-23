@@ -196,7 +196,7 @@ double XXstart;
 
 double reciprocal(double x) {
     return 1.0/x;
-}
+    }
 
 double charge_function(const coord_3d& r) {
     const double expnt = 100.0;
@@ -295,7 +295,7 @@ int main(int argc, char **argv) {
     charge = rdielectric*charge;
 
     // Initial guess is constant dielectric
-    real_function_3d u = op(charge).truncate() ;
+    real_function_3d u = op(charge).truncate();
     double unorm = u.norm2();
 
     const bool USE_SOLVER = true;

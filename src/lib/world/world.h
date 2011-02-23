@@ -322,10 +322,7 @@ instantiate the templates that you are using.
 @{
 */
 
-#include <world/safempi.h>
 #include <madness_config.h>
-
-#include <typeinfo>
 
 // #ifdef SEEK_SET
 // #undef SEEK_SET
@@ -337,48 +334,67 @@ instantiate the templates that you are using.
 // #undef SEEK_END
 // #endif
 
-
+// Standerd C++ header files needed by world.h
 #include <iostream>
-#include <cstdio>
-#include <unistd.h>
-#include <assert.h>
-#include <algorithm>
-#include <functional>
 #include <list>
-#include <map>
-#include <vector>
-
-#ifdef UINT64_T
-typedef UINT64_T uint64_t;
-#endif
-
-namespace madness {
-    class World;
-}
-
-#include <world/worldtime.h>
-#include <world/worldthread.h>
-#include <world/worldrmi.h>
-#include <world/typestuff.h>
-#include <world/worldexc.h>
-//#include <world/worldmem.h>
-#include <world/print.h>
-//#include <world/worldhash.h>
-#include <world/array.h>
-#include <world/dqueue.h>
-#include <world/sharedptr.h>
-#include <world/nodefaults.h>
-#include <world/worldmpi.h>
-#include <world/worldser.h>
-//#include <world/worldprofile.h>
+#include <utility>
+#include <cstddef>
 
 #ifdef HAVE_RANDOM
 #include <stdlib.h>
 #endif
 
+#ifdef UINT64_T
+typedef UINT64_T uint64_t;
+#endif
+
+// Madness world header files needed by world
+#include <world/worldmpi.h>
+#include <world/worldhashmap.h>
+#include <world/sharedptr.h>
+#include <world/archive.h>
+#include <world/worldprofile.h>
+#include <world/worldthread.h>
+
+// Header files not needed by world.h, but are a part of Madness world
+// We really do not want these here because they introduce a lot of potentially
+// unnecessary symbols into the compile process
+//#include <world/worlddc.h>
+//#include <world/print.h>
+//#include <world/worldobj.h>
+//#include <world/worldtime.h>
+
 namespace madness {
 
     class World;
+    class uniqueidT;
+    class WorldTaskQueue;
+    class WorldAmInterface;
+    class WorldGopInterface;
+
+    void redirectio(World& world);
+
+    /// Call this once at the very top of your main program instead of calling MPI::Init
+    void initialize(int argc, char** argv);
+
+    /// Call this once at the very end of your main program instead of calling MPI::Finalize
+    void finalize();
+
+    /// Call this to print misc. stats ... collective
+    void print_stats(World& world);
+
+    std::ostream& operator<<(std::ostream& s, const uniqueidT& id);
+
+
+    extern void xterm_debug(const char* path, const char* display);
+
+    void error(const char *msg);
+
+    template <typename T>
+    static void error(const char *msg, const T& data) {
+        std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
+        MPI_Abort(MPI_COMM_WORLD,1);
+    }
 
     class uniqueidT {
         friend class World;
@@ -395,15 +411,15 @@ namespace madness {
 
         bool operator==(const uniqueidT& other) const {
             return  objid==other.objid && worldid==other.worldid;
-        };
+        }
 
         std::size_t operator()(const uniqueidT& id) const { // for GNU hash
             return id.objid;
-        };
+        }
 
         operator bool() const {
             return objid!=0;
-        };
+        }
 
         template <typename Archive>
         void serialize(Archive& ar) {
@@ -412,43 +428,12 @@ namespace madness {
 
         unsigned long get_world_id() const {
             return worldid;
-        };
+        }
 
         unsigned long get_obj_id() const {
             return objid;
-        };
-    };
-
-    std::ostream& operator<<(std::ostream& s, const uniqueidT& id);
-
-
-    extern void xterm_debug(const char* path, const char* display);
-
-    class WorldTaskQueue;
-    class WorldAmInterface;
-    class WorldGopInterface;
-    class World;
-
-    static WorldAmInterface* world_am_interface_factory(World* world);
-    static void world_am_interface_unfactory(WorldAmInterface* am);
-    static WorldGopInterface* world_gop_interface_factory(World* world);
-    static void world_gop_interface_unfactory(WorldGopInterface* gop);
-    static WorldTaskQueue* world_taskq_factory(World* world);
-    static void world_taskq_unfactory(WorldTaskQueue* taskq);
-    static void world_assign_id(World* world);
-
-    /// For purpose of deferring cleanup to synchronization points
-    struct DeferredCleanupInterface {
-        virtual ~DeferredCleanupInterface() {};
-    };
-
-    void error(const char *msg);
-
-    template <typename T>
-    static void error(const char *msg, const T& data) {
-        std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
-        MPI_Abort(MPI_COMM_WORLD,1);
-    }
+        }
+    }; // class uniqueidT
 
     /// A parallel world with full functionality wrapping an MPI communicator
 
@@ -457,7 +442,6 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
-        friend void world_assign_id(World* world);
 
         static unsigned long idbase;        ///< Base for unique world ID range for this process
         static std::list<World*> worlds;    ///< Maintains list of active worlds
@@ -465,10 +449,10 @@ namespace madness {
         struct hashvoidp {
             inline std::size_t operator()(const void* p) const {
                 return std::size_t(p);    // The ptr's are guaranteed to be unique
-            };
+            }
         };
 
-        Mutex globalmutex;  ///< Worldwide mutex
+//        Mutex globalmutex;  ///< Worldwide mutex
         typedef madness::ConcurrentHashMap<uniqueidT, void *, uniqueidT> map_id_to_ptrT;
         typedef madness::ConcurrentHashMap<void *, uniqueidT, hashvoidp> map_ptr_to_idT;
         map_id_to_ptrT map_id_to_ptr;
@@ -478,46 +462,9 @@ namespace madness {
         unsigned long _id;                  ///< Universe wide unique ID of this world
         unsigned long obj_id;               ///< Counter to generate unique IDs within this world
         void* user_state;                   ///< Holds user defined & managed local state
-        std::list< SharedPtr<DeferredCleanupInterface> > deferred; ///< List of stuff to possibly delete at next sync point
 
         // Default copy constructor and assignment won't compile
         // (which is good) due to reference members.
-
-        /// Does any deferred cleanup and returns true if cleaning was necessary
-        bool do_deferred_cleanup() {
-            if (deferred.empty()) return false;
-            ScopedMutex<Mutex> buckleup(&globalmutex); // Probably only main thread ever enters here
-            std::size_t nclean = deferred.size();
-            // !! More STL garbage - it is not specified how arguments
-            // are passed to the STL algorithms so they are free to
-            // pass by value which here causes the use_count() to be
-            // incremented and hence things never to be destroyed.
-            // Hence, not just me being non-PC by not using the STL
-            // algorithm here since the standard is borked. Concrete
-            // example of this "feature" here is gcc4.2.
-            // //std::remove_if(deferred.begin(),deferred.end(),refcnt_is_one());
-
-            // Multiple passes in case destroying something creates more garbage
-            // (e.g., functionimpl that contains a container)
-            bool deleted_something;
-            do {
-                deleted_something = false;
-                for (std::list< SharedPtr<DeferredCleanupInterface> >::iterator it = deferred.begin();
-                     it != deferred.end();) {
-                    //print("refcnt:",(void*) it->get(), it->use_count(), typeid(*(it->get())).name() );
-                    if (it->use_count() == 1) {
-                        it = deferred.erase(it);
-                        deleted_something = true;
-                    }
-                    else {
-                        ++it;
-                    }
-                }
-                //if (rank() == 0) print("World: deferred cleanup: old size:", nclean, "new size:", deferred.size());
-            } while (deleted_something);
-
-            return (nclean != deferred.size());
-        };
 
     public:
         // Here we use Pimpl to both hide implementation details and also
@@ -536,34 +483,11 @@ namespace madness {
         WorldGopInterface& gop;  ///< Global operations
 
     private:
-        const ProcessID me;      ///< My rank ... needs to be declared after MPI
-        int nprocess;            ///< No. of processes ... ditto
-        unsigned int myrand_next;//< State of crude internal random number generator
+        unsigned int myrand_next;///< State of crude internal random number generator
 
     public:
         /// Give me a communicator and I will give you the world
-        World(MPI::Intracomm& comm)
-                : obj_id(1)          ///< start from 1 so that 0 is an invalid id
-                , user_state(0)
-                , deferred()
-                , mpi(*(new WorldMpiInterface(comm)))
-                , am(*world_am_interface_factory(this))
-                , taskq(*world_taskq_factory(this))
-                , gop(*world_gop_interface_factory(this))
-                , me(mpi.rank())
-                , nprocess(mpi.nproc())
-                , myrand_next(0) 
-        {
-            worlds.push_back(this);
-            srand();  // Initialize random number generator
-            cpu_frequency();
-
-            // Assign a globally (within COMM_WORLD) unique ID to this
-            // world by assigning to each processor a unique range of indices
-            // and broadcasting from node 0 of the current communicator.
-            world_assign_id(this);  // Also acts as barrier
-            //std::cout << "JUST MADE WORLD " << id() << std::endl;
-        };
+        World(MPI::Intracomm& comm);
 
 
         /// Sets a pointer to user-managed local state
@@ -575,24 +499,15 @@ namespace madness {
         ///
         /// A more PC C++ style would be for the app to put state in
         /// a singleton.
-        void set_user_state(void* state) {
-            user_state = state;
-        };
-
+        void set_user_state(void* state) { user_state = state; }
 
         /// Returns pointer to user-managed state set by set_user_state()
 
         /// Will be NULL if set_user_state() has not been invoked.
-        void* get_user_state() {
-            return user_state;
-        };
-
+        void* get_user_state() { return user_state; }
 
         /// Clears user-defined state ... same as set_user_state(0)
-        void clear_user_state() {
-            set_user_state(0);
-        };
-
+        void clear_user_state() { user_state = NULL; }
 
         /// Processes command line arguments
 
@@ -600,29 +515,18 @@ namespace madness {
         /// to start x debugger.
         void args(int argc, char**argv);
 
-
         /// Returns the system-wide unique integer ID of this world
-        unsigned long id() const {
-            return _id;
-        };
-
+        unsigned long id() const { return _id; }
 
         /// Returns the process rank in this world (same as MPI::Get_rank()))
-        ProcessID rank() const {
-            return me;
-        };
+        ProcessID rank() const { return mpi.rank(); }
 
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID nproc() const {
-            return nprocess;
-        };
+        ProcessID nproc() const { return mpi.nproc(); }
 
         /// Returns the number of processes in this world (same as MPI::Get_size())
-        ProcessID size() const {
-            return nprocess;
-        };
-
+        ProcessID size() const { return mpi.size(); }
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
 
@@ -634,9 +538,7 @@ namespace madness {
         /// synchronization.
         ///
         /// The value objid=0 is guaranteed to be invalid.
-        uniqueidT unique_obj_id() {
-            return uniqueidT(_id,obj_id++);
-        };
+        uniqueidT unique_obj_id();
 
 
         /// Associate a local pointer with a universe-wide unique id
@@ -657,8 +559,8 @@ namespace madness {
         uniqueidT register_ptr(T* ptr) {
             MADNESS_ASSERT(sizeof(T*) == sizeof(void *));
             uniqueidT id = unique_obj_id();
-            map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,(void*) ptr));
-            map_ptr_to_id.insert(std::pair<void*,uniqueidT>((void*) ptr,id));
+            map_id_to_ptr.insert(std::pair<uniqueidT,void*>(id,static_cast<void*>(ptr)));
+            map_ptr_to_id.insert(std::pair<void*,uniqueidT>(static_cast<void*>(ptr),id));
             return id;
         }
 
@@ -714,13 +616,7 @@ namespace madness {
         /// is a member of that world.  Thus a null return value does not
         /// necessarily mean the world does not exist --- it could just
         /// not include the calling process.
-        static World* world_from_id(unsigned long id) {
-            // This is why C++ iterators are stupid, stupid, stupid, ..., gack!
-            for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
-                if ((*it) && (*it)->_id == id) return *it;
-            }
-            return 0;
-        };
+        static World* world_from_id(unsigned long id);
 
 
         // Cannot use bind_nullary here since MPI::Request::Test is non-const
@@ -729,14 +625,14 @@ namespace madness {
             MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
             bool operator()() const {
                 return r->Test();
-            };
+            }
         };
 
 
         /// Wait for MPI request to complete
         static void inline await(SafeMPI::Request& request, bool dowork = true) {
             await(MpiRequestTester(request), dowork);
-        };
+        }
 
 
         /// Gracefully wait for a condition to become true ... executes tasks if any in queue
@@ -755,157 +651,32 @@ namespace madness {
             }
         }
 
-
-        /// Adds item to list of stuff to be deleted at next global_fence()
-
-        /// The item must be derived from DeferredCleanupInterface so that the
-        /// pointer type T* can be statically cast to DeferredCleanupInterface*
-        template <typename T>
-        void deferred_cleanup(const SharedPtr<T>& item) {
-            // Not only is there no point storing an unowned pointer, it
-            // is detrimental due to the duplicate checking.
-            if (!item.owned()) return;
-
-            // !! This algorithm is quadratic.  More efficient would be to
-            // !! use a sorted-list/heap/tree/map.
-
-            ScopedMutex<Mutex> buckleup(&globalmutex);
-            SharedPtr<DeferredCleanupInterface> p(item);
-            // Avoid duplicates since the reference counting will prevent cleaning
-            if (std::find(deferred.begin(),deferred.end(),p) == deferred.end()) {
-                //print("deferred adding",(void*)p.get());
-                deferred.push_back(p);
-            }
-        }
-
-
         /// Initialize seed for the internal random number generator
 
         /// If seed is zero (default) the actual seed is the process rank()
         /// so that each process (crudely!!!) has distinct values.
-        void srand(unsigned long seed = 0) {
-            if (seed == 0) seed = rank();
-#ifdef HAVE_RANDOM
-            srandom(seed);
-#else
-            myrand_next = seed;
-            for (int i=0; i<1000; i++) rand(); // Warmup
-#endif
-        };
-
+        void srand(unsigned long seed = 0);
 
         /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
 
         /// Each process has a distinct seed for the generator.
-        int rand() {
-#ifdef HAVE_RANDOM
-            return int(random() & 0xfffffful);
-#else
-            myrand_next = myrand_next * 1103515245UL + 12345UL;
-            return int((myrand_next>>8) & 0xfffffful);
-#endif
-        };
+        int rand();
 
 
         /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
-        double drand() {
-            return rand()/16777216.0;
-        };
-
+        double drand();
 
         /// Returns a random process number [0,world.size())
-        ProcessID random_proc() {
-            return rand()%size();
-        };
-
+        ProcessID random_proc();
 
         /// Returns a random process number [0,world.size()) != current process
 
         /// Makes no sense to call this with just one process, but just in case you
         /// do it returns -1 in the hope that you won't actually use the result.
-        ProcessID random_proc_not_me() {
-            if (size() == 1) return -1;
-            ProcessID p;
-            do {
-                p = rand()%size();
-            }
-            while (p == rank());
-            return p;
-        };
+        ProcessID random_proc_not_me();
 
-
-        ~World() {
-            worlds.remove(this);
-            do_deferred_cleanup();
-            world_taskq_unfactory(&taskq);
-            world_gop_interface_unfactory(&gop);
-            world_am_interface_unfactory(&am);
-            delete &mpi;
-        };
-    };
-}
-
-// Order of these is important
-#include <world/worldam.h>
-#include <world/worldref.h>
-#include <world/worlddep.h>
-#include <world/worldfut.h>
-#include <world/worldtask.h>
-#include <world/worldgop.h>
-#include <world/parar.h>
-#include <world/mpiar.h>
-#include <world/print_seq.h>
-#include <world/worldobj.h>
-#include <world/worlddc.h>
-
-namespace madness {
-
-    // This nonsense needs cleaning up and probably eliminating
-    // now that the class interfaces have stabilized.
-
-    void redirectio(World& world);
-
-    static WorldAmInterface* world_am_interface_factory(World* world) {
-        return new WorldAmInterface(*world);
-    }
-    static void world_am_interface_unfactory(WorldAmInterface* am) {
-        delete am;
-    }
-    static WorldGopInterface* world_gop_interface_factory(World* world) {
-        return new WorldGopInterface(*world);
-    }
-    static void world_gop_interface_unfactory(WorldGopInterface* gop) {
-        delete gop;
-    }
-    static WorldTaskQueue* world_taskq_factory(World* world) {
-        return new WorldTaskQueue(*world);
-    }
-    static void world_taskq_unfactory(WorldTaskQueue* taskq) {
-        delete taskq;
-    }
-    static void world_assign_id(World* world) {
-        // Each process in COMM_WORLD is given unique ids for 10K new worlds
-        if (World::idbase == 0 && MPI::COMM_WORLD.Get_rank()) {
-            World::idbase = MPI::COMM_WORLD.Get_rank()*10000;
-        }
-        // The id of a new world is taken from the unique range of ids
-        // assigned to the process with rank=0 in the sub-communicator
-        if (world->mpi.rank() == 0) {
-            world->_id = World::idbase++;
-        }
-        world->gop.broadcast(world->_id);
-        world->gop.barrier();
-    }
-
-    /// Call this once at the very top of your main program instead of calling MPI::Init
-    void initialize(int argc, char** argv);
-
-    /// Call this once at the very end of your main program instead of calling MPI::Finalize
-    void finalize();
-
-    /// Call this to print misc. stats ... collective
-    void print_stats(World& world);
-
+        ~World();
+    }; // class World
 
     namespace archive {
         template <class Archive>
@@ -915,17 +686,22 @@ namespace madness {
                 ar & id;
                 wptr = World::world_from_id(id);
                 MADNESS_ASSERT(wptr);
-            };
-        };
+            }
+        }; // struct ArchiveLoadImpl<Archive,World*>
 
         template <class Archive>
         struct ArchiveStoreImpl<Archive,World*> {
             static inline void store(const Archive& ar, World* const & wptr) {
                 ar & wptr->id();
-            };
-        };
-    }
-}
+            }
+        }; // struct ArchiveStoreImpl<Archive,World*>
+    } // namespace archive
+} // namespace madness
+
+// These includes must go after class world declaration.
+#include <world/worldam.h>
+#include <world/worldtask.h>
+#include <world/worldgop.h>
 
 /*@}*/
 

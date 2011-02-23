@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #include <tensor/tensor.h>
 
 #include <iostream>
@@ -221,7 +221,7 @@ namespace madness {
     }
 
     /** \brief   Compute the singluar value decomposition of an n-by-m matrix using *gesvd.
-        
+
     Returns via arguments U, s, VT where
 
     A = U * diag(s) * VT    for A real
@@ -248,7 +248,7 @@ namespace madness {
         s = Tensor< typename Tensor<T>::scalar_type >(rmax);
         U = Tensor<T>(m,rmax);
         VT = Tensor<T>(rmax,n);
-	
+
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
 	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
@@ -272,9 +272,9 @@ namespace madness {
 
         long rank = s.dim(0);
         Tensor<T> b(n,m);
-        for (long i=0; i<n; i++)
-            for (long j=0; j<m; j++)
-                for (long k=0; k<rank; k++)
+        for (long i=0; i<n; ++i)
+            for (long j=0; j<m; ++j)
+                for (long k=0; k<rank; ++k)
                     b(i,j) += U(i,k) * T(s(k)) * VT(k,j);
 
         b -= a;
@@ -282,7 +282,7 @@ namespace madness {
     }
 
     /** \brief  Solve Ax = b for general A using the LAPACK *gesv routines.
-        
+
     A should be a square matrix (float, double, float_complex,
     double_complex) and b should be either a vector, or a matrix with
     each vector stored in a column (i.e., b[n,nrhs]).
@@ -356,7 +356,7 @@ namespace madness {
 
 
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
-        
+
     A should be a matrix (float, double, float_complex,
     double_complex) and b should be either a vector, or a matrix with
     each vector stored in a column (i.e., b[n,nrhs]).
@@ -369,13 +369,13 @@ namespace madness {
     This from the LAPACK documentation
     \verbatim
     RCOND   (input) REAL
-    RCOND is used to determine the effective  rank  of A.  
+    RCOND is used to determine the effective  rank  of A.
     Singular values S(i) <= RCOND*S(1) are treated
     as zero.  If RCOND < 0, machine precision is  used
     instead.
 
     RANK    (output) INTEGER
-    The  effective rank of A, i.e., the number of singular 
+    The  effective rank of A, i.e., the number of singular
     values which are greater than RCOND*S(1).
     \endverbatim
 
@@ -443,7 +443,7 @@ namespace madness {
                         lapack_inout(Slice(i, i), Slice(n, m-1)).normf();
                 }
             }
-        
+
             if(b.ndim() == 1)
                 x = lapack_inout(Slice(0,n-1));
             else
@@ -472,7 +472,7 @@ namespace madness {
     }
 
     /** \brief   Real-symmetric or complex-Hermitian eigenproblem.
-        
+
     A is a real symmetric or complex Hermitian matrix.  Return V and e
     where V is a matrix whose columns are the eigenvectors and e is a
     vector containing the corresponding eigenvalues.  If the LAPACK
@@ -524,7 +524,7 @@ namespace madness {
         a += madness::my_conj_transpose(a);
         syev(a,V,e);
         double err = 0.0;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf());
             //err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*((T) e(i))).normf());
         }
@@ -533,10 +533,10 @@ namespace madness {
 
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
-        
+
     This from the LAPACK documentation
 
-    \verbatim 
+    \verbatim
     S/DSYGV computes all the eigenvalues, and optionally, the eigenvectors
     of a real generalized symmetric-definite eigenproblem, of the form
     A*x=(lambda)*B*x, A*Bx=(lambda)*x, or B*A*x=(lambda)*x.  Here A and B
@@ -587,10 +587,10 @@ namespace madness {
         b.fillrandom();
         a += madness::my_conj_transpose(a);
         b += madness::my_conj_transpose(b);
-        for (int i=0; i<n; i++) b(i,i) = 2*n;	// To make pos-def
+        for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
         sygv(a,b,1,V,e);
         double err = 0.0;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());
         }
         return err;
@@ -605,13 +605,13 @@ namespace madness {
     void cholesky(Tensor<T>& A) {
         integer n = A.dim(0);
         integer info;
-        
+
         dpotrf_("L", &n, A.ptr(), &n, &info, 1);
         mask_info(info);
         TENSOR_ASSERT(info == 0, "cholesky: Lapack failed", info, &A);
 
-        for (int i=0; i<n; i++)
-            for (int j=0; j<i; j++)
+        for (int i=0; i<n; ++i)
+            for (int j=0; j<i; ++j)
                 A(i,j) = 0.0;
     }
 
@@ -632,7 +632,7 @@ namespace madness {
         Tensor<T> a(n,n);
         a.fillrandom();
         a += madness::my_conj_transpose(a);
-        for (int i=0; i<n; i++) a(i,i) += n;
+        for (int i=0; i<n; ++i) a(i,i) += n;
 
         Tensor<T> aa = copy(a);
         cholesky(a);
@@ -646,7 +646,7 @@ namespace madness {
 	slamch_(e,1);
 
 // 	char modes[] = "esbpnrmulo";
-// 	for (int i=0; i<10; i++) {
+// 	for (int i=0; i<10; ++i) {
 // 	    cout << "init_tensor_lapack: dlamch: " << modes[i] << " = " << dlamch_(modes+i,1) << endl;
 // 	}
     }
@@ -723,7 +723,7 @@ namespace madness {
     void cholesky(Tensor<double>& A);
 
 //     template
-//     void triangular_solve(const Tensor<double>& L, Tensor<double>& B, 
+//     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
 //                           const char* side, const char* transa);
 
     template
@@ -747,6 +747,6 @@ namespace madness {
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
 //     template
-//     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B, 
+//     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,
 //                           const char* side, const char* transa);
 }

@@ -42,7 +42,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -55,7 +55,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -107,7 +107,7 @@ void test_bsh(World& world) {
     double mu = 1.0;
     std::vector<long> npt(3,201);
     typedef Vector<double,3> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 
     if (world.rank() == 0)
         print("Test BSH operation, type =",
@@ -126,7 +126,7 @@ void test_bsh(World& world) {
     const double expnt = 100.0;
     aa = expnt;
     const double coeff = pow(expnt/constants::pi,1.5);
-    
+
     Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
     f.truncate();
     f.reconstruct();
@@ -165,7 +165,7 @@ void test_bsh(World& world) {
     print("opf norm", opf.norm2());
 
     opf.reconstruct();
-//     for (int i=0; i<nn; i++) {
+//     for (int i=0; i<nn; ++i) {
 //         double z=lo + i*range/double(nn-1);
 
 //         double r = fabs(z)*sqrt(3.0);
@@ -180,7 +180,7 @@ void test_bsh(World& world) {
 
     opf.truncate();
     Function<T,3> opinvopf = opf*(mu*mu);
-    for (int axis=0; axis<3; axis++) {
+    for (int axis=0; axis<3; ++axis) {
         //print("diffing",axis);
         //opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
     }
@@ -199,7 +199,7 @@ void test_bsh(World& world) {
 //     f.reconstruct();
 //     error.reconstruct();
 
-// //     for (int i=0; i<101; i++) {
+// //     for (int i=0; i<101; ++i) {
 // //         double z=-4 + 0.08*i;
 // //         coordT p(z);
 // //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
@@ -209,7 +209,7 @@ void test_bsh(World& world) {
     opinvopf.clear();
 
     Function<T,3> g = (mu*mu)*f;
-    for (int axis=0; axis<3; axis++) {
+    for (int axis=0; axis<3; ++axis) {
         //g = g - diff(diff(f,axis),axis);
     }
     g = op(g);
@@ -243,11 +243,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }

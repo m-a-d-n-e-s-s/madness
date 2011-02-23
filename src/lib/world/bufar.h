@@ -41,7 +41,6 @@
 
 
 #include <world/archive.h>
-#include <world/worldexc.h>
 #include <world/print.h>
 #include <cstring>
 
@@ -92,6 +91,8 @@ namespace madness {
             void close() {}
 
             void flush() {}
+
+            bool count_only() const { return countonly; }
 
             inline std::size_t size() const {
                 return i;

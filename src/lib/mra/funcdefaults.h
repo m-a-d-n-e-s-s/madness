@@ -39,11 +39,12 @@
 
 #include <world/world.h>
 #include <world/array.h>
+#include <world/worlddc.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
 
 namespace madness {
-    template <typename T, int NDIM> class FunctionImpl;
+    template <typename T, std::size_t NDIM> class FunctionImpl;
 
     /// The maximum wavelet order presently supported
     static const int MAXK = 30;
@@ -66,7 +67,7 @@ namespace madness {
       must be provided when derivative operators are constructed. For integral
       operators, only periodic and free space are supported.
     */
-    template<int NDIM>
+    template<std::size_t NDIM>
     class BoundaryConditions {
     private:
         // Used to use STL vector but static data on  a MAC was
@@ -77,7 +78,7 @@ namespace madness {
         /// Constructor. Default boundary condition set to free space
         BoundaryConditions(BCType code=BC_FREE)
         {
-            for (int i=0; i<NDIM*2; i++) bc[i] = code;
+            for (std::size_t i=0; i<NDIM*2; ++i) bc[i] = code;
         }
 
         /// Copy constructor is deep
@@ -90,7 +91,7 @@ namespace madness {
         BoundaryConditions<NDIM>&
         operator=(const BoundaryConditions<NDIM>& other) {
             if (&other != this) {
-                for (int i=0; i<NDIM*2; i++) bc[i] = other.bc[i];
+                for (std::size_t i=0; i<NDIM*2; ++i) bc[i] = other.bc[i];
             }
             return *this;
         }
@@ -100,8 +101,8 @@ namespace madness {
         /// @param d Dimension (0,...,NDIM-1) for boundary condition
         /// @param i Side (0=left, 1=right) for boundary condition
         /// @return Value of boundary condition
-        BCType operator()(int d, int i) const {
-            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
+        BCType operator()(std::size_t d, int i) const {
+            MADNESS_ASSERT(d<NDIM && i>=0 && i<2);
             return bc[2*d+i];
         }
 
@@ -110,8 +111,8 @@ namespace madness {
         /// @param d Dimension (0,...,NDIM-1) for boundary condition
         /// @param i Side (0=left, 1=right) for boundary condition
         /// @return Value of boundary condition
-        BCType& operator()(int d, int i) {
-            MADNESS_ASSERT(d>=0 && d<NDIM && i>=0 && i<2);
+        BCType& operator()(std::size_t d, int i) {
+            MADNESS_ASSERT(d<NDIM && i>=0 && i<2);
             return bc[2*d+i];
         }
 
@@ -134,19 +135,19 @@ namespace madness {
         /// @return Returns a vector indicating if each dimension is periodic
         std::vector<bool> is_periodic() const {
             std::vector<bool> v(NDIM);
-            for (int d=0; d<NDIM; d++)
+            for (std::size_t d=0; d<NDIM; ++d)
                 v[d] = (bc[2*d]==BC_PERIODIC);
             return v;
         }
     };
 
 
-    template <int NDIM>
+    template <std::size_t NDIM>
     static
     inline
     std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
         s << "BoundaryConditions(";
-        for (int d=0; d<NDIM; d++) {
+        for (int d=0; d<NDIM; ++d) {
             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
             if (d == NDIM-1)
                 s << ")";
@@ -167,7 +168,7 @@ namespace madness {
     /// N.B.  Ultimately, we may need to make these defaults specific to each
     /// world, as should be all global state.
     /// \ingroup mra
-    template <int NDIM>
+    template <std::size_t NDIM>
     class FunctionDefaults {
     private:
         static int k;                 ///< Wavelet order
@@ -187,7 +188,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
-        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
+        static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
         static void recompute_cell_info() {
             MADNESS_ASSERT(cell.dim(0)==NDIM && cell.dim(1)==2 && cell.ndim()==2);
@@ -195,7 +196,7 @@ namespace madness {
             cell_volume = cell_width.product();
             cell_min_width = cell_width.min();
             rcell_width = copy(cell_width);
-            for (int i=0; i<NDIM; i++) rcell_width(i) = 1.0/rcell_width(i);
+            for (std::size_t i=0; i<NDIM; ++i) rcell_width(i) = 1.0/rcell_width(i);
         }
 
     public:
@@ -389,19 +390,19 @@ namespace madness {
         }
 
         /// Returns the default process map
-        static SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
+        static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() {
             return pmap;
         }
 
         /// Sets the default process map (does \em not redistribute existing functions)
 
         /// Existing functions are probably rendered useless
-        static void set_pmap(const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& value) {
-            pmap=value;
+        static void set_pmap(const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& value) {
+            pmap = value;
         }
 
         /// Sets the default process map and redistributes all functions using the old map
-        static void redistribute(World& world, const SharedPtr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
+        static void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& newpmap) {
             pmap->redistribute(world,newpmap);
             pmap = newpmap;
         }
@@ -410,17 +411,17 @@ namespace madness {
 
 
     /// Convert user coords (cell[][]) to simulation coords ([0,1]^ndim)
-    template <int NDIM>
+    template <std::size_t NDIM>
     static inline void user_to_sim(const Vector<double,NDIM>& xuser, Vector<double,NDIM>& xsim) {
-        for (int i=0; i<NDIM; i++)
+        for (std::size_t i=0; i<NDIM; ++i)
             xsim[i] = (xuser[i] - FunctionDefaults<NDIM>::get_cell()(i,0)) * FunctionDefaults<NDIM>::get_rcell_width()[i];
     }
 
 
     /// Convert simulation coords ([0,1]^ndim) to user coords (FunctionDefaults<NDIM>::get_cell())
-    template <int NDIM>
+    template <std::size_t NDIM>
     static void sim_to_user(const Vector<double,NDIM>& xsim, Vector<double,NDIM>& xuser) {
-        for (int i=0; i<NDIM; i++)
+        for (std::size_t i=0; i<NDIM; ++i)
             xuser[i] = xsim[i]*FunctionDefaults<NDIM>::get_cell_width()[i] + FunctionDefaults<NDIM>::get_cell()(i,0);
     }
 

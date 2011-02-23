@@ -109,7 +109,7 @@ struct ElectronicStructureParams
   bool plotorbs;
   // convergence criterion for residual
   double rcriterion;
- 
+  
   template <typename Archive>
   void serialize(Archive& ar) {
       ar & L & nelec & functional & lo & spinpol &

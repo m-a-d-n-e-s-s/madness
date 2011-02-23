@@ -50,7 +50,7 @@ using std::endl;
 //   p[0] = 1;
 //   if (n == 0) return;
 //   p[1] = x;
-//   for (int i=0; i<n; i++) {
+//   for (int i=0; i<n; ++i) {
 //     p[i+1] = i*(x*p[i] - p[i-1])/(i+1) + x*p[i];
 //   }
 // }
@@ -71,12 +71,12 @@ namespace madness {
         if (order == 0) return;
 
         if (firstcall) {
-            for (n=0; n<100; n++) nn1[n] = n/((double)(n+1));
+            for (n=0; n<100; ++n) nn1[n] = n/((double)(n+1));
             firstcall=0;
         }
 
         p[1] = x;
-        for (n=1; n<order; n++)
+        for (n=1; n<order; ++n)
             p[n+1] = (x*p[n] - p[n-1])*nn1[n] + x*p[n];
     }
 
@@ -90,12 +90,12 @@ namespace madness {
         long n;
 
         if (first_call) {
-            for (n=0; n<100; n++) phi_norms[n] = sqrt(2.0*n+1.0);
+            for (n=0; n<100; ++n) phi_norms[n] = sqrt(2.0*n+1.0);
             first_call = 0;
         }
 
         legendre_polynomials(2.*x-1,k-1,p);
-        for (n=0; n<k; n++) {
+        for (n=0; n<k; ++n) {
             p[n] = p[n]*phi_norms[n];
         }
     }
@@ -116,7 +116,7 @@ namespace madness {
             cout << "legendre: read_data: could not find file " << filename << endl;
             return false;
         }
-        for (int npt=0; npt<=max_npt; npt++) {
+        for (int npt=0; npt<=max_npt; ++npt) {
             points[npt] = Tensor<double>(npt);
             weights[npt] = Tensor<double>(npt);
 
@@ -129,7 +129,7 @@ namespace madness {
                 cout << "legendre: read_data: npt did not match " << npt << endl;
                 return false;
             }
-            for (int i=0; i<npt; i++) {
+            for (int i=0; i<npt; ++i) {
                 int ii;
                 if (fscanf(f,"%d %lf %lf",&ii,&points[npt][i],&weights[npt][i]) != 3) {
                     cout << "legendre: read_data: failed reading data " << npt << " " << i << endl;
@@ -157,12 +157,12 @@ namespace madness {
             if (!read_data()) throw "load_quadrature: failed reading quadrature coefficients";
         }
         else {
-            for (int npt=0; npt<=max_npt; npt++) {
+            for (int npt=0; npt<=max_npt; ++npt) {
                 points[npt] = Tensor<double>(npt);
                 weights[npt] = Tensor<double>(npt);
             }
         }
-        for (int npt=1; npt<=max_npt; npt++) {
+        for (int npt=1; npt<=max_npt; ++npt) {
             world.gop.broadcast(points[npt].ptr(), npt, 0);
             if (world.rank() == 99999999) world.gop.fence(); // Work aroung g++ 4.2.* bug on x86-64
             world.gop.broadcast(weights[npt].ptr(), npt, 0);
@@ -193,12 +193,12 @@ namespace madness {
         double pi = atan(1.0)*4.0;
 
         // References made to the equation numbers in Davis & Rabinowitz 2nd ed.
-        for (int k=0; k<n; k++) {
+        for (int k=0; k<n; ++k) {
             // Initial guess for the root using 2.7.3.3b
             // x = (1.0 - 1.0/(8*n*n) + 1.0/(8*n*n*n))*cos(((4*k+3.0)/(4*n+2))*pi)
             double r = (1.0 - 1.0/(8.0*n*n) + 1.0/(8.0*n*n*n))*cos(((4*k+3.0)/(4*n+2))*pi);
             // Refine the initial guess using a 3rd-order Newton correction 2.7.3.9
-            for (int iter=0; iter<3; iter++) {
+            for (int iter=0; iter<3; ++iter) {
                 legendre_polynomials(r,n,p);
                 double p0 = p[n];		// Value
                 double p1 = n*(p[n-1] - r*p[n])/(1.0-r*r); // First derivative ... 2.7.3.5
@@ -218,7 +218,7 @@ namespace madness {
             x[k] = r;
         }
 
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             x[i] = x[i]*scale + midpoint;
             w[i] = w[i]*scale;
         }
@@ -246,7 +246,7 @@ namespace madness {
         // z = (x-xlo)/(xhi-xlo)  ->  x = xlo + z*(xhi-xlo)
 
         double range = xhi - xlo;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             x[i] = xlo + points[n][i] * range;
             w[i] = weights[n][i] * range;
         }
@@ -258,7 +258,7 @@ namespace madness {
         /// test function for gauss_legendre_test
         double sum = 0.0;
         double xn = 1.0;
-        for (int i=0; i<=(2*n-1); i++) {
+        for (int i=0; i<=(2*n-1); ++i) {
             sum += xn;
             xn *= x;
         }
@@ -272,11 +272,11 @@ namespace madness {
         const int maxnpt = 64;
         double x[maxnpt], w[maxnpt];
 
-        for (int npt=1; npt<maxnpt; npt++) {
+        for (int npt=1; npt<maxnpt; ++npt) {
             double sum = 0.0;
             gauss_legendre(npt,0,1,x,w);
-            for (int i=0; i<npt; i++) sum += testf(npt, x[i])*w[i];
-            for (int i=0; i<=(2*npt-1); i++) sum -= 1.0/(i+1);
+            for (int i=0; i<npt; ++i) sum += testf(npt, x[i])*w[i];
+            for (int i=0; i<=(2*npt-1); ++i) sum -= 1.0/(i+1);
             bool err = (std::abs(sum/npt) > 1.3e-14);
             if (err || print)
                 cout << "gauss_leg_test: " << npt << " " << sum << " " << sum/npt << endl;

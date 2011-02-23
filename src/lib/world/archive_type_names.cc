@@ -54,7 +54,7 @@ namespace madness {
             initialized = true;
 
 
-            for (int i=0; i<255; i++) archive_type_names[i] = "invalid";
+            for (int i=0; i<255; ++i) archive_type_names[i] = "invalid";
             archive_type_names[255] = "unknown/user-defined";
 
             ARCHIVE_REGISTER_TYPE_AND_PTR_NAMES(unsigned char);

@@ -35,7 +35,7 @@
 
 namespace madness {
     /// Holds displacements for applying operators to avoid replicating for all operators
-    template <int NDIM>
+    template <std::size_t NDIM>
     class Displacements {
 
         static std::vector< Key<NDIM> > disp;
@@ -58,7 +58,7 @@ namespace madness {
             Translation twonm1 = (Translation(1)<<a.level())>>1;
 
             uint64_t suma=0, sumb=0;
-            for (int d=0; d<NDIM; d++) {
+            for (std::size_t d=0; d<NDIM; ++d) {
                 Translation la = a.translation()[d];
                 if (la > twonm1) la -= twonm1*2;
                 if (la <-twonm1) la += twonm1*2;
@@ -77,48 +77,48 @@ namespace madness {
             Vector<Translation,NDIM> d(0);
 
             int num = 1;
-            for (int i=0; i<NDIM; i++) num *= (2*bmax + 1);
+            for (std::size_t i=0; i<NDIM; ++i) num *= (2*bmax + 1);
             disp.resize(num,Key<NDIM>(0));
 
             num = 0;
             if (NDIM == 1) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
                     disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 2) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
                         disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 3) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
                             disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 4) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
                                 disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 5) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
+                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
 
                                     disp[num++] = Key<NDIM>(0,d);
             }
             else if (NDIM == 6) {
-                for (d[0]=-bmax; d[0]<=bmax; d[0]++)
-                    for (d[1]=-bmax; d[1]<=bmax; d[1]++)
-                        for (d[2]=-bmax; d[2]<=bmax; d[2]++)
-                            for (d[3]=-bmax; d[3]<=bmax; d[3]++)
-                                for (d[4]=-bmax; d[4]<=bmax; d[4]++)
-                                    for (d[5]=-bmax; d[5]<=bmax; d[5]++)
+                for (d[0]=-bmax; d[0]<=bmax; ++d[0])
+                    for (d[1]=-bmax; d[1]<=bmax; ++d[1])
+                        for (d[2]=-bmax; d[2]<=bmax; ++d[2])
+                            for (d[3]=-bmax; d[3]<=bmax; ++d[3])
+                                for (d[4]=-bmax; d[4]<=bmax; ++d[4])
+                                    for (d[5]=-bmax; d[5]<=bmax; ++d[5])
                                         disp[num++] = Key<NDIM>(0,d);
             }
             else {
@@ -136,7 +136,7 @@ namespace madness {
             // Make permissible 1D translations
             Translation b[4*bmax+1];
             int i=0;
-            for (Translation lx=-bmax; lx<=bmax; lx++) {
+            for (Translation lx=-bmax; lx<=bmax; ++lx) {
                 b[i++] = lx;
                 if ((lx < 0) && (lx+twon > bmax)) b[i++] = lx + twon;
                 if ((lx > 0) && (lx-twon <-bmax)) b[i++] = lx - twon;
@@ -148,7 +148,7 @@ namespace madness {
             Vector<long,NDIM> lim(numb);
             for (IndexIterator index(lim); index; ++index) {
                 Vector<Translation,NDIM> d;
-                for (int i=0; i<NDIM; i++) {
+                for (std::size_t i=0; i<NDIM; ++i) {
                     d[i] = b[index[i]];
                 }
                 disp_periodicsum[n].push_back(Key<NDIM>(n,d));
@@ -167,7 +167,7 @@ namespace madness {
 
                 if (NDIM <= 3) {
                     Level nmax = 8*sizeof(Translation) - 2;
-                    for (Level n=0; n<nmax; n++) make_disp_periodicsum(bmax_default(), n);
+                    for (Level n=0; n<nmax; ++n) make_disp_periodicsum(bmax_default(), n);
                 }
             }
         }

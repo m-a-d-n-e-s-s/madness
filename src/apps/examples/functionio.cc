@@ -111,7 +111,7 @@ int main(int argc, char** argv) {
     const char filename[] = "mi_casa_es_su_casa";
 
     if (world.rank() == 0) print("Making test functions");
-    real_function_3d f = real_factory_3d(world).f(function);
+    real_function_3d f = real_factory_3d(world).f(::function);
     real_function_3d g = f*f;
     real_function_3d h = g - f;
 

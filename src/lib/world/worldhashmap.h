@@ -44,10 +44,11 @@
 // This is a basic, functional-enough, fast-enough hash map with
 // vague compatibility with the TBB API.
 
-#include <world/worldthread.h>
+#include <world/worldmutex.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
 #include <new>
+#include <stdio.h>
 
 namespace madness {
 
@@ -136,7 +137,7 @@ namespace madness {
                     notfound = !result;
                     if (notfound) {
                         result = p = new entryT(datum,p);
-                        ninbin++;
+                        ++ninbin;
                     }
                     gotlock = result->try_lock(lockmode);
                     unlock();           // END CRITICAL SECTION
@@ -160,7 +161,7 @@ namespace madness {
                         }
                         t->unlock(lockmode);
                         delete t;
-                        ninbin--;
+                        --ninbin;
                         status = true;
                         break;
                     }
@@ -194,10 +195,12 @@ namespace madness {
         /// iterator for hash
         template <class hashT> class HashIterator {
         public:
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::entryT>::type entryT;
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::datumT>::type datumT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::entryT>::type,
+                    typename hashT::entryT>::type entryT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::datumT>::type,
+                    typename hashT::datumT>::type datumT;
             typedef std::forward_iterator_tag iterator_category;
             typedef datumT value_type;
             typedef std::ptrdiff_t difference_type;
@@ -215,7 +218,7 @@ namespace madness {
             /// If the entry is null (end of current bin) finds next non-empty bin
             void next_non_null_entry() {
                 while (!entry) {
-                    bin++;
+                    ++bin;
                     if ((unsigned) bin == h->nbins) {
                         entry = 0;
                         return;
@@ -293,7 +296,7 @@ namespace madness {
                 // our end point.
                 while (unsigned(n) >= h->bins[bin].size()) {
                     n -= h->bins[bin].size();
-                    bin++;
+                    ++bin;
                     if (unsigned(bin) == h->nbins) {
                         entry = 0;
                         return; // end
@@ -335,10 +338,12 @@ namespace madness {
         class HashAccessor : NO_DEFAULTS {
             template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::entryT>::type entryT;
-            typedef typename add_const<is_const<hashT>::value,
-                typename hashT::datumT>::type datumT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::entryT>::type,
+                    typename hashT::entryT>::type entryT;
+            typedef typename madness::if_<std::is_const<hashT>,
+                    typename std::add_const<typename hashT::datumT>::type,
+                    typename hashT::datumT>::type datumT;
             typedef datumT value_type;
             typedef datumT* pointer;
             typedef datumT& reference;
@@ -431,7 +436,7 @@ namespace madness {
             // n is a user provided estimate of the no. of elements to be put
             // in the table.  Want to make the number of bins a prime number
             // larger than this.
-            for (int i=0; i<nprimes; i++) if (n<=primes[i]) return primes[i];
+            for (int i=0; i<nprimes; ++i) if (n<=primes[i]) return primes[i];
             return primes[nprimes-1];
         }
 
@@ -545,12 +550,12 @@ namespace madness {
         }
 
         void clear() {
-            for (unsigned int i=0; i<nbins; i++) bins[i].clear();
+            for (unsigned int i=0; i<nbins; ++i) bins[i].clear();
         }
 
         size_t size() const {
             size_t sum = 0;
-            for (size_t i=0; i<nbins; i++) sum += bins[i].size();
+            for (size_t i=0; i<nbins; ++i) sum += bins[i].size();
             return sum;
         }
 
@@ -578,7 +583,7 @@ namespace madness {
         hashfunT& get_hash() const { return hashfun; }
 
         void print_stats() const {
-            for (unsigned int i=0; i<nbins; i++) {
+            for (unsigned int i=0; i<nbins; ++i) {
                 if (i && (i%10)==0) printf("\n");
                 printf("%8d", int(bins[i].size()));
             }

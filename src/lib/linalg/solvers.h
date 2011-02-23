@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_LINALG_SOLVERS_H__INCLUDED
@@ -57,7 +57,7 @@ namespace madness {
 
       We wish to solve the non-linear equations \f$ f(x)=0 \f$ where
       \f$ f \f$ and \f$ x \f$ are vectors of the same dimension (e.g.,
-      consider both being MADNESS functions).  
+      consider both being MADNESS functions).
 
       Define the following matrices and vector (with \f$ i \f$ and \f$
       j \f$ denoting previous iterations in the Krylov subspace and
@@ -65,9 +65,9 @@ namespace madness {
       \f{eqnarray*}{
       Q_{i j} & = & \langle x_i \mid f_j \rangle \\
       A_{i j} & = & \langle x_i - x_m \mid f_j - f_m \rangle = Q_{i j} - Q_{m j} - Q_{i m} + Q{m m} \\
-      b_i & =& -\langle x_i - x_m \mid f_m \rangle = -Q_{i m} + Q_{m m} 
+      b_i & =& -\langle x_i - x_m \mid f_m \rangle = -Q_{i m} + Q_{m m}
       \f}
-      The subspace equation is of dimension \f$ m \f$ (assuming iterations 
+      The subspace equation is of dimension \f$ m \f$ (assuming iterations
       are indexed from zero) and is given by
       \f[
       A c = b
@@ -86,7 +86,7 @@ namespace madness {
       -# Compute the additional row and column of the matrix \f$ Q \f$
       that is the inner product between solution vectors (\f$ x_i \f$) and residuals
       (\f$ f_j \f$).
-      -# Call this routine to compute the coefficients \f$ c \f$ and from these 
+      -# Call this routine to compute the coefficients \f$ c \f$ and from these
       compute the next solution vector
       -# Employ step restriction or line search as necessary to ensure stable/robust solution.
 
@@ -107,9 +107,9 @@ namespace madness {
 
         Tensor<T> A(m,m);
         Tensor<T> b(m);
-        for (long i=0; i<m; i++) {
+        for (long i=0; i<m; ++i) {
             b(i) = Q(m,m) - Q(i,m);
-            for (long j=0; j<m; j++) {
+            for (long j=0; j<m; ++j) {
                 A(i,j) = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m);
             }
         }
@@ -131,7 +131,7 @@ namespace madness {
 
         Tensor<T> c(nvec);
         T sumC = 0.0;
-        for (long i=0; i<m; i++) sumC += x(i);
+        for (long i=0; i<m; ++i) sumC += x(i);
         c(Slice(0,m-1)) = x;
 //         print("SUMC", nvec, m, sumC);
         c(m) = 1.0 - sumC;
@@ -146,21 +146,21 @@ namespace madness {
 
     /// \ingroup solvers
     struct SolverTargetInterface {
-        /// Should return the resdiual (vector F(x)) 
+        /// Should return the resdiual (vector F(x))
         virtual Tensor<double> residual(const Tensor<double>& x) = 0;
 
         /// Override this to return \c true if the Jacobian is implemented
         virtual bool provides_jacobian() const {return false;}
 
         /// Some solvers require the jacobian or are faster if an analytic form is available
-        
+
         /// J(i,j) = partial F[i] over partial x[j] where F(x) is the vector valued residual
         virtual Tensor<double> jacobian(const Tensor<double>& x) {
             throw "not implemented";
         }
 
         /// Implement this if advantageous to compute residual and jacobian simultaneously
-        virtual void residual_and_jacobian(const Tensor<double>& x, 
+        virtual void residual_and_jacobian(const Tensor<double>& x,
                                            Tensor<double>& residual, Tensor<double>& jacobian) {
             residual = this->residual(x);
             jacobian = this->jacobian(x);
@@ -187,7 +187,7 @@ namespace madness {
 
         /// Reimplement if more efficient to evaluate both value and gradient in one call
         virtual void value_and_gradient(const Tensor<double>& x,
-                                        double& value, 
+                                        double& value,
                                         Tensor<double>& gradient) {
             value = this->value(x);
             gradient = this->gradient(x);
@@ -226,7 +226,7 @@ namespace madness {
 
     /// \ingroup solvers
     class SteepestDescent : public OptimizerInterface {
-        SharedPtr<OptimizationTargetInterface> target;
+        std::shared_ptr<OptimizationTargetInterface> target;
         const double tol;
         const double value_precision;  // Numerical precision of value
         const double gradient_precision; // Numerical precision of each element of residual
@@ -234,7 +234,7 @@ namespace madness {
         double gnorm;
 
     public:
-        SteepestDescent(const SharedPtr<OptimizationTargetInterface>& target,
+        SteepestDescent(const std::shared_ptr<OptimizationTargetInterface>& tar,
                         double tol = 1e-6,
                         double value_precision = 1e-12,
                         double gradient_precision = 1e-12);
@@ -247,7 +247,7 @@ namespace madness {
 
         double value() const;
 
-	virtual ~SteepestDescent(){}
+        virtual ~SteepestDescent() { }
     };
 
 
@@ -258,7 +258,7 @@ namespace madness {
     class QuasiNewton : public OptimizerInterface {
     private:
         std::string update;              // One of BFGS or SR1
-        SharedPtr<OptimizationTargetInterface> target;
+        std::shared_ptr<OptimizationTargetInterface> target;
         const double tol;
         const double value_precision;  // Numerical precision of value
         const double gradient_precision; // Numerical precision of each element of residual
@@ -271,13 +271,13 @@ namespace madness {
 
         void hessian_update_sr1(const Tensor<double>& s, const Tensor<double>& y);
 
-        void hessian_update_bfgs(const Tensor<double>& dx, 
+        void hessian_update_bfgs(const Tensor<double>& dx,
                                  const Tensor<double>& dg);
 
         Tensor<double> new_search_direction(const Tensor<double>& g);
 
     public:
-        QuasiNewton(const SharedPtr<OptimizationTargetInterface>& target,
+        QuasiNewton(const std::shared_ptr<OptimizationTargetInterface>& tar,
                     double tol = 1e-6,
                     double value_precision = 1e-12,
                     double gradient_precision = 1e-12);

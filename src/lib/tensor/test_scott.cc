@@ -1,39 +1,39 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifdef X86_64
 
 #include <tensor/tensor.h>
-
+#include <locale>
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -50,7 +50,7 @@ void mtxmGooberSaysHey(long dimi, long dimj, long dimk,
                        const std::complex<double>* a, const double* b)
 {
   const long itile = 14;
-  for (long j = 0; j < dimj; j++)
+  for (long j = 0; j < dimj; ++j)
   {
     for (long ilo = 0; ilo < dimi; ilo += itile)
     {
@@ -102,7 +102,7 @@ void mtxmGooberSaysHey(long dimi, long dimj, long dimk,
             "pxor %xmm14,%xmm14;"
             "pxor %xmm15,%xmm15;"
         );
-        for (long k = 0; k < dimk; k++)
+        for (long k = 0; k < dimk; ++k)
         {
 //          const std::complex<double>* aki0  = a + k*dimi + ilo;
 //          const std::complex<double>* aki1  = a + k*dimi + ilo + 1;
@@ -179,11 +179,11 @@ void mtxmGooberSaysHey(long dimi, long dimj, long dimk,
       }
       else
       {
-        for (int i = ilo; i < dimi; i++)
+        for (int i = ilo; i < dimi; ++i)
         {
           std::complex<double>* cij = c + i*dimj + j;
           *(cij) = std::complex<double>(0.0,0.0);
-          for (long k = 0; k < dimk; k++)
+          for (long k = 0; k < dimk; ++k)
           {
             const std::complex<double>* aki = a + k*dimi + i;
             const double* bkj = b + k*dimj + j;
@@ -199,7 +199,7 @@ void mTxmSCOTT(long dimi, long dimj, long dimk,
            std::complex<double>* restrict c, const std::complex<double>* a, const double* b) {
 
     const long jtile = 14;
-    for (long i=0; i<dimi; i++) {
+    for (long i=0; i<dimi; ++i) {
     	std::complex<double>* cij = c + i*dimj;
     	for (long jlo=0; jlo<dimj; jlo+=jtile, cij+=jtile) {
     		int nj = dimj-jlo;
@@ -224,7 +224,7 @@ void mTxmSCOTT(long dimi, long dimj, long dimk,
 				);
 				const std::complex<double>* aki = a + i;
 				const double* bkj = b + jlo;
-				for (long k=0; k<dimk; k++,aki+=dimi,bkj+=dimj) {
+				for (long k=0; k<dimk; ++k,aki+=dimi,bkj+=dimj) {
 					__asm__ volatile(
 						"movapd (%0), %%xmm0;"
 
@@ -270,9 +270,9 @@ void mTxmSCOTT(long dimi, long dimj, long dimk,
 				break;
 
     		default:
-    		    for (long j=jlo; j<dimj; j++) {
+    		    for (long j=jlo; j<dimj; ++j) {
 					std::complex<double> cij(0.0,0.0);
-					for (long k=0; k<dimk; k++) {
+					for (long k=0; k<dimk; ++k) {
 						cij += a[k*dimi+i]*b[k*dimj+j];
 					}
 					c[i*dimj + j] = cij;

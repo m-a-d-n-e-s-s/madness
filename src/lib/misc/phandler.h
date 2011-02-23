@@ -42,7 +42,7 @@
    #include <misc/phandler.h>
 
     typedef FunctionFactory<double,3> factoryT;
-    typedef SharedPtr< FunctionFunctorInterface<double, 3> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<double, 3> > functorT;
     Function<double,3> pFunc = factoryT(world).functor(functorT(
                       new ParserHandler<double,3>("exp(-abs(r))")));
 
@@ -62,7 +62,7 @@
 // NDIM can be 1 to 6
 // Varables allowed in strings are x,y,z,u,v,w, and r
 // "r" will always mean magnitude of given vector
-   
+
 template <typename T, int NDIM>
 class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
 
@@ -92,7 +92,7 @@ class ParserHandler : public madness::FunctionFunctorInterface<T, NDIM> {
 
     virtual T operator() (const coordT &vals_in) const {
       r = 0;
-      for (int i = 0; i < NDIM; i++) {
+      for (int i = 0; i < NDIM; ++i) {
         vars[i] = vals_in[i];
         r += vals_in[i]*vals_in[i];
       }

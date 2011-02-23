@@ -62,7 +62,7 @@ double u(const double x, const double expnt) {
     return exp(-fac*fac/expnt) * cos(nwave*constants::pi*x/L);
 }
 
-// The electrostatic potential due to cos(n*pi*x/L)*(ditto z)*(ditto y) 
+// The electrostatic potential due to cos(n*pi*x/L)*(ditto z)*(ditto y)
 // is ((4*L*L)/(3*n*n*pi))*cos(n*pi*x/L)
 double potential(const coordT& r) {
     //const double fac = 1.0/(3*nwave*nwave*constants::pi);
@@ -85,21 +85,21 @@ void test_periodic(World& world) {
     Function<double,3> f = FunctionFactory<double,3>(world).f(source);
     //f.truncate();
 
-    std::vector< SharedPtr< Convolution1D<double> > > ops(1);
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
 
     std::cout.precision(10);
     double width = 2*L;
-    for (int i=-4; i<=20; i++) {
+    for (int i=-4; i<=20; ++i) {
         double expnt = pow(2.0,double(i));
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
         double coeff_sim = coeff*width;
-        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
 
         SeparatedConvolution<double,3> op(world, ops);
 
         Function<double,3> opf = op(f);
-        
+
         coordT r0(0);
         coordT r1(L-0.1);
 
@@ -142,21 +142,21 @@ void test_periodic1(World& world) {
     Function<double,1> f = FunctionFactory<double,1>(world).f(source1); //.norefine();
     //f.truncate();
 
-    std::vector< SharedPtr< Convolution1D<double> > > ops(1);
+    std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
 
     std::cout.precision(10);
     double width = 2*L;
-    for (int i=-4; i<=20; i++) {
+    for (int i=-4; i<=20; ++i) {
         double expnt = pow(2.0,double(i));
         double expnt_sim = expnt*width*width;
         double coeff = sqrt(expnt/constants::pi);
         double coeff_sim = coeff*width;
-        ops[0] = SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
+        ops[0].reset(new GaussianConvolution1D<double>(k, coeff_sim, expnt_sim, 0, true));
 
         SeparatedConvolution<double,1> op(world, ops);
 
         Function<double,1> opf = op(f);
-        
+
         coord_1d r0(0);
         coord_1d r1(L-0.1);
 
@@ -200,7 +200,7 @@ void test_periodic2(World& world) {
     opf.reconstruct();
 
     //print("i,value,exact,relerr");
-    for (int i=0; i<101; i++) {
+    for (int i=0; i<101; ++i) {
         coordT r = coordT(-L + i*2*L/100.0);
         double value = opf(r);
         double exact = potential(r);
@@ -221,7 +221,7 @@ int main(int argc, char**argv) {
 
     FunctionDefaults<1>::set_bc(BC_PERIODIC);
     FunctionDefaults<3>::set_bc(BC_PERIODIC);
-    
+
     try {
 
         print("1D gaussians");
@@ -244,11 +244,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }
@@ -269,4 +269,3 @@ int main(int argc, char**argv) {
 
     return 0;
 }
-

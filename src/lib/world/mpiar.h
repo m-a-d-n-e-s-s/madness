@@ -53,7 +53,7 @@ namespace madness {
 
             template <class T>
             inline
-            typename madness::enable_if< madness::is_fundamental<T>, void >::type
+            typename madness::enable_if< std::is_fundamental<T>, void >::type
             store(const T* t, long n) const {
                 world->mpi.Send(t, n, dest, tag);
             }
@@ -69,7 +69,7 @@ namespace madness {
 
             template <class T>
             inline
-            typename madness::enable_if< madness::is_fundamental<T>, void >::type
+            typename madness::enable_if< std::is_fundamental<T>, void >::type
             load(T* t, long n) const {
                 world->mpi.Recv(t, n, src, tag);
             }
@@ -91,7 +91,7 @@ namespace madness {
 
             template <class T>
             inline
-            typename madness::enable_if< madness::is_fundamental<T>, void >::type
+            typename madness::enable_if< std::is_fundamental<T>, void >::type
             store(const T* t, long n) const {
                 if (v.size() > bufsize) flush();
                 var.store(t,n);
@@ -128,7 +128,7 @@ namespace madness {
 
             template <class T>
             inline
-            typename madness::enable_if< madness::is_fundamental<T>, void >::type
+            typename madness::enable_if< std::is_fundamental<T>, void >::type
             load(T* t, long n) const {
                 if (!var.nbyte_avail()) {
                     var.rewind();

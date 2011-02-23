@@ -74,8 +74,8 @@ namespace madness {
 
     static Tensor<double> readmat(int k, FILE* file) {
         Tensor<double> a(k,k);
-        for (int i=0; i<k; i++) {
-            for (int j=0; j<k; j++) {
+        for (int i=0; i<k; ++i) {
+            for (int j=0; j<k; ++j) {
                 double c;
                 if (fscanf(file,"%lf",&c) != 1) {
                     cout << "readmat: twoscale missing coeff?\n";
@@ -100,7 +100,7 @@ namespace madness {
             cout << "twoscale: failed opening file with twoscale coefficients\n";
             return false;
         }
-        for (int k=1; k<kmax+1; k++) {
+        for (int k=1; k<kmax+1; ++k) {
             Tensor <double> h0, g0;
             try {
                 h0 = readmat(k,file);
@@ -114,8 +114,8 @@ namespace madness {
             Tensor<double> h1(k,k);
             Tensor<double> g1(k,k);
 
-            for (int i=0; i<k; i++) {
-                for (int j=0; j<k; j++) {
+            for (int i=0; i<k; ++i) {
+                for (int j=0; j<k; ++j) {
                     h1(i,j) = h0(i,j)*phase(i+j);
                     g1(i,j) = g0(i,j)*phase(i+j+k);
                 }
@@ -172,11 +172,11 @@ namespace madness {
 
     bool test_two_scale_coefficients() {
         /// Test the two scale coefficients for orthogonality
-        for (int k=1; k<kmax; k++) {
+        for (int k=1; k<kmax; ++k) {
             Tensor<double> hg;
             if (!two_scale_hg(k,&hg)) return false;
             Tensor<double> ident(2*k,2*k);
-            for (int i=0; i<2*k; i++) ident(i,i) = 1.0;
+            for (int i=0; i<2*k; ++i) ident(i,i) = 1.0;
 
             double err0 = (inner(hg,hg,0,0)-ident).absmax();
             if (err0 > 9e-16) {
@@ -331,7 +331,7 @@ namespace madness {
                     throw "load_coeffs: failed reading coeffs";
             }
             else {
-                for (int k=1; k<=kmax; k++) {
+                for (int k=1; k<=kmax; ++k) {
                     cache[k].h0 = Tensor<double>(k,k);
                     cache[k].h1 = Tensor<double>(k,k);
                     cache[k].g0 = Tensor<double>(k,k);
@@ -341,7 +341,7 @@ namespace madness {
                 kread = ktop;
             }
 
-            for (int k=1; k<=kmax; k++) {
+            for (int k=1; k<=kmax; ++k) {
                 world.gop.broadcast(cache[k].h0.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].h1.ptr(), k*k, 0);
                 world.gop.broadcast(cache[k].g0.ptr(), k*k, 0);

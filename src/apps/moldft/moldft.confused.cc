@@ -54,7 +54,7 @@ extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
-        for (long i=0; i<n; i++) {
+        for (long i=0; i<n; ++i) {
             double aa = a[i]*c - b[i]*s;
             double bb = b[i]*c + a[i]*s;
             a[i] = aa;
@@ -91,15 +91,15 @@ public:
     }
 };
 
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef vector<functionT> vecfuncT;
 typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
+typedef std::shared_ptr<operatorT> poperatorT;
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
@@ -166,9 +166,9 @@ public:
     MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
     double operator()(const coordT& r) const {
         double xi=1.0, yj=1.0, zk=1.0;
-        for (int p=0; p<i; p++) xi *= r[0];
-        for (int p=0; p<j; p++) yj *= r[1];
-        for (int p=0; p<k; p++) zk *= r[2];
+        for (int p=0; p<i; ++p) xi *= r[0];
+        for (int p=0; p<j; ++p) yj *= r[1];
+        for (int p=0; p<k; ++p) zk *= r[2];
         return xi*yj*zk;
     }
 };
@@ -179,7 +179,7 @@ tensorT sqrt(const tensorT& s, double tol=1e-8) {
     tensorT c, e;
     //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
     syev(s, &c, &e);
-    for (int i=0; i<n; i++) {
+    for (int i=0; i<n; ++i) {
         if (e(i) < -tol) {
             MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
         }
@@ -189,8 +189,8 @@ tensorT sqrt(const tensorT& s, double tol=1e-8) {
         }
         e(i) = 1.0/sqrt(e(i));
     }
-    for (int j=0; j<n; j++) {
-        for (int i=0; i<n; i++) {
+    for (int j=0; j<n; ++j) {
+        for (int i=0; i<n; ++i) {
             c(j,i) *= e(i);
         }
     }
@@ -201,7 +201,7 @@ tensorT energy_weighted_orthog(const tensorT& s, const tensorT eps) {
     int n=s.dim[0], m=s.dim[1];
     MADNESS_ASSERT(n==m);
     tensorT d(n,n);
-    for (int i=0; i<n; i++) d(i,i) = eps(i);
+    for (int i=0; i<n; ++i) d(i,i) = eps(i);
     tensorT c, e;
     sygv(d, s, 1, &c, &e);
     return c;
@@ -474,7 +474,7 @@ struct Calculation {
 
     void project(World& world) {
         reconstruct(world,amo);
-        for (unsigned int i=0; i<amo.size(); i++) {
+        for (unsigned int i=0; i<amo.size(); ++i) {
             amo[i] = madness::project(amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
         }
         world.gop.fence();
@@ -482,7 +482,7 @@ struct Calculation {
         normalize(world,amo);
         if (param.nbeta && !param.spin_restricted) {
             reconstruct(world,bmo);
-            for (unsigned int i=0; i<bmo.size(); i++) {
+            for (unsigned int i=0; i<bmo.size(); ++i) {
                 bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
             }
             world.gop.fence();
@@ -503,7 +503,7 @@ struct Calculation {
         vecfuncT ao(aobasis.nbf(molecule));
 
         Level initial_level = 3;
-        for (int i=0; i<aobasis.nbf(molecule); i++) {
+        for (int i=0; i<aobasis.nbf(molecule); ++i) {
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
 //             if (world.rank() == 0) {
 //                 aobasis.get_atomic_basis_function(molecule,i).print_me(cout);
@@ -519,9 +519,9 @@ struct Calculation {
             initial_level += 2;
             if (initial_level >= 11) throw "project_ao_basis: projection failed?";
             int nredone = 0;
-            for (int i=0; i<aobasis.nbf(molecule); i++) {
+            for (int i=0; i<aobasis.nbf(molecule); ++i) {
                 if (norms[i] < 0.99) {
-                    nredone++;
+                    ++nredone;
                     //if (world.rank() == 0) print("re-projecting ao basis function", i,"at level",initial_level);
                     functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule,i)));
                     ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
@@ -533,7 +533,7 @@ struct Calculation {
 
         truncate(world, ao);
 
-        for (int i=0; i<aobasis.nbf(molecule); i++) {
+        for (int i=0; i<aobasis.nbf(molecule); ++i) {
             if (world.rank() == 0 && fabs(norms[i]-1.0)>1e-3) print(i," bad ao norm?", norms[i]);
             norms[i] = 1.0/norms[i];
         }
@@ -556,16 +556,16 @@ struct Calculation {
         tensorT U(nmo,nmo);
 
         if (world.rank() == 0) {
-            for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+            for (long i=0; i<nmo; ++i) U(i,i) = 1.0;
 
             const double thresh = 1e-9; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
-            for (long iter=0; iter<100; iter++) {
+            for (long iter=0; iter<100; ++iter) {
                 // Compute the objective function to track convergence
                 double sum = 0.0;
-                for (long i=0; i<nmo; i++) {
-                    for (long mu=0; mu<nao; mu++) {
+                for (long i=0; i<nmo; ++i) {
+                    for (long mu=0; mu<nao; ++mu) {
                         double si = S(i,mu);
                         sum += si*si*si*si;
                     }
@@ -576,12 +576,12 @@ struct Calculation {
                 long ndone_iter=0; // No. of rotations done this iteration
                 double screen = tol*sum;
 
-                for (long i=0; i<nmo; i++) {
-                    for (long j=0; j<i; j++) {
+                for (long i=0; i<nmo; ++i) {
+                    for (long j=0; j<i; ++j) {
                         double g = 0.0;
                         double h = 0.0;
                         double sij = 0.0; // Estimate of the overlap of |i> and |j>
-                        for (long mu=0; mu<nao; mu++) {
+                        for (long mu=0; mu<nao; ++mu) {
                             double si = S(i,mu);
                             double sj = S(j,mu);
                             g += si*sj*sj*sj - si*si*si*sj;
@@ -611,7 +611,7 @@ struct Calculation {
                         }
 
                         if (fabs(theta) > screen) {
-                            ndone_iter++;
+                            ++ndone_iter;
 
                             double c = cos(theta);
                             double s = sin(theta);
@@ -651,10 +651,10 @@ struct Calculation {
         {
             functionT frsq = factoryT(world).f(rsquared).initial_level(4);
             rsq = inner(world, mo, mul(world, frsq, mo));
-            for (int axis=0; axis<3; axis++) {
+            for (int axis=0; axis<3; ++axis) {
                 functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
                 dip(axis,_) = inner(world, mo, mul(world, fdip, mo));
-                for (int i=0; i<nmo; i++) rsq(i) -= dip(axis,i)*dip(axis,i);
+                for (int i=0; i<nmo; ++i) rsq(i) -= dip(axis,i)*dip(axis,i);
             }
         }
         if (world.rank() == 0) {
@@ -664,7 +664,7 @@ struct Calculation {
 
             // psi_i(x) approx = sum (mu) C(i,mu)*chi_mu(x)
             long nmo = mo.size();
-            for (long i=0; i<nmo; i++) {
+            for (long i=0; i<nmo; ++i) {
                 printf("  MO%4ld : ", i);
                 if (occ.size) printf("occ=%.2f : ", occ(i));
                 if (energy.size) printf("energy=%11.6f : ", energy(i));
@@ -690,7 +690,7 @@ struct Calculation {
         long nmo = mo.size();
         tensorT dip(3, nmo, nmo);
 
-        for (int axis=0; axis<3; axis++) {
+        for (int axis=0; axis<3; ++axis) {
             functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
             dip(axis,_,_) = matrix_inner(world, mo, mul(world, fdip, mo), true);
         }
@@ -698,17 +698,17 @@ struct Calculation {
         tensorT U(nmo,nmo);
         if (world.rank() == 0) {
 
-            for (long i=0; i<nmo; i++) U(i,i) = 1.0;
+            for (long i=0; i<nmo; ++i) U(i,i) = 1.0;
 
             const double thresh = 1e-9; // Final convergence test
             double tol = 0.1;           // Current test
             long ndone=0;               // Total no. of rotations performed
 
             bool converged = false;
-            for (long iter=0; iter<100; iter++) {
+            for (long iter=0; iter<100; ++iter) {
                 // Compute the objective function to track convergence
                 double sum = 0.0;
-                for (long i=0; i<nmo; i++) {
+                for (long i=0; i<nmo; ++i) {
                     sum += DIP(i,i,i,i);
                 }
 
@@ -718,8 +718,8 @@ struct Calculation {
                 double screen = tol*sum;
 
                 if (doprint) print("iteration", iter, sum, ndone);
-                for (long i=0; i<nmo; i++) {
-                    for (long j=0; j<i; j++) {
+                for (long i=0; i<nmo; ++i) {
+                    for (long j=0; j<i; ++j) {
                         double g = 0.0;
                         double h = 0.0;
                         double sij = 0.0; // Estimate of the overlap of |i> and |j>
@@ -755,12 +755,12 @@ struct Calculation {
                         }
 
                         if (fabs(theta) > screen || randomized) {
-                            ndone_iter++;
+                            ++ndone_iter;
                             if (doprint) print("    ", i, j, g, h, theta);
 
                             double c = cos(theta);
                             double s = sin(theta);
-                            for (int axis=0; axis<3; axis++) {
+                            for (int axis=0; axis<3; ++axis) {
                                 drot(nmo, &dip(axis,i,0), &dip(axis,j,0), s, c, 1);
                                 // This next line is the expensive one due to the non-unit stride.
                                 // It can be eliminated at the expense of adding more unit
@@ -797,7 +797,7 @@ struct Calculation {
         reconstruct(world, v);
         int n = v.size();
         tensorT r(n,n);
-        for (int axis=0; axis<3; axis++) {
+        for (int axis=0; axis<3; ++axis) {
             vecfuncT dv = diff(world,v,axis);
             r += matrix_inner(world, dv, dv, true);
             dv.clear();
@@ -881,7 +881,7 @@ struct Calculation {
         START_TIMER;
         vecfuncT ao   = project_ao_basis(world);
         END_TIMER("project ao basis");
-//         for (unsigned int i=0; i<ao.size(); i++) {
+//         for (unsigned int i=0; i<ao.size(); ++i) {
 //             if (world.rank() == 0) print("\ndistribution of ao",i);
 //             ao[i].print_info();
 //         }
@@ -891,13 +891,13 @@ struct Calculation {
 //         if (world.size() > 1) {
 //             LoadBalanceDeux<3> lb(world);
 //             lb.add_tree(vnuc, lbcost<double,3>(1.0), false);
-//             for (unsigned int i=0; i<ao.size(); i++) {
+//             for (unsigned int i=0; i<ao.size(); ++i) {
 //                 lb.add_tree(ao[i],lbcost<double,3>(), false);
 //             }
 //             FunctionDefaults<3>::set_pmap(lb.load_balance(2.0));
 //             vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
 //             vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-//             for (unsigned int i=0; i<amo.size(); i++) {
+//             for (unsigned int i=0; i<amo.size(); ++i) {
 //                 ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
 //             }
 //             world.gop.fence();
@@ -968,7 +968,7 @@ struct Calculation {
         aeps = e(Slice(0,param.nmo_alpha-1));
 
         aocc = tensorT(param.nmo_alpha);
-        for (int i=0; i<param.nalpha; i++) aocc[i] = 1.0;
+        for (int i=0; i<param.nalpha; ++i) aocc[i] = 1.0;
 
         if (param.nbeta && !param.spin_restricted) {
             bmo = transform(world, ao, c(_,Slice(0,param.nmo_beta-1)));
@@ -978,7 +978,7 @@ struct Calculation {
             //analyze_vectors(world, bmo);
             beps = e(Slice(0,param.nmo_beta-1));
             bocc = tensorT(param.nmo_beta);
-            for (int i=0; i<param.nbeta; i++) bocc[i] = 1.0;
+            for (int i=0; i<param.nbeta; ++i) bocc[i] = 1.0;
         }
     }
 
@@ -998,7 +998,7 @@ struct Calculation {
         compress(world,vsq);
         functionT rho = factoryT(world).thresh(vtol);
         rho.compress();
-        for (unsigned int i=0; i<vsq.size(); i++) {
+        for (unsigned int i=0; i<vsq.size(); ++i) {
             if (occ[i]) rho.gaxpy(1.0,vsq[i],occ[i],false);
         }
         world.gop.fence();
@@ -1015,7 +1015,7 @@ struct Calculation {
         vector<poperatorT> ops(nmo);
         int k = FunctionDefaults<3>::get_k();
         double tol = FunctionDefaults<3>::get_thresh();
-        for (int i=0; i<nmo; i++) {
+        for (int i=0; i<nmo; ++i) {
             double eps = evals(i);
             if (eps > 0) {
                 if (world.rank() == 0) {
@@ -1049,7 +1049,7 @@ struct Calculation {
 
         compress(world,Kf);
         reconstruct(world,psi);
-        for (int i=0; i<nocc; i++) {
+        for (int i=0; i<nocc; ++i) {
             if (occ[i] > 0.0) {
                 //vecfuncT psif = mul(world, psi[i], f);
                 vecfuncT psif = mul_sparse(world, psi[i], f, vtol);
@@ -1136,7 +1136,7 @@ struct Calculation {
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
             exc = 0.0;
-            for (unsigned long i=0; i<amo.size(); i++) {
+            for (unsigned long i=0; i<amo.size(); ++i) {
                 exc -= 0.5*excv[i]*occ[i];
             }
             gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
@@ -1180,14 +1180,14 @@ struct Calculation {
         vector<double> new_norm = norm2(world, new_psi);
         tensorT Vpr = inner(world, Vpsi, r); // Numerator of delta_epsilon
         tensorT deps(nmo);
-        for (int i=0; i<nmo; i++) deps(i) = 0.5*Vpr(i)/(new_norm[i]*new_norm[i]);
+        for (int i=0; i<nmo; ++i) deps(i) = 0.5*Vpr(i)/(new_norm[i]*new_norm[i]);
 
         Vpsi.clear();
         normalize(world, new_psi);
 
         tensorT new_eps(nmo);
 
-        for (int i=0; i<nmo; i++) {
+        for (int i=0; i<nmo; ++i) {
             double step = (rnorm[i] < param.maxrotn) ? 1.0 : param.maxrotn;
             if (step!=1.0 && world.rank()==0) {
                 print("  restricting step for orbital ", i, step);
@@ -1248,7 +1248,7 @@ struct Calculation {
 
         int nocc = occ.size;
         ekinetic = 0.0;
-        for (int i=0; i<nocc; i++) {
+        for (int i=0; i<nocc; ++i) {
             ekinetic += occ[i]*ke(i,i);
         }
 
@@ -1280,14 +1280,14 @@ struct Calculation {
         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
         arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
         if (world.rank() == 0) print("copying amos");
-        for (unsigned int i=0; i<amo.size(); i++) {
+        for (unsigned int i=0; i<amo.size(); ++i) {
             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
             //if ((i%5) == 0) world.gop.fence(); // Attempt to throttle comms
         }
         if (param.nbeta && !param.spin_restricted) {
             brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
             brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-            for (unsigned int i=0; i<bmo.size(); i++) {
+            for (unsigned int i=0; i<bmo.size(); ++i) {
                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
                 //if ((i%5) == 0) world.gop.fence(); // Attempt to throttle comms
             }
@@ -1300,7 +1300,7 @@ struct Calculation {
         functionT arho_old, brho_old;
         functionT adelrhosq, bdelrhosq; // placeholders for GGAs
 
-        for (int iter=0; iter<param.maxiter; iter++) {
+        for (int iter=0; iter<param.maxiter; ++iter) {
             streamsize oldprec = cout.precision();
             cout.precision(1);
             if (world.rank()==0) print("\nIteration", iter,"at time",wall_time(),"\n");

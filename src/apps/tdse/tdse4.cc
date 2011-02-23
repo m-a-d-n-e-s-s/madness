@@ -64,15 +64,15 @@ struct lbcost {
 
 // typedefs to make life less verbose
 typedef Vector<double,4> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,4> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,4> > functorT;
 typedef Function<double,4> functionT;
 typedef FunctionFactory<double,4> factoryT;
 typedef SeparatedConvolution<double,4> operatorT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,4> > complex_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,4> > complex_functorT;
 typedef Function<double_complex,4> complex_functionT;
 typedef FunctionFactory<double_complex,4> complex_factoryT;
 typedef Convolution1D<double_complex> complex_operatorT;
-typedef SharedPtr< WorldDCPmapInterface< Key<4> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<4> > > pmapT;
 
 double real(double a) {return a;}
 
@@ -560,7 +560,6 @@ void print_stats(World& world, int step, double t, const functionT& pote,  const
         printf("%7d %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %16.8e %9.1f\n", step, t, laser(t), current_energy, norm, overlap0, xdip, ydip, zdip, Ravg, wall_time());
         printf("printing used %.1f\n", wall_time() - start);
     }
-
 }
 
 const char* wave_function_filename(int step) {
@@ -613,7 +612,7 @@ void loadbal(World& world,
 
 template <typename T>
 void initial_loadbal(World& world,
-                     functionT& pote, functionT& potn, functionT& pot, 
+                     functionT& pote, functionT& potn, functionT& pot,
                      Function<T,4>& psi) {
     if (world.size() < 2) return;
     if (world.rank() == 0) print("starting initial LB");
@@ -624,8 +623,6 @@ void initial_loadbal(World& world,
     FunctionDefaults<4>::redistribute(world,lb.load_balance(2.0,false));
     world.gop.fence();
 }
-
-
 
 
 // Evolve the wave function in real time starting from given time step on disk
@@ -645,7 +642,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     world.gop.broadcast(time_step);
     world.gop.broadcast(nstep);
 
-    // Free particle propagator 
+    // Free particle propagator
     complex_operatorT* Ge = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step, 2.0*param.L);
     complex_operatorT* Gn = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step,  s0+param.L);
 
@@ -683,7 +680,7 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
     }
 
     print_stats_header(world);
-    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
+    print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi0);
     world.gop.fence();
 
     psi.truncate();
@@ -707,8 +704,8 @@ void propagate(World& world, functionT& pote, functionT& potn, functionT& pot, i
         t += time_step;
         vt = pot+laser(t)*x;
 
-        if ((step%param.nprint)==0 || step==nstep) 
-            print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
+        if ((step%param.nprint)==0 || step==nstep)
+        print_stats(world, step, t, pote, potn, laser(t)*x, x, y, z, R, psi0, psi);
 
         if ((step%param.ndump) == 0 || step==nstep) {
             double start = wall_time();
@@ -742,7 +739,7 @@ void doit(World& world) {
     //FunctionDefaults<4>::set_cubic_cell(-param.L,param.L);
     FunctionDefaults<4>::set_apply_randomize(true);
     FunctionDefaults<4>::set_autorefine(false);
-    FunctionDefaults<4>::set_truncate_mode(1); 
+    FunctionDefaults<4>::set_truncate_mode(1);
     FunctionDefaults<4>::set_truncate_on_project(true);
     FunctionDefaults<4>::set_pmap(pmapT(new LevelPmap(world)));
 
@@ -833,10 +830,10 @@ int main(int argc, char** argv) {
     } catch (const madness::TensorException& e) {
         print(e); std::cout.flush();
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    } catch (char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
-    } catch (char* s) {
+    } catch (const char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
     } catch (const std::string& s) {

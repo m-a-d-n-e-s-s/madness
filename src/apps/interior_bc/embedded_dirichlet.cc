@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -84,9 +84,9 @@ int main(int argc, char **argv) {
 
     // the structures for the problem, unfortunately different DIMs need
     // different structures...
-    SharedPtr<EmbeddedDirichlet<2> > functor2;
-    SharedPtr<EmbeddedDirichlet<3> > functor3;
-    
+    std::shared_ptr<EmbeddedDirichlet<2> > functor2;
+    std::shared_ptr<EmbeddedDirichlet<3> > functor3;
+
     if (world.rank() == 0) {
         if(argc < 6) {
             std::cerr << "Usage error: ./app_name k thresh prob eps penalty" \
@@ -160,29 +160,29 @@ int main(int argc, char **argv) {
     // do the final problem setup
     switch(prob) {
     case 1:
-        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new ConstantSphere(k,
+        functor3.reset(new ConstantSphere(k,
                        thresh, eps, std::string(argv[5]), penalty_prefact,
                        radius, mask));
         dim = 3;
         break;
     case 2:
-        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new CosineSphere(k, thresh,
+        functor3.reset(new CosineSphere(k, thresh,
                        eps, std::string(argv[5]), penalty_prefact, radius,
                        mask));
         dim = 3;
         break;
     case 3:
-        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new Ellipsoid(k, thresh,
+        functor3.reset(new Ellipsoid(k, thresh,
                        eps, std::string(argv[5]), penalty_prefact, mask));
         dim = 3;
         break;
     case 4:
-        functor2 = SharedPtr<EmbeddedDirichlet<2> >(new LLRVCircle(k, thresh,
+        functor2.reset(new LLRVCircle(k, thresh,
                        eps, std::string(argv[5]), penalty_prefact, mask));
         dim = 2;
         break;
     case 5:
-        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new Y20Sphere(k, thresh,
+        functor3.reset(new Y20Sphere(k, thresh,
                        eps, std::string(argv[5]), penalty_prefact, radius,
                        mask));
         dim = 3;
@@ -289,7 +289,7 @@ int main(int argc, char **argv) {
 
     switch(dim) {
     case 2:
-        surf_integral = surf2.trace(); 
+        surf_integral = surf2.trace();
         anals = functor2->SurfaceIntegral();
         vol_integral = phi2.trace();
         analv = functor2->VolumeIntegral();
@@ -496,6 +496,6 @@ int main(int argc, char **argv) {
     plotvtk_end<3>(world, filename);*/
 
     finalize();
-    
+
     return 0;
 }

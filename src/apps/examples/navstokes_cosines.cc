@@ -1,49 +1,49 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
-  
+
 /*!
   \file navstokes_cosines.cc
-  \brief Example Solving the Navier-Stokes equations 
-  \defgroup examplense Solves a Navier-Stokes equation 
+  \brief Example Solving the Navier-Stokes equations
+  \defgroup examplense Solves a Navier-Stokes equation
   \ingroup examples
-  
+
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/navstokes_cosines.cc >here</a>.
 
   \par Points of interest
   - convolution with periodic Green's function (Possion/Coulomb kernel and Modified Helmholtz/Bound State Helmholtz/Yukawa kernel)
   - output data for ParaView
-  
+
   \par Background
   This illustrates the solution of a Navier-Stokes equation for incompressible flows,
   \f{eqnarray*}{
@@ -53,10 +53,10 @@
   where the force and the viscocity  \f$ f \f$ and \f$ \mu \f$ are given in the code.
 
   \par Implementation
-    
+
     Step 1.  Calculate the pressure at time \f$ n+1 \f$ explicitly.
     \f[
-    \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} ) 
+    \Delta p = \nabla \cdot (f - u_{n} \cdot \nabla u_{n} )
     \f]
     Everything in the RHS is either given or known; thus \f$p\f$ can be obtained by applying a Coulomb operator.
 
@@ -65,16 +65,16 @@
     (\frac{1}{ \delta t \mu } - \Delta) u_{n+1} = \frac {f - \nabla p - u_n \cdot \nabla u_n }{ \mu } + \frac {u_n}{ \delta t \mu }
     \f]
     Again, \f$u_{n+1}\f$ is calculated by applying the BSH operator to the RHS.
-    
+
     The resulting method is a first order in time scheme and can be extended by Spectral/Krylov deferred corrections to construct higher order methods.
     Particularly, the construction of a second order scheme under this frame is easy and similar to the Crank-Nicolson technique, which is also demonstrated by the example.
-    
+
     \par Reference
-    Jia, J.; Hill, J.; Fann, G. & Harrison, R. J. 
+    Jia, J.; Hill, J.; Fann, G. & Harrison, R. J.
     MULTIRESOLUTION FAST METHODS FOR A PERIODIC 3-D NAVIER-STOKES SOLVER
     Proceedings of the Eighth International Symposium on Distributed Computing and Applications to Business, Engineering and Science, Publishing House of Electronics Industry, 2009
 
-    
+
 */
 
 
@@ -106,20 +106,20 @@ const double uthresh1 = pthresh1;
 double mytime = 0.0; // Global variable for the current time
 // This should be passed in thru the class or app context
 const double cc = 0;// L/(deltaT*Nts)/2;
- 
+
 //wrapper, but no longer needed.
 struct FunctorInterfaceWrapper : public FunctionFunctorInterface<double,3> {
     double (*f)(const coordT&);
-    
+
     FunctorInterfaceWrapper(double (*f)(const coordT&)) : f(f) {}
-    
+
     double operator()(const coordT& x) const {return f(x);}
 };
 
 template<typename T, int NDIM> //used to simplifying the mirgrating to new bc. use with caution if you change your bc at runtime.
 static Function<T,NDIM> diff(const Function<T,NDIM>& f, int axis) {
-	static Vector<SharedPtr<Derivative<T,NDIM> >,NDIM> df;
-	if (df[axis] == NULL) df[axis] = SharedPtr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
+	static Vector<std::shared_ptr<Derivative<T,NDIM> >,NDIM> df;
+	if (df[axis] == NULL) df[axis] = std::shared_ptr<Derivative<T,NDIM> >(new Derivative<T,NDIM>(f.world(), axis));
 	return (*df[axis])(f);
 }
 
@@ -129,14 +129,14 @@ static double init_zero(const coordT3d& r) {
 }
 //*****************************************************************************
 //*****************************************************************************
-                   
+
 static double uxexact(const coordT3d& r) {
 	const double x=r[0]+cc*mytime, y = r[1], z = r[2];
 	double t = mytime;
 
 	return cos(.5*t) * sin(x) * sin(x) * (sin(2. * y) * sin(z) * sin(z) - sin(y)
 			* sin(y) * sin(2. * z));
-	
+
 }
 //*****************************************************************************
 //*****************************************************************************
@@ -223,7 +223,7 @@ void testNavierStokes(int argc, char**argv) {
 	initialize(argc, argv);
 	try {
 	World world(MPI::COMM_WORLD);
-	
+
 	pworld = &world;
 	startup(world, argc, argv);
 
@@ -232,14 +232,14 @@ void testNavierStokes(int argc, char**argv) {
 	FunctionDefaults<3>::set_cubic_cell(0.0, L);
 	FunctionDefaults<3>::set_thresh(pthresh);
 	FunctionDefaults<3>::set_bc(BC_PERIODIC);
-	
+
 	// construct the periodic Coulomb operator for later use
-	SeparatedConvolution<double, 3> op = CoulombOperator (world, pthresh1, pthresh1);  
-	
+	SeparatedConvolution<double, 3> op = CoulombOperator (world, pthresh1, pthresh1);
+
 	// construct the periodic BSH operator for later use
-	double const dum = 1 / deltaT / mu; 
+	double const dum = 1 / deltaT / mu;
 	SeparatedConvolution<double, 3> op1 = BSHOperator<3>(world,	sqrt(dum), uthresh1, uthresh1);
-	
+
 	
 	// construct the periodic BSH operator for later use
 	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
@@ -254,13 +254,13 @@ void testNavierStokes(int argc, char**argv) {
 	u[0] = FunctionFactory<double, 3> (world).f(uxexact  ) .truncate_on_project();
 	u[1] = FunctionFactory<double, 3> (world).f(uyexact  ) .truncate_on_project();
 	u[2] = FunctionFactory<double, 3> (world).f(uzexact  ) .truncate_on_project();
-	
-	
+
+
 	print("col error",op(lap(u[0])).scale(-1. / (4. * pi)).err(uxexact));
 	print("bsh error", op1(dum*u[0] - lap(u[0])).err(uxexact));
-	
 
-	Function<double, 3> divu = div(u); // computer the divergence 
+
+	Function<double, 3> divu = div(u); // computer the divergence
 	double divun=divu.norm2();
 	int dd=divu.max_depth();
 	if (world.rank()==0) print("initial div, depth:", divun, dd); //print out some information
@@ -273,11 +273,11 @@ void testNavierStokes(int argc, char**argv) {
 		f[0] = FunctionFactory<double, 3> (world).f(fxexact).truncate_on_project();
 		f[1] = FunctionFactory<double, 3> (world).f(fyexact).truncate_on_project();
 		f[2] = FunctionFactory<double, 3> (world).f(fzexact).truncate_on_project();
-		
-		
+
+
 		adv(u, rhs);
 		//adv works like: for (int i=0; i < 3; ++i)  rhs[i] = u[0]*diff(u[i],0) + u[1]*diff(u[i],1) + u[2]*diff(u[i],2);
-		
+
 		functionT divf = div(f-rhs);
 
 		Function<double,3> p = op(divf); // apply the Coulomb operator to compute the pressure \c p
@@ -297,13 +297,13 @@ void testNavierStokes(int argc, char**argv) {
 		gaxpy(world, -1./mu, rhs, dum, u);
 
 		functT ue = apply(world, op1, rhs); // apply the BSH operator to update the velocity \c ue
-		
+
 		//u = ue;  // use this line for first order/mixed Euler's method
-		
+
 		gaxpy(world,-1,u,2,ue); ++t; mytime += deltaT; //for (int i=0; i < 3; ++i) u[i] = 2.0*ue[i] - u[i];// += (mu*lap(ue[i])-(ue[0]*diff(ue[i],0) + ue[1]*diff(ue[i],1) + ue[2]*diff(ue[i],2)) - diff(p,i) + f[i])*(2*deltaT);
 		//use the above line for second order/Crank-Nicolson like scheme
 		//note that in this case, the time-step size is instead 2*deltaT
-		
+
 
 		if ( (t%10)==0 && world.rank()==0) { // output the current status to vts files every 10 steps
                    char filename[100];
@@ -328,14 +328,14 @@ void testNavierStokes(int argc, char**argv) {
 		//~ du -= u[0];
 		//~ Function<double, 3> dv = FunctionFactory<double, 3> (world).f(uyexact).truncate_on_project();
 		//~ dv -= u[1];
-		//~ Function<double, 3> dw = FunctionFactory<double, 3> (world).f(uzexact).truncate_on_project(); 
+		//~ Function<double, 3> dw = FunctionFactory<double, 3> (world).f(uzexact).truncate_on_project();
 		//~ dw -= u[2];
-		
+
 		double  a=div(u).norm2(), b=u[0].err(uxexact), c=u[1].err(uyexact),d=u[2].err(uzexact);
 		if (world.rank()==0)  print(t+1, mytime, a,b,c,d); // print out some information
 		}
-	}    
-	
+	}
+
 //	RMI::end();
 	} catch (const MPI::Exception& e) {
         //        print(e);

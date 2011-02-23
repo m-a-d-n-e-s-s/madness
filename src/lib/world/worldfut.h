@@ -66,7 +66,7 @@ contents by \invoking the default constructor of each item in
 the container since we are told that the items must be default
 constructable.  But this is \em incorrect.  The items are initialized
 by invoking the copy constructor for each element on a \em single
-object made with the default constructor.   For futures this 
+object made with the default constructor.   For futures this
 is a very bad problem.  For instance,
 \code
    vector< Future<double> > v(3);
@@ -104,26 +104,19 @@ which enables you to write
 which merely blows instead of sucking.
 */
 
-
-
-
     template <typename T> class Future;
 
     /// Boost-type-trait-like testing of if a type is a future
 
     /// \ingroup futures
     template <typename T>
-    struct is_future {
-        static const bool value = false;
-    };
+    struct is_future : public std::false_type { };
 
     /// Boost-type-trait-like testing of if a type is a future
 
     /// \ingroup futures
     template <typename T>
-    struct is_future< Future<T> > {
-        static const bool value = true;
-    };
+    struct is_future< Future<T> > : public std::true_type { };
 
     /// Boost-type-trait-like mapping of Future<T> to T
 
@@ -141,7 +134,7 @@ which merely blows instead of sucking.
         typedef T type;
     };
 
-    /// Macro to determine type of future (by removing wrapping future template) 
+    /// Macro to determine type of future (by removing wrapping future template)
 
     /// \ingroup futures
 #define REMFUTURE(T) typename remove_future< T >::type
@@ -164,7 +157,7 @@ which merely blows instead of sucking.
     private:
         static const int MAXCALLBACKS = 4;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
-        typedef Stack<SharedPtr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
+        typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
         volatile callbackT callbacks;
         volatile assignmentT assignments;
         volatile bool assigned;
@@ -179,7 +172,7 @@ which merely blows instead of sucking.
             arg & ref & t;
             FutureImpl<T>* f = ref.get();
             f->set(t);
-            ref.dec();
+            ref.reset();
         }
 
 
@@ -199,10 +192,10 @@ which merely blows instead of sucking.
 //             const_cast<assignmentT&>(assignments).clear();
 
             while (as.size()) {
-                SharedPtr< FutureImpl<T> >& p = as.pop();
+                std::shared_ptr< FutureImpl<T> >& p = as.pop();
                 MADNESS_ASSERT(p);
                 p->set(const_cast<T&>(t));
-                p = SharedPtr< FutureImpl<T> >();
+                p.reset();
             }
             while (cb.size()) {
                 CallbackInterface* p = cb.pop();
@@ -211,7 +204,7 @@ which merely blows instead of sucking.
             }
         }
 
-        inline void add_to_assignments(const SharedPtr< FutureImpl<T> >& f) {
+        inline void add_to_assignments(const std::shared_ptr< FutureImpl<T> >& f) {
             // ASSUME lock is already acquired by Future<T>::set()
             if (assigned) {
                 f->set(const_cast<T&>(t));
@@ -224,7 +217,7 @@ which merely blows instead of sucking.
 
 
     public:
-        
+
         // Local unassigned value
         FutureImpl()
                 : callbacks()
@@ -258,7 +251,7 @@ which merely blows instead of sucking.
                 : callbacks()
                 , assignments()
                 , assigned(false)
-                , world(World::world_from_id(remote_ref.world_id()))
+                , world(& remote_ref.get_world())
                 , remote_ref(remote_ref)
                 , t() {
             //print("FUTCON(c)",(void*) this);
@@ -292,10 +285,11 @@ which merely blows instead of sucking.
                 if (remote_ref.owner() == world->rank()) {
                     remote_ref.get()->set(value);
                     set_assigned();
-                    remote_ref.dec();
+                    remote_ref.reset();
                 }
                 else {
-                    world->am.send(remote_ref.owner(),
+                    const ProcessID owner = remote_ref.owner();
+                    world->am.send(owner,
                                    FutureImpl<T>::set_handler,
                                    new_am_arg(remote_ref, value));
                     set_assigned();
@@ -373,8 +367,6 @@ which merely blows instead of sucking.
     };
 
 
-    
-
     /// A future is a possibly yet unevaluated value
 
     /// \ingroup futures
@@ -396,19 +388,19 @@ which merely blows instead of sucking.
     private:
       // If f==0 ... can only happen in Future(value) ... i.e., the future is constructed
       // as assigned to value ... to optimize away the new(futureimpl) we instead set f=0
-      // and copy the value 
+      // and copy the value
 
       // If f==nonzero ... there is an underlying future that may/maynot be assigned
 
-        mutable SharedPtr< FutureImpl<T> > f;
+        mutable std::shared_ptr< FutureImpl<T> > f;
         T value;
         const bool is_the_default_initializer;
 
         class dddd {};
         explicit Future(const dddd&)
-                : f(0)
+                : f()
                 , value()
-                , is_the_default_initializer(true) 
+                , is_the_default_initializer(true)
         {
         }
 
@@ -419,15 +411,15 @@ which merely blows instead of sucking.
         Future()
                 : f(new FutureImpl<T>())
                 , value()
-                , is_the_default_initializer(false) 
+                , is_the_default_initializer(false)
         {
         }
 
         /// Makes an assigned future
         explicit Future(const T& t)
-                : f(0)
+                : f()
                 , value(t)
-                , is_the_default_initializer(false) 
+                , is_the_default_initializer(false)
         {
         }
 
@@ -436,7 +428,7 @@ which merely blows instead of sucking.
         explicit Future(const remote_refT& remote_ref)
                 : f(new FutureImpl<T>(remote_ref))
                 , value()
-                , is_the_default_initializer(false) 
+                , is_the_default_initializer(false)
         {
         }
 
@@ -445,10 +437,10 @@ which merely blows instead of sucking.
         Future(const Future<T>& other)
 	        : f(other.f)
                 , value(other.value)
-                , is_the_default_initializer(false) 
+                , is_the_default_initializer(false)
         {
             if (other.is_the_default_initializer) {
-                f = SharedPtr< FutureImpl<T> >(new FutureImpl<T>());
+                f.reset(new FutureImpl<T>());
             }
 	    // Otherwise nothing to do ... done in member initializers
         }
@@ -463,13 +455,12 @@ which merely blows instead of sucking.
         /// Assignment future = future makes a shallow copy just like copy constructor
         Future<T>& operator=(const Future<T>& other) {
             if (this != &other) {
-	        MADNESS_ASSERT(!probe());
+                MADNESS_ASSERT(!probe());
                 if (other.f) {
-		  f = other.f;
-		}
-                else {
-		  set(other);
-		}
+                    f = other.f;
+                } else {
+                    set(other);
+                }
             }
             return *this;
         }
@@ -517,22 +508,20 @@ which merely blows instead of sucking.
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline T& get() {
-	  if (f) {
-	    return f->get();
-	  }
-	  else {
-	    return value;
-	  }
+	        if (f) {
+                return f->get();
+            } else {
+                return value;
+            }
         }
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline const T& get()  const {
-	  if (f) {
-	    return f->get();
-	  }
-	  else {
-	    return value;
-	  }
+            if (f) {
+                return f->get();
+            } else {
+                return value;
+            }
         }
 
 
@@ -593,12 +582,10 @@ which merely blows instead of sucking.
         /// future is already assigned the callback is immediately
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
-	  if (probe()) {
-	    callback->notify();
-	  }
-	  else  {
-	    f->register_callback(callback);
-	  }
+            if (probe())
+                callback->notify();
+            else
+                f->register_callback(callback);
         }
     };
 
@@ -696,7 +683,7 @@ which merely blows instead of sucking.
         Future() : v() {}
 
         Future(const vectorT& v) : DependencyInterface(v.size()), v(v) {
-            for (int i=0; i<(int)v.size(); i++) {
+            for (int i=0; i<(int)v.size(); ++i) {
                 this->v[i].register_callback(this);
             }
         }

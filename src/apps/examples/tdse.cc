@@ -1,40 +1,40 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /// \file examples/tdse.cc
 /// \brief Evolves the hydrogen atom in imaginary and also real time
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>
@@ -52,12 +52,12 @@ static const double omega = 1.0; // Laser frequency
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 
-typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double_complex,3> complex_operatorT;
@@ -77,7 +77,7 @@ static double smoothed_potential(double r) {
     } else{
         pot = (2.0 + 17.0/3.0)/sqrt(PI);
     }
-    
+
     return pot;
 }
 
@@ -149,7 +149,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
 
     // We will evolve with the simple Trotter form exp(-T*t/2) exp(-V*t) exp(-T*t/2)
     // so to keep things vaguely stable we want max(exp(-V*t)) (which is at the origin)
-    // to be circa 10.0.  Hence our largest time step is -ln(10)/V(0).  As we 
+    // to be circa 10.0.  Hence our largest time step is -ln(10)/V(0).  As we
     // approach convergence we shrink the time step to the desired precision.
 
     if (world.rank() == 0) print("load balancing");
@@ -202,7 +202,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
             coeff[0] = 1.0/sqrt(constants::pi*tmax);
             expnt[0] = 1.0/tmax;
             op = new operatorT(world,coeff,expnt);
-        }        
+        }
     }
     delete op;
 }
@@ -218,7 +218,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
     double tcrit = 2*constants::pi/(c*c);
     double tstep = 10.0*tcrit;
     int nstep = int(100.0/tstep);
-    
+
     double Eshift = -0.4985;
 
     potn.add_scalar(-Eshift);
@@ -237,7 +237,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
 
     if (world.rank() == 0) print("truncating");
     psi.truncate();
-    if (world.rank() == 0) print("initial normalize");    
+    if (world.rank() == 0) print("initial normalize");
     psi.scale(1.0/psi.norm2());
     int steplo = -1;
     for (int step=steplo; step<nstep; step++) {
@@ -292,7 +292,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
         if (world.rank() == 0) print(step, step*tstep, norm,sz);
     }
 }
-    
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);

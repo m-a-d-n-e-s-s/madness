@@ -49,7 +49,7 @@ const double PI = 3.1415926535897932384;
 using namespace madness;
 
 typedef Vector<double,1> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,1> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,1> > functorT;
 typedef Function<double_complex,1> functionT;
 typedef FunctionFactory<double_complex,1> factoryT;
 typedef SeparatedConvolution<double_complex,1> operatorT;
@@ -115,7 +115,7 @@ functionT trotter(const functionT& expV,
     return psi1;
 }
 
-template<typename T, int NDIM>
+template<typename T, std::size_t NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
         UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = exp(*_p0););
@@ -163,7 +163,7 @@ void test_trotter(World& world) {
     operatorT G = qm_free_particle_propagator<1>(world, k, c, tstep*0.5, 2*L);
     functionT expV = make_exp(tstep,v);
 
-    for (int step=0; step<100; step++) {
+    for (int step=0; step<100; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
@@ -209,7 +209,7 @@ void test_chin_chen(World& world) {
     functionT expV = make_exp(tstep/6.0, v);
     functionT expVtilde = make_exp(2.0*tstep/3.0, vtilde);
 
-    for (int step=0; step<10000; step++) {
+    for (int step=0; step<10000; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);

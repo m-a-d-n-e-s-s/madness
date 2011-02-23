@@ -1,38 +1,39 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
+#include <world/array.h>
 #include <mra/mra.h>
 #include <constants.h>
 #include <limits.h>
@@ -56,8 +57,8 @@ namespace madness {
 
     template <typename T>
     static void copy_2d_patch(T* restrict out, long ldout, const T* restrict in, long ldin, long n, long m) {
-        for (long i=0; i<n; i++, out+=ldout, in+=ldin) {
-            for (long j=0; j<m; j++) {
+        for (long i=0; i<n; ++i, out+=ldout, in+=ldin) {
+            for (long j=0; j<m; ++j) {
                 out[j] = in[j];
             }
         }
@@ -69,14 +70,14 @@ namespace madness {
         // n will always be k or 2k (k=wavelet order) and m will be anywhere
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
-//                  for (long i=0; i<n; i++)
-//                      for (long j=0; j<m; j++)
+//                  for (long i=0; i<n; ++i)
+//                      for (long j=0; j<m; ++j)
 //                          b[j*n+i] = a[i*m+j];
 //                  return;
 
         if (n==1 || m==1) {
             long nm=n*m;
-            for (long i=0; i<nm; i++) b[i] = a[i];
+            for (long i=0; i<nm; ++i) b[i] = a[i];
             return;
         }
 
@@ -88,7 +89,7 @@ namespace madness {
             const T* restrict a2 = a1+m;
             const T* restrict a3 = a2+m;
             T* restrict bi = b+i;
-            for (long j=0; j<m; j++, bi+=n) {
+            for (long j=0; j<m; ++j, bi+=n) {
                 T tmp0 = a0[j];
                 T tmp1 = a1[j];
                 T tmp2 = a2[j];
@@ -101,8 +102,8 @@ namespace madness {
             }
         }
 
-        for (long i=n4; i<n; i++)
-            for (long j=0; j<m; j++)
+        for (long i=n4; i<n; ++i)
+            for (long j=0; j<m; ++j)
                 b[j*n+i] = a[i*m+j];
 
     }
@@ -114,13 +115,13 @@ namespace madness {
     inline T* shrink(long n, long m, long r, const T* a, T* restrict b) {
         T* result = b;
         if (r == 2) {
-            for (long i=0; i<n; i++, a+=m, b+=r) {
+            for (long i=0; i<n; ++i, a+=m, b+=r) {
                 b[0] = a[0];
                 b[1] = a[1];
             }
         }
         else if (r == 4) {
-            for (long i=0; i<n; i++, a+=m, b+=r) {
+            for (long i=0; i<n; ++i, a+=m, b+=r) {
                 b[0] = a[0];
                 b[1] = a[1];
                 b[2] = a[2];
@@ -129,7 +130,7 @@ namespace madness {
         }
         else {
             MADNESS_ASSERT((r&0x1L)==0);
-            for (long i=0; i<n; i++, a+=m, b+=r) {
+            for (long i=0; i<n; ++i, a+=m, b+=r) {
                 for (long j=0; j<r; j+=2) {
                     b[j  ] = a[j  ];
                     b[j+1] = a[j+1];
@@ -157,8 +158,8 @@ namespace madness {
                 make_approx(R, RU, Rs, RVT, Rnorm);
                 int k = T.dim(0);
                 Tensor<Q> NS = copy(R);
-                for (int i=0; i<k; i++)
-                    for (int j=0; j<k; j++)
+                for (int i=0; i<k; ++i)
+                    for (int j=0; j<k; ++j)
                         NS(i,j) = 0.0;
                 NSnormf = NS.normf();
             }
@@ -171,19 +172,19 @@ namespace madness {
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
             int n = R.dim(0);
             svd(R, RU, Rs, RVT);
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<n; j++) {
+            for (int i=0; i<n; ++i) {
+                for (int j=0; j<n; ++j) {
                     RVT(i,j) *= Rs[i];
                 }
             }
-            for (int i=n-1; i>1; i--) { // Form cumulative sum of norms
+            for (int i=n-1; i>1; --i) { // Form cumulative sum of norms
                 Rs[i-1] += Rs[i];
             }
 
             norm = Rs[0];
             if (Rs[0]>0.0) { // Turn into relative errors
                 double rnorm = 1.0/norm;
-                for (int i=0; i<n; i++) {
+                for (int i=0; i<n; ++i) {
                     Rs[i] *= rnorm;
                 }
             }
@@ -218,12 +219,12 @@ namespace madness {
                 , npt(npt)
                 , maxR(maxR)
                 , quad_x(npt)
-                , quad_w(npt) 
+                , quad_w(npt)
                 , arg(arg)
         {
 
             MADNESS_ASSERT(autoc(k,&c));
-            
+
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
             MADNESS_ASSERT(two_scale_hg(k,&hgT));
             hgT = transpose(hgT);
@@ -248,7 +249,7 @@ namespace madness {
             }
             else {
                 Translation twon = Translation(1)<<n;
-                for (int R=-maxR; R<=maxR; R++) {
+                for (int R=-maxR; R<=maxR; ++R) {
                     if (!issmall(n, R*twon+lx)) return false;
                 }
                 return true;
@@ -386,7 +387,7 @@ namespace madness {
                 if (maxR > 0) {
                     Translation twon = Translation(1)<<n;
                     r = Tensor<Q>(2*k);
-                    for (int R=-maxR; R<=maxR; R++) {
+                    for (int R=-maxR; R<=maxR; ++R) {
                         r.gaxpy(1.0, rnlp(n,R*twon+lx), phase(Q(R)));
                     }
                 }
@@ -404,24 +405,27 @@ namespace madness {
     // Array of 1D convolutions (one / dimension)
     template <typename Q, int NDIM>
     class ConvolutionND {
-        SharedPtr<Convolution1D<Q> > ops[NDIM];
+        std::array<std::shared_ptr<Convolution1D<Q> >, NDIM> ops;
         Q fac;
 
     public:
         ConvolutionND() : fac(1.0) {}
 
-        ConvolutionND(SharedPtr<Convolution1D<Q> > op, Q fac=1.0) : fac(fac)
+        ConvolutionND(const ConvolutionND& other) : fac(other.fac)
         {
-            for (int i = 0; i < NDIM; i++) {
-                ops[i] = op;
-            }
+          ops = other.ops;
         }
 
-        void setop(int dim, SharedPtr<Convolution1D<Q> > op)  {
+        ConvolutionND(std::shared_ptr<Convolution1D<Q> > op, Q fac=1.0) : fac(fac)
+        {
+            ops.fill(op);
+        }
+
+        void setop(int dim, const std::shared_ptr<Convolution1D<Q> >& op)  {
             ops[dim] = op;
         }
 
-        SharedPtr<Convolution1D<Q> > getop(int dim) const  {
+        std::shared_ptr<Convolution1D<Q> > getop(int dim) const  {
             return ops[dim];
         }
 
@@ -446,12 +450,12 @@ namespace madness {
     public:
         // coeff * exp(-exponent*x^2) * x^m
         GaussianGenericFunctor(Q coeff, double exponent, int m=0)
-            : coeff(coeff), exponent(exponent), m(m), 
+            : coeff(coeff), exponent(exponent), m(m),
               natlev(Level(0.5*log(exponent)/log(2.0)+1)) {}
 
         Q operator()(double x) const {
             Q ee = coeff*exp(-exponent*x*x);
-            for (int mm=0; mm<m; mm++) ee *= x;
+            for (int mm=0; mm<m; ++mm) ee *= x;
             return ee;
         }
         Level natural_level() const {return natlev;}
@@ -481,10 +485,10 @@ namespace madness {
 
             Level natl = natural_level();
             int nzero = 0;
-            for (Translation lx=0; lx<(1L<<natl); lx++) {
+            for (Translation lx=0; lx<(1L<<natl); ++lx) {
                 const Tensor<Q>& rp = this->get_rnlp(natl, lx);
                 const Tensor<Q>& rm = this->get_rnlp(natl,-lx);
-                if (rp.normf()<1e-12 && rm.normf()<1e-12) nzero++;
+                if (rp.normf()<1e-12 && rm.normf()<1e-12) ++nzero;
                 if (nzero == 3) {
                     maxl = lx-2;
                     break;
@@ -510,7 +514,7 @@ namespace madness {
                 legendre_scaling_functions(x-lx,twok,phix);
                 Q f = q.op(fac*x)*sqrt(fac);
                 returnT v(twok);
-                for (long p=0; p<twok; p++) v(p) += f*phix[p];
+                for (long p=0; p<twok; ++p) v(p) += f*phix[p];
                 return v;
             }
         };
@@ -522,7 +526,6 @@ namespace madness {
 
         bool issmall(Level n, Translation lx) const {
             if (lx < 0) lx = 1 - lx;
-
             // Always compute contributions to nearest neighbor coupling
             // ... we are two levels below so 0,1 --> 0,1,2,3 --> 0,...,7
             if (lx <= 7) return false;
@@ -552,17 +555,17 @@ namespace madness {
             }
         }
     public:
-        const Q coeff;          //< Coefficient
-        const double expnt;     //< Exponent
-        const Level natlev;     //< Level to evaluate
-        const int m;            //< Order of derivative (0, 1, or 2 only)
+        const Q coeff;          ///< Coefficient
+        const double expnt;     ///< Exponent
+        const Level natlev;     ///< Level to evaluate
+        const int m;            ///< Order of derivative (0, 1, or 2 only)
 
         explicit GaussianConvolution1D(int k, Q coeff, double expnt,
         		int m, bool periodic, double arg = 0.0)
             : Convolution1D<Q>(k,k+11,maxR(periodic,expnt),arg)
             , coeff(coeff)
             , expnt(expnt)
-            , natlev(Level(0.5*log(expnt)/log(2.0)+1)) 
+            , natlev(Level(0.5*log(expnt)/log(2.0)+1))
             , m(m)
         {
             MADNESS_ASSERT(m>=0 && m<=2);
@@ -647,7 +650,7 @@ namespace madness {
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
             // and subsequent boxes.
-
+            
             // The derivatives add a factor of expnt^m to the size of
             // the function at long range.
             double sch = std::abs(scaledcoeff*h);
@@ -655,10 +658,10 @@ namespace madness {
             else if (m == 2) sch *= expnt*expnt;
             double argmax = std::abs(log(1e-22/sch)); // perhaps should be -log(1e-22/sch) ?
 
-            for (long box=0; box<nbox; box++) {
+            for (long box=0; box<nbox; ++box) {
                 double xlo = box*h + lx;
                 if (beta*xlo*xlo > argmax) break;
-                for (long i=0; i<this->npt; i++) {
+                for (long i=0; i<this->npt; ++i) {
 #ifdef IBMXLC
                     double phix[80];
 #else
@@ -676,13 +679,14 @@ namespace madness {
                     }
 
                     legendre_scaling_functions(xx-lx,twok,phix);
-                    for (long p=0; p<twok; p++) v(p) += ee*phix[p];
+                    for (long p=0; p<twok; ++p) v(p) += ee*phix[p];
                 }
             }
 
             if (lkeep < 0) {
                 /* phi[p](1-z) = (-1)^p phi[p](z) */
-                if (m == 1) for (long p=0; p<twok; p++) v(p) = -v(p);
+                if (m == 1)
+                    for (long p=0; p<twok; ++p) v(p) = -v(p);
                 for (long p=1; p<twok; p+=2) v(p) = -v(p);
             }
 
@@ -707,18 +711,18 @@ namespace madness {
 
     template <typename Q>
     struct GaussianConvolution1DCache {
-        static ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > > map;
-        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::iterator iterator;
-        typedef typename ConcurrentHashMap<hashT, SharedPtr< GaussianConvolution1D<Q> > >::datumT datumT;
-        
-        static SharedPtr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
+        static ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > > map;
+        typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::iterator iterator;
+        typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
+
+        static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
             hashT key = hash(expnt);
             key = hash(k, key);
             key = hash(m, key);
             key = hash(int(periodic), key);
             iterator it = map.find(key);
             if (it == map.end()) {
-                map.insert(datumT(key, SharedPtr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
+                map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,
                                                                                                           Q(sqrt(expnt/constants::pi)),
                                                                                                           expnt,
                                                                                                           m,
