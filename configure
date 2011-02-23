@@ -1410,7 +1410,7 @@ Optional Features:
                           Enable debugging C and C++ compilers [default=no]
   --enable-optimization[=yes|no|OPTION]
                           Enable optimization for C and C++ [default=yes]
-  --enable-warning[=yes|no|GNU|Pathscale|Portland|Intel]
+  --enable-warning[=yes|no|GNU|Pathscale|Portland|Intel|IBM]
                           Automatically set warnings for
                           compiler.[default=yes]
   --enable-optimal[=yes|no|GNU|Pathscale|Portland|Intel|IBM]
@@ -5211,6 +5211,9 @@ fi
       ;;
       Intel)
         acx_enable_warn_flags="-Wall -diag-disable remark,279,654"
+      ;;
+      IBM)
+        acx_enable_warn_flags=""
       ;;
       *)
         { $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Warning flags not set for $acx_enable_optimal_compile compiler" >&5
