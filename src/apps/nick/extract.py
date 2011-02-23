@@ -17,7 +17,8 @@ exFile = open("ex.dat", 'w')
 ionFile = open("ion.dat", 'w')
 RlFile = open("Rl.dat", 'w')
 lines = f.readlines()
-cleanComplex = re.compile( r'(\d\d)(\+|j)' )
+cleanComplex1 = re.compile( r'(\d\d)\+' )
+cleanComplex2 = re.compile( r'(\d\d)j' )
 while 1:
     if(lines):
         line = lines.pop(0)
@@ -39,7 +40,7 @@ while 1:
             doRl = True
             words = line.split()
             l = Yl.group(1)
-            Pl = cleanComplex.sub( r'\1 ', lines.pop(0)[0:-1] )
+            Pl = cleanComplex2( r'\1\t', cleanComplex1.sub( r'\1 ', lines.pop(0)[0:-1] ) )
             print Pl
             RlFile.write( l + "\t" + Pl + "\t" + " ".join(words[1:]) + "\n" )
     else:
