@@ -76,6 +76,32 @@ namespace std {
 
 namespace madness {
 
+    // Serialize std::array objects
+    namespace archive {
+
+        template <class Archive, class T>
+        struct ArchiveStoreImpl;
+        template <class Archive, class T>
+        struct ArchiveLoadImpl;
+
+        template <class Archive, typename T, std::size_t N>
+        struct ArchiveStoreImpl<Archive, std::array<T,N> > {
+            static void store(const Archive& ar, const std::array<T,N>& a) {
+                for(typename std::array<T,N>::const_iterator it = a.begin(); it != a.end(); ++it)
+                    ar & (*it);
+            }
+        };
+
+        template <class Archive, typename T, std::size_t N>
+        struct ArchiveLoadImpl<Archive, std::array<T,N> > {
+            static void load(const Archive& ar, std::array<T,N>& a) {
+                for(typename std::array<T,N>::iterator it = a.begin(); it != a.end(); ++it)
+                    ar & (*it);
+            }
+        };
+
+    } // namespace archive
+
     /// A simple, fixed dimension Coordinate
 
     /// Eliminates memory allocation cost, is just POD so can be
@@ -237,8 +263,7 @@ namespace madness {
         /// Support for MADNESS serialization
         template <typename Archive>
         void serialize(Archive& ar) {
-            for(iterator it = data_.begin(); it != data_.end(); ++it)
-                ar & *it;
+            ar & data_;
         }
 
         /// Support for MADNESS hashing
