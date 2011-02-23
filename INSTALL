@@ -73,7 +73,7 @@ Configure options:
   o  --enable-optimization[=yes|no|OPTION] ... Enable optimization for C and C++ 
      [default=yes]
      
-  o  --enable-warning[=yes|no|GNU|Pathscale|Portland|Intel] ... Automatically set 
+  o  --enable-warning[=yes|no|GNU|Pathscale|Portland|Intel|IBM] ... Automatically set 
      warnings for compiler.[default=yes]
      
   o  --enable-optimal[=yes|no|GNU|Pathscale|Portland|Intel|IBM] ... Auto detect 
