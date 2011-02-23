@@ -41,7 +41,7 @@
   shapes and interior boundary conditions in MADNESS; however, the
   interfaces were abstracted for other applications.
 
-  The domain mask builds on a sdf such that \f$0 <= \c mask(sdf) <= 1\f$
+  The domain mask builds on a sdf such that \f$0 <=  \mbox{mask(sdf)} <= 1\f$
   for smooth switching between domains.  That said, a mask needs a sdf.
 
   A general-purpose functor is given that combines a sdf and mask

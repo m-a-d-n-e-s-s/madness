@@ -42,7 +42,8 @@ bin_PROGRAMS = hello$(EXEEXT) hatom_energy$(EXEEXT) h2$(EXEEXT) \
 	interior_dirichlet$(EXEEXT) test_gmres$(EXEEXT) \
 	tdse1d$(EXEEXT) vnucso$(EXEEXT) nonlinschro$(EXEEXT) \
 	sininteg$(EXEEXT) functionio$(EXEEXT) dataloadbal$(EXEEXT) \
-	laplace_sphere$(EXEEXT) hatom_1d$(EXEEXT) binaryop$(EXEEXT)
+	laplace_sphere$(EXEEXT) hatom_1d$(EXEEXT) binaryop$(EXEEXT) \
+	dielectric$(EXEEXT)
 subdir = src/apps/examples
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps =  \
@@ -86,6 +87,10 @@ am_dataloadbal_OBJECTS = dataloadbal.$(OBJEXT)
 dataloadbal_OBJECTS = $(am_dataloadbal_OBJECTS)
 dataloadbal_LDADD = $(LDADD)
 dataloadbal_DEPENDENCIES = $(MRALIBS)
+am_dielectric_OBJECTS = dielectric.$(OBJEXT)
+dielectric_OBJECTS = $(am_dielectric_OBJECTS)
+dielectric_LDADD = $(LDADD)
+dielectric_DEPENDENCIES = $(MRALIBS)
 am_functionio_OBJECTS = functionio.$(OBJEXT)
 functionio_OBJECTS = $(am_functionio_OBJECTS)
 functionio_LDADD = $(LDADD)
@@ -164,17 +169,18 @@ CXXLD = $(CXX)
 CXXLINK = $(CXXLD) $(AM_CXXFLAGS) $(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) \
 	-o $@
 SOURCES = $(binaryop_SOURCES) $(csqrt_SOURCES) $(dataloadbal_SOURCES) \
-	$(functionio_SOURCES) $(h2_SOURCES) $(hatom_1d_SOURCES) \
-	$(hatom_energy_SOURCES) $(he_SOURCES) $(heat_SOURCES) \
-	$(heat2_SOURCES) $(hello_SOURCES) \
+	$(dielectric_SOURCES) $(functionio_SOURCES) $(h2_SOURCES) \
+	$(hatom_1d_SOURCES) $(hatom_energy_SOURCES) $(he_SOURCES) \
+	$(heat_SOURCES) $(heat2_SOURCES) $(hello_SOURCES) \
 	$(interior_dirichlet_SOURCES) $(laplace_sphere_SOURCES) \
 	$(nonlinschro_SOURCES) $(sdf_shape_tester_SOURCES) \
 	$(sininteg_SOURCES) $(tdse_SOURCES) $(tdse1d_SOURCES) \
 	$(test_gmres_SOURCES) $(vnucso_SOURCES)
 DIST_SOURCES = $(binaryop_SOURCES) $(csqrt_SOURCES) \
-	$(dataloadbal_SOURCES) $(functionio_SOURCES) $(h2_SOURCES) \
-	$(hatom_1d_SOURCES) $(hatom_energy_SOURCES) $(he_SOURCES) \
-	$(heat_SOURCES) $(heat2_SOURCES) $(hello_SOURCES) \
+	$(dataloadbal_SOURCES) $(dielectric_SOURCES) \
+	$(functionio_SOURCES) $(h2_SOURCES) $(hatom_1d_SOURCES) \
+	$(hatom_energy_SOURCES) $(he_SOURCES) $(heat_SOURCES) \
+	$(heat2_SOURCES) $(hello_SOURCES) \
 	$(interior_dirichlet_SOURCES) $(laplace_sphere_SOURCES) \
 	$(nonlinschro_SOURCES) $(sdf_shape_tester_SOURCES) \
 	$(sininteg_SOURCES) $(tdse_SOURCES) $(tdse1d_SOURCES) \
@@ -337,6 +343,7 @@ nonlinschro_SOURCES = nonlinschro.cc
 heat_SOURCES = heat.cc
 heat2_SOURCES = heat2.cc
 hello_SOURCES = hello.cc
+dielectric_SOURCES = dielectric.cc
 hatom_energy_SOURCES = hatom_energy.cc
 h2_SOURCES = h2.cc
 he_SOURCES = he.cc
@@ -430,6 +437,9 @@ csqrt$(EXEEXT): $(csqrt_OBJECTS) $(csqrt_DEPENDENCIES)
 dataloadbal$(EXEEXT): $(dataloadbal_OBJECTS) $(dataloadbal_DEPENDENCIES) 
 	@rm -f dataloadbal$(EXEEXT)
 	$(CXXLINK) $(dataloadbal_OBJECTS) $(dataloadbal_LDADD) $(LIBS)
+dielectric$(EXEEXT): $(dielectric_OBJECTS) $(dielectric_DEPENDENCIES) 
+	@rm -f dielectric$(EXEEXT)
+	$(CXXLINK) $(dielectric_OBJECTS) $(dielectric_LDADD) $(LIBS)
 functionio$(EXEEXT): $(functionio_OBJECTS) $(functionio_DEPENDENCIES) 
 	@rm -f functionio$(EXEEXT)
 	$(CXXLINK) $(functionio_OBJECTS) $(functionio_LDADD) $(LIBS)
@@ -491,6 +501,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/binaryop.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/csqrt.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dataloadbal.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dielectric.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/functionio.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/h2.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/hatom_1d.Po@am__quote@

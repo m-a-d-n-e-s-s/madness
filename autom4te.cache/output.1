@@ -8442,8 +8442,6 @@ esac
 fi
 
 
-    { $as_echo "$as_me:${as_lineno-$LINENO}: checking for existence of posix_memalign" >&5
-$as_echo_n "checking for existence of posix_memalign... " >&6; }
     ac_fn_cxx_check_func "$LINENO" "posix_memalign" "ac_cv_func_posix_memalign"
 if test "x$ac_cv_func_posix_memalign" = xyes; then :
   gotpm=1
@@ -8467,6 +8465,8 @@ $as_echo "@%:@define WORLD_GATHER_MEM_STATS 1" >>confdefs.h
 
     fi
 
+    # look for both version of posix_memalign, with and without throw()
+    gotpmh=0
     if test $gotpm = 1; then
         { $as_echo "$as_me:${as_lineno-$LINENO}: checking if missing declaration of posix_memalign in stdlib.h" >&5
 $as_echo_n "checking if missing declaration of posix_memalign in stdlib.h... " >&6; }
@@ -8478,6 +8478,29 @@ ac_link='$CXX -o conftest$ac_exeext $CXXFLAGS $CPPFLAGS $LDFLAGS conftest.$ac_ex
 ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
 
         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+#include <stddef.h>
+#include <stdlib.h>
+extern "C"  int posix_memalign(void **memptr, size_t alignment, size_t size) throw();
+int
+main ()
+{
+void *m; posix_memalign(&m, 16, 1024);
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_cxx_try_compile "$LINENO"; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+          gotpmh=1
+         
+        
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+        if test $gotpmh = 0; then
+          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 
 #include <stddef.h>
@@ -8494,15 +8517,19 @@ _ACEOF
 if ac_fn_cxx_try_compile "$LINENO"; then :
   { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
 $as_echo "no" >&6; }
+            gotpmh=1
+           
 else
    
 $as_echo "@%:@define MISSING_POSIX_MEMALIGN_PROTO 1" >>confdefs.h
  
-          { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
-$as_echo "yes" >&6; } 
-        
+             { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+           
+          
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+        fi
         ac_ext=cpp
 ac_cpp='$CXXCPP $CPPFLAGS'
 ac_compile='$CXX -c $CXXFLAGS $CPPFLAGS conftest.$ac_ext >&5'

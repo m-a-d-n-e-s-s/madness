@@ -95,7 +95,7 @@ struct LBCost {
  * Only one time step is done at a time
  * printR = true prints the angular resolved radial wave function 
  *****************************************************************************************/
-void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
+void projectL(World& world, const double L, const int wf, const int n, const int lMAX, const double cutoff) {
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
@@ -114,7 +114,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     PRINTLINE("");
     double before = 0, after = 0;
     if(world.rank()==0) before =  wall_time();
-    double rMIN = ((50.0<L) ? 50.0 : L);
+    double rMIN = ((cutoff<L) ? cutoff : L);
     PRINTLINE("Integrating out to " << rMIN);
     const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
@@ -176,16 +176,16 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     //         if(printR) PRINTLINE("");
     //         PRINT( "my routine: " );
     //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
-    Tensor<double> P(lMAX+1);
+    Tensor<complexd> P(lMAX+1);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
         for (long i=0; i<n; i++) {
             double ifEndPti = 1.0;  // control for endpoint quadrature
             if (i==0 || i==(n-1)) ifEndPti = 0.5;
             const double r = i*dr + 1e-10;
-            complexd YlPsii = YlPsi(i,l);
-            P(l) += real(YlPsii*conj(YlPsii)*r*r*dr*ifEndPti);
-            if(printR) PRINT(real(YlPsii) << "\t");
+            const complexd YlPsir = YlPsi(i,l);
+            P(l) += YlPsir*r*r*dr*ifEndPti;            
+            if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
         PRINTLINE(std::setprecision(6) << std::scientific << P(l));
@@ -338,13 +338,13 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
                     //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl||Psi(0)> <Psi(0)|Psi(t)>
                     output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
-                    PRINT(std::scientific <<"\t" << real(output*conj(output)));
+                    PRINT(std::scientific <<"\t" << output );
                 }
                 PRINT("\n");
             }
             PRINTLINE("");
         }
-        clock_t before=0, after=0;
+        double before=0, after=0;
         //LOAD unbound states
         if( !unboundList.empty() ) {
             std::vector<std::string>::const_iterator unboundIT;
@@ -359,7 +359,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
                     //PROJECT Psi_k into MADNESS
-                    if(world.rank()==0) before = clock();
+                    if(world.rank()==0) before = wall_time();
                     complex_functionT phiK;
                     if( usesPlaneWaves ) {
                         phiK = complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
@@ -369,7 +369,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         phik.Init(world);
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
-                    if(world.rank()==0) after = clock();
+                    if(world.rank()==0) after = wall_time();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>
                     complexd k_overlap_0 = inner(phiK,psi0);
@@ -378,10 +378,10 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
-                        PRINT( std::scientific << "\t" << real(output*conj(output)) );
+                        PRINT( std::scientific << "\t" << output );
                     }
                     PRINTLINE("");
-                    PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
+                    PRINT(" took " << after - before << " seconds ");
                     int WFsize = phiK.size();
                     PRINT("and has " << WFsize << " coefficients.\n");
                 }
@@ -389,7 +389,8 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
-void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& kMomentum, int& lMAX) {
+
+void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf, double& kMomentum, int& lMAX, int& nPhoton) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -403,9 +404,9 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, dou
                     if (ch == '\n') break;
                 }
             }
-            else if (tag == "n") {
-                f >> n;
-                PRINTLINE("n = " << n);
+            else if (tag == "nGrid") {
+                f >> nGrid;
+                PRINTLINE("nGrid = " << nGrid);
             }
             else if (tag == "th") {
                 f >> th;
@@ -422,16 +423,21 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, dou
             }
             else if (tag == "lMAX") {
                 f >> lMAX;
+                PRINTLINE("lMAX = " << lMAX);
+            }
+            else if (tag == "nPhoton") {
+                f >> nPhoton;
             }
         }
     }
-    f.close();
 }
 
-void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff) {
+void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int& nPhoton, double& cutoff) {
     std::string tag;
-    int natom;
     double Rx, Ry, Rz;
+    double omega;
+    double tMAX;
+    int natom;
     std::ifstream f("input");
     std::cout << std::scientific;
     if( f.is_open() ) {
@@ -453,8 +459,8 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("thresh = " << thresh);
             }
             else if (tag == "k") {
-                f >> k;
-                PRINTLINE("k = " << k);
+                f >> kMAD;
+                PRINTLINE("kMAD = " << kMAD);
             }
             else if (tag == "natom") {
                 f >> natom;
@@ -462,19 +468,30 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("Z = " << Z);
             }
             else if (tag == "omega") {
-                double omega;
                 f >> omega;
-                ///E_n = n hbar omega
-                ///I_p = 0.5 Z^2
-                ///KE = E_n - I_p
-                ///Atomic Units: hbar = m = 1
-                ///v = sqrt( 2n omega - Z^2)
-                ///cutoff > dMAX = v t
-                double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
-                cutoff = 0.0;
-                while( cutoff < dMAX ) { cutoff += L/16; }
-                PRINTLINE("dMAX = " << dMAX);
-                PRINTLINE("cutoff = " << cutoff);
+            }
+            else if (tag == "target_time") {
+                f >> tMAX;
+                PRINTLINE( "tMAX = " << tMAX );
+                /// Atomic Units: m = hbar = e = 1
+                /// E_n     = n hbar omega
+                /// I_p     = Z^2 / 2
+                /// KE      = E_n - I_p
+                /// 0.5 v^2 = n omega - Z^2/2
+                ///      v  = sqrt(2 n omega - Z^2)
+                /// dMAX    = v tMAX
+                PRINTLINE( "omega = " << omega );
+                // Add logic based on the Keldysh parameter
+                while( 2*nPhoton*omega - Z*Z < 0.0 ) nPhoton++;
+                PRINTLINE("nPhoton = " << nPhoton);
+                PRINTLINE("2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
+                double dMAX = std::sqrt( 2*nPhoton*omega - Z*Z) * tMAX;
+                PRINTLINE("dMAX = " << dMAX );
+                if ( cutoff < dMAX ) cutoff = 0.0;
+                while( cutoff < dMAX ) {
+                    cutoff += L/32;
+                }
+                PRINTLINE( "cutoff = " << cutoff );
             }
         }
     }
@@ -490,20 +507,21 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
     // Setup defaults for numerical functions
-    int    k   = 12;
-    double L   = 1.0;
-    double Z   = 1.0;
-    double thresh = 1e-6;
-    double cutoff = L;
-    double th  = 0.0;
-    double phi = 0.0;
-    double kMomentum   = 1.0;
-    int    n   = 10;
-    int    wf  = 0;
-    int   lMAX = 0;
-    loadParameters(world, thresh, k, L, Z, cutoff);
-    loadParameters2(world, n, th, phi, wf, kMomentum, lMAX);
-    FunctionDefaults<NDIM>::set_k(k);                 // Wavelet order
+    int    kMAD      = 8;
+    double L         = 10.0;
+    double Z         = 1.0;
+    double thresh    = 1e-6;
+    double cutoff    = L;
+    double th        = 0.0;
+    double phi       = 0.0;
+    double kMomentum = 0.0;
+    int    nPhoton   = 2;
+    int    nGrid     = 10;
+    int    wf        = 0;
+    int    lMAX      = 0;
+    loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
+    loadParameters(world, thresh, kMAD, L, Z, nPhoton,  cutoff);
+    FunctionDefaults<NDIM>::set_k(kMAD);                 // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
@@ -516,12 +534,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //projectL(world, L, wf, n, lMAX);
-        //zSlice(world, n1, L, th, phi);
-        //testIntegral(world, L, Z, kMomentum);
-        //debugSlice(world, n, L, Z, kMomentum);
         loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
+        projectL(world, L, wf, nGrid, lMAX, cutoff);
+        //zSlice(world, n1, L, th, phi, wf);
+        //testIntegral(world, L, Z, kMomentum);
+        //debugSlice(world, n, L, Z, kMomentum);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);
@@ -545,10 +563,10 @@ int main(int argc, char**argv) {
     } catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    } catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (char* s) {
+    } catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     } catch (const std::string& s) {

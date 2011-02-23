@@ -39,6 +39,12 @@
   \brief Example implementation of Krylov-subspace nonlinear equation solver 
   \defgroup nonlinearsolve Simple Krylov-subspace nonlinear equation solver 
   \ingroup examples
+
+  This class implements the solver described in 
+  \verbatim
+   R. J. Harrison, Krylov subspace accelerated inexact newton method for linear
+   and nonlinear equations, J. Comput. Chem. 25 (2004), no. 3, 328–334.
+  \endverbatim
  */
 
 namespace madness {

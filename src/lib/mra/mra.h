@@ -718,6 +718,23 @@ namespace madness {
             if (impl) impl->print_info();
         }
 
+        struct SimpleUnaryOpWrapper {
+            T (*f)(T);
+            SimpleUnaryOpWrapper(T (*f)(T)) : f(f) {}
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+                UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = f(*_p0));
+            }
+            template <typename Archive> void serialize(Archive& ar) {}
+        };
+
+        /// Inplace unary operation on function values
+        void unaryop(T (*f)(T)) {
+            // Must fence here due to temporary object on stack
+            // stopping us returning before complete
+            this->unaryop(SimpleUnaryOpWrapper(f));
+        }
+
+
         /// Inplace unary operation on function values
         template <typename opT>
         void unaryop(const opT& op, bool fence=true) {
