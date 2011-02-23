@@ -3,7 +3,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
   acx_enable_warn_flags=""
   acx_enable_warn_compiler="$CXXVENDOR"
   AC_ARG_ENABLE([warning],
-    [AC_HELP_STRING([--enable-warning@<:@=yes|no|GNU|Pathscale|Portland|Intel@:>@],
+    [AC_HELP_STRING([--enable-warning@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@],
       [Automatically set warnings for compiler.@<:@default=yes@:>@])],
     [
       case $enableval in
@@ -34,6 +34,9 @@ AC_DEFUN([ACX_ENABLE_WARN], [
       ;;
       Intel)
         acx_enable_warn_flags="-Wall -diag-disable remark,279,654"
+      ;;
+      IBM)
+        acx_enable_warn_flags=""
       ;;
       *)
         AC_MSG_WARN([Warning flags not set for $acx_enable_optimal_compile compiler])
