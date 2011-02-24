@@ -1,5 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/mraimpl.h>
 #include <mra/operator.h>
 #include <mra/lbdeux.h>
 
