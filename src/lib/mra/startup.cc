@@ -37,6 +37,7 @@
 /// \file mra/startup.cc
 
 #include <mra/mra.h>
+#include <mra/mraimpl.h>
 #include <iomanip>
 #include <cstdlib>
 
