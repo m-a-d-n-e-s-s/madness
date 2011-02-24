@@ -81,7 +81,7 @@ protected:
         }
         
         // return 0.0 if not in the surface
-        if (value<1e-12 || (1.0-value)<1e-12) return 0.0;
+        if (value<1e-12 || (1.0-value)<1e-12) return madness::coord_3d(0.0);
         
         madness::coord_3d grad(0.0);
         for (int i=0; i<natom; i++) {
