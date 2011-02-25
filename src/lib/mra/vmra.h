@@ -297,7 +297,7 @@ namespace madness {
     }
 
     /// Scales inplace a vector of functions by the same 
-    template <typename T, typename Q, int NDIM>
+    template <typename T, typename Q, std::size_t NDIM>
     void scale(World& world,
                std::vector< Function<T,NDIM> >& v,
 	       const Q factor,
