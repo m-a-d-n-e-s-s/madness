@@ -345,7 +345,26 @@ namespace madness {
 //		SRConf times(const SRConf& rhs, const unsigned int& maxk) const;
 
 		/// transform this using the matrices and accumulate on target
-//		void transform(SRConf& target, std::vector<const Tensor<T> *>& matrices, const double& dfac) const;
+		/// note that the number of matrices must equal the physical dimension
+		/// of this, not necessarily the number of vector_.
+
+//		void fast_transform(SRConf& target,const Tensor<Q>& matrix, const double& dfac) const {
+//
+//			typedef TENSOR_RESULT_TYPE(T,Q) TQ;
+//			typedef resultT Tensor<TQ>;
+//
+//			// some checks
+//			MADNESS_ASSERT(target.dim_eff()==this->dim_eff());
+//			MADNESS_ASSERT(matrices.size()==this->dim());
+//
+//			// workspace
+//            Tensor<resultT> work(this->refVector(0).ndim(),this->refVector(0).dims(),false);
+//
+//
+//			for (unsigned int idim=0; idim<this->ndim(); idim++) {
+//				target.refVector(idim)
+//			}
+//		}
 
 		/// transform this using the matrices
 //		void selfTransform(std::vector<const Tensor<T> *>& matrices, const double& dfac);
@@ -623,6 +642,50 @@ namespace madness {
 			inner_result(lhs2,rhs2,-1,-1,B);
 		}
 
+	    /// \code
+		///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
+		/// \endcode
+		///
+		/// The input dimensions of \c t must all be the same .
+		SRConf<T> transform(const Tensor<T>& c) const {
+
+			SRConf<T> result=copy(*this);
+
+			// make sure this is not flattened
+			MADNESS_ASSERT(this->has_structure());
+
+			// these two loops go over all physical dimensions (dim = dim_eff * merged_dim)
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				for (unsigned int jdim=1; jdim<this->refVector(idim).ndim(); jdim++) {
+
+					// note tricky ordering (jdim is missing): this is actually correct!
+					result.refVector(idim)=madness::inner(result.refVector(idim),c,1,0);
+
+				}
+			}
+			return result;
+		}
+
+		SRConf<T> transform_dir(const Tensor<T>& c, const int& axis) const {
+
+			// only a matrix is allowed for c
+			MADNESS_ASSERT(c.ndim()==2);
+
+			// make sure this is not flattened
+			MADNESS_ASSERT(this->has_structure());
+
+			// compute idim for accessing the vector_, and the dimension inside vector_
+			// the +1 on jdim for the rank
+			const long idim=axis/this->dim_per_vector();
+			const long jdim=axis%this->dim_per_vector()+1;
+
+			SRConf<T> result=copy(*this);
+			result.refVector(idim)=madness::transform_dir(this->refVector(idim),c,jdim);
+
+			return result;
+		}
+
+
 	public:
 
 
@@ -640,6 +703,8 @@ namespace madness {
 //		}
 
 	};
+
+
 }
 
 #endif /* SRCONF_H_ */

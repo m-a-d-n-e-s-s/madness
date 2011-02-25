@@ -66,9 +66,14 @@ namespace madness {
     public:
         friend class FunctionImpl<T, NDIM>;
         
-        typedef Tensor<T>               tensorT  ;
+        typedef Tensor<T>               tensorT  ;	//< regular tensors, like rm, etc
+#if HAVE_GENTENSOR
+        typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
+#else
+        typedef Tensor<T>               coeffT   ;	//< holding the node's coeffs (full rank)
+#endif
         typedef Key<NDIM>               keyT     ;
-        typedef std::pair<keyT,tensorT> argT     ;
+        typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
 #if HAVE_FLONODE
@@ -93,19 +98,23 @@ namespace madness {
         }
 
         Void forward_do_diff1(const implT* f, implT* df, const keyT& key,
-                              const std::pair<keyT,tensorT>& left,
-                              const std::pair<keyT,tensorT>& center,
-                              const std::pair<keyT,tensorT>& right)  const {
+                              const argT& left,
+                              const argT& center,
+                              const argT& right)  const {
             
             const dcT& coeffs = f->get_coeffs();
             ProcessID owner = coeffs.owner(key);
             
             if (owner == world.rank()) {
-                if (left.second.size() == 0) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key, find_neighbor(f, key,-1), center, right, TaskAttributes::hipri());
+//                if (left.second.size() == 0) {
+                if (!left.second.has_data()) {
+                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key,
+                    		find_neighbor(f, key,-1), center, right, TaskAttributes::hipri());
                 }
-                else if (right.second.size() == 0) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key, left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
+//                else if (right.second.size() == 0) {
+                else if (!right.second.has_data()) {
+                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key,
+                    		left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
                 }
                 // Boundary node
                 else if (left.first.is_invalid() || right.first.is_invalid()) { 
@@ -123,14 +132,15 @@ namespace madness {
         }
         
         Void do_diff1(const implT* f, implT* df, const keyT& key,
-                      const std::pair<keyT,tensorT>& left,
-                      const std::pair<keyT,tensorT>& center,
-                      const std::pair<keyT,tensorT>& right) const {
+                      const argT& left,
+                      const argT& center,
+                      const argT& right) const {
             MADNESS_ASSERT(axis>=0 && axis<NDIM);
             
-            if (left.second.size()==0 || right.second.size()==0) {
+//            if (left.second.size()==0 || right.second.size()==0) {
+            if ((!left.second.has_data()) || (!right.second.has_data())) {
                 // One of the neighbors is below us in the tree ... recur down
-                df->get_coeffs().replace(key,nodeT(tensorT(),true));
+                df->get_coeffs().replace(key,nodeT(coeffT(),true));
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     if ((child.translation()[axis]&1) == 0) {
@@ -150,14 +160,14 @@ namespace madness {
         }
         
         virtual Void do_diff2b(const implT* f, implT* df, const keyT& key,
-                               const std::pair<keyT,tensorT>& left,
-                               const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) const = 0;
+                               const argT& left,
+                               const argT& center,
+                               const argT& right) const = 0;
         
         virtual Void do_diff2i(const implT* f, implT* df, const keyT& key,
-                               const std::pair<keyT,tensorT>& left,
-                               const std::pair<keyT,tensorT>& center,
-                               const std::pair<keyT,tensorT>& right) const = 0;
+                               const argT& left,
+                               const argT& center,
+                               const argT& right) const = 0;
         
         
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
@@ -224,15 +234,18 @@ namespace madness {
             }
         }
         
-        Future< std::pair< Key<NDIM>,Tensor<T> > >
+//        Future< std::pair< Key<NDIM>,Tensor<T> > >
+        Future<argT>
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
             keyT neigh = neighbor(key, step);
             if (neigh.is_invalid()) {
-                return Future<argT>(argT(neigh,tensorT(vk))); // Zero bc
+//flo                return Future<argT>(argT(neigh,tensorT(vk))); // Zero bc
+                return Future<argT>(argT(neigh,coeffT(vk))); // Zero bc
             }
             else {
                 Future<argT> result;
-                f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
+                f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh,
+                		result.remote_ref(world), TaskAttributes::hipri());
                 return result;
             }
         }
@@ -250,8 +263,13 @@ namespace madness {
     class Derivative : public DerivativeBase<T, NDIM> {
     public:
         typedef Tensor<T>               tensorT  ;
+#if HAVE_GENTENSOR
+        typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
+#else
+        typedef Tensor<T>               coeffT   ;	//< holding the node's coeffs (full rank)
+#endif
         typedef Key<NDIM>               keyT     ;
-        typedef std::pair<keyT,tensorT> argT     ;
+        typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
 #if HAVE_FLONODE
@@ -268,47 +286,56 @@ namespace madness {
         
         // Tensors for holding the modified coefficients
         Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
+        Tensor<double> rmt, r0t, rpt     ; ///< Blocks of the derivative operator, transposed
         Tensor<double> left_rm, left_r0  ; ///< Blocks of the derivative for the left boundary
         Tensor<double> right_r0, right_rp; ///< Blocks of the derivative for the right boundary
         Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
 
         Void do_diff2b(const implT* f, implT* df, const keyT& key,
-                       const std::pair<keyT,tensorT>& left,
-                       const std::pair<keyT,tensorT>& center,
-                       const std::pair<keyT,tensorT>& right) const {
+                       const argT& left,
+                       const argT& center,
+                       const argT& right) const {
             Vector<Translation,NDIM> l = key.translation();
             double lev   = (double) key.level();
             
+            const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
+            const double thresh=FunctionDefaults<NDIM>::get_thresh();
+
             tensorT d;
             
             //left boundary
             if (l[this->axis] == 0) {
-                d = madness::inner(left_rm ,
-                                   df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
-                                   1, 0);
-                inner_result(left_r0,
-                             df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-                             1, 0, d);
+            	tensorT tensor_left=df->parent_to_child(right.second, right.first, neighbor(key,1)).full_tensor_copy().swapdim(this->axis,0);
+                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
+
+                d = madness::inner(left_rm ,tensor_left, 1, 0);
+                inner_result(left_r0,tensor_center,1, 0, d);
             }
             else {
-                d = madness::inner(right_rp,
-                                   df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
-                                   1, 0);
-                inner_result(right_r0,
-                             df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-                             1, 0, d);
+                tensorT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1)).full_tensor_copy().swapdim(this->axis,0);
+                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
+
+                d = madness::inner(right_rp,tensor_left, 1, 0);
+                inner_result(right_r0,tensor_center,1, 0, d);
             }
+            // flo thinks this is wrong for higher dimensions -- need to cycledim
             if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
+#if HAVE_FLONODE
+            df->get_coeffs().replace(key,nodeT(GenTensor<T>(d,thresh,tt),false));
+#else
             df->get_coeffs().replace(key,nodeT(d,false));
-            
+#endif
+
             
             // This is the boundary contribution (formally in BoundaryDerivative)
             int bc_left  = this->bc(this->axis,0);
             int bc_right = this->bc(this->axis,1);
             
             Future<argT> found_argT;
-            tensorT bf, bdry_t;
+//            tensorT bf, bdry_t;
+            tensorT bdry_t;
+            tensorT bf;
             //left boundary
             if (l[this->axis] == 0) {
                 if (bc_left != BC_PERIODIC && bc_left != BC_FREE && bc_left != BC_ZERO && bc_left != BC_ZERONEUMANN) {
@@ -329,7 +356,8 @@ namespace madness {
                 }
             }
   
-            tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);  
+//            coeffT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);
+            tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key).full_tensor_copy();
 
             //if (this->bc.get_bc().dim(0) == 1) {
             if (NDIM == 1) {
@@ -357,18 +385,23 @@ namespace madness {
 					bdry_t.scale(FunctionDefaults<NDIM>::get_cell_width()[this->axis]);
             }
             
-            bdry_t = bdry_t + d;
+            bdry_t += d;
+#if HAVE_FLONODE
+            df->get_coeffs().replace(key,nodeT(GenTensor<T>(bdry_t,thresh,tt),false));
+#else
             df->get_coeffs().replace(key,nodeT(bdry_t,false));
+#endif
             
             return None;
         }
         
         Void do_diff2i(const implT* f, implT*df, const keyT& key,
-                       const std::pair<keyT,tensorT>& left,
-                       const std::pair<keyT,tensorT>& center,
-                       const std::pair<keyT,tensorT>& right) const
+                       const argT& left,
+                       const argT& center,
+                       const argT& right) const
         {
-            tensorT d = madness::inner(rp,
+#if !HAVE_GENTENSOR
+            coeffT d = madness::inner(rp,
                                        df->parent_to_child(left.second, left.first, neighbor(key,-1)).swapdim(this->axis,0),
                                        1, 0);
             inner_result(r0,
@@ -377,10 +410,28 @@ namespace madness {
             inner_result(rm,
                          df->parent_to_child(right.second, right.first, neighbor(key,1)).swapdim(this->axis,0),
                          1, 0, d);
+            // flo thinks this is wrong for higher dimensions -- need to cycledim
             if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
             df->get_coeffs().replace(key,nodeT(d,false));
             return None;
+
+#else
+        	coeffT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1));
+            coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
+            coeffT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,1));
+
+            coeffT d= transform_dir(tensor_left,rpt,this->axis);
+            d+=transform_dir(tensor_center,r0t,this->axis);
+            d+=transform_dir(tensor_right,rmt,this->axis);
+
+            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
+            df->get_coeffs().replace(key,nodeT(d,false));
+
+            return None;
+
+#endif
+
         }
         
         void initCoefficients()  {
@@ -501,6 +552,11 @@ namespace madness {
                     bv_right(i) = 0.0;
             }
             
+            r0t = transpose(r0);
+            rpt = transpose(rp);
+            rmt = transpose(rm);
+
+
             //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());
         }
         

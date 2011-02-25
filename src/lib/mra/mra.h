@@ -88,7 +88,11 @@ namespace madness {
 
     public:
         typedef FunctionImpl<T,NDIM> implT;
+#if HAVE_FLONODE
         typedef FloNode<T,NDIM> nodeT;
+#else
+        typedef FunctionNode<T,NDIM> nodeT;
+#endif
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef typename implT::coordT coordT; ///< Type of vector holding coordinates
 

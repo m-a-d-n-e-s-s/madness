@@ -243,8 +243,6 @@ namespace madness {
 		/// return the value at a certain point
 	//	tensor<T>  value(const tensor<T> &, const MultiIndex&, const double) const;
 
-		// transform the Legendre coefficients with the tensor
-//		void transform(SepRep&, std::vector<const tensor<T> *>&, const double& dfac=1.0) const ;
 
 		// transform the Legendre coefficients with the tensor
 //		void selfTransform(std::vector<const tensor<T> *>&, const double& dfac=1.0);
@@ -299,6 +297,13 @@ namespace madness {
 
 		/// return the number of coefficients
 		unsigned int nCoeff() const {return configs_.nCoeff();};
+
+		/// swap the dimensions
+		SepRep<T> swapdim(const long idim, const long jdim) const {
+			SepRep<T> result(*this);
+			std::swap(result.configs_.refVector(idim),result.configs_.refVector(jdim));
+			return result;
+		}
 
 		/// return the representation
 		TensorType tensor_type() const {return configs_.type();};
@@ -489,7 +494,7 @@ namespace madness {
 
 	        const T ovlp=overlap(lhs.configs_,rhs.configs_);
 	        return ovlp;
-	}
+		}
 
 
 		/// return the Frobenius norm of this
@@ -682,6 +687,17 @@ namespace madness {
 
 		/// cast this into a SepRep with different maxk
 //		SepRep cast(const unsigned int maxk) const;
+
+		/// transform the Legendre coefficients with the tensor
+		friend SepRep<T> transform2(const SepRep<T>& t, const Tensor<T>& c) {
+			return SepRep<T> (t.configs_.transform(c));
+		}
+
+		/// inner product
+		SepRep<T> transform_dir(const Tensor<T>& c, const int& axis) const {
+
+			return this->configs_.transform_dir(c,axis);
+		}
 
 	private:
 		/// return a roughly optimized SepRep
@@ -896,7 +912,7 @@ namespace madness {
 						}
 					}
 					Tensor<T>  tmp=ref1.configs_.refVector(idim);//).view(0,rG1);
-					vecb+=inner(B1[idim],tmp);
+					vecb+=madness::inner(B1[idim],tmp);
 				}
 				if (have2) {
 					for (unsigned int l=0; l<rG2; l++) {
@@ -906,7 +922,7 @@ namespace madness {
 						}
 					}
 					Tensor<T>  tmp=ref2.configs_.refVector(idim);//).view(0,rG1);
-					vecb+=inner(B2[idim],tmp);
+					vecb+=madness::inner(B2[idim],tmp);
 				}
 
 				/*
@@ -941,7 +957,7 @@ namespace madness {
 						const Tensor<T> p=prod.reshape(rF,kvec*kvec);
 
 						// compute the contrib to b
-						vecb+=inner(p,w,-1,-1);
+						vecb+=madness::inner(p,w,-1,-1);
 
 					} else if (dim==2) {
 
@@ -965,7 +981,7 @@ namespace madness {
 						const Tensor<T> p=prod.reshape(rF,kvec);
 
 						// compute the contrib to b
-						vecb+=inner(p,w,-1,-1);
+						vecb+=madness::inner(p,w,-1,-1);
 					}
 
 				}
@@ -1046,9 +1062,8 @@ namespace madness {
 		}
 
 
-
-
 	};
+
 
 }
 

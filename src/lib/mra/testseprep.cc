@@ -79,7 +79,6 @@ int testGenTensor_ctor(const long& k, const long& dim, const double& eps, const 
 	return nerror;
 }
 
-
 int testGenTensor_assignment(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 
@@ -264,7 +263,51 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	return nerror;
 }
 
+int testGenTensor_transform(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
+	print("entering transform");
+	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> c=Tensor<double> (k,k);
+
+	t0.fillrandom();
+	c.fillrandom();
+
+	double norm=0.0;
+	int nerror=0;
+
+	// default ctor
+	GenTensor<double> g0(t0,eps,tt);
+
+	// test transform_dir
+	{
+		const long ndim=t0.ndim();
+
+		for (long idim=0; idim<ndim; idim++) {
+//		for (long idim=0; idim<1; idim++) {
+			GenTensor<double> g1=transform_dir(g0,c,idim);
+			Tensor<double> t1=transform_dir(t0,c,idim);
+			norm=(g1.full_tensor_copy()-t1).normf();
+			print(ok(is_small(norm,eps)),"inner",idim,g0.what_am_i(),norm);
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+
+
+	// test transform with tensor
+	{
+		GenTensor<double> g1=transform(g0,c);
+		Tensor<double> t1=transform(t0,c);
+		norm=(g1.full_tensor_copy()-t1).normf();
+		print(ok(is_small(norm,eps)),"transform",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
+	print("all done\n");
+	return nerror;
+
+}
 
 
 
@@ -378,9 +421,13 @@ int main(int argc, char**argv) {
     error+=testGenTensor_assignment(k,dim,eps,TT_3D);
     error+=testGenTensor_assignment(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
-    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+
+    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
+    error+=testGenTensor_transform(k,dim,eps,TT_3D);
+    error+=testGenTensor_transform(k,dim,eps,TT_2D);
 
 
     print(ok(error==0),error,"finished test suite\n");
