@@ -1,36 +1,36 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
-/// \file testsystolic2.cc
+/// \file testsystolic.cc
 /// systolic example of eigen solver using one-sided Jacobi method.
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -51,9 +51,9 @@ public:
     virtual ~SystolicEigensolver(){}
 
     void start_iteration_hook(const TaskThreadEnv& env);
-    void kernel(int i, int j, T* rowi, T* rowj); 
+    void kernel(int i, int j, T* rowi, T* rowj);
     void end_iteration_hook(const TaskThreadEnv& env);
-    bool converged(const TaskThreadEnv& env) const; 
+    bool converged(const TaskThreadEnv& env) const;
 
 private:
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
@@ -80,7 +80,7 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     world(AV.get_world()),
     tolmin(1.0e-6),
     niter(0),
-    nrot(0), nrotsum(0), size(AV.rowdim()/2), 
+    nrot(0), nrotsum(0), size(AV.rowdim()/2),
     tol(1.0e-2), maxd(0), maxdaij(1.0e-1)
 {
     MADNESS_ASSERT(AV.is_column_distributed());
@@ -92,7 +92,7 @@ void SystolicEigensolver<T>::start_iteration_hook(const TaskThreadEnv& env) {
     if ( env.id() == 0){
 
         // calculate threshold using parameters from this iteration
-        tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-1, maxdaij*maxdaij) ); 
+        tol = std::min<T>( tol, std::min<T>(maxdaij*1.0e-1, maxdaij*maxdaij) );
         tol = std::max<T>( tol, tolmin );
 
         // clear some paremeters for a new iteration
@@ -125,7 +125,7 @@ void SystolicEigensolver<T>::kernel(int i, int j, T* rowi, T* rowj) {
 
     T c,t,u;
     /// make prameters of rotation matrix
-    if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4. 
+    if( ds < daij*tolmin ) c = s = sqrt(0.5); // if two diagonal elements are almost same, then rotation angle is pi/4.
     else{
         //print("trial 2"); // not good
         u = s / (2.0*aij);
@@ -169,7 +169,7 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         return true;
     }
     else {
-        return false; 
+        return false;
     }
 }
 

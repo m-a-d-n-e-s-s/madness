@@ -168,7 +168,7 @@ namespace madness {
 
         /// Evaluate function only if point is local returning (true,value); otherwise return (false,0.0)
 
-        /// maxlevel is the maximum depth to search down to --- the max local depth can be 
+        /// maxlevel is the maximum depth to search down to --- the max local depth can be
         /// computed with max_local_depth();
         std::pair<bool,T> eval_local_only(const Vector<double,NDIM>& xuser, Level maxlevel) const {
             const double eps=1e-15;
@@ -242,7 +242,7 @@ namespace madness {
 
         /// @param[in] cell A Tensor describe the cube where the function to be evaluated in
         /// @param[in] npt How many points to evaluate in each dimension
-        /// @param[in] refine Wether to return the refinment levels of the given function
+        /// @param[in] eval_refine Wether to return the refinment levels of the given function
         Tensor<T> eval_cube(const Tensor<double>& cell,
                             const std::vector<long>& npt,
                             bool eval_refine = false) const {
@@ -299,7 +299,7 @@ namespace madness {
 
         /// See "operator()(const coordT& xuser)" for more info
         T operator()(double x, double y=0, double z=0, double xx=0, double yy=0, double zz=0) const {
-            coordT r; 
+            coordT r;
             r[0] = x;
             if (NDIM>=2) r[1] = y;
             if (NDIM>=3) r[2] = z;
@@ -485,6 +485,7 @@ namespace madness {
         ///
         /// Returns this for chaining.
 		/// @param[in] tol Tolerance for truncating the coefficients. Default 0.0 means use the implimentation's member value \c thresh instead.
+		/// @param[in] fence Do fence
         Function<T,NDIM>& truncate(double tol = 0.0, bool fence = true) {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
