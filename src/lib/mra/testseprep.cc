@@ -257,6 +257,17 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 
 	}
 
+	// test inplace scale: g=g0*=fac
+	{
+		GenTensor<double> g0(t0,eps,tt);
+		GenTensor<double> g2=g0.scale(2.0);
+		Tensor<double> t2=t0.scale(2.0);
+		norm=(g0.full_tensor_copy()-t0).normf();
+		print(ok(is_small(norm,eps)),"algebra scale",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
 
 
 	print("all done\n");
@@ -268,9 +279,15 @@ int testGenTensor_transform(const long& k, const long& dim, const double& eps, c
 	print("entering transform");
 	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
 	Tensor<double> c=Tensor<double> (k,k);
+	Tensor<double> cc[dim];
+	for (unsigned int idim=0; idim<dim; idim++) {
+		cc[idim]=Tensor<double>(k,k);
+		cc[idim].fillrandom();
+	}
 
 	t0.fillrandom();
-	c.fillrandom();
+	c.fillindex();
+	c.scale(1.0/c.normf());
 
 	double norm=0.0;
 	int nerror=0;
@@ -287,22 +304,44 @@ int testGenTensor_transform(const long& k, const long& dim, const double& eps, c
 			GenTensor<double> g1=transform_dir(g0,c,idim);
 			Tensor<double> t1=transform_dir(t0,c,idim);
 			norm=(g1.full_tensor_copy()-t1).normf();
-			print(ok(is_small(norm,eps)),"inner",idim,g0.what_am_i(),norm);
+			print(ok(is_small(norm,eps)),"transform_dir",idim,g0.what_am_i(),norm);
 			if (!is_small(norm,eps)) nerror++;
 		}
 	}
-
-
 
 	// test transform with tensor
 	{
 		GenTensor<double> g1=transform(g0,c);
 		Tensor<double> t1=transform(t0,c);
 		norm=(g1.full_tensor_copy()-t1).normf();
-		print(ok(is_small(norm,eps)),"transform",g0.what_am_i(),norm);
+		print(ok(is_small(norm,eps)),"transform.scale",g0.what_am_i(),norm);
 		if (!is_small(norm,eps)) nerror++;
 
 	}
+
+
+	// test general_transform
+	{
+		GenTensor<double> g1=general_transform(g0,cc);
+		Tensor<double> t1=general_transform(t0,cc);
+		norm=(g1.full_tensor_copy()-t1).normf();
+		print(ok(is_small(norm,eps)),"general_transform",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
+
+
+	// test general_transform with scale
+	{
+		GenTensor<double> g1=general_transform(g0,cc).scale(1.9);
+		Tensor<double> t1=general_transform(t0,cc).scale(1.9);
+		norm=(g1.full_tensor_copy()-t1).normf();
+		print(ok(is_small(norm,eps)),"general_transform.scale",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
 
 	print("all done\n");
 	return nerror;
@@ -322,41 +361,6 @@ int main(int argc, char**argv) {
     const unsigned int dim=6;
     double eps=1.e-3;
 
-#if 0
-    // construct random SepRep and try to represent it
-    SepRep<double> sr1(TT_3D,k,dim);
-    sr1.fillWithRandom(2);
-    Tensor<double> d1=sr1.reconstructTensor();
-
-    SepRep<double> sr2(TT_3D,k,dim);
-    sr2.fillWithRandom(3);
-    Tensor<double> d2=sr2.reconstructTensor();
-
-    SepRep<double> sr3(TT_3D,k,dim);
-    sr3=sr1;
-    sr3+=sr2;
-    Tensor<double> d3=sr3.reconstructTensor();
-
-    sr3.reduceRank(eps);
-    Tensor<double> d4=sr3.reconstructTensor();
-
-    print("residual for addition      ", (d1+d2-d3).normf());
-    print("residual for rank reduction", (d3-d4).normf());
-
-    // construct SepRep from tensor
-    Tensor<double> t(3,3,3,3,3,3);
-    t.fillrandom();
-
-    SepRep<double> sr(t,eps,TT_3D);
-    print("3d SR rank",sr.rank());
-    Tensor<double> t2=sr.reconstructTensor();
-    print("residual for rank reduction", (t-t2).normf());
-
-    SepRep<double> sr4(t,eps,TT_2D);
-    print("2d SR rank",sr4.rank());
-    Tensor<double> t4=sr4.reconstructTensor();
-    print("residual for rank reduction", (t-t4).normf());
-#endif
 
 #if 0
     // do some benchmarking
@@ -383,36 +387,6 @@ int main(int argc, char**argv) {
     int error=0;
     print("hello world");
 
-#if 0
-    {
-		Tensor<double> t0=Tensor<double>(3,3);
-		Tensor<double> t1=Tensor<double>(2,2);
-		std::vector<Slice> s(2,Slice(0,1));
-		t0=2.0;
-		t1=1.0;
-
-		t1=t0(s);
-		t0.scale(2.0);
-
-		print(t1);
-		print(t0);
-    }
-
-    {
-		Tensor<double> t0=Tensor<double>(3,3);
-		Tensor<double> t1=Tensor<double>(2,2);
-		std::vector<Slice> s(2,Slice(0,1));
-		t0=2.0;
-		t1=1.0;
-
-		t1(s)=t0(s);
-		t0.scale(2.0);
-
-		print(t1);
-		print(t0);
-    }
-#endif
-
     error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
     error+=testGenTensor_ctor(k,dim,eps,TT_3D);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
@@ -432,14 +406,6 @@ int main(int argc, char**argv) {
 
     print(ok(error==0),error,"finished test suite\n");
 
-
-//    testFullTensor_ctor(k,dim,eps);
-//    testFullTensor_assignment(k,dim,eps);
-//
-//    testLowRankTensor_ctor(k,dim,eps);
-//    testLowRankTensor_assignment(k,dim,eps);
-//
-//    testLowRankTensor_algebra(k,dim,1.e-5);
 
     world.gop.fence();
     finalize();

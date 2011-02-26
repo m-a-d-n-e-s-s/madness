@@ -151,7 +151,7 @@ namespace madness {
 		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr->clone()) {};
 
 		/// ctor with dimensions
-		GenTensor(const std::vector<long>& dim) {
+		GenTensor(const std::vector<long>& dim) : _ptr(0) {
 			const long ndim=dim.size();
 			TensorType tt=default_tt(ndim);
 
@@ -160,7 +160,7 @@ namespace madness {
 		}
 
 		/// ctor with a regular Tensor, deep
-		GenTensor(const Tensor<T>& rhs, double eps=0.0, TensorType tt=TT_NONE) {
+		GenTensor(const Tensor<T>& rhs, double eps=0.0, TensorType tt=TT_NONE) : _ptr(0) {
 
 			if (eps==0.0) tt=TT_FULL;
 			if (tt==TT_NONE) tt=TT_FULL;
@@ -174,7 +174,7 @@ namespace madness {
 		}
 
 		/// ctor with a SliceGenTensor, deep
-		GenTensor(const SliceGenTensor<T>& rhs) {
+		GenTensor(const SliceGenTensor<T>& rhs) : _ptr(0) {
 			*this=rhs;
 		}
 
@@ -266,6 +266,15 @@ namespace madness {
 	    	return this->_ptr->transform(c);
 		}
 
+	    template <class Q>
+	    GenTensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const Tensor<Q> c[]) const {
+	    	print("GenTensor<T>::general_transform only with T==Q");
+	    	MADNESS_ASSERT(0);
+	    }
+
+	    GenTensor<T> general_transform(const Tensor<T> c[]) const {
+	        return this->_ptr->general_transform(c);
+	    }
 
     	GenTensor<T> transform_dir(const Tensor<T>& c, int axis) const {
     		return this->_ptr->transform_dir(c,axis);
@@ -326,12 +335,22 @@ namespace madness {
 			return _ptr->trace_conj(rhs._ptr);
 		}
 
-		/// scale this by a number
-		void scale(const double& fac) {_ptr->scale(fac);};
+        /// Inplace multiplication by scalar of supported type (legacy name)
 
-		/// scale this by a number
-		void scale(const std::complex<double>& fac) {_ptr->scale(fac);};
+        /// @param[in] x Scalar value
+        /// @return %Reference to this tensor
+        template <typename Q>
+        typename IsSupported<TensorTypeData<Q>,GenTensor<T>&>::type
+        scale(Q x) {
+            _ptr->scale(x);
+            return *this;
+        }
 
+        /// Inplace multiply by corresponding elements of argument Tensor
+        GenTensor<T>& emul(const GenTensor<T>& t) {
+        	print("no GenTensor<T>::emul yet");
+        	MADNESS_ASSERT(0);
+        }
 		/// returns a reference to FullTensor of this; no reconstruction
 		Tensor<T>& full_tensor() const {
 			return _ptr->fullTensor();
@@ -359,10 +378,12 @@ namespace madness {
 	private:
 
 		/// release memory
-		void clear() {if (not _ptr) delete _ptr; _ptr=0;};
+//		void clear() {if (not _ptr) delete _ptr; _ptr=0;};
+		void clear() {delete _ptr; _ptr=0;};
 
 		/// ctor with a SepRepTensor, shallow
-		GenTensor(SepRepTensor<T>* sr) : _ptr(sr->clone()) {}
+//		GenTensor(SepRepTensor<T>* sr) : _ptr(sr->clone()) {}
+		GenTensor(SepRepTensor<T>* sr) : _ptr(sr) {}
 
 		/// inplace add rhs to this, provided slices: *this(s1)+=rhs(s2)
 		GenTensor<T>& inplace_add(const GenTensor<T>& rhs, const std::vector<Slice>& lhs_s,
@@ -512,6 +533,8 @@ namespace madness {
 
     	/// transform as a member function
     	virtual SepRepTensor<T>* transform(const Tensor<T>& c) const =0;
+
+	    virtual SepRepTensor<T>* general_transform(const Tensor<T> c[]) const =0;
 
     	virtual SepRepTensor<T>* transform_dir(const Tensor<T>& c, int axis) const =0;
 
@@ -673,19 +696,22 @@ namespace madness {
     	T operator()(long i, long j, long k) const {throw;};
 
     	/// compute the Frobenius norm
-    	float_scalar_type normf() const {throw;};
+    	float_scalar_type normf() const {return _data.FrobeniusNorm();};
 
     	/// scale by a number
     	void scale(T a) {_data.scale(a);};
 
     	/// transform
     	LowRankTensor<T>* transform(const Tensor<T>& c) const {
-
-    		SepRep<T> sr=transform2(this->_data,c);
+    		SepRep<T> sr=this->_data.transform(c);
     		return new LowRankTensor<T> (sr);
     	}
 
-    	/// inner product, accumulate on result
+	    LowRankTensor<T>* general_transform(const Tensor<T> c[]) const {
+    		SepRep<T> sr=this->_data.general_transform(c);
+    		return new LowRankTensor<T> (sr);
+
+	    }
 
     	/// result(i,j,k,m) = sum_l this(i,j,k,l) c(l,m)
     	LowRankTensor<T>* transform_dir(const Tensor<T>& c, int axis) const {
@@ -745,6 +771,9 @@ namespace madness {
 		FullTensor<T>(const std::vector<long>& s) {
 			data=Tensor<T>(s);
 		}
+
+		/// dtor
+		~FullTensor<T>() {};
 
     	/// assignment with rhs=FullTensor (tested)
     	FullTensor<T>& operator=(const FullTensor<T>& rhs) {
@@ -862,6 +891,14 @@ namespace madness {
     		return new FullTensor<T>(result);
     	}
 
+	    FullTensor<T>* general_transform(const Tensor<T> c[]) const {
+    		const Tensor<T>& t=this->data;
+    		Tensor<T> result=madness::general_transform(t,c);
+    		return new FullTensor<T>(result);
+
+	    }
+
+
     	/// inner product
     	FullTensor<T>* transform_dir(const Tensor<T>& c, int axis) const {
     		return new FullTensor<T>(madness::transform_dir(data,c,axis));
@@ -938,9 +975,29 @@ namespace madness {
 
     template <class T>
     GenTensor<T> transform(const GenTensor<T>& t, const Tensor<T>& c) {
-
     	return t.transform(c);
     }
+
+
+    /// Transform all dimensions of the tensor t by distinct matrices c
+
+    /// Similar to transform but each dimension is transformed with a
+    /// distinct matrix.
+    /// \code
+    /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c[0](i',i) c[1](j',j) c[2](k',k) ...
+    /// \endcode
+    /// The first dimension of the matrices c must match the corresponding
+    /// dimension of t.
+    template <class T, class Q>
+    GenTensor<TENSOR_RESULT_TYPE(T,Q)> general_transform(const GenTensor<T>& t, const Tensor<Q> c[]) {
+        return t.general_transform(c);
+    }
+
+    template <class T>
+    GenTensor<T> general_transform(const GenTensor<T>& t, const Tensor<T> c[]) {
+    	return t.general_transform(c);
+    }
+
 
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 

@@ -693,6 +693,16 @@ namespace madness {
 			return SepRep<T> (t.configs_.transform(c));
 		}
 
+		/// transform the Legendre coefficients with the tensor
+		SepRep<T> transform(const Tensor<T> c) const {
+			return SepRep<T> (this->configs_.transform(c));
+		}
+
+		/// transform the Legendre coefficients with the tensor
+		SepRep<T> general_transform(const Tensor<T> c[]) const {
+			return SepRep<T> (this->configs_.general_transform(c));
+		}
+
 		/// inner product
 		SepRep<T> transform_dir(const Tensor<T>& c, const int& axis) const {
 

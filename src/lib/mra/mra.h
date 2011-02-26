@@ -738,13 +738,6 @@ namespace madness {
             impl->unary_op_node_inplace(op, fence);
         }
 
-//        template <typename Q>
-
-//        void ftr2sr(bool fence = true) const {
-//        	  const_cast<Function<T,NDIM>*>(this)->impl->ftr2sr();
-//        	  if (fence && VERIFY_TREE) verify_tree(); // Must be after in case nonstandard
-//        }
-
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
             PROFILE_MEMBER_FUNC(Function);
             t.conj();
@@ -897,8 +890,12 @@ namespace madness {
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (!is_compressed()) compress();
-            if (!g.is_compressed()) g.compress();
+
+            // introduce special case if g==f: we don't need to compress
+            if (not (this==&g)) {
+            	if (!is_compressed()) compress();
+            	if (!g.is_compressed()) g.compress();
+            }
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 

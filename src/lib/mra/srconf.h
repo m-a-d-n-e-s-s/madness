@@ -577,6 +577,9 @@ namespace madness {
 			assert(rhs.dim()==lhs.dim());
 			assert(rhs.dim()>0);
 
+			SRConf<T> rhs3=rhs.semi_flatten();
+			SRConf<T> lhs3=lhs.semi_flatten();
+
 			// fast return if either rank is 0
 			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
 
@@ -590,8 +593,8 @@ namespace madness {
 			for (unsigned int idim=0; idim<dim_eff; idim++) {
 //				dgemm_NT(lhs.refVector(idim),rhs.refVector(idim),ovlp,
 //						lhs.rank(),rhs.rank());
-				const Tensor<T>& lhs2=lhs.refVector(idim);
-				const Tensor<T>& rhs2=rhs.refVector(idim);
+				const Tensor<T>& lhs2=lhs3.refVector(idim);
+				const Tensor<T>& rhs2=rhs3.refVector(idim);
 				Tensor< TENSOR_RESULT_TYPE(T,T) > ovlp(lhs.rank(),rhs.rank());
 //				inner_result(lhs.refVector(idim),rhs,refVector(idim),-1,-1,ovlp);
 				inner_result(lhs2,rhs2,-1,-1,ovlp);
@@ -665,6 +668,33 @@ namespace madness {
 			}
 			return result;
 		}
+
+	    /// \code
+		///     result(i,j,k,...) <-- sum(i',j', k',...) t(i',j',k',...)  c(i',i) c(j',j) c(k',k) ...
+		/// \endcode
+		///
+		/// The input dimensions of \c t must all be the same .
+		SRConf<T> general_transform(const Tensor<T> c[]) const {
+
+			SRConf<T> result=copy(*this);
+
+			// make sure this is not flattened
+			MADNESS_ASSERT(this->has_structure());
+
+			long i=0;
+			// these two loops go over all physical dimensions (dim = dim_eff * merged_dim)
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				for (unsigned int jdim=1; jdim<this->refVector(idim).ndim(); jdim++) {
+
+					// note tricky ordering (jdim is missing): this is actually correct!
+					result.refVector(idim)=madness::inner(result.refVector(idim),c[i],1,0);
+					i++;
+
+				}
+			}
+			return result;
+		}
+
 
 		SRConf<T> transform_dir(const Tensor<T>& c, const int& axis) const {
 

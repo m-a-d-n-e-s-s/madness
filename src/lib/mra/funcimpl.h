@@ -46,6 +46,7 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include "mra/flonode.h"
+#include <world/typestuff.h>
 
 namespace madness {
     template <typename T, int NDIM>
@@ -65,9 +66,38 @@ namespace madness {
 
     template<int D>
     class MyPmap;
+
 }
 
 namespace madness {
+
+
+#if HAVE_GENTENSOR
+#  define __Tensor GenTensor
+#else
+#  define __Tensor Tensor
+#endif
+//	template <bool B, typename D, typename C>
+//	struct if_c {
+//		typedef D type;
+//
+//	};
+//	template <typename D, typename C>
+//	struct if_c<false,D,C> {
+//		typedef C type;
+//
+//	};
+//
+//
+//	template <typename U>
+//	class __Tensor : public if_c<HAVE_GENTENSOR, GenTensor<U>, Tensor<U> >::type {
+//	public:
+//#if HAVE_GENTENSOR
+//		using GenTensor;
+//#else
+////		using ::madness::Tensor;
+//#endif
+//	};
 
     /// A simple process map soon to be supplanted by Rebecca's
     template<typename keyT>
@@ -1082,14 +1112,15 @@ namespace madness {
         }
 
         template <typename Q>
-        Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
+        __Tensor<Q> coeffs2values(const keyT& key, const __Tensor<Q>& coeff) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(coeff,cdata.quad_phit).scale(scale);
         }
 
         template <typename Q>
-        Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
+//        Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
+        coeffT values2coeffs(const keyT& key, const coeffT& values) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
@@ -1100,8 +1131,7 @@ namespace madness {
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
         template <typename Q>
-        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
-//        coeffT fcube_for_mul(const keyT& child, const keyT& parent, const coeffT& coeff) const {
+        __Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const __Tensor<Q>& coeff) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             if (child.level() == parent.level()) {
                 return coeffs2values(parent, coeff);
@@ -1119,6 +1149,40 @@ namespace madness {
                 return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
             }
         }
+#if HAVE_GENTENSOR
+
+
+        template <typename Q>
+        Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+            return transform(coeff,cdata.quad_phit).scale(scale);
+        }
+
+        /// Compute the function values for multiplication
+
+        /// Given coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        template <typename Q>
+        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            if (child.level() == parent.level()) {
+                return coeffs2values(parent, coeff);
+            }
+            else if (child.level() < parent.level()) {
+                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
+            }
+            else {
+                Tensor<double> phi[NDIM];
+                for (int d=0; d<NDIM; d++) {
+                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
+                    phi_for_mul(parent.level(),parent.translation()[d],
+                                child.level(), child.translation()[d], phi[d]);
+                }
+                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
+            }
+        }
+#endif
 
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
@@ -1265,6 +1329,7 @@ namespace madness {
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
                 	node.node_to_full_rank();
+//                    coeffT& t= node.tensor();
                     tensorT& t= node.full_tensor_reference();
                     //double before = t.normf();
                     tensorT values = impl->fcube_for_mul(key, key, t);
@@ -1477,6 +1542,7 @@ namespace madness {
                     rc = it->second.full_tensor_copy();
             }
 
+            // both nodes are leaf nodes: multiply and return
             if (rc.size() && lc.size()) { // Yipee!
                 do_mul<L,R>(key, lc, std::make_pair(key,rc));
                 return None;
@@ -2229,9 +2295,6 @@ namespace madness {
             this->compressed = true;
             this->nonstandard = nonstandard;
 
-//            const TensorType tt=FunctionDefaults<NDIM >::get_tensor_type();
-
-            this->ftr2sr();
             if (world.rank() == coeffs.owner(cdata.key0)) {
 
            		compress_spawn(cdata.key0, nonstandard, keepleaves);
@@ -2247,7 +2310,7 @@ namespace madness {
         void ftr2sr() {
     		if (world.rank()==0) print("ftr2sr on ",this->tree_size()," boxes");
     		flo_unary_op_node_inplace(do_low_rank_inplace(thresh),true);
-    }
+        }
 
 
         void norm_tree(bool fence) {
@@ -2330,43 +2393,6 @@ namespace madness {
 #endif
             return s;
         }
-#if 0
-        tensorT compress_op(const keyT& key, const std::vector< Future<tensorT> >& v, bool nonstandard) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            print("in compress_op");
-            // Copy child scaling coeffs into contiguous block
-            tensorT d(cdata.v2k,false);
-            int i=0;
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                d(child_patch(kit.key())) = v[i].get();
-            }
-            d = filter(d);
-
-            typename dcT::accessor acc;
-            MADNESS_ASSERT(coeffs.find(acc, key));
-
-            if (acc->second.has_coeff()) {
-            	acc->second.node_to_full_rank();
-                const tensorT& c = acc->second.full_tensor_reference();
-                if (c.dim(0) == k) {
-                    d(cdata.s0) += c;
-                }
-                else {
-                    d += c;
-                }
-            	acc->second.node_to_low_rank();
-            }
-
-            tensorT s = copy(d(cdata.s0));
-
-            if (key.level()> 0 && !nonstandard)
-                d(cdata.s0) = 0.0;
-
-            acc->second.set_coeff(d);
-
-            return s;
-        }
-#endif
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {
@@ -2610,6 +2636,7 @@ namespace madness {
         }
 
         /// Returns the inner product ASSUMING same distribution
+        /// note that if (g==f) both functions might be reconstructed
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
@@ -2629,8 +2656,6 @@ namespace madness {
                                 madness::print("INNER", it->first, gnode.tensor().dim(0),fnode.tensor().dim(0));
                                 MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
                             }
-//                            sum += fnode.full_tensor_copy().trace_conj(gnode.full_tensor_copy());
-//                            sum += fnode.trace_conj(gnode);
                             sum += fnode.tensor().trace_conj(gnode.tensor());
                         }
                     }

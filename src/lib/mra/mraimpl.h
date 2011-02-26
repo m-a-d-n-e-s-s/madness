@@ -373,6 +373,9 @@ namespace madness {
         }
     }
 
+
+    /// project the functor into this functionimpl, and "return" a tree in reconstructed,
+    /// rank-reduced form.
     template <typename T, int NDIM>
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key,
                                                  bool do_refine,
@@ -903,7 +906,7 @@ namespace madness {
         // zero B.C. so returning s makes handling this easy.
         if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
 
-#if HAVE_FLONODE
+#if 0
         tensorT result_tmp = fcube_for_mul<T>(child, parent, s.full_tensor_copy());
         coeffT result(result_tmp,thresh,s.type());
 #else
