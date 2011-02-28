@@ -111,6 +111,7 @@ namespace madness {
 			weights_=Tensor<double>(int(0));
 			vector_=std::vector<Tensor<T> > (nvec);
 			for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,this->kVec());
+			*this=this->unflatten();
 
 		}
 
@@ -212,9 +213,12 @@ namespace madness {
 				return;
 			}
 
+
 			// unflatten this and rhs; shallow wrt vector_
-			SRConf<T> lhs=this->unflatten();
-			const SRConf<T> rhs=rhs2.unflatten();
+			SRConf<T>& lhs=*this;
+			const SRConf<T>& rhs=rhs2;
+			MADNESS_ASSERT(lhs.has_structure() or (lhs.rank()==0));
+			MADNESS_ASSERT(rhs.has_structure());
 
 			// for convenience
 			const long lhsRank=lhs.rank();
@@ -293,7 +297,6 @@ namespace madness {
 			}
 
 			lhs.rank_=newRank;
-			*this=lhs.semi_flatten();
 		}
 
 		/// append an SRConf to this
@@ -389,7 +392,7 @@ namespace madness {
 		/// zero out
 		void zeroOut() {MADNESS_ASSERT(0); this->chopoff(0);};
 
-		/// fill this SRConf with 1 random configurations (tested)
+		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const unsigned int& rank=1) {
 
 			rank_=rank;
@@ -475,10 +478,11 @@ namespace madness {
 
 		/// shallow flatten the vectors (reverse of unflatten)
 		/// vector_[i](rank,maxk,maxk) -> vector_[i](rank,maxk*maxk)
-		SRConf<T> semi_flatten() const {
+		SRConf<T>& semi_flatten() {
+
+			if (this->rank()==0) return *this;
 
 			// shallow ctor
-			SRConf<T> result(*this);
 			const int dim_pv=this->dim_per_vector();
 			const int maxk=this->get_k();
 
@@ -486,19 +490,18 @@ namespace madness {
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
 				if (dim_pv==1) ;
 				else if (dim_pv==2)
-					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk);
+					this->refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk);
 				else if (dim_pv==3)
-					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk*maxk);
+					this->refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk*maxk*maxk);
 			}
-			return result;
+			return *this;
 		}
 
 		/// shallow unflatten the vectors (reverse of semi_flatten)
 		/// vector_[i](rank,maxk*maxk) -> vector_[i](rank,maxk,maxk)
-		SRConf unflatten() const {
+		SRConf<T>& unflatten() {
 
-			// shallow assignment
-			SRConf<T> result(*this);
+			if (this->rank()==0) return *this;
 
 			const int dim_pv=this->dim_per_vector();
 			const int maxk=this->get_k();
@@ -507,17 +510,18 @@ namespace madness {
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
 				if (dim_pv==1) ;
 				else if (dim_pv==2)
-					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk);
+					this->refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk);
 				else if (dim_pv==3)
-					result.refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk,maxk);
+					this->refVector(idim)=this->refVector(idim).reshape(this->rank(),maxk,maxk,maxk);
 			}
-			return result;
+			return *this;
 		}
 
 
 		/// return the number of coefficients
 		unsigned int nCoeff() const {
-			return this->dim()*maxk_*rank_;
+//			return this->dim()*maxk_*rank_;
+			return this->dim_eff()*this->kVec()*this->rank();
 		};
 
 		/// does what you think it does (tested)
@@ -525,33 +529,6 @@ namespace madness {
 
 		/// reserve enough space to hold maxRank configurations
 //		void reserve(const unsigned int& maxRank);
-
-
-//		/// make sure there is at least maxRank space in this
-//		void ensureSpace(const unsigned int& minRank) {
-//			MADNESS_ASSERT(0);
-//
-//			// if the first (slow) dimension of the vectors is too small, reallocate
-//			// keep the second dimension
-//			if (weights_.dim(0)<minRank) {
-//
-//				// for convenience
-//				const long k=vector_[0].dim(1);
-//				const long r=this->rank();
-//
-//				// reallocate the weigths
-//				Tensor<double> tmp(minRank);
-//				if (r>0) tmp(Slice(0,r-1))=weights_(Slice(0,r-1));
-//				std::swap(weights_,tmp);
-//
-//				// reallocate all vectors
-//				for (unsigned int idim=0; idim<this->dim(); idim++) {
-//					Tensor<T> t2(minRank,k);
-//					if (r>0) t2(Slice(0,r-1),Slice(_))=this->refVector(idim);
-//					std::swap(t2,vector_[idim]);
-//				}
-//			}
-//		}
 
 		/// chop off all configurations after r
 //		void chopoff(const unsigned int& r);
@@ -577,33 +554,26 @@ namespace madness {
 			assert(rhs.dim()==lhs.dim());
 			assert(rhs.dim()>0);
 
-			SRConf<T> rhs3=rhs.semi_flatten();
-			SRConf<T> lhs3=lhs.semi_flatten();
-
 			// fast return if either rank is 0
 			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
 
 			const unsigned int dim_eff=rhs.dim_eff();
-//			const unsigned int k=rhs.vector_[0].dim(1);
 
 			// get the weight matrix
 			Tensor<T> weightMatrix=outer(lhs.weights_,rhs.weights_);
 
 			// calculate the overlap matrices for each dimension at a time
 			for (unsigned int idim=0; idim<dim_eff; idim++) {
-//				dgemm_NT(lhs.refVector(idim),rhs.refVector(idim),ovlp,
-//						lhs.rank(),rhs.rank());
-				const Tensor<T>& lhs2=lhs3.refVector(idim);
-				const Tensor<T>& rhs2=rhs3.refVector(idim);
+				const Tensor<T> lhs2=lhs.refVector(idim).reshape(lhs.rank(),lhs.kVec());
+				const Tensor<T> rhs2=rhs.refVector(idim).reshape(rhs.rank(),rhs.kVec());
 				Tensor< TENSOR_RESULT_TYPE(T,T) > ovlp(lhs.rank(),rhs.rank());
-//				inner_result(lhs.refVector(idim),rhs,refVector(idim),-1,-1,ovlp);
 				inner_result(lhs2,rhs2,-1,-1,ovlp);
 
 			    // multiply all overlap matrices with the weight matrix
 				weightMatrix.emul(ovlp);
 			}
 
-		//	return weightMatrix;
+			//	return weightMatrix;
 			const T overlap=weightMatrix.sum();
 			return overlap;
 		}
@@ -653,6 +623,7 @@ namespace madness {
 		SRConf<T> transform(const Tensor<T>& c) const {
 
 			SRConf<T> result=copy(*this);
+			if (this->rank()==0) return result;
 
 			// make sure this is not flattened
 			MADNESS_ASSERT(this->has_structure());
@@ -677,8 +648,12 @@ namespace madness {
 		SRConf<T> general_transform(const Tensor<T> c[]) const {
 
 			SRConf<T> result=copy(*this);
+			if (this->rank()==0) return result;
 
 			// make sure this is not flattened
+			if (not this->has_structure()) {
+				print("no structure!");
+			}
 			MADNESS_ASSERT(this->has_structure());
 
 			long i=0;
@@ -698,6 +673,9 @@ namespace madness {
 
 		SRConf<T> transform_dir(const Tensor<T>& c, const int& axis) const {
 
+			SRConf<T> result=copy(*this);
+			if (this->rank()==0) return result;
+
 			// only a matrix is allowed for c
 			MADNESS_ASSERT(c.ndim()==2);
 
@@ -709,7 +687,6 @@ namespace madness {
 			const long idim=axis/this->dim_per_vector();
 			const long jdim=axis%this->dim_per_vector()+1;
 
-			SRConf<T> result=copy(*this);
 			result.refVector(idim)=madness::transform_dir(this->refVector(idim),c,jdim);
 
 			return result;

@@ -1817,6 +1817,13 @@ namespace madness {
 
         /// Frees all memory and resests to state of default constructor
         void clear() {deallocate();}
+
+        /// for compatibility with GenTensor
+        bool has_data() const {return size()!=0;};
+
+        /// a dummy function
+        Tensor<T> full_tensor_copy() const {return *this;}
+        Tensor<T> full_tensor_copy() {return *this;}
     };
 
     template <class T>

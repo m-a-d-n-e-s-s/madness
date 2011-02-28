@@ -107,6 +107,7 @@ namespace madness {
 			} else {
 				MADNESS_ASSERT(0);
 			}
+			MADNESS_ASSERT(this->configs_.has_structure() or this->rank()==0);
 
 		}
 
@@ -162,14 +163,15 @@ namespace madness {
 
 			// get dimensions
 			const TensorType tt=this->tensor_type();
-			const int k_new=s[0].end-s[0].start+1;
 			const int merged_dim=this->configs_.dim_per_vector();
 			const int dim_eff=this->configs_.dim_eff();
 			const int rank=this->rank();
+			int k_new=s[0].end-s[0].start+1;
+			if (s[0].end<0) k_new+=this->get_k();
 
 			// get and reshape the vectors, slice and re-reshape again;
 			// this is shallow
-			const SepRep<T> sr=this->configs_.unflatten();
+			const SepRep<T>& sr=*this;
 
 			std::vector<Tensor<T> > vectors(dim_eff,Tensor<T>());
 			for (int idim=0; idim<dim_eff; idim++) {
@@ -214,6 +216,17 @@ namespace madness {
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
 		void inplace_add(const SepRep<T>& rhs, const std::vector<Slice>& lhs_s,
 				const std::vector<Slice>& rhs_s) {
+
+
+			// fast return if possible
+
+			if (rhs.rank()==0) return;
+			if (this->rank()==0) {
+				// this is a deep copy
+				*this=rhs(rhs_s);
+				return;
+			}
+
 			this->configs_.inplace_add(rhs.configs_,lhs_s,rhs_s);
 		}
 
@@ -225,11 +238,6 @@ namespace madness {
 			// double check
 			if (it_is) MADNESS_ASSERT((this->get_k()>0) || (this->tensor_type()!=TT_NONE));
 			return it_is;
-		}
-
-		/// fill with random numbers up to rank rank
-		void fillWithRandom(const unsigned int rank) {
-			this->configs_.fillWithRandom(rank);
 		}
 
 		/// multiply another SepRep to this one
@@ -246,9 +254,6 @@ namespace madness {
 
 		// transform the Legendre coefficients with the tensor
 //		void selfTransform(std::vector<const tensor<T> *>&, const double& dfac=1.0);
-
-		// differentiate this using the left and right neighbors
-	//	void diff(const SepRep& leftSPR, const SepRep& rightSPR, const unsigned int xi);
 
 		/// make this zero
 		void zeroOut() {this->configs_.zeroOut();};
@@ -323,7 +328,10 @@ namespace madness {
 			MADNESS_ASSERT(this->tensor_type()==TT_2D);
 
 			// fast return if possible
-			if (values_eff.normf()<eps*facReduce) return;
+			if (values_eff.normf()<eps*facReduce) {
+				this->configs_.unflatten();
+				return;
+			}
 
 			// output from svd
 			Tensor<T> U;
@@ -352,7 +360,7 @@ namespace madness {
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.vector_[0].dim(0));
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.weights_.dim(0));
 			}
-			*this=this->configs_.unflatten();
+			this->configs_.unflatten();
 
 		}
 
@@ -375,11 +383,9 @@ namespace madness {
 			 * 	1. this exists and is to be reduced
 			 * 	2. this doesn't exist, but values are provided
 			 */
-			this->configs_.semi_flatten();
 			SepRep& reference=*this;
 			const bool haveSR=(reference.rank()!=0);
 			const bool haveVal=(values.ndim()!=-1);
-
 
 			// set factors
 			double facSR=0.0;
@@ -392,11 +398,8 @@ namespace madness {
 			if ((not haveSR) and (not haveVal)) return;
 
 
-			/*
-			 * this is important for accuracy: we want to represent a
-			 * function in real space, we don't want to represent its
-			 * representation in the space of Legendre polynomials
-			 */
+			reference.configs_=this->configs_.semi_flatten();
+
 //			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
 
 //			timeReduce_.start();
@@ -427,6 +430,7 @@ namespace madness {
 
 			// set up a trial function
 			SepRep trial(reference.tensor_type(),reference.get_k(),reference.dim());
+			trial.configs_.semi_flatten();
 //			if (useTrial) trial=trial2;
 //			else trial.configs_.ensureSpace(maxTrialRank);
 
@@ -438,6 +442,7 @@ namespace madness {
 
 				// compute the residual wrt reference minus trial
 				residual.configs_.fillWithRandom(1);
+
 				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
 
 				// exit if residual is supposedly small
@@ -449,7 +454,11 @@ namespace madness {
 				if (norm<threshold) break;
 #endif
 				// otherwise add residual to the trial function ..
+				trial.configs_.unflatten();
+				residual.configs_.unflatten();
 				trial+=residual;
+				trial.configs_.semi_flatten();
+				residual.configs_.semi_flatten();
 
 				// .. and optimize trial wrt the reference
 				bool successful=trial.optimize(reference,facSR,residual,0.0,
@@ -533,20 +542,8 @@ namespace madness {
 			}
 		}
 
-		/// print the coefficients
-//		void printCoeff(const std::string) const;
-
 		/// print the weights
 //		void printWeights(const std::string) const;
-
-		/// change representation from SVR to SPR (tested)
-	//	SepRep svr2spr(const MultiIndex& thisIndex, const double& vol, const QuadratureScheme&) const;
-
-		/// change representation from SPR to SVR (tested)
-	//	SepRep spr2svr(const MultiIndex& thisIndex, const double& vol, const QuadratureScheme&) const;
-
-		/// change representation from SPR to SVR (tested)
-	//	void spr2svr2(const MultiIndex& thisIndex, const double& vol, const QuadratureScheme&);
 
 		/// reconstruct this to return a full tensor
 		Tensor<T> reconstructTensor() const {
@@ -577,7 +574,8 @@ namespace madness {
 			Tensor<T> s(conf_dim,d,true);
 
 			// flatten this
-			const SepRep<T> sr=this->configs_.semi_flatten();
+			SepRep<T> sr=*this;
+			sr.configs_.semi_flatten();
 
 			// and a scratch Tensor
 			Tensor<T>  scr(rank);
@@ -649,11 +647,6 @@ namespace madness {
 		bool consistent() const {
 			print("no SepRep.h::consistent()");
 			MADNESS_ASSERT(0);
-//			if (this->rep()==spr) {
-//				assert(get_k()==configs_.vector_[0].dim(1));
-//			} else if (this->rep()==svr) {
-//				assert(nRoots()==configs_.vector_[0].dim(1));
-//			}
 			return true;
 		}
 
@@ -689,11 +682,6 @@ namespace madness {
 //		SepRep cast(const unsigned int maxk) const;
 
 		/// transform the Legendre coefficients with the tensor
-		friend SepRep<T> transform2(const SepRep<T>& t, const Tensor<T>& c) {
-			return SepRep<T> (t.configs_.transform(c));
-		}
-
-		/// transform the Legendre coefficients with the tensor
 		SepRep<T> transform(const Tensor<T> c) const {
 			return SepRep<T> (this->configs_.transform(c));
 		}
@@ -710,40 +698,6 @@ namespace madness {
 		}
 
 	private:
-		/// return a roughly optimized SepRep
-		SepRep makeReference(const double& eps, std::vector<Tensor<T> >& B_GF) const {
-
-			// for convenience
-			const unsigned int rank=this->rank();
-
-			// fast return if possible
-			if (rank==0) return *this;
-
-			// make initial approximation
-			SepRep roughApprox=this->oneTermApprox(eps,B_GF);
-			SepRep result=roughApprox;
-			SepRep residual(*this);
-			residual-=roughApprox;
-
-			// optimize a single SepRep wrt the residual
-			for (unsigned int iloop=0; iloop<rank; iloop++) {
-
-				roughApprox=residual.oneTermApprox(eps,B_GF);
-
-				// exit if this one-term approx is small
-				if (fabs(roughApprox.weight(0))<eps*0.1) break;
-
-				// else increase the result and decrease the residual
-				result+=roughApprox;
-				residual-=roughApprox;
-			}
-		//	std::cout << "this->rank " << this->rank() << "  result.rank() " << result.rank() << std::endl;
-
-			// emergency break
-			if (result.rank()>=rank) result=*this;
-
-			return result;
-		}
 
 		/// optimize this wrt reference, and return the error norm
 		bool optimize(const SepRep& ref1, const double& fac1,
@@ -846,10 +800,8 @@ namespace madness {
 			const double alpha=machinePrecision;
 			Tensor<T> unity(trial.rank(),trial.rank());
 			for (unsigned int i=0; i<trial.rank(); i++) {
-				unity(i,i)=1.0;
+				unity(i,i)=alpha;
 			}
-			unity.scale(alpha);
-		//	unity.scale(0.0);
 
 			// some scratch Tensors
 			Tensor<T>  fvec(kvec);
