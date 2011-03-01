@@ -1,36 +1,60 @@
 AC_DEFUN([ACX_CHECK_SHARED_PTR], [
+  AC_LANG_SAVE
+  AC_LANG([C++])
+  
+  # Check for shared_ptr in std namespace
   AC_CACHE_CHECK([for std::shared_ptr], [acx_cv_std_shard_ptr], [
-    AC_LANG_SAVE
-    AC_LANG([C++])
     AC_TRY_COMPILE(
       [#include <memory>],
       [std::shared_ptr<int> p;],
       [acx_cv_std_shard_ptr=yes],
       [acx_cv_std_shard_ptr=no]
     )
-    AC_LANG_RESTORE
   ])
   if test "$acx_cv_std_shard_ptr" = yes; then
     AC_DEFINE([MADNESS_HAS_STD_SHARED_PTR],[1],[define if std::shared_ptr is available.])
   fi
   
+  # Check for shared_ptr in std::tr1 namespace
   AC_CACHE_CHECK([for std::tr1::shared_ptr], [acx_cv_std_tr1_shard_ptr], [
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
     AC_TRY_COMPILE(
       [#include <memory>],
       [std::tr1::shared_ptr<int> p;],
       [acx_cv_std_tr1_shard_ptr=yes],
       [acx_cv_std_tr1_shard_ptr=no]
     )
-    AC_LANG_RESTORE
   ])
   if test "$acx_cv_std_tr1_shard_ptr" = yes; then
     AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
   fi
+  
+  # Generate a configure error if we cannot find shared_ptr
   if test "$acx_cv_std_shard_ptr$acx_cv_std_tr1_shard_ptr" = nono; then
     AC_MSG_ERROR([std::shared_ptr and std::tr1::shared_ptr are not supported. Reconfigure Madness to use Boost with the --with-boost option.])
   fi
+  
+  #Check for std::make_shared and std::allocate_shared
+  AC_CACHE_CHECK([for std::make_shared and std::allocate_shared], [acx_cv_std_make_shared], [
+    AC_TRY_COMPILE(
+      [#include <memory>],
+      [using ::std::make_shared; using ::std::allocate_shared;],
+      [acx_cv_std_make_shared=yes],
+      [acx_cv_std_make_shared=no]
+    )
+  ])
+  if test "$acx_cv_std_make_shared" = yes; then
+    AC_DEFINE([MADNESS_HAS_STD_MAKE_SHARED],[1],
+      [define if std::make_shared and std::allocate_shared are available.])
+  fi
+ 
+  # make_shared and allocate_shared are not a part of TR1 so we do not check for it here.
+  
+  # Generate a configure error if we cannot find suitable make_shared and allocate_shared support.
+  if test "$ac_cv_header_boost_make_shared_hpp$acx_cv_std_make_shared" = nono; then
+    AC_MSG_ERROR([std::make_shared and boost::make_shared are not available. Reconfigure Madness to use Boost with the --with-boost option.])
+  fi
+  
+  AC_LANG_RESTORE
 ])
 
 AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
@@ -92,31 +116,28 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
 ])
 
 AC_DEFUN([ACX_CHECK_ARRAY], [
+  AC_LANG_SAVE
+  AC_LANG([C++])
+
   AC_CACHE_CHECK([for std::array], [acx_cv_std_array], [
-    AC_LANG_SAVE
-    AC_LANG([C++])
     AC_TRY_COMPILE(
       [#include <array>],
       [std::array<int, 3> a;],
       [acx_cv_std_array=yes],
       [acx_cv_std_array=no]
     )
-    AC_LANG_RESTORE
   ])
   if test "$acx_cv_std_array" = yes; then
     AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::array is available.])
   fi
   
   AC_CACHE_CHECK([for std::tr1::array], [acx_cv_std_tr1_array], [
-    AC_LANG_SAVE
-    AC_LANG_CPLUSPLUS
     AC_TRY_COMPILE(
       [#include <array>],
       [std::tr1::array<int, 3> a;],
       [acx_cv_std_tr1_array=yes],
       [acx_cv_std_tr1_array=no]
     )
-    AC_LANG_RESTORE
   ])
   if test "$acx_cv_std_tr1_array" = yes; then
     AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])
@@ -124,6 +145,9 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   if test "$acx_cv_std_array$acx_cv_std_tr1_array" = nono; then
     AC_MSG_ERROR([std::array and std::tr1::array are not supported. Reconfigure Madness to use Boost with the --with-boost option.])
   fi
+  
+  
+  AC_LANG_RESTORE
 ])
 
 AC_DEFUN([ACX_CHECK_TR1],

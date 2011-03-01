@@ -48,9 +48,7 @@
 namespace std {
     using ::std::tr1::bad_weak_ptr;
     using ::std::tr1::shared_ptr;
-#if !BOOST_WORKAROUND(__BORLANDC__, < 0x0582)
     using ::std::tr1::swap;
-#endif
     using ::std::tr1::static_pointer_cast;
     using ::std::tr1::dynamic_pointer_cast;
     using ::std::tr1::const_pointer_cast;
@@ -60,6 +58,20 @@ namespace std {
 }
 
 #endif
+
+
+// make_shared / allocate_shared
+#if defined(MADNESS_HAS_BOOST_MAKE_SHARE) && !defined(MADNESS_HAS_STD_TR1_MAKE_SHARED)
+#define MADNESS_HAS_STD_MAKE_SHARED
+// Boost TR1 does not include make_shared / allocate_shared, but it is part of
+// current draft. Therefore, we included directly from Boost.
+#include <boost/make_shared.hpp>
+namespace std {
+    using ::boost::make_shared;
+    using ::boost::allocate_shared;
+} // namespace std
+#endif // defined(MADNESS_HAS_BOOST_MAKE_SHARE) && !defined(MADNESS_HAS_STD_TR1_MAKE_SHARED)
+
 
 namespace madness {
 
