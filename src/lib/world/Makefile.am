@@ -7,17 +7,15 @@ bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
 lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/world
-thisinclude_HEADERS = archive.h      print.h        worldam.h      worldfut.h   \
-                      worldmpi.h     worldtask.h    array.h        sharedptr.h  \
-                      worldgop.h     worldobj.h     bufar.h        nodefaults.h \
-                      typestuff.h    enable_if.h    worlddep.h     worldhash.h  \
-                      worldref.h     worldtypes.h   dqueue.h       parar.h      \
-                      vecar.h        worldexc.h     worldmem.h     worldser.h   \
-                      worldthread.h  worldrmi.h     safempi.h      worldpapi.h  \
-                      worldmutex.h   print_seq.h    worldhashmap.h worldrange.h \
-                      atomicint.h    posixmem.h     worldptr.h     deferred_cleanup.h \
-                      world.h        worldprofile.h worldtime.h
-
+thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
+	worldtask.h array.h sharedptr.h worldgop.h worldobj.h bufar.h nodefaults.h \
+	typestuff.h enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
+	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
+	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
+	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
+	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
+	deferred_deleter.h
+                      
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 array_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
@@ -75,11 +73,12 @@ world_LDADD = libMADworld.a
 worldprofile_test_SOURCES = worldprofile_test.cc
 worldprofile_test_LDADD = libMADworld.a
 
-libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc debug.cc \
-    print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc worldref.cc \
-    worldam.cc worldprofile.cc worldthread.cc worldtask.cc worldgop.cc deferred_cleanup.cc \
-    worlddep.cc worldmutex.cc binfsar.cc \
-    $(thisinclude_HEADERS)
+libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc \
+	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
+	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc worldgop.cc \
+	deferred_cleanup.cc worlddep.cc worldmutex.cc binfsar.cc worldmem.cc \
+	textfsar.cc \
+	$(thisinclude_HEADERS)
 
 
 libraries:	$(lib_LIBRARIES)
