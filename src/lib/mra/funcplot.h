@@ -74,10 +74,10 @@ namespace madness {
     //
     /// @param world World communicator
     /// @param filename String containing the filename to export to
-    /// @plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
-    /// @plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
-    /// @npt Vector of long integers indicating the number of points to plot in each dimension
-    /// @binary (optional) Boolean indicating whether to print in binary
+    /// @param plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
+    /// @param plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
+    /// @param npt Vector of long integers indicating the number of points to plot in each dimension
+    /// @param binary (optional) Boolean indicating whether to print in binary
 
     /// The VTK routines are also designed for SERIAL data, parallel coming...
     ///
@@ -163,10 +163,10 @@ namespace madness {
     /// @param fieldname A string containing the name we wish to refer to this field as in the exported data
     /// @param world World communicator
     /// @param filename String containing the filename to export to
-    /// @plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
-    /// @plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
-    /// @npt Vector of long integers indicating the number of points to plot in each dimension
-    /// @binary (optional) Boolean indicating whether to print in binary
+    /// @param plotlo Vector of double values indicating the minimum coordinate to plot to in each dimension
+    /// @param plothi Vector of double values indicating the maximum coordinate to plot to in each dimension
+    /// @param npt Vector of long integers indicating the number of points to plot in each dimension
+    /// @param binary (optional) Boolean indicating whether to print in binary
 
     /// This templated function won't do anything except print a warning
     /// message.  Specialized versions of this function should be used.

@@ -181,7 +181,7 @@ namespace madness {
         /** \brief Constructor for mask/sdf functor
 
             \param mask Pointer to the domain mask
-            \param shape Pointer to the signed distance function */
+            \param sdf Pointer to the signed distance function */
         DomainMaskSDFFunctor(std::shared_ptr<DomainMaskInterface> mask,
                 std::shared_ptr<SignedDFInterface<NDIM> > sdf)
             : mask(mask), sdf(sdf), mswitch(MASK)
@@ -191,8 +191,8 @@ namespace madness {
                    function (mask, surface, etc.)
 
             \param mask Pointer to the domain mask
-            \param shape Pointer to the signed distance function
-            \param[in] mswitch Which function to use (MASK, DMASK, SURFACE,
+            \param sdf Pointer to the signed distance function
+            \param[in] _mswitch Which function to use (MASK, DMASK, SURFACE,
                        DSURFACE, or MASK_COMPLEMENT) */
         DomainMaskSDFFunctor(std::shared_ptr<DomainMaskInterface> mask,
                 std::shared_ptr<SignedDFInterface<NDIM> > sdf, int _mswitch)

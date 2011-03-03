@@ -56,11 +56,11 @@ using std::vector;
 /// Represents a core potential
 
 /// General Core Potential is able to write down as following form:
-///   U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm><Y_lm|
+/// \f$  U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm \rangle \langle Y_lm| \f$
 /// CorePotential holds these parameters (l,n,A,alpha)
 ///
 /// Note: CorePotential::eval() currently ignores `l'.
-///       (It means `\sum_m |Y_lm><Y_lm|' is always `1'.)
+///       (It means `\f$\sum_m |Y_lm \rangle \langle Y_lm|\f$' is always `1'.)
 struct CorePotential {
     std::vector<int> l; ///< Angular momentum = 0, 1, 2, ...
     std::vector<int> n;
