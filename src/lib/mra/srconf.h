@@ -169,7 +169,7 @@ namespace madness {
 
 			// consistency check
 			for (unsigned int idim=0; idim<dim_eff(); idim++) {
-				assert(weights_.dim(0)==vector_[idim].dim(0));
+				MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
 			}
 
 			return *this;
@@ -191,7 +191,7 @@ namespace madness {
 				return *this;
 			}
 
-			assert(compatible(*this,rhs));
+			MADNESS_ASSERT(compatible(*this,rhs));
 
 			// pass some dummy slice
 			std::vector<Slice> s(this->dim(),Slice(_));
@@ -321,22 +321,22 @@ namespace madness {
 				const double& weight, const Tensor<T> & data, const unsigned int& maxk) {
 
 			// some checks
-	        assert(idim<this->dim_eff());
-	        assert(r<this->rank());
-	        assert(this->is_flat());
+	        MADNESS_ASSERT(idim<this->dim_eff());
+	        MADNESS_ASSERT(r<this->rank());
+	        MADNESS_ASSERT(this->is_flat());
 
 	        // assign weight
 	        weights_(r)=weight;
 
 	        // assign data
-	        assert(data.size()==maxk);
+	        MADNESS_ASSERT(data.size()==maxk);
 	        for (unsigned int k=0; k<maxk; k++) {
 	        	refVector(idim)(r,k)=data(k);
 	        }
 
 	        // make sure the ranks comply for all dimensions
 	        for (unsigned int idim=0; idim<dim_eff(); idim++) {
-                assert(weights_.dim(0)==vector_[idim].dim(0));
+                MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
 	        }
 
 		}
@@ -550,9 +550,9 @@ namespace madness {
 			 */
 
 			// some checks
-			assert(rhs.is_flat()==lhs.is_flat());
-			assert(rhs.dim()==lhs.dim());
-			assert(rhs.dim()>0);
+			MADNESS_ASSERT(rhs.is_flat()==lhs.is_flat());
+			MADNESS_ASSERT(rhs.dim()==lhs.dim());
+			MADNESS_ASSERT(rhs.dim()>0);
 
 			// fast return if either rank is 0
 			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
@@ -589,7 +589,7 @@ namespace madness {
 
 //		/// return a specific elements of this
 //		T getElement(const unsigned int& r, const unsigned int& idim, const unsigned int& k) const
-//		{assert(this->isVector()); assert(r<rank()); assert(idim<dim()); return refVector(idim)(r,k);};
+//		{MADNESS_ASSERT(this->isVector()); MADNESS_ASSERT(r<rank()); MADNESS_ASSERT(idim<dim()); return refVector(idim)(r,k);};
 
 		/// the weights and vectors
 //		void print(const std::string& title="") const;
@@ -603,10 +603,10 @@ namespace madness {
 		/// make one of the terms in the B matrix (BM2005)
 		void friend makeB(Tensor<T> & B, const unsigned int& idim, const SRConf<T>& lhs, const SRConf<T>& rhs) {
 			// some checks
-			assert(compatible(rhs,lhs));
-			assert(lhs.rank()==B.dim(0));
-			assert(rhs.rank()==B.dim(1));
-			assert(idim<rhs.dim_eff());
+			MADNESS_ASSERT(compatible(rhs,lhs));
+			MADNESS_ASSERT(lhs.rank()==B.dim(0));
+			MADNESS_ASSERT(rhs.rank()==B.dim(1));
+			MADNESS_ASSERT(idim<rhs.dim_eff());
 
 //			dgemm_NT(lhs.refVector(idim),rhs.refVector(idim),B,lhs.rank(),rhs.rank());
 			Tensor<T> lhs2=lhs.refVector(idim)(Slice(0,lhs.rank()-1),Slice(_));
@@ -704,7 +704,7 @@ namespace madness {
 //		/// make a matrix of the weights (lhs.r, rhs.r)
 //		void friend makeWeightMatrix(Tensor<T> & matrix, const SRConf& lhs, const SRConf& rhs) {
 //			// some checks
-//			assert(compatible(rhs,lhs));
+//			MADNESS_ASSERT(compatible(rhs,lhs));
 //
 //			matrix=outer(lhs.weights_,rhs.weights_);
 //		}

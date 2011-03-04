@@ -38,7 +38,7 @@ for file in fileList:
                         break
                 if re.match("\A\s+\d+",line):
                         word = line.split()
-                        number.append( word[0])
+                        number.append( word[-1])
                         time.append(   word[1])
                         field.append(  word[2])
                         energy.append( word[3])
@@ -73,5 +73,5 @@ for i in range(0,len(number)):
         zdipFile.write(time[i]    + "\t" + zdip[i]   + "\n")
         accelFile.write(time[i]   + "\t" + accel[i]  + "\n")
         WtimeFile.write(Wtime[i]  + "\n")
-#os.system("pwd")
+os.system("cp input input.dat")
 #os.system("gnuplot -persist ~/bin/makePlots.gp")

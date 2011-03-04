@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,15 +24,15 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 // #include <iostream>
 // #include <tensor/tensor.h>
 
@@ -83,7 +83,7 @@ Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
     T* restrict c_p = c.ptr();
     T* restrict tmp_p = tmp;
 
-    for (long i=0; i<d0_cubed; i++)
+    for (long i=0; i<d0_cubed; ++i)
         tmp[i] = (T)0;
 
     // both result and tmp are zero filled at this point
@@ -130,27 +130,27 @@ Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor
     long c_d1 = c.dim[1];
 
     // Transform along 1st dimension
-    for (long i = 0; i < c_d1; i++) {
-        for (long kp = 0; kp < c_d0; kp++) {
-            for (long jp = 0; jp < c_d0; jp++) {
+    for (long i = 0; i < c_d1; ++i) {
+        for (long kp = 0; kp < c_d0; ++kp) {
+            for (long jp = 0; jp < c_d0; ++jp) {
                 double_complex sum = 0.0;
-                for (long ip = 0; ip < c_d0; ip++)  sum += t(ip,jp,kp) * c(ip,i);
+                for (long ip = 0; ip < c_d0; ++ip)  sum += t(ip,jp,kp) * c(ip,i);
                 v_kpjpi[kp][jp] = sum;
             }
         }
 
         // Transform along 2nd dimension
-        for (long j = 0; j < c_d1; j++) {
-            for (long kp = 0; kp < c_d0; kp++) {
+        for (long j = 0; j < c_d1; ++j) {
+            for (long kp = 0; kp < c_d0; ++kp) {
                 v_kpij[kp] = (double_complex)0;
-                for (long jp = 0; jp < c_d0; jp++)
+                for (long jp = 0; jp < c_d0; ++jp)
                     v_kpij[kp] +=  v_kpjpi[kp][jp] * c(jp,j);
             }
 
             // Transform along 3rd dimension
-            for (long k = 0; k < c_d1; k++) {
+            for (long k = 0; k < c_d1; ++k) {
                 v_ijk = (double_complex)0;
-                for (long kp = 0; kp < c_d0; kp++)
+                for (long kp = 0; kp < c_d0; ++kp)
                     v_ijk +=  v_kpij[kp] * c(kp,k);
 
                 result(i,j,k) = v_ijk;
@@ -196,27 +196,27 @@ Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
     long c_d1 = c.dim[1];
 
     // Transform along 1st dimension
-    for (long i = 0; i < c_d1; i++) {
-        for (long kp = 0; kp < c_d0; kp++) {
-            for (long jp = 0; jp < c_d0; jp++) {
+    for (long i = 0; i < c_d1; ++i) {
+        for (long kp = 0; kp < c_d0; ++kp) {
+            for (long jp = 0; jp < c_d0; ++jp) {
                 v_jpkpi[jp][kp] = (T)0;
-                for (long ip = 0; ip < c_d0; ip++)
+                for (long ip = 0; ip < c_d0; ++ip)
                     v_jpkpi[jp][kp] += t(ip,jp,kp) * c(ip,i);
             }
         }
 
         // Transform along 2nd dimension
-        for (long j = 0; j < c_d1; j++) {
-            for (long kp = 0; kp < c_d0; kp++) {
+        for (long j = 0; j < c_d1; ++j) {
+            for (long kp = 0; kp < c_d0; ++kp) {
                 v_kpij[kp] = (T)0;
-                for (long jp = 0; jp < c_d0; jp++)
+                for (long jp = 0; jp < c_d0; ++jp)
                     v_kpij[kp] +=  v_jpkpi[jp][kp] * c(jp,j);
             }
 
             // Transform along 3rd dimension
-            for (long k = 0; k < c_d1; k++) {
+            for (long k = 0; k < c_d1; ++k) {
                 v_ijk = (T)0;
-                for (long kp = 0; kp < c_d0; kp++)
+                for (long kp = 0; kp < c_d0; ++kp)
                     v_ijk +=  v_kpij[kp] * c(kp,k);
 
                 result(i,j,k) = v_ijk;
@@ -269,7 +269,7 @@ Tensor<T> transform3d_3c(const Tensor<T>& t,
     T* restrict c2_p = c2.ptr();
     T* restrict tmp_p = tmp;
 
-    for (long i=0; i<d0_cubed; i++)
+    for (long i=0; i<d0_cubed; ++i)
         tmp[i] = (T)0;
 
     // both result and tmp are zero filled at this point
@@ -303,17 +303,17 @@ template Tensor<double> transform3d_3c(const Tensor<double>& t,
 
 /*
   namespace {
-  
+
   template <typename T>
   inline T** create_2d_array(unsigned int d1, unsigned int d2) {
   if (d1 == 0 || d2 == 0) return 0;
   T** result = new T*[d1];
   result[0] = new T[d1*d2];
-  for(unsigned int i=1; i<d1; i++) result[i] = result[i-1] + d2;
-  
+  for(unsigned int i=1; i<d1; ++i) result[i] = result[i-1] + d2;
+
   return result;
   }
-  
+
   template <typename T>
   inline void delete_2d_array(T** A) {
   delete[] A[0];

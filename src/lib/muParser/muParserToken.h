@@ -379,7 +379,7 @@ namespace mu
       }
 
       //------------------------------------------------------------------------------
-      /** \biref Get value of the token.
+      /** \brief Get value of the token.
         
           Only applicable to variable and value tokens.
           \throw exception_type if token is no value/variable token.

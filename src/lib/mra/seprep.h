@@ -133,9 +133,9 @@ namespace madness {
 		/// add another SepRep to this one
 		SepRep& operator+=(const SepRep& rhs) {
 
-			assert(this->tensor_type()==rhs.tensor_type());
-			assert(this->get_k()==rhs.get_k());
-			assert(this->dim()==rhs.dim());
+			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
+			MADNESS_ASSERT(this->get_k()==rhs.get_k());
+			MADNESS_ASSERT(this->dim()==rhs.dim());
 			MADNESS_ASSERT(&(*this)!=&rhs);
 
 			configs_+=rhs.configs_;
@@ -145,8 +145,8 @@ namespace madness {
 		/// substract another SepRep from this one (tested)
 		SepRep& operator-=(const SepRep& rhs) {
 
-			assert(tensor_type()==rhs.tensor_type());
-			assert(this->get_k()==rhs.get_k());
+			MADNESS_ASSERT(tensor_type()==rhs.tensor_type());
+			MADNESS_ASSERT(this->get_k()==rhs.get_k());
 			MADNESS_ASSERT(&(*this)!=&rhs);
 			configs_-=rhs.configs_;
 
@@ -498,8 +498,8 @@ namespace madness {
 	        // fast return if possible
 	        if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
 
-	        assert(compatible(lhs,rhs));
-	        assert(lhs.tensor_type()==rhs.tensor_type());
+	        MADNESS_ASSERT(compatible(lhs,rhs));
+	        MADNESS_ASSERT(lhs.tensor_type()==rhs.tensor_type());
 
 	        const T ovlp=overlap(lhs.configs_,rhs.configs_);
 	        return ovlp;
@@ -673,7 +673,7 @@ namespace madness {
 			bool successful=residual.optimize(*this,1.0,dummy,0.0,t1,0.0,eps,maxloop,B1,B2);
 			if (not successful) {
 				std::cout << "NaNs in oneTermApprox " << std::endl;
-				assert(0);
+				MADNESS_ASSERT(0);
 			}
 			return residual;
 		}
@@ -714,8 +714,8 @@ namespace madness {
 			const unsigned int rG2=ref2.rank();
 
 			// some checks
-			if (fac1!=0) assert(compatible(*this,ref1));
-			if (fac2!=0) assert(compatible(ref1,ref2));
+			if (fac1!=0) MADNESS_ASSERT(compatible(*this,ref1));
+			if (fac2!=0) MADNESS_ASSERT(compatible(ref1,ref2));
 
 			double oldnorm=1.0;
 
@@ -783,18 +783,18 @@ namespace madness {
 			const unsigned int rG2=ref2.rank();
 
 			// some checks
-			assert(ref1.tensor_type()==this->tensor_type());
-			if (have2) assert(ref2.tensor_type()==this->tensor_type());
-			if (have2) assert(compatible(ref1,ref2));
-			assert(dim==B1.size());
-			assert(dim==B2.size());
-			assert(rG1>=0);
-			assert(rG2>=0);
-			assert(rF>0);
-			assert(B1[0].dim(0)==rF);
-			assert(B1[0].dim(1)==rG1);
-			assert(B2[0].dim(0)==rF);
-			assert(B2[0].dim(1)==rG2);
+			MADNESS_ASSERT(ref1.tensor_type()==this->tensor_type());
+			if (have2) MADNESS_ASSERT(ref2.tensor_type()==this->tensor_type());
+			if (have2) MADNESS_ASSERT(compatible(ref1,ref2));
+			MADNESS_ASSERT(dim==B1.size());
+			MADNESS_ASSERT(dim==B2.size());
+			MADNESS_ASSERT(rG1>=0);
+			MADNESS_ASSERT(rG2>=0);
+			MADNESS_ASSERT(rF>0);
+			MADNESS_ASSERT(B1[0].dim(0)==rF);
+			MADNESS_ASSERT(B1[0].dim(1)==rG1);
+			MADNESS_ASSERT(B2[0].dim(0)==rF);
+			MADNESS_ASSERT(B2[0].dim(1)==rG2);
 
 			// for controlling the condition number, sec. (3.2) of BM2005
 			const double alpha=machinePrecision;
@@ -991,9 +991,9 @@ namespace madness {
 						std::cout << "idim " << idim << std::endl;
 						std::cout << "weight_l in NaN; norm: " << norm << std::endl;
 						throw std::runtime_error("NaNs in ALS");
-						assert(0);
+						MADNESS_ASSERT(0);
 					}
-					assert(norm>=0.0);
+					MADNESS_ASSERT(norm>=0.0);
 
 					/*
 					 * if trial is a residual the weights might be zero;

@@ -50,6 +50,7 @@
 
 using namespace madness;
 
+static const double dcut=1.e-3;
 //static const double L = 32.0;   // box size
 //static const long k = 6 ;        // wavelet order
 //static const double thresh = 1e-3; // precision
@@ -66,6 +67,24 @@ static double V(const coord_3d& r) {
     return -1.0/(sqrt(x*x+y*y+z*z+1e-8));
 }
 
+static double helium_pot(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+
+    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+
+    const double value=-2.0/r1 - 2.0/r2;// + 1.0/r12;
+    return value;
+}
+
+
 static double f6d_svd(const coord_6d& r) {
 
     // separation for 2-way decomposition (SVD; r1 -- r2)
@@ -75,11 +94,11 @@ static double f6d_svd(const coord_6d& r) {
 
     const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
 
-	const double dcut=0.01;
     const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
     const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
     const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
     const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
+//    const double value=exp(-1.8*(r1 + r2));
     return value;
 }
 
@@ -106,7 +125,7 @@ void iterate(World& world, real_function_3d& V, real_function_3d& psi, double& e
     real_function_3d Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate();
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
-    Vpsi.ftr2sr();
+//    Vpsi.ftr2sr();
     real_function_3d tmp = op(Vpsi).truncate();
     double norm = tmp.norm2();
     real_function_3d r = tmp-psi;
@@ -120,20 +139,16 @@ void iterate(World& world, real_function_3d& V, real_function_3d& psi, double& e
 }
 
 int main(int argc, char** argv) {
-    print("flo1a");
     initialize(argc, argv);
-    print("flo1b");
     World world(MPI::COMM_WORLD);
-    print("flo1c");
     startup(world,argc,argv);
-    print("flo1d");
     std::cout.precision(6);
 
 
     double L = 32;   // box size
-    long k = 6 ;        // wavelet order
-    double thresh = 1.e-6; // precision
-    TensorType tt = TT_3D;
+    long k = 5 ;        // wavelet order
+    double thresh = 1.e-3; // precision
+    TensorType tt = TT_2D;
     long truncate_mode = 0;
 
     if (argc==6) {
@@ -144,10 +159,9 @@ int main(int argc, char** argv) {
 		truncate_mode = atoi(argv[5]);
     }
 
-    if(world.rank() == 0)
-                  printf("\nstarting at time %.1fs\n\n", wall_time());
+    if(world.rank() == 0) printf("\nstarting at time %.1fs\n\n", wall_time());
 
-#if 1
+#if 0
     FunctionDefaults<3>::set_tensor_type(tt);
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -161,19 +175,21 @@ int main(int argc, char** argv) {
     print("tensor type:       ", FunctionDefaults<3>::get_tensor_type());
 
 
-    
 
 //    real_function_3d Vnuc = real_factory_3d(world).f(V).truncate_mode(0);
 //    print("helium potential ",Vnuc.tree_size());
     real_function_3d psi  = real_factory_3d(world).f(guess);
+    if(world.rank() == 0) printf("\nguess at time %.1fs\n\n", wall_time());
     print("helium guess tree size    ", psi.tree_size());
     print("helium guess number coeff ", psi.size());
 
     print("normalizing");
     print("<psi | psi>", inner(psi,psi));
+    if(world.rank() == 0) printf("\ninner at time %.1fs\n\n", wall_time());
     double normsq=inner(psi,psi);
     psi.scale(1.0/sqrt(normsq));
     print("<psi | psi>", inner(psi,psi));
+    if(world.rank() == 0) printf("\ninner3 at time %.1fs\n\n", wall_time());
 
     print("working on the kinetic energy");
     double kinetic_energy = 0.0;
@@ -185,10 +201,13 @@ int main(int argc, char** argv) {
     }
     print("kinetic energy:", kinetic_energy);
     double ke=kinetic_energy;
+    if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
 
     print("projecting the potential");
     real_function_3d pot = real_factory_3d(world).f(V);
+    if(world.rank() == 0) printf("\nproject V at time %.1fs\n\n", wall_time());
     double pe=inner(psi,pot*psi);
+    if(world.rank() == 0) printf("\ncompute V at time %.1fs\n\n", wall_time());
 
     print("kinetic energy:  ", ke);
     print("potential energy:", pe);
@@ -196,7 +215,7 @@ int main(int argc, char** argv) {
 
 
 #endif
-#if 0
+#if 1
 
     // start the MP2 bit
 
@@ -214,52 +233,48 @@ int main(int argc, char** argv) {
     print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
 
     real_function_6d ij_pair;
-    if (FunctionDefaults<6>::get_tensor_type()==TT_3D) ij_pair = real_factory_6d(world).f(f6d_sr);
-    if (FunctionDefaults<6>::get_tensor_type()==TT_2D) ij_pair = real_factory_6d(world).f(f6d_svd);
+    if (FunctionDefaults<6>::get_tensor_type()==TT_3D)   ij_pair = real_factory_6d(world).f(f6d_sr);
+    if (FunctionDefaults<6>::get_tensor_type()==TT_2D)   ij_pair = real_factory_6d(world).f(f6d_svd);
+    if (FunctionDefaults<6>::get_tensor_type()==TT_FULL) ij_pair = real_factory_6d(world).f(f6d_svd);
     print("helium pair tree size    ",ij_pair.tree_size());
     print("helium pair number coeff ",ij_pair.size());
+    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
     print("working on the kinetic energy");
-    real_function_6d& psi=ij_pair;
+    real_function_6d& psi6=ij_pair;
+
+    double norm=inner(ij_pair,ij_pair);
+    print("norm(ij_pair)",norm);
+    ij_pair.scale(1.0/sqrt(norm));
+    if(world.rank() == 0) printf("\nnormalize at time %.1fs\n\n", wall_time());
+
     double kinetic_energy = 0.0;
     for (int axis=0; axis<6; axis++) {
     	real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-    	real_function_6d dpsi = D(psi);
-    	kinetic_energy += inner(dpsi,dpsi);
+    	real_function_6d dpsi = D(psi6);
+    	kinetic_energy += 0.5*inner(dpsi,dpsi);
     	print("done with axis",axis);
     }
     print("kinetic energy:", kinetic_energy);
+    double ke=kinetic_energy;
+    print("dcut",dcut);
+    if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
 
+    real_function_6d pot;
+    if (FunctionDefaults<6>::get_tensor_type()==TT_3D)   pot = real_factory_6d(world).f(helium_pot);
+    if (FunctionDefaults<6>::get_tensor_type()==TT_2D)   pot = real_factory_6d(world).f(helium_pot);
+    if (FunctionDefaults<6>::get_tensor_type()==TT_FULL) pot = real_factory_6d(world).f(helium_pot);
+    if(world.rank() == 0) printf("\nproject pot at time %.1fs\n\n", wall_time());
+
+    double pe=inner(ij_pair,pot*ij_pair);
+    print("potential energy:", pe);
+    if(world.rank() == 0) printf("\ncompute pot at time %.1fs\n\n", wall_time());
+
+    print("kinetic energy:  ", ke);
+    print("potential energy:", pe);
+    print("total energy:    ", pe+ke);
 
 #endif
-
-#if 0
-    psi.scale(1.0/psi.norm2());
-    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
-    print("flo3");
-    print("flo4");
-
-    double eps = -1.0; 
-    for (int iter=0; iter<10; iter++) {
-        real_function_3d rho = square(psi).truncate();
-        real_function_3d potential = Vnuc + op(rho).truncate();
-        iterate(world, potential, psi, eps);
-    }
-
-//    psi.ftr2sr();
-
-    double kinetic_energy = 0.0;
-    for (int axis=0; axis<3; axis++) {
-        real_derivative_3d D = free_space_derivative<double,3>(world, axis);
-        real_function_3d dpsi = D(psi);
-        kinetic_energy += inner(dpsi,dpsi);
-    }
-
-    real_function_3d rho = square(psi).truncate();
-    double two_electron_energy = inner(op(rho),rho);
-    double nuclear_attraction_energy = 2.0*inner(Vnuc*psi,psi);
-    double total_energy = kinetic_energy + nuclear_attraction_energy + two_electron_energy;
-
 
 
 #if 0
@@ -273,14 +288,14 @@ int main(int argc, char** argv) {
     }
 #endif
 
-    if (world.rank() == 0) {
-        print("            Kinetic energy ", kinetic_energy);
-        print(" Nuclear attraction energy ", nuclear_attraction_energy);
-        print("       Two-electron energy ", two_electron_energy);
-        print("              Total energy ", total_energy);
-        print("                    Virial ", (nuclear_attraction_energy + two_electron_energy) / kinetic_energy);
-    }
-#endif
+//    if (world.rank() == 0) {
+//        print("            Kinetic energy ", kinetic_energy);
+//        print(" Nuclear attraction energy ", nuclear_attraction_energy);
+//        print("       Two-electron energy ", two_electron_energy);
+//        print("              Total energy ", total_energy);
+//        print("                    Virial ", (nuclear_attraction_energy + two_electron_energy) / kinetic_energy);
+//    }
+
     if(world.rank() == 0)
                   printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

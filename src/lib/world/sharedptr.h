@@ -39,289 +39,138 @@
 /// \file sharedptr.h
 /// \brief Minimal, thread safe, modified (and renamed) Boost-like SharedPtr & SharedArray
 
+#include <madness_config.h>
+#include <memory> // for shared_ptr
 
-#include <iostream>
-#include <world/worldexc.h>
-#include <world/atomicint.h>
+#if defined(MADNESS_HAS_STD_TR1_SHARED_PTR) && !defined(MADNESS_HAS_STD_SHARED_PTR)
+#define MADNESS_HAS_STD_SHARED_PTR
+// shard_ptr is in std::tr1 but we want it in std namespace
+namespace std {
+    using ::std::tr1::bad_weak_ptr;
+    using ::std::tr1::shared_ptr;
+    using ::std::tr1::swap;
+    using ::std::tr1::static_pointer_cast;
+    using ::std::tr1::dynamic_pointer_cast;
+    using ::std::tr1::const_pointer_cast;
+    using ::std::tr1::get_deleter;
+    using ::std::tr1::weak_ptr;
+    using ::std::tr1::enable_shared_from_this;
+}
 
-#include <unistd.h>
+#endif
+
+
+// make_shared / allocate_shared
+#if defined(MADNESS_HAS_BOOST_MAKE_SHARE) && !defined(MADNESS_HAS_STD_TR1_MAKE_SHARED)
+#define MADNESS_HAS_STD_MAKE_SHARED
+// Boost TR1 does not include make_shared / allocate_shared, but it is part of
+// current draft. Therefore, we included directly from Boost.
+#include <boost/make_shared.hpp>
+namespace std {
+    using ::boost::make_shared;
+    using ::boost::allocate_shared;
+} // namespace std
+#endif // defined(MADNESS_HAS_BOOST_MAKE_SHARE) && !defined(MADNESS_HAS_STD_TR1_MAKE_SHARED)
+
 
 namespace madness {
 
-    /// A SharedCounter counts references to each SharedArray or SharedPtr
-    class SharedCounter {
-    private:
-        madness::AtomicInt count;
-        SharedCounter(const SharedCounter& x); // verboten
-        void operator=(const SharedCounter& x); // verboten
-
-    public:
-        /// Makes a counter with initial value 1
-        SharedCounter() {
-            count = 1;
-        }
-
-        /// Get the count
-        int get() {
-            return count;
-        }
-
-        /// Increment the count
-        void inc() {
-            count++;
-        }
-
-        /// Decrement the count and return true if the decremented value is zero
-        bool dec_and_test() {
-            return count.dec_and_test();
-        }
-    };
-
+    template <typename>
+    class RemoteReference;
 
     namespace detail {
-        /// Function to delete arrays for shared pointers
-        template <typename T>
-        static void del_array(T* t) {
-            delete [] t;
+
+        // These checked delete and deleters are copied from Boost.
+        // They ensure that compilers issue warnings if T is an incomplete type.
+
+        /// Checked pointer delete function
+
+        /// This function ensures that the pointer is a complete type.
+        /// \tparam T The pointer type (must be a complete type).
+        /// \param p The pointer to be deleted.
+        template<typename T>
+        inline void checked_delete(T* p) {
+            // intentionally complex - simplification causes regressions
+            typedef char type_must_be_complete[ sizeof(T)? 1: -1 ];
+            (void) sizeof(type_must_be_complete);
+            delete p;
         }
 
-        /// Function to delete memory using free()
+
+        /// Checked array pointer delete function
+
+        /// This function ensures that the pointer is a complete type.
+        /// \tparam T The pointer type (must be a complete type).
+        /// \param a The array pointer to be deleted.
+        template<typename T>
+        inline void checked_array_delete(T* a) {
+            typedef char type_must_be_complete[ sizeof(T)? 1: -1 ];
+            (void) sizeof(type_must_be_complete);
+            delete [] a;
+        }
+
+        /// Function to free memory for a shared_ptr using free()
+
+        /// Checks the pointer to make sure it is a complete type, you will get
+        /// a compiler error if it is not.
         template <typename T>
-        static void del_free(T* t) {
+        inline void checked_free(T* t) {
+            typedef char type_must_be_complete[ sizeof(T)? 1: -1 ];
+            (void) sizeof(type_must_be_complete);
             free(t);
         }
+
+        /// Use this function with shared_ptr to do nothing for the pointer cleanup
+        template <typename T>
+        inline void no_delete(T*) { }
+
+        /// Checked pointer delete functor
+
+        /// This functor is used to delete a pointer. It ensures that the
+        /// pointer is a complete type.
+        /// \tparam T The pointer type (must be a complete type).
+        template<typename T>
+        struct CheckedDeleter {
+            typedef void result_type;
+            typedef T * argument_type;
+
+            void operator()(T* p) const { checked_delete(p); }
+        };
+
+        /// Checked array pointer delete functor
+
+        /// This functor is used to delete an array pointer. It ensures that the
+        /// pointer is a complete type.
+        /// \tparam T The pointer type (must be a complete type).
+        template<typename T>
+        struct CheckedArrayDeleter {
+            typedef void result_type;
+            typedef T * argument_type;
+
+            void operator()(T* a) const { checked_array_delete(a); }
+        };
+
+        /// Deleter to free memory for a shared_ptr using free()
+
+        /// Checks the pointer to make sure it is a complete type, you will get
+        /// a compiler error if it is not.
+        template<typename T>
+        struct CheckedFree {
+            typedef void result_type;
+            typedef T * argument_type;
+
+            void operator()(T* p) const { checked_fr   (p); }
+        };
+
+        /// Use this deleter with shared_ptr to do nothing for the pointer cleanup
+        template<typename T>
+        struct NoDeleter {
+            typedef void result_type;
+            typedef T * argument_type;
+
+            void operator()(T*) const { no_delete(static_cast<T*>(NULL)); }
+        };
+
     }
-
-    template <typename T> class RemoteReference;
-
-    /// A SharedPtr wraps a pointer which is deleted when the reference count goes to zero
-
-    /// The SharedPtr works pretty much like a regular pointer except that it
-    /// is reference counted so there is no need to free it.  When the last
-    /// reference is destroyed the underlying pointer will be freed.
-    ///
-    /// By default the pointer is deleted with \c delete, but you can
-    /// optionally provide an additional argument on the constructor
-    /// for custom deletion.
-    /// This is used by SharedArray to invoke \c delete[].
-    template <typename T>
-    class SharedPtr {
-        friend class RemoteReference<T>;
-        template <class Q> friend class SharedPtr;
-    private:
-
-    protected:
-        T* p;                   ///< The pointer being wrapped
-        SharedCounter *count;   ///< The counter shared by all references
-        bool own;               ///< True if SharedPtr actually owns the pointer ... if not it won't be freed
-        void (*deleter)(T*);    ///< Function to invoke to free memory (if null uses delete)
-
-        /// Free the pointer if we own it and it is not null
-        void free() {
-            if (own && p) {
-                //printf("SharedPtr free: own=%d cntptr=%p nref=%d ptr=%p\n", own, count, use_count(), p);
-                MADNESS_ASSERT(use_count() == 0);
-                if (deleter)
-                    deleter(p);
-                else
-                    delete p;
-
-                delete count;
-
-                p = 0;
-                count = 0;
-                deleter = 0;
-            }
-        }
-
-        /// Decrement the reference count, freeing pointer if count becomes zero
-        void dec() {
-            //if (own && count) print("SharedPtr  dec: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
-            if (own && count && count->dec_and_test()) free();
-        }
-
-        /// Same as dec() but works on unowned pointers to avoid a race condition
-
-        /// Race was mark_as_owned(); dec(); mark_as_unowned();
-        void dec_not_owned() {
-            //if (count) print("SharedPtr  dec_not_owned: own ",own, "cntptr", count, "nref", use_count(),"ptr",p);
-            MADNESS_ASSERT(!own);
-            if (count && count->dec_and_test()) {
-                own  = true;
-                free();
-            }
-        }
-
-        void mark_as_unowned() {
-            own = false;
-        }
-
-        void mark_as_owned() {
-            own = true;
-        }
-
-    public:
-        /// Default constructor makes an null pointer
-        SharedPtr() : p(0), count(0), own(true), deleter(0) {
-        }
-
-
-        /// Wrap a pointer which may be null
-
-        /// The explicit qualifier inhibits very dangerous automatic conversions
-        explicit SharedPtr(T* ptr, void (*deleter)(T*)=0) : p(ptr), count(0), own(true), deleter(deleter) {
-            if (p) count = new SharedCounter;
-        }
-
-
-        /// Wrap a pointer which may be null, or not owned
-
-        /// If the pointer is not owned it will not be deleted by the destructor.
-        /// If the pointer is an array, delete [] will be called.
-        explicit SharedPtr(T* ptr, bool own, void (*deleter)(T*)=0) : p(ptr), count(0), own(own), deleter(deleter) {
-            if (own && p) count = new SharedCounter;
-        }
-
-
-        /// Copy constructor generates a new reference to the same pointer
-        SharedPtr(const SharedPtr<T>& s) : p(s.p), count(s.count), own(s.own), deleter(s.deleter) {
-            if (own && count) count->inc();
-        }
-
-
-        /// Copy constructor with static type conversion generates a new reference to the same pointer
-
-        /// !! This is a potentially unsafe conversion of the deleter.  Probably best only
-        /// done if deleter=0.
-        template <typename Q>
-        SharedPtr(const SharedPtr<Q>& s) : p(static_cast<T*>(s.p)), count(s.count), own(s.own),
-                deleter((void (*)(T*)) s.deleter) {
-            if (own && count) count->inc();
-        }
-
-
-        /// Destructor decrements reference count freeing data only if count is zero
-        virtual ~SharedPtr() {
-            dec();
-        }
-
-
-        /// Assignment decrements reference count for current pointer and increments new count
-        SharedPtr<T>& operator=(const SharedPtr<T>& s) {
-            if (this != &s) {
-                if (s.own && s.count) s.count->inc();
-                this->dec();
-                this->p = s.p;
-                this->count = s.count;
-                this->own = s.own;
-                this->deleter = s.deleter;
-            }
-            return *this;
-        }
-
-        /// Returns number of references
-        int use_count() const {
-            if (count) return count->get();
-            else return 0;
-        }
-
-        /// Returns the value of the pointer
-        T* get() const {
-            return p;
-        }
-
-        /// Returns true if the SharedPtr owns the pointer
-        bool owned() const {
-            return own;
-        }
-
-        /// Cast of SharedPtr<T> to T* returns the value of the pointer
-        operator T*() const {
-            return p;
-        }
-
-        /// Return pointer+offset
-        T* operator+(long offset) const {
-            return p+offset;
-        }
-
-        /// Return pointer-offset
-        T* operator-(long offset) const {
-            return p-offset;
-        }
-
-        /// Dereferencing SharedPtr<T> returns a reference to pointed value
-        T& operator*() const {
-            return *p;
-        }
-
-        /// Member access via pointer works as expected
-        T* operator->() const {
-            return p;
-        }
-
-        /// Array indexing returns reference to indexed value
-        T& operator[](long index) const {
-            return p[index];
-        }
-
-        /// Boolean value (test for null pointer)
-        operator bool() const {
-            return p;
-        }
-
-        /// Are two pointers equal?
-        bool operator==(const SharedPtr<T>& other) const {
-            return p == other.p;
-        }
-
-        /// Are two pointers not equal?
-        bool operator!=(const SharedPtr<T>& other) const {
-            return p != other.p;
-        }
-
-//         /// Steal an un-owned reference to the pointer
-
-//         /// The returned shared pointer will contain the pointer to
-//         /// the shared counter but is marked as not owned AND the
-//         /// reference count is NOT incremented.  This enables an
-//         /// object containing a SharedPtr to itself to be deleted and
-//         /// ensures that destroying the embedded SharedPtr does not
-//         /// call the object destructor again.
-//         SharedPtr<T> steal() const {
-//             SharedPtr<T> r(*this);
-//             r.own = false;
-//             r.dec();
-//             return r;
-//         }
-
-        /// This just to permit use as task arguments ... throws if actually invoked
-        template <typename Archive>
-        void serialize(Archive& ar) {
-            MADNESS_EXCEPTION("SharedPtr not serializable", 0);
-        }
-
-    };
-
-    /// A SharedArray is just like a SharedPtr except that delete [] is used to free it
-    template <class T>
-    class SharedArray : public SharedPtr<T> {
-    public:
-        SharedArray(T* ptr = 0) : SharedPtr<T>(ptr,detail::del_array) {}
-        SharedArray(const SharedArray<T>& s) : SharedPtr<T>(s) {}
-
-        /// Assignment decrements reference count for current pointer and increments new count
-        SharedArray& operator=(const SharedArray& s) {
-            if (this != &s) {
-                if (s.own && s.count) s.count->inc();
-                this->dec();
-                this->p = s.p;
-                this->count = s.count;
-                this->own = s.own;
-                this->deleter = s.deleter;
-            }
-            return *this;
-        }
-    };
 }
 #endif // MADNESS_WORLD_SHAREDPTR_H__INCLUDED

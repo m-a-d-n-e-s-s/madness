@@ -40,6 +40,7 @@
 #define MADNESS_WORLD_WORLDOBJ_H__INCLUDED
 
 #include <world/worldthread.h>
+#include <world/worldtask.h>
 
 namespace madness {
 
@@ -69,36 +70,62 @@ namespace madness {
         // easily with send handlers since task layer is more restrictive on the
         // copy capability of arguments.
 
+        // It is also annoying that info needs to be broken into two parts so
+        // that it id and ref are properly serialized. We need to have id
+        // correctly aligned via opaque_wrap, but ref cannot be serialized that
+        // way. Thus we break the class into two parts.
+
         // Info stored for AM method forwarding
         template <typename memfunT>
-        struct info {
-            typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
-            typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
+        struct info_base {
             uniqueidT id; // Must be at front ... see peek.
             ProcessID requestor;
             memfunT memfun;
-            refT ref;
             TaskAttributes attr;
 
-            info() {};
+        protected:
 
-            info(const AmArg& arg) {
-                arg & *this;
-            }
+            info_base() {}
 
-            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
+            info_base(const uniqueidT& id, ProcessID requestor,  memfunT memfun,
                  const TaskAttributes& attr=TaskAttributes())
                     : id(id)
                     , requestor(requestor)
                     , memfun(memfun)
-                    , ref(ref)
-                    , attr(attr) {};
+                    , attr(attr) {}
+
 
             template <typename Archive>
             void serialize(const Archive& ar) {
                 ar & archive::wrap_opaque(*this); // Must be opaque ... see peek.
             }
-        };
+        }; // struct info_base
+
+        template <typename memfunT>
+        struct info : public info_base<memfunT> {
+            typedef Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > futureT;
+            typedef RemoteReference< FutureImpl< REMFUTURE(MEMFUN_RETURNT(memfunT)) > > refT;
+            refT ref;
+
+            info() : info_base<memfunT>() {}
+
+            info(const AmArg& arg) :
+                info_base<memfunT>()
+            {
+                arg & *this;
+            }
+
+            info(const uniqueidT& id, ProcessID requestor,  memfunT memfun, const refT& ref,
+                 const TaskAttributes& attr=TaskAttributes()) :
+                     info_base<memfunT>(id, requestor, memfun, attr), ref(ref)
+            {}
+
+            template <typename Archive>
+            void serialize(const Archive& ar) {
+                info_base<memfunT>::serialize(ar);
+                ar & ref;
+            }
+        }; // struct info
 
         // Extract the unique object ID from an incoming active message header
 
@@ -127,6 +154,8 @@ namespace madness {
     ///    a) invokes WorldObject<Derived>(world) constructor
     ///    b) invokes process_pending()
     /// 3) Derived destructor must either be deferred or preceeded by gop.fence()
+    /// 4) Derived class must have at least one virtual function for serialization
+    ///    of derived class pointers to be cast to the appropriate type.
     ///
     /// This class is deliberately not default constructible and does
     /// not support assignment or copying.  This ensures that each instance
@@ -135,7 +164,7 @@ namespace madness {
     ///
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
-    class WorldObject : public DeferredCleanupInterface {
+    class WorldObject {
         typedef WorldObject<Derived> objT;
         typedef std::list<detail::PendingMsg> pendingT;
     public:
@@ -552,7 +581,7 @@ namespace madness {
                 while (tmp.size()) {
                     tmp.front().invokehandler();
                     tmp.pop_front();
-                    //ndone++;
+                    //++ndone;
                 }
             }
             //if (ndone) std::cout << world.rank() << ":pending:" << ndone << std::endl;
@@ -1055,7 +1084,7 @@ namespace madness {
 
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,WorldObject<Derived>*> {
-            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
+            static inline void store(const BufferOutputArchive& ar, WorldObject<Derived>* const&  ptr) {
                 ar & ptr->id();
             }
         };
@@ -1074,7 +1103,7 @@ namespace madness {
 
         template <class Derived>
         struct ArchiveStoreImpl<BufferOutputArchive,const WorldObject<Derived>*> {
-            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>*const& ptr) {
+            static inline void store(const BufferOutputArchive& ar, const WorldObject<Derived>* const& ptr) {
                 ar & ptr->id();
             }
         };

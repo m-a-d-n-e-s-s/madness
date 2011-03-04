@@ -81,7 +81,7 @@ namespace madness {
         if (rank == 0) {
             int i;
             printf("\n Starting xterms with debugger using command\n\n    ");
-            for (i = 0; argv[i]; i++) printf("%s ", argv[i]);
+            for (i = 0; argv[i]; ++i) printf("%s ", argv[i]);
             printf("\n\n");
             fflush(stdout);
         }

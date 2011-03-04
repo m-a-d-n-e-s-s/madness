@@ -241,10 +241,22 @@ namespace madness {
 
 		}
 
+
+
+
 	    /// Multiplication of tensor by a scalar of a supported type to produce a new tensor
 
 	    /// @param[in] x Scalar value
 	    /// @return New tensor
+		template <class Q>
+		GenTensor<TENSOR_RESULT_TYPE(T,Q)> operator*(const Q& x) const {
+	    	print("GenTensor<T>::operator* only with T==Q");
+	    	MADNESS_ASSERT(0);
+	    	GenTensor<TENSOR_RESULT_TYPE(T,Q)> result;
+        	return result;
+
+        }
+
         GenTensor<T> operator*(const T& x) const {
         	GenTensor<T> result(copy(*this));
         	result.scale(x);
@@ -252,7 +264,8 @@ namespace madness {
 
         }
 
-        /// Often used to transform all dimensions from one basis to another
+
+		/// Often used to transform all dimensions from one basis to another
         /// \code
         /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
         /// \endcode
@@ -351,7 +364,8 @@ namespace madness {
         	print("no GenTensor<T>::emul yet");
         	MADNESS_ASSERT(0);
         }
-		/// returns a reference to FullTensor of this; no reconstruction
+
+        /// returns a reference to FullTensor of this; no reconstruction
 		Tensor<T>& full_tensor() const {
 			return _ptr->fullTensor();
 		}

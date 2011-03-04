@@ -31,12 +31,13 @@
   $Id$
 */
 
-#define HAVE_FLONODE 1
-#define HAVE_GENTENSOR 1
+#define HAVE_FLONODE 0
+#define HAVE_GENTENSOR 0
 
 #ifndef MADNESS_MRA_FLONODE_H__INCLUDED
 #define MADNESS_MRA_FLONODE_H__INCLUDED
 
+#if 0
 
 /// \file flonode.h
 /// \brief Provides a node/box for a MRA function, using LowRankTensor; to be replaced asap
@@ -48,7 +49,7 @@ namespace madness {
 
 
     /// FloNode holds the coefficients, etc., at each node of the 2^NDIM-tree
-    template<typename T, int NDIM>
+    template<typename T, std::size_t NDIM>
     class FloNode {
 
     public:
@@ -107,8 +108,7 @@ namespace madness {
         FloNode<T, NDIM>&
         operator=(const FloNode<T, NDIM>& other) {
             if (this != &other) {
-//                coeff() = copy(other.coeff());
-            	_coeffs=copy(other.tensor());
+            	_coeffs=copy(other.coeff());
                 _norm_tree = other._norm_tree;
                 _has_children = other._has_children;
             }
@@ -130,7 +130,7 @@ namespace madness {
         bool
         has_coeff() const {
         	return _coeffs.has_data();
-        };
+        }
 
         /// Returns true if this node has children
         bool
@@ -150,22 +150,30 @@ namespace madness {
             return !(has_coeff() || has_children());
         }
 
+        /// Returns a non-const reference to the tensor containing the coeffs
+
+        /// Returns an empty tensor if there are no coefficients.
+        coeffT&
+        coeff() {
+            MADNESS_ASSERT(_coeffs.ndim() == -1 || (_coeffs.dim(0) <= 2
+                                                    * MAXK && _coeffs.dim(0) >= 0));
+            return const_cast<coeffT&>(_coeffs);
+        }
+
+        /// Returns a const reference to the tensor containing the coeffs
+
+        /// Returns an empty tensor if there are no coefficeints.
+        const coeffT&
+        coeff() const {
+            return const_cast<const coeffT&>(_coeffs);
+        }
+
+
         /// Returns the number of coefficients in this node
         size_t size() const {
         	return _coeffs.size();
         }
 
-        /// Returns a const pointer to the SepRepTensor
-        const GenTensor<T>&
-        tensor() const {
-        	return _coeffs;
-        }
-
-        /// Returns a const pointer to the SepRepTensor
-        GenTensor<T>&
-        tensor() {
-        	return _coeffs;
-        }
 
         /// Returns an empty tensor if there are no coefficients.
         Tensor<T>
@@ -198,29 +206,6 @@ namespace madness {
         	MADNESS_ASSERT(_coeffs->type()==TT_FULL);
         	return _coeffs->fullTensor();
         }
-
-    private:
-//        /// Returns an empty tensor if there are no coefficients.
-//        Tensor<T>
-//        coeff() {
-////            MADNESS_ASSERT(_coeffs->ndim() == -1 || (_coeffs->dim(0) <= 2
-////                                                    * MAXK && _coeffs->dim(0) >= 0));
-////            return const_cast<Tensor<T>&>(_coeffs);
-//            MADNESS_ASSERT(_coeffs==0 || (_coeffs->dim(0) <= 2
-//                                                    * MAXK && _coeffs->dim(0) >= 0));
-//            if (_coeffs==0) return Tensor<T> ();
-//            return _coeffs->fullTensor();
-//        }
-//
-//        /// Returns an empty tensor if there are no coefficients.
-//        const Tensor<T>&
-//        coeff() const {
-////            return const_cast<const Tensor<T>&>(_coeffs);
-//            MADNESS_ASSERT(_coeffs==0 || (_coeffs->dim(0) <= 2
-//                                                    * MAXK && _coeffs->dim(0) >= 0));
-//            if (_coeffs==0) return Tensor<T> ();
-//            return _coeffs->fullTensor();
-//        }
 
     public:
 
@@ -290,27 +275,9 @@ namespace madness {
             _has_children = !flag;
         }
 
-//        /// temporary template specializtion
-//        void set_coeff(const Tensor<T>& coeffs) {
-//        	_coeffs = coeffs;
-//        	to_low_rank(_coeffs,FunctionDefaults<NDIM>::get_thresh(),
-//        			FunctionDefaults<NDIM>::get_tensor_type());
-//            if ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK)) {
-//                print("set_coeff: may have a problem");
-//                print("set_coeff: coeff.dim[0] =", coeffs.dim(0), ", 2* MAXK =", 2*MAXK);
-//                print("set_coeff: coeff.dim[0] =", _coeffs.dim(0), ", 2* MAXK =", 2*MAXK);
-//                MADNESS_ASSERT(0);
-//            }
-//            MADNESS_ASSERT(coeffs.dim(0)<=2*MAXK && coeffs.dim(0)>=0);
-//
-//        }
-
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const GenTensor<T>& coeffs) {
         	_coeffs=coeffs;
-//        	_coeffs = new FullTensor<T>(coeffs);
-//        	to_low_rank(_coeffs,FunctionDefaults<NDIM>::get_thresh(),
-//        			FunctionDefaults<NDIM>::get_tensor_type());
             if ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK)) {
                 print("set_coeff: may have a problem");
                 print("set_coeff: coeff.dim[0] =", coeffs.dim(0), ", 2* MAXK =", 2*MAXK);
@@ -375,19 +342,13 @@ namespace madness {
 //        Void accumulate(const Tensor<T>& t, const typename FloNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
         Void accumulate(const GenTensor<T>& t, const typename FloNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
             if (has_coeff()) {
-//            	this->node_to_full_rank();
-//                this->full_tensor_reference() += t;
-//                this->node_to_low_rank();
-            	this->tensor()+=t;
+            	this->coeff()+=t;
             }
             else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
-//            	this->node_to_full_rank();
-//                this->full_tensor_reference() = copy(t);
-//                this->node_to_low_rank();
-            	this->tensor()+=copy(t);
+            	coeff()+=copy(t);
 
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
@@ -410,10 +371,10 @@ namespace madness {
         }
     };
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     std::ostream& operator<<(std::ostream& s, const FloNode<T,NDIM>& node) {
         s << "(has_coeff=" << node.has_coeff() << ", has_children=" << node.has_children() << ", norm=";
-        double norm = node.has_coeff() ? node.tensor().normf() : 0.0;
+        double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12)
             norm = 0.0;
         s << norm << ")";
@@ -424,5 +385,7 @@ namespace madness {
 
 
 }
+
+#endif
 
 #endif // MADNESS_MRA_FLONODE_H__INCLUDED

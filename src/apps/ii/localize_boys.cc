@@ -2,7 +2,7 @@
 #include <mra/mra.h>
 #include <utility>
 #include <ctime>
-#include <cmath> 
+#include <cmath>
 #include <tensor/tensor.h>
 #include <ii/systolic.h>
 
@@ -36,14 +36,14 @@ DistributedMatrix<T> plocalize_boys( World & world, const std::vector< Function<
         +---+-------+-------+-------+
     */
     DistributedMatrix<T> dip[3] = {
-        column_distributed_matrix<T>(world, nmo, nmo), 
-        column_distributed_matrix<T>(world, nmo, nmo), 
-        column_distributed_matrix<T>(world, nmo, nmo) 
+        column_distributed_matrix<T>(world, nmo, nmo),
+        column_distributed_matrix<T>(world, nmo, nmo),
+        column_distributed_matrix<T>(world, nmo, nmo)
     };
 
     /// for all axis, make dipole function
-    for(int axis=0;axis < 3;axis++){  
-        Function<T,3> fdip = FunctionFactory<T,3>(world).functor(SharedPtr< FunctionFunctorInterface<T,3> >(new DipoleFunctor(axis))).initial_level(4);
+    for(int axis=0;axis < 3;axis++){
+        Function<T,3> fdip = FunctionFactory<T,3>(world).functor(std::shared_ptr< FunctionFunctorInterface<T,3> >(new DipoleFunctor(axis))).initial_level(4);
         dip[axis].copyin( matrix_inner(world, mo, mul_sparse(world, fdip, mo, vtol), true) );
     }
 
@@ -63,12 +63,12 @@ int main(int argc, char** argv) {
     madness::World world(MPI::COMM_WORLD);
 
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
-    
+
     try {
         print("Test of localize_boys.cc\n");
         print("label size time eig_val");
         for (int64_t n=10; n>1; n-=2) {
-            
+
             /// image of usage
             /*
             Tensor<double>U = plocalize_boys(world, mo, set);
@@ -109,7 +109,7 @@ int main(int argc, char** argv) {
     catch (...) {
         error("caught unhandled exception");
     }
-    
+
     finalize();
 }
 

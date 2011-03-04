@@ -74,7 +74,7 @@ void test_per(World& world) {
 
     f.reconstruct();
 
-    for (int i=0; i<101; i++) {
+    for (int i=0; i<101; ++i) {
         double x = i*0.01;
         printf("%.2f %.8f %.8f %10.2e\n", x, f(x), opf(x), opf(x)-q(x,expnt[0]));
     }

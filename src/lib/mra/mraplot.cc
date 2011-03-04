@@ -44,7 +44,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 struct lbcost {
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
         return 1.0;
@@ -177,14 +177,14 @@ public:
         double v[65];
         int n = 0;
         while (s >> v[n]) {
-            n++;
+            ++n;
             MADNESS_ASSERT(n < 65);
         }
         // There should be an even number
         int ndim = n/2;
         MADNESS_ASSERT(n==ndim*2 && ndim>=1);
         Tensor<double> cell(ndim,2);
-        for (int i=0; i<ndim; i++) {
+        for (int i=0; i<ndim; ++i) {
             cell(i,0) = v[2*i  ];
             cell(i,1) = v[2*i+1];
         }
@@ -268,7 +268,7 @@ public:
         if (cell.size() <= 0) {
             MADNESS_ASSERT(ndim>0 && ndim<=6);
             cell = Tensor<double>(ndim,2);
-            for (int i=0; i<ndim; i++) cell(i,1) = 1.0;
+            for (int i=0; i<ndim; ++i) cell(i,1) = 1.0;
         }
         if (plot_cell.size() <= 0) plot_cell = copy(cell);
         while (int(npt.size()) < ndim) npt.push_back(101);
@@ -290,10 +290,10 @@ public:
         MADNESS_ASSERT(plot_cell.dim(0)==ndim && plot_cell.dim(1)==2);
     }
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dolineplot(const Function<T,NDIM>& f) {
         Vector<double,NDIM> lo, hi;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
@@ -302,7 +302,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dovolumeplot(const Function<T,NDIM>& f) {
         if(output_format == "dx") {
             plotdx(f, output_filename.c_str(), plot_cell, npt, binary);
@@ -310,7 +310,7 @@ public:
         else if(output_format == "vtk") {
             Vector<double, NDIM> plotlo, plothi;
             Vector<long, NDIM> numpt;
-            for(int i = 0; i < NDIM; ++i) {
+            for(std::size_t i = 0; i < NDIM; ++i) {
                 plotlo[i] = plot_cell(i, 0);
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
@@ -325,10 +325,10 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dolineplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
         Vector<double,NDIM> lo, hi;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             lo[i] = plot_cell(i,0);
             hi[i] = plot_cell(i,1);
         }
@@ -337,7 +337,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void dovolumeplot(const Function<T,NDIM>& f, const Function<T,NDIM>& g) {
         if(output_format == "dx") {
           MADNESS_EXCEPTION("plot type not supported with user functions!",0);
@@ -345,7 +345,7 @@ public:
         else if(output_format == "vtk") {
             Vector<double, NDIM> plotlo, plothi;
             Vector<long, NDIM> numpt;
-            for(int i = 0; i < NDIM; ++i) {
+            for(std::size_t i = 0; i < NDIM; ++i) {
                 plotlo[i] = plot_cell(i, 0);
                 plothi[i] = plot_cell(i, 1);
                 numpt[i] = npt[i];
@@ -362,7 +362,7 @@ public:
     }
 
 
-    template <typename T, int NDIM>
+    template <typename T, std::size_t NDIM>
     void doplot1() {
 
         // Set up environment for this dimension
@@ -376,7 +376,7 @@ public:
         // Load the user's function
         if (formula != "") {
          typedef FunctionFactory<T,NDIM> factoryT;
-         typedef SharedPtr< FunctionFunctorInterface<T, NDIM> > functorT;
+         typedef std::shared_ptr< FunctionFunctorInterface<T, NDIM> > functorT;
          Function<T,NDIM> pFunc = factoryT(world).functor(functorT(
                         new ParserHandler<T,NDIM>("exp(-abs(r))")));
 
@@ -425,7 +425,7 @@ int main(int argc, char**argv) {
         World world(MPI::COMM_WORLD);
         bool done = false;
         if (world.rank() == 0) {
-            for (int i=0; i<argc; i++) {
+            for (int i=0; i<argc; ++i) {
                 if (!strcmp(argv[i],"--help")) {
                     print(help);
                     done = true;
@@ -462,11 +462,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }

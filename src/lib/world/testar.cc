@@ -219,7 +219,7 @@ void test_out(const OutputArchive& oar) {
 
     // Initialize data
     a.a = b.b = c.c = i = 1;
-    for (int k=0; k<n; k++) {
+    for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = k;
         bn[k].b = k&1;
         m[k] = double_complex(k,k);
@@ -300,7 +300,7 @@ void test_in(const InputArchive& iar) {
 
     // Destroy in-core data
     a.a = b.b = c.c = i = 0;
-    for (int k=0; k<n; k++) {
+    for (int k=0; k<n; ++k) {
         p[k] = q[k].a = an[k].a = v[k] = cn[k].c = in[k] = -1;
         bn[k].b = (k+1)&1;
         m[k] = double_complex(0,0);
@@ -373,7 +373,7 @@ void test_in(const InputArchive& iar) {
     TEST(b.b == 1);
     TEST(c.c == 1);
     TEST(i == 1);
-    for (int k=0; k<n; k++) {
+    for (int k=0; k<n; ++k) {
         TEST(an[k].a == k);
         TEST(bn[k].b == (k&1));
         TEST(cn[k].c == k);

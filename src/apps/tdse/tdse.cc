@@ -206,15 +206,15 @@ static double zero_field_time;      // Laser actually switches on after this tim
 
 // typedefs to make life less verbose
 typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 typedef Function<double,3> functionT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
+typedef std::shared_ptr< FunctionFunctorInterface<double_complex,3> > complex_functorT;
 typedef Function<double_complex,3> complex_functionT;
 typedef FunctionFactory<double_complex,3> complex_factoryT;
 
-typedef SharedPtr< WorldDCPmapInterface< Key<3> > > pmapT;
+typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 
 typedef Convolution1D<double_complex> complex_operatorT;
 #define MAKE_PROPAGATOR(world, t)
@@ -700,8 +700,11 @@ struct lbcost {
     double leaf_value;
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
+#if HAVE_FLONODE
+    double operator()(const Key<NDIM>& key, const FloNode<T,NDIM>& node) const {
+#else
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-
+#endif
         if (key.level() <= 1) {
             return 128.0;
         }
@@ -1063,10 +1066,10 @@ int main(int argc, char** argv) {
     } catch (const madness::TensorException& e) {
         print(e); std::cout.flush();
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    } catch (char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
-    } catch (char* s) {
+    } catch (const char* s) {
         print(s); std::cout.flush();
         error("caught a c-string exception");
     } catch (const std::string& s) {

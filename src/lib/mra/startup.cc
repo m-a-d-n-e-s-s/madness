@@ -33,9 +33,11 @@
 */
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
+
 /// \file mra/startup.cc
 
 #include <mra/mra.h>
+#include <mra/mraimpl.h>
 #include <iomanip>
 #include <cstdlib>
 
@@ -44,7 +46,7 @@ namespace madness {
         const char* data_dir = MRA_DATA_DIR;
 
         // Process command line arguments
-        for (int arg=1; arg<argc; arg++) {
+        for (int arg=1; arg<argc; ++arg) {
             if (strcmp(argv[arg],"-dx")==0)
                 xterm_debug("world", 0);
             else if (strcmp(argv[arg],"-dn") ==0 &&

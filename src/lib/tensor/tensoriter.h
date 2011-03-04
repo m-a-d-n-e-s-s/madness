@@ -108,7 +108,7 @@ namespace madness {
     /// Constructor for general iterator to compose operations over up to three tensors
 
     /// \ingroup tensor
-    /// Macros have been defined in \c tensor_macros.h to take the pain out of 
+    /// Macros have been defined in \c tensor_macros.h to take the pain out of
     /// using iterators.  The options have the following effects
     /// - \c optimize reorders dimensions for optimal strides (only
     /// applies if iterlevel=1).  If jdim==default_jdim, all dimensions
@@ -177,7 +177,7 @@ namespace madness {
         // First copy basic info over
         ndim = t0->ndim();
         _p0_save = _p0 = const_cast<T*>(t0->ptr()); // CONSTNESS VIOLATION
-        for (int i=0; i<ndim; i++) {
+        for (int i=0; i<ndim; ++i) {
             dim[i] = t0->dim(i);
             stride0[i] = t0->stride(i);
         }
@@ -185,7 +185,7 @@ namespace madness {
             TENSOR_ASSERT(t0->conforms(*t1),"first and second tensors do not conform",
                           0, t0);
             _p1_save = _p1 = const_cast<Q*>(t1->ptr()); // CONSTNESS VIOLATION
-            for (int i=0; i<ndim; i++) stride1[i] = t1->stride(i);
+            for (int i=0; i<ndim; ++i) stride1[i] = t1->stride(i);
         }
         else {
             _p1_save = _p1 = 0;
@@ -194,7 +194,7 @@ namespace madness {
             TENSOR_ASSERT(t0->conforms(*t2),"first and third tensors do not conform",
                           0, t0);
             _p2_save = _p2 = const_cast<R*>(t2->ptr()); // CONSTNESS VIOLATION
-            for (int i=0; i<ndim; i++) stride2[i] = t2->stride(i);
+            for (int i=0; i<ndim; ++i) stride2[i] = t2->stride(i);
         }
         else {
             _p2_save = _p2 = 0;
@@ -216,9 +216,9 @@ namespace madness {
             // If permissible optimize the order of dimensions excluding
             // any non-default value of jdim.
             if (optimize) {
-                for (int i=0; i<ndim; i++) {
+                for (int i=0; i<ndim; ++i) {
                     if (i != jdim) {
-                        for (int j=i; j<ndim; j++) {
+                        for (int j=i; j<ndim; ++j) {
                             if (j != jdim) {
                                 if (std::abs(stride0[i]) < std::abs(stride0[j])) {
                                     std::swap(stride0[i],stride0[j]);
@@ -261,20 +261,20 @@ namespace madness {
             dimj = dim[jdim];
 
             // Collapse stride and dimension info for remaining dimensions
-            for (int i=jdim+1; i<=ndim; i++) {
+            for (int i=jdim+1; i<=ndim; ++i) {
                 dim[i-1] = dim[i];
                 stride0[i-1] = stride0[i];
             }
             if (t1) {
-                for (int i=jdim+1; i<=ndim; i++) stride1[i-1] = stride1[i];
+                for (int i=jdim+1; i<=ndim; ++i) stride1[i-1] = stride1[i];
             }
             if (t2) {
-                for (int i=jdim+1; i<=ndim; i++) stride2[i-1] = stride2[i];
+                for (int i=jdim+1; i<=ndim; ++i) stride2[i-1] = stride2[i];
             }
 
             if (fusedim) {		// Only if jdim=default_jdim && iterlevel=1
                 if (t2) {
-                    for (int i=ndim-1; i>=0; i--) {
+                    for (int i=ndim-1; i>=0; --i) {
                         if (_s0*dimj == stride0[i] &&
                                 _s1*dimj == stride1[i] &&
                                 _s2*dimj == stride2[i]) {
@@ -287,7 +287,7 @@ namespace madness {
                     }
                 }
                 else if (t1) {
-                    for (int i=ndim-1; i>=0; i--) {
+                    for (int i=ndim-1; i>=0; --i) {
                         if (_s0*dimj == stride0[i] &&
                                 _s1*dimj == stride1[i]) {
                             dimj *= dim[i];
@@ -299,7 +299,7 @@ namespace madness {
                     }
                 }
                 else {
-                    for (int i=ndim-1; i>=0; i--) {
+                    for (int i=ndim-1; i>=0; --i) {
                         if (_s0*dimj == stride0[i]) {
                             dimj *= dim[i];
                             ndim--;
@@ -314,11 +314,11 @@ namespace madness {
 
         // Initialize indices for the counter Use TENSOR_MAXDIM so reference to
         // optimized-away dimensions is vaguely meaningful.
-        for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
+        for (int i=0; i<TENSOR_MAXDIM; ++i) ind[i] = 0;
 
         //   std::printf("ndim=%ld dimj=%ld _s0=%ld _s1=%ld _s2=%ld _p0=%p _p1=%p _p2=%p\n",
         // 	      ndim,dimj,_s0,_s1,_s2,_p0,_p1,_p2);
-        //   for (int i=0; i<ndim; i++) {
+        //   for (int i=0; i<ndim; ++i) {
         //     std::printf("   %d dim=%ld stride0=%ld stride1=%ld stride2=%ld\n",
         // 		i,dim[i],stride0[i],stride1[i],stride2[i]);
         //   }
@@ -345,7 +345,7 @@ namespace madness {
         _p0 += stride0[d];
         if (_p1) _p1 += stride1[d];
         if (_p2) _p2 += stride2[d];
-        ind[d]++;
+        ++(ind[d]);
         return *this;
     }
 
@@ -355,7 +355,7 @@ namespace madness {
         _p0 = _p0_save;
         _p1 = _p1_save;
         _p2 = _p2_save;
-        for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
+        for (int i=0; i<TENSOR_MAXDIM; ++i) ind[i] = 0;
     }
 
 
@@ -373,7 +373,7 @@ namespace madness {
         _p0 = _p0_save = t0->ptr();
         if (t1) _p1 = _p1_save = t1->ptr();
         if (t2) _p2 = _p2_save = t2->ptr();
-        for (int i=0; i<TENSOR_MAXDIM; i++) ind[i] = 0;
+        for (int i=0; i<TENSOR_MAXDIM; ++i) ind[i] = 0;
     }
 
 

@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -76,9 +76,9 @@ void ran_fill(int n, double *a) {
 void mTxm(long dimi, long dimj, long dimk,
           double* c, const double* a, const double* b) {
     int i, j, k;
-    for (k=0; k<dimk; k++) {
-        for (j=0; j<dimj; j++) {
-            for (i=0; i<dimi; i++) {
+    for (k=0; k<dimk; ++k) {
+        for (j=0; j<dimj; ++j) {
+            for (i=0; i<dimi; ++i) {
                 c[i*dimj+j] += a[k*dimi+i]*b[k*dimj+j];
             }
         }
@@ -97,7 +97,7 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   long loop;
 
   HPM_Start("mTxmq");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxmq(ni,nj,nk,c,a,b);
@@ -108,7 +108,7 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   HPM_Stop("mTxmq");
 
   HPM_Start("mTxmq_dgemm");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxm_dgemm(ni,nj,nk,c,a,b);
@@ -119,7 +119,7 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   HPM_Stop("mTxmq_dgemm");
 
   HPM_Start("mTxmq_tune");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxm_tune(ni,nj,nk,c,a,b);
@@ -139,7 +139,7 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   long loop;
 
   HPM_Start("mTxmq");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxmq(ni,nj,nk,c,a,b);
@@ -152,7 +152,7 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   HPM_Stop("mTxmq");
 
   HPM_Start("mTxmq_dgemm");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxm_dgemm(ni,nj,nk,c,a,b);
@@ -165,7 +165,7 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   HPM_Stop("mTxmq_dgemm");
 
   HPM_Start("mTxmq_tune");
-  for (loop=0; loop<30; loop++) {
+  for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
     mTxm_tune(ni,nj,nk,c,a,b);
@@ -201,12 +201,12 @@ int main(int argc, char **argv) {
     ran_fill(nkmax*njmax, b);
 
 /*     ni = nj = nk = 2; */
-/*     for (i=0; i<ni*nj; i++) d[i] = c[i] = 0.0; */
+/*     for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0; */
 /*     mTxm (ni,nj,nk,c,a,b); */
 /*     mTxmq(ni,nj,nk,d,a,b); */
-/*     for (i=0; i<ni; i++) { */
+/*     for (i=0; i<ni; ++i) { */
 /*       long j; */
-/*       for (j=0; j<nj; j++) { */
+/*       for (j=0; j<nj; ++j) { */
 /* 	printf("%2ld %2ld %.6f %.6f\n", i, j, c[i*nj+j], d[i*nj+j]); */
 /*       } */
 /*     } */
@@ -216,10 +216,10 @@ int main(int argc, char **argv) {
     for (ni=2; ni<60; ni+=2) {
         for (nj=2; nj<100; nj+=6) {
             for (nk=2; nk<100; nk+=6) {
-                for (i=0; i<ni*nj; i++) d[i] = c[i] = 0.0;
+                for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
-                for (i=0; i<ni*nj; i++) {
+                for (i=0; i<ni*nj; ++i) {
                     double err = fabs(d[i]-c[i]);
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled

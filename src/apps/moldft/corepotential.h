@@ -56,11 +56,11 @@ using std::vector;
 /// Represents a core potential
 
 /// General Core Potential is able to write down as following form:
-///   U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm><Y_lm|
+/// \f$  U(r) = \sum_k A_k r^(n_k-2) exp(-alpha_k r^2) \sum_m |Y_lm \rangle \langle Y_lm| \f$
 /// CorePotential holds these parameters (l,n,A,alpha)
 ///
 /// Note: CorePotential::eval() currently ignores `l'.
-///       (It means `\sum_m |Y_lm><Y_lm|' is always `1'.)
+///       (It means `\f$\sum_m |Y_lm \rangle \langle Y_lm|\f$' is always `1'.)
 struct CorePotential {
     std::vector<int> l; ///< Angular momentum = 0, 1, 2, ...
     std::vector<int> n;
@@ -101,7 +101,7 @@ struct CoreOrbital {
                 : Bc(Bc), type(type), coeff(coeff), expnt(expnt)
     {
         double minexpnt = expnt[0];
-        for (unsigned int i=1; i<expnt.size(); i++)
+        for (unsigned int i=1; i<expnt.size(); ++i)
             minexpnt = std::min(minexpnt,expnt[i]);
         rsqmax = 18.4/minexpnt;
     };
@@ -137,7 +137,7 @@ struct AtomCore {
     void serialize(Archive& ar) {
         ar & atomic_number & ncore;
         ar & potential;
-        for (std::vector<CoreOrbital>::iterator it=orbital.begin(); it != orbital.end(); it++) {
+        for (std::vector<CoreOrbital>::iterator it=orbital.begin(); it != orbital.end(); ++it) {
             ar & (*it);
         }
     }
@@ -218,7 +218,7 @@ public:
     void serialize(Archive& ar) {
         ar & core_type;
         ar & guess_filename;
-        for (std::map<unsigned int, AtomCore>::iterator it=atom_core.begin(); it != atom_core.end(); it++) {
+        for (std::map<unsigned int, AtomCore>::iterator it=atom_core.begin(); it != atom_core.end(); ++it) {
             ar & it->first & it->second;
         }
     }

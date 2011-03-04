@@ -43,6 +43,10 @@
 #include <exception>
 #include <madness_config.h>
 
+#ifndef MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE
+#define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 1
+#endif
+
 namespace madness {
 
     /// Most exceptions thrown in MADNESS should be derived from these
@@ -76,9 +80,16 @@ namespace madness {
     /// Implemented in world.cc
     std::ostream& operator <<(std::ostream& out, const MadnessException& e);
 
+    /// This function is executed just before a madness exception is thrown
 
-#define MADNESS_EXCEPTION(msg,value) \
-throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
+    /// Implemented in world.cc
+    void exception_break(bool);
+
+#define MADNESS_EXCEPTION(msg,value)  { \
+    madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+    throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__); \
+}
+
 
     /*
      * Default behaviour is MADNESS_ASSERTIONS throw a MADNESS exception
@@ -105,10 +116,13 @@ throw madness::MadnessException(msg,0,value,__LINE__,__FUNCTION__,__FILE__)
 #  define MADNESS_STRINGIZE(X) #X
 #  define MADNESS_EXCEPTION_AT(F, L) MADNESS_STRINGIZE(F) "(" MADNESS_STRINGIZE(L) ")"
 #  define MADNESS_ASSERT(condition) \
-     do {if (!(condition)) \
-             throw madness::MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
-                         #condition,0,__LINE__,__FUNCTION__,__FILE__); \
-        } while (0)
+    do { \
+        if (!(condition)) { \
+            madness::exception_break(MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE); \
+            throw madness::MadnessException("MADNESS ASSERTION FAILED: " MADNESS_EXCEPTION_AT( __FILE__, __LINE__ ), \
+                #condition,0,__LINE__,__FUNCTION__,__FILE__); \
+        } \
+    } while (0)
 #endif
 
 }

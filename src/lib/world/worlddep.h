@@ -40,8 +40,7 @@
 /// \brief Defines DependencyInterface and CallbackInterface
 
 #include <world/array.h>
-#include <world/print.h>
-#include <world/worldthread.h>
+#include <world/worldmutex.h>
 #include <world/atomicint.h>
 
 #include <typeinfo>
@@ -61,93 +60,43 @@ namespace madness {
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
         AtomicInt ndepend;   ///< Counts dependencies
-        
+
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
 
-        void do_callbacks() const {
-            // ASSUME WE HAVE THE LOCK IN HERE
-            callbackT& cb = const_cast<callbackT&>(callbacks);
-
-            // Note that we now execute the callback BEFORE popping
-            // the stack.  This is so the destructor only has to get
-            // the lock if callbacks.size() is non-zero.  We are
-            // accessing callbacks thru a non-volatile reference but
-            // that is OK since we only rely up on the size in memory
-            // being updated after the callbacks are executed.
-            while (cb.size()) {
-                cb.front()->notify();
-                cb.pop();
-            }
-        };
+        void do_callbacks() const;
 
     public:
-        DependencyInterface(int ndep = 0) {
-            ndepend = ndep;
-        }
+        DependencyInterface(int ndep = 0);
 
 
         /// Returns the number of unsatisfied dependencies
-        int ndep() const {
-            return ndepend;
-        }
+        int ndep() const;
 
         /// Returns true if ndepend == 0
-        bool probe() const {
-            return ndep() == 0;
-        }
+        bool probe() const;
 
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
-        void notify() {
-            dec();
-        }
+        void notify();
 
 
         /// Registers a callback for when ndepend=0
 
         /// If ndepend == 0, the callback is immediately invoked.
-        void register_callback(CallbackInterface* callback) {
-            ScopedMutex<Spinlock> hold(this);
-            const_cast<callbackT&>(this->callbacks).push(callback);
-            if (ndep() == 0) do_callbacks();
-        }
+        void register_callback(CallbackInterface* callback);
 
 
         /// Increment the number of dependencies
-        void inc() {
-            ndepend++;
-        }
+        void inc();
 
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
-        void dec() {
-            if (ndepend.dec_and_test()) {
-                ScopedMutex<Spinlock> hold(this);
-                do_callbacks();
-            }
-        }
+        void dec();
 
 
-        virtual ~DependencyInterface() {
-            // How to avoid this lock?  It is here because execution of a
-            // callback might destroy the object before all callbacks have
-            // been performed.  Hence, we only need the lock if the number of
-            // unexecuted callbacks is non-zero.
-
-            // But if we whack the object while some poor bugger is holding
-            // the lock (probably attempting to free it) bad things will happen.
-            // Thus, there is no choice but to get the damn lock.
-
-            ScopedMutex<Spinlock> hold(this);
-
-            // Paranoia is good
-            MADNESS_ASSERT(ndepend == 0);
-            //if (ndepend)
-            //print("DependencyInterface: destructor with ndepend =",ndepend,"?", typeid(*this).name());
-
-        }
+        virtual ~DependencyInterface();
     };
 }
 #endif // MADNESS_WORLD_WORLDDEP_H__INCLUDED

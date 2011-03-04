@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MAD_POINTGROUP_H
@@ -52,7 +52,7 @@ class PointGroup {
     int order;                  //< group order
     std::string irs[8];         //< Names of the irreps
     std::string ops[8];         //< Names of the operators
-    int c[8][8];                //< Character table 
+    int c[8][8];                //< Character table
 
 public:
     typedef madness::Vector<double,3> coordT;
@@ -116,18 +116,18 @@ public:
         }
         else if (name == "D2h") {
             order = 8;
-            irs[0] = "ag"; irs[1] = "au"; irs[2] = "b1g"; irs[3] = "b1u"; 
+            irs[0] = "ag"; irs[1] = "au"; irs[2] = "b1g"; irs[3] = "b1u";
             irs[4] = "b2g";irs[5] = "b2u";irs[6] = "b3g"; irs[7] = "b3u";
             ops[0] = "e";  ops[1] = "c2z";ops[2] = "c2y"; ops[3] = "c2x";
             ops[4] = "i";  ops[5] = "sxy";ops[6] = "sxz"; ops[7] = "syz";
-            c[0][0] = 1;   c[0][1] = 1;   c[0][2] = 1;   c[0][3] = 1;   c[0][4] = 1;   c[0][5] = 1;   c[0][6] = 1;   c[0][7] = 1;  
-            c[1][0] = 1;   c[1][1] = 1;   c[1][2] = 1;   c[1][3] = 1;   c[1][4] =-1;   c[1][5] =-1;   c[1][6] =-1;   c[1][7] =-1;  
-            c[2][0] = 1;   c[2][1] = 1;   c[2][2] =-1;   c[2][3] =-1;   c[2][4] = 1;   c[2][5] = 1;   c[2][6] =-1;   c[2][7] =-1;  
-            c[3][0] = 1;   c[3][1] = 1;   c[3][2] =-1;   c[3][3] =-1;   c[3][4] =-1;   c[3][5] =-1;   c[3][6] = 1;   c[3][7] = 1;  
-            c[4][0] = 1;   c[4][1] =-1;   c[4][2] = 1;   c[4][3] =-1;   c[4][4] = 1;   c[4][5] =-1;   c[4][6] = 1;   c[4][7] =-1;  
-            c[5][0] = 1;   c[5][1] =-1;   c[5][2] = 1;   c[5][3] =-1;   c[5][4] =-1;   c[5][5] = 1;   c[5][6] =-1;   c[5][7] = 1;  
-            c[6][0] = 1;   c[6][1] =-1;   c[6][2] =-1;   c[6][3] = 1;   c[6][4] = 1;   c[6][5] =-1;   c[6][6] =-1;   c[6][7] = 1;  
-            c[7][0] = 1;   c[7][1] =-1;   c[7][2] =-1;   c[7][3] = 1;   c[7][4] =-1;   c[7][5] = 1;   c[7][6] = 1;   c[7][7] =-1;  
+            c[0][0] = 1;   c[0][1] = 1;   c[0][2] = 1;   c[0][3] = 1;   c[0][4] = 1;   c[0][5] = 1;   c[0][6] = 1;   c[0][7] = 1;
+            c[1][0] = 1;   c[1][1] = 1;   c[1][2] = 1;   c[1][3] = 1;   c[1][4] =-1;   c[1][5] =-1;   c[1][6] =-1;   c[1][7] =-1;
+            c[2][0] = 1;   c[2][1] = 1;   c[2][2] =-1;   c[2][3] =-1;   c[2][4] = 1;   c[2][5] = 1;   c[2][6] =-1;   c[2][7] =-1;
+            c[3][0] = 1;   c[3][1] = 1;   c[3][2] =-1;   c[3][3] =-1;   c[3][4] =-1;   c[3][5] =-1;   c[3][6] = 1;   c[3][7] = 1;
+            c[4][0] = 1;   c[4][1] =-1;   c[4][2] = 1;   c[4][3] =-1;   c[4][4] = 1;   c[4][5] =-1;   c[4][6] = 1;   c[4][7] =-1;
+            c[5][0] = 1;   c[5][1] =-1;   c[5][2] = 1;   c[5][3] =-1;   c[5][4] =-1;   c[5][5] = 1;   c[5][6] =-1;   c[5][7] = 1;
+            c[6][0] = 1;   c[6][1] =-1;   c[6][2] =-1;   c[6][3] = 1;   c[6][4] = 1;   c[6][5] =-1;   c[6][6] =-1;   c[6][7] = 1;
+            c[7][0] = 1;   c[7][1] =-1;   c[7][2] =-1;   c[7][3] = 1;   c[7][4] =-1;   c[7][5] = 1;   c[7][6] = 1;   c[7][7] =-1;
         }
         else {
             throw "PointGroup: unknown group";
@@ -144,30 +144,30 @@ public:
         if (this != &other) {
             name = other.name;
             order = other.order;
-            for (int ir=0; ir<order; ir++) {
+            for (int ir=0; ir<order; ++ir) {
                 irs[ir] = other.irs[ir];
                 ops[ir] = other.ops[ir];
-                for (int op=0; op<order; op++) {
+                for (int op=0; op<order; ++op) {
                     c[ir][op] = other.c[ir][op];
                 }
             }
         }
         return *this;
     }
-    
+
     /// Destructor
     virtual ~PointGroup() {}
-    
+
     /// Returns irreducible representation corresponding to product
     int irmul(int ir1, int ir2) const {
         return ir1 ^ ir2;
     }
-    
+
     /// Applies group operator number op (0,1,...,order-1) to point
     coordT apply(int op, const coordT& r) const {
         return apply(ops[op], r);
     }
-    
+
     /// Applies named operator (e, c2z, c2y, c2x, sxy, sxz, syz, i) to point
     static coordT apply(const std::string& op, const coordT& r)  {
         const double x=r[0], y=r[1], z=r[2];
@@ -191,7 +191,7 @@ public:
             q[0]=x;  q[1]=-y; q[2]=z;
         }
         else if (op == "syz") {
-            q[0]=-x; q[1]=y;  q[2]=z; 
+            q[0]=-x; q[1]=y;  q[2]=z;
         }
         else if (op == "i") {
             q[0]=-x; q[1]=-y; q[2]=-z;
@@ -206,9 +206,9 @@ public:
     int cart_ir(int axis) const {
         coordT r(0.0);
         r[axis] = 1.0;
-        for (int ir=0; ir<order; ir++) {
+        for (int ir=0; ir<order; ++ir) {
             double sum = 0.0;
-            for (int op=0; op<order; op++) {
+            for (int op=0; op<order; ++op) {
                 sum += apply(op,r)[axis] * c[ir][op];
             }
             sum /= order;
@@ -219,14 +219,14 @@ public:
         throw "PointGroup: cart_ir: problem identifying axis";
     }
 
-    /// Returns irreducible cell 
+    /// Returns irreducible cell
 
     /// The irreducible cell is defined by considering the cube
     /// -1<x<1, -1<y<1, -1<z<1.  Use symmetry operations to map
     /// negative coordinates onto positive coordinates if possible.
     /// This leads to the unique cell for D2h being the cube 0<x<1,
     /// 0<y<1, 0<z<1.
-    /// 
+    ///
     /// If a coordinate in the cell is positive, it means that the
     /// irreducible cell has positive values of that coordinate.
     coordT ircell() const {
@@ -237,7 +237,7 @@ public:
                 for (int z=-1; z<=1; z+=2) {
                     // Find the most positive corner it can be mapped into
                     double rx=x, ry=y, rz=z;
-                    for (int op=0; op<order; op++) {
+                    for (int op=0; op<order; ++op) {
                         coordT r;
                         r[0] = rx; r[1] = ry; r[2] = rz;
                         coordT q = apply(op,r);
@@ -295,22 +295,22 @@ std::ostream& operator<<(std::ostream& s, const PointGroup& g) {
     s << "Group " << g.get_name() << " - irreducible cell " << g.ircell() << "\n";
     s << "---------\n";
     s << "        ";
-    for (int op=0; op<order; op++) 
+    for (int op=0; op<order; ++op)
         s << " " << std::setw(3) << g.get_op_name(op);
     s << "\n";
     s << "        ";
-    for (int op=0; op<order; op++) 
+    for (int op=0; op<order; ++op)
         s << " ---";
-    
+
     s << "\n";
-    
+
     int irx = g.cart_ir(0);
     int iry = g.cart_ir(1);
     int irz = g.cart_ir(2);
-    
-    for (int ir=0; ir<order; ir++) {
+
+    for (int ir=0; ir<order; ++ir) {
         s << "  " << std::left << std::setw(3) << g.get_ir_name(ir) << std::right << "  ";
-        for (int op=0; op<order; op++) {
+        for (int op=0; op<order; ++op) {
             s << " " << std::setw(3) << g.ctable(ir, op);
         }
         if (ir == irx) s << "   x";
@@ -321,5 +321,5 @@ std::ostream& operator<<(std::ostream& s, const PointGroup& g) {
     s << "\n";
     return s;
 }
-                 
+
 #endif

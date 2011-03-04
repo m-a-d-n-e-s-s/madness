@@ -48,7 +48,7 @@
  *    belkic:     Reproduces an analytic integral
  * 3) projectPsi needs the following files
  *    wf.num                      a list of wave function ID numbers
- *    bound.num OR unbound.num    a list of states to project on
+  *    bound.num OR unbound.num    a list of states to project on
  ***************************************************************************************/
 
 #include "wavef.h"
@@ -88,12 +88,14 @@ struct LBCost {
 };
 
 
-/******************************************************
- * <Yl0|Psi(t)>
- * Needs: input2 
- * Parsing is set up to do only one time step at a time
- ******************************************************/
-void projectL(World& world, const double L, const int wf, const int n, const int lMAX) {
+/******************************************************************************************
+ * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
+ * input
+ * input2 
+ * Only one time step is done at a time
+ * printR = true prints the angular resolved radial wave function 
+ *****************************************************************************************/
+void projectL(World& world, const double L, const int wf, const int n, const int lMAX, const double cutoff) {
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
     PRINT("\t\t\t\t\t\t");
     //LOAD Psi(T)
@@ -105,70 +107,100 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         psi = wave_function_load(world, wf);
         psi.reconstruct();
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(psi, LBCost(1.0,1.0));
+        lb.add_tree(psi, LBCost(1.0,0.0));
         FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
-    }
+    } 
     PRINTLINE("");
+    double before = 0, after = 0;
+    if(world.rank()==0) before =  wall_time();
+    double rMIN = ((cutoff<L) ? cutoff : L);
+    PRINTLINE("Integrating out to " << rMIN);
+    const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
-    const double dr = L/n;
-    const double dTH = PI/n;
-    const double dPHI = 2*PI/n;
+    const double dTH = PI/(n-1);
+    const double dPHI = 2*PI/(n-1);
     const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
-    Tensor<double> YlPsi(n);
+    std::vector<Yl0> Y;
     for( int l=0; l<=lMAX; l++) {
-        PRINT("Y"<< l << "0: \t\t\t\t\t\t");
-        psi.reconstruct(); //What does this do?
-        Yl0 yl0(L, l);
-        for( int i=0; i<n; i++ ) {
-            YlPsi(i) = 0.0;
-        }
-        // PRINTLINE("Debuging");
-        // const double a[3] = {0.0, 0.0, 0.5};
-        // const vector3D rVec(a);
-        // PRINTLINE("Y00(0) = " << yl0(rVec));
-        // PRINTLINE("psi(0) = " << psi(rVec));
-        for( int i=0; i<n; i++ ) {
-            const double r = (0.5 + i)*dr;
-            complexd Rl = 0.0;
-            for( int j=0; j<n ; j++ ) {
-                const double th = (0.5 + j)*dTH;
-                const double sinTH = std::sin(th);
-                for( int k=0; k<n; k++ ) {
-                    const double phi = k*dPHI;
-                    const double a[3] = {r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th)};
-                    const vector3D rVec(a);
-                    // parallelism introduced via eval_local_only
-                    psiVal = psi.eval_local_only(rVec, maxLocalDepth);
-                    if( psiVal.first ) { //boolean: true for local coeffs
-                        Rl += psiVal.second * yl0(rVec) * sinTH*dTH*dPHI;//returns the value of psi(rVec)
-                    }
+        Y.push_back(Yl0(L,l));
+    }
+    psi.reconstruct(); //Transforms to scaling function basis 
+    Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
+    for( int i=0; i<n; i++ ) {
+        const double r = i*dr + 1e-10; //Allows for near zero evaluation
+        Tensor<complexd> R(lMAX+1);
+        for( int j=0; j<n ; j++ ) {
+            const double th = j*dTH;
+            const double sinTH = std::sin(th);
+            // control for endpoint quadrature
+            double ifEndPtj = 1.0;
+            if (j==0 || j==(n-1)) ifEndPtj = 0.5;
+            for( int k=0; k<n; k++ ) {
+                const double phi = k*dPHI;
+                const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+                // parallelism introduced via eval_local_only
+                psiVal = psi.eval_local_only(rVec, maxLocalDepth);
+                if( psiVal.first ) { //boolean: true for local coeffs
+                    // control for endpoint quadrature
+                    double ifEndPtk = 1.0;
+                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+                    for( int l=0; l<=lMAX; l++) {
+                        R(l) += psiVal.second * Y[l](rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
+                    }         //psiVal.second returns psi(rVec)
                 }
             }
-            world.gop.sum(&Rl,0);
-            world.gop.fence();
-            YlPsi(i) = std::real(conj(Rl)*Rl * r*r*dr);
         }
-        if(printR){
-            for( int i=0; i<n; i++) {
-                PRINT(YlPsi(i) << "\t");
-            }
-            PRINTLINE("");
+        for( int l=0; l<=lMAX; l++) {
+            YlPsi(i,l) = R(l);
         }
-        double Pl = 0.0;
-        for( int i=0; i<n; i++ ) {
-            Pl += YlPsi(i);
-        }
-        PRINTLINE(std::setprecision(6) << std::scientific << Pl);
     }
-    PRINTLINE("");
+    world.gop.sum(&YlPsi(0L,0L), n*(lMAX+1));
+    //         //Volume of the central spherical element with radius = dr/2 and a linear correction
+    //         double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
+    //                      + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
+    //                     ) * 0.125*dr*dr*dr; 
+    //         for (int i=1; i<n-1; i++) { // i elem [1, n-2]
+    //             double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
+    //             double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
+    //             double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
+    //             double r = i*dr + 1e-10;
+    //             //           volume      slope correction    concavity correction
+    //             double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
+    //             Pl += Plr;
+    //             //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
+    //             if(printR) PRINT(Plr << "\t");
+    //         }
+    //         if(printR) PRINTLINE("");
+    //         PRINT( "my routine: " );
+    //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
+    Tensor<complexd> P(lMAX+1);
+    for( int l=0; l<=lMAX; l++) {
+        PRINT("Y"<< l << "0: \t\t\t\t\t\t");
+        for (long i=0; i<n; i++) {
+            double ifEndPti = 1.0;  // control for endpoint quadrature
+            if (i==0 || i==(n-1)) ifEndPti = 0.5;
+            const double r = i*dr + 1e-10;
+            const complexd YlPsir = YlPsi(i,l);
+            P(l) += YlPsir*r*r*dr*ifEndPti;            
+            if(printR) PRINT( real(YlPsir) << "\t");
+        }
+        PRINTLINE("");
+        PRINTLINE(std::setprecision(6) << std::scientific << P(l));
+    }
+    if(world.rank()==0) after = wall_time();
+    PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
 }
 
 
-///Needs: input input2
-///loads wf and prints its values along the z-axis
+/***********************************************************
+ * Loads wf and prints Psi(r) along the ray defined byth phi 
+ * input
+ * input2: n th phi
+ * loads wf and prints its values along the z-axis
+ ***********************************************************/
 void zSlice(World& world, const int n, double L, double th, double phi, const int wf) {
     complex_functionT psiT;
     PRINTLINE(std::setprecision(2) << std::fixed);
@@ -306,13 +338,13 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
                     //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl||Psi(0)> <Psi(0)|Psi(t)>
                     output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
-                    PRINT(std::scientific <<"\t" << real(output*conj(output)));
+                    PRINT(std::scientific <<"\t" << output );
                 }
                 PRINT("\n");
             }
             PRINTLINE("");
         }
-        clock_t before=0, after=0;
+        double before=0, after=0;
         //LOAD unbound states
         if( !unboundList.empty() ) {
             std::vector<std::string>::const_iterator unboundIT;
@@ -327,7 +359,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 PRINT( std::fixed << KX << " " << KY << " " << KZ << "  ");
                 if((dArr[1]>0.0 || dArr[1]<0.0) || (dArr[2]>0.0 || dArr[2]<0.0)) { //removing k={0,0,0}
                     //PROJECT Psi_k into MADNESS
-                    if(world.rank()==0) before = clock();
+                    if(world.rank()==0) before = wall_time();
                     complex_functionT phiK;
                     if( usesPlaneWaves ) {
                         phiK = complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
@@ -337,10 +369,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         phik.Init(world);
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
-                    // W/O timing
-                    //complex_functionT phiK = 
-                    //complex_factoryT(world).functor(functorT( new PhiK(Z, kVec, cutoff) ));
-                    if(world.rank()==0) after = clock();
+                    if(world.rank()==0) after = wall_time();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>
                     complexd k_overlap_0 = inner(phiK,psi0);
@@ -349,10 +378,10 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
-                        PRINT( std::scientific << "\t" << real(output*conj(output)) );
+                        PRINT( std::scientific << "\t" << output );
                     }
                     PRINTLINE("");
-                    PRINT(" took " << (after - before)/CLOCKS_PER_SEC << " seconds ");
+                    PRINT(" took " << after - before << " seconds ");
                     int WFsize = phiK.size();
                     PRINT("and has " << WFsize << " coefficients.\n");
                 }
@@ -360,7 +389,8 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         }
     }
 }
-void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, double& kMomentum, int& lMAX) {
+
+void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf, double& kMomentum, int& lMAX, int& nPhoton) {
     std::string tag;
     std::ifstream f("input2");
     std::cout << std::scientific;
@@ -374,9 +404,9 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, dou
                     if (ch == '\n') break;
                 }
             }
-            else if (tag == "n") {
-                f >> n;
-                PRINTLINE("n = " << n);
+            else if (tag == "nGrid") {
+                f >> nGrid;
+                PRINTLINE("nGrid = " << nGrid);
             }
             else if (tag == "th") {
                 f >> th;
@@ -393,16 +423,21 @@ void loadParameters2(World& world, int &n, double& th, double& phi, int& wf, dou
             }
             else if (tag == "lMAX") {
                 f >> lMAX;
+                PRINTLINE("lMAX = " << lMAX);
+            }
+            else if (tag == "nPhoton") {
+                f >> nPhoton;
             }
         }
     }
-    f.close();
 }
 
-void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, double &cutoff) {
+void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int& nPhoton, double& cutoff) {
     std::string tag;
-    int natom;
     double Rx, Ry, Rz;
+    double omega;
+    double tMAX;
+    int natom;
     std::ifstream f("input");
     std::cout << std::scientific;
     if( f.is_open() ) {
@@ -424,8 +459,8 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("thresh = " << thresh);
             }
             else if (tag == "k") {
-                f >> k;
-                PRINTLINE("k = " << k);
+                f >> kMAD;
+                PRINTLINE("kMAD = " << kMAD);
             }
             else if (tag == "natom") {
                 f >> natom;
@@ -433,19 +468,30 @@ void loadParameters(World& world, double& thresh, int& k, double& L, double &Z, 
                 PRINTLINE("Z = " << Z);
             }
             else if (tag == "omega") {
-                double omega;
                 f >> omega;
-                ///E_n = n hbar omega
-                ///I_p = 0.5 Z^2
-                ///KE = E_n - I_p
-                ///Atomic Units: hbar = m = 1
-                ///v = sqrt( 2n omega - Z^2)
-                ///cutoff > dMAX = v t
-                double dMAX = std::sqrt(2*3*omega - Z*Z) * 10;
-                cutoff = 0.0;
-                while( cutoff < dMAX ) { cutoff += L/16; }
-                PRINTLINE("dMAX = " << dMAX);
-                PRINTLINE("cutoff = " << cutoff);
+            }
+            else if (tag == "target_time") {
+                f >> tMAX;
+                PRINTLINE( "tMAX = " << tMAX );
+                /// Atomic Units: m = hbar = e = 1
+                /// E_n     = n hbar omega
+                /// I_p     = Z^2 / 2
+                /// KE      = E_n - I_p
+                /// 0.5 v^2 = n omega - Z^2/2
+                ///      v  = sqrt(2 n omega - Z^2)
+                /// dMAX    = v tMAX
+                PRINTLINE( "omega = " << omega );
+                // Add logic based on the Keldysh parameter
+                while( 2*nPhoton*omega - Z*Z < 0.0 ) nPhoton++;
+                PRINTLINE("nPhoton = " << nPhoton);
+                PRINTLINE("2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
+                double dMAX = std::sqrt( 2*nPhoton*omega - Z*Z) * tMAX;
+                PRINTLINE("dMAX = " << dMAX );
+                if ( cutoff < dMAX ) cutoff = 0.0;
+                while( cutoff < dMAX ) {
+                    cutoff += L/32;
+                }
+                PRINTLINE( "cutoff = " << cutoff );
             }
         }
     }
@@ -461,20 +507,21 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
     // Setup defaults for numerical functions
-    int    k   = 12;
-    double L   = 1.0;
-    double Z   = 1.0;
-    double thresh = 1e-6;
-    double cutoff = L;
-    double th  = 0.0;
-    double phi = 0.0;
-    double kMomentum   = 1.0;
-    int    n   = 10;
-    int    wf  = 0;
-    int   lMAX = 0;
-    loadParameters(world, thresh, k, L, Z, cutoff);
-    loadParameters2(world, n, th, phi, wf, kMomentum, lMAX);
-    FunctionDefaults<NDIM>::set_k(k);                 // Wavelet order
+    int    kMAD      = 8;
+    double L         = 10.0;
+    double Z         = 1.0;
+    double thresh    = 1e-6;
+    double cutoff    = L;
+    double th        = 0.0;
+    double phi       = 0.0;
+    double kMomentum = 0.0;
+    int    nPhoton   = 2;
+    int    nGrid     = 10;
+    int    wf        = 0;
+    int    lMAX      = 0;
+    loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
+    loadParameters(world, thresh, kMAD, L, Z, nPhoton,  cutoff);
+    FunctionDefaults<NDIM>::set_k(kMAD);                 // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
     FunctionDefaults<NDIM>::set_initial_level(3);
@@ -487,12 +534,12 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        projectL(world, L, wf, n, lMAX);
-        //zSlice(world, n1, L, th, phi);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
+        projectL(world, L, wf, nGrid, lMAX, cutoff);
+        //zSlice(world, n1, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
         //compareGroundState(world, Z);
         //compare1F1(world, cutoff);
         //printBasis(world, Z, cutoff);
@@ -516,10 +563,10 @@ int main(int argc, char**argv) {
     } catch (const madness::TensorException& e) {
         print(e);
         error("caught a Tensor exception");
-    } catch (const char* s) {
+    } catch (char* s) {
         print(s);
         error("caught a c-string exception");
-    } catch (char* s) {
+    } catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     } catch (const std::string& s) {

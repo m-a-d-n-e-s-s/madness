@@ -55,11 +55,11 @@ namespace {
     template <typename T> double mynorm(T x) {
         return ((double) x)*x;
     }
-    
+
     template <> double mynorm<float_complex>(float_complex x) {
         return (double) std::norm(x);
     }
-    
+
     template <> double mynorm<double_complex>(double_complex x) {
         return (double) std::norm(x);
     }
@@ -88,8 +88,8 @@ namespace {
 
         virtual void TearDown() {}
 
-        static T* move_test_ptr;        
-        
+        static T* move_test_ptr;
+
         static madness::Tensor<T> f() { // For testing move semantics
             madness::Tensor<T> result(3);
             move_test_ptr = result.ptr();
@@ -103,37 +103,37 @@ namespace {
     TYPED_TEST_CASE(TensorTest, TensorTestTypes);
 
     TYPED_TEST(TensorTest, Basic) {
-        for (int ndim=0; ndim<=TENSOR_MAXDIM; ndim++) {
+        for (int ndim=0; ndim<=TENSOR_MAXDIM; ++ndim) {
             try {
                 std::vector<long> dim(ndim);
-                for (int pass=0; pass<10; pass++) {
+                for (int pass=0; pass<10; ++pass) {
                     long nelem = 1;
-                    for (int i=0; i<ndim; i++) {
+                    for (int i=0; i<ndim; ++i) {
                         dim[i] = (madness::RandomValue<long>()&0x5) + 1;
                         nelem *= dim[i];
                     }
 
                     // Use ASSERT not EXPECT otherwise we get a huge volume of output
-                    // from failing tests.  Also, subsequent tests usually rely on 
+                    // from failing tests.  Also, subsequent tests usually rely on
                     // succcess of previous ones.
-                    
+
                     madness::Tensor<TypeParam> empty; // Verify default constructor
                     ASSERT_EQ(empty.size(),0);
                     ASSERT_EQ(empty.ptr(),(TypeParam*)0);
                     ASSERT_EQ(empty.ndim(),-1);
                     ASSERT_EQ(empty.id(),madness::TensorTypeData<TypeParam>::id);
-                    
+
                     madness::Tensor<TypeParam> d(dim);
                     ASSERT_EQ(d.id(),madness::TensorTypeData<TypeParam>::id);
                     ASSERT_EQ(d.ndim(),ndim);
                     ASSERT_EQ(d.size(),nelem);
                     ASSERT_NE(d.ptr(),(TypeParam*)0);
-                    for (int i=0; i<ndim; i++) {
+                    for (int i=0; i<ndim; ++i) {
                         ASSERT_EQ(d.dim(i),dim[i]);
                     }
                     // Should be initialized to zero
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(0)));
-                    
+
                     d.fillindex();   // Check fillindex and indexing
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(_index)));
 
@@ -142,7 +142,7 @@ namespace {
 
                     d = TypeParam(21);     // Check fill
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(21)));
-                 
+
                     madness::Tensor<TypeParam> q(d); // Copy constructor
                     ASSERT_EQ(q.id(),madness::TensorTypeData<TypeParam>::id);
                     ASSERT_EQ(q.ptr(),d.ptr()); // Was it shallow?
@@ -180,16 +180,16 @@ namespace {
                     q.fillindex();
 
                     d.fillindex();
-                    
+
                     q *= TypeParam(2); // Check inplace scaling
                     d.scale(TypeParam(3));
                     ITERATOR(q, ASSERT_EQ(q(IND),TypeParam(_index*2)));
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(_index*3)));
-                    
+
                     d += TypeParam(2); // Check inplace scalar addition
                     ITERATOR(q, ASSERT_EQ(q(IND),TypeParam(_index*2)));
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(_index*3+2)));
-                    
+
                     d -= q;     // Check inplace tensor subtraction
                     ITERATOR(q, ASSERT_EQ(q(IND),TypeParam(_index*2)));
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(_index+2)));
@@ -219,7 +219,7 @@ namespace {
 
     TYPED_TEST(TensorTest, SliceAndDice) {
         madness::Tensor<TypeParam> a(5,6,7), b;
-        
+
         a.fillindex();
         ITERATOR3(a,ASSERT_EQ(a(_,_,_)(IND3),a(IND3)));
 
@@ -227,12 +227,12 @@ namespace {
         ITERATOR3(b,ASSERT_EQ(b(IND3),a(IND3)));
         b.fillrandom();      // verify it is indeed a view of the same thing
         ITERATOR3(b,ASSERT_EQ(b(IND3),a(IND3)));
-        
+
         b = a(_reverse,_,_);
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k), a(4-_i,_j,_k)));
         b.fillrandom();      // verify it is indeed a view of the same thing
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k), a(4-_i,_j,_k)));
-        
+
         b = a(_,_reverse,_);
         ITERATOR3(b,ASSERT_EQ(b(_i,_j,_k),a(_i,5-_j,_k)));
         b.fillrandom();      // verify it is indeed a view of the same thing
@@ -306,7 +306,7 @@ namespace {
         // check did not go out of bounds
         EXPECT_NEAR(c.normf(), a.normf(), 2e-7);
         EXPECT_NEAR(b(patch).normf(), a.normf(), 2e-7);
-        
+
         // patch assignment interaction with reordering of source and target
 
         a = madness::Tensor<TypeParam>(7,6,5);
@@ -325,7 +325,7 @@ namespace {
 
 
     TYPED_TEST(TensorTest, Transpose) {
-        for (long n=1; n<=21; n++) {
+        for (long n=1; n<=21; ++n) {
             madness::Tensor<TypeParam> a(n,n+3);
             ASSERT_TRUE(a.iscontiguous());
             ASSERT_EQ(a.size(),n*(n+3));
@@ -354,7 +354,7 @@ namespace {
             ASSERT_EQ(aT.ptr(),a.ptr()); // Was it shallow?
             ITERATOR2(aT, ASSERT_EQ(aT(_i,_j),a(_j,_i)));
         }
-    }            
+    }
 
 
     TYPED_TEST(TensorTest, Reshaping) {
@@ -421,8 +421,8 @@ namespace {
 //         static const int N = 100;
 //         containerT c;
 //         Tensor<TypeParam> a[N];
-//         for (int i=0; i<N; i++) {
-            
+//         for (int i=0; i<N; ++i) {
+
 //         }
 //     }
 

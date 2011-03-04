@@ -128,7 +128,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
 #else
-#endif	
+#endif
     }
 
 
@@ -140,7 +140,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         double secs = us*1e-6;
         double start = cpu_time();
         while (cpu_time()-start < secs) {
-            for (int i=0; i<100; i++) cpu_relax();
+            for (int i=0; i<100; ++i) cpu_relax();
         }
 #else
         usleep(us);

@@ -9,7 +9,7 @@ if(cart):
     sys.exit("Requires arguments: yMIN yMAX dy zMIN zMAX dz");
 if(not cart):
   if(len(sys.argv) != 5):
-    sys.exit("Requires arguments: kMIN kMAX dk   nTH=PI/nTH");
+    sys.exit("Requires arguments: kMIN dk kMAX   nTH=PI/nTH");
 def floatRange(a, b, inc):
   """
   Returns a list containing an arithmetic progression of floats.
@@ -24,8 +24,8 @@ def floatRange(a, b, inc):
 
 if(cart):
   yMIN = float(sys.argv[1])
-  yMAX = float(sys.argv[2])
-  dy = float(sys.argv[3])
+  dy = float(sys.argv[2])
+  yMAX = float(sys.argv[3])
   zMIN = float(sys.argv[4])
   zMAX = float(sys.argv[5])
   dz = float(sys.argv[6])
@@ -35,8 +35,8 @@ if(cart):
         print "0 %3.1f %3.1f" % (y, z)
 else:
   kMIN = float(sys.argv[1])
-  kMAX = float(sys.argv[2])
-  dk = float(sys.argv[3])
+  dk = float(sys.argv[2])
+  kMAX = float(sys.argv[3])
   PI = 3.14159265358979
   dth = PI/float(sys.argv[4])
   for k in floatRange(kMIN, kMAX+eps, dk):

@@ -41,7 +41,8 @@
 
 #include <madness_config.h>
 #include <world/typestuff.h>
-#include <utility>
+#include <world/enable_if.h>
+#include <cstddef>
 
 namespace madness {
 
@@ -63,7 +64,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::enable_if<std::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
         // Use heavily optimized hashword when sizeof(T) is multiple
         // of sizeof(hashT) and presumably correctly aligned.
@@ -80,7 +81,7 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::disable_if<std::is_fundamental<T>, hashT>::type
     hash(const T& t, hashT initval=0) {
         hashT h = Hash<T>::hash(t);
         if (initval) h = hashword(&h, 1, initval);
@@ -93,13 +94,13 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::enable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::enable_if<std::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
         // Use heavily optimized hashword when sizeof(T) is multiple
         // of sizeof(hashT)
         if (((sizeof(T)/sizeof(hashT))*sizeof(hashT)) == sizeof(T)) {
             //std::cout << "hashing words ";
-            //for (int i=0; i<n; i++) std::cout << t[i] << " ";
+            //for (int i=0; i<n; ++i) std::cout << t[i] << " ";
             hashT result = hashword((const hashT *) t, n*sizeof(T)/sizeof(hashT), initval);
             //std::cout << " ---> " << result << std::endl;
             return result;
@@ -114,10 +115,10 @@ namespace madness {
     static
 #endif
     inline
-    typename madness::disable_if<madness::is_fundamental<T>, hashT>::type
+    typename madness::disable_if<std::is_fundamental<T>, hashT>::type
     hash(const T* t, std::size_t n, hashT initval=0) {
         hashT sum=0;
-        for (std::size_t i=0; i<n; i++) sum = hash(t[i],sum);
+        for (std::size_t i=0; i<n; ++i) sum = hash(t[i],sum);
         return sum;
     }
 
@@ -135,6 +136,15 @@ namespace madness {
         static hashT hash(const T(&t)[n], hashT initval=0) {
             return madness::hash(t, n, initval);
         }
+    };
+
+    /// Default \c Hash<T>::hash(t) invokes t.hash()
+    template <typename T>
+    struct Hash<T*> {
+        static hashT hash(void* p) {
+            unsigned long n = reinterpret_cast<unsigned long>(p);
+            return madness::hash(n);
+        };
     };
 
 }

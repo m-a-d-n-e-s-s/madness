@@ -43,7 +43,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -56,7 +56,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -65,13 +65,13 @@ public:
 };
 
 // The result of convolving a normalized Gaussian of expnt centered
-// at the origin with a product of normalized Gaussians with 
-// different exponents in directions x, y, z.  The order of 
+// at the origin with a product of normalized Gaussians with
+// different exponents in directions x, y, z.  The order of
 // the derivative of the kernel in direction d is m[d]
 class OpFExact : public FunctionFunctorInterface<double,3> {
     double expnts[3], fac;
     int m[3];
-    
+
 public:
     OpFExact(double expnt, const double (&expnts)[3], const int (&m)[3]) {
         this->fac = 1.0;
@@ -79,13 +79,13 @@ public:
             this->m[d] = m[d];
             this->expnts[d] = expnt*expnts[d]/(expnt+expnts[d]);
 
-            if (m[d] == 0) 
+            if (m[d] == 0)
                 fac *= this->expnts[d]/constants::pi;
             else if (m[d] == 1)
                 fac *= std::pow(this->expnts[d],3.0)/constants::pi;
             else if (m[d] == 2)
                 fac *= std::pow(this->expnts[d],5.0)/constants::pi;
-            
+
         }
         this->fac = sqrt(fac);
     }
@@ -93,9 +93,9 @@ public:
     double operator()(const coord_3d& r) const {
         double e = fac*exp(-(expnts[0]*r[0]*r[0] + expnts[1]*r[1]*r[1] + expnts[2]*r[2]*r[2]));
         for (int d=0; d<3; d++) {
-            if (m[d] == 1) 
+            if (m[d] == 1)
                 e *= -2.0*r[d];
-            else if (m[d] == 2) 
+            else if (m[d] == 2)
                 e *=4.0*r[d]*r[d] - 2.0/expnts[d];
         }
         return e;
@@ -154,7 +154,7 @@ void test_opdir(World& world) {
                     double e = expnts[d]*width[d]*width[d];              // Exponent in sim coords
                     double c = sqrt(expnts[d]/constants::pi)*width[d];   // Coeff of user-coords normalized gaussian scaled to sim coords
                     c *= pow(width[d],-m[d]);
-                    ops[0].setop(d, SharedPtr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, e, m[d], false, 0.0)));
+                    ops[0].setop(d, std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, e, m[d], false, 0.0)));
                 }
 
                 real_convolution_3d op(world, ops);
@@ -164,7 +164,7 @@ void test_opdir(World& world) {
                 //if (world.rank() == 0) print("opf at origin", oval, ovalexact);
                 double opfnorm = opf.trace();
                 double opferr = opf.err(OpFExact(expnt,expnts,m));
-                if (world.rank() == 0) 
+                if (world.rank() == 0)
                     print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr < 1.1*errs[inderr++]]);
 
                 // This stuff useful for diagnosing problems
@@ -181,6 +181,63 @@ void test_opdir(World& world) {
     }
 
     world.gop.fence();
+}
+
+/// Factory function generating operator for convolution with grad(1/r) in 3D
+
+/// Returns a 3-vector containing the convolution operator for the x,
+/// y, and z components of grad(1/r)
+// static
+// inline
+// std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
+// GradCoulombOperator(World& world,
+//                     double lo,
+//                     double eps,
+//                     const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+//                     int k=FunctionDefaults<3>::get_k())
+// {
+//     const double pi = constants::pi;
+//     const Tensor<double>& width = FunctionDefaults<3>::get_width();
+//     double hi = width.normf(); // Diagonal width of cell
+//     const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
+//     if (isperiodicsum) hi *= 100; // Extend range for periodic summation
+
+//     // bsh_fit generates representation for 1/4Pir but we want 1/r
+//     // so have to scale eps by 1/4Pi
+//     Tensor<double> coeff, expnt;
+//     bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+
+//     if (bc(0,0) == BC_PERIODIC) {
+//         truncate_periodic_expansion(coeff, expnt, width.max(), true);
+//     }
+
+//     coeff.scale(4.0*pi);
+//     int rank = coeff.dim(0);
+
+//     std::vector< std::shared_ptr< SeparatedConvolution<double,3> > > gradG(3);
+
+//     for (int dir=0; dir<3; dir++) {
+//         std::vector< ConvolutionND<double,3> > ops(rank);
+//         for (int mu=0; mu<rank; mu++) {
+//             // We cache the normalized operator so the factor is the value we must multiply
+//             // by to recover the coeff we want.
+//             Q c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff
+//             ops[mu].setfac(coeff(mu)/c);
+
+//             for (int d=0; d<3; d++) {
+//                 if (d != dir)
+//                     ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+//             }
+//             ops[mu].setop(dir,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+//         }
+//         ops(dir) = new SeparatedConvolution<double,3>(world, ops);
+//     }
+
+//     return gradG;
+// }
+
+void testgradG(World& world) {
+
 
 }
 
@@ -207,11 +264,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }

@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #include <iostream>
@@ -69,9 +69,9 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 
     Tensor<T> A(m,m);
     Tensor<T> b(m);
-    for (long i=0; i<m; i++) {
+    for (long i=0; i<m; ++i) {
         b(i) = Q(m,m) - Q(i,m);
-        for (long j=0; j<m; j++) {
+        for (long j=0; j<m; ++j) {
             A(i,j) = Q(i,j) - Q(m,j) - Q(i,m) + Q(m,m);
         }
     }
@@ -94,7 +94,7 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 
     Tensor<T> c(nvec);
     T sumC = 0.0;
-    for (long i=0; i<m; i++) sumC += x(i);
+    for (long i=0; i<m; ++i) sumC += x(i);
     c(Slice(0,m-1)) = x;
     print("SUMC", nvec, m, sumC);
     c(m) = 1.0 - sumC;
@@ -105,14 +105,14 @@ Tensor<T> KAIN(const Tensor<T>& Q) {
 }
 
 
-/// The interface to be provided by 
+/// The interface to be provided by
 struct SolverTargetInterface {
     virtual bool provides_jacobian() const = 0;
     virtual Tensor<double> residual(const Tensor<double>& x) = 0;
     virtual Tensor<double> jacobian(const Tensor<double>& x) {
         throw "not implemented";
     }
-    virtual void residual_and_jacobian(const Tensor<double>& x, 
+    virtual void residual_and_jacobian(const Tensor<double>& x,
                                        Tensor<double>& residual, Tensor<double>& jacobian) {
         residual = this->residual(x);
         jacobian = this->jacobian(x);
@@ -137,7 +137,7 @@ struct OptimizationTargetInterface {
 
     /// Reimplement if more efficient to evaluate both value and gradient in one call
     virtual void value_and_gradient(const Tensor<double>& x,
-                                    double& value, 
+                                    double& value,
                                     Tensor<double>& gradient) {
         value = this->value(x);
         gradient = this->gradient(x);
@@ -156,15 +156,15 @@ struct OptimizationTargetInterface {
         Tensor<double> tt = gradient(x);
         int n = int(tt.dim[0]);
         double maxerr = 0.0;
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             x[i] += eps;
             double fp = value(x);
             x[i] -= 2.0*eps;
             double fm = value(x);
             x[i] += eps;
-            
+
             double gg = 0.5*(fp-fm)/eps;
-            if (doprint) 
+            if (doprint)
                 printf("% 5d%20.12e%20.12e%20.12e%20.12e  %.1e\n", i, fm, fp, tt(i), gg, abs(tt(i)-gg));
             maxerr = max(abs(gg-tt(i)),maxerr);
         }
@@ -193,7 +193,7 @@ struct OptimizerInterface {
 
 /// Optimization via steepest descent
 class SteepestDescent : public OptimizerInterface {
-    SharedPtr<OptimizationTargetInterface> target;
+    std::shared_ptr<OptimizationTargetInterface> target;
     const double tol;
     const double value_precision;  // Numerical precision of value
     const double gradient_precision; // Numerical precision of each element of residual
@@ -201,7 +201,7 @@ class SteepestDescent : public OptimizerInterface {
     double gnorm;
 
 public:
-    SteepestDescent(const SharedPtr<OptimizationTargetInterface>& target,
+    SteepestDescent(const std::shared_ptr<OptimizationTargetInterface>& target,
                     double tol = 1e-6,
                     double value_precision = 1e-12,
                     double gradient_precision = 1e-12)
@@ -220,7 +220,7 @@ public:
         Tensor<double> g;
         target->value_and_gradient(x,f,g);
         gnorm = g.normf();
-        for (int i=0; i<100; i++) {
+        for (int i=0; i<100; ++i) {
             while (1) {
                 Tensor<double> gnew;
                 x.gaxpy(1.0, g, -step);
@@ -254,7 +254,7 @@ public:
 class QuasiNewton : public OptimizerInterface {
 private:
     string update;              // One of BFGS or SR1
-    SharedPtr<OptimizationTargetInterface> target;
+    std::shared_ptr<OptimizationTargetInterface> target;
     const double tol;
     const double value_precision;  // Numerical precision of value
     const double gradient_precision; // Numerical precision of each element of residual
@@ -268,18 +268,18 @@ private:
         double f1, f2p;
         double hess, a2;
         const char* lsmode = "";
-        
+
         if (dxgrad*a1 > 0.0) {
             print("    line search gradient +ve ", a1, dxgrad);
             a1 = -a1;
         }
-        
+
         f1 = target->value(x + a1 * dx);
-        
+
         // Fit to a parabola using f0, g0, f1
         hess = 2.0*(f1-f0-a1*dxgrad)/(a1*a1);
         a2 = -dxgrad/hess;
-        
+
         if (abs(f1-f0) < value_precision) { // Insufficient precision
             a2 = a1;
             lsmode = "fixed";
@@ -306,7 +306,7 @@ private:
                 a2 = a1;
             }
         }
-    
+
         f2p = f0 + dxgrad*a2 + 0.5*hess*a2*a2;
         printf("   line search grad=%.2e hess=%.2e mode=%s newstep=%.3f\n", dxgrad, hess, lsmode, a2);
         printf("                      predicted %.12f\n", f2p);
@@ -324,30 +324,30 @@ private:
             printf("   SR1 not updating\n");
         }
     }
-          
 
-    void hessian_update_bfgs(const Tensor<double>& dx, 
+
+    void hessian_update_bfgs(const Tensor<double>& dx,
                              const Tensor<double>& dg)
     {
         /*
-          Apply the BFGS update to the approximate Hessian h[][]. 
-          
-          h[][] = Hessian matrix from previous iteration 
-          dx[]  = Step from previous iteration 
-          .       (dx[] = x[] - xp[] where xp[] is the previous point) 
+          Apply the BFGS update to the approximate Hessian h[][].
+
+          h[][] = Hessian matrix from previous iteration
+          dx[]  = Step from previous iteration
+          .       (dx[] = x[] - xp[] where xp[] is the previous point)
           dg[]  = gradient difference (dg = g - gp)
         */
-        
+
         Tensor<double> hdx  = inner(h,dx);
-        
+
         double dxhdx = dx.trace(hdx);
         double dxdx  = dx.trace(dx);
         double dxdg  = dx.trace(dg);
         double dgdg  = dg.trace(dg);
-        
+
         if ( (dxdx > 0.0) && (dgdg > 0.0) && (abs(dxdg/sqrt(dxdx*dgdg)) > 1.e-8) ) {
-            for (int i=0; i<n; i++) {
-                for (int j=0; j<n; j++) {
+            for (int i=0; i<n; ++i) {
+                for (int j=0; j<n; ++j) {
                     h(i,j) += dg[i]*dg[j]/dxdg - hdx[i]*hdx[j]/dxhdx;
                 }
             }
@@ -369,7 +369,7 @@ private:
         Tensor<double> gv = inner(g,v);
 
         // Take step applying restriction
-        for (int i=0; i<n; i++) {
+        for (int i=0; i<n; ++i) {
             if (e[i] < -tol) {
                 printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = -2.0*e[i]; // Enforce positive search direction
@@ -378,7 +378,7 @@ private:
                 printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
                 e[i] = tol;
             }
-           
+
             gv[i] = -gv[i] / e[i];
             if (abs(gv[i]) > trust) { // Step restriction
                 double gvnew = trust*abs(gv(i))/gv[i];
@@ -386,16 +386,16 @@ private:
                 gv[i] = gvnew;
             }
         }
-        
+
         // Transform back from spectral basis
         return inner(v,gv);
     }
 
 public:
-    QuasiNewton(const SharedPtr<OptimizationTargetInterface>& target,
+    QuasiNewton(const std::shared_ptr<OptimizationTargetInterface>& target,
          double tol = 1e-6,
          double value_precision = 1e-12,
-         double gradient_precision = 1e-12) 
+         double gradient_precision = 1e-12)
         : update("BFGS")
         , target(target)
         , tol(tol)
@@ -423,37 +423,37 @@ public:
         bool h_is_identity = (h.size == 0);
         if (h_is_identity) {
             h = Tensor<double>(n,n);
-            for (int i=0; i<n; i++) h(i,i) = 1.0;
+            for (int i=0; i<n; ++i) h(i,i) = 1.0;
         }
 
         Tensor<double> gp, dx;
         double fp;
-        for (int iter=0; iter<20; iter++) {
+        for (int iter=0; iter<20; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();
             printf(" QuasiNewton iteration %2d value %.12f gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;
-            
+
             if (iter == 1 && h_is_identity) {
                 // Default initial Hessian is scaled identity but
                 // prefer to reuse any existing approximation.
                 h.scale(g.trace(gp)/gp.trace(dx));
             }
-            
+
             if (iter > 0) {
                 if (update == "BFGS") hessian_update_bfgs(dx, g-gp);
                 else hessian_update_sr1(dx, g-gp);
             }
 
             dx = new_search_direction(g);
-            
+
             double step = line_search(1.0, f, dx.trace(g), x, dx);
 
             dx.scale(step);
             x += dx;
             gp = g;
-            fp = f; 
+            fp = f;
 
         }
         print("final hessian");
@@ -487,7 +487,7 @@ struct Test2 : public OptimizationTargetInterface {
 
     double value(const Tensor<double>& x) {
         double v = 1.0;
-        for (int i=0; i<x.dim[0]; i++) {
+        for (int i=0; i<x.dim[0]; ++i) {
             v *= cos((i+1)*x[i]);
         }
         return v;
@@ -496,7 +496,7 @@ struct Test2 : public OptimizationTargetInterface {
     Tensor<double> gradient(const Tensor<double>& x) {
         double v = value(x);
         Tensor<double> g(x.dim[0]);
-        for (int i=0; i<x.dim[0]; i++) {
+        for (int i=0; i<x.dim[0]; ++i) {
             g[i]= -v*(i+1)*sin((i+1)*x[i])/cos((i+1)*x[i]);
         }
         return g;
@@ -508,9 +508,9 @@ struct Test2 : public OptimizationTargetInterface {
 Tensor<double> op(const Tensor<double>& x) {
     const long n = x.dim[0];
     Tensor<double> f(n);
-    for (long i=0; i<n; i++) {
+    for (long i=0; i<n; ++i) {
         f(i) = (i + 1)*x[i]; // + 0.01*i*x[i]*x[i]*x[i];
-        for (long j=0; j<n; j++) 
+        for (long j=0; j<n; ++j)
             f(i) += 0.0001*i*j*x[i]*x[i]*x[j]*x[j]/((i+1)*(j+1));
     }
     return f;
@@ -524,7 +524,7 @@ int main() {
 
     Tensor<double> x(5);
     x.fillrandom();
-    QuasiNewton solver(SharedPtr<OptimizationTargetInterface>(new Test2));
+    QuasiNewton solver(std::shared_ptr<OptimizationTargetInterface>(new Test2));
     solver.set_update("SR1");
     solver.optimize(x);
     return 0;
@@ -537,14 +537,14 @@ int main() {
 
 //     int m = 0;
 //     x(0,_).fillrandom();
-//     for (int iter=0; iter<maxiter; iter++) {
+//     for (int iter=0; iter<maxiter; ++iter) {
 //         print("\nITERATION", iter, m);
 //         f(m,_) = op(x(m,_));
 //         print("x");
 //         print(x(m,_));
 //         print(f(m,_));
 
-//         for (int j=0; j<=m; j++) {
+//         for (int j=0; j<=m; ++j) {
 //             Q(j,m) = dot_product(x(j,_),f(m,_));
 //             Q(m,j) = dot_product(x(m,_),f(j,_));
 //         }
@@ -552,12 +552,12 @@ int main() {
 //         Tensor<double> c = KAIN(Q(Slice(0,m),Slice(0,m)));
 //         print("THIS IS THE C I GOT");
 //         print(c);
-        
+
 //         {
-//             m++;
+//             ++m;
 
 //             Tensor<double> xnew(n);
-//             for (int j=0; j<m; j++) {
+//             for (int j=0; j<m; ++j) {
 //                 xnew += c(j)*(x(j,_) - f(j,_));
 //             }
 
@@ -569,14 +569,14 @@ int main() {
 //                 print("restrictING", steplen, xnorm, damp);
 //                 xnew = damp*xnew + (1.0-damp)*x(m-1,_);
 //             }
-            
+
 //             if (m == maxnvec) {
-//                 for (int i=1; i<m; i++) {
+//                 for (int i=1; i<m; ++i) {
 //                     f(i-1,_) = f(i,_);
 //                     x(i-1,_) = f(i,_);
 //                 }
 //                 Q(Slice(0,-2),Slice(0,-2)) = copy(Q(Slice(1,-1),Slice(1,-1)));
-                
+
 //                 m--;
 //             }
 //             x(m,_) = xnew;

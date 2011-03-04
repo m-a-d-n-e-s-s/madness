@@ -303,7 +303,7 @@
   (de)serialize an entire list using a single statement.
   \code
   linked_list list(0);
-  for (int i=1; i<=10; i++) list.append(i);
+  for (int i=1; i<=10; ++i) list.append(i);
   BinaryFstreamOutputArchive ar('list.dat');
   ar & list;
   \endcode
@@ -417,10 +417,13 @@
 
 #include <complex>
 #include <iostream>
+#include <cstdio>
 #include <vector>
 #include <map>
 #include <world/typestuff.h>
-#include <world/worldprofile.h>
+//#include <world/worldprofile.h>
+#include <world/enable_if.h>
+#include <world/worldexc.h>
 
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
@@ -437,9 +440,21 @@
 
 namespace madness {
 
+
+    // Forward declarations
     template <typename T> class Tensor;
 
     namespace archive {
+
+        // Forward declarations
+        template <class>
+        class archive_array;
+        template <class T>
+        inline archive_array<T> wrap(const T*, unsigned int);
+        template <class T>
+        inline archive_array<unsigned char> wrap_opaque(const T*, unsigned int);
+        template <class T>
+        inline archive_array<unsigned char> wrap_opaque(const T&);
 
         // There are 64 empty slots for user types.  Free space for
         // registering user types begins at cookie=128.
@@ -545,7 +560,7 @@ namespace madness {
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<float> >,36);
         ARCHIVE_REGISTER_TYPE_AND_PTR(Tensor< std::complex<double> >,37);
 
-        /// Base class for all archives
+        /// Base class for all archives classes
         class BaseArchive {
         public:
             static const bool is_archive = true;
@@ -555,26 +570,48 @@ namespace madness {
             BaseArchive() {
                 archive_initialize_type_names();
             }
-        };
+        }; // class BaseArchive
 
-        /// Base class for input archives
+        /// Base class for input archives classes
         class BaseInputArchive : public BaseArchive {
         public:
             static const bool is_input_archive = true;
-        };
+        }; // class BaseInputArchive
 
 
-        /// Base class for output archives
+        /// Base class for output archives classes
         class BaseOutputArchive : public BaseArchive {
         public:
             static const bool is_output_archive = true;
-        };
+        }; // class BaseOutputArchive
 
+        /// Checks that \c T is an archive type
+
+        /// If \c T is an archive type then \c is_archive will be inherited from
+        /// \c std::true_type , otherwise it is inherited from
+        /// \c std::false_type .
+        template <typename T>
+        struct is_archive : public std::is_base_of<BaseArchive, T> {};
+
+        /// Checks that \c T is an input archive type
+
+        /// If \c T is an input archive type then \c is_archive will be
+        /// inherited from \c std::true_type , otherwise it is inherited from
+        /// \c std::false_type .
+        template <typename T>
+        struct is_input_archive : public std::is_base_of<BaseInputArchive, T> {};
+
+        /// Checks that \c T is an output archive type
+
+        /// If \c T is an output archive type then \c is_archive will be
+        /// inherited from \c std::true_type , otherwise it is inherited from
+        /// \c std::false_type .
+        template <typename T>
+        struct is_output_archive : public std::is_base_of<BaseOutputArchive, T> {};
 
         // Serialize an array of fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_serializable<T>::value,
-        Archive::is_output_archive >, void >::type
+        typename enable_if_c< is_serializable<T>::value && is_output_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize fund array" << std::endl);
             ar.store(t,n);
@@ -583,8 +620,7 @@ namespace madness {
 
         // Deserialize an array of fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< madness::is_serializable<T>::value,
-        Archive::is_input_archive >, void >::type
+        typename enable_if_c< is_serializable<T>::value && is_input_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "deserialize fund array" << std::endl);
             ar.load((T*) t,n);
@@ -593,11 +629,10 @@ namespace madness {
 
         // (de)Serialize an array of non-fundamental stuff
         template <class Archive, class T>
-        typename madness::enable_if< madness::type_and_c< !madness::is_serializable<T>::value,
-        Archive::is_archive >, void >::type
+        typename enable_if_c< ! is_serializable<T>::value && is_archive<Archive>::value >::type
         serialize(const Archive& ar, const T* t, unsigned int n) {
             MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize non-fund array" << std::endl);
-            for (unsigned int i=0; i<n; i++) ar & t[i];
+            for (unsigned int i=0; i<n; ++i) ar & t[i];
         }
 
 
@@ -651,9 +686,7 @@ namespace madness {
         // Redirect \c serialize(ar,t) to \c serialize(ar,&t,1) for fundamental types
         template <class Archive, class T>
         inline
-        typename madness::enable_if< madness::type_and_c< is_serializable<T>::value,
-        Archive::is_archive >,
-        void >::type
+        typename enable_if_c< is_serializable<T>::value && is_archive<Archive>::value >::type
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> serialize(ar,&t,1)" << std::endl);
             serialize(ar,&t,1);
@@ -663,9 +696,7 @@ namespace madness {
         // Redirect \c serialize(ar,t) to \c ArchiveSerializeImpl for non-fundamental types
         template <class Archive, class T>
         inline
-        typename madness::enable_if< madness::type_and_c< !madness::is_serializable<T>::value,
-        Archive::is_archive >,
-        void >::type
+        typename enable_if_c< !is_serializable<T>::value && is_archive<Archive>::value >::type
         serialize(const Archive& ar, const T& t) {
             MAD_ARCHIVE_DEBUG(std::cout << "serialize(ar,t) -> ArchiveSerializeImpl" << std::endl);
             ArchiveSerializeImpl<Archive,T>::serialize(ar,(T&) t);
@@ -716,7 +747,7 @@ namespace madness {
         // Redirect \c << to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+        typename enable_if<is_output_archive<Archive>, const Archive&>::type
         operator<<(const Archive& ar, const T& t) {
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
@@ -725,7 +756,7 @@ namespace madness {
         // Redirect \c >> to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+        typename enable_if<is_input_archive<Archive>, const Archive&>::type
         operator>>(const Archive& ar, const T& t) {
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
@@ -734,7 +765,7 @@ namespace madness {
         // Redirect \c & to ArchiveImpl::wrap_store for output archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_output_archive, const Archive&>::type
+        typename enable_if<is_output_archive<Archive>, const Archive&>::type
         operator&(const Archive& ar, const T& t) {
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_store(ar,t);
@@ -743,7 +774,7 @@ namespace madness {
         // Redirect \c & to ArchiveImpl::wrap_load for input archives
         template <class Archive, class T>
         inline
-        typename madness::enable_if_c<Archive::is_input_archive, const Archive&>::type
+        typename enable_if<is_input_archive<Archive>, const Archive&>::type
         operator&(const Archive& ar, const T& t) {
             //PROFILE_FUNC;
             return ArchiveImpl<Archive,T>::wrap_load(ar,t);
@@ -908,7 +939,7 @@ namespace madness {
                 MAD_ARCHIVE_DEBUG(std::cout << "serialize STL vector<bool>" << std::endl);
                 std::size_t n = v.size();
                 bool* b = new bool[n];
-                for (std::size_t i=0; i<n; i++) b[i] = v[i];
+                for (std::size_t i=0; i<n; ++i) b[i] = v[i];
                 ar & n & wrap(b,v.size());
                 delete [] b;
             }
@@ -928,7 +959,7 @@ namespace madness {
                 }
                 bool* b = new bool[n];
                 ar & wrap(b,v.size());
-                for (std::size_t i=0; i<n; i++) v[i] = b[i];
+                for (std::size_t i=0; i<n; ++i) v[i] = b[i];
                 delete [] b;
             }
         };

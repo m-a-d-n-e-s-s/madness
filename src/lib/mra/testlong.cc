@@ -42,7 +42,7 @@ const double PI = 3.1415926535897932384;
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class GaussianFunctor : public FunctionFunctorInterface<T,NDIM> {
 private:
     typedef Vector<double,NDIM> coordT;
@@ -59,9 +59,9 @@ public:
 
     T operator()(const coordT& x) const {
         T retval = 0;
-        for (unsigned int j=0; j<center.size(); j++) {
+        for (unsigned int j=0; j<center.size(); ++j) {
             double sum = 0.0;
-            for (int i=0; i<NDIM; i++) {
+            for (int i=0; i<NDIM; ++i) {
                 double xx = center[j][i]-x[i];
                 sum += xx*xx;
             }
@@ -86,7 +86,7 @@ public:
         //	  newcoefficient.push_back(-1*(*it));
         //	}
         int size = other.coefficient.size();
-        for (int i = 0; i < size; i++) {
+        for (int i = 0; i < size; ++i) {
             newcoefficient.push_back(-1*other.coefficient[i]);
             return (this + GaussianFunctor(other.center, other.exponent, newcoefficient));
         }
@@ -94,7 +94,7 @@ public:
 
     void print() const {
         madness::print("Sum of", center.size(), "gaussians:");
-        for (unsigned int i = 0; i < center.size(); i++) {
+        for (unsigned int i = 0; i < center.size(); ++i) {
             madness::print("   g[", i, "] : =", coefficient[i], "* exp(", -exponent[i], "(", center[i], "- x )^2 )");
         }
     };
@@ -103,11 +103,11 @@ public:
 
 /// Returns a new functor combining two functors via operation op(left,right)
 
-template <typename resultT, typename L, typename R, typename opT, int NDIM>
+template <typename resultT, typename L, typename R, typename opT, std::size_t NDIM>
 class BinaryOp : public FunctionFunctorInterface<resultT,NDIM> {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<L,NDIM> > functorL;
-    typedef SharedPtr< FunctionFunctorInterface<R,NDIM> > functorR;
+    typedef std::shared_ptr< FunctionFunctorInterface<L,NDIM> > functorL;
+    typedef std::shared_ptr< FunctionFunctorInterface<R,NDIM> > functorR;
 
     functorL left;
     functorR right;
@@ -127,19 +127,19 @@ double ttt, sss;
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s   %.6e   %.6e\n", msg, sss, ttt)
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 Cost a_cost_function(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
     return 1;
 }
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_loadbal(World& world) {
     typedef Vector<double,NDIM> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,NDIM> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) print("at beginning of test_loadbal");
 
-    for (int i=0; i<NDIM; i++) {
+    for (int i=0; i<NDIM; ++i) {
         FunctionDefaults<NDIM>::cell(i,0) = -10.0;
         FunctionDefaults<NDIM>::cell(i,1) =  10.0;
     }
@@ -151,13 +151,13 @@ void test_loadbal(World& world) {
     const double expnt1 = 4096;
     std::vector<double> vexpnt(nspikes);
     Vector<double, NDIM> dcell, avgcell;
-    for (int i = 0; i < NDIM; i++) {
+    for (int i = 0; i < NDIM; ++i) {
         dcell[i] = FunctionDefaults<NDIM>::cell(i,1) - FunctionDefaults<NDIM>::cell(i,0);
         avgcell[i] = (FunctionDefaults<NDIM>::cell(i,0) + FunctionDefaults<NDIM>::cell(i,1))/2;
     }
-    for (int i = 0; i < nspikes; i++) {
+    for (int i = 0; i < nspikes; ++i) {
         Vector<double, NDIM> v(0);
-        for (int j = 0; j < NDIM; j++) {
+        for (int j = 0; j < NDIM; ++j) {
             v[j] = 0.2;
             //v[j] = ((double) rand()/(double) RAND_MAX)*dcell[j] - FunctionDefaults<NDIM>::cell(j,1);
         }
@@ -180,7 +180,7 @@ void test_loadbal(World& world) {
     }
 
     for (int k=5; k >=5; k-=2) {
-        FunctionDefaults<NDIM>::pmap = SharedPtr<MyPmap<NDIM> >(new MyPmap<NDIM>(world));
+        FunctionDefaults<NDIM>::pmap.reset(new MyPmap<NDIM>(world));
 
         int n = 2;
         double thresh = 1e-4;
@@ -296,7 +296,7 @@ void print_results(Vector<double,20> t) {
 
 
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_ops(Function<T,NDIM>& f) {
   Vector<double, 20> t(0);
   int counter = 0;
@@ -348,7 +348,7 @@ void test_ops(Function<T,NDIM>& f) {
 }
 */
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 void test_ops(Function<T,NDIM>& f) {
     World& world=f.world();
     START_TIMER;
@@ -363,7 +363,7 @@ void test_ops(Function<T,NDIM>& f) {
     START_TIMER;
     f.reconstruct();
     END_TIMER("reconstruct");
-    for (int axis=0; axis < NDIM; axis++) {
+    for (int axis=0; axis < NDIM; ++axis) {
         START_TIMER;
         Function<T,NDIM> dfdx = diff(f,axis);
         END_TIMER("differentiate (R)");

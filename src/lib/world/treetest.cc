@@ -162,7 +162,7 @@ struct Node {
 
     Void recursive_print(const dcT& d, const Key& key) const {
         cout << d.world().rank() << ": RP: ";
-        for (unsigned int i=0; i<key.n; i++) cout << "   ";
+        for (unsigned int i=0; i<key.n; ++i) cout << "   ";
         cout << key << " " << *this;
         if (! is_leaf()) {
             for (KeyChildIterator it(key); it; ++it) {
@@ -183,7 +183,7 @@ struct Node {
     };
 
     double do_sum(vector< Future<double> > v) {
-        for (int i=0; i<8; i++)
+        for (int i=0; i<8; ++i)
             value += v[i].get();
         return value;
     };

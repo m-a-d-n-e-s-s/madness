@@ -46,262 +46,123 @@
 // time being.
 
 #include <cstddef>
+#include <type_traits>
 #include <stdint.h>
+
+#include <madness_config.h>
+
+#if defined(MADNESS_HAS_STD_TR1_TYPE_TRAITS) && !defined(MADNESS_HAS_STD_TYPE_TRAITS)
+#define MADNESS_HAS_STD_TYPE_TRAITS
+
+// Insert the tr1 type traits into the std namespace.
+namespace std {
+
+    using ::std::tr1::integral_constant;
+    using ::std::tr1::true_type;
+    using ::std::tr1::false_type;
+    using ::std::tr1::is_void;
+    using ::std::tr1::is_integral;
+    using ::std::tr1::is_floating_point;
+    using ::std::tr1::is_array;
+    using ::std::tr1::is_pointer;
+    using ::std::tr1::is_reference;
+    using ::std::tr1::is_member_object_pointer;
+    using ::std::tr1::is_member_function_pointer;
+    using ::std::tr1::is_enum;
+    using ::std::tr1::is_union;
+    using ::std::tr1::is_class;
+    using ::std::tr1::is_function;
+    using ::std::tr1::is_arithmetic;
+    using ::std::tr1::is_fundamental;
+    using ::std::tr1::is_object;
+    using ::std::tr1::is_scalar;
+    using ::std::tr1::is_compound;
+    using ::std::tr1::is_member_pointer;
+    using ::std::tr1::is_const;
+    using ::std::tr1::is_volatile;
+    using ::std::tr1::is_pod;
+    using ::std::tr1::is_empty;
+    using ::std::tr1::is_polymorphic;
+    using ::std::tr1::is_abstract;
+    using ::std::tr1::has_trivial_constructor;
+    using ::std::tr1::has_trivial_copy;
+    using ::std::tr1::has_trivial_assign;
+    using ::std::tr1::has_trivial_destructor;
+    using ::std::tr1::has_nothrow_constructor;
+    using ::std::tr1::has_nothrow_copy;
+    using ::std::tr1::has_nothrow_assign;
+    using ::std::tr1::has_virtual_destructor;
+    using ::std::tr1::is_signed;
+    using ::std::tr1::is_unsigned;
+    using ::std::tr1::alignment_of;
+    using ::std::tr1::rank;
+    using ::std::tr1::extent;
+    using ::std::tr1::is_same;
+    using ::std::tr1::is_base_of;
+    using ::std::tr1::is_convertible;
+    using ::std::tr1::remove_const;
+    using ::std::tr1::remove_volatile;
+    using ::std::tr1::remove_cv;
+    using ::std::tr1::add_const;
+    using ::std::tr1::add_volatile;
+    using ::std::tr1::add_cv;
+    using ::std::tr1::remove_reference;
+    using ::std::tr1::add_reference;
+    using ::std::tr1::remove_extent;
+    using ::std::tr1::remove_all_extents;
+    using ::std::tr1::remove_pointer;
+    using ::std::tr1::add_pointer;
+    using ::std::tr1::aligned_storage;
+
+} // namespace std
+#endif
+
+
 namespace madness {
+
+    template <bool Cond, typename T1, typename T2>
+    struct if_c {
+        typedef T1 type;
+    };
+
+    template <typename T1, typename T2>
+    struct if_c<false, T1, T2> {
+        typedef T2 type;
+    };
+
+    template <typename Cond, typename T1, typename T2>
+    struct if_ : public if_c<Cond::value, T1, T2> {};
 
     /// type_or_c<bool A, bool B>::value will be true if (A || B)
     template <bool A, bool B>
-    class type_or_c {
-    public:
-        static const bool value = true;
-    };
+    class type_or_c : public std::true_type { };
 
     /// type_or_c<bool A, bool B>::value will be true if (A || B)
-    template<> class type_or_c<false,false> {
-    public:
-        static const bool value = false;
-    };
+    template<> class type_or_c<false,false> : public std::false_type { };
 
     /// type_or<CondA,CondB>::value  will be true if (CondA::value || CondB::value)
     template <class CondA, class CondB>
-    class type_or : public type_or_c<CondA::value, CondB::value> {};
+    class type_or : public type_or_c<CondA::value, CondB::value> { };
 
 
     /// type_and_c<bool A, bool B>::value will be true if (A && B)
     template <bool A, bool B>
-    class type_and_c {
-    public:
-        static const bool value = false;
-    };
+    class type_and_c : public std::false_type { };
 
     /// type_and_c<bool A, bool B>::value will be true if (A && B)
-    template<> class type_and_c<true, true> {
-    public:
-        static const bool value = true;
-    };
+    template<> class type_and_c<true, true> : public std::true_type { };
 
     /// type_and<CondA,CondB>::value  will be true if (CondA::value && CondB::value)
     template <class CondA, class CondB>
-    class type_and: public type_and_c<CondA::value, CondB::value> {};
+    class type_and: public type_and_c<CondA::value, CondB::value> { };
 
-    /// is_integral<T>::value will be true if T is a fundamental integer type
-    template <class T>
-    class is_integral {
-    public:
-        static const bool value = false;
-    };
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A, int B>
+    struct is_eq  : public std::false_type { };
 
-    /// is_float<T>::value will be true if T is a fundamental floating-point type
-    template <class T>
-    class is_float {
-    public:
-        static const bool value = false;
-    };
-
-    /// is_fundamental<T>::value will be true if T is a fundamental type
-    template <class T>
-    class is_fundamental {
-    public:
-        static const bool value = type_or< is_integral<T>, is_float<T> >::value;
-    };
-
-
-    /// is_pointer<T>::value will be true if T is a pointer type
-    template <typename T>
-    struct is_pointer {
-        static const bool value = false;
-    };
-
-    /// is_pointer<T>::value will be true if T is a pointer type
-    template <typename T>
-    struct is_pointer<T*> {
-        static const bool value = true;
-    };
-
-    /// is_array<T>::value will be true if T is an array type
-    template <typename T>
-    struct is_array {
-        static const bool value = false;
-    };
-
-    /// is_array<T>::value will be true if T is an array type
-    template <typename T, std::size_t n>
-    struct is_array<T[n]> {
-        static const bool value = true;
-    };
-
-
-    /// is_reference<T>::value will be true if T is a reference type
-    template <typename T>
-    struct is_reference {
-        static const bool value = false;
-    };
-
-    /// is_reference<T>::value will be true if T is a reference type
-    template <typename T>
-    struct is_reference<T&> {
-        static const bool value = true;
-    };
-
-    /// is_const<T>::value will be true if T is const
-    template <typename T>
-    struct is_const {
-        static const bool value = false;
-    };
-
-    /// is_const<T>::value will be true if T is const
-    template <typename T>
-    struct is_const<const T> {
-        static const bool value = true;
-    };
-
-
-    /// is_same<A,B> returns true if A and B are the same type
-    template <typename A, typename B>
-    struct is_same {
-        static const bool value = false;
-    };
-
-    /// is_same<A,B> returns true if A and B are the same type
-    template <typename A>
-    struct is_same<A,A> {
-        static const bool value = true;
-    };
-
-
-    /// remove_reference<&T>::type will be T
-    template <typename T>
-    struct remove_reference {
-        typedef T type;
-    };
-
-    /// remove_reference<&T>::type will be T
-    template <typename T>
-    struct remove_reference<T&> {
-        typedef T type;
-    };
-
-
-    /// remove_const<const T>::type will be T
-    template <typename T>
-    struct remove_const {
-        typedef T type;
-    };
-
-    /// remove_const<const T>::type will be T
-    template <typename T>
-    struct remove_const<const T> {
-        typedef T type;
-    };
-
-    /// If B == true, type will be const T
-    template <bool B, typename T>
-    struct add_const {
-        typedef const typename remove_const<T>::type type;
-    };
-
-    /// If B == false, type will be T
-    template <typename T>
-    struct add_const<false, T> {
-        typedef typename remove_const<T>::type type;
-    };
-
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <bool B, class returnT>
-    struct enable_if_c {
-        typedef returnT type;
-    };
-
-    /// enable_if_c from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct enable_if_c<false, returnT> {};
-
-    /// enable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <class Cond, class returnT>
-    struct enable_if : public enable_if_c<Cond::value, returnT> {};
-
-    /// enable_if_same (from Boost?) for conditionally instantiating templates if two types are equal
-
-    /// Use example
-    /// \code
-    ///     template <class T> A(T& other, typename enable_if_same<A const,T>::type = 0) {
-    /// \endcode
-    template <class T, class X> struct enable_if_same {};
-    template <class X> struct enable_if_same<X, X> {typedef char type;};
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution.
-    template <bool B, class returnT>
-    struct disable_if_c {
-        typedef returnT type;
-    };
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct disable_if_c<true, returnT> {};
-
-    /// disable_if from Boost for conditionally instantiating templates based on type
-    template <class Cond, class returnT>
-    struct disable_if : public disable_if_c<Cond::value, returnT> {};
-
-    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c B is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c T is only valid when
-    /// B is true. Note: typename T::type is the return type and must be well formed.
-    template <bool B, class returnT>
-    struct lazy_enable_if_c {
-      typedef typename returnT::type type;
-    };
-
-    /// lazy_enable_if_c from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct lazy_enable_if_c<false, returnT> { };
-
-    /// lazy_enable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is true, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
-    /// Cond::value is true. Note: typename T::type is the return type and must be well formed.
-    template <class Cond, class returnT>
-    struct lazy_enable_if : public lazy_enable_if_c<Cond::value, returnT> { };
-
-    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c B is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid
-    /// when B is false. Note: typename T::type is the return type and must be well formed.
-    template <bool B, class returnT>
-    struct lazy_disable_if_c {
-      typedef typename returnT::type type;
-    };
-
-    /// lazy_disable_if_c from Boost for conditionally instantiating templates based on type
-    template <class returnT>
-    struct lazy_disable_if_c<true, returnT> {};
-
-    /// lazy_disable_if from Boost for conditionally instantiating templates based on type
-
-    /// Evaluates to \c returnT if \c Cond::value is false, otherwise to an invalid type expression
-    /// which causes the template expression in which it is used to not be considered for
-    /// overload resolution. This "lazy" version is used if \c returnT is only valid when
-    /// Cond::value is false. Note: typename T::type is the return type and must be well formed.
-    template <class Cond, class returnT>
-    struct lazy_disable_if : public lazy_disable_if_c<Cond::value, returnT> {};
+    /// is_eq<A,B> returns true if A and B are the same integers
+    template <int A>
+    struct is_eq<A,A> : public std::true_type { };
 
     /// True if A is derived from B and is not B
     template <class A, class B>
@@ -766,47 +627,25 @@ namespace madness {
 
 
     /// is_function_ptr<T>::value is true if T is a function pointer
-    template <typename T>
-    struct is_function_ptr {
-        static const bool value = function_traits<T>::value;
-    };
+//    template <typename T>
+//    struct is_function_ptr {
+//        static const bool value = function_traits<T>::value;
+//    };
 
-
-    /// is_memfunc_ptr<T>::value is true if T is a member function pointer
-    template <typename T>
-    struct is_memfunc_ptr {
-        static const bool value = memfunc_traits<T>::value;
-    };
 
 
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
+
+    /// Fundamental types, member function pointers, and function pointers
+    /// are handled by default.
     template <typename T>
-    struct is_serializable {
-        static const bool value = madness::is_fundamental<T>::value || madness::is_memfunc_ptr<T>::value || madness::is_function_ptr<T>::value;
-    };
+    struct is_serializable : public std::integral_constant<bool,
+            std::is_fundamental<T>::value ||
+            std::is_member_function_pointer<T>::value ||
+            (std::is_function<typename std::remove_pointer<T>::type>::value &&
+            ::std::is_pointer<T>::value)>
+    {};
 
-
-#define SET_TYPE_TRAIT(trait, T, val) \
- template<> class trait < T > {public: static const bool value = val; }
-
-    SET_TYPE_TRAIT(is_integral,unsigned char,true);
-    SET_TYPE_TRAIT(is_integral,unsigned short,true);
-    SET_TYPE_TRAIT(is_integral,unsigned int,true);
-    SET_TYPE_TRAIT(is_integral,unsigned long,true);
-    SET_TYPE_TRAIT(is_integral,unsigned long long,true);
-    SET_TYPE_TRAIT(is_integral,signed char,true);
-    SET_TYPE_TRAIT(is_integral,signed short,true);
-    SET_TYPE_TRAIT(is_integral,signed int,true);
-    SET_TYPE_TRAIT(is_integral,signed long,true);
-    SET_TYPE_TRAIT(is_integral,signed long long,true);
-    SET_TYPE_TRAIT(is_integral,bool,true);
-    SET_TYPE_TRAIT(is_integral,char,true);
-
-    SET_TYPE_TRAIT(is_float,float,true);
-    SET_TYPE_TRAIT(is_float,double,true);
-    SET_TYPE_TRAIT(is_float,long double,true);
-
-#undef SET_TYPE_TRAIT
 
     /// Simple binder for member functions with no arguments
     template <class T, typename resultT>
@@ -906,10 +745,10 @@ namespace madness {
 
     /**
        \def REMREF(TYPE)
-       \brief Macro to make remove_reference<T> easier to use
+       \brief Macro to make std::remove_reference<T> easier to use
 
        \def REMCONST(TYPE)
-       \brief Macro to make remove_const<T> easier to use
+       \brief Macro to make std::remove_const<T> easier to use
 
        \def MEMFUN_RETURNT(TYPE)
        \brief Macro to make member function type traits easier to use
@@ -950,12 +789,6 @@ namespace madness {
        \def FUNCTION_ARG4T(TYPE)
        \brief Macro to make function type traits easier to use
 
-       \def ENABLE_IF(CONDITION,TYPEIFTRUE)
-       \brief Macro to make enable_if<> template easier to use
-
-       \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-       \brief Macro to make disable_if<> template easier to use
-
        \def IS_SAME(TYPEA, TYPEB)
        \brief Macro to make is_same<T> template easier to use
 
@@ -965,9 +798,9 @@ namespace madness {
     */
 
 
-#define REMREF(TYPE)    typename remove_reference< TYPE >::type
-#define REMCONST(TYPE)  typename remove_const< TYPE >::type
-#define REMCONSTX(TYPE) remove_const< TYPE >::type
+#define REMREF(TYPE)    typename std::remove_reference< TYPE >::type
+#define REMCONST(TYPE)  typename std::remove_const< TYPE >::type
+#define REMCONSTX(TYPE) std::remove_const< TYPE >::type
 #define RETURN_WRAPPERT(TYPE) typename ReturnWrapper< TYPE >::type
 
 #define MEMFUN_RETURNT(MEMFUN) typename memfunc_traits< MEMFUN >::result_type
@@ -986,9 +819,8 @@ namespace madness {
 #define FUNCTION_ARG3T(FUNCTION)   typename function_traits< FUNCTION >::arg3_type
 #define FUNCTION_ARG4T(FUNCTION)   typename function_traits< FUNCTION >::arg4_type
 
-#define DISABLE_IF(CONDITION,TYPEIFTRUE) typename disable_if< CONDITION, TYPEIFTRUE >::type
-#define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename  enable_if< CONDITION, TYPEIFTRUE >::type
-#define IS_SAME(A, B) is_same< A, B >
+#define IS_SAME(A, B) std::is_same< A, B >
+#define IS_EQ(A, B) is_eq< A, B >
 
 } // end of namespace madness
 #endif // MADNESS_WORLD_TYPESTUFF_H__INCLUDED

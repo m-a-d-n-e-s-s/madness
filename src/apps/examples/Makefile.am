@@ -1,7 +1,11 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop helium_mp2
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric helium_mp2
 #bin_PROGRAMS = helium_mp2
+
+prog_only = helium_mp2_prog
+
+helium_mp2_SOURCES = helium_mp2.cc
 
 dataloadbal_SOURCES = dataloadbal.cc
 
@@ -18,6 +22,8 @@ heat_SOURCES = heat.cc
 heat2_SOURCES = heat2.cc
 
 hello_SOURCES = hello.cc
+
+dielectric_SOURCES = dielectric.cc
 
 hatom_energy_SOURCES = hatom_energy.cc
 

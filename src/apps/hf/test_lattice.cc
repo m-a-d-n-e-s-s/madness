@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -75,7 +75,7 @@ static std::complex<double> complex_exp_1d(const coordT1d r)
 {
   const double x=r[0];
   double npi = N * WST_PI;
-  return  exp(std::complex<double>(0.0,npi*x/L)); 
+  return  exp(std::complex<double>(0.0,npi*x/L));
 }
 //*****************************************************************************
 
@@ -220,8 +220,8 @@ public:
 //  Function<double,3> rho = FunctionFactory<double,3>(world).f(rho_coulomb_func3d);
 //
 //  // Create operator
-//  std::vector< SharedPtr< Convolution1D<double> > > ops(1);
-//  ops[0] = SharedPtr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 10, coeff*L, expnt*L*L));
+//  std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
+//  ops[0] = std::shared_ptr< Convolution1D<double> >(new PeriodicGaussianConvolution1D<double>(k, 10, coeff*L, expnt*L*L));
 //  SeparatedConvolution<double,3> op(world, k, ops);
 //
 //  // Apply operator

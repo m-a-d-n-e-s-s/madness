@@ -44,6 +44,9 @@
 
 #include <world/parar.h>
 #include <world/worldhashmap.h>
+#include <world/mpiar.h>
+#include <world/worldobj.h>
+#include <world/deferred_deleter.h>
 #include <set>
 
 namespace madness {
@@ -63,7 +66,7 @@ namespace madness {
     template <typename keyT>
     class WorldDCRedistributeInterface {
     public:
-        virtual void redistribute_phase1(const SharedPtr< WorldDCPmapInterface<keyT> >& newmap) = 0;
+        virtual void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newmap) = 0;
         virtual void redistribute_phase2() = 0;
 	virtual ~WorldDCRedistributeInterface() {};
     };
@@ -109,7 +112,7 @@ namespace madness {
         /// new map and no objects will be registered in the current map.
         /// @param[in] world The associated world
         /// @param[in] newpmap The new process map
-        void redistribute(World& world, const SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+        void redistribute(World& world, const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
             world.gop.fence();
             for (typename std::set<ptrT>::iterator iter = ptrs.begin();
                  iter != ptrs.end();
@@ -331,7 +334,7 @@ namespace madness {
 
         WorldContainerImpl();   // Inhibit default constructor
 
-        SharedPtr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
+        std::shared_ptr< WorldDCPmapInterface<keyT> > pmap;///< Function/class to map from keys to owning process
         const ProcessID me;                      ///< My MPI rank
         internal_containerT local;               ///< Locally owned data
         std::vector<keyT>* move_list;            ///< Tempoary used to record data that needs redistributing
@@ -355,7 +358,8 @@ namespace madness {
             FutureImpl<iterator>* f = ref.get();
             f->set(iterator(datum));
             //print("find_success_handler: success:", datum.first, datum.second, f->get()->first, f->get()->second);
-            ref.dec(); // Matching inc() in find() where ref was made
+            // Todo: Look at this again.
+//            ref.reset(); // Matching inc() in find() where ref was made
             return None;
         }
 
@@ -364,18 +368,19 @@ namespace madness {
             FutureImpl<iterator>* f = ref.get();
             f->set(end());
             //print("find_failure_handler");
-            ref.dec(); // Matching inc() in find() where ref was made
+            // Todo: Look at this again.
+//            ref.reset(); // Matching inc() in find() where ref was made
             return None;
         }
 
     public:
 
         WorldContainerImpl(World& world,
-                           const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
+                           const std::shared_ptr< WorldDCPmapInterface<keyT> >& pm,
                            bool do_pending,
                            const hashfunT& hf)
                 : WorldObject< WorldContainerImpl<keyT, valueT, hashfunT> >(world)
-                , pmap(pmap)
+                , pmap(pm)
                 , me(world.mpi.rank())
                 , local(5011, hf) {
             pmap->register_callback(this);
@@ -386,7 +391,7 @@ namespace madness {
             pmap->deregister_callback(this);
         }
 
-        const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
+        const std::shared_ptr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             return pmap;
         }
 
@@ -594,7 +599,7 @@ namespace madness {
         }
 
         // First phase of redistributions changes pmap and makes list of stuff to move
-        void redistribute_phase1(const SharedPtr< WorldDCPmapInterface<keyT> >& newpmap) {
+        void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
             pmap = newpmap;
             move_list = new std::vector<keyT>();
             for (typename internal_containerT::iterator iter=local.begin(); iter!=local.end(); ++iter) {
@@ -605,7 +610,7 @@ namespace madness {
         // Second phase moves data and cleans up
         void redistribute_phase2() {
             std::vector<keyT>& mvlist = *move_list;
-            for (unsigned int i=0; i<move_list->size(); i++) {
+            for (unsigned int i=0; i<move_list->size(); ++i) {
                 typename internal_containerT::iterator iter = local.find(mvlist[i]);
                 MADNESS_ASSERT(iter != local.end());
                 insert(*iter);
@@ -655,7 +660,7 @@ namespace madness {
         typedef Future<const_iterator> const_futureT;
 
     private:
-        SharedPtr<implT> p;
+        std::shared_ptr<implT> p;
 
         inline void check_initialized() const {
             MADNESS_ASSERT(p);
@@ -668,7 +673,7 @@ namespace madness {
         /// constructed container.  There is no need to worry about
         /// default constructors being executed in order.
         WorldContainer()
-                : p(0)
+                : p()
         {}
 
 
@@ -681,9 +686,9 @@ namespace madness {
         /// to the non-initializing, default constructor).
         WorldContainer(World& world, bool do_pending=true, const hashfunT& hf = hashfunT())
             : p(new implT(world,
-                          SharedPtr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
+                          std::shared_ptr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
                           do_pending,
-                          hf))
+                          hf), DeferredDeleter<implT>(world))
         {}
 
         /// Makes an initialized, empty container (no communication)
@@ -694,10 +699,10 @@ namespace madness {
         /// execute this constructor in the same order (does not apply
         /// to the non-initializing, default constructor).
         WorldContainer(World& world,
-                       const SharedPtr< WorldDCPmapInterface<keyT> >& pmap,
+                       const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf))
+            : p(new implT(world, pmap, do_pending, hf), DeferredDeleter<implT>(world))
         {}
 
 
@@ -891,7 +896,7 @@ namespace madness {
         }
 
         /// Returns shared pointer to the process mapping
-        inline const SharedPtr< WorldDCPmapInterface<keyT> >& get_pmap() const {
+        inline const std::shared_ptr< WorldDCPmapInterface<keyT> >& get_pmap() const {
             check_initialized();
             return p->get_pmap();
         }
@@ -1429,10 +1434,10 @@ namespace madness {
 
         /// This just writes/reads the unique id to/from the Buffer*Archive.
         void serialize(const archive::BufferInputArchive& ar) {
-            WorldObject<implT>* ptr;
+            WorldObject<implT>* ptr = NULL;
             ar & ptr;
             MADNESS_ASSERT(ptr);
-            p = SharedPtr<implT>(static_cast<implT*>(ptr),false);  // use_count will be 0, which is good
+            p.reset(static_cast<implT*>(ptr), &detail::no_delete<implT>);
         }
 
         /// Returns the associated unique id ... must be initialized
@@ -1442,9 +1447,7 @@ namespace madness {
         }
 
         /// Destructor passes ownership of implementation to world for deferred cleanup
-        virtual ~WorldContainer() {
-            if (p) p->world.deferred_cleanup(p);
-        }
+        virtual ~WorldContainer() { }
 
         friend void swap<>(WorldContainer&, WorldContainer&);
     };
@@ -1489,13 +1492,13 @@ namespace madness {
                 if (ar.is_io_node()) {
                     BinaryFstreamOutputArchive& localar = ar.local_archive();
                     localar & magic & ar.num_io_clients();
-                    for (ProcessID p=0; p<world->size(); p++) {
+                    for (ProcessID p=0; p<world->size(); ++p) {
                         if (p == me) {
                             localar & t;
                         }
                         else if (ar.io_node(p) == me) {
                             world->mpi.Send(int(1),p,tag); // Tell client to start sending
-                            MPIInputArchive source(*world, p);
+                            archive::MPIInputArchive source(*world, p);
                             long cookie;
                             unsigned long count;
 

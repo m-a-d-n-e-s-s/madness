@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -128,10 +128,10 @@ int main(int argc, char **argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
-    
+
     eps = 0.1;
     inveps = 1.0 / eps;
-    
+
     // Function defaults
     int k = 6;
     double thresh = 1.0e-4;
@@ -139,25 +139,21 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_cubic_cell(-2.0, 2.0);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_max_refine_level(6);
-    
+
     // create the Dirichlet boundary condition, expanded throughout the domain
     real_function_3d d = real_factory_3d(world).f(dir_cond);
     d.truncate();
-    
+
     // create the domain mask, phi, and the surface function, b
     coord_3d pt(0.0); // Origin
-    SharedPtr< SignedDFInterface<3> > sphere = SharedPtr<
-        SignedDFInterface<3> >(new SDFSphere(1.0, pt));
+    std::shared_ptr< SignedDFInterface<3> > sphere(new SDFSphere(1.0, pt));
 
     // use LLRV domain masking
-    SharedPtr< DomainMaskInterface > llrvmask = SharedPtr<
-        DomainMaskInterface >(new LLRVDomainMask(eps));
+    std::shared_ptr< DomainMaskInterface > llrvmask(new LLRVDomainMask(eps));
 
     // make the functor
-    SharedPtr< DomainMaskSDFFunctor<3> > functor = SharedPtr<
-        DomainMaskSDFFunctor<3> >(
-            new DomainMaskSDFFunctor<3>(llrvmask, sphere));
-    
+    std::shared_ptr< DomainMaskSDFFunctor<3> > functor(new DomainMaskSDFFunctor<3>(llrvmask, sphere));
+
     real_function_3d phi = real_factory_3d(world).functor(functor);
 
     // create the surface function
@@ -169,19 +165,19 @@ int main(int argc, char **argv) {
     if(world.rank() == 0)
         printf("Error in surface area: %.6e\n",
             fabs(surfarea - 4.0*constants::pi));
-    
+
     // scale the surface by \f$-\varepsilon^{-2}\f$
     // The two powers of \f$\varepsilon\f$ are from the auxiliary DE in
     // LLRV: the surface function \c b always appears with this factor.
     // The -1 is from the fact that MADNESS BSHOperator gives -G.
     b.scale(-inveps * inveps);
     b.truncate();
-    
+
     // setup the Green's function
     // NOTE that CoulombOperator essentially makes the BSH w/ k == 0.0,
     // and then rescales by 4 pi.  This is more consistent.
     real_convolution_3d G = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
-    
+
     // compute the inhomogeneous portion
     real_function_3d usol = b*d; // should be -b*d, but b accounts for -G
     real_function_3d uinhomog = G(usol).truncate();
@@ -189,7 +185,7 @@ int main(int argc, char **argv) {
     uinhomog.truncate();
     world.gop.fence();
     usol.clear();
-    
+
     // solve the linear system
     // make an initial guess -- make its norm, after one application of
     //                          dcio, close to uinhomog
@@ -202,12 +198,12 @@ int main(int argc, char **argv) {
     double update_thresh = 1.0e-3;
     GMRES(space, dcio, uinhomog, usol, maxiters, resid_thresh, update_thresh,
         true);
-    
+
     real_function_3d exact = real_factory_3d(world).f(exact_sol);
     double error = ((usol - exact)*phi).norm2();
     if(world.rank() == 0)
         printf("   u error: %.10e\n", error);
-    
+
     // set up file output
     char filename[100];
     sprintf(filename, "interior.vts");
@@ -222,8 +218,8 @@ int main(int argc, char **argv) {
     plotvtk_data(usol, "usol", world, filename, plotlo, plothi, npts);
     plotvtk_data(exact, "exact", world, filename, plotlo, plothi, npts);
     plotvtk_end<3>(world, filename);
-    
+
     finalize();
-    
+
     return 0;
 }

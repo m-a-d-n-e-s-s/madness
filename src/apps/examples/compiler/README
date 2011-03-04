@@ -75,7 +75,7 @@ Examples
 The language
 
    - Variables can be either names of Greek letters (no backslash
-     needed) or the usual alpha, numeric string. Capilize the
+     needed) or the usual alpha-numeric string. Capilize the
      first letter to get uppercase Greek.
 
    - There are lots of reserved names, mostly math functions 
@@ -196,6 +196,25 @@ The language
 
        where file name is a string valued expression (e.g., "fred")
 
+     * vec(x) in 1D
+     * vec(x,y) in 2D
+     * etc.
+
+       converts Cartesian coordinates into a vector coordinate
+
+     * f(x) in 1D
+     * f(x,y) in 2D
+     * etc.
+       
+       where f is a MADNESS function evaluates the function at a point
+
+
+     * function(r) 
+       
+       where f is a MADNESS function and r is a vector coordinate
+       evaluates the function at a point
+
+
      * |x| is abs(x)
 
      * ||x|| is norm(x)
@@ -205,6 +224,8 @@ The language
      * < f | g > is bra-ket notation for inner(f,g)
 
        To get < f | Q | g > write <f | Q g>
+
+     * < f > is bra-ket notation for f.trace() = int(f(x),x in Omega)
 
      * del_i is partial derivative in i'th direction
        (i=0 is x, i=1 is y, etc.). E.g., 

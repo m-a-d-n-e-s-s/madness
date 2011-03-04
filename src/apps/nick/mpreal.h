@@ -2706,12 +2706,12 @@ inline const mpreal urandomb (gmp_randstate_t& state)
 	return x;
 }
 
-inline const mpreal random2 (mp_size_t size, mp_exp_t exp)
-{
-	mpreal x;
-	mpfr_random2(x.mp,size,exp);
-	return x;
-}
+// inline const mpreal random2 (mp_size_t size, mp_exp_t exp)
+// {
+// 	mpreal x;
+// 	mpfr_random2(x.mp,size,exp);
+// 	return x;
+// }
 
 //////////////////////////////////////////////////////////////////////////
 // Set/Get global properties

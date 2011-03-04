@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_WORLD_SAFEMPI_H__INCLUDED
@@ -42,10 +42,9 @@
 #include <mpi.h>
 // #endif
 
-#include <world/typestuff.h>
 #include <world/worldmutex.h>
-#include <world/worldthread.h>
-#include <world/worldexc.h>
+#include <world/typestuff.h>
+#include <world/enable_if.h>
 
 namespace SafeMPI {
 
@@ -78,34 +77,17 @@ namespace SafeMPI {
 
         Request(const MPI::Request& request) : MPI::Request(request) {}
 
-        bool Test() {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Test();
-        }
+        bool Test();
 
-        bool Test_got_lock_already() {
-            return MPI::Request::Test();
-        }
+        bool Test_got_lock_already();
 
-        static bool Testany(int n, SafeMPI::Request* request, int& ind) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testany(n, static_cast<MPI::Request*>(request), ind);
-        }
+        static bool Testany(int n, SafeMPI::Request* request, int& ind);
 
-        static int Testsome(int n, SafeMPI::Request* request, int* ind, MPI::Status* status) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind, status);
-        }
+        static int Testsome(int n, SafeMPI::Request* request, int* ind, MPI::Status* status);
 
-        static int Testsome(int n, SafeMPI::Request* request, int* ind) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind);
-        }
+        static int Testsome(int n, SafeMPI::Request* request, int* ind);
 
-        static int Testsome(int n, MPI::Request* request, int* ind, MPI::Status* status) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testsome(n, request, ind, status);
-        }
+        static int Testsome(int n, MPI::Request* request, int* ind, MPI::Status* status);
 
         //void Wait() {MPI::Request::Wait();}
     };
@@ -116,86 +98,39 @@ namespace SafeMPI {
         int numproc;
 
     public:
-        Intracomm(MPI::Intracomm& comm) : comm(comm) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            me = comm.Get_rank();
-            numproc = comm.Get_size();
-        }
+        Intracomm(MPI::Intracomm& comm);
 
-        int Get_rank() const {
-            return me;
-        }
+        int Get_rank() const { return me; }
 
-        int Get_size() const {
-            return numproc;
-        }
+        int Get_size() const { return numproc; }
 
-        MPI::Intracomm Create(const MPI::Group& group) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Create(group);
-        }
+        MPI::Intracomm Create(const MPI::Group& group) const;
 
-        MPI::Intracomm& Get_comm() const {
-            return comm;
-        }
+        MPI::Intracomm& Get_comm() const { return comm; }
 
-        MPI::Group Get_group() const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Get_group();
-        }
+        MPI::Group Get_group() const;
 
-        ::SafeMPI::Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Isend(buf,count,datatype,dest,tag);
-        }
+        ::SafeMPI::Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const;
 
-        ::SafeMPI::Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Irecv(buf, count, datatype, src, tag);
-        }
+        ::SafeMPI::Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const;
 
-        void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Send(buf,count,datatype,dest,tag);
-        }
+        void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const;
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Recv(buf,count,datatype,source,tag,status);
-        }
+        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const;
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Recv(buf,count,datatype,source,tag);
-        }
+        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const;
 
-        void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Bcast(buf, count, datatype, root);
-        }
+        void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const;
 
-        void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Reduce(sendbuf, recvbuf, count, datatype, op, root);
-        };
+        void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const;
 
-        void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Allreduce(sendbuf, recvbuf, count, datatype, op);
-        };
-        void Get_attr(int key, void* value) const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Get_attr(key, value);
-        }
+        void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const;
 
-        void Abort(int code=1) const {
-            comm.Abort(code);
-        }
+        void Get_attr(int key, void* value) const;
 
-        void Barrier() const {
-            SAFE_MPI_GLOBAL_MUTEX;
-            comm.Barrier();
-        }
+        void Abort(int code=1) const;
+
+        void Barrier() const;
 
         /// Returns a unique tag for temporary use (1023<tag<=4095)
 
@@ -206,26 +141,14 @@ namespace SafeMPI {
         ///
         /// So that send and receiver agree on the tag all processes
         /// need to call this routine in the same sequence.
-        static int unique_tag() {
-            SAFE_MPI_GLOBAL_MUTEX;
-            static volatile int tag = 1024;
-            int result = tag++;
-            if (tag >= 4095) tag = 1024;
-            return result;
-        }
+        static int unique_tag();
 
         /// Returns a unique tag reserved for long-term use (0<tag<1000)
 
         /// Get a tag from this routine for long-term/repeated use.
         ///
         /// Tags in [1000,1023] are statically assigned.
-        static int unique_reserved_tag() {
-            SAFE_MPI_GLOBAL_MUTEX;
-            static volatile int tag = 1;
-            int result = tag++;
-            if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
-            return result;
-        }
+        static int unique_reserved_tag();
 
         // Below here are extensions to MPI but have to be here since overload resolution
         // is not applied across different class scopes ... hence even having Isend with
@@ -236,7 +159,7 @@ namespace SafeMPI {
         // !! Please ensure any additional routines follow this convention.
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
         Isend(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Isend(&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
@@ -251,7 +174,7 @@ namespace SafeMPI {
 
         /// Async receive datum from process dest with default tag=1
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
         Irecv(T& buf, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
             return Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
         }
@@ -268,7 +191,7 @@ namespace SafeMPI {
 
         /// Disabled for pointers to reduce accidental misuse.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
             Send((void*)&datum, sizeof(T), MPI::BYTE, dest, tag);
         }
@@ -291,7 +214,7 @@ namespace SafeMPI {
 
         /// Receive datum from process src
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Recv(T& buf, int src, int tag=DEFAULT_SEND_RECV_TAG) const {
             Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
         }
@@ -310,22 +233,16 @@ namespace SafeMPI {
 
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <class T>
-        typename madness::enable_if_c< !madness::is_pointer<T>::value, void>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
             Bcast(&buffer, sizeof(T), MPI::BYTE,root);
         }
 
-        int rank() const {
-            return Get_rank();
-        }
+        int rank() const { return Get_rank(); }
 
-        int nproc() const {
-            return Get_size();
-        }
+        int nproc() const { return Get_size(); }
 
-        int size() const {
-            return Get_size();
-        }
+        int size() const { return Get_size(); }
 
 
         /// Construct info about a binary tree with given root
@@ -334,19 +251,7 @@ namespace SafeMPI {
         /// process root as the root of the tree.  Returns the logical
         /// parent and children in the tree of the calling process.  If
         /// there is no parent/child the value -1 will be set.
-        void binary_tree_info(int root, int& parent, int& child0, int& child1) {
-            int np = nproc();
-            int me = (rank()+np-root)%np;   // Renumber processes so root has me=0
-            parent = (((me-1)>>1)+root)%np;        // Parent in binary tree
-            child0 = (me<<1)+1+root;        // Left child
-            child1 = (me<<1)+2+root;        // Right child
-            if (child0 >= np && child0<(np+root)) child0 -= np;
-            if (child1 >= np && child1<(np+root)) child1 -= np;
-
-            if (me == 0) parent = -1;
-            if (child0 >= np) child0 = -1;
-            if (child1 >= np) child1 = -1;
-        }
+        void binary_tree_info(int root, int& parent, int& child0, int& child1);
 
     };
 }

@@ -42,7 +42,7 @@
 
 using namespace madness;
 
-template <typename T, int NDIM>
+template <typename T, std::size_t NDIM>
 class Gaussian : public FunctionFunctorInterface<T,NDIM> {
 public:
     typedef Vector<double,NDIM> coordT;
@@ -55,7 +55,7 @@ public:
 
     T operator()(const coordT& x) const {
         double sum = 0.0;
-        for (int i=0; i<NDIM; i++) {
+        for (std::size_t i=0; i<NDIM; ++i) {
             double xx = center[i]-x[i];
             sum += xx*xx;
         };
@@ -72,7 +72,7 @@ public:
 template <typename T>
 void test_proj(World& world) {
     typedef Vector<double,3> coordT;
-    typedef SharedPtr< FunctionFunctorInterface<T,3> > functorT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 
     FunctionDefaults<3>::set_k(6);
     FunctionDefaults<3>::set_thresh(1e-8);
@@ -88,7 +88,7 @@ void test_proj(World& world) {
     //double x = 0.0;
     const coordT origin(x);
 
-    for (int i=7; i<=7; i++) {
+    for (int i=7; i<=7; ++i) {
         double L = pow(2.0,double(i));
         FunctionDefaults<3>::set_cubic_cell(-L,L);
         print("I think the cell volume is", FunctionDefaults<3>::get_cell_volume());
@@ -128,11 +128,11 @@ int main(int argc, char**argv) {
         print(e);
         error("caught a Tensor exception");
     }
-    catch (const char* s) {
+    catch (char* s) {
         print(s);
         error("caught a c-string exception");
     }
-    catch (char* s) {
+    catch (const char* s) {
         print(s);
         error("caught a c-string exception");
     }
