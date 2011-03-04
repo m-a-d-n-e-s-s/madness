@@ -117,11 +117,6 @@ namespace madness {
         return s;
     }
 
-    /// Print a single const char* string
-    void print(const char* a) {
-        std::cout << a << ENDL;
-    }
-
     /// Print a single item to std::cout terminating with new line
     template <class A>
     void print(const A& a) {
