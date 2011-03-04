@@ -37,7 +37,7 @@ public:
     {}
 
     ~SimpleQ() {
-        delete q;
+        delete[] q;
     }
 
     void push(const T& item) {

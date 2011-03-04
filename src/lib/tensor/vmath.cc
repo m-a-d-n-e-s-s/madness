@@ -73,11 +73,11 @@ void vzExp(int n, const double_complex* x, double_complex* y) {
     for (int i=0; i<n; ++i) {
         y[i] = double_complex(a[i]*cosb[i],a[i]*sinb[i]);
     }
-    delete cosb;
-    delete sinb;
-    delete expa;
-    delete b;
-    delete a;
+    delete[] cosb;
+    delete[] sinb;
+    delete[] expa;
+    delete[] b;
+    delete[] a;
 }
 
 #else

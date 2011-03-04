@@ -755,7 +755,7 @@ public:
       {
         evalsv(ist,ik-1) = t1ek[ist];
       }
-      delete t1ek;
+      delete[] t1ek;
     }
     // read in occupation numbers from exciting
     Tensor<double> occsv(nstsv,_vkl.size());
@@ -767,7 +767,7 @@ public:
       {
         occsv(ist,ik-1) = t1ock[ist];
       }
-      delete t1ock;
+      delete[] t1ock;
     }
 
 //    printf("\n");

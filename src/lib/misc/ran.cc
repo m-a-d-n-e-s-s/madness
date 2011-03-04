@@ -213,7 +213,7 @@ namespace madness {
         std::cout << "hi-lo  " << x12/n << std::endl;
 
         const int nb = 100000000;
-        unsigned char *b = new unsigned char[nb];
+        unsigned char *b = new unsigned char[nb+1];
 
         b[nb-1] = 0;
         b[nb] = 99;

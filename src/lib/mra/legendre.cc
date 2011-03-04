@@ -123,16 +123,19 @@ namespace madness {
             int nnpt;
             if (fscanf(f,"%d",&nnpt) != 1) {
                 cout << "legendre: read_data: failed reading " << npt << endl;
+                fclose(f);
                 return false;
             }
             if (nnpt != npt) {
                 cout << "legendre: read_data: npt did not match " << npt << endl;
+                fclose(f);
                 return false;
             }
             for (int i=0; i<npt; ++i) {
                 int ii;
                 if (fscanf(f,"%d %lf %lf",&ii,&points[npt][i],&weights[npt][i]) != 3) {
                     cout << "legendre: read_data: failed reading data " << npt << " " << i << endl;
+                    fclose(f);
                     return false;
                 }
             }

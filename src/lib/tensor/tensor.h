@@ -219,6 +219,7 @@ namespace std {
     static long abs(long a) {
         return std::labs(a);
     }
+}
 #endif
 #endif
 
