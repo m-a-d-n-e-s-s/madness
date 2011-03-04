@@ -90,7 +90,7 @@ namespace madness {
         return result;
     }
 
-    void WorldAmInterface::handler(void *buf, size_t nbyte) {
+    void WorldAmInterface::handler(void *buf, std::size_t nbyte) {
         // It will be singled threaded since only the RMI receiver
         // thread will invoke it ... however note that nrecv will
         // be read by the main thread during fence operations.

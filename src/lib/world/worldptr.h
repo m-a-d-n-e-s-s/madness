@@ -35,13 +35,21 @@
 #ifndef MADNESS_WORLD_WORLDPTR_H__INCLUDED
 #define MADNESS_WORLD_WORLDPTR_H__INCLUDED
 
-#include <world/world.h>        // for World
 #include <world/worldexc.h>     // for MADNESS_ASSERT
 #include <world/worldtypes.h>   // for ProcessID
 #include <limits>
 
 namespace madness {
+
+    // Forward decl
+    class World;
+
     namespace detail {
+
+        // Forward decl
+        ProcessID world_rank(const World&);
+        unsigned int world_id(const World&);
+        World* world_from_id(unsigned int);
 
         template<typename U>
         struct ptr_traits {
@@ -78,7 +86,7 @@ namespace madness {
             /// not set, then -2.
             /// \note -2 is returned so it is not equal to the null value of -1.
             /// \throw nothing
-            ProcessID local_rank() const { return (world_ != NULL ? world_->rank() : -2); }
+            ProcessID local_rank() const { return (world_ != NULL ? world_rank(*world_) : -2); }
 
         public:
 
@@ -105,8 +113,8 @@ namespace madness {
             /// \throw nothing
             WorldPtr(World& w, T* p) :
                 world_(&w),
-                worldid_(w.id() + 1),
-                rank_(w.rank()),
+                worldid_(detail::world_id(w) + 1),
+                rank_(detail::world_rank(w)),
                 pointer_(p)
             { }
 
@@ -318,7 +326,7 @@ namespace madness {
             template <class Archive>
             inline void load_internal_(const Archive& ar) {
                 ar & worldid_ & rank_ & archive::wrap_opaque(pointer_);
-                world_ = (worldid_ != 0 ? World::world_from_id(get_worldid()) : NULL);
+                world_ = (worldid_ != 0 ? detail::world_from_id(get_worldid()) : NULL);
             }
 
             template <class Archive>

@@ -39,7 +39,6 @@
 /// \file worldref.h
 /// \brief Implements RemoteReference which is for internal use
 
-#include <world/world.h>        // for World
 #include <world/atomicint.h>    // for AtomicInt
 #include <world/sharedptr.h>    // for shared_ptr
 #include <world/worldtypes.h>   // for ProcessID
@@ -55,6 +54,7 @@
 
 namespace madness {
 
+    class World;
     template <typename T> class RemoteReference;
 //
 //    template <typename T>
