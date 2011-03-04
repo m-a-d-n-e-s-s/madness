@@ -338,7 +338,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
                     //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl||Psi(0)> <Psi(0)|Psi(t)>
                     output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
-                    PRINT(std::scientific <<"\t" << output );
+                    PRINT(std::scientific <<"\t" << real(conj(output)*output) );
                 }
                 PRINT("\n");
             }
@@ -378,7 +378,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
-                        PRINT( std::scientific << "\t" << output );
+                        PRINT( std::scientific << "\t" << real(conj(output)*output) );
                     }
                     PRINTLINE("");
                     PRINT(" took " << after - before << " seconds ");
