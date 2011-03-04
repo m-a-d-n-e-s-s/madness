@@ -37,6 +37,7 @@
 
 #define MADNESS_DISPLAY_EXCEPTION_BREAK_MESSAGE 0
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <world/worldptr.h>
 #include <world/world.h>
 #include <world/worldobj.h>
 #include <world/bufar.h>

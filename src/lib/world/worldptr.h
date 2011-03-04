@@ -37,7 +37,9 @@
 
 #include <world/worldexc.h>     // for MADNESS_ASSERT
 #include <world/worldtypes.h>   // for ProcessID
-#include <limits>
+#include <world/archive.h>      // for wrap_opaque
+#include <algorithm>            // for std::swap
+#include <iostream>             // for std::iostream
 
 namespace madness {
 
@@ -335,8 +337,9 @@ namespace madness {
             }
 
             friend std::ostream& operator<<(std::ostream& out, const WorldPtr<T>& p) {
-                out << "WorldPointer(ptr=" << p.pointer_ << ", rank=" << p.rank_ <<
-                        ", worldid=" << (p.worldid_ - 1) << ")";
+                out << "WorldPointer(ptr=" << p.pointer_ <<
+                        ", rank=" << (p.rank_ >= 0 ? p.rank_ : "none" ) <<
+                        ", worldid=" << (p.worldid_ != 0 ? p.worldid_ - 1 : "none") << ")";
                 return out;
             }
         }; // class WorldPtr
