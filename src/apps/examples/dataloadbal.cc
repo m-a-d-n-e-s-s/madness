@@ -209,11 +209,7 @@ struct LBCost {
         , parent_value(parent_value) 
     {}
 
-#if HAVE_FLONODE
-    double operator()(const Key<3>& key, const FloNode<double,3>& node) const {
-#else
-   	double operator()(const Key<3>& key, const FunctionNode<double,3>& node) const {
-#endif
+    double operator()(const Key<3>& key, const FunctionNode<double,3>& node) const {
         if (key.level() <= 1) {
             return 100.0*(leaf_value+parent_value);
         }

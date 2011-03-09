@@ -137,7 +137,6 @@ struct unaryexp {
     void serialize(Archive& ar) {}
 };
 
-
 template <typename T, int NDIM>
 Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
   return 1;

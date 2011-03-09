@@ -84,6 +84,28 @@ static double helium_pot(const coord_6d& r) {
     return value;
 }
 
+// return the helium potential times the hylleraas function
+static double V_times_phi(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+
+    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+
+    const double pot=-2.0/r1 - 2.0/r2;// + 1.0/r12;
+    const double phi=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
+    const double value=pot*phi;
+
+    return value;
+}
+
+
 
 static double f6d_svd(const coord_6d& r) {
 
@@ -146,8 +168,8 @@ int main(int argc, char** argv) {
 
 
     double L = 32;   // box size
-    long k = 5 ;        // wavelet order
-    double thresh = 1.e-3; // precision
+    long k = 3 ;        // wavelet order
+    double thresh = 1.e-5; // precision
     TensorType tt = TT_2D;
     long truncate_mode = 0;
 
@@ -161,6 +183,8 @@ int main(int argc, char** argv) {
 
     if(world.rank() == 0) printf("\nstarting at time %.1fs\n\n", wall_time());
 
+
+    // hydrogen
 #if 0
     FunctionDefaults<3>::set_tensor_type(tt);
     FunctionDefaults<3>::set_k(k);
@@ -215,9 +239,44 @@ int main(int argc, char** argv) {
 
 
 #endif
+
+    // random test
 #if 1
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+
+    real_function_3d psi=real_factory_3d(world).f(guess);
+    real_function_3d pot=real_factory_3d(world).f(V);
+    real_function_3d Vp=real_factory_3d(world).f(V);
+    real_function_3d pot_cble=real_factory_3d(world).f(V).is_on_demand();
+
+    std::shared_ptr<CompositeFunctorInterface<double,3,3> >
+    	comp(new CompositeFunctorInterface<double,3,3>(k,pot.get_impl(),pot_cble.get_impl()));
+    std::shared_ptr<CompositeFunctorInterface<double,3,3> >
+    	comp_functor(new CompositeFunctorInterface<double,3,3>(k,pot_cble.get_impl(),pot_cble.get_impl()));
+
+    // this will project comp to the MRA function V_phi
+    real_function_3d V_function=real_factory_3d(world).functor(comp).is_on_demand();
+    real_function_3d V_functor=real_factory_3d(world).functor(comp_functor).is_on_demand();
+
+
+//    V_phi.is_tricky();
+//    print("<phi|phi>  ", inner(psi,psi));
+//    print("<phi|V*phi>", inner(psi,pot*psi));
+//    print("<phi|V>    ", inner(psi,pot));
+
+    print("<phi|V>     ", inner(psi,Vp));
+    print("<phi|V_ftor>", inner(psi,V_functor));
+    print("<phi|V_fxn> ", inner(psi,V_function));
+    print("<phi|V>     ", inner(psi,Vp));
+    print("k ",k);
+
+
+#endif
 
     // start the MP2 bit
+#if 0
+
 
     // generate the pair function |ij>
     FunctionDefaults<6>::set_tensor_type(tt);
@@ -231,6 +290,21 @@ int main(int argc, char** argv) {
     print("cell size:         ", L);
     print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
     print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
+
+    print("projecting phi");
+    real_function_6d phi=real_factory_6d(world).f(f6d_svd);
+    print("phi tree size    ",phi.tree_size());
+    print("phi number coeff ",phi.size());
+    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
+
+    print("projecting V_nuc * phi");
+    real_function_6d phipot=real_factory_6d(world).f(V_times_phi);
+    print("V_nuc*phi' tree size    ",phipot.tree_size());
+    print("V_nuc*phi number coeff ",phipot.size());
+    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
+
+#if 0
+
 
     real_function_6d ij_pair;
     if (FunctionDefaults<6>::get_tensor_type()==TT_3D)   ij_pair = real_factory_6d(world).f(f6d_sr);
@@ -296,6 +370,7 @@ int main(int argc, char** argv) {
 //        print("                    Virial ", (nuclear_attraction_energy + two_electron_energy) / kinetic_energy);
 //    }
 
+#endif
     if(world.rank() == 0)
                   printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

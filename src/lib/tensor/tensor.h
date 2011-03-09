@@ -1826,6 +1826,7 @@ namespace madness {
         /// a dummy function
         Tensor<T> full_tensor_copy() const {return *this;}
         Tensor<T> full_tensor_copy() {return *this;}
+        void reduceRank(const double& eps) {return;};
     };
 
     template <class T>
