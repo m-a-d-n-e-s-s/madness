@@ -33,6 +33,10 @@
 
 #ifndef SEPREPTENSOR_H_
 #define SEPREPTENSOR_H_
+
+#define HAVE_GENTENSOR 1
+
+
 /*!
  *
  * \file SepRepTensor.h
@@ -114,6 +118,29 @@ namespace madness {
 		MADNESS_ASSERT(tt!=TT_NONE);
 		return tt;
 	}
+
+#if !HAVE_GENTENSOR
+
+	template <typename T>
+	class GenTensor : public Tensor<T> {
+
+	public:
+		GenTensor<T>(const Tensor<T>& t1) : Tensor<T>(t1) {}
+
+		GenTensor<T>(): Tensor<T>() {}
+
+		GenTensor<T>(std::vector<long> v) : Tensor<T>(v) {}
+
+		GenTensor<T> reconstruct_tensor() const {return *this;}
+
+		GenTensor<T> full_tensor() const {return *this;}
+		GenTensor<T>& full_tensor() {return *this;}
+
+		TensorType type() const {return TT_FULL;}
+	};
+
+#else
+
 
 
 	/// A GenTensor is an interface to a Tensor or a LowRankTensor
@@ -1029,6 +1056,7 @@ namespace madness {
 
     	return t.transform_dir(c,axis);
     }
+#endif /* HAVE_GENTENSOR */
 
 }
 

@@ -88,11 +88,7 @@ namespace madness {
 
     public:
         typedef FunctionImpl<T,NDIM> implT;
-#if HAVE_FLONODE
-        typedef FloNode<T,NDIM> nodeT;
-#else
         typedef FunctionNode<T,NDIM> nodeT;
-#endif
         typedef FunctionFactory<T,NDIM> factoryT;
         typedef typename implT::coordT coordT; ///< Type of vector holding coordinates
 
@@ -134,6 +130,8 @@ namespace madness {
 
         /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function() {}
+
+        void is_tricky() {impl->is_tricky();};
 
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
@@ -516,6 +514,18 @@ namespace madness {
         }
 
 
+        /// Replace the current functor with the provided new one
+
+        /// presumably the new functor will be a CompositeFunctor, which will
+        /// change the behavior of the function: multiply the functor with the function
+        void set_functor(const std::shared_ptr<FunctionFunctorInterface<T, NDIM> > functor) {
+        	this->impl->set_functor(functor);
+        	print("set functor in mra.h");
+        }
+
+        bool is_on_demand() const {return this->impl->is_on_demand();}
+
+
         /// Replace current FunctionImpl with a new one using the same parameters & map as f
 
         /// If zero is true the function is initialized to zero, otherwise it is empty
@@ -770,6 +780,7 @@ namespace madness {
             impl->unary_op_node_inplace(op, fence);
         }
 
+
         static void doconj(const Key<NDIM>, Tensor<T>& t) {
             PROFILE_MEMBER_FUNC(Function);
             t.conj();
@@ -924,14 +935,19 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
 
             // introduce special case if g==f: we don't need to compress
-            if (not (this==&g)) {
+            if ((not (this==&g)) and (not g.is_on_demand())) {
             	if (!is_compressed()) compress();
             	if (!g.is_compressed()) g.compress();
             }
+            MADNESS_ASSERT(not g.get_impl()->is_redundant());
+            if (g.is_on_demand()) this->reconstruct();
+
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*(g.get_impl()));
+            TENSOR_RESULT_TYPE(T,R) local=0.0;
+            if (g.is_on_demand()) local= impl->inner_local2(*(g.get_impl()));
+            else local = impl->inner_local(*(g.get_impl()));
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;
@@ -1185,7 +1201,6 @@ namespace madness {
         if (right.is_compressed()) right.reconstruct();
         return mul(left,right,true);
     }
-
 
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression
     template <typename L, typename R,std::size_t NDIM>

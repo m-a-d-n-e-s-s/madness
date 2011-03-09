@@ -57,7 +57,13 @@ namespace madness {
     class FunctionImpl;
 
     template<typename T, std::size_t NDIM>
+    class FunctionNode;
+
+    template<typename T, std::size_t NDIM>
     class Function;
+
+    template<typename T, std::size_t NDIM>
+    class FunctionFactory;
 
     template<int D>
     class LoadBalImpl;
@@ -193,6 +199,11 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class FunctionFunctorInterface {
     public:
+
+    	typedef Tensor<T> tensorT;
+    	typedef GenTensor<T> coeffT;
+    	typedef Key<NDIM> keyT;
+
         /// You should implement this to return \c f(x)
         virtual T operator()(const Vector<double, NDIM>& x) const = 0;
 
@@ -205,6 +216,111 @@ namespace madness {
         virtual Level special_level() {return 6;}
 
         virtual ~FunctionFunctorInterface() {}
+
+        virtual coeffT coeff(const keyT&) const {
+        	print("implement coeff for FunctionFunctorInterface");
+        	MADNESS_ASSERT(0);
+        }
+
+        virtual void is_tricky() const {print("is not tricky");}
+
+   };
+
+    /// CompositeFunctorInterface implements a wrapper of holding several functions and functors
+
+    /// Use this to "connect" several functions and/or functors and to return their coefficients
+    /// e.g. connect f1 and f2 with an addition, you can request the coefficients of any node
+    /// and they will be computed on the fly and returned. Mainly useful to connect a functor
+    /// with a function, if the functor is too large to be represented in MRA (e.g. 1/r12)
+    ///
+    /// as of now, the operation connecting the functions/functors is simply addition. Might
+    /// need to implement expression templates, if I only knew what that was...
+    template<typename T, std::size_t NDIM, std::size_t MDIM>
+    class CompositeFunctorInterface : public FunctionFunctorInterface<T,NDIM> {
+
+    public:
+    	typedef FunctionNode<T,NDIM> nodeT;
+    	typedef GenTensor<T> coeffT;
+    	typedef Tensor<T> tensorT;
+    	typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+    	typedef Key<NDIM> keyN;
+    	typedef Key<MDIM> keyM;
+        typedef WorldContainer<keyN,nodeT> dcT; ///< Type of container holding the coefficients
+
+    private:
+
+    	/// various MRA functions of NDIM dimensionality
+    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_f1;
+    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_f2;
+    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_f3;
+
+    	/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
+    	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m1;
+    	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m2;
+    	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m3;
+
+    	/// common data
+        const FunctionCommonData<T,NDIM>& cdataN;
+        const FunctionCommonData<T,MDIM>& cdataM;
+
+        /// caching this
+        std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
+
+    public:
+
+    	/// constructor takes the functions, and operations to connect
+    	CompositeFunctorInterface(const long k,
+    						const std::shared_ptr<FunctionImpl<T,NDIM> > impl1,
+    						const std::shared_ptr<FunctionImpl<T,NDIM> > impl2)
+    		: impl_f1(impl1)
+    		, impl_f2(impl2)
+    		, cdataN(FunctionCommonData<T,NDIM>::get(k))
+    		, cdataM(FunctionCommonData<T,MDIM>::get(k))
+    	{
+    		if (not impl_f1->is_on_demand()) impl_f1->make_redundant(true);
+    		print("impl_f1->tree_size()",impl_f1->tree_size());
+
+
+    	};
+
+    	/// return value at point x; fairly inefficient
+    	T operator()(const coordT& x) const {
+    		print("there is no operator()(coordT&) in CompositeFunctorInterface, for good reason");
+    		MADNESS_ASSERT(0);
+    		return T(0);
+    	};
+
+        /// return sum coefficients for imagined node at key
+        coeffT coeff(const Key<NDIM>& key) const {
+
+        	coeffT coeff1(cdataN.vk);
+
+    		// find the coefficients for impl1
+        	if (impl_f1) {
+        		if (impl_f1->is_on_demand()) {
+        			coeff1=impl_f1->get_me_functor(key);
+        		} else {
+        			coeff1=impl_f1->get_me_function(key);
+        		}
+        	}
+        	if (impl_f2) {
+        		if (impl_f2->is_on_demand()) {
+        			coeff1+=impl_f2->get_me_functor(key);
+        		} else {
+        			coeff1+=impl_f2->get_me_function(key);
+        		}
+        	}
+
+
+        	return coeff1;
+        };
+
+        /// return the functor values for imagined node at key
+        coeffT fcube(const Key<NDIM>& key) const {};
+
+        void is_tricky() const {print("is tricky");}
+
+
     };
 
     /// FunctionFactory implements the named-parameter idiom for Function
@@ -236,6 +352,7 @@ namespace madness {
         bool _autorefine;
         bool _truncate_on_project;
         bool _fence;
+        bool _is_on_demand;
         //Tensor<int> _bc;
         std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
         std::shared_ptr<FunctionFunctorInterface<T, NDIM> > _functor;
@@ -265,12 +382,14 @@ namespace madness {
                 _truncate_on_project(
                     FunctionDefaults<NDIM>::get_truncate_on_project()),
                 _fence(true), // _bc(FunctionDefaults<NDIM>::get_bc()),
+                _is_on_demand(false),
                 _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor() {
         }
         FunctionFactory&
         functor(
             const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
             _functor = f;
+            print("set functor");
             return *this;
         }
         FunctionFactory&
@@ -349,6 +468,11 @@ namespace madness {
         FunctionFactory&
         nofence() {
             _fence = false;
+            return *this;
+        }
+        FunctionFactory&
+        is_on_demand() {
+            _is_on_demand = true;
             return *this;
         }
         FunctionFactory&
@@ -752,7 +876,9 @@ namespace madness {
 
         std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functor;
 
+        bool on_demand; ///< does this function have an additional functor?
         bool compressed; ///< Compression status
+        bool redundant; ///< If true, function keeps sum coefficients on all levels
 
         dcT coeffs; ///< The coefficients
 
@@ -775,7 +901,9 @@ namespace madness {
                 , nonstandard(false)
                 , cdata(FunctionCommonData<T,NDIM>::get(k))
                 , functor(factory._functor)
+                , on_demand(factory._is_on_demand)
                 , compressed(false)
+                , redundant(false)
                 , coeffs(world,factory._pmap,false)
                 //, bc(factory._bc)
             {
@@ -785,13 +913,14 @@ namespace madness {
             // for this.  Otherwise, there is a race condition.
             MADNESS_ASSERT(k>0 && k<=MAXK);
 
-            bool empty = factory._empty;
+            bool empty = (factory._empty or is_on_demand());
             bool do_refine = factory._refine;
 
             if (do_refine)
                 initial_level = std::max(0,initial_level - 1);
 
             if (empty) { // Do not set any coefficients at all
+            // additional functors are only evaluated on-demand
             } else if (functor) { // Project function and optionally refine
                 insert_zero_down_to_initial_level(cdata.key0);
                 typename dcT::const_iterator end = coeffs.end();
@@ -834,7 +963,9 @@ namespace madness {
                 , nonstandard(other.nonstandard)
                 , cdata(FunctionCommonData<T,NDIM>::get(k))
                 , functor()
+                , on_demand(false)	// since functor() is an default ctor
                 , compressed(other.compressed)
+                , redundant(other.redundant)
                 , coeffs(world, pmap ? pmap : other.coeffs.get_pmap())
                 //, bc(other.bc)
         {
@@ -847,6 +978,8 @@ namespace madness {
         }
 
         virtual ~FunctionImpl() { }
+
+        void is_tricky() const {this->functor->is_tricky();};
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             return coeffs.get_pmap();
@@ -935,7 +1068,24 @@ namespace madness {
             return compressed;
         }
 
+        /// Returns true if the function is redundant.
+        bool is_redundant() const {
+            return redundant;
+        }
+
         bool is_nonstandard() const {return nonstandard;}
+
+        void set_functor(const std::shared_ptr<FunctionFunctorInterface<T,NDIM> > functor1) {
+        	this->on_demand=true;
+        	functor=functor1;
+        }
+
+        void unset_functor() {
+        	this->on_demand=false;
+        	functor.reset();
+        }
+
+        bool is_on_demand() const {return on_demand;};
 
         double get_thresh() const {return thresh;}
 
@@ -1371,6 +1521,26 @@ namespace madness {
             if (fence)
                  world.gop.fence();
         }
+
+        /// keep only the sum coefficients in each node
+        struct do_keep_sum_coeffs {
+             typedef Range<typename dcT::iterator> rangeT;
+             implT* impl;
+
+             /// constructor need impl for cdata
+             do_keep_sum_coeffs(implT* impl) :impl(impl) {}
+
+             bool operator()(typename rangeT::iterator& it) const {
+
+            	 nodeT& node = it->second;
+            	 coeffT s=copy(node.coeff()(impl->cdata.s0));
+            	 node.coeff()=s;
+                 return true;
+             }
+             template <typename Archive> void serialize(const Archive& ar) {}
+
+        };
+
 
         /// reduce the rank of the nodes to low rank, optional fence
         struct do_low_rank_inplace {
@@ -2148,6 +2318,74 @@ namespace madness {
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
 
+        /// return the sum coefficients of key
+
+        /// difference to find_me is that the accuracy of the sum coefficients is
+        /// tested by probing for special points and comparing direct projection
+        /// to projection onto the children and "filtering back". Once computed,
+        /// the sum coefficients will be stored for repeated usage
+//        Future< std::pair<keyT,coeffT> > find_me_sophisticated(const keyT& key) {
+        coeffT get_me_functor(const keyT& key) {
+
+        	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
+        	coeffT c;
+
+        	// check for cached coeffs
+        	typename dcT::iterator it = coeffs.find(key).get();
+
+        	// no node found; construct and insert
+            if (it == coeffs.end()) {
+#if 1
+
+                // Make in r child scaling function coeffs at level n+1
+            	tensorT r = tensorT(cdata.v2k);
+            	for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+            		const keyT& child = kit.key();
+            		r(child_patch(child)) += project(child);
+            	}
+            	// Filter then test difference coeffs at level n
+            	tensorT d = filter(r);
+            	c=coeffT(copy(d(cdata.s0)),thresh,tt);
+
+            	d(cdata.s0) = 0.0;
+#else
+
+            	tensorT cc=project(key);
+            	c=coeffT(cc,thresh,tt);
+#endif
+            	nodeT node(c);
+            	coeffs.replace(key,node);
+            } else {
+            	c= it->second.coeff();
+            }
+            return c;
+        }
+
+        coeffT get_me_function(const keyT& key) {
+
+        	coeffT c;
+
+			// check if box exists
+        	typedef std::pair< keyT,coeffT > argT;
+	      	typename dcT::iterator it = coeffs.find(key).get();
+
+	       	// no node found; construct and insert
+	      	if (it == coeffs.end()) {
+				Future<argT> result;
+				woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world), TaskAttributes::hipri());
+				keyT parent_key=result.get().first;
+				coeffT parent_coeff=result.get().second;
+
+				MADNESS_ASSERT(parent_coeff.has_data());  // should be an NS tree
+				c=parent_to_child(parent_coeff,parent_key,key);
+
+				coeffs.replace(key,nodeT(c));
+	      	} else {
+	      		c=it->second.coeff();
+	      	}
+	      	return c;
+        }
+
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2252,7 +2490,8 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
-                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank()); // Note value -1.0 for norm tree to indicate result of refinement
+                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank());
+                    // Note value -1.0 for norm tree to indicate result of refinement
                 }
             }
             return None;
@@ -2354,7 +2593,7 @@ namespace madness {
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
-            nonstandard = compressed = false;
+            nonstandard = compressed = redundant = false;
             if (world.rank() == coeffs.owner(cdata.key0))
                 woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
             if (fence)
@@ -2365,10 +2604,17 @@ namespace madness {
 //        Void reconstruct_op(const keyT& key, const tensorT& s);
         Void reconstruct_op(const keyT& key, const coeffT& s);
 
+        /// compress the wave function
+
+        /// after application there will be sum coefficients at the root level,
+        /// and difference coefficients at all other levels; furthermore:
+        /// @param[in] nonstandard	keep sum coeffs at all other levels, except leaves
+        /// @param[in] keepleaves	keep sum coeffs (but no diff coeffs) at leaves
         void compress(bool nonstandard, bool keepleaves, bool fence) {
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
+            this->redundant = false;
 
             if (world.rank() == coeffs.owner(cdata.key0)) {
 
@@ -2387,6 +2633,25 @@ namespace madness {
     		flo_unary_op_node_inplace(do_low_rank_inplace(thresh),true);
         }
 
+        /// convert this to redundant, i.e. have sum coefficients on all levels
+        void make_redundant(const bool fence) {
+
+        	if (is_redundant()) return;
+
+        	// compress, but keep sum coefficients
+        	if (not is_nonstandard()) {
+        		if (is_compressed()) reconstruct(true);
+        		compress(true,true,true);
+        	}
+
+        	// get rid of difference coefficients
+        	redundant=true;
+        	compressed=false;
+        	nonstandard=false;
+    		flo_unary_op_node_inplace(do_keep_sum_coeffs(this),true);
+
+    		if (fence) world.gop.fence();
+        }
 
         void norm_tree(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -2463,9 +2728,7 @@ namespace madness {
 
             acc->second.set_coeff(d);
 
-#if HAVE_GENTENSOR
             s.reduceRank(thresh);
-#endif
             return s;
         }
 
@@ -2574,11 +2837,7 @@ namespace madness {
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
                 // looping through all the coefficients in the source
                 const keyT& key = it->first;
-#if HAVE_FLONODE
-                const FloNode<R,NDIM>& node = it->second;
-#else
                 const FunctionNode<R,NDIM>& node = it->second;
-#endif
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
@@ -2718,12 +2977,7 @@ namespace madness {
                 const nodeT& fnode = it->second;
                 if (fnode.has_coeff()) {
                     if (g.coeffs.probe(it->first)) {
-
-#if HAVE_FLONODE
-                    	const FloNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
-#else
                         const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
-#endif
                         if (gnode.has_coeff()) {
                             if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
                                 madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
@@ -2732,6 +2986,33 @@ namespace madness {
                             sum += fnode.coeff().trace_conj(gnode.coeff());
                         }
                     }
+                }
+            }
+            return sum;
+        }
+
+        /// Returns the inner product ASSUMING same distribution
+        /// note that if (g==f) both functions might be reconstructed
+        /// same as inner_local, but g has a functor
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_local2(FunctionImpl<R,NDIM>& g) const {
+        	MADNESS_ASSERT(not is_compressed());
+        	MADNESS_ASSERT(g.is_on_demand());
+
+            TENSOR_RESULT_TYPE(T,R) sum = 0.0;
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+            	const keyT key=it->first;
+                const nodeT& fnode = it->second;
+                if (fnode.has_coeff()) {
+                	// construct g's sum coefficients on the fly and insert them into the tree
+                   	coeffT gcoeff=g.functor->coeff(key);
+//                   	coeffT gcoeff2(gcoeff,g.get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
+                   	const FunctionNode<R,NDIM> gnode(gcoeff);
+                    g.coeffs.replace(key,gnode);
+
+                    // compute inner product
+                    sum += fnode.coeff().trace_conj(gnode.coeff());
                 }
             }
             return sum;

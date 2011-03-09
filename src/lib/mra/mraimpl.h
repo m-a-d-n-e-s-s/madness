@@ -239,18 +239,15 @@ namespace madness {
         }
 
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
-//            tensorT d = node.full_tensor_copy();
-//        	if (d.size() == 0) d = tensorT(cdata.v2k);
-        	coeffT d=node.coeff();
-        	if (!d.has_data()) d = coeffT(cdata.v2k);
-        	if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            coeffT d = node.coeff();
+            if (!d.has_data()) d = coeffT(cdata.v2k);
+            if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
             d = unfilter(d);
             node.clear_coeff();
             node.set_has_children(true);
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
-//                tensorT ss = copy(d(child_patch(child)));
-                coeffT ss = (d(child_patch(child)));
+                coeffT ss = copy(d(child_patch(child)));
 #if HAVE_GENTENSOR
                 ss.reduceRank(thresh);
 #endif
@@ -377,7 +374,6 @@ namespace madness {
                                                  bool do_refine,
                                                  const std::vector<Vector<double,NDIM> >& specialpts) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-//        print("project_refine_op working on key ",key);
         if (do_refine && key.level() < max_refine_level) {
 
             // Restrict special points to this box
@@ -451,7 +447,6 @@ namespace madness {
 #endif
             coeffs.replace(key,nodeT(g,false));
         }
-
         return None;
     }
 
@@ -646,11 +641,11 @@ namespace madness {
             const nodeT& node = coeffs.find(key).get()->second;
             Future< std::pair<keyT,coeffT> > result(ref);
             if (node.has_coeff()) {
-//                madness::print("sock found it with coeff",key);
+                //madness::print("sock found it with coeff",key);
                 result.set(std::pair<keyT,coeffT>(key,node.coeff()));
             }
             else {
-//                madness::print("sock found it without coeff",key);
+                //madness::print("sock found it without coeff",key);
                 result.set(std::pair<keyT,coeffT>(key,coeffT()));
             }
         }
@@ -675,12 +670,7 @@ namespace madness {
                result.set(std::pair<keyT,coeffT>(key,node.coeff()));
             }
             else {
-            	print("fix mraimpl.h::sock_it_to_me_too");
-            	MADNESS_ASSERT(0);
-//            	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
-//                result.set(std::pair<keyT,tensorT>(key,nodeT(tensorT(project(key),thresh,tt),false)));
-                result.set(std::pair<keyT,tensorT>(key,nodeT(project(key),false).full_tensor_copy()));
-
+                result.set(std::pair<keyT,coeffT>(key,nodeT(project(key),false).node_to_low_rank(thresh).coeff()));
             }
         }
         else {
@@ -839,15 +829,9 @@ namespace madness {
             void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
                 t.scale(q);
             }
-#if HAVE_FLONODE
-            void operator()(const Key<NDIM>& key, FloNode<T,NDIM>& node) const {
-                node.scale(q);
-            }
-#else
             void operator()(const Key<NDIM>& key, FunctionNode<T,NDIM>& node) const {
                 node.coeff().scale(q);
             }
-#endif
             template <typename Archive> void serialize(Archive& ar) {
                 ar & q;
             }
@@ -902,12 +886,7 @@ namespace madness {
         // zero B.C. so returning s makes handling this easy.
         if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
 
-#if 0
-        tensorT result_tmp = fcube_for_mul<T>(child, parent, s.full_tensor_copy());
-        coeffT result(result_tmp,thresh,s.type());
-#else
         coeffT result = fcube_for_mul<T>(child, parent, s);
-#endif
         result.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*child.level()))));
         result = transform(result,cdata.quad_phiw);
 
@@ -973,7 +952,7 @@ namespace madness {
     }
 
 
-    template <typename T, std::size_t NDIM>
+   template <typename T, std::size_t NDIM>
 #if HAVE_GENTENSOR
     Future< std::pair< Key<NDIM>, GenTensor<T> > >
 #else
@@ -982,7 +961,7 @@ namespace madness {
     FunctionImpl<T,NDIM>::find_me(const Key<NDIM>& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair< Key<NDIM>,coeffT > argT;
-        Future<argT> result, result2;
+        Future<argT> result;
         PROFILE_BLOCK(find_me_send);
         woT::task(coeffs.owner(key), &implT::sock_it_to_me_too, key, result.remote_ref(world), TaskAttributes::hipri());
         return result;
@@ -1291,6 +1270,7 @@ namespace madness {
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_volume;
     template <std::size_t NDIM> double FunctionDefaults<NDIM>::cell_min_width;
     template <std::size_t NDIM> std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > FunctionDefaults<NDIM>::pmap;
+
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp;
     template <std::size_t NDIM> std::vector< Key<NDIM> > Displacements<NDIM>::disp_periodicsum[64];
 
