@@ -188,7 +188,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << P(l));
+        PRINTLINE(std::setprecision(6) << std::scientific << real(conj(P(l))*P(l)));
     }
     if(world.rank()==0) after = wall_time();
     PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
@@ -484,7 +484,7 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 // Add logic based on the Keldysh parameter
                 while( 2*nPhoton*omega - Z*Z < 0.0 ) nPhoton++;
                 PRINTLINE("nPhoton = " << nPhoton);
-                PRINTLINE("2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
+                PRINTLINE("The following shoud be positive: 2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
                 double dMAX = std::sqrt( 2*nPhoton*omega - Z*Z) * tMAX;
                 PRINTLINE("dMAX = " << dMAX );
                 if ( cutoff < dMAX ) cutoff = 0.0;
@@ -534,8 +534,8 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
         projectL(world, L, wf, nGrid, lMAX, cutoff);
         //zSlice(world, n1, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
