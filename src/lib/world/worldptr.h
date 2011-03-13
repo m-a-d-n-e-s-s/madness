@@ -337,9 +337,17 @@ namespace madness {
             }
 
             friend std::ostream& operator<<(std::ostream& out, const WorldPtr<T>& p) {
-                out << "WorldPointer(ptr=" << p.pointer_ <<
-                        ", rank=" << (p.rank_ >= 0 ? p.rank_ : "none" ) <<
-                        ", worldid=" << (p.worldid_ != 0 ? p.worldid_ - 1 : "none") << ")";
+                out << "WorldPointer(ptr=" << p.pointer_ << ", rank=";
+                if(p.rank_ >= 0)
+                    out << p.rank_;
+                else
+                    out << "none";
+                out << ", worldid=";
+                if(p.worldid_ != 0)
+                    out << (p.worldid_ - 1);
+                else
+                    out << "none";
+                out << ")";
                 return out;
             }
         }; // class WorldPtr
