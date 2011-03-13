@@ -46,13 +46,22 @@
 // time being.
 
 #include <cstddef>
-#include <type_traits>
 #include <stdint.h>
-
 #include <madness_config.h>
 
+// Select header that contains type_traits
+#if defined(MADNESS_USE_TYPE_TRAITS)
+#include <type_traits>
+#elif defined(MADNESS_USE_TR1_TYPE_TRAITS)
+#include <tr1/type_traits>
+#elif defined(MADNESS_USE_BOOST_TR1_TYPE_TRAITS_HPP)
+#include <boost/tr1/type_traits.hpp>
+#else
+#error No acceptable type_traits include directive was found.
+#endif // TYPE_TRAITS
+
 #if defined(MADNESS_HAS_STD_TR1_TYPE_TRAITS) && !defined(MADNESS_HAS_STD_TYPE_TRAITS)
-#define MADNESS_HAS_STD_TYPE_TRAITS
+#define MADNESS_HAS_STD_TYPE_TRAITS 1
 
 // Insert the tr1 type traits into the std namespace.
 namespace std {
