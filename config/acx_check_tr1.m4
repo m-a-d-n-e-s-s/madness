@@ -115,7 +115,7 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
   AC_LANG([C++])
 
   # Check for type traits in <type_traits> and std namespace
-  AC_MSG_CHECKING([for shared_ptr])
+  AC_MSG_CHECKING([for type traits])
   acx_type_traits=no
 
   AC_COMPILE_IFELSE(

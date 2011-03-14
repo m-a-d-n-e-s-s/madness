@@ -173,7 +173,7 @@ namespace madness {
 #ifndef MADNESS_HAS_STD_MAKE_SHARED
 #define MADNESS_HAS_STD_MAKE_SHARED 1
 
-#ifdef MADNESS_USE_BOOST_TR1_MEMORY_HPP
+#if defined(MADNESS_USE_BOOST_TR1_MEMORY_HPP) || (defined(__Intel) && defined(MADNESS_HAS_BOOST_TR1))
 
 // We are using Boost tr1 so we can use the Boost make_shared function
 #include <boost/make_shared.hpp>

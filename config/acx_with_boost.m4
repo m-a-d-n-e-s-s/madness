@@ -1,8 +1,8 @@
 AC_DEFUN([ACX_WITH_BOOST],
 [
   acx_with_boost=no
-  AC_ARG_WITH([boost],
-    [AS_HELP_STRING([--with-boost@<:@=Install DIR@:>@], [Build with Boost TR1 library.])],
+  AC_ARG_WITH([boost-include],
+    [AS_HELP_STRING([--with-boost-include@<:@=DIR@:>@], [Build with Boost TR1 library.])],
     [
       case $withval in
       yes)
@@ -13,11 +13,34 @@ AC_DEFUN([ACX_WITH_BOOST],
       ;;
       *)
         acx_with_boost=yes
-        CPPFLAGS="-I$withval/include $CPPFLAGS"
+        CPPFLAGS="-I$withval $CPPFLAGS"
+        if test "$CXXVENDOR" = Intel; then
+          CPPFLAGS="-I$withval/boost/tr1/tr1 $CPPFLAGS"
+        fi
       ;;
       esac
-    ],
-    [acx_with_boost=no]
+    ])
+  AC_ARG_WITH([boost],
+    [AS_HELP_STRING([--with-boost@<:@=Install DIR@:>@], [Build with Boost TR1 library.])],
+    [
+      case $withval in
+      yes)
+        acx_with_boost=yes
+      ;;
+      no)
+        if test "$acx_with_boost" != yes; then
+          acx_with_boost=no
+        fi
+      ;;
+      *)
+        acx_with_boost=yes
+        CPPFLAGS="-I$withval/include $CPPFLAGS"
+        if test "$CXXVENDOR" = Intel; then
+          CPPFLAGS="-I$withval/include/boost/tr1/tr1 $CPPFLAGS"
+        fi
+      ;;
+      esac
+    ]
   )
   
   if test "$acx_with_boost" != no; then
