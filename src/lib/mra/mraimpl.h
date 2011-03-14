@@ -391,17 +391,17 @@ namespace madness {
 
             // If refining compute scaling function coefficients and
             // norm of difference coefficients
-            coeffT r, s0;
+            tensorT r, s0;
             double dnorm = 0.0;
             if (newspecialpts.size() == 0) {
                 // Make in r child scaling function coeffs at level n+1
                 r = tensorT(cdata.v2k);
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
-                    r(child_patch(child)) += project(child);
+                    r(child_patch(child)) = project(child);
                 }
                 // Filter then test difference coeffs at level n
-                coeffT d = filter(r);
+                tensorT d = filter(r);
                 if (truncate_on_project) s0 = copy(d(cdata.s0));
 //                d(cdata.s0) = T(0);
                 d(cdata.s0) = 0.0;
@@ -428,24 +428,27 @@ namespace madness {
             }
             else {
                 if (truncate_on_project) {
-                    coeffs.replace(key,nodeT(s0,false).ftr2sr(thresh));
+                	coeffT s(s0,thresh,FunctionDefaults<NDIM>::get_tensor_type());
+                    coeffs.replace(key,nodeT(s,false));
                 }
                 else {
                     coeffs.replace(key,nodeT(tensorT(),true).ftr2sr(thresh)); // Insert empty node for parent
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
-                        coeffs.replace(child,nodeT(copy(r(child_patch(child))),false).ftr2sr(thresh));
+                        coeffT s(r(child_patch(child)),thresh,FunctionDefaults<NDIM>::get_tensor_type());
+                        coeffs.replace(child,nodeT(s,false));
                     }
                 }
             }
         }
         else {
+        	tensorT g0=project(key);
 #if HAVE_GENTENSOR
-        	coeffT g=coeffT(project(key),thresh,FunctionDefaults<NDIM>::get_tensor_type());
-#else
-        	coeffT g=project(key);
-#endif
+        	coeffT g(g0,thresh,FunctionDefaults<NDIM>::get_tensor_type());
             coeffs.replace(key,nodeT(g,false));
+#else
+            coeffs.replace(key,nodeT(g0,false));
+#endif
         }
         return None;
     }

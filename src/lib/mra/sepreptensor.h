@@ -252,7 +252,7 @@ namespace madness {
 				print("damn");
 				MADNESS_ASSERT(this->_ptr->type()==rhs._ptr->type());
 			}
-			static const std::vector<Slice> s(this->ndim(),Slice(_));
+			const std::vector<Slice> s(this->ndim(),Slice(_));
 			this->_ptr->inplace_add(rhs._ptr,s,s);
 			return *this;
 
@@ -262,7 +262,7 @@ namespace madness {
 		GenTensor<T>& operator+=(const SliceGenTensor<T>& rhs) {
 
 			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
-			static const std::vector<Slice> s(this->ndim(),Slice(_));
+			const std::vector<Slice> s(this->ndim(),Slice(_));
 			this->_ptr->inplace_add(rhs._refGT._ptr,s,rhs._s);
 			return *this;
 
@@ -476,7 +476,7 @@ namespace madness {
 
 		/// inplace addition
 		SliceGenTensor<T>& operator+=(const GenTensor<T>& rhs) {
-			static std::vector<Slice> s(this->_refGT.ndim(),Slice(_));
+			std::vector<Slice> s(this->_refGT.ndim(),Slice(_));
 			_refGT.inplace_add(rhs,this->_s,s);
 			return *this;
 		}

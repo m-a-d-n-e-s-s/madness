@@ -159,6 +159,13 @@ namespace madness {
 			// consistency check
 			MADNESS_ASSERT(s.size()==this->dim());
 			MADNESS_ASSERT(s[0].step==1);
+
+			// fast return if possible
+			if (this->rank()==0) {
+				int k_new=s[0].end-s[0].start+1;
+				return SepRep<T> (this->tensor_type(),k_new,this->dim());
+			}
+
 			MADNESS_ASSERT(this->configs_.has_structure());
 
 			// get dimensions
@@ -219,13 +226,14 @@ namespace madness {
 
 
 			// fast return if possible
-
 			if (rhs.rank()==0) return;
-			if (this->rank()==0) {
-				// this is a deep copy
-				*this=rhs(rhs_s);
-				return;
-			}
+
+			// no fast return possible!!!
+//			if (this->rank()==0) {
+//				// this is a deep copy
+//				*this=rhs(rhs_s);
+//				return;
+//			}
 
 			this->configs_.inplace_add(rhs.configs_,lhs_s,rhs_s);
 		}

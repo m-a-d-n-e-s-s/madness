@@ -946,7 +946,8 @@ namespace madness {
             if (VERIFY_TREE) g.verify_tree();
 
             TENSOR_RESULT_TYPE(T,R) local=0.0;
-            if (g.is_on_demand()) local= impl->inner_local2(*(g.get_impl()));
+//            if (g.is_on_demand()) local= impl->inner_local2(*(g.get_impl()));
+            if (g.is_on_demand()) local= g.get_impl()->inner_local2(*impl);
             else local = impl->inner_local(*(g.get_impl()));
             impl->world.gop.sum(local);
             impl->world.gop.fence();

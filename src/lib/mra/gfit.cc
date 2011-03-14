@@ -491,4 +491,9 @@ namespace madness {
         }
       }
     }
+
+    void flo_bsh_fit(double mu, double lo, double hi, double eps,
+                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+    	bsh_fit(mu,lo,hi,eps,pcoeff,pexpnt,prnt);
+    }
 }
