@@ -14,11 +14,13 @@ AC_DEFUN([ACX_WITH_BOOST],
       *)
         acx_with_boost=yes
         CPPFLAGS="-I$withval/include $CPPFLAGS"
-    ;;
-  esac
-  ], [acx_with_boost=no])
+      ;;
+      esac
+    ],
+    [acx_with_boost=no]
+  )
   
-  if test "$acx_with_boost" != no; the
+  if test "$acx_with_boost" != no; then
     # Check for the pressence of the Boost TR1 header files.
     AC_CHECK_HEADER([boost/tr1/memory.hpp], [],
       [AC_MSG_ERROR([Unable to find the Boost TR1 memory header file.])])
