@@ -4,7 +4,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
   acx_enable_optimal_flags=""
   acx_enable_optimal_compiler="$CXXVENDOR"
   AC_ARG_ENABLE([optimal],
-    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@],
+    [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|clang|Pathscale|Portland|Intel|IBM@:>@],
       [Auto detect optimal CXXFLAGS for compiler, or specify compiler vendor.@<:@default=yes@:>@])],
     [
       case $enableval in
@@ -49,6 +49,10 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
             acx_enable_optimal_flags="$acx_enable_optimal_flags -mfpmath=sse -msse -mpc64"
            ;;
         esac
+      ;;
+      
+      clang)
+        acx_enable_optimal_flags="$acx_enable_optimal_flags"
       ;;
 
       Pathscale)

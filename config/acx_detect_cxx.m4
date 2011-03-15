@@ -10,6 +10,12 @@ AC_DEFUN([ACX_DETECT_CXX], [
           fi
       fi
       if test $acx_cv_detect_cxx = unknown; then
+          $CXX --version 2>&1 | egrep -q "clang"
+          if test $? = 0; then
+             acx_cv_detect_cxx=clang
+          fi
+      fi
+      if test $acx_cv_detect_cxx = unknown; then
           $CXX --version 2>&1 | grep -q "Intel"
           if test $? = 0; then
              acx_cv_detect_cxx=Intel

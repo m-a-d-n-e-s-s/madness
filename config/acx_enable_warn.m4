@@ -3,7 +3,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
   acx_enable_warn_flags=""
   acx_enable_warn_compiler="$CXXVENDOR"
   AC_ARG_ENABLE([warning],
-    [AC_HELP_STRING([--enable-warning@<:@=yes|no|GNU|Pathscale|Portland|Intel|IBM@:>@],
+    [AC_HELP_STRING([--enable-warning@<:@=yes|no|GNU|clang|Pathscale|Portland|Intel|IBM@:>@],
       [Automatically set warnings for compiler.@<:@default=yes@:>@])],
     [
       case $enableval in

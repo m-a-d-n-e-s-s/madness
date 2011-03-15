@@ -4,6 +4,9 @@ AC_DEFUN([ACX_ENABLE_OPTIMIZATION], [
     GNU)
       default_optimization="3"
     ;;
+    clang)
+      default_optimization="4"
+    ;;
     Pathscale)
       default_optimization="fast"
     ;;
