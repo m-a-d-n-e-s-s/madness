@@ -36,7 +36,8 @@
   \defgroup examplehehf Hartree-Fock and MP2 for the helium atom
   \ingroup examples
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/helium_mp2.cc>here</a>.
+  The source is
+  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/helium_mp2.cc>here</a>.
 
 
 */
@@ -67,6 +68,92 @@ static double V(const coord_3d& r) {
     return -1.0/(sqrt(x*x+y*y+z*z+1e-8));
 }
 
+static double HO_3d(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    return x*x + y*y + z*z;
+}
+
+static double HO_6d(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+    const double value=(x1*x1 + y1*y1 + z1*z1) + (x2*x2 + y2*y2 + z2*z2);
+    return value;
+}
+
+
+static double gauss_3d(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    const double r2= x*x + y*y + z*z;
+    const double norm=0.712705695388313;
+    return norm*exp(-r2);
+}
+
+static double gauss_6d(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+    const double r2=(x1*x1 + y1*y1 + z1*z1) + (x2*x2 + y2*y2 + z2*z2);
+    const double norm=0.5;
+    return norm*exp(-r2);
+}
+
+
+static double HO_vphi_3d(const coord_3d& r) {
+    const double v=HO_3d(r);
+    const double phi=gauss_3d(r);
+    return v*phi;
+}
+
+
+static double Z2(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    return -2.0/(sqrt(x*x+y*y+z*z+dcut*dcut));
+}
+
+
+
+static double V_1(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+	const double y1=r[1], y2=r[4];
+	const double z1=r[2], z2=r[5];
+
+
+	const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+	const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+
+	const double value=-2.0/r1 - 2.0/r2;
+	return value;
+
+
+}
+
+
+
+static double g12(const coord_6d& r) {
+
+	// separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+
+    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+
+    const double value=1.0/r12;
+    return value;
+}
+
+
 static double helium_pot(const coord_6d& r) {
 
 	// separation for 2-way decomposition (SVD; r1 -- r2)
@@ -80,7 +167,7 @@ static double helium_pot(const coord_6d& r) {
     const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
     const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
 
-    const double value=-2.0/r1 - 2.0/r2;// + 1.0/r12;
+    const double value=-2.0/r1 - 2.0/r2 + 1.0/r12;
     return value;
 }
 
@@ -106,6 +193,36 @@ static double V_times_phi(const coord_6d& r) {
 }
 
 
+// according to McQuarrie eq. (7.20)
+static double he_orbitals(const coord_6d& r) {
+
+    // separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0], x2=r[3];
+    const double y1=r[1], y2=r[4];
+    const double z1=r[2], z2=r[5];
+
+//    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+
+    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+    const double value=exp(-27.0/16.0*(r1 + r2));
+    return value;
+}
+
+// according to McQuarrie eq. (7.20)
+static double he_orbital_3d(const coord_3d& r) {
+
+    // separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0];
+    const double y1=r[1];
+    const double z1=r[2];
+
+    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+    const double value=exp(-27.0/16.0*r1);
+    return value;
+}
+
+
 
 static double f6d_svd(const coord_6d& r) {
 
@@ -116,9 +233,13 @@ static double f6d_svd(const coord_6d& r) {
 
     const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
 
-    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
-    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
-    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+//    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+//    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+//    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+//    const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
+    const double r1 = (x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+    const double r2 = (x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+    const double r12= (xx*xx + yy*yy + zz*zz + dcut*dcut);
     const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
 //    const double value=exp(-1.8*(r1 + r2));
     return value;
@@ -167,9 +288,11 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-    double L = 32;   // box size
-    long k = 3 ;        // wavelet order
-    double thresh = 1.e-5; // precision
+
+
+    double L = 4;   // box size
+    long k = 5 ;        // wavelet order
+    double thresh = 1.e-3; // precision
     TensorType tt = TT_2D;
     long truncate_mode = 0;
 
@@ -186,6 +309,9 @@ int main(int argc, char** argv) {
 
     // hydrogen
 #if 0
+
+    tt=TT_3D;
+
     FunctionDefaults<3>::set_tensor_type(tt);
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -242,48 +368,16 @@ int main(int argc, char** argv) {
 
     // random test
 #if 1
+
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
 
-    real_function_3d psi=real_factory_3d(world).f(guess);
-    real_function_3d pot=real_factory_3d(world).f(V);
-    real_function_3d Vp=real_factory_3d(world).f(V);
-    real_function_3d pot_cble=real_factory_3d(world).f(V).is_on_demand();
-
-    std::shared_ptr<CompositeFunctorInterface<double,3,3> >
-    	comp(new CompositeFunctorInterface<double,3,3>(k,pot.get_impl(),pot_cble.get_impl()));
-    std::shared_ptr<CompositeFunctorInterface<double,3,3> >
-    	comp_functor(new CompositeFunctorInterface<double,3,3>(k,pot_cble.get_impl(),pot_cble.get_impl()));
-
-    // this will project comp to the MRA function V_phi
-    real_function_3d V_function=real_factory_3d(world).functor(comp).is_on_demand();
-    real_function_3d V_functor=real_factory_3d(world).functor(comp_functor).is_on_demand();
-
-
-//    V_phi.is_tricky();
-//    print("<phi|phi>  ", inner(psi,psi));
-//    print("<phi|V*phi>", inner(psi,pot*psi));
-//    print("<phi|V>    ", inner(psi,pot));
-
-    print("<phi|V>     ", inner(psi,Vp));
-    print("<phi|V_ftor>", inner(psi,V_functor));
-    print("<phi|V_fxn> ", inner(psi,V_function));
-    print("<phi|V>     ", inner(psi,Vp));
-    print("k ",k);
-
-
-#endif
-
-    // start the MP2 bit
-#if 0
-
-
-    // generate the pair function |ij>
-    FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_k(k);
     FunctionDefaults<6>::set_thresh(thresh);
-    FunctionDefaults<6>::set_truncate_mode(truncate_mode);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_tensor_type(TT_2D);
+
 
     print("polynomial order:  ", FunctionDefaults<6>::get_k());
     print("threshold:         ", FunctionDefaults<6>::get_thresh());
@@ -291,76 +385,199 @@ int main(int argc, char** argv) {
     print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
     print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
 
-    print("projecting phi");
-    real_function_6d phi=real_factory_6d(world).f(f6d_svd);
-    print("phi tree size    ",phi.tree_size());
-    print("phi number coeff ",phi.size());
+    // helium
+#if 1
+
+    // one orbital at a time
+    {
+    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_3d);
+    	double norm=inner(orbital,orbital);
+    	print("norm(orbital)",norm);
+    	orbital.scale(1.0/sqrt(norm));
+
+    	// compute kinetic energy
+    	double kinetic_energy = 0.0;
+    	for (int axis=0; axis<3; axis++) {
+    		real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+    		real_function_3d dpsi = D(orbital);
+    		kinetic_energy += 0.5*inner(dpsi,dpsi);
+    		print("done with axis",axis);
+    	}
+    	print("kinetic energy/electron  :", kinetic_energy);
+
+    	// compute potential energy
+    	real_function_3d one_el_pot=real_factory_3d(world).f(Z2);
+    	double pe=inner(orbital,one_el_pot*orbital);
+    	print("potential energy/electron:",pe);
+    }
+
+
+    // pair function
+    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
+
+    // one-electron potential
+    real_function_3d pot1=real_factory_3d(world).f(Z2).thresh(1.e-5);
+    real_function_3d pot2=real_factory_3d(world).f(Z2).thresh(1.e-5);
     if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
-    print("projecting V_nuc * phi");
-    real_function_6d phipot=real_factory_6d(world).f(V_times_phi);
-    print("V_nuc*phi' tree size    ",phipot.tree_size());
-    print("V_nuc*phi number coeff ",phipot.size());
-    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
-
-#if 0
-
-
-    real_function_6d ij_pair;
-    if (FunctionDefaults<6>::get_tensor_type()==TT_3D)   ij_pair = real_factory_6d(world).f(f6d_sr);
-    if (FunctionDefaults<6>::get_tensor_type()==TT_2D)   ij_pair = real_factory_6d(world).f(f6d_svd);
-    if (FunctionDefaults<6>::get_tensor_type()==TT_FULL) ij_pair = real_factory_6d(world).f(f6d_svd);
-    print("helium pair tree size    ",ij_pair.tree_size());
-    print("helium pair number coeff ",ij_pair.size());
-    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
-
-    print("working on the kinetic energy");
-    real_function_6d& psi6=ij_pair;
-
-    double norm=inner(ij_pair,ij_pair);
+    // normalize pair function
+    double norm=inner(pair,pair);
     print("norm(ij_pair)",norm);
-    ij_pair.scale(1.0/sqrt(norm));
-    if(world.rank() == 0) printf("\nnormalize at time %.1fs\n\n", wall_time());
+    pair.scale(1.0/sqrt(norm));
 
+    // compute kinetic energy
     double kinetic_energy = 0.0;
     for (int axis=0; axis<6; axis++) {
     	real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-    	real_function_6d dpsi = D(psi6);
+    	real_function_6d dpsi = D(pair);
     	kinetic_energy += 0.5*inner(dpsi,dpsi);
     	print("done with axis",axis);
     }
     print("kinetic energy:", kinetic_energy);
-    double ke=kinetic_energy;
-    print("dcut",dcut);
+
     if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
 
-    real_function_6d pot;
-    if (FunctionDefaults<6>::get_tensor_type()==TT_3D)   pot = real_factory_6d(world).f(helium_pot);
-    if (FunctionDefaults<6>::get_tensor_type()==TT_2D)   pot = real_factory_6d(world).f(helium_pot);
-    if (FunctionDefaults<6>::get_tensor_type()==TT_FULL) pot = real_factory_6d(world).f(helium_pot);
-    if(world.rank() == 0) printf("\nproject pot at time %.1fs\n\n", wall_time());
+    // compute potential energy
+    double potential_energy=0.0;
+    {
+		// one-electron potential by direct product
+		real_function_6d copy_of_pair=copy(pair);
+		real_factory_6d comp_factory=real_factory_6d(world).empty();
 
-    double pe=inner(ij_pair,pot*ij_pair);
-    print("potential energy:", pe);
-    if(world.rank() == 0) printf("\ncompute pot at time %.1fs\n\n", wall_time());
+		std::shared_ptr<CompositeFunctorInterface<double,6,3> >
+			comp(new CompositeFunctorInterface<double,6,3>(comp_factory,
+					copy_of_pair.get_impl(),
+					pot1.get_impl(),
+					pot2.get_impl()
+					));
 
-    print("kinetic energy:  ", ke);
-    print("potential energy:", pe);
-    print("total energy:    ", pe+ke);
-
-#endif
-
-
-#if 0
-    // Manually tabulate the orbital along a line ... probably easier
-    // to use the lineplot routine
-    coord_3d r(0.0);
-    psi.reconstruct();
-    for (int i=0; i<201; i++) {
-        r[2] = -L/2 + L*i/200.0;
-        print(r[2], psi(r));
+		// this will project comp to the MRA function V_phi
+		real_function_6d v11=real_factory_6d(world).functor(comp).is_on_demand();
+		double a=inner(pair,v11);
+		print("<phi|V_tot|phi> ", a);
+		potential_energy=a;
     }
+
+
+
+
+    print("for he orbitals");
+    print("total energy   :",kinetic_energy+potential_energy);
+    print("expected energy:",-2.8477);
+
 #endif
+
+    // HO
+#if 0
+    // one orbital at a time
+     {
+     	real_function_3d orbital=real_factory_3d(world).f(gauss_3d);
+     	double norm=inner(orbital,orbital);
+     	print("norm(orbital)",norm);
+     	orbital.scale(1.0/sqrt(norm));
+
+     	// compute kinetic energy
+     	double kinetic_energy = 0.0;
+     	for (int axis=0; axis<3; axis++) {
+     		real_derivative_3d D = free_space_derivative<double,3>(world, axis);
+     		real_function_3d dpsi = D(orbital);
+     		kinetic_energy += 0.5*inner(dpsi,dpsi);
+     		print("done with axis",axis);
+     	}
+     	print("kinetic energy/electron  :", kinetic_energy);
+
+     	// compute potential energy
+     	real_function_3d one_el_pot=real_factory_3d(world).f(HO_3d);
+     	double pe=inner(orbital,one_el_pot*orbital);
+     	print("potential energy/electron:",pe);
+     	double pe4=inner(orbital,one_el_pot);
+     	double pe5=inner(orbital,orbital);
+     	print("<phi|phi> /electron:",pe5);
+     	print("<phi|V> /electron:  ",pe4);
+
+
+     	// compute potential energy on demand
+     	real_function_3d v_phi=real_factory_3d(world).f(HO_vphi_3d);
+
+     	double pe3=inner(orbital,v_phi);
+     	print("potential energy 2/electron:",pe3);
+
+
+     	real_function_3d copy_of_orbital=copy(orbital);
+     	real_factory_3d comp_factory=real_factory_3d(world).empty();
+        std::shared_ptr<CompositeFunctorInterface<double,3,3> >
+        	comp(new CompositeFunctorInterface<double,3,3>(comp_factory,
+        			copy_of_orbital.get_impl(),
+        			one_el_pot.get_impl(),
+        			v_phi.get_impl(),
+        			v_phi.get_impl()
+        			));
+
+     	real_function_3d v_phi_od=real_factory_3d(world).functor(comp).is_on_demand();
+     	double pe2=inner(orbital,v_phi_od);
+     	print("potential energy od/electron:",pe2);
+
+
+
+     }
+
+
+
+     // pair function
+     real_function_6d pair=real_factory_6d(world).f(gauss_6d);
+
+     // two-electron potential
+     real_function_6d pot_r12=real_factory_6d(world).f(HO_6d).is_on_demand();
+     real_function_6d pot_ho=real_factory_6d(world).f(HO_6d);
+
+     // one-electron potential
+     real_function_3d pot1=real_factory_3d(world).f(HO_3d);
+     real_function_3d pot2=real_factory_3d(world).f(HO_3d);
+
+     // normalize pair function
+     double norm=inner(pair,pair);
+     print("norm(ij_pair)",norm);
+     pair.scale(1.0/sqrt(norm));
+
+     // compute kinetic energy
+     double kinetic_energy = 0.0;
+     for (int axis=0; axis<6; axis++) {
+     	real_derivative_6d D = free_space_derivative<double,6>(world, axis);
+     	real_function_6d dpsi = D(pair);
+     	kinetic_energy += 0.5*inner(dpsi,dpsi);
+     	print("done with axis",axis);
+     }
+     print("kinetic energy:", kinetic_energy);
+
+     real_function_6d copy_of_pair=copy(pair);
+     real_factory_6d comp_factory=real_factory_6d(world).empty();
+     std::shared_ptr<CompositeFunctorInterface<double,6,3> >
+     	comp(new CompositeFunctorInterface<double,6,3>(comp_factory,
+     			copy_of_pair.get_impl(),
+     			pot_r12.get_impl(),
+     			pot1.get_impl(),
+     			pot2.get_impl()
+     			));
+
+     // this will project comp to the MRA function V_phi
+     real_function_6d V_pair=real_factory_6d(world).functor(comp).is_on_demand();
+     double potential_energy=inner(pair,V_pair);
+     print("<phi|V_ftor>", potential_energy);
+     print("for HO orbitals");
+     print("total energy   :",kinetic_energy+potential_energy);
+
+     // direct
+     double direct=inner(pair,pot_ho*pair);
+     print("direct 2e-pot*pair:",direct);
+
+
+#endif
+
+
+#endif
+
+    // start the MP2 bit
+#if 0
 
 //    if (world.rank() == 0) {
 //        print("            Kinetic energy ", kinetic_energy);
@@ -371,8 +588,7 @@ int main(int argc, char** argv) {
 //    }
 
 #endif
-    if(world.rank() == 0)
-                  printf("\nfinished at time %.1fs\n\n", wall_time());
+    if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
 
 

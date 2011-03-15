@@ -48,7 +48,7 @@
 /// so we simply reuse the matrix elements of the kernel of the Coulomb
 /// operator.
 
-
+/// need to optimize, i.e. include the norm when computing the matrix elements
 
 namespace madness {
 
@@ -66,9 +66,6 @@ namespace madness {
         BoundaryConditions<6> bc;
         int rank;
         int k;
-
-//        mutable SimpleCache< SeparatedConvolutionData<double,NDIM>, NDIM > data;
-
 
     public:
 
@@ -119,7 +116,7 @@ namespace madness {
             }
     	}
 
-    	/// return the coefficients of the function in 6D
+    	/// return the coefficients of the function in 6D (x1,y1,z1, x2,y2,z2)
     	Tensor<double> coeff(const Key<NDIM>& key) const {
 
     		MADNESS_ASSERT(NDIM==6);
@@ -133,7 +130,6 @@ namespace madness {
     		const Translation l1=(l[1]-l[4]);
     		const Translation l2=(l[2]-l[5]);
 
-    		// the dimensions are a bit confused (0,3,1,4,2,5) -> (0,1,2,3,4,5)
     		// the dimensions are a bit confused (x1,x2, y1,y2, z1,z2) -> (x1,y1,z1, x2,y2,z2)
     		std::vector<long> map(NDIM);
    			map[0]=0;
@@ -142,12 +138,6 @@ namespace madness {
    			map[3]=4;
    			map[4]=2;
    			map[5]=5;
-//   			map[0]=0;
-//   			map[3]=1;
-//   			map[1]=2;
-//   			map[4]=3;
-//   			map[2]=4;
-//   			map[5]=5;
 
     		// accumulate the terms r^n_ll'_kk'
     		for (int mu=0; mu<rank; mu++) {
@@ -164,9 +154,6 @@ namespace madness {
 
     		return c;
     	}
-
-
-
 
     };
 }

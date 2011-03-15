@@ -250,8 +250,7 @@ namespace madness {
     private:
 
     	/// various MRA functions of NDIM dimensionality
-    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_f1;	///< supposedly the pair function
-    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_f2;	///< supposedly 1/r12
+    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_ket;	///< supposedly the pair function
 
     	/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
     	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m1;	///< supposedly 1/r1
@@ -264,18 +263,17 @@ namespace madness {
         const FunctionCommonData<T,NDIM>& cdataN;
         const FunctionCommonData<T,MDIM>& cdataM;
 
+        /// electron repulsion matrix elements only make sense in 6D
         ElectronRepulsion<6> eri;
 
     public:
 
-    	/// constructor takes the functions, and operations to connect
+    	/// constructor takes the functions
     	CompositeFunctorInterface(const FunctionFactory<T,NDIM>& factory,
     						const std::shared_ptr<FunctionImpl<T,NDIM> > impl1,
-    						const std::shared_ptr<FunctionImpl<T,NDIM> > impl2,
     						const std::shared_ptr<FunctionImpl<T,MDIM> > impl3,
     						const std::shared_ptr<FunctionImpl<T,MDIM> > impl4)
-    		: impl_f1(impl1)
-			, impl_f2(impl2)
+    		: impl_ket(impl1)
     		, impl_m1(impl3)
 			, impl_m2(impl4)
     		, this_impl(new FunctionImpl<T,NDIM>(factory))
@@ -283,8 +281,7 @@ namespace madness {
     		, cdataM(FunctionCommonData<T,MDIM>::get(factory.get_k()))
     		, eri()
     	{
-    		if (not impl_f1->is_on_demand()) impl_f1->make_redundant(true);
-    		if (not impl_f2->is_on_demand()) impl_f2->make_redundant(true);
+    		if (not impl_ket->is_on_demand()) impl_ket->make_redundant(true);
     		if (not impl_m1->is_on_demand()) impl_m1->make_redundant(true);
     		if (not impl_m2->is_on_demand()) impl_m2->make_redundant(true);
 
@@ -293,6 +290,8 @@ namespace madness {
     		eri=ElectronRepulsion<6>(factory.get_world(),dcut,factory.get_thresh());
 
     		print("returning | p(1) + p(2) + eri(12) | phi> coeffs");
+//    		print("returning | eri(12) | phi> coeffs");
+//     		print("returning | p(1) + p(2) | phi> coeffs");
 
     		MADNESS_ASSERT(this_impl->tree_size()==0);
 
@@ -305,27 +304,9 @@ namespace madness {
     		return T(0);
     	};
 
-    	/// for testing purposes
-    	coeffT diff_coeff(const Key<NDIM>& key) {
-
-    		// the coeffs using Gauss-Legendre quadrature
-    		tensorT glq=impl_f2->demand_coeffs(key);
-
-    		// the coeffs using the separated representation
-    		tensorT sr=eri.coeff(key);
-
-    		print("glq-sr");
-    		print((glq-sr).normf());
-
-    		return sr;
-
-    	}
-
 
         /// return sum coefficients for imagined node at key
     	coeffT coeff(const Key<NDIM>& key)  {
-
-//    		return make_coeff(key);
 
     		coeffT this_coeff;
 
@@ -334,7 +315,7 @@ namespace madness {
     		typename dcT::const_iterator end = coeffs.end();
     		const typename dcT::const_iterator it=coeffs.find(key).get();
 
-    		// if nothing found, construct
+    		// if nothing found, construct and store
            	if (it == coeffs.end()) {
         		this_coeff=make_coeff(key);
         		nodeT node(this_coeff);
@@ -349,8 +330,8 @@ namespace madness {
         /// return sum coefficients for imagined node at key
         coeffT make_coeff(const Key<NDIM>& key) {
 
-        	tensorT coeff_f1(cdataN.vk);	// 6D, to be multiplied
-        	tensorT coeff_f2(cdataN.vk);	// 6D, to be added
+        	tensorT coeff_ket(cdataN.vk);	// 6D, to be multiplied
+        	tensorT coeff_2p(cdataN.vk);	// 6D, to be added
         	tensorT coeff_m1(cdataM.vk);	// 3D, particle 1
         	tensorT coeff_m2(cdataM.vk);	// 3D, particle 2
         	tensorT coeff_v(cdataN.vk);		// 6D, all addends
@@ -363,9 +344,8 @@ namespace madness {
         	Key<MDIM> key2(key.level(),l2);
 
     		// get the coefficients
-        	if (impl_f1) coeff_f1=impl_f1->demand_coeffs(key);
-//        	if (impl_f2) coeff_f2=impl_f2->demand_coeffs(key);
-        	coeff_f2=this->eri.coeff(key);
+        	if (impl_ket) coeff_ket=impl_ket->demand_coeffs(key);
+        	coeff_2p=this->eri.coeff(key);
         	if (impl_m1) coeff_m1=impl_m1->demand_coeffs(key1);
         	if (impl_m2) coeff_m2=impl_m2->demand_coeffs(key2);
 
@@ -374,26 +354,33 @@ namespace madness {
         	double scale2 = pow(0.5,0.5*MDIM*key.level())*sqrt(FunctionDefaults<MDIM>::get_cell_volume());
         	unity=scale2;
         	MADNESS_ASSERT(impl_m1 and impl_m2);
-        	coeff_v = outer(coeff_m1,unity) + outer(unity,coeff_m2);
+
+        	// transform to function values
+        	tensorT val11=impl_m1->coeffs2values(key1,coeff_m1);
+        	tensorT val22=impl_m2->coeffs2values(key2,coeff_m2);
+
+        	// direct product: V(1) * E(2) + E(1) * V(2)
+        	unity=1.0;
+        	coeff_v = outer(val11,unity) + outer(unity,val22);
+        	coeff_v = this_impl->values2coeffs(key,coeff_v);
 
         	// add remaining contributions
-        	coeff_v+=coeff_f2;
-//        	coeff_v=coeff_f2;
+        	coeff_v+=coeff_2p;
+//        	coeff_v=coeff_2p;
 
         	// transform to grid values in preparation for multiplication
 
         	// multiply f1 and f2
-        	tensorT val1= (impl_f1->coeffs2values(key,coeff_f1));
-        	tensorT val2= (impl_f2->coeffs2values(key,coeff_v));
+        	tensorT val1= (impl_ket->coeffs2values(key,coeff_ket));
+        	tensorT val2= (this_impl->coeffs2values(key,coeff_v));
 
         	tensorT tcube(cdataN.vk,false);
             TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val1, T, val2, *_p0 = *_p1 * *_p2;);
-            tensorT tcube1=impl_f1->values2coeffs(key,tcube);
+            tensorT tcube1=impl_ket->values2coeffs(key,tcube);
 
             coeffT coeff=coeffT(tcube1,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
 
         	return coeff;
-//        	return coeffT(coeff_f2,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
         };
 
         /// return the functor values for imagined node at key
@@ -2423,6 +2410,8 @@ namespace madness {
         		// this is a functor, thus the tree is incomplete, and possibly
         		// inaccurate
         		if (this->is_on_demand()) {
+
+        			MADNESS_EXCEPTION("you should not be here",0);
 #if 1
 					// Make in r child scaling function coeffs at level n+1
 					tensorT r = tensorT(cdata.v2k);
@@ -2459,11 +2448,13 @@ namespace madness {
                     typedef std::pair<keyT,coeffT> argT;
 
     				Future<argT> result;
-    				woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world), TaskAttributes::hipri());
+    				woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world),
+    						TaskAttributes::hipri());
     				keyT parent_key=result.get().first;
     				coeffT parent_coeff=result.get().second;
 
     				MADNESS_ASSERT(parent_coeff.has_data());  // should be a redundant tree
+    				MADNESS_ASSERT(key.is_valid() and parent_key.is_valid());
     				t=parent_to_child(parent_coeff,parent_key,key).full_tensor_copy();
 
 				}
