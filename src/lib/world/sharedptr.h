@@ -223,7 +223,7 @@ namespace std {
     /// \endcode
     /// \tparam T The shared_ptr type
     /// \tparam A1 pointer constructor argument 1 type
-    /// \tparam a1 pointer constructor argument 1
+    /// \param a1 pointer constructor argument 1
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1>
     std::shared_ptr<T> make_shared(A1 const & a1) {
@@ -241,7 +241,7 @@ namespace std {
     /// \tparam A the allocator type
     /// \tparam A1 pointer constructor argument 1 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
+    /// \param a1 pointer constructor argument 1
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1) {
@@ -257,8 +257,8 @@ namespace std {
     /// \tparam T The shared_ptr type
     /// \tparam A1 pointer constructor argument 1 type
     /// \tparam A2 pointer constructor argument 2 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2) {
@@ -277,8 +277,8 @@ namespace std {
     /// \tparam A1 pointer constructor argument 1 type
     /// \tparam A2 pointer constructor argument 2 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1, A2 const & a2) {
@@ -295,9 +295,9 @@ namespace std {
     /// \tparam A1 pointer constructor argument 1 type
     /// \tparam A2 pointer constructor argument 2 type
     /// \tparam A3 pointer constructor argument 3 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2, A3 const & a3) {
@@ -317,9 +317,9 @@ namespace std {
     /// \tparam A2 pointer constructor argument 2 type
     /// \tparam A3 pointer constructor argument 3 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1, A2 const & a2, A3 const & a3) {
@@ -337,10 +337,10 @@ namespace std {
     /// \tparam A2 pointer constructor argument 2 type
     /// \tparam A3 pointer constructor argument 3 type
     /// \tparam A4 pointer constructor argument 4 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2, A3 const & a3, A4 const & a4) {
@@ -361,10 +361,10 @@ namespace std {
     /// \tparam A3 pointer constructor argument 3 type
     /// \tparam A4 pointer constructor argument 4 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1, A2 const & a2, A3 const & a3,
@@ -384,11 +384,11 @@ namespace std {
     /// \tparam A3 pointer constructor argument 3 type
     /// \tparam A4 pointer constructor argument 4 type
     /// \tparam A5 pointer constructor argument 5 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4, class A5>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2, A3 const & a3, A4 const & a4,
@@ -411,11 +411,11 @@ namespace std {
     /// \tparam A4 pointer constructor argument 4 type
     /// \tparam A5 pointer constructor argument 5 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4, class A5>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1, A2 const & a2, A3 const & a3,
@@ -436,12 +436,12 @@ namespace std {
     /// \tparam A4 pointer constructor argument 4 type
     /// \tparam A5 pointer constructor argument 5 type
     /// \tparam A6 pointer constructor argument 6 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4, class A5, class A6>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2, A3 const & a3, A4 const & a4,
@@ -465,12 +465,12 @@ namespace std {
     /// \tparam A5 pointer constructor argument 5 type
     /// \tparam A6 pointer constructor argument 6 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4, class A5, class A6>
     std::shared_ptr<T> allocate_shared(A const & a, A1 const & a1, A2 const & a2, A3 const & a3,
@@ -493,13 +493,13 @@ namespace std {
     /// \tparam A5 pointer constructor argument 5 type
     /// \tparam A6 pointer constructor argument 6 type
     /// \tparam A7 pointer constructor argument 7 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4, class A5, class A6, class A7>
     std::shared_ptr<T> make_shared(A1 const & a1, A2 const & a2, A3 const & a3, A4 const & a4,
@@ -524,13 +524,13 @@ namespace std {
     /// \tparam A6 pointer constructor argument 6 type
     /// \tparam A7 pointer constructor argument 7 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4, class A5, class A6,
             class A7>
@@ -555,14 +555,14 @@ namespace std {
     /// \tparam A6 pointer constructor argument 6 type
     /// \tparam A7 pointer constructor argument 7 type
     /// \tparam A8 pointer constructor argument 8 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
-    /// \tparam a8 pointer constructor argument 8
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
+    /// \param a8 pointer constructor argument 8
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4, class A5, class A6, class A7,
             class A8>
@@ -589,14 +589,14 @@ namespace std {
     /// \tparam A7 pointer constructor argument 7 type
     /// \tparam A8 pointer constructor argument 8 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
-    /// \tparam a8 pointer constructor argument 8
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
+    /// \param a8 pointer constructor argument 8
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4, class A5, class A6,
             class A7, class A8>
@@ -623,15 +623,15 @@ namespace std {
     /// \tparam A7 pointer constructor argument 7 type
     /// \tparam A8 pointer constructor argument 8 type
     /// \tparam A9 pointer constructor argument 9 type
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
-    /// \tparam a8 pointer constructor argument 8
-    /// \tparam a9 pointer constructor argument 9
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
+    /// \param a8 pointer constructor argument 8
+    /// \param a9 pointer constructor argument 9
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A1, class A2, class A3, class A4, class A5, class A6, class A7,
             class A8, class A9>
@@ -659,15 +659,15 @@ namespace std {
     /// \tparam A8 pointer constructor argument 8 type
     /// \tparam A9 pointer constructor argument 9 type
     /// \param a The allocator object used to allocate the shared_ptr
-    /// \tparam a1 pointer constructor argument 1
-    /// \tparam a2 pointer constructor argument 2
-    /// \tparam a3 pointer constructor argument 3
-    /// \tparam a4 pointer constructor argument 4
-    /// \tparam a5 pointer constructor argument 5
-    /// \tparam a6 pointer constructor argument 6
-    /// \tparam a7 pointer constructor argument 7
-    /// \tparam a8 pointer constructor argument 8
-    /// \tparam a9 pointer constructor argument 9
+    /// \param a1 pointer constructor argument 1
+    /// \param a2 pointer constructor argument 2
+    /// \param a3 pointer constructor argument 3
+    /// \param a4 pointer constructor argument 4
+    /// \param a5 pointer constructor argument 5
+    /// \param a6 pointer constructor argument 6
+    /// \param a7 pointer constructor argument 7
+    /// \param a8 pointer constructor argument 8
+    /// \param a9 pointer constructor argument 9
     /// \return A shared_ptr constructed with the given arguments
     template <class T, class A, class A1, class A2, class A3, class A4, class A5, class A6,
             class A7, class A8, class A9>
