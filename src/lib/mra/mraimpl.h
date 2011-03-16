@@ -264,7 +264,8 @@ namespace madness {
 
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
-		fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+//		fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+		fcube(key,ElementaryInterface<T,NDIM>(f) , qx, fval);
 	}
 
     template <typename T, std::size_t NDIM>
@@ -608,21 +609,27 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     Tensor<T> FunctionImpl<T,NDIM>::project(const keyT& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
-        tensorT fval(cdata.vq,false); // this will be the returned result
-        tensorT work(cdata.vk,false); // initially evaluate the function in here
-        tensorT workq(cdata.vq,false); // initially evaluate the function in here
 
-        if (functor) {
-            fcube(key,*functor,cdata.quad_x,work);
-        }
-        else {
-            MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
+        if (not functor) MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
+
+        // if functor provides coeffs directly, awesome; otherwise use compute by yourself
+        if (functor->provides_coeff()) {
+        	return functor->coeff(key).full_tensor_copy();
+
+        } else {
+
+            MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
+            tensorT fval(cdata.vq,false); // this will be the returned result
+            tensorT work(cdata.vk,false); // initially evaluate the function in here
+            tensorT workq(cdata.vq,false); // initially evaluate the function in here
+
+        	fcube(key,*functor,cdata.quad_x,work);
+
+        	work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
+            //return transform(work,cdata.quad_phiw);
+            return fast_transform(work,cdata.quad_phiw,fval,workq);
         }
 
-        work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
-        //return transform(work,cdata.quad_phiw);
-        return fast_transform(work,cdata.quad_phiw,fval,workq);
     }
 
     template <typename T, std::size_t NDIM>

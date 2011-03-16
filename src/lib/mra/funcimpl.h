@@ -46,7 +46,7 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include "mra/flonode.h"
-#include "mra/electron_repulsion.h"
+#include "mra/function_factory_and_interface.h"
 #include "mra/sepreptensor.h"
 #include <world/typestuff.h>
 
@@ -65,6 +65,9 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     class FunctionFactory;
+
+    template<typename T, std::size_t NDIM, std::size_t MDIM>
+    class CompositeFunctorInterface;
 
     template<int D>
     class LoadBalImpl;
@@ -196,363 +199,6 @@ namespace madness {
                          Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
     };
 
-    /// Interface required for functors used as input to Functions
-    template<typename T, std::size_t NDIM>
-    class FunctionFunctorInterface {
-    public:
-
-    	typedef Tensor<T> tensorT;
-    	typedef GenTensor<T> coeffT;
-    	typedef Key<NDIM> keyT;
-
-        /// You should implement this to return \c f(x)
-        virtual T operator()(const Vector<double, NDIM>& x) const = 0;
-
-        /// Override this to return list of special points to be refined more deeply
-        virtual std::vector< Vector<double,NDIM> > special_points() const {
-            return std::vector< Vector<double,NDIM> >();
-        }
-
-        /// Override this change level refinement for special points (default is 6)
-        virtual Level special_level() {return 6;}
-
-        virtual ~FunctionFunctorInterface() {}
-
-        virtual coeffT coeff(const keyT&) {
-        	MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
-        }
-
-        virtual void is_tricky() const {print("is not tricky");}
-
-   };
-
-    /// CompositeFunctorInterface implements a wrapper of holding several functions and functors
-
-    /// Use this to "connect" several functions and/or functors and to return their coefficients
-    /// e.g. connect f1 and f2 with an addition, you can request the coefficients of any node
-    /// and they will be computed on the fly and returned. Mainly useful to connect a functor
-    /// with a function, if the functor is too large to be represented in MRA (e.g. 1/r12)
-    ///
-    /// as of now, the operation connecting the functions/functors is simply addition. Might
-    /// need to implement expression templates, if I only knew what that was...
-    template<typename T, std::size_t NDIM, std::size_t MDIM>
-    class CompositeFunctorInterface : public FunctionFunctorInterface<T,NDIM> {
-
-    public:
-    	typedef FunctionNode<T,NDIM> nodeT;
-    	typedef GenTensor<T> coeffT;
-    	typedef Tensor<T> tensorT;
-    	typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-    	typedef Key<NDIM> keyN;
-    	typedef Key<MDIM> keyM;
-        typedef WorldContainer<keyN,nodeT> dcT; ///< Type of container holding the coefficients
-
-    private:
-
-    	/// various MRA functions of NDIM dimensionality
-    	std::shared_ptr< FunctionImpl<T,NDIM> > impl_ket;	///< supposedly the pair function
-
-    	/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
-    	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m1;	///< supposedly 1/r1
-    	std::shared_ptr< FunctionImpl<T,MDIM> > impl_m2;	///< supposedly 1/r2
-
-        /// caching this
-        std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
-
-    	/// common data
-        const FunctionCommonData<T,NDIM>& cdataN;
-        const FunctionCommonData<T,MDIM>& cdataM;
-
-        /// electron repulsion matrix elements only make sense in 6D
-        ElectronRepulsion<6> eri;
-
-    public:
-
-    	/// constructor takes the functions
-    	CompositeFunctorInterface(const FunctionFactory<T,NDIM>& factory,
-    						const std::shared_ptr<FunctionImpl<T,NDIM> > impl1,
-    						const std::shared_ptr<FunctionImpl<T,MDIM> > impl3,
-    						const std::shared_ptr<FunctionImpl<T,MDIM> > impl4)
-    		: impl_ket(impl1)
-    		, impl_m1(impl3)
-			, impl_m2(impl4)
-    		, this_impl(new FunctionImpl<T,NDIM>(factory))
-    		, cdataN(FunctionCommonData<T,NDIM>::get(factory.get_k()))
-    		, cdataM(FunctionCommonData<T,MDIM>::get(factory.get_k()))
-    		, eri()
-    	{
-    		if (not impl_ket->is_on_demand()) impl_ket->make_redundant(true);
-    		if (not impl_m1->is_on_demand()) impl_m1->make_redundant(true);
-    		if (not impl_m2->is_on_demand()) impl_m2->make_redundant(true);
-
-    		const double dcut=1.e-4;
-    		print("set dcut in ElectronRepulsion to",dcut);
-    		eri=ElectronRepulsion<6>(factory.get_world(),dcut,factory.get_thresh());
-
-    		print("returning | p(1) + p(2) + eri(12) | phi> coeffs");
-//    		print("returning | eri(12) | phi> coeffs");
-//     		print("returning | p(1) + p(2) | phi> coeffs");
-
-    		MADNESS_ASSERT(this_impl->tree_size()==0);
-
-    	};
-
-    	/// return value at point x; fairly inefficient
-    	T operator()(const coordT& x) const {
-    		print("there is no operator()(coordT&) in CompositeFunctorInterface, for good reason");
-    		MADNESS_ASSERT(0);
-    		return T(0);
-    	};
-
-
-        /// return sum coefficients for imagined node at key
-    	coeffT coeff(const Key<NDIM>& key)  {
-
-    		coeffT this_coeff;
-
-    		// try to find coeffs
-            dcT& coeffs=this_impl->get_coeffs();
-    		typename dcT::const_iterator end = coeffs.end();
-    		const typename dcT::const_iterator it=coeffs.find(key).get();
-
-    		// if nothing found, construct and store
-           	if (it == coeffs.end()) {
-        		this_coeff=make_coeff(key);
-        		nodeT node(this_coeff);
-        		coeffs.replace(key,node);
-           	} else {
-           		this_coeff=it->second.coeff();
-           	}
-           	return this_coeff;
-    	}
-
-
-        /// return sum coefficients for imagined node at key
-        coeffT make_coeff(const Key<NDIM>& key) {
-
-        	tensorT coeff_ket(cdataN.vk);	// 6D, to be multiplied
-        	tensorT coeff_2p(cdataN.vk);	// 6D, to be added
-        	tensorT coeff_m1(cdataM.vk);	// 3D, particle 1
-        	tensorT coeff_m2(cdataM.vk);	// 3D, particle 2
-        	tensorT coeff_v(cdataN.vk);		// 6D, all addends
-
-        	// break key into particles
-        	const Vector<Translation, NDIM> l=key.translation();
-        	const Vector<Translation, MDIM> l1=Vector<Translation,MDIM> (vec(l[0],l[1],l[2]));
-        	const Vector<Translation, MDIM> l2=Vector<Translation,MDIM> (vec(l[3],l[4],l[5]));
-        	Key<MDIM> key1(key.level(),l1);
-        	Key<MDIM> key2(key.level(),l2);
-
-    		// get the coefficients
-        	if (impl_ket) coeff_ket=impl_ket->demand_coeffs(key);
-        	coeff_2p=this->eri.coeff(key);
-        	if (impl_m1) coeff_m1=impl_m1->demand_coeffs(key1);
-        	if (impl_m2) coeff_m2=impl_m2->demand_coeffs(key2);
-
-        	// extend 3D particles to 6D and add them
-        	Tensor<double> unity=Tensor<double>(cdataM.vk,false);
-        	double scale2 = pow(0.5,0.5*MDIM*key.level())*sqrt(FunctionDefaults<MDIM>::get_cell_volume());
-        	unity=scale2;
-        	MADNESS_ASSERT(impl_m1 and impl_m2);
-
-        	// transform to function values
-        	tensorT val11=impl_m1->coeffs2values(key1,coeff_m1);
-        	tensorT val22=impl_m2->coeffs2values(key2,coeff_m2);
-
-        	// direct product: V(1) * E(2) + E(1) * V(2)
-        	unity=1.0;
-        	coeff_v = outer(val11,unity) + outer(unity,val22);
-        	coeff_v = this_impl->values2coeffs(key,coeff_v);
-
-        	// add remaining contributions
-        	coeff_v+=coeff_2p;
-//        	coeff_v=coeff_2p;
-
-        	// transform to grid values in preparation for multiplication
-
-        	// multiply f1 and f2
-        	tensorT val1= (impl_ket->coeffs2values(key,coeff_ket));
-        	tensorT val2= (this_impl->coeffs2values(key,coeff_v));
-
-        	tensorT tcube(cdataN.vk,false);
-            TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val1, T, val2, *_p0 = *_p1 * *_p2;);
-            tensorT tcube1=impl_ket->values2coeffs(key,tcube);
-
-            coeffT coeff=coeffT(tcube1,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
-
-        	return coeff;
-        };
-
-        /// return the functor values for imagined node at key
-        coeffT fcube(const Key<NDIM>& key) const {};
-
-        void is_tricky() const {print("is tricky");}
-
-
-    };
-
-    /// FunctionFactory implements the named-parameter idiom for Function
-
-    /// C++ does not provide named arguments (as does, e.g., Python).
-    /// This class provides something very close.  Create functions as follows
-    /// \code
-    /// double myfunc(const double x[]);
-    /// Function<double,3> f = FunctionFactory<double,3>(world).f(myfunc).k(11).thresh(1e-9).debug()
-    /// \endcode
-    /// where the methods of function factory, which specify the non-default
-    /// arguments eventually passed to the \c Function constructor, can be
-    /// used in any order.
-    ///
-    /// Need to add a general functor for initial projection with a standard interface.
-    template<typename T, std::size_t NDIM>
-    class FunctionFactory {
-        friend class FunctionImpl<T, NDIM> ;
-        typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-    protected:
-        World& _world;
-        int _k;
-        double _thresh;
-        int _initial_level;
-        int _max_refine_level;
-        int _truncate_mode;
-        bool _refine;
-        bool _empty;
-        bool _autorefine;
-        bool _truncate_on_project;
-        bool _fence;
-        bool _is_on_demand;
-        //Tensor<int> _bc;
-        std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > > _pmap;
-        std::shared_ptr<FunctionFunctorInterface<T, NDIM> > _functor;
-
-    public:
-        struct FunctorInterfaceWrapper : public FunctionFunctorInterface<T,NDIM> {
-            T (*f)(const coordT&);
-
-            FunctorInterfaceWrapper(T (*f)(const coordT&)) : f(f) {}
-
-            T operator()(const coordT& x) const {return f(x);}
-        };
-
-        FunctionFactory(World& world) :
-                _world(world),
-                _k(FunctionDefaults<NDIM>::get_k()),
-                _thresh(FunctionDefaults<NDIM>::get_thresh()),
-                _initial_level(
-                    FunctionDefaults<NDIM>::get_initial_level()),
-                _max_refine_level(
-                    FunctionDefaults<NDIM>::get_max_refine_level()),
-                _truncate_mode(
-                    FunctionDefaults<NDIM>::get_truncate_mode()),
-                _refine(FunctionDefaults<NDIM>::get_refine()),
-                _empty(false),
-                _autorefine(FunctionDefaults<NDIM>::get_autorefine()),
-                _truncate_on_project(
-                    FunctionDefaults<NDIM>::get_truncate_on_project()),
-                _fence(true), // _bc(FunctionDefaults<NDIM>::get_bc()),
-                _is_on_demand(false),
-                _pmap(FunctionDefaults<NDIM>::get_pmap()), _functor() {
-        }
-        FunctionFactory&
-        functor(
-            const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
-            _functor = f;
-            print("set functor");
-            return *this;
-        }
-        FunctionFactory&
-        f(T
-          (*f)(const coordT&)) {
-            functor(std::shared_ptr<FunctionFunctorInterface<T, NDIM> > (
-                        new FunctorInterfaceWrapper(f)));
-            return *this;
-        }
-        FunctionFactory&
-        k(int k) {
-            _k = k;
-            return *this;
-        }
-        FunctionFactory&
-        thresh(double thresh) {
-            _thresh = thresh;
-            return *this;
-        }
-        FunctionFactory&
-        initial_level(int initial_level) {
-            _initial_level = initial_level;
-            return *this;
-        }
-        FunctionFactory&
-        max_refine_level(int max_refine_level) {
-            _max_refine_level = max_refine_level;
-            return *this;
-        }
-        FunctionFactory&
-        truncate_mode(int truncate_mode) {
-            _truncate_mode = truncate_mode;
-            return *this;
-        }
-        FunctionFactory&
-        refine(bool refine = true) {
-            _refine = refine;
-            return *this;
-        }
-        FunctionFactory&
-        norefine(bool norefine = true) {
-            _refine = !norefine;
-            return *this;
-        }
-
-        FunctionFactory&
-        empty() {
-            _empty = true;
-            return *this;
-        }
-        FunctionFactory&
-        autorefine() {
-            _autorefine = true;
-            return *this;
-        }
-        FunctionFactory&
-        noautorefine() {
-            _autorefine = false;
-            return *this;
-        }
-        FunctionFactory&
-        truncate_on_project() {
-            _truncate_on_project = true;
-            return *this;
-        }
-        FunctionFactory&
-        notruncate_on_project() {
-            _truncate_on_project = false;
-            return *this;
-        }
-        FunctionFactory&
-        fence(bool fence = true) {
-            _fence = fence;
-            return *this;
-        }
-        FunctionFactory&
-        nofence() {
-            _fence = false;
-            return *this;
-        }
-        FunctionFactory&
-        is_on_demand() {
-            _is_on_demand = true;
-            return *this;
-        }
-        FunctionFactory&
-        pmap(const std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > >& pmap) {
-            _pmap = pmap;
-            return *this;
-        }
-
-        int get_k() const {return _k;};
-        double get_thresh() const {return _thresh;};
-        World& get_world() const {return _world;};
-    };
 
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
@@ -972,7 +618,7 @@ namespace madness {
                 , truncate_on_project(factory._truncate_on_project)
                 , nonstandard(false)
                 , cdata(FunctionCommonData<T,NDIM>::get(k))
-                , functor(factory._functor)
+                , functor(factory.get_functor())
                 , on_demand(factory._is_on_demand)
                 , compressed(false)
                 , redundant(false)
@@ -1050,8 +696,6 @@ namespace madness {
         }
 
         virtual ~FunctionImpl() { }
-
-        void is_tricky() const {this->functor->is_tricky();};
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             return coeffs.get_pmap();
@@ -2411,37 +2055,32 @@ namespace madness {
         		// inaccurate
         		if (this->is_on_demand()) {
 
-        			MADNESS_EXCEPTION("you should not be here",0);
+        			// make sure we have a valid functor
+        			MADNESS_ASSERT(functor);
+
+        			// if the functor provides its own coeffs, great, otherwise
+        			// try to compute them by backfiltering
+        			if (functor->provides_coeff()) {
+        				t=project(key);
+        			} else {
+
+        				MADNESS_EXCEPTION("you should not be here",0);
 #if 1
-					// Make in r child scaling function coeffs at level n+1
-					tensorT r = tensorT(cdata.v2k);
-					for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-						const keyT& child = kit.key();
-
-#if 0
-						// Make in rr grandchild scaling function coeffs at level n+2
-						tensorT rr = tensorT(cdata.v2k);
-						for (KeyChildIterator<NDIM> kit2(child); kit2; ++kit2) {
-							const keyT& grandchild = kit2.key();
-							rr(child_patch(grandchild)) += project(grandchild);
+						// Make in r child scaling function coeffs at level n+1
+						tensorT r = tensorT(cdata.v2k);
+						for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+							const keyT& child = kit.key();
+							r(child_patch(child)) += project(child);
 						}
-						rr = filter(rr);
-						r=(copy(rr(cdata.s0)));
-
-#else
-						r(child_patch(child)) += project(child);
-
-#endif
-					}
-					// Filter then test difference coeffs at level n
-					r = filter(r);
-					t=(copy(r(cdata.s0)));
+						// Filter then test difference coeffs at level n
+						r = filter(r);
+						t=(copy(r(cdata.s0)));
 
 #else
 
-					t=project(key);
+						t=project(key);
 #endif
-
+        			}
         		// this is a function, construct coefficients from parent
         		} else {
 
@@ -2467,8 +2106,9 @@ namespace madness {
         	} else {
         		t=it->second.coeff().full_tensor_copy();
         		if (not t.has_data()) {
-        			print("nothing found for ",key);
         			this->print_tree();
+        			print("nothing found for ",key);
+        			MADNESS_EXCEPTION("couldn't find key in demand_coeffs",0);
         		}
         	}
 

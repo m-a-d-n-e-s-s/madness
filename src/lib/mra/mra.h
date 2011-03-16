@@ -131,8 +131,6 @@ namespace madness {
         /// Destruction of any underlying implementation is deferred to next global fence.
         ~Function() {}
 
-        void is_tricky() {impl->is_tricky();};
-
         /// Evaluates the function at a point in user coordinates.  Possible non-blocking comm.
 
         /// Only the invoking process will receive the result via the future

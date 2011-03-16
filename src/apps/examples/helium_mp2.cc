@@ -290,7 +290,7 @@ int main(int argc, char** argv) {
 
 
 
-    double L = 4;   // box size
+    double L = 1;   // box size
     long k = 5 ;        // wavelet order
     double thresh = 1.e-3; // precision
     TensorType tt = TT_2D;
@@ -416,8 +416,8 @@ int main(int argc, char** argv) {
     real_function_6d pair=real_factory_6d(world).f(he_orbitals);
 
     // one-electron potential
-    real_function_3d pot1=real_factory_3d(world).f(Z2).thresh(1.e-5);
-    real_function_3d pot2=real_factory_3d(world).f(Z2).thresh(1.e-5);
+    real_function_3d pot1=real_factory_3d(world).f(Z2);
+    real_function_3d pot2=real_factory_3d(world).f(Z2);
     if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
     // normalize pair function
@@ -440,19 +440,20 @@ int main(int argc, char** argv) {
     // compute potential energy
     double potential_energy=0.0;
     {
-		// one-electron potential by direct product
+		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
-		real_factory_6d comp_factory=real_factory_6d(world).empty();
 
-		std::shared_ptr<CompositeFunctorInterface<double,6,3> >
-			comp(new CompositeFunctorInterface<double,6,3>(comp_factory,
-					copy_of_pair.get_impl(),
-					pot1.get_impl(),
-					pot2.get_impl()
-					));
+		// two-electron interaction potential
+		real_function_6d eri=ERIFactory<double,6>(world);
 
-		// this will project comp to the MRA function V_phi
-		real_function_6d v11=real_factory_6d(world).functor(comp).is_on_demand();
+		real_function_6d v11=CompositeFactory<double,6,3>(world)
+				.ket(copy_of_pair.get_impl())
+				.g12(eri.get_impl())
+				.V_for_particle1(pot1.get_impl())
+				.V_for_particle2(pot2.get_impl())
+				;
+
+
 		double a=inner(pair,v11);
 		print("<phi|V_tot|phi> ", a);
 		potential_energy=a;
