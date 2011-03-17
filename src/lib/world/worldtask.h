@@ -59,8 +59,8 @@ namespace madness {
     // Forward decls
     class WorldTaskQueue;
     class TaskInterface;
-    template <typename functionT> class TaskFunction;
-    template <typename memfunT> class TaskMemfun;
+    template <typename functionT> struct TaskFunction;
+    template <typename memfunT> struct TaskMemfun;
 
     /// All world tasks must be derived from this public interface
 
