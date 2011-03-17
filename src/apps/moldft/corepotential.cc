@@ -71,11 +71,11 @@ double CorePotential::eval(double r) const {
             sp = smoothed_potential(r*rcut0)*rcut0;
         }
         switch (n[i]) {
-            case 0: rn = sp*sp; break;
+            //case 0: rn = sp*sp; break;
             case 1: rn = sp; break;
             case 2: rn = 1.0; break;
-            case 3: rn = r; break;
-            case 4: rn = r*r; break;
+            //case 3: rn = r; break;
+            //case 4: rn = rr; break;
             default: rn = pow(r, n[i] - 2);
         }
         u += A[i] * rn * exp(-alpha[i] * rr);
@@ -86,22 +86,26 @@ double CorePotential::eval(double r) const {
 double CorePotential::eval_derivative(double xi, double r) const {
     double u = 0.0;
     double rr = r*r;
+    double sp_n = smoothed_potential(r*rcut)*rcut;
+    double dsp_n = -dsmoothed_potential(r*rcut)*rcut*rcut;
     for (unsigned int i=0; i<A.size(); ++i) {
-        double rn = 1.0;
-        double sp = smoothed_potential(r*rcut)*rcut;
+        double rn2 = 1.0;
+        double rn4 = 1.0;
+        double sp = sp_n;
+        double dsp = dsp_n;
         if (i==0) {
             sp = smoothed_potential(r*rcut0)*rcut0;
+            dsp = -dsmoothed_potential(r*rcut0)*rcut0*rcut0;
         }
         switch (n[i]) {
-            case 0: rn = sp*sp; break;
-            case 1: rn = sp; break;
-            case 2: rn = 1.0; break;
-            case 3: rn = r; break;
-            case 4: rn = r*r; break;
-            default: rn = pow(r, n[i] - 2);
+            //case 0: rn2 = sp*sp; rn4 = rn2*rn2; break;
+            case 1: rn2 = sp; rn4 = dsp*sp; break;
+            case 2: rn2 = 1.0; rn4 = dsp; break;
+            //case 3: rn2 = r; rn4 = sp; break;
+            //case 4: rn2 = rr; rn4 = 1.0; break;
+            default: rn2 = pow(r, n[i] - 2); rn4 = pow(r, n[i] - 4);
         }
-        double dsp = dsmoothed_potential(r*rcut)*rcut*rcut;
-        u += A[i] * xi * exp(-alpha[i] * rr) * ((n[i] - 2) / r * dsp - 2 * alpha[i] * rn);
+        u += A[i] * xi * exp(-alpha[i] * rr) * ((n[i]-2) * rn4 - 2.0 * alpha[i] * rn2);
     }
     return u;
 }

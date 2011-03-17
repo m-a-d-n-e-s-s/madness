@@ -198,12 +198,12 @@ public:
         return get_atom_core(atn).orbital[core].eval_derivative(m, axis, xi, rsq, x, y, z);
     }
 
-    inline double potential(unsigned int atn, double r) const {
+    double potential(unsigned int atn, double r) const {
         AtomCore ac = (*(atom_core.find(atn))).second;
         return ac.potential.eval(r);
     }
 
-    inline double potential_derivative(unsigned int atn, double xi, double r) const {
+    double potential_derivative(unsigned int atn, double xi, double r) const {
         AtomCore ac = (*(atom_core.find(atn))).second;
         return ac.potential.eval_derivative(xi, r);
     }

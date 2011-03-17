@@ -118,7 +118,7 @@ while 1:
     print_vector(n, aocc)
     print "   </alphaocc>"
     print "   <betaocc>"
-ppp    print_vector(n, bocc)
+    print_vector(n, bocc)
     print "   </betaocc>"
     print "   <alphaeps>"
     print_vector(n, aeps)
