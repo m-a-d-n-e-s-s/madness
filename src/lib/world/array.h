@@ -53,39 +53,13 @@
 #error No acceptable array include directive was found.
 #endif // ARRAY
 
-#if defined(MADNESS_HAS_STD_TR1_ARRAY) && !defined(MADNESS_HAS_STD_ARRAY)
-#define MADNESS_HAS_STD_ARRAY 1
-
 // Insert the tr1 array class into the std namespace.
 namespace std {
 
-#ifndef MADNESS_ARRAY_HAS_FILL
-#define MADNESS_ARRAY_HAS_FILL 1
-    template <typename T, std::size_t N>
-    class array : public ::std::tr1::array<T,N> {
-    private:
-        typedef ::std::tr1::array<T,N> arrayT;
-
-    public:
-        typedef typename arrayT::value_type             value_type;
-        typedef typename arrayT::reference              reference;
-        typedef typename arrayT::const_reference        const_reference;
-        typedef typename arrayT::iterator               iterator;
-        typedef typename arrayT::const_iterator         const_iterator;
-        typedef typename arrayT::size_type              size_type;
-        typedef typename arrayT::difference_type        difference_type;
-        typedef typename arrayT::reverse_iterator       reverse_iterator;
-        typedef typename arrayT::const_reverse_iterator const_reverse_iterator;
-
-        void fill(const value_type& u) { arrayT::assign(u); }
-    }; // class array
-#else
+#if defined(MADNESS_HAS_STD_TR1_ARRAY) && !defined(MADNESS_HAS_STD_ARRAY)
+#define MADNESS_HAS_STD_ARRAY 1
 
     using ::std::tr1::array;
-
-#endif // MADNESS_ARRAY_HAS_FILL
-
-
     using ::std::tr1::swap;
     using ::std::tr1::tuple_size;
     using ::std::tr1::tuple_element;
@@ -93,10 +67,7 @@ namespace std {
     using ::std::tr1::tuple_element;
     using ::std::tr1::get;
 
-} // namespace std
 #endif
-
-namespace std {
 
     /// Output std::array to stream for human consumption
     template <typename T, std::size_t N>
@@ -174,7 +145,7 @@ namespace madness {
         /// Initialize all elements to value t
         template <typename Q>
         explicit Vector(Q t) {
-            data_.fill(t);
+            fill(t);
         }
 
         /// Construct from a C-style array of the same dimension
@@ -228,7 +199,7 @@ namespace madness {
 
         /// Fill from scalar value
         Vector<T,N>& operator=(const T& t) {
-            data_.fill(t);
+            fill(t);
             return *this;
         }
 
@@ -266,7 +237,13 @@ namespace madness {
 
          // modifiers
          void swap(Vector<T, N>& other) { data_.swap(other.data_); }
-         void fill(const T& t) { data_.fill(t); }
+         void fill(const T& t) {
+#ifdef MADNESS_ARRAY_HAS_FILL
+             data_.fill(t);
+ #else
+             data_.assign(t);
+ #endif
+         }
 
         /// In-place element-wise multiplcation by a scalar
 
