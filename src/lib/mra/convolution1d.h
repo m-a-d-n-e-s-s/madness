@@ -418,7 +418,7 @@ namespace madness {
 
         ConvolutionND(std::shared_ptr<Convolution1D<Q> > op, Q fac=1.0) : fac(fac)
         {
-            ops.fill(op);
+            std::fill(ops.begin(), ops.end(), op);
         }
 
         void setop(int dim, const std::shared_ptr<Convolution1D<Q> >& op)  {
@@ -541,7 +541,7 @@ namespace madness {
 
     /// 1D convolution with (derivative) Gaussian; coeff and expnt given in *simulation* coordinates [0,1]
 
-    /// Note that the derivative is computed in *simulation* coordinates so 
+    /// Note that the derivative is computed in *simulation* coordinates so
     /// you must be careful to scale the coefficients correctly.
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
@@ -650,7 +650,7 @@ namespace madness {
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
             // and subsequent boxes.
-            
+
             // The derivatives add a factor of expnt^m to the size of
             // the function at long range.
             double sch = std::abs(scaledcoeff*h);
