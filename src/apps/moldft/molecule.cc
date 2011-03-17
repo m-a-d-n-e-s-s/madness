@@ -235,6 +235,24 @@ double Molecule::nuclear_repulsion_energy() const {
     return sum;
 }
 
+double Molecule::nuclear_dipole(int axis) const {
+    double sum = 0.0;
+    for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
+        unsigned int z = atoms[atom].atomic_number;
+        if (core_pot.is_defined(z)) z -= core_pot.n_core_orb(z) * 2;
+        double r;
+        switch (axis) {
+            case 0: r = atoms[atom].x; break;
+            case 1: r = atoms[atom].y; break;
+            case 2: r = atoms[atom].z; break;
+            default: MADNESS_EXCEPTION("invalid axis", 0);
+        }
+        sum += r*z;
+    }
+
+    return sum;
+}
+
 double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     unsigned int z1 = atoms[i].atomic_number;

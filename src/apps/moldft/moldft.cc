@@ -326,6 +326,7 @@ private:
     const int i, j, k;
 public:
     MomentFunctor(int i, int j, int k) : i(i), j(j), k(k) {}
+    MomentFunctor(const std::vector<int>& x) : i(x[0]), j(x[1]), k(x[2]) {}
     double operator()(const coordT& r) const {
         double xi=1.0, yj=1.0, zk=1.0;
         for (int p=0; p<i; ++p) xi *= r[0];
@@ -421,6 +422,7 @@ struct CalculationParameters {
     std::string aobasis;        ///< AO basis used for initial guess (6-31g or sto-3g)
     std::string core_type;      ///< core potential type ("" or "mcp")
     bool derivatives;           ///< If true calculate derivatives
+    bool dipole;                ///< If true calculatio dipole moment
     bool conv_only_dens;        ///< If true remove bsh_residual from convergence criteria   how ugly name is...
     // Next list inferred parameters
     int nalpha;                 ///< Number of alpha spin electrons
@@ -434,7 +436,7 @@ struct CalculationParameters {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
-        ar & core_type & derivatives & conv_only_dens;
+        ar & core_type & derivatives & conv_only_dens & dipole;
     }
 
     CalculationParameters()
@@ -463,6 +465,7 @@ struct CalculationParameters {
         , aobasis("6-31g")
         , core_type("")
         , derivatives(false)
+        , dipole(false)
         , conv_only_dens(false)
         , nalpha(0)
         , nbeta(0)
@@ -572,6 +575,9 @@ struct CalculationParameters {
             else if (s == "derivatives") {
                 derivatives = true;
             }
+            else if (s == "dipole") {
+                dipole = true;
+            }
             else if (s == "convonlydens") {
                 conv_only_dens = true;
             }
@@ -664,6 +670,8 @@ struct CalculationParameters {
             madness::print("  canonical orbitals ");
         if (derivatives)
             madness::print("    calc derivatives ");
+        if (dipole)
+            madness::print("         calc dipole ");
     }
 };
 
@@ -1312,7 +1320,7 @@ struct Calculation {
                     overlap_sum += overlap;
                     for (int j=0; j<npsi; ++j) {
                         if (include_Bc) overlap[j] *= molecule.get_core_bc(atn, c);
-                        proj[j] += overlap[j] * core;
+                        proj[j] += core.scale(overlap[j]);
                     }
                 }
             }
@@ -1767,6 +1775,35 @@ struct Calculation {
             }
         }
         return r;
+    }
+
+    tensorT dipole(World & world)
+    {
+        tensorT mu(3);
+        for (unsigned int axis=0; axis<3; ++axis) {
+            std::vector<int> x(3, 0);
+            x[axis] = true;
+            functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(x)));
+            functionT rho = make_density(world, aocc, amo);
+            if (!param.spin_restricted) {
+                if (param.nbeta) rho += make_density(world, bocc, bmo);
+            }
+            else {
+                rho.scale(2.0);
+            }
+            mu[axis] = -dipolefunc.inner(rho);
+            mu[axis] += molecule.nuclear_dipole(axis);
+        }
+
+        if (world.rank() == 0) {
+            print("\n Dipole Moment (a.u.)\n -----------\n");
+            print("     x: ", mu[0]);
+            print("     y: ", mu[1]);
+            print("     z: ", mu[2]);
+            print(" Total Dipole Moment: ", mu.normf());
+        }
+
+        return mu;
     }
 
     void vector_stats(const std::vector<double> & v, double & rms, double & maxabsval)
@@ -2518,6 +2555,7 @@ int main(int argc, char** argv) {
         MolecularEnergy E(world, calc);
         E.value(calc.molecule.get_all_coords().flat()); // ugh!
         if (calc.param.derivatives) calc.derivatives(world);
+        if (calc.param.dipole) calc.dipole(world);
         calc.do_plots(world);
 
       }
