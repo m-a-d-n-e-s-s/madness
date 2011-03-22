@@ -668,6 +668,62 @@ namespace madness {
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
+
+    /// Factory function generating operator for convolution with grad(1/r) in 3D
+    
+    /// Returns a 3-vector containing the convolution operator for the
+    /// x, y, and z components of grad(1/r)
+    static
+    inline
+    std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
+    GradCoulombOperator(World& world,
+                        double lo,
+                        double eps,
+                        const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+                        int k=FunctionDefaults<3>::get_k())
+    {
+        typedef SeparatedConvolution<double,3> real_convolution_3d;
+        typedef std::shared_ptr<real_convolution_3d> real_convolution_3d_ptr;
+        const double pi = constants::pi;
+        const Tensor<double> width = FunctionDefaults<3>::get_cell_width();
+        double hi = width.normf(); // Diagonal width of cell
+        const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
+        if (isperiodicsum) hi *= 100; // Extend range for periodic summation
+        
+        // bsh_fit generates representation for 1/4Pir but we want 1/r
+        // so have to scale eps by 1/4Pi
+        Tensor<double> coeff, expnt;
+        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        
+        if (bc(0,0) == BC_PERIODIC) {
+            truncate_periodic_expansion(coeff, expnt, width.max(), true);
+        }
+        
+        coeff.scale(4.0*pi);
+        int rank = coeff.dim(0);
+        
+        std::vector<real_convolution_3d_ptr> gradG(3);
+        
+        for (int dir=0; dir<3; dir++) {
+            std::vector< ConvolutionND<double,3> > ops(rank);
+            for (int mu=0; mu<rank; mu++) {
+                // We cache the normalized operator so the factor is the value we must multiply
+                // by to recover the coeff we want.
+                double c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff
+                ops[mu].setfac(coeff(mu)/c/width[dir]);
+                
+                for (int d=0; d<3; d++) {
+                    if (d != dir)
+                        ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
+                }
+                ops[mu].setop(dir,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
+            }
+            gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
+        }
+        
+        return gradG;
+    }
+
     namespace archive {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
