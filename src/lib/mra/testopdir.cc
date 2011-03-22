@@ -259,7 +259,11 @@ void testgradG(World& world) {
 
     for (int d=0; d<3; d++) {
         real_function_3d dq = (*g[d])(q);
-        print("Err", d, dq.err(DPot(d)));
+        double err = dq.err(DPot(d));
+        if (world.rank() == 0) {
+            if (err < 1.1e-05) print(d,err,"PASS");
+            else print(d,err,"FAIL");
+        }
     }
 }
 
@@ -271,7 +275,7 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        //test_opdir(world);
+        test_opdir(world);
         testgradG(world);
     }
     catch (const MPI::Exception& e) {
