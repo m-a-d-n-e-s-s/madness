@@ -2248,7 +2248,7 @@ namespace madness {
     /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
     /// \endcode
     /// The input dimensions of \c t must all be the same and agree with
-    /// the first dimension of \c c .  The dimensions of \c may differ in
+    /// the first dimension of \c c .  The dimensions of \c c may differ in
     /// size.  If the dimensions of \c c are the same, and the operation
     /// is being performed repeatedly, then you might consider calling \c
     /// fast_transform instead which enables additional optimizations and
