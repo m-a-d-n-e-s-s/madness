@@ -1756,6 +1756,8 @@ namespace madness {
         /// If not autorefining, local computation only if not fencing.
         /// If autorefining, may result in asynchronous communication.
         void square_inplace(bool fence);
+        void abs_inplace(bool fence);
+        void abs_square_inplace(bool fence);
 
         Void sum_down_spawn(const keyT& key, const tensorT& s) {
             typename dcT::accessor acc;

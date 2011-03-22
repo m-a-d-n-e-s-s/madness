@@ -1,3 +1,4 @@
+
 /*
   This file is part of MADNESS.
 
@@ -824,6 +825,18 @@ namespace madness {
             }
             template <typename Archive> void serialize(Archive& ar) {}
         };
+          
+        template <typename T, std::size_t NDIM>
+        struct absinplace {
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {abs(t);}
+            template <typename Archive> void serialize(Archive& ar) {}
+        };      
+
+        template <typename T, std::size_t NDIM>
+        struct abssquareinplace {
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {abs(t.emul(t));}
+            template <typename Archive> void serialize(Archive& ar) {}
+        };      
     }
 
     template <typename T, std::size_t NDIM>
@@ -835,6 +848,16 @@ namespace madness {
     void FunctionImpl<T,NDIM>::square_inplace(bool fence) {
         //unary_op_value_inplace(&implT::autorefine_square_test, detail::squareinplace<T,NDIM>(), fence);
         unary_op_value_inplace(detail::squareinplace<T,NDIM>(), fence);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::abs_inplace(bool fence) {
+        unary_op_value_inplace(detail::absinplace<T,NDIM>(), fence);
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::abs_square_inplace(bool fence) {
+        unary_op_value_inplace(detail::abssquareinplace<T,NDIM>(), fence);
     }
 
     template <typename T, std::size_t NDIM>

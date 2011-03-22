@@ -876,6 +876,24 @@ namespace madness {
             return *this;
         }
 
+        /// Returns *this for chaining.
+        Function<T,NDIM>& abs(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
+            if (VERIFY_TREE) verify_tree();
+            impl->abs_inplace(fence);
+            return *this;
+        }
+
+        /// Returns *this for chaining.
+        Function<T,NDIM>& abs_square(bool fence = true) {
+            PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
+            if (VERIFY_TREE) verify_tree();
+            impl->abs_square_inplace(fence);
+            return *this;
+        }
+
         /// Returns local contribution to \c int(f(x),x) ... no communication
 
         /// In the wavelet basis this is just the coefficient of the first scaling
@@ -1239,6 +1257,22 @@ namespace madness {
         PROFILE_FUNC;
         Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         return result.square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
+
+    /// Create a new function that is the abs of f - global comm only if not reconstructed
+    template <typename T, int NDIM>
+    Function<T,NDIM> abs(const Function<T,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.abs(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    }
+
+    /// Create a new function that is the abs_square of f - global comm only if not reconstructed
+    template <typename T, int NDIM>
+    Function<T,NDIM> abs_square(const Function<T,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<T,NDIM> result = copy(f,true);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+        return result.abs_square(true); //fence);  // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     }
 
 
