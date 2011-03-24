@@ -32,7 +32,7 @@
   $Id$
 */
 
-/// \file moldft.cc
+/// \file mcpfit.cc
 /// \brief fitting parameters of Model Core Potential
 
 #include <mra/mra.h>
