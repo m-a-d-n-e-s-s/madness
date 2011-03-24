@@ -313,11 +313,6 @@ namespace madness {
         }
 
         template <typename T>
-        inline void bit_and(T* buf, size_t nelem) {
-            reduce< T, WorldBitAndOp<T> >(buf, nelem, WorldBitAndOp<T>());
-        }
-
-        template <typename T>
         inline void bit_or(T* buf, size_t nelem) {
             reduce< T, WorldBitOrOp<T> >(buf, nelem, WorldBitOrOp<T>());
         }
