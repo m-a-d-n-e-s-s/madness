@@ -717,12 +717,21 @@ struct lbcost {
     }
 };
 
+void preloadbal(World& world,
+                functionT& potn,
+                complex_functionT& psi) {
+    if (world.size() < 2) return;
+    if (world.rank() == 0) print("starting preLB");
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
+    psi.reconstruct();
+    lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
+    world.gop.fence();
+}
+
 void loadbal(World& world,
-             functionT& potn, functionT& vt,
-             functionT& dpotn_dx, functionT& dpotn_dy, functionT& dpotn_dz,
-             functionT& dpotn_dx_sq, functionT& dpotn_dy_sq,
-             complex_functionT& psi, complex_functionT& psi0,
-             functionT& x, functionT& y, functionT& z) {
+             functionT& potn,
+             complex_functionT& psi) {
     if (world.size() < 2) return;
     if (world.rank() == 0) print("starting LB");
     LoadBalanceDeux<3> lb(world);
@@ -734,25 +743,6 @@ void loadbal(World& world,
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
     psi.truncate();
 
-    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
-//     FunctionDefaults<3>::set_pmap(lb.load_balance(2.0, false));
-//     world.gop.fence();
-//     if (world.rank() == 0) print("starting LB copies");
-//     world.gop.fence();
-//     potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-//     vt = copy(vt, FunctionDefaults<3>::get_pmap(), true);
-//     dpotn_dx = copy(dpotn_dx, FunctionDefaults<3>::get_pmap(), true);
-//     dpotn_dy = copy(dpotn_dy, FunctionDefaults<3>::get_pmap(), true);
-//     dpotn_dz = copy(dpotn_dz, FunctionDefaults<3>::get_pmap(), true);
-//     dpotn_dx_sq = copy(dpotn_dx_sq, FunctionDefaults<3>::get_pmap(), true);
-//     dpotn_dy_sq = copy(dpotn_dy_sq, FunctionDefaults<3>::get_pmap(), true);
-//     psi = copy(psi, FunctionDefaults<3>::get_pmap(), true);
-//     psi0 = copy(psi0, FunctionDefaults<3>::get_pmap(), true);
-//     x = copy(x, FunctionDefaults<3>::get_pmap(), true);
-//     y = copy(y, FunctionDefaults<3>::get_pmap(), true);
-//     z = copy(z, FunctionDefaults<3>::get_pmap(), true);
-//     world.gop.fence();
-//     if (world.rank() == 0) print("done with LB");
     world.gop.fence();
 }
 
@@ -775,16 +765,22 @@ void propagate(World& world, int step0) {
     world.gop.broadcast(time_step);
     world.gop.broadcast(nstep);
 
+    // The time-independent part of the potential plus derivatives for
+    // Chin-Chen and also for computing the power spectrum ... compute
+    // derivatives analytically to reduce numerical noise
+    functionT potn = factoryT(world).f(V);         potn.truncate(param.thresh);
+
+    int step = step0;  // The current step
+    double t = step0 * time_step - zero_field_time;        // The current time
+    complex_functionT psi = wave_function_load(world, step); // The wave function at time t
+    preloadbal(world, potn, psi);
+
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
     //SeparatedConvolution<double_complex,3> G = qm_free_particle_propagator<3>(world, param.k, c, 0.5*time_step);
     //G.doleaves = true;
 
     complex_operatorT* G = qm_1d_free_particle_propagator(param.k, c, 0.5*time_step, 2.0*param.L);
 
-    // The time-independent part of the potential plus derivatives for
-    // Chin-Chen and also for computing the power spectrum ... compute
-    // derivatives analytically to reduce numerical noise
-    functionT potn = factoryT(world).f(V);         potn.truncate(param.thresh);
     functionT dpotn_dx = factoryT(world).f(dVdx);  dpotn_dx.truncate(param.thresh);
     functionT dpotn_dy = factoryT(world).f(dVdy);  dpotn_dy.truncate(param.thresh);
     functionT dpotn_dz = factoryT(world).f(dVdz);  dpotn_dz.truncate(param.thresh);
@@ -800,12 +796,9 @@ void propagate(World& world, int step0) {
     // Wave function at time t=0 for printing statistics
     complex_functionT psi0 = wave_function_load(world, 0);
 
-    int step = step0;  // The current step
-    double t = step0 * time_step - zero_field_time;        // The current time
-    complex_functionT psi = wave_function_load(world, step); // The wave function at time t
     functionT vt = potn+laser(t)*z; // The total potential at time t
 
-    loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
+    loadbal(world, potn, psi);
 
     if (world.rank() == 0) {
         printf("\n");
@@ -842,7 +835,7 @@ void propagate(World& world, int step0) {
         double t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
         t0 = wall_time();
         if (step < 2 || (step%param.nloadbal) == 0)
-            loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
+            loadbal(world, potn, psi);
         t1 = wall_time();
 
         long depth = psi.max_depth(); long size=psi.size();
