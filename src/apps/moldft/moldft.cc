@@ -1309,11 +1309,12 @@ struct Calculation {
         for (int i=0; i<natom; ++i) {
             Atom at = molecule.get_atom(i);
             unsigned int atn = at.atomic_number;
-            unsigned int ncore = molecule.n_core_orb(atn);
-            if (ncore == 0) continue;
-            for (unsigned int c=0; c<ncore; ++c) {
+            unsigned int nshell = molecule.n_core_orb(atn);
+            if (nshell == 0) continue;
+            for (unsigned int c=0; c<nshell; ++c) {
                 unsigned int l = molecule.get_core_l(atn, c);
                 int max_m = (l+1)*(l+2)/2;
+                nshell -= max_m - 1;
                 for (int m=0; m<max_m; ++m) {
                     functionT core = factoryT(world).functor(functorT(new CoreOrbitalFunctor(molecule, i, c, m)));
                     tensorT overlap = inner(world, core, psi);
@@ -1779,6 +1780,7 @@ struct Calculation {
 
     tensorT dipole(World & world)
     {
+        START_TIMER(world);
         tensorT mu(3);
         for (unsigned int axis=0; axis<3; ++axis) {
             std::vector<int> x(3, 0);
@@ -1802,6 +1804,7 @@ struct Calculation {
             print("     z: ", mu[2]);
             print(" Total Dipole Moment: ", mu.normf());
         }
+        END_TIMER(world, "dipole");
 
         return mu;
     }
