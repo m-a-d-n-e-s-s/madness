@@ -64,42 +64,77 @@ namespace madness {
     struct WorldSumOp {
         inline T operator()(const T& a, const T& b) const {
             return a+b;
-        };
+        }
     };
 
     template <typename T>
     struct WorldMultOp {
         inline T operator()(const T& a, const T& b) const {
             return a*b;
-        };
+        }
     };
 
     template <typename T>
     struct WorldMaxOp {
         inline T operator()(const T& a, const T& b) const {
             return a>b? a : b;
-        };
+        }
     };
 
     template <typename T>
     struct WorldAbsMaxOp {
         inline T operator()(const T& a, const T& b) const {
             return abs(a)>abs(b)? abs(a) : abs(b);
-        };
+        }
     };
 
     template <typename T>
     struct WorldMinOp {
         inline T operator()(const T& a, const T& b) const {
             return a<b? a : b;
-        };
+        }
     };
 
     template <typename T>
     struct WorldAbsMinOp {
         inline T operator()(const T& a, const T& b) const {
             return abs(a)<abs(b)? abs(a) : abs(b);
-        };
+        }
+    };
+
+    template <typename T>
+    struct WorldBitAndOp {
+        inline T operator()(const T& a, const T& b) const {
+            return a & b;
+        }
+    };
+
+    template <typename T>
+    struct WorldBitOrOp {
+        inline T operator()(const T& a, const T& b) const {
+            return a | b;
+        }
+    };
+
+    template <typename T>
+    struct WorldBitXorOp {
+        inline T operator()(const T& a, const T& b) const {
+            return a ^ b;
+        }
+    };
+
+    template <typename T>
+    struct WorldLogicAndOp {
+        inline T operator()(const T& a, const T& b) const {
+            return a && b;
+        }
+    };
+
+    template <typename T>
+    struct WorldLogicOrOp {
+        inline T operator()(const T& a, const T& b) const {
+            return a || b;
+        }
     };
 
 
@@ -270,6 +305,36 @@ namespace madness {
         template <typename T>
         inline void product(T* buf, size_t nelem) {
             reduce< T, WorldMultOp<T> >(buf, nelem, WorldMultOp<T>());
+        }
+
+        template <typename T>
+        inline void bit_and(T* buf, size_t nelem) {
+            reduce< T, WorldBitAndOp<T> >(buf, nelem, WorldBitAndOp<T>());
+        }
+
+        template <typename T>
+        inline void bit_and(T* buf, size_t nelem) {
+            reduce< T, WorldBitAndOp<T> >(buf, nelem, WorldBitAndOp<T>());
+        }
+
+        template <typename T>
+        inline void bit_or(T* buf, size_t nelem) {
+            reduce< T, WorldBitOrOp<T> >(buf, nelem, WorldBitOrOp<T>());
+        }
+
+        template <typename T>
+        inline void bit_xor(T* buf, size_t nelem) {
+            reduce< T, WorldBitXorOp<T> >(buf, nelem, WorldBitXorOp<T>());
+        }
+
+        template <typename T>
+        inline void logic_and(T* buf, size_t nelem) {
+            reduce< T, WorldLogicAndOp<T> >(buf, nelem, WorldLogicAndOp<T>());
+        }
+
+        template <typename T>
+        inline void logic_or(T* buf, size_t nelem) {
+            reduce< T, WorldLogicOrOp<T> >(buf, nelem, WorldLogicOrOp<T>());
         }
 
         /// Global sum of a scalar while still processing AM & tasks
