@@ -262,18 +262,6 @@ namespace madness {
             MADNESS_EXCEPTION("Serializing DC iterator ... why?", false);
         }
 
-        /// This exclusively for use by Range
-        int operator-(const WorldContainerIterator& other) const {
-            MADNESS_ASSERT(!is_cached() && !other.is_cached());
-            return it - other.it;
-        }
-
-        /// This exclusively for use by Range
-        WorldContainerIterator operator+(const unsigned n) const {
-            MADNESS_ASSERT(!is_cached());
-            return WorldContainerIterator(it+n);
-        }
-
     private:
         template <class iteratorT>
         friend class WorldContainerIterator;
