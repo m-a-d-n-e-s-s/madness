@@ -716,10 +716,10 @@ namespace madness {
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
 
         static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
-            hashT key = hash(expnt);
-            key = hash(k, key);
-            key = hash(m, key);
-            key = hash(int(periodic), key);
+            hashT key = hash_value(expnt);
+            hash_combine(key, k);
+            hash_combine(key, m);
+            hash_combine(key, int(periodic));
             iterator it = map.find(key);
             if (it == map.end()) {
                 map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,

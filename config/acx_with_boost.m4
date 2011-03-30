@@ -7,6 +7,9 @@ AC_DEFUN([ACX_WITH_BOOST],
       case $withval in
       yes)
         acx_with_boost=yes
+        if test "$CXXVENDOR" = Intel; then
+          AC_MSG_ERROR([You must specify a path when using Boost with the Intel compiler.])
+        fi
       ;;
       no)
         acx_with_boost=no
@@ -26,6 +29,9 @@ AC_DEFUN([ACX_WITH_BOOST],
       case $withval in
       yes)
         acx_with_boost=yes
+        if test "$CXXVENDOR" = Intel; then
+          AC_MSG_ERROR([You must specify a path when using Boost with the Intel compiler.])
+        fi
       ;;
       no)
         if test "$acx_with_boost" != yes; then
@@ -54,6 +60,8 @@ AC_DEFUN([ACX_WITH_BOOST],
       [AC_MSG_ERROR([Unable to find the Boost TR1 type_traits header file.])])
     AC_CHECK_HEADER([boost/tr1/array.hpp], [],
       [AC_MSG_ERROR([Unable to find the Boost TR1 array header file.])])
+    AC_CHECK_HEADER([boost/tr1/functional.hpp], [],
+      [AC_MSG_ERROR([Unable to find the Boost TR1 functional header file.])])
 
     AC_DEFINE([MADNESS_HAS_BOOST_TR1], [1], 
       [Madness will use Boost.TR1 where the compiler lacks support for TR1.])

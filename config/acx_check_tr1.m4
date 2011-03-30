@@ -200,7 +200,7 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   AC_LANG_SAVE
   AC_LANG([C++])
   
-  # Check for shared_ptr in std namespace
+  # Check for array in std namespace
   AC_MSG_CHECKING([for array])
   acx_array=no
   
@@ -319,9 +319,100 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   AC_LANG_RESTORE
 ])
 
+AC_DEFUN([ACX_CHECK_HASH], [
+  AC_LANG_SAVE
+  AC_LANG([C++])
+  
+  # Check for hash in std namespace
+  AC_MSG_CHECKING([for hash])
+  acx_hash=no
+  
+  # Check for std::hash in <functional>
+  AC_COMPILE_IFELSE(
+    [
+      AC_LANG_PROGRAM(
+        [[#include <functional>]],
+        [[std::hash<int> h; h(1);]]
+      )
+    ],
+    [
+      AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if hash is in <functional>.])
+      AC_DEFINE([MADNESS_HAS_STD_HASH],[1],[define if std::hash is available.])
+      acx_hash=yes
+    ]
+  )
+  
+  # Check for std::tr1::hash in <functional>
+  if test "$acx_hash" = no; then
+    AC_COMPILE_IFELSE(
+      [
+        AC_LANG_PROGRAM(
+          [[#include <functional>]],
+          [[std::tr1::hash<int> h; h(1);]]
+        )
+      ],
+      [
+        AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if hash is in <functional>.])
+        AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
+        acx_hash=yes
+      ]
+    )
+  fi
+  
+  # Check for std::hash in <tr1/functional>
+  if test "$acx_hash" = no; then
+    AC_COMPILE_IFELSE(
+      [
+        AC_LANG_PROGRAM(
+          [[#include <tr1/functional>]],
+          [[std::hash<int> h; h(1);]]
+        )
+      ],
+      [
+        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if hash is in <tr1/functional>.])
+        AC_DEFINE([MADNESS_HAS_STD_HASH],[1],[define if std::tr1::hash is available.])
+        acx_hash=yes
+      ]
+    )
+  fi
+  
+  # Check for std::tr1::hash in <tr1/functional>
+  if test "$acx_hash" = no; then
+    AC_COMPILE_IFELSE(
+      [
+        AC_LANG_PROGRAM(
+          [[#include <tr1/functional>]],
+          [[std::tr1::hash<int> h; h(1);]]
+        )
+      ],
+      [
+        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if hash is in <tr1/functional>.])
+        AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])        
+        acx_hash=yes
+      ]
+    )
+  fi
+  
+  # Check if we should use boost tr1 hash
+  if test "$acx_with_boost$acx_hash" = yesno; then
+    AC_DEFINE([MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP],[1],[define if hash is in boost/tr1/functional.hpp.])
+    AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
+    acx_hash=yes
+  fi
+  
+  # post hash results
+  AC_MSG_RESULT([$acx_hash])
+  if test "$acx_hash" = no; then
+    AC_MSG_ERROR([std::hash and std::tr1::hash are not supported. Reconfigure MADNESS to use Boost with the --with-boost option.])
+  fi
+
+  AC_LANG_RESTORE
+])
+
 AC_DEFUN([ACX_CHECK_TR1],
 [
   ACX_CHECK_SHARED_PTR
   ACX_CHECK_TYPE_TRAITS
   ACX_CHECK_ARRAY
+  ACX_CHECK_HASH
 ])

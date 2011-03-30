@@ -66,7 +66,7 @@ namespace madness {
 }
 
 // Make the key hashable using non-intrusive mechanism
-unsigned int hash(const Key& key) {
+hashT hash_value(const Key& key) {
     return key.k;
 }
 

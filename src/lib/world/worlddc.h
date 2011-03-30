@@ -134,7 +134,7 @@ namespace madness {
     /// Default process map is "random" using madness::hash(key)
 
     /// \ingroup worlddc
-    template <typename keyT, typename hashfunT = Hash_private::defhashT<keyT> >
+    template <typename keyT, typename hashfunT = Hash<keyT> >
     class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
         const int nproc;
@@ -646,7 +646,7 @@ namespace madness {
     /// All operations, including constructors and destructors, are
     /// non-blocking and return immediately.  If communication occurs
     /// it is asynchronous, otherwise operations are local.
-    template <typename keyT, typename valueT, typename hashfunT = Hash_private::defhashT<keyT> >
+    template <typename keyT, typename valueT, typename hashfunT = Hash<keyT> >
     class WorldContainer : public archive::ParallelSerializableObject {
     public:
         typedef WorldContainer<keyT,valueT,hashfunT> containerT;

@@ -757,7 +757,13 @@ struct Key {
     Key() {};  // Empty default constructor for speed - but is therefore junk
 
     Key(ulong n, ulong i, ulong j, ulong k)
-            : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+            : n(n), i(i), j(j), k(k), hashval(0)
+    {
+        madness::hash_combine(hashval, n);
+        madness::hash_combine(hashval, i);
+        madness::hash_combine(hashval, j);
+        madness::hash_combine(hashval, k);
+    }
 
     hashT hash() const {
         return hashval;
@@ -785,6 +791,7 @@ struct Key {
         return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
     }
 };
+
 
 ostream& operator<<(ostream& s, const Key& key) {
     s << "Key(" << key.n << "," << key.i << "," << key.j << "," << key.k << "," << key.hash() << ")";

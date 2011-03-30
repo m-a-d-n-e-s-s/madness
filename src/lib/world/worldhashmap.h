@@ -184,14 +184,6 @@ namespace madness {
 
         };
 
-        template <typename T>
-        class defhashT : public std::unary_function<T, hashT> {
-        public:
-            hashT operator()(const T& t) const {
-                return hash(t);
-            }
-        };
-
         /// iterator for hash
         template <class hashT> class HashIterator {
         public:
@@ -400,7 +392,7 @@ namespace madness {
 
     } // End of namespace Hash_private
 
-    template < class keyT, class valueT, class hashfunT = Hash_private::defhashT<keyT> >
+    template < class keyT, class valueT, class hashfunT = Hash<keyT> >
     class ConcurrentHashMap {
     public:
         typedef ConcurrentHashMap<keyT,valueT,hashfunT> hashT;
@@ -420,7 +412,7 @@ namespace madness {
         binT* bins;                 // Array of bins
 
     private:
-        mutable hashfunT hashfun;
+        hashfunT hashfun;
 
         //unsigned int hash(const keyT& key) const {return hashfunT::hash(key)%nbins;}
 

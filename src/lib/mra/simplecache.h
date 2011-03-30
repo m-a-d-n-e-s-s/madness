@@ -44,7 +44,7 @@ namespace madness {
     template <typename Q, std::size_t NDIM>
     class SimpleCache {
     private:
-        typedef ConcurrentHashMap< Key<NDIM>, Q, KeyHash<NDIM> > mapT;
+        typedef ConcurrentHashMap< Key<NDIM>, Q > mapT;
         typedef std::pair<Key<NDIM>, Q> pairT;
         mapT cache;
 

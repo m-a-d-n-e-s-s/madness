@@ -255,19 +255,7 @@ Please refer to world/archive/archive.h and documentation therein for
 information about this.  In addition, the keys must support
  - testing for equality, either by overloading \c == or by
    specializing \c std::equal_to<key_type>, and
- - computing a hash value by invoking \c madness::hash(key),
-   which can be done either by providing the member
-   function with signature
-\code
-   hashT hash() const;
-\endcode
-   or by specializing \c madness::Hash<key_type>.
-
-\c hashT is presently an unsigned 32-bit integer.  MADNESS provides
-hash operations for all fundamental types, and variable and fixed
-dimension arrays of the same.  Since having a good hash is important,
-we are using Bob Jenkin's "lookup v3" hash from
-http://www.burtleburtle.net/bob/c/lookup3.c.
+ - computing a hash value. See worldhash.h for details.
 
 Here is an example of a key that might be used in an octtree.
 \code
@@ -276,15 +264,21 @@ Here is an example of a key that might be used in an octtree.
        ulong n, i, j, k;
        hashT hashval;
 
-       Key() {};
+       Key() {}
 
        // Precompute the hash function for speed
        Key(ulong n, ulong i, ulong j, ulong k)
-           : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+           : n(n), i(i), j(j), k(k), hashval(0)
+       {
+           madness::hash_combine(hashval, n);
+           madness::hash_combine(hashval, i);
+           madness::hash_combine(hashval, j);
+           madness::hash_combine(hashval, k);
+       }
 
        hashT hash() const {
            return hashval;
-       };
+       }
 
        template <typename Archive>
        void serialize(const Archive& ar) {
@@ -294,8 +288,21 @@ Here is an example of a key that might be used in an octtree.
        bool operator==(const Key& b) const {
            // Different keys will probably have a different hash
            return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
-       };
+       }
    };
+
+namespace std {
+MADNESS_BEGIN_NAMESPACE_TR1
+
+    template <>
+    struct hash<Key> {
+        std::size_t operator()(const Key& key) const {
+            return key.hash();
+        }
+    };
+
+MADNESS_END_NAMESPACE_TR1
+} // namespace std
 \endcode
 
 \par Distributed Objects (WorldObject)
