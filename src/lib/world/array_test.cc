@@ -49,6 +49,11 @@ namespace {
             EXPECT_EQ(1.0, v[i]);
         }
     }
+
+    TEST(VectorTest, Hash) {
+        madness::Vector<double,33> v(1.0);
+        EXPECT_NE(0, v.hash());
+    }
 }
 
 int main(int argc, char **argv) {

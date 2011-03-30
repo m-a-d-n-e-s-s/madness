@@ -81,6 +81,24 @@ namespace std {
         return s;
     }
 
+MADNESS_BEGIN_NAMESPACE_TR1
+
+    /// Hash std::array with madness::Hash
+    template <typename T, std::size_t N>
+    madness::hashT hash_value(const array<T,N>& a) {
+        // Use this version of range for potential optimization.
+        return madness::hash_range(a.data(), N);
+    }
+
+    /// Hash std::array with MADNESS Hashing
+    template <typename T, std::size_t N>
+    struct hash<array<T,N> > {
+        std::size_t operator()(const array<T,N>& a) const {
+            return hash_value(a);
+        }
+    };
+
+MADNESS_END_NAMESPACE_TR1
 } // namespace std
 
 namespace madness {
@@ -283,7 +301,7 @@ namespace madness {
 
         /// Support for MADNESS hashing
         hashT hash() const {
-            return madness::hash_value(data_);
+            return hash_value(data_);
         }
 
         // comparisons
@@ -601,25 +619,4 @@ namespace madness {
     }
 } // namespace madness
 
-
-namespace std {
-MADNESS_BEGIN_NAMESPACE_TR1
-
-		/// Hash std::array with std::hash
-    template <typename T, std::size_t N>
-    struct hash<array<T,N> > {
-        std::size_t operator()(const array<T,N>& a) const {
-            return madness::hash_range(a.begin(), a.end());
-        }
-    };
-
-		/// Hash std::array with madness::Hash
-    template <typename T, std::size_t N>
-    madness::hashT hash_value(const array<T,N>& a) {
-        // Use this version of range for potential optimization.
-        return madness::hash_range(a.data(), N);
-    }
-
-MADNESS_END_NAMESPACE_TR1
-} // namespace std
 #endif // MADNESS_WORLD_ARRAY_H__INCLUDED

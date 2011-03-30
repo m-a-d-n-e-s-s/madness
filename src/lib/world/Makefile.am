@@ -19,7 +19,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 array_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-array_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS)
+array_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
 gtest_example_SOURCES = gtest_example.cc
 gtest_example_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)

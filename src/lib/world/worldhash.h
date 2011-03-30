@@ -180,7 +180,7 @@ namespace std {
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {
-    uint32_t hashword(const uint32_t *key, size_t length, uint32_t initval);
+    uint32_t hashword(const uint32_t *k, size_t length, uint32_t initval);
     uint32_t hashlittle(const void *key, size_t length, uint32_t initval);
 }
 
@@ -392,9 +392,10 @@ namespace madness {
     /// \param n The number of elements to hashed
     /// \return The hashed pointer range value
     template <class T>
-    inline void hash_range(const T* t, std::size_t n) {
+    inline hashT hash_range(const T* t, std::size_t n) {
         hashT seed = 0ul;
-        return hash_range(seed, t, n);
+        hash_range(seed, t, n);
+        return seed;
     }
 
 } // namespace madness
