@@ -175,16 +175,70 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include -I/path/to/boost/install
 
 
   o  Macintosh Darwin 10.6, snow leopard
-     Tested with Apple GCC 4.2.1, Intel 11.1 & 12.0, GNU GCC 4.4.x & 4.5.x, 
+     Tested with Apple GCC 4.2.1, Apple clang 2.0, Intel 11.1 & 12.0, GNU GCC 4.4.x & 4.5.x, 
      and LLVM clang 2.8 
      
-     - Apple GCC 4.2.1 using vecLib (comes standard on OS X) and Boost (installed in /usr/local
+     - Apple GCC 4.2.1 using vecLib
+       
+       Set the following system variables
+       export OMPI_CC=/usr/bin/gcc-4.2
+       export OMPI_CXX=/usr/bin/g++-4.2
 
-       ./configure --with-boost=/usr/local LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers"
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers"
+       
+     - Apple clang 2.0 using vecLib
+       
+       Set the following system variables
+       export OMPI_CC=/usr/bin/clang
+       export OMPI_CXX=/usr/bin/clang++
+
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" \
+       CXXFLAGS="-std=c++0x"
      
      - GNU GCC 4.4.x or later using vecLib
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/gnu_gcc/gcc
+       export OMPI_CXX=/path/to/gun_gcc/g++
 
-       ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" CXXFLAGS="-std=c++0x"
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" \
+       CXXFLAGS="-std=c++0x"
+       
+     - Intel 11.x and 2011 (12.x) with Apple GCC
+     
+       Set the following system variables
+       export OMPI_CC=icc
+       export OMPI_CXX=icpc
+
+       ./configure MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx
+       
+     - Intel 11.x with GNU GCC 4.4.x and Boost
+       Note: Intel 11.x does not work correctly with GNU GCC 4.5.x and later on
+       Macs.
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/intel/icc
+       export OMPI_CXX=/path/to/intel/icpc
+
+       ./configure --with-boost=/path/to/boost/ MPICC=/usr/bin/mpicc \
+        MPICXX=/usr/bin/mpicxx CFLAGS=-gcc-name=/path/to/gcc44/gcc \
+        CXXFLAGS=-gxx-name=/path/to/gcc44/g++
+        
+     - Intel 2011 (12.x) and GNU GCC 4.5.x and Boost
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/intel/icc
+       export OMPI_CXX=/path/to/intel/icpc
+
+       ./configure --with-boost=/path/to/boost/ MPICC=/usr/bin/mpicc \
+       MPICXX=/usr/bin/mpicxx CFLAGS="-gcc-name=/path/to/gcc45/gcc" \
+        CXXFLAGS="-gxx-name=/path/to/gcc45/g++ -std=c++0x"
 
 
   o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3", requires autoconf-2.65+, automake-1.11+
