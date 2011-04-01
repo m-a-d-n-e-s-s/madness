@@ -53,6 +53,35 @@
 #else
 #error No acceptable memory include directive was found.
 #endif // MEMORY
+
+#ifndef MADNESS_BEGIN_NAMESPACE_TR1
+
+#if defined(BOOST_TR1_MEMORY_INCLUDED) || defined(BOOST_TR1_MEMORY_HPP_INCLUDED)
+
+// We are using boost
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#elif defined(MADNESS_HAS_STD_TR1_SHARED_PTR)
+
+// We are using TR1
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
+#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
+
+#elif defined(MADNESS_HAS_STD_SHARED_PTR)
+
+// We are using C++0x
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#else
+// We do not know.
+#error Unable to determine the correct namespace for TR1 fuctional.
+
+#endif
+
+#endif // MADNESS_BEGIN_NAMESPACE_TR1
+
 #if defined(MADNESS_HAS_STD_TR1_SHARED_PTR) && !defined(MADNESS_HAS_STD_SHARED_PTR)
 #define MADNESS_HAS_STD_SHARED_PTR 1
 // shard_ptr is in std::tr1 but we want it in std namespace
@@ -178,7 +207,7 @@ namespace madness {
 #ifndef MADNESS_HAS_STD_MAKE_SHARED
 #define MADNESS_HAS_STD_MAKE_SHARED 1
 
-#if defined(MADNESS_USE_BOOST_TR1_MEMORY_HPP) || (defined(__Intel) && defined(MADNESS_HAS_BOOST_TR1))
+#if defined(BOOST_TR1_MEMORY_INCLUDED) || defined(BOOST_TR1_MEMORY_HPP_INCLUDED)
 
 // We are using Boost tr1 so we can use the Boost make_shared function
 #include <boost/make_shared.hpp>

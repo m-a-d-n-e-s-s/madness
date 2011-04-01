@@ -135,6 +135,7 @@ provide the appropriate template parameter to the hashing container.
 // Select header that contains hash
 #if defined(MADNESS_USE_FUNCTIONAL)
 #include <functional>
+
 #elif defined(MADNESS_USE_TR1_FUNCTIONAL)
 #include <tr1/functional>
 #elif defined(MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP)
@@ -143,40 +144,42 @@ provide the appropriate template parameter to the hashing container.
 #error No acceptable functional include directive was found.
 #endif // FUNCTIONAL
 
+#ifndef MADNESS_BEGIN_NAMESPACE_TR1
+
+#if defined(BOOST_TR1_FUNCTIONAL_INCLUDED) || defined(BOOST_TR1_FUNCTIONAL_HPP_INCLUDED)
+
+// We are using boost
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#elif defined(MADNESS_HAS_STD_TR1_HASH)
+
+// We are using TR1
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
+#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
+
+#elif defined(MADNESS_HAS_STD_HASH)
+
+// We are using C++0x
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#else
+// We do not know.
+#error Unable to determine the correct namespace for TR1 fuctional.
+
+#endif
+
+#endif // MADNESS_BEGIN_NAMESPACE_TR1
+
+
 #if defined(MADNESS_HAS_STD_TR1_HASH) && !defined(MADNESS_HAS_STD_HASH)
 #define MADNESS_HAS_STD_HASH 1
 // hash is in std::tr1 but we want it in std namespace
 namespace std {
     using ::std::tr1::hash;
 }
-
-// Use these macros to define the tr1 namespace
-#ifndef MADNESS_BEGIN_NAMESPACE_TR1
-/// Used to begin namespace tr1
-
-/// \code namespace tr1 { \endcode
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace tr1 {
-/// Used to end namespace tr1
-
-/// \code } // namepsace tr1 \endcode
-#define MADNESS_END_NAMESPACE_TR1 } // namespace tr1
-#endif // MADNESS_NAMESPACE_TR1_OPEN
-
-#else
-
-// We are not using the tr1 namespace so these are just empty definitions.
-#ifndef MADNESS_BEGIN_NAMESPACE_TR1
-/// Used to begin namespace tr1
-
-/// \code namespace tr1 { \endcode
-#define MADNESS_BEGIN_NAMESPACE_TR1
-/// Used to end namespace tr1
-
-/// \code } // namepsace tr1 \endcode
-#define MADNESS_END_NAMESPACE_TR1
-#endif // MADNESS_NAMESPACE_TR1_OPEN
-
-#endif // defined(MADNESS_HAS_STD_TR1_HASH) && !defined(MADNESS_HAS_STD_HASH)
+#endif
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {

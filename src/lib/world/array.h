@@ -53,6 +53,34 @@
 #error No acceptable array include directive was found.
 #endif // ARRAY
 
+#ifndef MADNESS_BEGIN_NAMESPACE_TR1
+
+#if defined(BOOST_TR1_ARRAY_INCLUDED) || defined(BOOST_TR1_ARRAY_HPP_INCLUDED)
+
+// We are using boost
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#elif defined(MADNESS_HAS_STD_TR1_ARRAY)
+
+// We are using TR1
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
+#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
+
+#elif defined(MADNESS_HAS_STD_ARRAY)
+
+// We are using C++0x
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#else
+// We do not know.
+#error Unable to determine the correct namespace for TR1 fuctional.
+
+#endif
+
+#endif // MADNESS_BEGIN_NAMESPACE_TR1
+
 // Insert the tr1 array class into the std namespace.
 namespace std {
 
@@ -68,10 +96,13 @@ namespace std {
     using ::std::tr1::get;
 
 #endif
+} // namespace std
+
+MADNESS_BEGIN_NAMESPACE_TR1
 
     /// Output std::array to stream for human consumption
     template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
+    std::ostream& operator<<(std::ostream& s, const array<T,N>& a) {
         s << "[";
         for(std::size_t i=0; i<N; ++i) {
             s << a[i];
@@ -80,8 +111,6 @@ namespace std {
         s << "]";
         return s;
     }
-
-MADNESS_BEGIN_NAMESPACE_TR1
 
     /// Hash std::array with madness::Hash
     template <typename T, std::size_t N>
@@ -99,7 +128,6 @@ MADNESS_BEGIN_NAMESPACE_TR1
     };
 
 MADNESS_END_NAMESPACE_TR1
-} // namespace std
 
 namespace madness {
 
