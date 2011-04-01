@@ -47,6 +47,7 @@
 #include <world/sharedptr.h>
 #include <world/worldref.h>
 #include <world/typestuff.h>
+#include <world/world.h>
 
 namespace madness {
 
