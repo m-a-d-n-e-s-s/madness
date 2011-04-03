@@ -142,8 +142,9 @@ namespace madness {
 
         /// Use this function with shared_ptr to do nothing for the pointer cleanup
         template <typename T>
-        inline void no_delete(T*) {
-        }
+        inline void no_delete(T*) { }
+
+        inline void no_delete(void*) { }
 
         /// Checked pointer delete functor
 
@@ -185,7 +186,7 @@ namespace madness {
             typedef T * argument_type;
 
             void operator()(T* p) const {
-                checked_fr(p);
+                checked_free(p);
             }
         };
 
@@ -195,9 +196,7 @@ namespace madness {
             typedef void result_type;
             typedef T * argument_type;
 
-            void operator()(T*) const {
-                no_delete(static_cast<T*> (NULL));
-            }
+            void operator()(T*) const { }
         };
 
     } // namespace detail
