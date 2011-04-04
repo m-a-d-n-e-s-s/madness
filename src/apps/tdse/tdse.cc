@@ -3,7 +3,7 @@
 
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
-  This program is free software; you can redistribute it and/or modify
+
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
@@ -746,6 +746,27 @@ void loadbal(World& world,
     world.gop.fence();
 }
 
+void loadbal(World& world,
+             functionT& potn, functionT& vt,
+             functionT& dpotn_dx, functionT& dpotn_dy, functionT& dpotn_dz,
+             functionT& dpotn_dx_sq, functionT& dpotn_dy_sq,
+             complex_functionT& psi, complex_functionT& psi0,
+             functionT& x, functionT& y, functionT& z) {
+    if (world.size() < 2) return;
+    if (world.rank() == 0) print("starting LB");
+    LoadBalanceDeux<3> lb(world);
+    lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
+
+    psi.reconstruct();
+    psi.broaden();
+    psi.broaden();
+    lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
+    psi.truncate();
+
+    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, true));
+    world.gop.fence();
+}
+
 
 // Evolve the wave function in real time starting from given time step on disk
 void propagate(World& world, int step0) {
@@ -798,7 +819,8 @@ void propagate(World& world, int step0) {
 
     functionT vt = potn+laser(t)*z; // The total potential at time t
 
-    loadbal(world, potn, psi);
+    //loadbal(world, potn, psi);
+    loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
 
     if (world.rank() == 0) {
         printf("\n");
@@ -835,7 +857,8 @@ void propagate(World& world, int step0) {
         double t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11, t12, t13;
         t0 = wall_time();
         if (step < 2 || (step%param.nloadbal) == 0)
-            loadbal(world, potn, psi);
+            loadbal(world, potn, vt, dpotn_dx, dpotn_dy, dpotn_dz, dpotn_dx_sq, dpotn_dy_sq, psi, psi0, x, y, z);
+        //            loadbal(world, potn, psi);
         t1 = wall_time();
 
         long depth = psi.max_depth(); long size=psi.size();
