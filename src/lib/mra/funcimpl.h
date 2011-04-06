@@ -937,8 +937,7 @@ namespace madness {
                 r0=r=rr;
                 //NNkk->MqMqkk, since fuse is not allowed. Now needs to move back to 2*NDIM, since tensor max dim is 6
                 //for (int d=NDIM-1; d>=0; --d) r.splitdim_inplace_base(d,M,q);
-            }
-            else {
+            } else {
                 long dim[2*NDIM];
                 for (std::size_t d=0; d<NDIM; ++d) {
                     //dim[d+NDIM*2] = M;
@@ -946,7 +945,7 @@ namespace madness {
                     dim[d ] = cdata.k;
                 }
                 tensorT rr(2*NDIM,dim);
-                r0=r=rr;
+                r0=rr;
                 /*vector<long> map(3*NDIM);
                  for (int d=0; d<NDIM; ++d) {
                  map[d]=d+2*NDIM;
@@ -964,9 +963,9 @@ namespace madness {
 
                  //print(rr);
                  */
-                r.cycledim(NDIM,0,-1); //->NNkk or MqMqkk
+                r=rr.cycledim(NDIM,0,-1); //->NNkk or MqMqkk
             }
-            //print("faking done M q r(fake) r0(real)",M,q,"\n", r,r0);
+            print("faking done M q r(fake) r0(real)",M,q,"\n", std::vector<long> (r.dims(),r.dims()+6),std::vector<long> (r0.dims(),r0.dims()+6));
             ProcessID me = world.rank();
             Vector<long,NDIM> t(N);
 
@@ -995,8 +994,7 @@ namespace madness {
                         const tensorT& t = result.get().second;
 
                         qq = parent_to_child(t, parent, key);
-                    }
-                    else {
+                    } else {
                         qq = it->second.coeff();
                     }
                     std::vector<Slice> s(NDIM*2);
