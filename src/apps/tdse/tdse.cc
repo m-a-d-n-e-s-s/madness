@@ -724,9 +724,10 @@ void preloadbal(World& world,
     if (world.rank() == 0) print("starting preLB");
     LoadBalanceDeux<3> lb(world);
     lb.add_tree(potn, lbcost<double,3>(1.0,1.0));
-    psi.reconstruct();
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
-    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, true));
+    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
+    world.gop.fence();
+    if (world.rank() == 0) print("Verifying psi");
     world.gop.fence();
 }
 
@@ -742,9 +743,18 @@ void loadbal(World& world,
     psi.broaden();
     psi.broaden();
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
-    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, true));
+    FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
+    world.gop.fence();
+    if (world.rank() == 0) print("Verifying potn");
+    potn.verify_tree();
+    if (world.rank() == 0) print("Verifying psi");
+    psi.verify_tree();
     world.gop.fence();
     psi.truncate();
+    world.gop.fence();
+    if (world.rank() == 0) print("Verifying psi (compressed and truncated)");
+    psi.verify_tree();
+    world.gop.fence();
 }
 
 
