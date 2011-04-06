@@ -289,6 +289,29 @@ namespace madness {
         	}
 			return true;
         }
+
+        /// check if this MultiIndex contains point x, disregarding these two dimensions
+        bool thisKeyContains(const Vector<double,NDIM>& x, const unsigned int& dim0,
+        		const unsigned int& dim1) const {
+
+        	// it's sufficient if one single dimension is out
+        	bool contains=true;
+        	const int twotoN = std::pow(2,n);
+        	MADNESS_ASSERT(dim0<NDIM and dim1<NDIM);
+
+        	for (unsigned int i=0; i<NDIM; i++ ) {
+
+        		// check bounds
+        		MADNESS_ASSERT((x[i]>=0.0) and (x[i]<=1.0));
+
+        		// leave these two dimensions out
+        		if ((i==dim0) or (i==dim1)) continue;
+
+        		const int ll=int (x[i]*twotoN);
+        		if (not (l[i]==ll)) contains=false;
+        	}
+        	return contains;
+        }
     };
 
     template<std::size_t NDIM>
