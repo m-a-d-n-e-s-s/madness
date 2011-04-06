@@ -404,6 +404,7 @@ struct CalculationParameters {
     double smear;               ///< Smearing parameter
     double econv;               ///< Energy convergence
     double dconv;               ///< Density convergence
+    int k;						///< polynomial order
     double L;                   ///< User coordinates box size
     double maxrotn;             ///< Step restriction used in autoshift algorithm
     int nvalpha;                ///< Number of alpha virtuals to compute
@@ -433,7 +434,7 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
+        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type;
@@ -444,6 +445,7 @@ struct CalculationParameters {
         , smear(0.0)
         , econv(1e-5)
         , dconv(1e-4)
+    	, k(-1)
         , L(0.0)
         , maxrotn(0.25)
         , nvalpha(0)
@@ -489,6 +491,9 @@ struct CalculationParameters {
             }
             else if (s == "dconv") {
                 f >> dconv;
+            }
+            else if (s == "k") {
+                f >> k;
             }
             else if (s == "L") {
                 f >> L;
@@ -629,6 +634,7 @@ struct CalculationParameters {
         madness::print("     spin restricted ", spin_restricted);
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
+        madness::print("    polynomial order ", k);
         madness::print("    maximum rotation ", maxrotn);
         if (core_type != "")
             madness::print("           core type ", core_type);
@@ -707,7 +713,15 @@ struct Calculation {
         else
             k = 12;
 
-        FunctionDefaults<3>::set_k(k);
+        // k defaults to make sense with thresh, override by providing k in input file
+        if (param.k == -1) {
+        	FunctionDefaults<3>::set_k(k);
+//        	param.k=k;
+        } else {
+        	FunctionDefaults<3>::set_k(param.k);
+        }
+        // don't forget to adapt the molecular smoothing parameter!!
+        molecule.set_eprec(thresh);
         FunctionDefaults<3>::set_thresh(thresh);
         FunctionDefaults<3>::set_refine(true);
         FunctionDefaults<3>::set_initial_level(2);
@@ -2365,7 +2379,8 @@ struct Calculation {
             }
 
             if(iter > 0){
-                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
+//                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
+                if(da < dconv && db < dconv && bsh_residual < 5.0*dconv){
                     if(world.rank() == 0) {
                         print("\nConverged!\n");
                     }
@@ -2483,6 +2498,7 @@ public:
         calc.solve(world);
         calc.save_mos(world);
 
+        // successively tighten threshold
         calc.set_protocol(world,1e-6);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
@@ -2490,11 +2506,14 @@ public:
         calc.solve(world);
         calc.save_mos(world);
 
-        //         calc.set_protocol(world,1e-8);
-        //         calc.make_nuclear_potential(world);
-        //         calc.project(world);
-        //         calc.solve(world);
-        //         calc.save_mos(world);
+        if (calc.param.econv<1.e-6) {
+            calc.set_protocol(world,calc.param.econv);
+            calc.make_nuclear_potential(world);
+            calc.project_ao_basis(world);
+            calc.project(world);
+            calc.solve(world);
+            calc.save_mos(world);
+        }
 
         return calc.current_energy;
     }
@@ -2537,7 +2556,7 @@ int main(int argc, char** argv) {
 
         // Come up with an initial OK data map
         if (world.size() > 1) {
-          calc.set_protocol(world,1e-4);
+          calc.set_protocol(world,1e-6);
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }

@@ -68,22 +68,13 @@ namespace madness {
         friend class FunctionImpl<T, NDIM>;
 
         typedef Tensor<T>               tensorT  ;	//< regular tensors, like rm, etc
-#if HAVE_GENTENSOR
         typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
-#else
-        typedef Tensor<T>               coeffT   ;	//< holding the node's coeffs (full rank)
-#endif
         typedef Key<NDIM>               keyT     ;
         typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
-#if HAVE_FLONODE
-        typedef WorldContainer<Key<NDIM> , FloNode<T, NDIM> > dcT;
-        typedef FloNode<T,NDIM> nodeT;
-#else
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
-#endif
 
 
         DerivativeBase(World& world, std::size_t axis, int k, BoundaryConditions<NDIM> bc)
@@ -244,7 +235,7 @@ namespace madness {
             keyT neigh = neighbor(key, step);
             if (neigh.is_invalid()) {
 //flo                return Future<argT>(argT(neigh,tensorT(vk))); // Zero bc
-                return Future<argT>(argT(neigh,coeffT(vk))); // Zero bc
+                return Future<argT>(argT(neigh,coeffT(vk,f->get_tensor_args()))); // Zero bc
             }
             else {
                 Future<argT> result;
@@ -270,22 +261,13 @@ namespace madness {
 
     public:
         typedef Tensor<T>               tensorT  ;
-#if HAVE_GENTENSOR
         typedef GenTensor<T>            coeffT   ;	//< holding the node's coeffs (possibly low rank)
-#else
-        typedef Tensor<T>               coeffT   ;	//< holding the node's coeffs (full rank)
-#endif
         typedef Key<NDIM>               keyT     ;
         typedef std::pair<keyT,coeffT>  argT     ;
         typedef FunctionImpl<T,NDIM>    implT    ;
         typedef Function<T,NDIM>        functionT;
-#if HAVE_FLONODE
-        typedef WorldContainer< Key<NDIM> , FloNode<T, NDIM> > dcT;
-        typedef FloNode<T,NDIM> nodeT;
-#else
         typedef WorldContainer< Key<NDIM> , FunctionNode<T, NDIM> > dcT;
         typedef FunctionNode<T,NDIM> nodeT;
-#endif
 
     private:
         const functionT g1;  ///< Function describing the boundary condition on the right side
@@ -305,8 +287,8 @@ namespace madness {
             Vector<Translation,NDIM> l = key.translation();
             double lev   = (double) key.level();
 
-            const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
-            const double thresh=FunctionDefaults<NDIM>::get_thresh();
+//            const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
+//            const double thresh=FunctionDefaults<NDIM>::get_thresh();
 
             tensorT d;
 
@@ -344,11 +326,7 @@ namespace madness {
             // flo thinks this is wrong for higher dimensions -- need to cycledim
             if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
-#if HAVE_FLONODE
-            df->get_coeffs().replace(key,nodeT(GenTensor<T>(d,thresh,tt),false));
-#else
-            df->get_coeffs().replace(key,nodeT(d,false));
-#endif
+            df->get_coeffs().replace(key,nodeT(coeffT(d,df->get_thresh(),df->get_tensor_type()),false));
 
             
             // This is the boundary contribution (formally in BoundaryDerivative)
@@ -411,11 +389,7 @@ namespace madness {
             }
 
             bdry_t += d;
-#if HAVE_FLONODE
-            df->get_coeffs().replace(key,nodeT(GenTensor<T>(bdry_t,thresh,tt),false));
-#else
-            df->get_coeffs().replace(key,nodeT(bdry_t,false));
-#endif
+            df->get_coeffs().replace(key,nodeT(coeffT(bdry_t,df->get_thresh(),df->get_tensor_type()),false));
             
             return None;
         }

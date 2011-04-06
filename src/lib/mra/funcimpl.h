@@ -82,6 +82,7 @@ namespace madness {
 namespace madness {
 
 
+
 #if HAVE_GENTENSOR
 #  define __Tensor GenTensor
 #else
@@ -205,11 +206,8 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class FunctionNode {
     public:
-#if HAVE_GENTENSOR
     	typedef GenTensor<T> coeffT;
-#else
-    	typedef Tensor<T> coeffT;
-#endif
+    	typedef Tensor<T> tensorT;
     private:
         // Should compile OK with these volatile but there should
         // be no need to set as volatile since the container internally
@@ -493,15 +491,20 @@ namespace madness {
         }
 
         /// Accumulate inplace and if necessary connect node to parent
-        Void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c, const Key<NDIM>& key) {
+        Void accumulate(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        		const Key<NDIM>& key, const TensorArgs& args) {
             if (has_coeff()) {
-                coeff() += t;
+//                coeff() += t;
+            	tensorT cc=coeff().full_tensor_copy();;
+                cc += t;
+                coeff()=coeffT(cc,args);
             }
             else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
-                coeff() = copy(t);
+//                coeff() = copy(t);
+                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
                     const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
@@ -518,11 +521,6 @@ namespace madness {
         void serialize(Archive& ar) {
             ar & coeff() & _has_children & double(_norm_tree);
         }
-
-
-        /*
-         * following: dummy functions for FloNode
-         */
 
     };
 
@@ -559,15 +557,12 @@ namespace madness {
 
     public:
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
+        typedef std::shared_ptr< FunctionImpl<T,NDIM> > pimplT; ///< pointer to this class
         typedef Tensor<T> tensorT; ///< Type of tensor for anything but to hold coeffs
         typedef Vector<Translation,NDIM> tranT; ///< Type of array holding translation
         typedef Key<NDIM> keyT; ///< Type of key
         typedef FunctionNode<T,NDIM> nodeT; ///< Type of node
-#if HAVE_GENTENSOR
         typedef GenTensor<T> coeffT; ///< Type of tensor used to hold coeffs
-#else
-        typedef Tensor<T> coeffT; ///< Type of tensor used to hold coeffs
-#endif
         typedef WorldContainer<keyT,nodeT> dcT; ///< Type of container holding the coefficients
         typedef std::pair<const keyT,nodeT> datumT; ///< Type of entry in container
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
@@ -589,6 +584,7 @@ namespace madness {
         bool autorefine; ///< If true, autorefine where appropriate
         bool truncate_on_project; ///< If true projection inserts at level n-1 not n
         bool nonstandard; ///< If true, compress keeps scaling coeff
+        TensorArgs targs; ///< type of tensor to be used in the FunctionNodes
 
         const FunctionCommonData<T,NDIM>& cdata;
 
@@ -617,6 +613,7 @@ namespace madness {
                 , autorefine(factory._autorefine)
                 , truncate_on_project(factory._truncate_on_project)
                 , nonstandard(false)
+                , targs(factory._thresh,FunctionDefaults<NDIM>::get_tensor_type())
                 , cdata(FunctionCommonData<T,NDIM>::get(k))
                 , functor(factory.get_functor())
                 , on_demand(factory._is_on_demand)
@@ -657,6 +654,7 @@ namespace madness {
             this->process_pending();
             if (factory._fence && functor)
                 world.gop.fence();
+
         }
 
         /// Copy constructor
@@ -679,6 +677,7 @@ namespace madness {
                 , autorefine(other.autorefine)
                 , truncate_on_project(other.truncate_on_project)
                 , nonstandard(other.nonstandard)
+                , targs(other.targs)
                 , cdata(FunctionCommonData<T,NDIM>::get(k))
                 , functor()
                 , on_demand(false)	// since functor() is an default ctor
@@ -726,11 +725,7 @@ namespace madness {
             do_gaxpy_inplace(FunctionImpl<T,NDIM>* f, T alpha, R beta) : f(f), alpha(alpha), beta(beta) {}
             bool operator()(typename rangeT::iterator& it) const {
                 const keyT& key = it->first;
-#if HAVE_FLONODE
-                const FloNode<Q,NDIM>& other_node = it->second;
-#else
                 const FunctionNode<Q,NDIM>& other_node = it->second;
-#endif
                 // Use send to get write accessor and automated construction if missing
                 f->coeffs.send(key, &nodeT:: template gaxpy_inplace<Q,R>, alpha, other_node, beta);
                 return true;
@@ -796,12 +791,33 @@ namespace madness {
         	functor=functor1;
         }
 
+        std::shared_ptr<FunctionFunctorInterface<T,NDIM> > get_functor() {
+        	MADNESS_ASSERT(this->functor);
+        	return functor;
+        }
+
         void unset_functor() {
         	this->on_demand=false;
         	functor.reset();
         }
 
+        /// if this function is an on-demand function and its functor provides
+        /// a muster, return that muster
+        std::shared_ptr<FunctionImpl<T,NDIM> > get_muster() {
+
+        	MADNESS_ASSERT(is_on_demand());
+        	MADNESS_ASSERT(functor);
+            CompositeFunctorInterface<T,NDIM,3>* func=
+            		dynamic_cast<CompositeFunctorInterface<T,NDIM,3>* >(&(*functor));
+            MADNESS_ASSERT(func);
+            return func->get_muster();
+
+        }
+
         bool is_on_demand() const {return on_demand;};
+
+        TensorType get_tensor_type() const {return targs.tt;}
+        TensorArgs get_tensor_args() const {return targs;}
 
         double get_thresh() const {return thresh;}
 
@@ -864,6 +880,92 @@ namespace madness {
         void print_tree(Level maxlevel = 10000) const;
 
         void do_print_tree(const keyT& key, Level maxlevel) const;
+
+
+        /// Print a plane ("xy", "xz", or "yz") containing the point x to file
+
+        /// works for all dimensions; we walk through the tree, and if a leaf node
+        /// inside the sub-cell touches the plane we print it in pstricks format
+        void print_plane(const std::string filename, const std::string plane, const coordT& x_user,
+        		const Tensor<double>& cell_user) {
+
+        	// translate verbose plane to something computer-readable
+        	int dim0;
+        	int dim1;
+        	if (plane=="xy") {
+        		dim0=0;
+        		dim1=1;
+        	} else if (plane=="xz") {
+        		dim0=0;
+        		dim1=2;
+        	} else if (plane=="yz") {
+        		dim0=1;
+        		dim1=2;
+        	} else {
+        		print("unknown slice in WF::printSlice: ", plane);
+        		MADNESS_ASSERT(0);
+        	}
+
+        	coordT x_sim;
+        	user_to_sim<NDIM>(x_user,x_sim);
+        	x_sim[2]+=1.e-10;
+
+        	// prepare file
+        	FILE * pFile;
+        	pFile = fopen(filename.c_str(), "w");
+
+        	fprintf(pFile,"\\psset{unit=10cm}\n");
+        	fprintf(pFile,"\\begin{pspicture}(0,0)(1,1)\n");
+        	fprintf(pFile,"\\pslinewidth=0.005pt\n");
+
+
+
+        	typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+                const keyT& key = it->first;
+                nodeT& node = it->second;
+
+                // thisKeyContains ignores dim0 and dim1
+                if (key.thisKeyContains(x_sim,dim0,dim1) and node.is_leaf() and (node.has_coeff())) {
+
+                	// next: only key inside the given box
+                	for (size_t i=0; i<NDIM; i++) {
+                		if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
+                	}
+
+                	Level n=key.level();
+                	Vector<Translation,NDIM> l=key.translation();
+                	// get the diametral edges of the node in the plotting plane
+                	double scale=std::pow(0.5,double(n));
+                	double xloleft = scale*l[dim0];
+                	double yloleft = scale*l[dim1];
+                	double xhiright = scale*(l[dim0]+1);
+                	double yhiright = scale*(l[dim1]+1);
+
+                	// color
+                	const int rank=node.coeff().rank();
+         	        const double maxrank=40.0;
+           	        double hue=0.7-(0.7/maxrank)*(rank);
+           	        double color= std::max(0.0,hue);
+
+           	        // plot only if Box is within bounds
+//                	if ((xloleft>=x0) and (yloleft>=y0)
+//                			and (xhiright<=x1) and (yhiright<=y1)) {
+           	        if (1) {
+
+                		fprintf(pFile,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
+                		fprintf(pFile,"\\psframe["//linewidth=0.5pt,"
+                				"fillstyle=solid,"
+                				"fillcolor=mycolor]"
+                				"(%12.8f,%12.8f)(%12.8f,%12.8f)\n",
+                				xloleft,yloleft,xhiright,yhiright);
+                	}
+                }
+            }
+            fprintf(pFile,"\\end{pspicture}\n");
+            fclose(pFile);
+        }
+
 
         /// Compute by projection the scaling function coeffs in specified box
         tensorT project(const keyT& key) const;
@@ -1140,7 +1242,7 @@ namespace madness {
             TERNARY_OPTIMIZED_ITERATOR(T, tcube, L, lcube, R, rcube, *_p0 = *_p1 * *_p2;);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
-            coeffs.replace(key, nodeT(tcube,false).node_to_low_rank());
+            coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
             return None;
         }
 
@@ -1159,7 +1261,7 @@ namespace madness {
             op(key, tcube, lcube, rcube);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             tcube = transform(tcube,cdata.quad_phiw).scale(scale);
-            coeffs.replace(key, nodeT(tcube,false).node_to_low_rank());
+            coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
             return None;
         }
 
@@ -1343,7 +1445,7 @@ namespace madness {
                             }
                             nodeT& node = acc->second;
                             if (!node.has_coeff())
-                                node.set_coeff(coeffT(cdata.v2k));
+                                node.set_coeff(coeffT(cdata.v2k,targs));
                             coeffT& t = node.coeff();
                             t.gaxpy(1.0, r, c(i));
                         }
@@ -1426,10 +1528,10 @@ namespace madness {
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
                 else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
-                    result->coeffs.replace(key, nodeT(tensorT(cdata.vk),false).node_to_low_rank()); // Zero leaf
+                    result->coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf
                 }
                 else {
-                    result->coeffs.replace(key, nodeT(tensorT(),true).node_to_low_rank()); // Interior node
+                    result->coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
                     vresult.push_back(result);
                     vright.push_back(right);
                     vrc.push_back(rc);
@@ -1515,13 +1617,13 @@ namespace madness {
                 if (rc.size())
                     rnorm = rc.normf();
                 if (lnorm*rnorm < truncate_tol(tol, key)) {
-                    coeffs.replace(key, nodeT(tensorT(cdata.vk),false).node_to_low_rank()); // Zero leaf node
+                    coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf node
                     return None;
                 }
             }
 
             // Recur down
-            coeffs.replace(key, nodeT(tensorT(),true).node_to_low_rank()); // Interior node
+            coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
 
             Tensor<L> lss;
             if (lc.size()) {
@@ -1583,7 +1685,7 @@ namespace madness {
             }
 
             // Recur down
-            coeffs.replace(key, nodeT(tensorT(),true).node_to_low_rank()); // Interior node
+            coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
 
             Tensor<L> lss;
             if (lc.size()) {
@@ -1649,14 +1751,15 @@ namespace madness {
 
             if (fc.size() == 0) {
                 // Recur down
-                coeffs.replace(key, nodeT(tensorT(),true).node_to_low_rank()); // Interior node
+                coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     woT::task(coeffs.owner(child), &implT:: template unaryXXa<Q,opT>, child, func, op);
                 }
             }
             else {
-                coeffs.replace(key, nodeT(op(key, fc),false).node_to_low_rank()); // Leaf node
+            	tensorT t=op(key,fc);
+                coeffs.replace(key, nodeT(coeffT(t,targs),false)); // Leaf node
             }
 
             return None;
@@ -1831,6 +1934,18 @@ namespace madness {
                   const keyT& keyin,
                   const typename Future<Level>::remote_refT& ref);
 
+        /// Get the rank of leaf box of the tree at a point in \em simulation coordinates
+
+        /// Only the invoking process will get the result via the
+        /// remote reference to a future.  Active messages may be sent
+        /// to other nodes.
+        ///
+        /// This function is a minimally-modified version of eval()
+        Void evalR(const Vector<double,NDIM>& xin,
+                  const keyT& keyin,
+                  const typename Future<long>::remote_refT& ref);
+
+
         /// Computes norm of low/high-order polyn. coeffs for autorefinement test
 
         /// t is a k^d tensor.  In order to screen the autorefinement
@@ -1889,7 +2004,7 @@ namespace madness {
             if (node.has_children()) {
                 coeffT d;
                 if (c.size() > 0) {
-                    d = coeffT(cdata.v2k);
+                    d = coeffT(cdata.v2k,targs);
                     d(cdata.s0) = c;
                     d = unfilter(d);
                     node.clear_coeff();
@@ -1904,7 +2019,7 @@ namespace madness {
             }
             else {
                 // Missing coeffs assumed to be zero
-                if (c.size() <= 0) c = tensorT(cdata.vk);
+                if (c.size() <= 0) c = coeffT(cdata.vk,targs);
             }
             node.node_to_low_rank();
             return None;
@@ -1912,7 +2027,7 @@ namespace madness {
 
         /// After 1d push operator must sum coeffs down the tree to restore correct scaling function coefficients
         void sum_down(bool fence) {
-            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, tensorT());
+            if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
 
             if (fence) world.gop.fence();
         }
@@ -1949,7 +2064,7 @@ namespace madness {
 
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, targs, TaskAttributes::hipri());
                             }
                         }
                         else {
@@ -1976,11 +2091,7 @@ namespace madness {
             MADNESS_ASSERT(!f->is_compressed());
 
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator fiterT;
-#if HAVE_FLONODE
-            typedef FloNode<R,NDIM> fnodeT;
-#else
             typedef FunctionNode<R,NDIM> fnodeT;
-#endif
             fiterT end = f->coeffs.end();
             ProcessID me = world.rank();
             for (fiterT it=f->coeffs.begin(); it!=end; ++it) {
@@ -1988,7 +2099,8 @@ namespace madness {
                 if (node.has_coeff()) {
                     const keyT& key = it->first;
                     const Tensor<R>& c = node.full_tensor_copy();
-                    woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
+                    woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>,
+                    		archive::archive_ptr<const opT>(&op), axis, key, c);
                 }
             }
             if (fence) world.gop.fence();
@@ -2034,8 +2146,49 @@ namespace madness {
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
 
+
+
+        /// construct the FunctionNodes of this on-demand FunctionImpl
+
+        /// this must be an on-demand FunctionImpl,
+        /// @param[in]	leaves_only	if true, construct only the leaf nodes,
+        ///							if false, construct the interior nodes also
+        /// @param[in]	nonstandard	if true compute sum and difference coeffs
+        ///							if false, compute sum coeffs only
+        ///							leaf nodes are always standard
+        void fill_on_demand_tree(const pimplT muster, const std::shared_ptr<FunctionFunctorInterface<T,NDIM> > functor,
+        		const bool leaves_only, const bool nonstandard) {
+
+        	// some checks
+        	MADNESS_ASSERT(functor);
+
+//        	// for now, one could imagine also the ERIFunctor to be possible
+//        	CompositeFunctorInterface<T,NDIM,3>* func=
+//            		dynamic_cast<CompositeFunctorInterface<T,NDIM,3>* >(&(*functor));
+//        	MADNESS_ASSERT(func);
+//
+//        	// get the tree structure from the muster
+//        	pimplT muster=func->get_muster();
+//        	std::shared_ptr<implT> pc_tree=func->get_precomputed();
+//        	implT* pc_tree=implT(*muster,muster->get_pmap(),false);
+        	this->copy_coeffs(*muster,true);
+//
+//        	print("pc_tree size",pc_tree->tree_size());
+
+        	// go over the tree, and construct the leaf nodes on functor's impl
+        	// functor is a shared_ptr, get returns its pointer
+    		this->flo_unary_op_node_inplace(do_make_nodes(functor.get(),false),true);
+
+    		// construct the interior nodes also
+    		if (not leaves_only) this->compress(nonstandard,true,true);
+    		print("made boxes on on-demand tree",this->tree_size());
+
+        }
+
+
         /// return the sum coefficients of key in tensor representation
 
+		/// !!!  call only from function_factory_and_interface  !!!
         /// depending on if this is an on-demand functor or an on-demand function
         /// call different get-algorithm (see notes); first check if the coeffs
         /// are already present, otherwise construct according to get-algorithm
@@ -2043,7 +2196,6 @@ namespace madness {
 
         	tensorT t;
         	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
-
 
         	// check for coefficients being present (locally?)
         	typename dcT::iterator it = coeffs.find(key).get();
@@ -2113,10 +2265,9 @@ namespace madness {
         	}
 
         	MADNESS_ASSERT(t.has_data());
-        	MADNESS_ASSERT(t.dim(0)==FunctionDefaults<NDIM>::get_k());
+//        	MADNESS_ASSERT(t.dim(0)==FunctionDefaults<NDIM>::get_k());
         	return t;
         }
-
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2186,12 +2337,12 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    tensorT c(cdata.vk);
-                    c(s) = node.full_tensor_copy()(s);
-                    coeffs.replace(key,nodeT(c,false).node_to_low_rank());
+                    coeffT c(cdata.vk,targs);
+                    c(s) = node.coeff()(s);
+                    coeffs.replace(key,nodeT(c,false));
                 }
                 else {
-                    coeffs.replace(key,nodeT(tensorT(),true).node_to_low_rank());
+                    coeffs.replace(key,nodeT(coeffT(),true));
                 }
             }
             if (fence)
@@ -2213,8 +2364,8 @@ namespace madness {
             MADNESS_ASSERT(coeffs.find(acc,key));
             nodeT& node = acc->second;
             if (node.has_coeff() && key.level() < max_refine_level && op(this, key, node)) {
-                coeffT d(cdata.v2k);
-                d(cdata.s0) = copy(node.coeff());
+                coeffT d(cdata.v2k,targs);
+                d(cdata.s0) += copy(node.coeff());
                 d = unfilter(d);
                 node.clear_coeff();
                 node.set_has_children(true);
@@ -2276,13 +2427,12 @@ namespace madness {
         void broaden(std::vector<bool> is_periodic, bool fence) {
             typename dcT::iterator end = coeffs.end();
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
-                const keyT& key = it->first;
-        typename dcT::accessor acc;
-        MADNESS_ASSERT(coeffs.find(acc,key));
-        nodeT& node = acc->second;
+            	const keyT& key = it->first;
+            	typename dcT::accessor acc;
+            	MADNESS_ASSERT(coeffs.find(acc,key));
+            	nodeT& node = acc->second;
                 if (node.has_coeff() &&
                     node.get_norm_tree() != -1.0 &&
-//                    node.coeff().normf() >= truncate_tol(thresh,key)) {
                     node.coeff().normf() >= truncate_tol(thresh,key)) {
 
                     node.set_norm_tree(-1.0); // Indicates already broadened or result of broadening/refining
@@ -2326,7 +2476,7 @@ namespace madness {
             // Must set true here so that successive calls without fence do the right thing
             nonstandard = compressed = redundant = false;
             if (world.rank() == coeffs.owner(cdata.key0))
-                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
+                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
             if (fence)
                 world.gop.fence();
         }
@@ -2347,6 +2497,7 @@ namespace madness {
             this->nonstandard = nonstandard;
             this->redundant = false;
 
+//            this->print_tree();
             if (world.rank() == coeffs.owner(cdata.key0)) {
 
            		compress_spawn(cdata.key0, nonstandard, keepleaves);
@@ -2430,7 +2581,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             // Copy child scaling coeffs into contiguous block
-            coeffT d(cdata.v2k);
+            coeffT d(cdata.v2k,targs);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 d(child_patch(kit.key())) += v[i].get();
@@ -2442,6 +2593,7 @@ namespace madness {
             MADNESS_ASSERT(coeffs.find(acc, key));
 
             if (acc->second.has_coeff()) {
+            	print(" stuff in compress_op");
                 const coeffT& c = acc->second.coeff();
                 if (c.dim(0) == k) {
                     d(cdata.s0) += c;
@@ -2510,11 +2662,18 @@ namespace madness {
             if (result.normf()> 0.3*args.tol/args.fac) {
                 // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
-                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, targs, TaskAttributes::hipri());
             }
             return None;
         }
 
+        /// apply an operator on the coeffs c (at node key)
+
+        /// the result is accumulated inplace to this's tree at various FunctionNodes
+        /// @param[in] op	the operator to act on the source function
+        /// @param[in] f	the source function (not used???)
+        /// @param[in] key	key of the source FunctionNode of f which is processed
+        /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -2551,7 +2710,7 @@ namespace madness {
                         } else {
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, targs, TaskAttributes::hipri());
                             }
                         }
                     } else if (d.distsq() >= 1)
@@ -2561,6 +2720,7 @@ namespace madness {
             return None;
         }
 
+        /// apply an operator on f to return this
         template <typename opT, typename R>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -2579,6 +2739,115 @@ namespace madness {
             if (fence)
                 world.gop.fence();
         }
+
+
+        /// apply an operator on f and accumulate the result in this
+
+        /// the result is accumulated inplace to this's tree at FunctionNode at key
+        /// @param[in] op		the operator to act on the source function
+        /// @param[in] f		the source function
+        /// @param[in] key		key of node that is computed
+        template <typename opT, typename R>
+        Void do_apply_target_driven(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // insert timer here
+            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            //const long lmax = 1L << (key.level()-1);
+
+//            FunctionImpl<R,NDIM>* f=const_cast< FunctionImpl<R,NDIM>*>(ff);
+//            FunctionImpl<R,NDIM>* f;
+
+            // the node we're going to construct
+            typename dcT::accessor acc;
+         	MADNESS_ASSERT(coeffs.find(acc,key));
+         	nodeT& node = acc->second;
+//         	const bool doleaves=node.coeff().dim(0)==this->get_k();
+         	node.clear_coeff();
+
+            const dcT& fcoeffs=f->get_coeffs();
+
+//        	print("working on key",key);
+
+            // disp is all the possible displacements (starting from close to farther away)
+            const std::vector<keyT>& disp = op->get_disp(key.level());
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+
+            // loop thru all neighbors of key on f and accumulate on this' key
+            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+
+            	// d is the displacement (..,-1,0,1,..)
+//            	const keyT& d = *it;
+            	keyT dd = *it;
+//            	keyT d(dd);
+
+            	// source is the neighbor (key + d) from which we get the coeffs
+                keyT source = neighbor(key, dd, is_periodic);
+//                print("   source",source);
+
+                // mirror the displacement, since the algorithm is reversed
+                Vector<Translation, NDIM> l=dd.translation();
+                keyT d(dd.level(),l*-1);
+
+                if (source.is_valid()) {
+                    double opnorm = op->norm(key.level(), d);
+                    // working assumption here is that the operator is isotropic and
+                    // monotonically decreasing with distance
+                    double tol = truncate_tol(thresh, key);
+
+                    // get the NS coeffs from the source tree
+//                    tensorT c=f->functor->coeff(source,true).full_tensor_copy();
+//                    pimplT pc=f->functor->get_precomputed();
+                    const typename dcT::const_iterator it=fcoeffs.find(source).get();
+
+                    if (it!=fcoeffs.end()) {
+                    	const nodeT& fnode=it->second;
+                    	MADNESS_ASSERT(fnode.has_coeff());
+                        const tensorT c=fnode.coeff().full_tensor_copy();
+                        const double cnorm=c.normf();
+
+						if (cnorm*opnorm> tol/fac) {
+							// for now do all the convolutions in one task, since we need
+							// to reduce the rank at the end, and we can't keep track of
+							// which nodes have already been processed
+	//                    	tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
+
+							// accumulate the result on this node
+							if (result.normf()> 0.3*tol/fac) {
+								node.accumulate(result,this->coeffs,key,targs);
+							}
+//						} else if (d.distsq() > 1) {
+//							break; // Assumes monotonic decay beyond nearest neighbor
+						}
+                    }
+                }
+            }
+            node.reduceRank(thresh);
+            return None;
+        }
+
+
+        /// apply an operator on f to return this
+
+        /// similar to apply, but loop through this's FunctionNodes, not through f's
+        template <typename opT, typename R>
+        void apply_target_driven(opT& op, const FunctionImpl<R,NDIM>& f,
+        		const std::vector<bool>& is_periodic, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            // looping through all the coefficients of the target (this)
+            typename dcT::iterator end = coeffs.end();
+             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+
+            	const keyT& key = it->first;
+
+                ProcessID p = coeffs.owner(key);
+                woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
+            }
+            if (fence)
+                world.gop.fence();
+        }
+
 
         /// Returns the square of the error norm in the box labelled by key
 
@@ -2722,27 +2991,36 @@ namespace madness {
             return sum;
         }
 
-        /// make all the nodes in an on-demand function
+        /// make all the leaf nodes in an on-demand function
 
-        /// this_impl needs to have coeffs already to determine the structure
-        /// of the tree. nodes will be erased and recomputed
+        /// loop over the leaf nodes of the calling FuncImpl and fill them
+        /// using the functor
          struct do_make_nodes {
               typedef Range<typename dcT::iterator> rangeT;
-              implT* impl;
+              FunctionFunctorInterface<T,NDIM>* functor;
+              const bool nonstandard;
 
-              /// constructor need impl for cdata
-              do_make_nodes(implT* impl) : impl(impl) {
+              /// constructor needs functor
 
+              /// @param[in]	nonstandard	compute NS form for coeffs
+              do_make_nodes(FunctionFunctorInterface<T,NDIM>* func, const bool nonstandard)
+              	  : functor(func)
+              	  , nonstandard(nonstandard) {
               }
 
+              // iterator iterates on this's nodes
               bool operator()(const typename rangeT::iterator& it) const {
 
-            	  // remove this node
-            	  const keyT key=it->first;
+            	  const keyT& key=it->first;
+            	  nodeT& node=it->second;
+            	  const bool is_leaf=(node.is_leaf());
+            	  node.clear_coeff();
 
                   // construct this's sum coefficients on the fly and insert them into the tree
-                  // functor->coeff automatically stores function nodes internally
-                  const coeffT gcoeff=impl->functor->coeff(key);
+            	  if (is_leaf) {
+        			  node.coeff()=functor->coeff(key,nonstandard);
+            	  }
+
                   return true;
               }
               template <typename Archive> void serialize(const Archive& ar) {}
@@ -2763,8 +3041,9 @@ namespace madness {
         	// afterwards use them to compute the inner product;
         	// flo_unary_op_node_inplace implicitly use *this for the range
         	// first construct the tree structure
+        	// make leaves only, since f is reconstructed
         	this->copy_coeffs(f,true);
-    		flo_unary_op_node_inplace(do_make_nodes(this),true);
+    		flo_unary_op_node_inplace(do_make_nodes(this->functor.get(),false),true);
 
 
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;

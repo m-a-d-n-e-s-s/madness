@@ -101,7 +101,7 @@ namespace madness {
 
 			// direct reduction on the polynomial values on the Tensor
 			if (this->tensor_type()==TT_3D) {
-				this->reduceRank(eps,values_eff);
+				this->doReduceRank(eps,values_eff);
 			} else if (this->tensor_type()==TT_2D) {
 				this->computeSVD(eps,values_eff);
 			} else {
@@ -222,7 +222,7 @@ namespace madness {
 
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
 		void inplace_add(const SepRep<T>& rhs, const std::vector<Slice>& lhs_s,
-				const std::vector<Slice>& rhs_s) {
+				const std::vector<Slice>& rhs_s, const double alpha, const double beta) {
 
 
 			// fast return if possible
@@ -235,7 +235,7 @@ namespace madness {
 //				return;
 //			}
 
-			this->configs_.inplace_add(rhs.configs_,lhs_s,rhs_s);
+			this->configs_.inplace_add(rhs.configs_,lhs_s,rhs_s, alpha, beta);
 		}
 
 		/// is this a valid tensor? Note that the rank might still be zero.
@@ -247,21 +247,6 @@ namespace madness {
 			if (it_is) MADNESS_ASSERT((this->get_k()>0) || (this->tensor_type()!=TT_NONE));
 			return it_is;
 		}
-
-		/// multiply another SepRep to this one
-	//	SepRep& times(const SepRep& rhs, const double& eps,
-	//			const MultiIndex& thisIndex, const double& vol, double& error,
-	//			const QuadratureScheme& quadrature);
-
-		/// return the value at a certain point (tested)
-	//	double value(const std::vector<double>&, const MultiIndex&, const double) const;
-
-		/// return the value at a certain point
-	//	tensor<T>  value(const tensor<T> &, const MultiIndex&, const double) const;
-
-
-		// transform the Legendre coefficients with the tensor
-//		void selfTransform(std::vector<const tensor<T> *>&, const double& dfac=1.0);
 
 		/// make this zero
 		void zeroOut() {this->configs_.zeroOut();};
@@ -372,9 +357,29 @@ namespace madness {
 
 		}
 
+		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()) {
+
+			// direct reduction on the polynomial values on the Tensor
+			if (this->tensor_type()==TT_3D) {
+				this->doReduceRank(eps,values);
+			} else if (this->tensor_type()==TT_2D) {
+				MADNESS_ASSERT(not values.has_data());
+				Tensor<T> values=this->reconstructTensor();
+
+				// adapt form of values
+				std::vector<long> d(configs_.dim_eff(),configs_.kVec());
+				Tensor<T> values_eff=values.reshape(d);
+
+				this->computeSVD(eps,values_eff);
+			} else {
+				MADNESS_ASSERT(0);
+			}
+			MADNESS_ASSERT(this->configs_.has_structure() or this->rank()==0);
+		}
+
 		/// reduce the separation rank of this to a near optimal value
 		/// follow section 3 in BM2005
-		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
+		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
 //				const SepRep& trial2=SepRep()) {
 			/*
 			 * basic idea is to use the residual Frobenius norm to check
@@ -420,8 +425,8 @@ namespace madness {
 			const double threshold=eps*facReduce;
 
 			// what we expect the trial rank might be (engineering problem)
-			const unsigned int maxTrialRank=200;
-			const unsigned int maxloop=200;
+			const unsigned int maxTrialRank=218;
+			const unsigned int maxloop=218;
 
 			const bool print=false;
 			double norm=1.0;

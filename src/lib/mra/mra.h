@@ -233,6 +233,43 @@ namespace madness {
             return result;
         }
 
+
+        /// Evaluates the function rank at a point in user coordinates.  Possible non-blocking comm.
+
+        /// Only the invoking process will receive the result via the future
+        /// though other processes may be involved in the evaluation.
+        ///
+        /// Throws if function is not initialized.
+        Future<long> evalR(const coordT& xuser) const {
+            PROFILE_MEMBER_FUNC(Function);
+            const double eps=1e-15;
+            verify();
+            MADNESS_ASSERT(!is_compressed());
+            coordT xsim;
+            user_to_sim(xuser,xsim);
+            // If on the boundary, move the point just inside the
+            // volume so that the evaluation logic does not fail
+            for (std::size_t d=0; d<NDIM; ++d) {
+                if (xsim[d] < -eps) {
+                    MADNESS_EXCEPTION("eval: coordinate lower-bound error in dimension", d);
+                }
+                else if (xsim[d] < eps) {
+                    xsim[d] = eps;
+                }
+
+                if (xsim[d] > 1.0+eps) {
+                    MADNESS_EXCEPTION("eval: coordinate upper-bound error in dimension", d);
+                }
+                else if (xsim[d] > 1.0-eps) {
+                    xsim[d] = 1.0-eps;
+                }
+            }
+
+            Future<long> result;
+            impl->evalR(xsim, impl->key0(), result.remote_ref(impl->world));
+            return result;
+        }
+
         /// Evaluates a cube/slice of points (probably for plotting) ... collective but no fence necessary
 
         /// All processes recieve the entire result (which is a rather severe limit
@@ -522,7 +559,6 @@ namespace madness {
         }
 
         bool is_on_demand() const {return this->impl->is_on_demand();}
-
 
         /// Replace current FunctionImpl with a new one using the same parameters & map as f
 
@@ -1320,6 +1356,9 @@ namespace madness {
         return result.conj(fence);
     }
 
+
+
+
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
@@ -1327,8 +1366,9 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-        result.set_impl(f, true);
-        result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+       	result.set_impl(f, true);
+       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+
         return result;
     }
 
@@ -1340,14 +1380,39 @@ namespace madness {
     template <typename opT, typename R, std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
     apply(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
-        Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
-        if (VERIFY_TREE) ff.verify_tree();
-        ff.reconstruct();
-        ff.nonstandard(op.doleaves, true);
 
-        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, fence);
+    	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+    	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-        ff.standard();
+        // prepare the function on which the operator acts
+        if (f.is_on_demand()) {
+
+        	// make the nodes of ff given the tree of f
+        	Function<R,NDIM> source;
+        	source.set_impl(f);
+
+        	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster(),
+        			f.get_impl()->get_functor(),false,true);
+
+        	// apply (bypass apply_only)
+        	print("applying operator in target-driven algorithm");
+        	result.set_impl(source,true);
+        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster(),
+        			f.get_impl()->get_functor(),false,true);
+
+
+        	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
+
+
+        } else {
+            if (VERIFY_TREE) ff.verify_tree();
+        	ff.reconstruct();
+        	ff.nonstandard(op.doleaves, true);
+            result = apply_only(op, ff, fence);
+        }
+
+
+        if (not f.is_on_demand()) ff.standard();
         result.reconstruct();
         return result;
     }

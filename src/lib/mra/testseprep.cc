@@ -362,6 +362,16 @@ int main(int argc, char**argv) {
     double eps=1.e-3;
 
 
+    Tensor<double> t;
+    Tensor<double> tt(t);
+
+    t=Tensor<double> (3,3);
+    t=2.0;
+    print(t);
+    print(tt);
+
+
+
 #if 0
     // do some benchmarking
     Tensor<double> t5(5,5,5,5,5,5);

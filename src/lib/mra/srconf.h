@@ -195,17 +195,17 @@ namespace madness {
 
 			// pass some dummy slice
 			std::vector<Slice> s(this->dim(),Slice(_));
-			this->inplace_add(rhs,s,s);
+			this->inplace_add(rhs,s,s,1.0,1.0);
 			return *this;
 
 		}
 
-		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
+		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
 
 		/// bounds checking should have been performed by caller
 		/// s denotes where in lhs the new contribution from rhs will be inserted
 		void inplace_add(const SRConf<T>& rhs2, std::vector<Slice> lhs_s,
-				std::vector<Slice> rhs_s) {
+				std::vector<Slice> rhs_s, const double alpha, const double beta) {
 
 			// fast return if possible; no fast return for this.rank()==0
 			// since we might work with slices!
@@ -240,10 +240,10 @@ namespace madness {
 				MADNESS_ASSERT(lhs_k>=(rhs_s[idim].end-rhs_s[idim].start+1));
 			}
 
-			// assign weights
+			// assign weights, and include factors alpha and beta
 			Tensor<double> newWeights(newRank);
-			if (lhsRank>0) newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1));
-			newWeights(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
+			if (lhsRank>0) newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1))*alpha;
+			newWeights(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*beta;
 			std::swap(lhs.weights_,newWeights);
 
 

@@ -502,6 +502,184 @@ namespace madness {
         }
         world.gop.fence();
     }
+
+
+    /// some tools for plotting MRA ranks of low order tensors
+
+    // return a hue number [0,0.7] according to the rank in relation to maxrank,
+    static double hueCode(const int rank) {
+            const double maxrank=40.0;
+            double hue=0.7-(0.7/maxrank)*(rank);
+            return std::max(0.0,hue);
+    }
+
+    template<typename T>
+    static std::string stringify(T arg) {
+    	std::ostringstream o;
+    	if (!(o << arg))
+    		throw std::domain_error("stringify(double)");
+    	return o.str();
+    }
+
+
+    // print a dot of hue color at (x,y) in file f
+    static void print_psdot(FILE *f, double x, double y, double color) {
+    	fprintf(f,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
+    	std::string line="\\psdot[linecolor=mycolor]("+stringify(x)+","+stringify(y)+")\n";
+    	fprintf(f,line.c_str());
+    }
+
+    typedef Vector<double,3> coord_3d;
+    typedef Vector<double,6> coord_6d;
+
+    static coord_3d line(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+    	double length=hi-lo;
+    	double stepsize=length/npt;
+    	// along z
+    	coord_3d coord(0.0);
+    	coord[2]=lo+ipt*stepsize;
+    	return coord;
+    }
+    static coord_3d circle2(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+    	double stepsize=constants::pi * 2.0 / npt;
+    	double phi=ipt*stepsize;
+
+    	// in the xz plane
+    	coord_3d coord(0.0);
+    	coord[0]=radius * sin(phi);
+    	coord[1]=radius * cos(phi);
+    	return coord;
+
+    }
+
+
+    static coord_6d circle_6d(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+    	double stepsize=constants::pi * 2.0 / npt;
+
+    	// start at phi=1.0
+    	double phi=1.0+constants::pi+ipt*stepsize;
+
+    	// in the xz plane
+    	coord_6d coord(0.0);
+    	coord[0]=radius * sin(phi);
+    	coord[1]=radius * cos(phi);
+    	coord[2]=0.0;
+    	coord[3]=el2[0];
+    	coord[4]=el2[1];
+    	coord[5]=el2[2];
+
+    	return coord;
+
+    }
+
+    // plot along this trajectory
+    template<size_t NDIM>
+    struct trajectory {
+
+    	double lo;
+    	double hi;
+    	double radius;
+    	long npt;
+    	coord_3d el2;
+    	Vector<double,NDIM> (*curve)(double lo, double hi, double radius, coord_3d el2, long npt, long ipt);
+
+    //	typedef Vector<double,NDIM> (trajectory::circle_6d)(double lo, double hi, double radius, long npt, long ipt) const;
+
+    	// ctor for a straight line thru the origin
+    	trajectory(double lo, double hi, long npt) : lo(lo), hi(hi), npt(npt), curve(line) {
+    	}
+
+    	// ctor for circle
+    	trajectory(double radius, long npt) : radius(radius), npt(npt), curve(circle2) {
+    	}
+
+    	// ctor for circle with electron 2 fixed at coord_3d
+    	trajectory(double radius, coord_3d el2, long npt) : radius(radius), npt(npt), el2(el2), curve(circle_6d) {
+    	}
+
+    	Vector<double,NDIM> operator()(int ipt) {
+    		return curve(lo,hi,radius,el2,npt,ipt);
+    	}
+
+    };
+
+    // plot along a line
+    template<size_t NDIM>
+    void plot_along(World& world, trajectory<NDIM>& traj, const Function<double,NDIM>& function, std::string filename) {
+    	 FILE *f=0;
+    	 const int npt=traj.npt;
+
+
+    	 if(world.rank() == 0) {
+    		 f = fopen(filename.c_str(), "w");
+    		 if(!f) MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+
+             fprintf(f,"\\psset{xunit=0.1cm}\n");
+             fprintf(f,"\\psset{yunit=10cm}\n");
+             fprintf(f,"\\begin{pspicture}(0,-0.3)(100,1.0)\n");
+             fprintf(f,"\\pslinewidth=0.05pt\n");
+
+
+    		 // walk along the line
+    		 for (int ipt=0; ipt<npt; ipt++) {
+    			 Vector<double,NDIM> coord=traj(ipt);
+    			 long rank=function.evalR(coord);
+    //			 fprintf(f,"%4i %12.6f\n",ipt, function(coord));
+    			 print("ipt, rank", ipt,rank);
+    			 print_psdot(f,ipt,function(coord),hueCode(rank));
+
+    		 }
+
+
+             fprintf(f,"\\end{pspicture}\n");
+
+    		 fclose(f);
+    	 }
+    	 world.gop.fence();
+    	 ;
+    }
+
+
+    // plot along a line
+    template<size_t NDIM>
+    void plot_along(World& world, trajectory<NDIM>& traj, double (*ff)(const Vector<double,NDIM>&), std::string filename) {
+    	 FILE *f=0;
+    	 const int npt=traj.npt;
+
+
+    	 if(world.rank() == 0) {
+    		 f = fopen(filename.c_str(), "w");
+    		 if(!f) MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+             fprintf(f,"\\psset{xunit=0.05cm}\n");
+             fprintf(f,"\\psset{yunit=100cm}\n");
+             fprintf(f,"\\begin{pspicture}(0,0.25)(100,0.3)\n");
+             fprintf(f,"\\pslinewidth=0.005pt\n");
+
+
+
+    		 // walk along the line
+    		 for (int ipt=0; ipt<npt; ipt++) {
+    			 Vector<double,NDIM> coord=traj(ipt);
+    //			 fprintf(f,"%12.6f %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",coord[0],coord[1],coord[2],coord[3],coord[4],coord[5], ff(coord));
+    //			 fprintf(f,"%4i %12.6f\n",ipt, ff(coord));
+    //			 long rank=ff.evalR(coord);
+    			 // no hue code here
+    			 print_psdot(f,ipt,ff(coord),hueCode(0));
+
+
+    		 }
+             fprintf(f,"\\end{pspicture}\n");
+
+    		 fclose(f);
+    	 }
+    	 world.gop.fence();
+    	 ;
+    }
+
+
+
 }
 
 /* @} */

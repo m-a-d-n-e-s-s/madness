@@ -226,7 +226,7 @@ namespace madness {
         // in leaves, hence the tree may refine as a result.
         typename dcT::iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
-            coeffs.replace(key,nodeT(tensorT(),false));
+            coeffs.replace(key,nodeT(coeffT(),false));
             it = coeffs.find(key).get();
         }
         nodeT& node = it->second;
@@ -235,12 +235,12 @@ namespace madness {
         // to children but may leave interior nodes without coefficients
         // ... but they still need to sum down so just give them zeros
         if (node.has_children() && !node.has_coeff()) {
-            node.set_coeff(tensorT(cdata.v2k));
+            node.set_coeff(coeffT(cdata.v2k,targs));
         }
 
         if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
             coeffT d = node.coeff();
-            if (!d.has_data()) d = coeffT(cdata.v2k);
+            if (!d.has_data()) d = coeffT(cdata.v2k,targs);
             if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
             d = unfilter(d);
             node.clear_coeff();
@@ -248,9 +248,7 @@ namespace madness {
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
                 coeffT ss = copy(d(child_patch(child)));
-#if HAVE_GENTENSOR
                 ss.reduceRank(thresh);
-#endif
                 PROFILE_BLOCK(recon_send);
                 woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
             }
@@ -413,7 +411,7 @@ namespace madness {
             // refine if difference norm is big
             if (newspecialpts.size() > 0 || dnorm >=truncate_tol(thresh,key.level())) {
 
-                coeffs.replace(key,nodeT(tensorT(),true).ftr2sr(thresh)); // Insert empty node for parent
+                coeffs.replace(key,nodeT(coeffT(),true)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
                     ProcessID p;
@@ -433,7 +431,7 @@ namespace madness {
                     coeffs.replace(key,nodeT(s,false));
                 }
                 else {
-                    coeffs.replace(key,nodeT(tensorT(),true).ftr2sr(thresh)); // Insert empty node for parent
+                    coeffs.replace(key,nodeT(coeffT(),true)); // Insert empty node for parent
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
                         coeffT s(r(child_patch(child)),thresh,FunctionDefaults<NDIM>::get_tensor_type());
@@ -489,18 +487,18 @@ namespace madness {
         if (coeffs.is_local(key)) {
             if (compressed) {
                 if (key.level() == initial_level) {
-                    coeffs.replace(key, nodeT(tensorT(), false));
+                    coeffs.replace(key, nodeT(coeffT(), false));
                 }
                 else {
-                    coeffs.replace(key, nodeT(tensorT(cdata.v2k), true));
+                    coeffs.replace(key, nodeT(coeffT(cdata.v2k,targs), true));
                 }
             }
             else {
                 if (key.level()<initial_level) {
-                    coeffs.replace(key, nodeT(tensorT(), true));
+                    coeffs.replace(key, nodeT(coeffT(), true));
                 }
                 else {
-                    coeffs.replace(key, nodeT(tensorT(cdata.vk), false));
+                    coeffs.replace(key, nodeT(coeffT(cdata.vk,targs), false));
                 }
             }
         }
@@ -559,7 +557,7 @@ namespace madness {
         // Interior nodes should always have coeffs but transform might
         // leave empty interior nodes ... hence just force no coeffs to
         // be zero coeff unless it is a leaf.
-        if (node.has_children() && !node.has_coeff()) node.set_coeff(tensorT(cdata.v2k));
+        if (node.has_children() && !node.has_coeff()) node.set_coeff(coeffT(cdata.v2k,targs));
 
         if (key.level() > 1) { // >1 rather >0 otherwise reconstruct might get confused
             double dnorm = node.coeff().normf();
@@ -680,7 +678,7 @@ namespace madness {
                result.set(std::pair<keyT,coeffT>(key,node.coeff()));
             }
             else {
-                result.set(std::pair<keyT,coeffT>(key,nodeT(project(key),false).node_to_low_rank(thresh).coeff()));
+                result.set(std::pair<keyT,coeffT>(key,nodeT(coeffT(project(key),targs),false).coeff()));
             }
         }
         else {
@@ -808,6 +806,49 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
+    Void FunctionImpl<T,NDIM>::evalR(const Vector<double,NDIM>& xin,
+    		const keyT& keyin,
+    		const typename Future<long>::remote_refT& ref) {
+
+    	PROFILE_MEMBER_FUNC(FunctionImpl);
+    	// This is ugly.  We must figure out a clean way to use
+    	// owner computes rule from the container.
+    	Vector<double,NDIM> x = xin;
+    	keyT key = keyin;
+    	Vector<Translation,NDIM> l = key.translation();
+    	ProcessID me = world.rank();
+    	while (1) {
+    		ProcessID owner = coeffs.owner(key);
+    		if (owner != me) {
+    			PROFILE_BLOCK(eval_send);
+    			woT::task(owner, &implT::evalR, x, key, ref, TaskAttributes::hipri());
+    			return None;
+    		}
+    		else {
+    			typename dcT::futureT fut = coeffs.find(key);
+    			typename dcT::iterator it = fut.get();
+    			nodeT& node = it->second;
+    			if (node.has_coeff()) {
+    				Future<long>(ref).set(node.coeff().rank());
+    				return None;
+    			}
+    			else {
+    				for (std::size_t i=0; i<NDIM; ++i) {
+    					double xi = x[i]*2.0;
+    					int li = int(xi);
+    					if (li == 2) li = 1;
+    					x[i] = xi - li;
+    					l[i] = 2*l[i] + li;
+    				}
+    				key = keyT(key.level()+1,l);
+    			}
+    		}
+    	}
+    	//MADNESS_EXCEPTION("should not be here",0);
+    }
+
+
+    template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::tnorm(const tensorT& t, double* lo, double* hi) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // Chosen approach looks stupid but it is more accurate
@@ -883,12 +924,8 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-#if HAVE_GENTENSOR
 
     const GenTensor<T> FunctionImpl<T,NDIM>::parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const {
-#else
-   	const Tensor<T> FunctionImpl<T,NDIM>::parent_to_child(const coeffT& s, const keyT& parent, const keyT& child) const {
-#endif
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // An invalid parent/child means that they are out of the box
         // and it is the responsibility of the caller to worry about that
@@ -962,12 +999,8 @@ namespace madness {
     }
 
 
-   template <typename T, std::size_t NDIM>
-#if HAVE_GENTENSOR
+    template <typename T, std::size_t NDIM>
     Future< std::pair< Key<NDIM>, GenTensor<T> > >
-#else
-    Future< std::pair< Key<NDIM>, Tensor<T> > >
-#endif
     FunctionImpl<T,NDIM>::find_me(const Key<NDIM>& key) const {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         typedef std::pair< Key<NDIM>,coeffT > argT;
@@ -989,19 +1022,15 @@ namespace madness {
             for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
             tensorT c = node.full_tensor_copy();
             if (c.size()) c = copy(c.mapdim(map));
+            coeffT cc(c,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
 
-            coeffs.replace(keyT(key.level(),l), nodeT(c,node.has_children()));
+            coeffs.replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
         }
         if (fence) world.gop.fence();
     }
 
     template <typename T, std::size_t NDIM>
-#if HAVE_GENTENSOR
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
-#else
-   	Future< Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
-#endif
-        PROFILE_MEMBER_FUNC(FunctionImpl);
         MADNESS_ASSERT(coeffs.probe(key));
         // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;

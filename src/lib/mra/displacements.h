@@ -163,6 +163,7 @@ namespace madness {
     public:
         Displacements() {
             if (disp.size() == 0) {
+            	madness::print("making displacements with bmax=",bmax_default());
                 make_disp(bmax_default());
 
                 if (NDIM <= 3) {
