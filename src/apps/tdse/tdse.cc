@@ -784,6 +784,12 @@ void propagate(World& world, int step0) {
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
+    if (world.rank() == 0) print("verifying psi after load");
+    world.gop.fence();
+    psi.verify_tree();
+    world.gop.fence();
+    if (world.rank() == 0) print("finished verifying psi after load");
+
     preloadbal(world, potn, psi);
 
     // Free particle propagator for both Trotter and Chin-Chen --- exp(-I*T*time_step/2)
