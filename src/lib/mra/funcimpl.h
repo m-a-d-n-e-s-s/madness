@@ -467,6 +467,7 @@ namespace madness {
             return _norm_tree;
         }
 
+
         /// General bi-linear operation --- this = this*alpha + other*beta
 
         /// This/other may not have coefficients.  Has_children will be
@@ -530,6 +531,7 @@ namespace madness {
         double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12)
             norm = 0.0;
+//        norm=node.get_norm_tree();
         s << norm << ")";
         return s;
     }
@@ -1340,6 +1342,9 @@ namespace madness {
                  world.gop.fence();
         }
 
+
+
+
         /// keep only the sum coefficients in each node
         struct do_keep_sum_coeffs {
              typedef Range<typename dcT::iterator> rangeT;
@@ -2032,6 +2037,145 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        template<std::size_t LDIM>
+        Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2, bool fence) {
+        	MADNESS_ASSERT(p1->is_nonstandard());
+        	MADNESS_ASSERT(p2->is_nonstandard());
+//        	typedef std::pair<const Key<LDIM>, FunctionNode<T,LDIM> > argL;
+//        	Future<argL> arg1=Future<argL>(argL(p1->cdata.key0,FunctionNode<T,LDIM>()));
+//        	Future<argL> arg2=Future<argL>(argL(p2->cdata.key0,FunctionNode<T,LDIM>()));
+
+        	typename FunctionImpl<T,LDIM>::dcT::const_iterator it1=p1->coeffs.find(p1->cdata.key0);
+        	typename FunctionImpl<T,LDIM>::dcT::const_iterator it2=p2->coeffs.find(p2->cdata.key0);
+        	hartree_product_spawn(p1,p2,cdata.key0,it1,it2);
+        	this->compressed=false;
+        	if (fence) world.gop.fence();
+        	return None;
+        }
+
+
+        /// given two Nodes, perform the Hartree product and insert the result
+        template<std::size_t LDIM>
+        Void hartree_product_op(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+        		const keyT& key,
+        		typename FunctionImpl<T,LDIM>::dcT::const_iterator it1,
+        		typename FunctionImpl<T,LDIM>::dcT::const_iterator it2) {
+
+        	MADNESS_ASSERT(NDIM==6);
+        	MADNESS_ASSERT(LDIM==3);
+        	MADNESS_ASSERT(it1->second.has_coeff());
+        	MADNESS_ASSERT(it2->second.has_coeff());
+
+			// break key into particles (these are the child keys, with it1/it2 come the parent keys)
+			const Vector<Translation, NDIM>& l=key.translation();
+			const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
+			const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
+			const Key<LDIM> key1(key.level(),l1);
+			const Key<LDIM> key2(key.level(),l2);
+
+			// iterators point to nodes in nonstandard representation: get the sum coeffs
+			const coeffT s1=it1->second.coeff()(p1->cdata.s0);
+			const coeffT s2=it2->second.coeff()(p2->cdata.s0);
+
+	        coeffT coeff1=p1->parent_to_child(s1,it1->first,key1);
+	        coeffT coeff2=p2->parent_to_child(s2,it2->first,key2);
+
+	        // new coeffs are simply the hartree/kronecker/outer product
+	        tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
+
+            coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
+
+			return None;
+
+        }
+
+
+        /// Hartree product of two n-D functions to yield a 2n-D function
+
+        /// algorithm:
+        ///		recur down, check for the nodes on the n-D functions
+        ///		if both nodes have children: keep recurring down
+        ///		if one node has children: pass coeffs of other and keep recurring
+        ///		if none of the nodes has children: perform product
+        /// @param[in]	p1	function of particle 1
+        /// @param[in]	p2	function of particle 2
+        /// @param[in]	it1	pointer to a valid node in p1
+        /// @param[in]	it2	pointer to a valid node in p2
+        /// @return		this
+        template<std::size_t LDIM>
+        Void hartree_product_spawn(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+        		const Key<NDIM>& key,
+        		const typename FunctionImpl<T,LDIM>::dcT::const_iterator it1,
+        		const typename FunctionImpl<T,LDIM>::dcT::const_iterator it2) {
+
+        	// for now
+        	MADNESS_ASSERT(LDIM==3);
+        	MADNESS_ASSERT(NDIM==6);
+
+        	// iterator must always point to a valid node
+        	MADNESS_ASSERT(it1!=p1->coeffs.end());
+        	MADNESS_ASSERT(it2!=p2->coeffs.end());
+
+			typedef FunctionNode<T,LDIM> nodeL;
+
+            // always a valid node (internal or leaf)
+            const nodeL& node1=it1->second;
+            const nodeL& node2=it2->second;
+
+            // insert an empty node and return if the final norm is small
+            const double norm1=node1.get_norm_tree();
+            const double norm2=node2.get_norm_tree();
+            const double norm=norm1*norm2;	// computing the outer product
+            if (norm < truncate_tol(thresh, key)) {
+                coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false));	// zero (not empty) leaf node w/o children
+                return None;
+            }
+
+            // get the error of both functions and of the pair function
+            const double error1=p1->compute_error(node1);
+            const double error2=p2->compute_error(node2);
+            const double error=norm1*error2 + error1*norm2 + error1*error2;
+
+            // if the expected error is small, perform the hartree product and return
+            if (error < truncate_tol(thresh,key)) {
+				// should be local anyways
+				ProcessID owner = coeffs.owner(key);
+				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, it1, it2);
+				return None;
+            }
+
+            // norm and error are large: keep recurring
+			for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+
+				const keyT& child = kit.key();
+
+				// break key into particles
+				const Vector<Translation, NDIM> l=child.translation();
+				const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
+				const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
+				const Key<LDIM> key1(child.level(),l1);
+				const Key<LDIM> key2(child.level(),l2);
+
+				// point to "outermost" leaf node
+				typename FunctionImpl<T,LDIM>::dcT::const_iterator it11=it1;
+				typename FunctionImpl<T,LDIM>::dcT::const_iterator it22=it2;
+
+				if (it1->second.has_children()) {
+					it11=p1->coeffs.find(key1);
+				}
+				if (it2->second.has_children()) {
+					it22=p2->coeffs.find(key2);
+				}
+
+				ProcessID owner = coeffs.owner(child);
+				woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, child, it11, it22);
+			}
+
+            coeffs.replace(key, nodeT(coeffT(),true));  // empty internal node w/ children
+			return None;
+
+        }
+
 
         template <typename opT, typename R>
         Void
@@ -2161,19 +2305,9 @@ namespace madness {
 
         	// some checks
         	MADNESS_ASSERT(functor);
+        	MADNESS_ASSERT(muster);
 
-//        	// for now, one could imagine also the ERIFunctor to be possible
-//        	CompositeFunctorInterface<T,NDIM,3>* func=
-//            		dynamic_cast<CompositeFunctorInterface<T,NDIM,3>* >(&(*functor));
-//        	MADNESS_ASSERT(func);
-//
-//        	// get the tree structure from the muster
-//        	pimplT muster=func->get_muster();
-//        	std::shared_ptr<implT> pc_tree=func->get_precomputed();
-//        	implT* pc_tree=implT(*muster,muster->get_pmap(),false);
         	this->copy_coeffs(*muster,true);
-//
-//        	print("pc_tree size",pc_tree->tree_size());
 
         	// go over the tree, and construct the leaf nodes on functor's impl
         	// functor is a shared_ptr, get returns its pointer
@@ -2194,11 +2328,16 @@ namespace madness {
         /// are already present, otherwise construct according to get-algorithm
         tensorT demand_coeffs(const keyT& key) {
 
+        	print("key in demand_coeffs",key);
+
         	tensorT t;
         	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
 
         	// check for coefficients being present (locally?)
         	typename dcT::iterator it = coeffs.find(key).get();
+            // and we get a write accessor just in case they are already executing
+//            typename dcT::accessor acc;
+//            MADNESS_ASSERT(coeffs.find(acc,key));
 
         	// nothing found, construct
         	if (it == coeffs.end()) {
@@ -2213,7 +2352,8 @@ namespace madness {
         			// if the functor provides its own coeffs, great, otherwise
         			// try to compute them by backfiltering
         			if (functor->provides_coeff()) {
-        				t=project(key);
+//        				t=project(key);
+        				t=functor->coeff(key).full_tensor_copy();
         			} else {
 
         				MADNESS_EXCEPTION("you should not be here",0);
@@ -2405,6 +2545,11 @@ namespace madness {
             return coeffs.probe(key) && coeffs.find(key).get()->second.has_children();
         }
 
+        bool exists_and_is_leaf(const keyT& key) const {
+            return coeffs.probe(key) && (not coeffs.find(key).get()->second.has_children());
+        }
+
+
         Void broaden_op(const keyT& key, const std::vector< Future <bool> >& v) {
             for (unsigned int i=0; i<v.size(); ++i) {
                 if (v[i]) {
@@ -2535,6 +2680,7 @@ namespace madness {
     		if (fence) world.gop.fence();
         }
 
+        /// compute for each FunctionNode the norm of the function inside that node
         void norm_tree(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
                 norm_tree_spawn(cdata.key0);
@@ -2568,7 +2714,10 @@ namespace madness {
             }
             else {
 //                return Future<double>(node.coeff().normf());
-                return Future<double>(node.coeff().normf());
+                const double norm=node.coeff().normf();
+                // invoked locally anyways
+            	node.set_norm_tree(norm);
+                return Future<double>(norm);
             }
         }
 
@@ -2849,6 +2998,24 @@ namespace madness {
         }
 
 
+        /// compute the error for a (compressed) node using the wavelet coeffs
+
+        /// @param[in]	node			the node whose error to be computed
+        /// @return 	error			the error (zero if leaf node)
+        double compute_error(const nodeT& node) const {
+
+        	if (node.is_leaf()) return 0.0;
+
+        	MADNESS_ASSERT(node.has_coeff());
+        	MADNESS_ASSERT(node.coeff().dim(0)==2*this->get_k());
+
+    		coeffT d = copy(node.coeff());
+       		d(cdata.s0)=0.0;
+        	return d.normf();
+        }
+
+
+
         /// Returns the square of the error norm in the box labelled by key
 
         /// Assumed to be invoked locally but it would be easy to eliminate
@@ -3053,7 +3220,8 @@ namespace madness {
                 const nodeT& fnode = it->second;
                 if (fnode.has_coeff()) {
 
-                   	coeffT gcoeff=this->functor->coeff(key);
+//                   	coeffT gcoeff=this->functor->coeff(key);
+                	coeffT gcoeff=coeffs.find(key).get()->second.coeff();
 
                     // compute inner product
                     sum += fnode.coeff().trace_conj(gcoeff);

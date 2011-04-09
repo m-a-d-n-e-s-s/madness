@@ -1237,6 +1237,36 @@ namespace madness {
         return mul(left,right,true);
     }
 
+    /// Performs a Hartree product on the two given low-dimensional functions
+    template<typename T, std::size_t KDIM, std::size_t LDIM>
+    Function<T,KDIM+LDIM>
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+
+        // we need both sum and difference coeffs for error estimation
+    	Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
+    	Function<T,LDIM>& right = const_cast< Function<T,LDIM>& >(right2);
+
+
+    	FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
+    			.k(left.k()).thresh(left.thresh());
+        print("incomplete FunctionFactory in Function::hartree_product");
+
+        left.reconstruct();
+        left.norm_tree();
+        left.nonstandard(true,false);
+        right.reconstruct();
+        right.norm_tree();
+        right.nonstandard(true,true);	// fence here
+
+        Function<T,KDIM+LDIM> result=factory.empty();
+        result.get_impl()->hartree_product(left.get_impl().get(),right.get_impl().get(),true);
+
+        left.standard(false);
+        right.standard(true);
+
+        return result;
+    }
+
     /// Returns new function alpha*left + beta*right optional fence and no automatic compression
     template <typename L, typename R,std::size_t NDIM>
     Function<TENSOR_RESULT_TYPE(L,R),NDIM>

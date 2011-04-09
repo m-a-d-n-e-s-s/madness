@@ -147,6 +147,8 @@ namespace madness {
 		/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_m1;	///< supposedly 1/r1
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_m2;	///< supposedly 1/r2
+		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p1;	///< supposedly orbital 1
+		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p2;	///< supposedly orbital 2
 
 		/// caching this
 		std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
@@ -172,6 +174,8 @@ namespace madness {
 			, impl_eri(factory._g12)
 			, impl_m1(factory._v1)
 			, impl_m2(factory._v2)
+			, impl_p1(factory._particle1)
+			, impl_p2(factory._particle2)
 			, this_impl()
 			, muster_impl(factory._tree)
 //			, this_impl(new FunctionImpl<T,NDIM>(static_cast<const FunctionFactory<T,NDIM>& > (factory)))
@@ -183,7 +187,7 @@ namespace madness {
 			// some consistency checks
 
 			// either a pair ket is provided, or two particles (tba)
-			MADNESS_ASSERT(impl_ket);
+			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
 
 			// initialize this_impl; need to remove the functor to avoid an infinite loop
 			FunctionFactory<T,NDIM> this_factory(static_cast<const FunctionFactory<T,NDIM>& > (factory));
@@ -195,13 +199,17 @@ namespace madness {
 						(new FunctionImpl<T,NDIM>(this_factory.no_functor().k(nk*this_impl->get_k())));
 
 			// prepare base functions that make this function
-			if (not impl_ket->is_on_demand()) impl_ket->make_redundant(true);
+			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(true);
 			if (impl_eri) {
 				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(true);
 			}
 			if (impl_m1) {
 				if (not impl_m1->is_on_demand()) impl_m1->make_redundant(true);
 				if (not impl_m2->is_on_demand()) impl_m2->make_redundant(true);
+			}
+			if (impl_p1) {
+				if (not impl_p1->is_on_demand()) impl_p1->make_redundant(true);
+				if (not impl_p2->is_on_demand()) impl_p2->make_redundant(true);
 			}
 
 		}
@@ -271,8 +279,10 @@ namespace madness {
 
 			tensorT coeff_ket(cdataN.vk);	// 6D, to be multiplied
 			tensorT coeff_2p(cdataN.vk);	// 6D, to be added
-			tensorT coeff_m1(cdataM.vk);	// 3D, particle 1
-			tensorT coeff_m2(cdataM.vk);	// 3D, particle 2
+			tensorT coeff_m1(cdataM.vk);	// 3D, potential 1
+			tensorT coeff_m2(cdataM.vk);	// 3D, potential 2
+			tensorT coeff_p1(cdataM.vk);	// 3D, particle 1
+			tensorT coeff_p2(cdataM.vk);	// 3D, particle 2
 			tensorT coeff_v(cdataN.vk);		// 6D, all addends
 
 			// break key into particles
@@ -287,6 +297,26 @@ namespace madness {
 			if (impl_eri) coeff_2p=impl_eri->demand_coeffs(key);
 			if (impl_m1) coeff_m1=impl_m1->demand_coeffs(key1);
 			if (impl_m2) coeff_m2=impl_m2->demand_coeffs(key2);
+			if (impl_p1) coeff_p1=impl_p1->demand_coeffs(key1);
+			if (impl_p2) coeff_p2=impl_p2->demand_coeffs(key2);
+			print("flo44");
+
+			if (impl_p1) {
+				// extend 3D particles to 6D and add them
+				Tensor<double> unity=Tensor<double>(cdataM.vk,false);
+				unity=1.0;
+				MADNESS_ASSERT(impl_p1 and impl_p2);
+
+				// transform to function values
+				tensorT val11=impl_p1->coeffs2values(key1,coeff_p1);
+				tensorT val22=impl_p2->coeffs2values(key2,coeff_p2);
+
+				// direct product: V(1) * E(2) + E(1) * V(2)
+				coeff_ket = outer(val11,unity) + outer(unity,val22);
+				coeff_ket = this_impl->values2coeffs(key,coeff_ket);
+			}
+			MADNESS_ASSERT(coeff_ket.has_data());
+
 
 			if (impl_m1) {
 				// extend 3D particles to 6D and add them
@@ -675,7 +705,6 @@ namespace madness {
         /// direct product
         CompositeFactory&
         particle1(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	print("particle 1 option ignored for the time being in CompositeFactory");
         	_particle1 = f;
         	return *this;
         }
@@ -684,7 +713,6 @@ namespace madness {
         /// direct product
         CompositeFactory&
         particle2(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	print("particle 2 option ignored for the time being in CompositeFactory");
         	_particle2 = f;
         	return *this;
         }

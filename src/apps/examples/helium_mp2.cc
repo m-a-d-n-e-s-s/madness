@@ -221,8 +221,23 @@ static double he_orbital_3d(const coord_3d& r) {
     return val;
 }
 
+// according to McQuarrie
+static double he_orbital_McQuarrie(const coord_3d& r) {
 
-// according to Ed
+    // separation for 2-way decomposition (SVD; r1 -- r2)
+	const double x1=r[0];
+    const double y1=r[1];
+    const double z1=r[2];
+
+    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+
+    const double val=exp(-(27.0/16.0)*r1);
+
+    return val;
+}
+
+
+// according to Ed / McQuarrie
 static double he_orbitals(const coord_6d& r) {
 
     // separation for 2-way decomposition (SVD; r1 -- r2)
@@ -235,7 +250,8 @@ static double he_orbitals(const coord_6d& r) {
     r2[1]=r[4];
     r2[2]=r[5];
 
-    const double val=he_orbital_3d(r1) * he_orbital_3d(r2);
+//    const double val=he_orbital_3d(r1) * he_orbital_3d(r2);
+    const double val=he_orbital_McQuarrie(r1) * he_orbital_McQuarrie(r2);
 
     return val;
 }
@@ -305,6 +321,33 @@ static double hylleraas_3term(const coord_6d& r) {
 // Hylleraas 3-term minus He orbitals
 static double he_correlation(const coord_6d& r) {
 	return hylleraas_3term(r) - he_orbitals(r);
+}
+
+
+
+void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
+
+    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.001, 1e-6);
+
+    print("starting convolution");
+   	real_function_6d tmp = op(Vpsi).truncate();
+   	tmp.scale(-2.0);
+   	print("finished convolution");
+
+    double norm = tmp.norm2();
+    print("finished norm");
+    real_function_6d r = tmp-psi;
+    print("finished difference");
+    double rnorm = inner(r,r);
+    print("finished rnorm");
+    double eps_new = eps + inner(Vpsi,r)/(norm*norm);
+    print("finished inner(Vpair,r)");
+    if (world.rank() == 0) {
+        print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
+        print("eps_new",eps_new);
+    }
+    psi = tmp.scale(1.0/norm);
+    eps = eps_new;
 }
 
 void iterate(World& world, const real_function_3d& V, real_function_3d& psi, double& eps) {
@@ -393,7 +436,7 @@ int main(int argc, char** argv) {
 
     double L = 16;   // box size
     long k = 5 ;        // wavelet order
-    double thresh = 1.e-4; // precision
+    double thresh = 1.e-3; // precision
     TensorType tt = TT_2D;
     long truncate_mode = 0;
 
@@ -409,7 +452,7 @@ int main(int argc, char** argv) {
 
 
     // hydrogen
-#if 1
+#if 0
 
     tt=TT_FULL;
 
@@ -483,7 +526,7 @@ int main(int argc, char** argv) {
 #endif
 
     // helium
-#if 0
+#if 1
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -503,8 +546,9 @@ int main(int argc, char** argv) {
 
 
     // one orbital at a time
+	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     {
-    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_3d);
+//    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     	double norm=inner(orbital,orbital);
     	print("norm(orbital)",norm);
     	orbital.scale(1.0/sqrt(norm));
@@ -527,7 +571,38 @@ int main(int argc, char** argv) {
 
 
     // pair function
-    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
+//    real_function_6d pair2=real_factory_6d(world).f(he_orbitals);
+//    print("pair2, direct projection",pair2.tree_size());
+//    double norm1=inner(pair2,pair2);
+//    print("norm(pair)",norm1);
+
+
+
+    print("flo1");
+    real_function_3d copy_of_orbital=copy(orbital);
+    real_function_3d copy2_of_orbital=copy(orbital);
+//	real_function_6d orbitals=CompositeFactory<double,6,3>(world)
+//    	    .particle1(copy_of_orbital.get_impl())
+//    		.particle2(copy2_of_orbital.get_impl());
+			;
+    print("flo2");
+
+
+//    real_function_6d pair=real_factory_6d(world).functor(orbitals.get_impl()->get_functor());
+//    real_function_6d pair=real_factory_6d(world);
+    print("orbital.tree_size()",orbital.tree_size());
+    orbital.reconstruct();
+    real_function_6d pair=hartree_product(orbital,copy_of_orbital);
+//    pair.print_tree();
+    print("pair.tree_size()",pair.tree_size());
+    print("flo3");
+    double norm22=inner(pair,pair);
+    print("norm(pair)",norm22);
+    pair.truncate();
+    print("after truncation: pair.tree_size()",pair.tree_size());
+    double norm2=inner(pair,pair);
+    print("norm(pair)",norm2);
+    MADNESS_ASSERT(0);
 
     // one-electron potential
     real_function_3d pot1=real_factory_3d(world).f(Z2);
@@ -550,6 +625,28 @@ int main(int argc, char** argv) {
     print("kinetic energy:", kinetic_energy);
 
     if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
+
+    // iterate once
+    if (1) {
+		// doomed copy of pair, to save pair
+		real_function_6d copy_of_pair=copy(pair);
+		real_function_6d copy2_of_pair=copy(pair);
+
+		// two-electron interaction potential
+		real_function_6d eri=ERIFactory<double,6>(world);
+
+		real_function_6d v11=CompositeFactory<double,6,3>(world)
+				.ket(copy_of_pair.get_impl())
+				.g12(eri.get_impl())
+				.V_for_particle1(pot1.get_impl())
+				.V_for_particle2(pot2.get_impl())
+				.muster(copy2_of_pair.get_impl())
+				;
+
+	    double eps=-kinetic_energy;
+	    iterate(world,v11,pair,eps);
+    }
+
 
     // compute potential energy
     double potential_energy=0.0;
