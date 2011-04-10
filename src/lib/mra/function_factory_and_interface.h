@@ -109,6 +109,10 @@ namespace madness {
 			return false;
 		}
 
+		virtual Void fill_coeff(const FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key) const {
+			MADNESS_EXCEPTION("implement fill_coeff for FunctionFunctorInterface",0);
+		}
+
 		/// override this to return the muster tree
 		virtual std::shared_ptr< FunctionImpl<T,NDIM> > get_muster() const {
 			MADNESS_EXCEPTION("no method get_muster provided for this FunctionFunctorInterface",0);
@@ -140,6 +144,8 @@ namespace madness {
 
 	private:
 
+		World& world;
+
 		/// various MRA functions of NDIM dimensionality
 		std::shared_ptr< FunctionImpl<T,NDIM> > impl_ket;	///< supposedly the pair function
 		std::shared_ptr< FunctionImpl<T,NDIM> > impl_eri;	///< supposedly 1/r12
@@ -150,8 +156,13 @@ namespace madness {
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p1;	///< supposedly orbital 1
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p2;	///< supposedly orbital 2
 
+		/*
+		 * IF YOU ADD MORE FUNCTIONS, DON'T FORGET TO INCREASE THE NUMBER OF
+		 * ITERATORS IN COEFF()
+		 */
+
 		/// caching this
-		std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
+//		std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
 
 		/// muster tree for the result
 		std::shared_ptr< FunctionImpl<T,NDIM> > muster_impl;
@@ -170,13 +181,14 @@ namespace madness {
 
 		/// constructor takes its Factory
 		CompositeFunctorInterface(const CompositeFactory<T,NDIM,MDIM>& factory)
-			: impl_ket(factory._ket)
+			: world(factory.get_world())
+			, impl_ket(factory._ket)
 			, impl_eri(factory._g12)
 			, impl_m1(factory._v1)
 			, impl_m2(factory._v2)
 			, impl_p1(factory._particle1)
 			, impl_p2(factory._particle2)
-			, this_impl()
+//			, this_impl()
 			, muster_impl(factory._tree)
 //			, this_impl(new FunctionImpl<T,NDIM>(static_cast<const FunctionFactory<T,NDIM>& > (factory)))
 			, cdataN(FunctionCommonData<T,NDIM>::get(factory.get_k()))
@@ -190,13 +202,13 @@ namespace madness {
 			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
 
 			// initialize this_impl; need to remove the functor to avoid an infinite loop
-			FunctionFactory<T,NDIM> this_factory(static_cast<const FunctionFactory<T,NDIM>& > (factory));
-			this_impl=std::shared_ptr< FunctionImpl<T,NDIM> >(new FunctionImpl<T,NDIM>(this_factory.no_functor()));
+//			FunctionFactory<T,NDIM> this_factory(static_cast<const FunctionFactory<T,NDIM>& > (factory));
+//			this_impl=std::shared_ptr< FunctionImpl<T,NDIM> >(new FunctionImpl<T,NDIM>(this_factory.no_functor()));
 
 
 			// initialize auxiliary function of polynomial order 2k to call its member functions
-			impl_nk=std::shared_ptr< FunctionImpl<T,NDIM> >
-						(new FunctionImpl<T,NDIM>(this_factory.no_functor().k(nk*this_impl->get_k())));
+//			impl_nk=std::shared_ptr< FunctionImpl<T,NDIM> >
+//						(new FunctionImpl<T,NDIM>(this_factory.no_functor().k(nk*this_impl->get_k())));
 
 			// prepare base functions that make this function
 			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(true);
@@ -223,156 +235,56 @@ namespace madness {
 		};
 
 		bool provides_coeff() const {
-			return true;
+			return false;
 		}
 
-		/// return sum coefficients for imagined node at key
+		/// make sum coefficients for required node and insert into provided FunctionImpl
 
-		/// @param[in]	key	of the Node of which the coeffs are requested
-		/// @param[in]	NS	if true return NS form, if false return only sum
-		/// @return 	sum coeffs of NS coeffs
-		coeffT coeff(const Key<NDIM>& key, const bool NS=false)  {
-
-			coeffT c;
-
-			// try to find coeffs
-			dcT& coeffs=this_impl->get_coeffs();
-			typename dcT::const_iterator end = coeffs.end();
-			const typename dcT::const_iterator it=coeffs.find(key).get();
-
-			bool found=false;
-			if (it!=coeffs.end()) {	// maybe we found sth
-				if (NS) found=(it->second.coeff().dim(0)==2*this_impl->get_k());
-				if (!NS) found=(it->second.coeff().dim(0)==this_impl->get_k());
-			}
-
-			if (not found) {
-
-				// make NS coeff
-				if (NS) {
-					c = coeffT(cdataN.v2k,FunctionDefaults<NDIM>::get_tensor_type());
-					for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-						const keyN& child = kit.key();
-						c(this_impl->child_patch(child)) += this->coeff(child,false);
-					}
-					c = this_impl->filter(c);
-					c.reduceRank(this_impl->get_thresh());
-
-				} else {	// make sum coeff
-					tensorT cc=make_coeff(key);
-					c=coeffT(cc,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
-				}
-
-			} else {	// found something
-				c=it->second.coeff();
-			}
-
-			if (NS) {
-				MADNESS_ASSERT(c.dim(0)==2*this_impl->get_k());
-			}
-			return c;
-		}
-
-
-		/// return sum coefficients for imagined node at key
-		tensorT make_coeff(const Key<NDIM>& key) {
-
-			tensorT coeff_ket(cdataN.vk);	// 6D, to be multiplied
-			tensorT coeff_2p(cdataN.vk);	// 6D, to be added
-			tensorT coeff_m1(cdataM.vk);	// 3D, potential 1
-			tensorT coeff_m2(cdataM.vk);	// 3D, potential 2
-			tensorT coeff_p1(cdataM.vk);	// 3D, particle 1
-			tensorT coeff_p2(cdataM.vk);	// 3D, particle 2
-			tensorT coeff_v(cdataN.vk);		// 6D, all addends
+		/// @param[in]	key		compute sum coeffs for this Node
+		/// @param[in,out] impl	the FunctionImpl where the Node will be inserted
+		Void fill_coeff(const FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key) const {
 
 			// break key into particles
 			const Vector<Translation, NDIM> l=key.translation();
-			const Vector<Translation, MDIM> l1=Vector<Translation,MDIM> (vec(l[0],l[1],l[2]));
-			const Vector<Translation, MDIM> l2=Vector<Translation,MDIM> (vec(l[3],l[4],l[5]));
-			Key<MDIM> key1(key.level(),l1);
-			Key<MDIM> key2(key.level(),l2);
+			const Key<MDIM> key1(key.level(),vec(l[0],l[1],l[2]));
+			const Key<MDIM> key2(key.level(),vec(l[3],l[4],l[5]));
 
-			// get the coefficients
-			if (impl_ket) coeff_ket=impl_ket->demand_coeffs(key);
-			if (impl_eri) coeff_2p=impl_eri->demand_coeffs(key);
-			if (impl_m1) coeff_m1=impl_m1->demand_coeffs(key1);
-			if (impl_m2) coeff_m2=impl_m2->demand_coeffs(key2);
-			if (impl_p1) coeff_p1=impl_p1->demand_coeffs(key1);
-			if (impl_p2) coeff_p2=impl_p2->demand_coeffs(key2);
-			print("flo44");
-
-			if (impl_p1) {
-				// extend 3D particles to 6D and add them
-				Tensor<double> unity=Tensor<double>(cdataM.vk,false);
-				unity=1.0;
-				MADNESS_ASSERT(impl_p1 and impl_p2);
-
-				// transform to function values
-				tensorT val11=impl_p1->coeffs2values(key1,coeff_p1);
-				tensorT val22=impl_p2->coeffs2values(key2,coeff_p2);
-
-				// direct product: V(1) * E(2) + E(1) * V(2)
-				coeff_ket = outer(val11,unity) + outer(unity,val22);
-				coeff_ket = this_impl->values2coeffs(key,coeff_ket);
-			}
-			MADNESS_ASSERT(coeff_ket.has_data());
+			Future<coeffT> val_ket, val_eri, val_pot1, val_pot2;
 
 
-			if (impl_m1) {
-				// extend 3D particles to 6D and add them
-				Tensor<double> unity=Tensor<double>(cdataM.vk,false);
-				unity=1.0;
-				MADNESS_ASSERT(impl_m1 and impl_m2);
+            // ket
+            if (impl_ket) {
+            	val_ket=impl_ket->fcube_for_mul_too(key);
+            } else {
+            	val_ket=Future<coeffT>(coeffT());
+            }
 
-				// transform to function values
-				tensorT val11=impl_m1->coeffs2values(key1,coeff_m1);
-				tensorT val22=impl_m2->coeffs2values(key2,coeff_m2);
+            // eri (bypass its FunctionImpl)
+            if (impl_eri) {
+            	coeffT eri_val=impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
+            	val_eri=Future<coeffT>(eri_val);
+            } else {
+            	val_eri=Future<coeffT>(coeffT());
+            }
 
-				// direct product: V(1) * E(2) + E(1) * V(2)
-				coeff_v = outer(val11,unity) + outer(unity,val22);
-				coeff_v = this_impl->values2coeffs(key,coeff_v);
-			}
+            // v1
+            if (impl_m1) {
+            	val_pot1=impl_m1->fcube_for_mul_too(key1);
+            } else {
+            	val_pot1=Future<coeffT>(coeffT());
+            }
 
-			// add 2-particle contribution
-			if (impl_eri) coeff_v+=coeff_2p;
+            // v2
+            if (impl_m2) {
+            	val_pot2=impl_m2->fcube_for_mul_too(key2);
+            } else {
+            	val_pot2=Future<coeffT>(coeffT());
+            }
 
+            impl->assemble_coeff(key,val_ket,val_eri,val_pot1,val_pot2);
+			return None;
+		}
 
-			// multiply potential with ket
-			if (impl_m1 or impl_eri) {
-#if 1
-				// project into a 2k basis
-				std::vector<long> vnk(NDIM,nk*this_impl->get_k());
-                tensorT c1(vnk);
-                tensorT c2(vnk);
-                std::vector<Slice> s(cdataN.s0);
-                c1(s) = coeff_ket(s);
-                c2(s) = coeff_v(s);
-
-                tensorT val1= (impl_nk->coeffs2values(key,c1));
-                tensorT val2= (impl_nk->coeffs2values(key,c2));
-
-//				tensorT tcube(cdataN.v2k,false);
-				tensorT tcube(vnk,false);
-				TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val1, T, val2, *_p0 = *_p1 * *_p2;);
-				c2=impl_nk->values2coeffs(key,tcube);
-				coeff_ket=c2(s);
-
-
-#else
-				tensorT val1= (impl_ket->coeffs2values(key,coeff_ket));
-				tensorT val2= (this_impl->coeffs2values(key,coeff_v));
-
-				tensorT tcube(cdataN.vk,false);
-				TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val1, T, val2, *_p0 = *_p1 * *_p2;);
-				coeff_ket=impl_ket->values2coeffs(key,tcube);
-#endif
-			}
-
-			return coeff_ket;
-//			coeffT coeff=coeffT(coeff_ket,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
-
-//			return coeff;
-		};
 
 		/// return the muster tree
 		std::shared_ptr< FunctionImpl<T,NDIM> > get_muster() const {
@@ -452,7 +364,8 @@ namespace madness {
 		/// return sum coefficients for imagined node at key
 		coeffT coeff(const Key<NDIM>& key, const bool NS=false)  {
 			MADNESS_ASSERT(not NS);
-			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
+			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
+					FunctionDefaults<NDIM>::get_tensor_type());
 		}
 
 	};

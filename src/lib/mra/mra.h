@@ -1253,16 +1253,18 @@ namespace madness {
 
         left.reconstruct();
         left.norm_tree();
-        left.nonstandard(true,false);
-        right.reconstruct();
-        right.norm_tree();
-        right.nonstandard(true,true);	// fence here
+        left.nonstandard(true,true);
+        if (&left!=&right) {
+			right.reconstruct();
+			right.norm_tree();
+			right.nonstandard(true,true);
+        }
 
         Function<T,KDIM+LDIM> result=factory.empty();
         result.get_impl()->hartree_product(left.get_impl().get(),right.get_impl().get(),true);
 
         left.standard(false);
-        right.standard(true);
+        if (&left!=&right) right.standard(true);
 
         return result;
     }
@@ -1421,14 +1423,14 @@ namespace madness {
         	Function<R,NDIM> source;
         	source.set_impl(f);
 
-        	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster(),
-        			f.get_impl()->get_functor(),false,true);
+        	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
+        			f.get_impl()->get_functor().get(),false,true);
 
         	// apply (bypass apply_only)
         	print("applying operator in target-driven algorithm");
         	result.set_impl(source,true);
-        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster(),
-        			f.get_impl()->get_functor(),false,true);
+        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
+        			f.get_impl()->get_functor().get(),false,true);
 
 
         	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);

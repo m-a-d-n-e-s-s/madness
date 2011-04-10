@@ -547,6 +547,7 @@ int main(int argc, char** argv) {
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    print("orbital.tree_size()",orbital.tree_size());
     {
 //    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     	double norm=inner(orbital,orbital);
@@ -569,65 +570,37 @@ int main(int argc, char** argv) {
     	print("potential energy/electron:",pe);
     }
 
-
-    // pair function
-//    real_function_6d pair2=real_factory_6d(world).f(he_orbitals);
-//    print("pair2, direct projection",pair2.tree_size());
-//    double norm1=inner(pair2,pair2);
-//    print("norm(pair)",norm1);
-
-
-
-    print("flo1");
-    real_function_3d copy_of_orbital=copy(orbital);
-    real_function_3d copy2_of_orbital=copy(orbital);
-//	real_function_6d orbitals=CompositeFactory<double,6,3>(world)
-//    	    .particle1(copy_of_orbital.get_impl())
-//    		.particle2(copy2_of_orbital.get_impl());
-			;
-    print("flo2");
-
-
-//    real_function_6d pair=real_factory_6d(world).functor(orbitals.get_impl()->get_functor());
-//    real_function_6d pair=real_factory_6d(world);
-    print("orbital.tree_size()",orbital.tree_size());
-    orbital.reconstruct();
-    real_function_6d pair=hartree_product(orbital,copy_of_orbital);
-//    pair.print_tree();
+    real_function_6d pair=hartree_product(orbital,orbital);
     print("pair.tree_size()",pair.tree_size());
-    print("flo3");
-    double norm22=inner(pair,pair);
-    print("norm(pair)",norm22);
-    pair.truncate();
-    print("after truncation: pair.tree_size()",pair.tree_size());
-    double norm2=inner(pair,pair);
-    print("norm(pair)",norm2);
-    MADNESS_ASSERT(0);
+
+    // normalize pair function
+    double norm=inner(pair,pair);
+    print("norm(ij_pair)",norm);
+    pair.scale(1.0/sqrt(norm));
+    if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
 
     // one-electron potential
     real_function_3d pot1=real_factory_3d(world).f(Z2);
     real_function_3d pot2=real_factory_3d(world).f(Z2);
     if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
-    // normalize pair function
-    double norm=inner(pair,pair);
-    print("norm(ij_pair)",norm);
-    pair.scale(1.0/sqrt(norm));
 
     // compute kinetic energy
     double kinetic_energy = 0.0;
-    for (int axis=0; axis<6; axis++) {
-    	real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-    	real_function_6d dpsi = D(pair);
-    	kinetic_energy += 0.5*inner(dpsi,dpsi);
-    	print("done with axis",axis);
+    if (1) {
+		for (int axis=0; axis<6; axis++) {
+			real_derivative_6d D = free_space_derivative<double,6>(world, axis);
+			real_function_6d dpsi = D(pair);
+			kinetic_energy += 0.5*inner(dpsi,dpsi);
+			print("done with axis",axis);
+		}
     }
     print("kinetic energy:", kinetic_energy);
 
     if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
 
     // iterate once
-    if (1) {
+    if (0) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 		real_function_6d copy2_of_pair=copy(pair);

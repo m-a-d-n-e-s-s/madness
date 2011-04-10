@@ -1194,6 +1194,54 @@ namespace madness {
                 return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
             }
         }
+
+        /// Compute the function values for multiplication
+
+        /// Given coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        coeffT fcube_for_mul2(const keyT& child, const std::pair<keyT,coeffT>& arg) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            const keyT& parent=arg.first;
+            const coeffT& coeff=arg.second;
+
+            if (child.level() == parent.level()) {
+                return coeffs2values(parent, coeff);
+            }
+            else if (child.level() < parent.level()) {
+                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
+            }
+            else {
+                Tensor<double> phi[NDIM];
+                for (size_t d=0; d<NDIM; d++) {
+                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
+                    phi_for_mul(parent.level(),parent.translation()[d],
+                                child.level(), child.translation()[d], phi[d]);
+                }
+                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));
+            }
+        }
+
+
+        /// Compute the function values for multiplication
+
+        /// same as fcube_for_mul, but first find the appropriate parent node
+        ///
+        /// Given coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        Future<coeffT> fcube_for_mul_too(const keyT& key) const {
+
+            typedef std::pair<keyT,coeffT> argT;
+
+			Future<argT> result;
+			woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world),
+					TaskAttributes::hipri());
+
+			return woT::task(coeffs.owner(key), &implT::fcube_for_mul2, key, result);
+
+        }
+
+
 #if HAVE_GENTENSOR
 
 
@@ -2037,13 +2085,13 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
+
+        /// |Phi(1,2)> = |phi(1)> x |phi(2)>
         template<std::size_t LDIM>
         Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2, bool fence) {
         	MADNESS_ASSERT(p1->is_nonstandard());
         	MADNESS_ASSERT(p2->is_nonstandard());
-//        	typedef std::pair<const Key<LDIM>, FunctionNode<T,LDIM> > argL;
-//        	Future<argL> arg1=Future<argL>(argL(p1->cdata.key0,FunctionNode<T,LDIM>()));
-//        	Future<argL> arg2=Future<argL>(argL(p2->cdata.key0,FunctionNode<T,LDIM>()));
 
         	typename FunctionImpl<T,LDIM>::dcT::const_iterator it1=p1->coeffs.find(p1->cdata.key0);
         	typename FunctionImpl<T,LDIM>::dcT::const_iterator it2=p2->coeffs.find(p2->cdata.key0);
@@ -2092,11 +2140,6 @@ namespace madness {
 
         /// Hartree product of two n-D functions to yield a 2n-D function
 
-        /// algorithm:
-        ///		recur down, check for the nodes on the n-D functions
-        ///		if both nodes have children: keep recurring down
-        ///		if one node has children: pass coeffs of other and keep recurring
-        ///		if none of the nodes has children: perform product
         /// @param[in]	p1	function of particle 1
         /// @param[in]	p2	function of particle 2
         /// @param[in]	it1	pointer to a valid node in p1
@@ -2300,7 +2343,7 @@ namespace madness {
         /// @param[in]	nonstandard	if true compute sum and difference coeffs
         ///							if false, compute sum coeffs only
         ///							leaf nodes are always standard
-        void fill_on_demand_tree(const pimplT muster, const std::shared_ptr<FunctionFunctorInterface<T,NDIM> > functor,
+        void fill_on_demand_tree(const implT* muster, FunctionFunctorInterface<T,NDIM>* functor,
         		const bool leaves_only, const bool nonstandard) {
 
         	// some checks
@@ -2311,12 +2354,72 @@ namespace madness {
 
         	// go over the tree, and construct the leaf nodes on functor's impl
         	// functor is a shared_ptr, get returns its pointer
-    		this->flo_unary_op_node_inplace(do_make_nodes(functor.get(),false),true);
+    		this->flo_unary_op_node_inplace(do_make_nodes(this,functor),true);
+
 
     		// construct the interior nodes also
     		if (not leaves_only) this->compress(nonstandard,true,true);
     		print("made boxes on on-demand tree",this->tree_size());
 
+        }
+
+        /// assemble the provided coefficients and insert them into the tree at key
+
+        /// actually not quite constant
+        void assemble_coeff(const keyT& key,
+        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
+        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) const {
+
+        	MADNESS_ASSERT(NDIM==6);
+
+			woT::task(coeffs.owner(key), &implT:: template do_assemble_coeff<3>,
+					key,val_ket,val_eri,val_pot1,val_pot2);
+
+        }
+
+        /// assemble the provided coefficients and insert them into the tree at key
+        template<size_t LDIM>
+        Void do_assemble_coeff(const keyT& key,
+        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
+        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) {
+
+
+        	// sort of makes sense
+        	MADNESS_ASSERT(val_ket.get().has_data());
+
+        	tensorT ket=val_ket.get().full_tensor_copy();
+			tensorT coeff_v(cdata.vk);		// 6D, all addends
+
+
+
+        	// include the one-electron potential
+        	if (val_pot1.get().has_data()) {
+            	MADNESS_ASSERT(val_pot2.get().has_data());
+
+            	FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
+				Tensor<T> unity=Tensor<double>(cdataL.vk,false);
+				unity=1.0;
+
+				// direct product: V(1) * E(2) + E(1) * V(2)
+				coeff_v = outer(val_pot1.get().full_tensor_copy(),unity)
+						  + outer(unity,val_pot2.get().full_tensor_copy());
+        	}
+
+
+			// add 2-particle contribution
+			if (val_eri.get().has_data()) coeff_v+=val_eri.get().full_tensor_copy();
+
+			// multiply potential with ket
+			if (val_eri.get().has_data() or val_pot1.get().has_data()) {
+
+				tensorT tcube(cdata.vk,false);
+
+				TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+				ket=tcube;
+			}
+
+			coeffs.replace(key,nodeT(coeffT(values2coeffs(key,ket),targs)));
+			return None;
         }
 
 
@@ -2326,54 +2429,28 @@ namespace madness {
         /// depending on if this is an on-demand functor or an on-demand function
         /// call different get-algorithm (see notes); first check if the coeffs
         /// are already present, otherwise construct according to get-algorithm
-        tensorT demand_coeffs(const keyT& key) {
+        Future<tensorT> demand_coeffs(const keyT& key) const {
 
-        	print("key in demand_coeffs",key);
+//        	print("key in demand_coeffs",key);
 
         	tensorT t;
-        	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
+//        	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
 
-        	// check for coefficients being present (locally?)
-        	typename dcT::iterator it = coeffs.find(key).get();
-            // and we get a write accessor just in case they are already executing
-//            typename dcT::accessor acc;
-//            MADNESS_ASSERT(coeffs.find(acc,key));
+        	// check for coefficients being present locally
+        	typename dcT::const_iterator it = coeffs.find(key).get();
 
         	// nothing found, construct
         	if (it == coeffs.end()) {
 
-        		// this is a functor, thus the tree is incomplete, and possibly
-        		// inaccurate
+        		// this is a functor, and it provides coeffs directly
         		if (this->is_on_demand()) {
 
         			// make sure we have a valid functor
-        			MADNESS_ASSERT(functor);
+        			MADNESS_ASSERT(functor and functor->provides_coeff());
 
-        			// if the functor provides its own coeffs, great, otherwise
-        			// try to compute them by backfiltering
-        			if (functor->provides_coeff()) {
-//        				t=project(key);
-        				t=functor->coeff(key).full_tensor_copy();
-        			} else {
+        			t=functor->coeff(key).full_tensor_copy();
 
-        				MADNESS_EXCEPTION("you should not be here",0);
-#if 1
-						// Make in r child scaling function coeffs at level n+1
-						tensorT r = tensorT(cdata.v2k);
-						for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-							const keyT& child = kit.key();
-							r(child_patch(child)) += project(child);
-						}
-						// Filter then test difference coeffs at level n
-						r = filter(r);
-						t=(copy(r(cdata.s0)));
-
-#else
-
-						t=project(key);
-#endif
-        			}
-        		// this is a function, construct coefficients from parent
+        		// this is a function, construct coefficients from parent node
         		} else {
 
                     typedef std::pair<keyT,coeffT> argT;
@@ -2390,23 +2467,14 @@ namespace madness {
 
 				}
 
-        		// now that we have the coeffs, rank reduce and store
-        		nodeT node(coeffT(t,thresh,tt));
-        		coeffs.replace(key,node);
-
         	// we found the requested coefficients
         	} else {
         		t=it->second.coeff().full_tensor_copy();
-        		if (not t.has_data()) {
-        			this->print_tree();
-        			print("nothing found for ",key);
-        			MADNESS_EXCEPTION("couldn't find key in demand_coeffs",0);
-        		}
         	}
 
         	MADNESS_ASSERT(t.has_data());
 //        	MADNESS_ASSERT(t.dim(0)==FunctionDefaults<NDIM>::get_k());
-        	return t;
+        	return Future<tensorT>(t);
         }
 
         /// Permute the dimensions according to map
@@ -3164,15 +3232,13 @@ namespace madness {
         /// using the functor
          struct do_make_nodes {
               typedef Range<typename dcT::iterator> rangeT;
-              FunctionFunctorInterface<T,NDIM>* functor;
-              const bool nonstandard;
+              const FunctionImpl<T,NDIM>* impl;
+              const FunctionFunctorInterface<T,NDIM>* functor;
 
               /// constructor needs functor
-
-              /// @param[in]	nonstandard	compute NS form for coeffs
-              do_make_nodes(FunctionFunctorInterface<T,NDIM>* func, const bool nonstandard)
-              	  : functor(func)
-              	  , nonstandard(nonstandard) {
+              do_make_nodes(const FunctionImpl<T,NDIM>* impl, const FunctionFunctorInterface<T,NDIM>* func)
+              	  : impl(impl)
+              	  , functor(func) {
               }
 
               // iterator iterates on this's nodes
@@ -3185,7 +3251,7 @@ namespace madness {
 
                   // construct this's sum coefficients on the fly and insert them into the tree
             	  if (is_leaf) {
-        			  node.coeff()=functor->coeff(key,nonstandard);
+        			  functor->fill_coeff(impl,key);
             	  }
 
                   return true;
@@ -3209,8 +3275,10 @@ namespace madness {
         	// flo_unary_op_node_inplace implicitly use *this for the range
         	// first construct the tree structure
         	// make leaves only, since f is reconstructed
-        	this->copy_coeffs(f,true);
-    		flo_unary_op_node_inplace(do_make_nodes(this->functor.get(),false),true);
+//        	this->copy_coeffs(f,true);
+//    		flo_unary_op_node_inplace(do_make_nodes(this->functor.get(),false),true);
+
+    		this->fill_on_demand_tree(&f,this->functor.get(),true,false);
 
 
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
