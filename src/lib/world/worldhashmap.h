@@ -277,7 +277,7 @@ namespace madness {
                 MADNESS_ASSERT(n>=0);
 
                 // Linear increment up to end of this bin
-                while (n-- && (entry=entry->next));
+                while (n-- && (entry=entry->next)) {}
                 next_non_null_entry();
                 if (!entry) return; // end
 
