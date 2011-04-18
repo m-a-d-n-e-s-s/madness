@@ -348,6 +348,85 @@ int testGenTensor_transform(const long& k, const long& dim, const double& eps, c
 
 }
 
+int testGenTensor_reconstruct(const long& k, const long& dim, const double& eps, const TensorType& tt) {
+
+	print("entering reconstruct");
+	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> t2=Tensor<double>(k,k,k,k,k,k);
+
+
+	t1.fillrandom();
+	t2.fillindex();
+
+	GenTensor<double> g0(t0,eps,tt);
+	GenTensor<double> g1(t1,eps,tt);
+	GenTensor<double> g2(t2,eps,tt);
+
+	double norm=0.0;
+	int nerror=0;
+
+
+	// reconstruct empty tensor
+	{
+		Tensor<double> t=g0.full_tensor_copy();
+		norm=(t-t0).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/1",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+	// reconstruct empty tensor
+	{
+		Tensor<double> t=t0;
+		g0.accumulate_into(t,-1.0);
+		norm=(t).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/2",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+
+	// reconstruct high rank tensor
+	{
+		Tensor<double> t=g1.full_tensor_copy();
+		norm=(t-t1).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/3",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+	// reconstruct high rank tensor
+	{
+		Tensor<double> t=t1;
+		g1.accumulate_into(t,-1.0);
+		norm=(t).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/4",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+
+	// reconstruct lowish rank tensor
+	{
+		Tensor<double> t=g2.full_tensor_copy();
+		norm=(t-t2).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/5",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+	// reconstruct lowish rank tensor
+	{
+		Tensor<double> t=t2;
+		g2.accumulate_into(t,-1.0);
+		norm=(t).normf();
+		print(ok(is_small(norm,eps)),"reconstruct/6",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+
+	print("all done\n");
+	return nerror;
+
+}
+
+
 
 
 int main(int argc, char**argv) {
@@ -362,13 +441,14 @@ int main(int argc, char**argv) {
     double eps=1.e-3;
 
 
-    Tensor<double> t;
-    Tensor<double> tt(t);
 
-    t=Tensor<double> (3,3);
-    t=2.0;
+    Tensor<double> t(4,3);
+    t.fillindex();
+    Tensor<double> t2=t(Slice(1,2),Slice(_));
     print(t);
-    print(tt);
+    print(t2);
+    print("contiguous",t.iscontiguous(),t2.iscontiguous());
+
 
 
 
@@ -413,6 +493,8 @@ int main(int argc, char**argv) {
     error+=testGenTensor_transform(k,dim,eps,TT_3D);
     error+=testGenTensor_transform(k,dim,eps,TT_2D);
 
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 

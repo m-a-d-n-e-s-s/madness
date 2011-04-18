@@ -277,7 +277,9 @@ namespace madness {
         Tensor<double> rm, r0, rp        ; ///< Blocks of the derivative operator
         Tensor<double> rmt, r0t, rpt     ; ///< Blocks of the derivative operator, transposed
         Tensor<double> left_rm, left_r0  ; ///< Blocks of the derivative for the left boundary
+        Tensor<double> left_rmt, left_r0t  ; ///< Blocks of the derivative for the left boundary
         Tensor<double> right_r0, right_rp; ///< Blocks of the derivative for the right boundary
+        Tensor<double> right_r0t, right_rpt; ///< Blocks of the derivative for the right boundary
         Tensor<double> bv_left, bv_right ; ///< Blocks of the derivative operator for the boundary contribution
 
         Void do_diff2b(const implT* f, implT* df, const keyT& key,
@@ -287,18 +289,23 @@ namespace madness {
             Vector<Translation,NDIM> l = key.translation();
             double lev   = (double) key.level();
 
-//            const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
-//            const double thresh=FunctionDefaults<NDIM>::get_thresh();
-
-            tensorT d;
+            coeffT d;
 
             //left boundary
             if (l[this->axis] == 0) {
-            	tensorT tensor_left=df->parent_to_child(right.second, right.first, neighbor(key,1)).full_tensor_copy().swapdim(this->axis,0);
-                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
 
-                d = madness::inner(left_rm ,tensor_left, 1, 0);
-                inner_result(left_r0,tensor_center,1, 0, d);
+                coeffT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,-1));
+                coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
+
+                d= transform_dir(tensor_right,left_rmt,this->axis);
+                d+=transform_dir(tensor_center,left_r0t,this->axis);
+
+
+//            	tensorT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,1)).full_tensor_copy().swapdim(this->axis,0);
+//                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
+//
+//                d = madness::inner(left_rm ,tensor_right, 1, 0);
+//                inner_result(left_r0,tensor_center,1, 0, d);
 //                d = madness::inner(left_rm ,
 //                        df->parent_to_child(right.second, right.first,
 //                            baseT::neighbor(key,1)).swapdim(this->axis,0), 1, 0);
@@ -308,12 +315,19 @@ namespace madness {
 //>>>>>>> .merge-right.r2202
             }
             else {
-//<<<<<<< .working
-                tensorT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1)).full_tensor_copy().swapdim(this->axis,0);
-                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
 
-                d = madness::inner(right_rp,tensor_left, 1, 0);
-                inner_result(right_r0,tensor_center,1, 0, d);
+                coeffT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1));
+                coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
+
+                d= transform_dir(tensor_left,right_rpt,this->axis);
+                d+=transform_dir(tensor_center,right_r0t,this->axis);
+
+//<<<<<<< .working
+//                tensorT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1)).full_tensor_copy().swapdim(this->axis,0);
+//                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
+//
+//                d = madness::inner(right_rp,tensor_left, 1, 0);
+//                inner_result(right_r0,tensor_center,1, 0, d);
 //=======
 //                d = madness::inner(right_rp,
 //                                   df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
@@ -324,11 +338,14 @@ namespace madness {
 //>>>>>>> .merge-right.r2202
             }
             // flo thinks this is wrong for higher dimensions -- need to cycledim
-            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
+//            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
+//            if (this->axis) d = copy(d.cycledim(1,0,this->axis)); // Copy to make contiguous
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
-            df->get_coeffs().replace(key,nodeT(coeffT(d,df->get_thresh(),df->get_tensor_type()),false));
+//            df->get_coeffs().replace(key,nodeT(coeffT(d,df->get_thresh(),df->get_tensor_type()),false));
+            df->get_coeffs().replace(key,nodeT(d,false));
 
             
+
             // This is the boundary contribution (formally in BoundaryDerivative)
             int bc_left  = this->bc(this->axis,0);
             int bc_right = this->bc(this->axis,1);
@@ -357,6 +374,10 @@ namespace madness {
                 }
             }
   
+            MADNESS_ASSERT(0);
+            tensorT dd=d.full_tensor_copy();
+
+//            MADNESS_EXCEPT("Flo in late diff_2b",0);
 //            coeffT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);
             tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key).full_tensor_copy();
 
@@ -388,7 +409,7 @@ namespace madness {
 					bdry_t.scale(FunctionDefaults<NDIM>::get_cell_width()[this->axis]);
             }
 
-            bdry_t += d;
+            bdry_t += dd;
             df->get_coeffs().replace(key,nodeT(coeffT(bdry_t,df->get_thresh(),df->get_tensor_type()),false));
             
             return None;
@@ -554,6 +575,12 @@ namespace madness {
             r0t = transpose(r0);
             rpt = transpose(rp);
             rmt = transpose(rm);
+
+            right_r0t = transpose(right_r0);
+            right_rpt = transpose(right_rp);
+
+            left_rmt = transpose(left_rm);
+            left_r0t = transpose(left_r0);
 
 
             //print(rm.normf(),r0.normf(),rp.normf(),left_rm.normf(),left_r0.normf(),right_r0.normf(),right_rp.normf(),bv_left.normf(),bv_right.normf());

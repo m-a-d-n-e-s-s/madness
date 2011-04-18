@@ -371,6 +371,16 @@ namespace madness {
 	    	return *this;
 	    }
 
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(Tensor<T>& t, const double fac) const {
+	    	_ptr->accumulate_into(t,fac);
+	    }
+
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(Tensor<T>& t, const std::complex<double> fac) const {
+	    	MADNESS_EXCEPTION("GenTensor::accumulate_into only with double fac",0);
+	    }
+
 		/// reduce the rank of this; don't do nothing if FullTensor
 		void reduceRank(const double& eps) {_ptr->reduceRank(eps);};
 
@@ -631,6 +641,9 @@ namespace madness {
 
     	virtual SepRepTensor<T>* transform_dir(const Tensor<T>& c, int axis) const =0;
 
+    	/// accumulate this into t, reconstruct this if necessary
+	    virtual void accumulate_into(Tensor<T>& t, const double fac) const = 0;
+
     };
 
     template<typename T>
@@ -758,7 +771,6 @@ namespace madness {
 		LowRankTensor<T>* swapdim(const long idim, const long jdim) const {
 			print("no LowRankTensor::swapdim");
 			MADNESS_ASSERT(0);
-			return new LowRankTensor<T>(_data.swapdim(idim,jdim));
 		}
 
 		/// reconstruct this to a full tensor
@@ -822,6 +834,11 @@ namespace madness {
     	LowRankTensor<T>* transform_dir(const Tensor<T>& c, int axis) const {
     		return new LowRankTensor<T>(_data.transform_dir(c,axis));
     	}
+
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(Tensor<T>& t, const double fac) const {
+	    	_data.accumulate_into(t,fac);
+	    }
 
     private:
 
@@ -1008,6 +1025,10 @@ namespace madness {
     		return new FullTensor<T>(madness::transform_dir(data,c,axis));
     	}
 
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(Tensor<T>& t, const double fac) const {
+	    	t.gaxpy(1.0,t,fac);
+	    }
 
     private:
 
@@ -1119,7 +1140,8 @@ namespace madness {
 
     	return t.transform_dir(c,axis);
     }
-#endif /* HAVE_GENTENSOR */
+
+    #endif /* HAVE_GENTENSOR */
 
 }
 

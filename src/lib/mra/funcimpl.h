@@ -216,6 +216,7 @@ namespace madness {
         coeffT _coeffs; ///< The coefficients, if any
         double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
         bool _has_children; ///< True if there are children
+        mutable double _normf; ///< Frobenius norm of this
 
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
@@ -351,8 +352,8 @@ namespace madness {
         const Tensor<T>&
         full_tensor_reference() const {
 #if HAVE_GENTENSOR
-        	MADNESS_ASSERT(_coeffs->type()==TT_FULL);
-        	return _coeffs->fullTensor();
+        	MADNESS_ASSERT(_coeffs.type()==TT_FULL);
+        	return _coeffs.full_tensor();
 #else
         	return coeff();
 #endif
@@ -494,18 +495,24 @@ namespace madness {
         /// Accumulate inplace and if necessary connect node to parent
         Void accumulate(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
         		const Key<NDIM>& key, const TensorArgs& args) {
+
             if (has_coeff()) {
-//                coeff() += t;
-            	tensorT cc=coeff().full_tensor_copy();;
-                cc += t;
-                coeff()=coeffT(cc,args);
+            	MADNESS_ASSERT(coeff().type()==TT_FULL);
+//            	if (coeff().type==TT_FULL) {
+            		coeff() += coeffT(t,-1.0,TT_FULL);
+//            	} else {
+//            		tensorT cc=coeff().full_tensor_copy();;
+//            		cc += t;
+//            		coeff()=coeffT(cc,args);
+//            	}
             }
             else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
+            	coeff() = coeffT(t,-1.0,TT_FULL);
 //                coeff() = copy(t);
-                coeff() = coeffT(t,args);
+//                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
                     const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
@@ -2165,19 +2172,20 @@ namespace madness {
             const nodeL& node1=it1->second;
             const nodeL& node2=it2->second;
 
-            // insert an empty node and return if the final norm is small
+            // if the final norm is small, perform the hartree product and return
             const double norm1=node1.get_norm_tree();
             const double norm2=node2.get_norm_tree();
             const double norm=norm1*norm2;	// computing the outer product
             if (norm < truncate_tol(thresh, key)) {
-                coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false));	// zero (not empty) leaf node w/o children
-                return None;
+				ProcessID owner = coeffs.owner(key);
+				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, it1, it2);
+				return None;
             }
 
             // get the error of both functions and of the pair function
             const double error1=p1->compute_error(node1);
             const double error2=p2->compute_error(node2);
-            const double error=norm1*error2 + error1*norm2 + error1*error2;
+            const double error=sqrt(norm1*norm1*error2*error2 + error1*error1*norm2*norm2 + error1*error1*error2*error2);
 
             // if the expected error is small, perform the hartree product and return
             if (error < truncate_tol(thresh,key)) {
@@ -2370,8 +2378,6 @@ namespace madness {
         		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
         		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) const {
 
-        	MADNESS_ASSERT(NDIM==6);
-
 			woT::task(coeffs.owner(key), &implT:: template do_assemble_coeff<3>,
 					key,val_ket,val_eri,val_pot1,val_pot2);
 
@@ -2423,59 +2429,6 @@ namespace madness {
         }
 
 
-        /// return the sum coefficients of key in tensor representation
-
-		/// !!!  call only from function_factory_and_interface  !!!
-        /// depending on if this is an on-demand functor or an on-demand function
-        /// call different get-algorithm (see notes); first check if the coeffs
-        /// are already present, otherwise construct according to get-algorithm
-        Future<tensorT> demand_coeffs(const keyT& key) const {
-
-//        	print("key in demand_coeffs",key);
-
-        	tensorT t;
-//        	const TensorType tt=FunctionDefaults<NDIM>::get_tensor_type();
-
-        	// check for coefficients being present locally
-        	typename dcT::const_iterator it = coeffs.find(key).get();
-
-        	// nothing found, construct
-        	if (it == coeffs.end()) {
-
-        		// this is a functor, and it provides coeffs directly
-        		if (this->is_on_demand()) {
-
-        			// make sure we have a valid functor
-        			MADNESS_ASSERT(functor and functor->provides_coeff());
-
-        			t=functor->coeff(key).full_tensor_copy();
-
-        		// this is a function, construct coefficients from parent node
-        		} else {
-
-                    typedef std::pair<keyT,coeffT> argT;
-
-    				Future<argT> result;
-    				woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world),
-    						TaskAttributes::hipri());
-    				keyT parent_key=result.get().first;
-    				coeffT parent_coeff=result.get().second;
-
-    				MADNESS_ASSERT(parent_coeff.has_data());  // should be a redundant tree
-    				MADNESS_ASSERT(key.is_valid() and parent_key.is_valid());
-    				t=parent_to_child(parent_coeff,parent_key,key).full_tensor_copy();
-
-				}
-
-        	// we found the requested coefficients
-        	} else {
-        		t=it->second.coeff().full_tensor_copy();
-        	}
-
-        	MADNESS_ASSERT(t.has_data());
-//        	MADNESS_ASSERT(t.dim(0)==FunctionDefaults<NDIM>::get_k());
-        	return Future<tensorT>(t);
-        }
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2826,6 +2779,8 @@ namespace madness {
             if (key.level()> 0 && !nonstandard)
                 d(cdata.s0) = 0.0;
 
+            d.reduceRank(thresh);
+
             acc->second.set_coeff(d);
 
             s.reduceRank(thresh);
@@ -3006,6 +2961,7 @@ namespace madness {
                 keyT d(dd.level(),l*-1);
 
                 if (source.is_valid()) {
+//                if (source.is_valid() and d.distsq()<2) {
                     double opnorm = op->norm(key.level(), d);
                     // working assumption here is that the operator is isotropic and
                     // monotonically decreasing with distance
@@ -3019,15 +2975,18 @@ namespace madness {
                     if (it!=fcoeffs.end()) {
                     	const nodeT& fnode=it->second;
                     	MADNESS_ASSERT(fnode.has_coeff());
-                        const tensorT c=fnode.coeff().full_tensor_copy();
-                        const double cnorm=c.normf();
+//                        const double cnorm=fnode.coeff().normf();
+                    	// norm_tree >= coeff().normf();
+                    	const double cnorm=fnode.get_norm_tree();
 
 						if (cnorm*opnorm> tol/fac) {
+//	                        const tensorT c=fnode.coeff().full_tensor_copy();
 							// for now do all the convolutions in one task, since we need
 							// to reduce the rank at the end, and we can't keep track of
 							// which nodes have already been processed
-	//                    	tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
+//							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
+							tensorT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm);
+//							tensorT result = op->apply(source, d, fnode.full_tensor_reference(), tol/fac/cnorm);
 
 							// accumulate the result on this node
 							if (result.normf()> 0.3*tol/fac) {
@@ -3039,7 +2998,9 @@ namespace madness {
                     }
                 }
             }
-            node.reduceRank(thresh);
+            print("done with node");
+            node.node_to_low_rank(thresh);
+//            node.reduceRank(thresh);
             return None;
         }
 

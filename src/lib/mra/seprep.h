@@ -42,6 +42,7 @@
 
 namespace madness {
 
+
 	/**
 	 * This is a separated representation as described in BM2005:
 	 * Beylkin, Mohlenkamp, Siam J Sci Comput, 2005 vol. 26 (6) pp. 2133-2159
@@ -57,6 +58,7 @@ namespace madness {
 	class SepRep {
 	public:
 
+		typedef Tensor<T> tensorT;
 
 	private:
 		/// the actual data stored in a vector of length rank_
@@ -186,19 +188,19 @@ namespace madness {
 				// assignment from/to slice is deep-copy
 				if (merged_dim==1) {
 					if (rank>0) {
-						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[idim]));
+						vectors[idim]=copy(sr.configs_.ref_vector(idim)(Slice(0,rank-1),s[idim]));
 					} else {
 						vectors[idim]=Tensor<T>(0,s[idim].end-s[idim].start+1);
 					}
 				} else if (merged_dim==2) {
 					if (rank>0) {
-						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[2*idim],s[2*idim+1]));
+						vectors[idim]=copy(sr.configs_.ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
 					} else {
 						vectors[idim]=Tensor<T>(0,s[2*idim].end-s[2*idim].start+1,s[2*idim+1].end-s[2*idim+1].start+1);
 					}
 				} else if (merged_dim==3) {
 					if (rank>0) {
-						vectors[idim]=copy(sr.configs_.refVector(idim)(Slice(_),s[3*idim],s[3*idim+1],s[3*idim+2]));
+						vectors[idim]=copy(sr.configs_.ref_vector(idim)(Slice(0,rank-1),s[3*idim],s[3*idim+1],s[3*idim+2]));
 					} else {
 						vectors[idim]=Tensor<T>(0,s[3*idim].end-s[3*idim].start+1,s[3*idim+1].end-s[3*idim+1].start+1,
 								s[3*idim+2].end-s[3*idim+2].start+1);
@@ -296,13 +298,6 @@ namespace madness {
 		/// return the number of coefficients
 		unsigned int nCoeff() const {return configs_.nCoeff();};
 
-		/// swap the dimensions
-		SepRep<T> swapdim(const long idim, const long jdim) const {
-			SepRep<T> result(*this);
-			std::swap(result.configs_.refVector(idim),result.configs_.refVector(jdim));
-			return result;
-		}
-
 		/// return the representation
 		TensorType tensor_type() const {return configs_.type();};
 
@@ -321,10 +316,7 @@ namespace madness {
 			MADNESS_ASSERT(this->tensor_type()==TT_2D);
 
 			// fast return if possible
-			if (values_eff.normf()<eps*facReduce) {
-				this->configs_.unflatten();
-				return;
-			}
+			if (values_eff.normf()<eps*facReduce) return;
 
 			// output from svd
 			Tensor<T> U;
@@ -353,8 +345,7 @@ namespace madness {
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.vector_[0].dim(0));
 				MADNESS_ASSERT(this->configs_.rank()==this->configs_.weights_.dim(0));
 			}
-			this->configs_.unflatten();
-
+			this->configs_.make_structure();
 		}
 
 		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()) {
@@ -362,6 +353,7 @@ namespace madness {
 			// direct reduction on the polynomial values on the Tensor
 			if (this->tensor_type()==TT_3D) {
 				this->doReduceRank(eps,values);
+				this->configs_.make_structure();
 			} else if (this->tensor_type()==TT_2D) {
 				MADNESS_ASSERT(not values.has_data());
 				Tensor<T> values=this->reconstructTensor();
@@ -411,7 +403,8 @@ namespace madness {
 			if ((not haveSR) and (not haveVal)) return;
 
 
-			reference.configs_=this->configs_.semi_flatten();
+//			reference.configs_=this->configs_.semi_flatten();
+			reference.configs_.undo_structure();
 
 //			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
 
@@ -443,7 +436,8 @@ namespace madness {
 
 			// set up a trial function
 			SepRep trial(reference.tensor_type(),reference.get_k(),reference.dim());
-			trial.configs_.semi_flatten();
+			trial.configs_.undo_structure();
+//			trial.configs_.semi_flatten();
 //			if (useTrial) trial=trial2;
 //			else trial.configs_.ensureSpace(maxTrialRank);
 
@@ -455,6 +449,7 @@ namespace madness {
 
 				// compute the residual wrt reference minus trial
 				residual.configs_.fillWithRandom(1);
+				residual.configs_.undo_structure();
 
 				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
 
@@ -467,11 +462,15 @@ namespace madness {
 				if (norm<threshold) break;
 #endif
 				// otherwise add residual to the trial function ..
-				trial.configs_.unflatten();
-				residual.configs_.unflatten();
+//				trial.configs_.unflatten();
+//				residual.configs_.unflatten();
+				trial.configs_.make_structure();
+				residual.configs_.make_structure();
 				trial+=residual;
-				trial.configs_.semi_flatten();
-				residual.configs_.semi_flatten();
+				trial.configs_.undo_structure();
+				residual.configs_.undo_structure();
+//				trial.configs_.semi_flatten();
+//				residual.configs_.semi_flatten();
 
 				// .. and optimize trial wrt the reference
 				bool successful=trial.optimize(reference,facSR,residual,0.0,
@@ -499,7 +498,8 @@ namespace madness {
 			}
 #endif
 
-			*this=trial.configs_.unflatten();
+			*this=trial.configs_;
+			this->configs_.make_structure();
 //			timeReduce_.end();
 
 		}
@@ -588,7 +588,8 @@ namespace madness {
 
 			// flatten this
 			SepRep<T> sr=*this;
-			sr.configs_.semi_flatten();
+			sr.configs_.undo_structure();
+//			sr.configs_.semi_flatten();
 
 			// and a scratch Tensor
 			Tensor<T>  scr(rank);
@@ -607,29 +608,43 @@ namespace madness {
 
 			} else if (conf_dim==2) {
 
-
-				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(sr.configs_.weights_);
-					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
-					for (unsigned int i1=0; i1<conf_k; i1++) {
-						scr1=copy(scr);
-						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
-						s(i0,i1)=scr1.sum();
+//				tensorT weight_matrix(rank,rank);
+//				for (unsigned int r=0; r<rank; r++) {
+//					weight_matrix(r,r)=this->weight(r);
+//				}
+//				s=inner(weight_matrix,sr.configs_.refVector(0));
+//				s=inner(s,sr.configs_.refVector(1),0,0);
+				tensorT sscr=copy(sr.configs_.ref_vector(0)(sr.configs_.c0()));
+				for (unsigned int r=0; r<rank; r++) {
+					const double w=this->weight(r);
+					for (unsigned int k=0; k<conf_k; k++) {
+						sscr(r,k)*=w;
 					}
 				}
+				inner_result(sscr,sr.configs_.ref_vector(1)(sr.configs_.c0()),0,0,s);
+
+//				for (unsigned int i0=0; i0<conf_k; i0++) {
+//					scr=copy(sr.configs_.weights_);
+//					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
+//					for (unsigned int i1=0; i1<conf_k; i1++) {
+//						scr1=copy(scr);
+//						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
+//						s(i0,i1)=scr1.sum();
+//					}
+//				}
 
 
 			} else if (conf_dim==3) {
 
 				for (unsigned int i0=0; i0<conf_k; i0++) {
 					scr=copy(sr.configs_.weights_);
-					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
+					scr.emul(sr.configs_.ref_vector(0)(Slice(0,rank-1),Slice(i0,i0,0)));
 					for (unsigned int i1=0; i1<conf_k; i1++) {
 						scr1=copy(scr);
-						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
+						scr1.emul(sr.configs_.ref_vector(1)(Slice(0,rank-1),Slice(i1,i1,0)));
 						for (unsigned int i2=0; i2<conf_k; i2++) {
 							scr2=copy(scr1);
-							scr2.emul(sr.configs_.refVector(2)(Slice(_),Slice(i2,i2,0)));
+							scr2.emul(sr.configs_.ref_vector(2)(Slice(0,rank-1),Slice(i2,i2,0)));
 							s(i0,i1,i2)=scr2.sum();
 						}
 					}
@@ -648,6 +663,59 @@ namespace madness {
 			Tensor<T> s2=s.reshape(dim,d);
 
 			return s2;
+		}
+
+		/// reconstruct this to full rank, and accumulate into t
+		void accumulate_into(Tensor<T>& t, const double fac) const {
+
+			// fast return if possible
+			if (this->rank()==0) return;
+
+			MADNESS_ASSERT(t.iscontiguous());
+
+			// for convenience
+			const unsigned int conf_dim=this->configs_.dim_eff();
+			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
+			const unsigned int rank=this->rank();
+			long d[TENSOR_MAXDIM];
+
+			// set up result Tensor (in configurational dimensions)
+			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
+			Tensor<T> s=t.reshape(conf_dim,d);
+
+			// flatten this
+			SepRep<T> sr=*this;
+			sr.configs_.undo_structure();
+
+			if (conf_dim==2) {
+
+				tensorT sscr=copy(sr.configs_.ref_vector(0)(sr.configs_.c0()));
+				if (fac!=1.0) sscr.scale(fac);
+				for (unsigned int r=0; r<rank; r++) {
+					const double w=this->weight(r);
+					for (unsigned int k=0; k<conf_k; k++) {
+						sscr(r,k)*=w;
+					}
+				}
+				inner_result(sscr,sr.configs_.ref_vector(1)(sr.configs_.c0()),0,0,s);
+
+				// transpose
+//				long dd[2];
+//				dd[0]=rank;
+//				dd[1]=conf_k;
+//				tensorT sscr2(2,dd,false);
+//				fast_transpose(rank,conf_k,sscr.ptr(),sscr2.ptr());
+//				fast_transpose(rank,conf_k,sr.configs_.refVector(1).ptr(),sscr.ptr());
+//				tensorT st=sscr.reshape(conf_k,rank);
+//				tensorT s2t=sscr2.reshape(conf_k,rank);
+//				inner_result(s2t,st,1,1,s);
+
+
+			} else {
+				print("only config_dim=2 in SepRep::accumulate_into");
+				MADNESS_ASSERT(0);
+			}
+
 		}
 
 		/// check compatibility
@@ -886,7 +954,7 @@ namespace madness {
 							B1[idim](l1,l)*=w*fac1;
 						}
 					}
-					Tensor<T>  tmp=ref1.configs_.refVector(idim);//).view(0,rG1);
+					Tensor<T> tmp=ref1.configs_.ref_vector(idim)(ref1.configs_.c0());
 					vecb+=madness::inner(B1[idim],tmp);
 				}
 				if (have2) {
@@ -896,7 +964,7 @@ namespace madness {
 							B2[idim](l1,l)*=w*fac2;
 						}
 					}
-					Tensor<T>  tmp=ref2.configs_.refVector(idim);//).view(0,rG1);
+					Tensor<T>  tmp=ref2.configs_.ref_vector(idim)(ref2.configs_.c0());
 					vecb+=madness::inner(B2[idim],tmp);
 				}
 

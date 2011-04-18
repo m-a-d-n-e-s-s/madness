@@ -1424,13 +1424,16 @@ namespace madness {
         	source.set_impl(f);
 
         	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
-        			f.get_impl()->get_functor().get(),false,true);
+        			f.get_impl()->get_functor().get(),true,true);
+			source.norm_tree();
+			source.get_impl()->compress(true,true,true);
 
         	// apply (bypass apply_only)
         	print("applying operator in target-driven algorithm");
-        	result.set_impl(source,true);
-        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
-        			f.get_impl()->get_functor().get(),false,true);
+        	result=copy(source);
+//        	result.set_impl(source,true);
+//        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
+//        			f.get_impl()->get_functor().get(),false,true);
 
 
         	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);

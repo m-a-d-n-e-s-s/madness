@@ -66,6 +66,7 @@ namespace madness {
         BoundaryConditions<6> bc;
         int rank;
         int k;
+        double thresh;
 
     public:
 
@@ -75,7 +76,8 @@ namespace madness {
     	/// constructor: cf the Coulomb kernel
     	ElectronRepulsion(World& world,double lo,double eps,
                 const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-                int kk=FunctionDefaults<NDIM>::get_k()) {
+                int kk=FunctionDefaults<NDIM>::get_k())
+    		: thresh(eps) {
 
     		// don't think anything else makes sense..
     		MADNESS_ASSERT(NDIM==6);
@@ -146,10 +148,16 @@ namespace madness {
     			const Tensor<double>& r1=ops[mu].getop(1)->rnlij(n,l1);
     			const Tensor<double>& r2=ops[mu].getop(2)->rnlij(n,l2);
 
-    			const Tensor<double> r01=outer(r0,r1);
-    			Tensor<double> r123=outer(r01,r2);
-    			r123.scale(ops[mu].getfac());
-    			c+=r123.mapdim(map);
+    			const double norm0=r0.normf();
+    			const double norm1=r1.normf();
+    			const double norm2=r2.normf();
+//    			if (norm0*norm1*norm2*ops[mu].getfac() > thresh/rank) {
+
+					const Tensor<double> r01=outer(r0,r1*ops[mu].getfac());
+					Tensor<double> r123=outer(r01,r2);
+	//    			r123.scale(ops[mu].getfac());
+					c+=r123.mapdim(map);
+//    			}
     		}
 
     		return c;

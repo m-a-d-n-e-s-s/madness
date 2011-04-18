@@ -163,6 +163,80 @@ namespace madness {
             //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
         }
 
+
+
+        template <typename T, typename R>
+        void apply_transformation2(Level n, long dimk,
+                                  const Tensor<T> trans2[NDIM],
+                                  const GenTensor<T>& f,
+                                  GenTensor<R>& work1,
+                                  GenTensor<R>& work2,
+                                  GenTensor<Q>& work3,
+                                  const Q mufac,
+                                  Tensor<R>& result) const {
+
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+
+#if 1
+            long size = 1;
+            for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+
+            work1=general_transform(f,trans2);
+//            aligned_axpy(size, result.ptr(), w1, mufac);
+//            Tensor<T> w=work1.reconstruct_tensor();
+            work1.accumulate_into(result,mufac);
+//            Tensor<T> w=work1.full_tensor_copy();
+//            aligned_axpy(size, result.ptr(), w.ptr(), mufac);
+
+#else
+
+            long size = 1;
+            for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+            long dimi = size/dimk;
+
+            R* restrict w1=work1.ptr();
+            R* restrict w2=work2.ptr();
+            Q* restrict w3=work3.ptr();
+
+            const Q* U;
+
+            U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+            mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+            size = trans[0].r * size / dimk;
+            dimi = size/dimk;
+            for (std::size_t d=1; d<NDIM; ++d) {
+                U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+                size = trans[d].r * size / dimk;
+                dimi = size/dimk;
+                std::swap(w1,w2);
+            }
+
+            // If all blocks are full rank we can skip the transposes
+            bool doit = false;
+            for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+            if (doit) {
+                for (std::size_t d=0; d<NDIM; ++d) {
+                    if (trans[d].VT) {
+                        dimi = size/trans[d].r;
+                        mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+                        size = dimk*size/trans[d].r;
+                    }
+                    else {
+                        fast_transpose(dimk, dimi, w1, w2);
+                    }
+                    std::swap(w1,w2);
+                }
+            }
+            // Assuming here that result is contiguous and aligned
+            aligned_axpy(size, result.ptr(), w1, mufac);
+            //    long one = 1;
+            //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+#endif
+        }
+
+
         /// Apply one of the separated terms, accumulating into the result
         template <typename T>
         void muopxv_fast(Level n,
@@ -234,6 +308,86 @@ namespace madness {
                     }
                 }
                 apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+            }
+        }
+
+
+
+
+        /// Apply one of the separated terms, accumulating into the result
+        template <typename T>
+        void muopxv_fast2(Level n,
+                         const ConvolutionData1D<Q>* const ops[NDIM],
+                         const GenTensor<T>& f, const GenTensor<T>& f0,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
+                         double tol,
+                         const Q mufac,
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
+                         GenTensor<Q>& work5) const {
+
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            Transformation trans[NDIM];
+            Tensor<T> trans2[NDIM];
+
+            double Rnorm = 1.0;
+            for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
+            tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+
+            // Determine rank of SVD to use or if to use the full matrix
+            const long twok = 2*k;
+            long break_even;
+            if (NDIM==1) break_even = long(0.5*twok);
+            else if (NDIM==2) break_even = long(0.6*twok);
+            else if (NDIM==3) break_even=long(0.65*twok);
+            else break_even=long(0.7*twok);
+            for (std::size_t d=0; d<NDIM; ++d) {
+                long r;
+                for (r=0; r<twok; ++r) {
+                    if (ops[d]->Rs[r] < tol) break;
+                }
+                if (r >= break_even) {
+                    trans[d].r = twok;
+                    trans[d].U = ops[d]->R.ptr();
+                    trans[d].VT = 0;
+                }
+                else {
+                    r += (r&1L);
+                    trans[d].r = std::max(2L,r);
+                    trans[d].U = ops[d]->RU.ptr();
+                    trans[d].VT = ops[d]->RVT.ptr();
+                }
+                trans2[d]=ops[d]->R;
+            }
+            apply_transformation2(n, twok, trans2, f, work1, work2, work5, mufac, result);
+
+            if (n > 0) {
+                if (NDIM==1) break_even = long(0.5*k);
+                else if (NDIM==2) break_even = long(0.6*k);
+                else if (NDIM==3) break_even=long(0.65*k);
+                else break_even=long(0.7*k);
+                for (std::size_t d=0; d<NDIM; ++d) {
+                    long r;
+                    for (r=0; r<k; ++r) {
+                        if (ops[d]->Ts[r] < tol) break;
+                    }
+                    if (r >= break_even) {
+                        trans[d].r = k;
+                        trans[d].U = ops[d]->T.ptr();
+                        trans[d].VT = 0;
+                    }
+                    else {
+                        r += (r&1L);
+                        trans[d].r = std::max(2L,r);
+                        trans[d].U = ops[d]->TU.ptr();
+                        trans[d].VT = ops[d]->TVT.ptr();
+                    }
+                    trans2[d]=ops[d]->T;
+                }
+                apply_transformation2(n, k, trans2, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -517,7 +671,63 @@ namespace madness {
             return r;
         }
 
+
+
+        template <typename T>
+        Tensor<TENSOR_RESULT_TYPE(T,Q)> apply2(const Key<NDIM>& source,
+                                              const Key<NDIM>& shift,
+                                              const GenTensor<T>& coeff,
+                                              double tol) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+            const GenTensor<T>* input = &coeff;
+            GenTensor<T> dummy;
+            const TensorType tt=coeff.type();
+
+            if (coeff.dim(0) == k) {
+                // This processes leaf nodes with only scaling
+                // coefficients ... FuncImpl::apply by default does not
+                // apply the operator to these since for smoothing operators
+                // it is not necessary.  It is necessary for operators such
+                // as differentiation and time evolution and will also occur
+                // if the application of the operator widens the tree.
+                dummy = GenTensor<T>(v2k,tt);
+                dummy(s0) += coeff;
+                input = &dummy;
+            }
+            else {
+                MADNESS_ASSERT(coeff.dim(0)==2*k);
+            }
+
+            tol = tol/rank; // Error is per separated term
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+
+            //print("sepop",source,shift,op->norm,tol);
+
+            Tensor<resultT> r(v2k), r0(vk);
+            GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
+    //        GenTensor<Q> work5(2*k,2*k);
+            GenTensor<Q> work5(v2k,tt);
+
+            const GenTensor<T> f0 = copy(coeff(s0));
+            for (int mu=0; mu<rank; ++mu) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                //print("muop",source, shift, mu, muop.norm);
+                if (muop.norm > tol) {
+                    Q fac = ops[mu].getfac();
+                    muopxv_fast2(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                                work1, work2, work5);
+                }
+            }
+//            r(s0).gaxpy(1.0,r0,1.0);
+            r(s0)+=r0;
+            return r;
+        }
+
     };
+
+
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static
