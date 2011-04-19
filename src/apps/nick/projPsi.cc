@@ -176,7 +176,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     //         if(printR) PRINTLINE("");
     //         PRINT( "my routine: " );
     //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
-    Tensor<complexd> P(lMAX+1);
+    Tensor<double> P(lMAX+1);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
         for (long i=0; i<n; i++) {
@@ -184,11 +184,11 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if (i==0 || i==(n-1)) ifEndPti = 0.5;
             const double r = i*dr + 1e-10;
             const complexd YlPsir = YlPsi(i,l);
-            P(l) += YlPsir*r*r*dr*ifEndPti;            
+            P(l) += real(YlPsir*conj(YlPsir))r*r*dr*ifEndPti;            
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << real(conj(P(l))*P(l)));
+        PRINTLINE(std::setprecision(6) << std::scientific << P(l) );
     }
     if(world.rank()==0) after = wall_time();
     PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
