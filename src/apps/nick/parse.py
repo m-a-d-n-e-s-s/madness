@@ -26,7 +26,7 @@ for file in fileList:
         f = open(file)
         lines = f.readlines()
         #Find the starting pattern
-        while 1:
+        while lines:
                 line = lines.pop(0)
                 m = re.match( "\s*step",line)
                 if m:

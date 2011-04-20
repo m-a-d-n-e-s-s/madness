@@ -35,18 +35,58 @@
 #ifndef MADNESS_WORLD_ARRAY_H__INCLUDED
 #define MADNESS_WORLD_ARRAY_H__INCLUDED
 
+#include <madness_config.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
-#include <array>
 
-#if defined(MADNESS_HAS_STD_TR1_ARRAY) && !defined(MADNESS_HAS_STD_ARRAY)
-#define MADNESS_HAS_STD_ARRAY
+// Select header that contains array
+#if defined(MADNESS_USE_ARRAY)
+#include <array>
+#elif defined(MADNESS_USE_TR1_ARRAY)
+#include <tr1/array>
+#elif defined(MADNESS_USE_BOOST_TR1_ARRAY_HPP)
+#include <boost/tr1/array.hpp>
+#else
+#error No acceptable array include directive was found.
+#endif // ARRAY
+
+#ifndef MADNESS_BEGIN_NAMESPACE_TR1
+
+#if defined(BOOST_TR1_ARRAY_INCLUDED) || defined(BOOST_TR1_ARRAY_HPP_INCLUDED)
+
+// We are using boost
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#elif defined(MADNESS_HAS_STD_TR1_ARRAY)
+
+// We are using TR1
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
+#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
+
+#elif defined(MADNESS_HAS_STD_ARRAY)
+
+// We are using C++0x
+#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
+#define MADNESS_END_NAMESPACE_TR1 } // namespace std
+
+#else
+// We do not know.
+#error Unable to determine the correct namespace for TR1 fuctional.
+
+#endif
+
+#endif // MADNESS_BEGIN_NAMESPACE_TR1
 
 // Insert the tr1 array class into the std namespace.
 namespace std {
+
+#if defined(MADNESS_HAS_STD_TR1_ARRAY) && !defined(MADNESS_HAS_STD_ARRAY)
+#define MADNESS_HAS_STD_ARRAY 1
+
     using ::std::tr1::array;
     using ::std::tr1::swap;
     using ::std::tr1::tuple_size;
@@ -55,14 +95,14 @@ namespace std {
     using ::std::tr1::tuple_element;
     using ::std::tr1::get;
 
-} // namespace std
 #endif
+} // namespace std
 
-namespace std {
+MADNESS_BEGIN_NAMESPACE_TR1
 
     /// Output std::array to stream for human consumption
     template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
+    std::ostream& operator<<(std::ostream& s, const array<T,N>& a) {
         s << "[";
         for(std::size_t i=0; i<N; ++i) {
             s << a[i];
@@ -72,7 +112,22 @@ namespace std {
         return s;
     }
 
-} // namespace std
+    /// Hash std::array with madness::Hash
+    template <typename T, std::size_t N>
+    madness::hashT hash_value(const array<T,N>& a) {
+        // Use this version of range for potential optimization.
+        return madness::hash_range(a.data(), N);
+    }
+
+    /// Hash std::array with MADNESS Hashing
+    template <typename T, std::size_t N>
+    struct hash<array<T,N> > {
+        std::size_t operator()(const array<T,N>& a) const {
+            return hash_value(a);
+        }
+    };
+
+MADNESS_END_NAMESPACE_TR1
 
 namespace madness {
 
@@ -136,7 +191,7 @@ namespace madness {
         /// Initialize all elements to value t
         template <typename Q>
         explicit Vector(Q t) {
-            data_.fill(t);
+            fill(t);
         }
 
         /// Construct from a C-style array of the same dimension
@@ -190,7 +245,7 @@ namespace madness {
 
         /// Fill from scalar value
         Vector<T,N>& operator=(const T& t) {
-            data_.fill(t);
+            fill(t);
             return *this;
         }
 
@@ -228,7 +283,13 @@ namespace madness {
 
          // modifiers
          void swap(Vector<T, N>& other) { data_.swap(other.data_); }
-         void fill(const T& t) { data_.fill(t); }
+         void fill(const T& t) {
+#ifdef MADNESS_ARRAY_HAS_FILL
+             data_.fill(t);
+ #else
+             data_.assign(t);
+ #endif
+         }
 
         /// In-place element-wise multiplcation by a scalar
 
@@ -268,7 +329,7 @@ namespace madness {
 
         /// Support for MADNESS hashing
         hashT hash() const {
-            return madness::hash(data_.data(), N);
+            return hash_value(data_);
         }
 
         // comparisons
@@ -584,5 +645,6 @@ namespace madness {
         v[5] = v5;
         return v;
     }
-}
+} // namespace madness
+
 #endif // MADNESS_WORLD_ARRAY_H__INCLUDED

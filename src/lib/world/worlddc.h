@@ -134,7 +134,7 @@ namespace madness {
     /// Default process map is "random" using madness::hash(key)
 
     /// \ingroup worlddc
-    template <typename keyT, typename hashfunT = Hash_private::defhashT<keyT> >
+    template <typename keyT, typename hashfunT = Hash<keyT> >
     class WorldDCDefaultPmap : public WorldDCPmapInterface<keyT> {
     private:
         const int nproc;
@@ -260,18 +260,6 @@ namespace madness {
         template <typename Archive>
         void serialize(const Archive&) {
             MADNESS_EXCEPTION("Serializing DC iterator ... why?", false);
-        }
-
-        /// This exclusively for use by Range
-        int operator-(const WorldContainerIterator& other) const {
-            MADNESS_ASSERT(!is_cached() && !other.is_cached());
-            return it - other.it;
-        }
-
-        /// This exclusively for use by Range
-        WorldContainerIterator operator+(const unsigned n) const {
-            MADNESS_ASSERT(!is_cached());
-            return WorldContainerIterator(it+n);
         }
 
     private:
@@ -646,7 +634,7 @@ namespace madness {
     /// All operations, including constructors and destructors, are
     /// non-blocking and return immediately.  If communication occurs
     /// it is asynchronous, otherwise operations are local.
-    template <typename keyT, typename valueT, typename hashfunT = Hash_private::defhashT<keyT> >
+    template <typename keyT, typename valueT, typename hashfunT = Hash<keyT> >
     class WorldContainer : public archive::ParallelSerializableObject {
     public:
         typedef WorldContainer<keyT,valueT,hashfunT> containerT;

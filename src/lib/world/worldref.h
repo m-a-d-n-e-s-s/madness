@@ -39,22 +39,23 @@
 /// \file worldref.h
 /// \brief Implements RemoteReference which is for internal use
 
-#include <world/world.h>        // for World
 #include <world/atomicint.h>    // for AtomicInt
 #include <world/sharedptr.h>    // for shared_ptr
 #include <world/worldtypes.h>   // for ProcessID
-#include <world/print.h>        // for print
 #include <world/archive.h>      // for wrap_opaque
 #include <world/worldam.h>      // for new_am_arg
 #include <world/worldptr.h>     // for WorldPtr
 #include <world/worldhashmap.h> // for ConcurrentHashMap
-#include <map>                  // for std::map
 #include <iosfwd>               // for std::ostream
 
 //#define MADNESS_REMOTE_REFERENCE_DEBUG
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+#include <world/print.h>        // for print
+#endif
 
 namespace madness {
 
+    class World;
     template <typename T> class RemoteReference;
 //
 //    template <typename T>
@@ -528,7 +529,7 @@ namespace madness {
 
     public:
 
-        /// Ad the remote reference to the given \c std::ostream, \c out.
+        /// Add the remote reference to the given \c std::ostream, \c out.
 
         /// \param out The output stream to add \c ref to.
         /// \param ref The remote reference to add to the out stream

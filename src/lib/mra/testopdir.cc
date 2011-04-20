@@ -102,6 +102,39 @@ public:
     }
 };
 
+class Charge : public FunctionFunctorInterface<double,3> {
+public:
+    double operator()(const coord_3d& r) const {
+        static const double fac = std::pow(constants::pi,-1.5);
+        const double rsq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+        return fac*exp(-rsq);
+    }
+};
+
+class DPot : public FunctionFunctorInterface<double,3> {
+    const int dir;
+public:
+    DPot(int dir) : dir(dir) {}
+
+    double operator()(const coord_3d& r) const {
+        const double rsq = r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+        const double R = sqrt(rsq);
+        double dudr;
+
+        if (R>7.0) {
+            dudr = -1.0/rsq;
+        }
+        else if (R<0.01) {
+            dudr = (-.75225277806367504925+(.45135166683820502956+(-.16119702387078751056+0.41791821003537502737e-1*rsq)*rsq)*rsq)*R;
+        }
+        else {
+            dudr = 2*exp(-rsq)/(sqrt(constants::pi)*R) - erf(R)/rsq;
+        }
+
+        return dudr * r[dir] / R; // might need taylor expansion around r=0
+    }
+};
+
 
 void test_opdir(World& world) {
     const coord_3d origin(0.0);
@@ -133,7 +166,7 @@ void test_opdir(World& world) {
     double ferr = f.err(Gaussian<double,3>(origin, expnt, coeff));
     if (world.rank() == 0) print("norm of initial function", norm, ferr);
 
-    const real_tensor& width = FunctionDefaults<3>::get_cell_width();
+    const real_tensor width = FunctionDefaults<3>::get_cell_width();
     const int k = FunctionDefaults<3>::get_k();
 
     // These from previous computation with k=8 thresh=1e-6
@@ -183,62 +216,55 @@ void test_opdir(World& world) {
     world.gop.fence();
 }
 
-/// Factory function generating operator for convolution with grad(1/r) in 3D
-
-/// Returns a 3-vector containing the convolution operator for the x,
-/// y, and z components of grad(1/r)
-// static
-// inline
-// std::vector< std::shared_ptr< SeparatedConvolution<double,3> > >
-// GradCoulombOperator(World& world,
-//                     double lo,
-//                     double eps,
-//                     const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
-//                     int k=FunctionDefaults<3>::get_k())
-// {
-//     const double pi = constants::pi;
-//     const Tensor<double>& width = FunctionDefaults<3>::get_width();
-//     double hi = width.normf(); // Diagonal width of cell
-//     const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
-//     if (isperiodicsum) hi *= 100; // Extend range for periodic summation
-
-//     // bsh_fit generates representation for 1/4Pir but we want 1/r
-//     // so have to scale eps by 1/4Pi
-//     Tensor<double> coeff, expnt;
-//     bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
-
-//     if (bc(0,0) == BC_PERIODIC) {
-//         truncate_periodic_expansion(coeff, expnt, width.max(), true);
-//     }
-
-//     coeff.scale(4.0*pi);
-//     int rank = coeff.dim(0);
-
-//     std::vector< std::shared_ptr< SeparatedConvolution<double,3> > > gradG(3);
-
-//     for (int dir=0; dir<3; dir++) {
-//         std::vector< ConvolutionND<double,3> > ops(rank);
-//         for (int mu=0; mu<rank; mu++) {
-//             // We cache the normalized operator so the factor is the value we must multiply
-//             // by to recover the coeff we want.
-//             Q c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff
-//             ops[mu].setfac(coeff(mu)/c);
-
-//             for (int d=0; d<3; d++) {
-//                 if (d != dir)
-//                     ops[mu].setop(d,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
-//             }
-//             ops[mu].setop(dir,GaussianConvolution1DCache<Q>::get(k, expnt(mu)*width[dir]*width[dir], 1, isperiodicsum));
-//         }
-//         ops(dir) = new SeparatedConvolution<double,3>(world, ops);
-//     }
-
-//     return gradG;
-// }
 
 void testgradG(World& world) {
+    // The potential due to a normalized gaussian with exponent 1.0 is
+    //
+    // u(r) = erf(r)/r
+    // 
+    // du/dx = du/dr * dr/dx
+    //
+    // du/dr = 2*exp(-r^2)/(sqrt(Pi)*r)-erf(r)/r^2
+    //
+    // dr/dx = x/r
 
+    real_tensor cell(3,2);
+    cell(0,0)=-20; cell(0,1)=20; // Deliberately have different width and range in each dimension
+    cell(1,0)=-20; cell(1,1)=30;
+    cell(2,0)=-40; cell(2,1)=40;
 
+    // This will give a uniform box
+    //cell(_,0)=-200;
+    //cell(_,1)= 200;
+
+    //FunctionDefaults<3>::set_cubic_cell(-20,20);
+
+    const int k = 10;
+    const double thresh = 1e-8;
+
+    FunctionDefaults<3>::set_cell(cell);
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_initial_level(3);
+    FunctionDefaults<3>::set_refine(true);
+    FunctionDefaults<3>::set_autorefine(true);
+    FunctionDefaults<3>::set_truncate_mode(1);
+    FunctionDefaults<3>::set_truncate_on_project(false);
+
+    std::vector<real_convolution_3d_ptr> g = GradCoulombOperator(world, 1e-3, thresh);
+
+    real_function_3d q = real_factory_3d(world).functor(real_functor_3d(new Charge()));
+    //q.truncate();
+    print("Q",q.trace()-1.0);
+
+    for (int d=0; d<3; d++) {
+        real_function_3d dq = (*g[d])(q);
+        double err = dq.err(DPot(d));
+        if (world.rank() == 0) {
+            if (err < 1.1e-05) print(d,err,"PASS");
+            else print(d,err,"FAIL");
+        }
+    }
 }
 
 
@@ -250,7 +276,7 @@ int main(int argc, char**argv) {
         startup(world,argc,argv);
 
         test_opdir(world);
-
+        testgradG(world);
     }
     catch (const MPI::Exception& e) {
         //        print(e);

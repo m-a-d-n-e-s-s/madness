@@ -76,9 +76,9 @@ namespace madness {
         rehash() {
             //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
             // default hash is still best
-            hashval = madness::hash(n, madness::hash(l));
+            hashval = hash_value(1);
+            hash_combine(hashval, n);
         }
-        ;
 
         // Helper function for operator <
         int
@@ -90,7 +90,6 @@ namespace madness {
             }
             return retval;
         }
-        ;
 
         // Helper function for (Level, Translation) constructor
         Vector<Translation, NDIM>
@@ -109,26 +108,22 @@ namespace madness {
             }
             return L;
         }
-        ;
     public:
         /// Default constructor makes an \em uninitialized key
         Key() {
         }
-        ;
 
         /// Constructor with given n, l
         Key(Level n, const Vector<Translation, NDIM>& l) :
                 n(n), l(l) {
             rehash();
         }
-        ;
 
         /// Constructor with given n and l=0
         Key(int n) :
                 n(n), l(0) {
             rehash();
         }
-        ;
 
         /// Constructor from lexical index in depth first order
         Key(Level n, Translation p) :
@@ -136,28 +131,24 @@ namespace madness {
             l = decode(n, p);
             rehash();
         }
-        ;
 
         /// Returns an invalid key
         static Key<NDIM>
         invalid() {
             return Key<NDIM> (-1);
         }
-        ;
 
         /// Checks if a key is invalid
         bool
         is_invalid() const {
             return n == -1;
         }
-        ;
 
         /// Checks if a key is valid
         bool
         is_valid() const {
             return n != -1;
         }
-        ;
 
         /// Equality test
         bool
@@ -209,7 +200,6 @@ namespace madness {
         hash() const {
             return hashval;
         }
-        ;
 
         template<typename Archive>
         inline void
@@ -221,13 +211,11 @@ namespace madness {
         level() const {
             return n;
         }
-        ;
 
         const Vector<Translation, NDIM>&
         translation() const {
             return l;
         }
-        ;
 
         uint64_t
         distsq() const {
@@ -311,14 +299,6 @@ namespace madness {
         		if (not (l[i]==ll)) contains=false;
         	}
         	return contains;
-        }
-    };
-
-    template<std::size_t NDIM>
-    struct KeyHash {
-        std::size_t
-        operator()(const Key<NDIM>& t) const {
-            return t.hash();
         }
     };
 

@@ -176,7 +176,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     //         if(printR) PRINTLINE("");
     //         PRINT( "my routine: " );
     //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
-    Tensor<complexd> P(lMAX+1);
+    Tensor<double> P(lMAX+1);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
         for (long i=0; i<n; i++) {
@@ -184,11 +184,11 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if (i==0 || i==(n-1)) ifEndPti = 0.5;
             const double r = i*dr + 1e-10;
             const complexd YlPsir = YlPsi(i,l);
-            P(l) += YlPsir*r*r*dr*ifEndPti;            
+            P(l) += real(YlPsir*conj(YlPsir))r*r*dr*ifEndPti;
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << P(l));
+        PRINTLINE(std::setprecision(6) << std::scientific << P(l) );
     }
     if(world.rank()==0) after = wall_time();
     PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
@@ -338,7 +338,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
                     //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl||Psi(0)> <Psi(0)|Psi(t)>
                     output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
-                    PRINT(std::scientific <<"\t" << output );
+                    PRINT(std::scientific <<"\t" << real(conj(output)*output) );
                 }
                 PRINT("\n");
             }
@@ -378,7 +378,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
-                        PRINT( std::scientific << "\t" << output );
+                        PRINT( std::scientific << "\t" << real(conj(output)*output) );
                     }
                     PRINTLINE("");
                     PRINT(" took " << after - before << " seconds ");
@@ -481,15 +481,14 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 ///      v  = sqrt(2 n omega - Z^2)
                 /// dMAX    = v tMAX
                 PRINTLINE( "omega = " << omega );
-                // Add logic based on the Keldysh parameter
-                while( 2*nPhoton*omega - Z*Z < 0.0 ) nPhoton++;
+                while( 2*(nPhoton*omega - Z*Z) < 0.0 ) nPhoton++; //just in case nPhoton is too small
                 PRINTLINE("nPhoton = " << nPhoton);
-                PRINTLINE("2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
-                double dMAX = std::sqrt( 2*nPhoton*omega - Z*Z) * tMAX;
+                PRINTLINE("The following shoud be positive: 2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
+                double dMAX = std::sqrt( 2*(nPhoton*omega - Z*Z)) * tMAX;
                 PRINTLINE("dMAX = " << dMAX );
                 if ( cutoff < dMAX ) cutoff = 0.0;
                 while( cutoff < dMAX ) {
-                    cutoff += L/32;
+                    cutoff += L/128;
                 }
                 PRINTLINE( "cutoff = " << cutoff );
             }
@@ -520,7 +519,7 @@ int main(int argc, char**argv) {
     int    wf        = 0;
     int    lMAX      = 0;
     loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
-    loadParameters(world, thresh, kMAD, L, Z, nPhoton,  cutoff);
+    loadParameters(world, thresh, kMAD, L, Z, nPhoton, cutoff);
     FunctionDefaults<NDIM>::set_k(kMAD);                 // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(thresh);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -536,7 +535,7 @@ int main(int argc, char**argv) {
         std::vector<std::string> unboundList;
         loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
-        projectL(world, L, wf, nGrid, lMAX, cutoff);
+        //projectL(world, L, wf, nGrid, lMAX, cutoff);
         //zSlice(world, n1, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);

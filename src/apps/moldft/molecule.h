@@ -171,6 +171,8 @@ public:
 
     double nuclear_repulsion_derivative(int i, int j) const;
 
+    double nuclear_dipole(int axis) const;
+
     double smallest_length_scale() const;
 
     void identify_point_group();

@@ -420,7 +420,7 @@ namespace madness {
 
         ConvolutionND(std::shared_ptr<Convolution1D<Q> > op, Q fac=1.0) : fac(fac)
         {
-            ops.fill(op);
+            std::fill(ops.begin(), ops.end(), op);
         }
 
         void setop(int dim, const std::shared_ptr<Convolution1D<Q> >& op)  {
@@ -543,7 +543,7 @@ namespace madness {
 
     /// 1D convolution with (derivative) Gaussian; coeff and expnt given in *simulation* coordinates [0,1]
 
-    /// Note that the derivative is computed in *simulation* coordinates so 
+    /// Note that the derivative is computed in *simulation* coordinates so
     /// you must be careful to scale the coefficients correctly.
     template <typename Q>
     class GaussianConvolution1D : public Convolution1D<Q> {
@@ -652,7 +652,7 @@ namespace madness {
             // Find argmax such that h*scaledcoeff*exp(-argmax)=1e-22 ... if
             // beta*xlo*xlo is already greater than argmax we can neglect this
             // and subsequent boxes.
-            
+
             // The derivatives add a factor of expnt^m to the size of
             // the function at long range.
             double sch = std::abs(scaledcoeff*h);
@@ -718,10 +718,10 @@ namespace madness {
         typedef typename ConcurrentHashMap<hashT, std::shared_ptr< GaussianConvolution1D<Q> > >::datumT datumT;
 
         static std::shared_ptr< GaussianConvolution1D<Q> > get(int k, double expnt, int m, bool periodic) {
-            hashT key = hash(expnt);
-            key = hash(k, key);
-            key = hash(m, key);
-            key = hash(int(periodic), key);
+            hashT key = hash_value(expnt);
+            hash_combine(key, k);
+            hash_combine(key, m);
+            hash_combine(key, int(periodic));
             iterator it = map.find(key);
             if (it == map.end()) {
                 map.insert(datumT(key, std::shared_ptr< GaussianConvolution1D<Q> >(new GaussianConvolution1D<Q>(k,

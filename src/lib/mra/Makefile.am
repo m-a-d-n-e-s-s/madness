@@ -48,6 +48,8 @@ testdiff2D_SOURCES = testdiff2D.cc
 
 testdiff3D_SOURCES = testdiff3D.cc
 
+#testop2_SOURCES = testop2.cc
+
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

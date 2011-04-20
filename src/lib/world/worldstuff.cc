@@ -471,4 +471,18 @@ namespace madness {
 #endif
         world.gop.fence();
     }
-}
+
+
+    namespace detail {
+        // These  functions are here to eliminate cyclic compile time dependencies
+        // in other header files. It would be nice to get rid of these but the
+        // objects in question need world and world needs them.
+
+        ProcessID world_rank(const World& w) { return w.rank(); }
+        ProcessID world_size(const World& w) { return w.size(); }
+        World* world_from_id(unsigned int id) { return World::world_from_id(id); }
+        unsigned int world_id(const World& w) { return w.id(); }
+
+    }  // namespace detail
+
+} // namespace madness

@@ -33,27 +33,11 @@
 */
 
 #include <world/worldtask.h>
-#include <world/worldmpi.h>
-//#include <world/nodefaults.h>
-//#include <world/worldtypes.h>
-//#include <world/typestuff.h>
-//#include <world/worlddep.h>
-//#include <world/worldfut.h>
-//#include <world/worldthread.h>
-//#include <world/worldrange.h>
+//#include <world/worldmpi.h>
 
 namespace madness {
 
     bool TaskInterface::debug = false;
-
-    void TaskInterface::set_info(World* world, CallbackInterface* completion) {
-        this->world = world;
-        this->completion = completion;
-    }
-
-    void TaskInterface::register_submit_callback() {
-        register_callback(&submit);
-    }
 
     void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
         MADNESS_ASSERT(world);
@@ -64,74 +48,15 @@ namespace madness {
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
     }
 
-    TaskInterface::TaskInterface(int ndepend, const TaskAttributes attr)
-            : DependencyInterface(ndepend)
-            , PoolTaskInterface(attr)
-            , world(0)
-            , completion(0)
-            , submit(this)
-    {}
-
-    TaskInterface::TaskInterface(const TaskAttributes& attr)
-            : DependencyInterface(0)
-            , PoolTaskInterface(attr)
-            , world(0)
-            , completion(0)
-            , submit(this)
-    {}
-
     void TaskInterface::run(World& /*world*/) {
         //print("in virtual run(world) method");
         MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
-    }
-
-    void TaskInterface::run(World& world, const TaskThreadEnv& env) {
-        //print("in virtual run(world,env) method", env.nthread(), env.id());
-        if (env.nthread() != 1)
-            MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
-        run(world);
-    }
-
-    World* TaskInterface::get_world() const {return const_cast<World*>(world);}
-
-    TaskInterface::~TaskInterface() {
-        if (completion) completion->notify();
-    }
-
-
-    void WorldTaskQueue::notify() {
-        nregistered--;
-    }
-
-    // Used in for_each kernel to check completion
-    bool WorldTaskQueue::completion_status(bool left, bool right) {
-        return (left && right);
     }
 
     WorldTaskQueue::WorldTaskQueue(World& world)
             : world(world)
             , me(world.rank()) {
         nregistered = 0;
-    }
-
-    size_t WorldTaskQueue::size() const {
-        return nregistered;
-    }
-
-    void WorldTaskQueue::add(TaskInterface* t) {
-        nregistered++;
-
-        t->set_info(&world, this);       // Stuff info
-
-        if (t->ndep() == 0) {
-            // If no dependencies directly submit
-            ThreadPool::add(t);
-        }
-        else {
-            // With dependencies must use the callback to avoid race condition
-            t->register_submit_callback();
-            //t->dec();
-        }
     }
 
     bool WorldTaskQueue::Stealer::operator()(PoolTaskInterface** pt) {

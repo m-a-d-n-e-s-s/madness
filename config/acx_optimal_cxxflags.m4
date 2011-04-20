@@ -54,6 +54,10 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
             ;;
 
+         IBM)
+            CXXFLAGS="-O3"
+            ;;
+
          unknown)
             echo "UNKNOWN COMPILER?"
             ;;

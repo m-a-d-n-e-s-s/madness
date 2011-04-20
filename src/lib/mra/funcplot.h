@@ -292,6 +292,7 @@ namespace madness {
     /// post-processing package (such as Paraview)
     //
     /// @param world World communicator
+    /// @param filename Name of VTK file
     /// @param binary (Optional) Boolean indicating whether to print in binary
     template<std::size_t NDIM>
     void plotvtk_end(World &world, const char *filename, bool binary = false) {

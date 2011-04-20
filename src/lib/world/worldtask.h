@@ -44,11 +44,11 @@
 //    due to multiple length argument lists.
 // b) Stealing which pretty much presume a) has been done
 
+#include <iostream>
 #include <world/nodefaults.h>
-#include <world/worldtypes.h>
-#include <world/typestuff.h>
+//#include <world/worldtypes.h>
+//#include <world/typestuff.h>
 #include <world/worlddep.h>
-#include <world/world.h>
 #include <world/worldthread.h>
 #include <world/worldrange.h>
 #include <world/worldfut.h>
@@ -57,10 +57,10 @@
 namespace madness {
 
     // Forward decls
+    class World;
     class WorldTaskQueue;
-    class TaskInterface;
-    template <typename functionT> class TaskFunction;
-    template <typename memfunT> class TaskMemfun;
+    template <typename functionT> struct TaskFunction;
+    template <typename memfunT> struct TaskMemfun;
 
     /// All world tasks must be derived from this public interface
 
@@ -91,10 +91,17 @@ namespace madness {
         } submit;
 
 
-        void set_info(World* world, CallbackInterface* completion);
+        /// Set task info
+
+        /// \param w The world object that contains the task
+        /// \param c Call this callback on completion
+        void set_info(World* w, CallbackInterface* c) {
+            world = w;
+            completion = c;
+        }
 
         /// Adds call back to schedule task when outstanding dependencies are satisfied
-        void register_submit_callback();
+        void register_submit_callback() { register_callback(&submit); }
 
     protected:
         virtual void run(const TaskThreadEnv& env);
@@ -103,12 +110,22 @@ namespace madness {
         static bool debug;
 
         /// Create a new task with ndepend dependencies (default 0) and given attributes
-        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes());
-
+        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
+                : DependencyInterface(ndepend)
+                , PoolTaskInterface(attr)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
 
         /// Create a new task with zero dependencies and given attributes
-        explicit TaskInterface(const TaskAttributes& attr);
-
+        explicit TaskInterface(const TaskAttributes& attr)
+                : DependencyInterface(0)
+                , PoolTaskInterface(attr)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
 
 //         void serialize(Buffer& ar) {
 //             throw "there is no way this is correct";
@@ -121,11 +138,17 @@ namespace madness {
         virtual void run(World& /*world*/);
 
         /// Runs a multi-threaded task
-        virtual void run(World& world, const TaskThreadEnv& env);
+        virtual void run(World& world, const TaskThreadEnv& env) {
+            //print("in virtual run(world,env) method", env.nthread(), env.id());
+            if (env.nthread() != 1)
+                MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
+            run(world);
+        }
 
-        World* get_world() const;
+        World* get_world() const { return const_cast<World*>(world); }
 
-        virtual ~TaskInterface();
+        virtual ~TaskInterface() { if (completion) completion->notify(); }
+
     };
 
 
@@ -137,10 +160,12 @@ namespace madness {
         const ProcessID me;        ///< This process
         AtomicInt nregistered;     ///< Counts pending tasks
 
-        void notify();
+        void notify() { nregistered--; }
 
         // Used in for_each kernel to check completion
-        static bool completion_status(bool left, bool right);
+        static bool completion_status(bool left, bool right) {
+            return (left && right);
+        }
 
 
         // Used in reduce kernel
@@ -155,7 +180,7 @@ namespace madness {
         WorldTaskQueue(World& world);
 
         /// Returns the number of pending tasks
-        size_t size() const;
+        size_t size() const { return nregistered; }
 
         /// Add a new local task taking ownership of the pointer
 
@@ -166,7 +191,19 @@ namespace madness {
         /// Once the task is complete it will execute
         /// task_complete_callback to decrement the number of pending
         /// tasks and be deleted.
-        void add(TaskInterface* t);
+        void add(TaskInterface* t)  {
+            nregistered++;
+
+            t->set_info(&world, this);       // Stuff info
+
+            if (t->ndep() == 0) {
+                ThreadPool::add(t); // If no dependencies directly submit
+            } else {
+                // With dependencies must use the callback to avoid race condition
+                t->register_submit_callback();
+                //t->dec();
+            }
+        }
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
 

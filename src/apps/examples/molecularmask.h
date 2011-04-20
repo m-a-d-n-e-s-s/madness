@@ -104,7 +104,7 @@ public:
     }
 };
 
-// This functor is 1 inside the molecule, 1/2 on the surface, and zero
+// This functor is one inside the molecule, 1/2 on the surface, and zero
 // exterior to the molecule.
 class MolecularVolumeMask : private MolecularMaskBase
                           , public madness::FunctionFunctorInterface<double,3> {
@@ -123,6 +123,94 @@ public:
         return 1.0 - value;
     }
 };
+
+// This functor is zero inside the molecule, 1/2 on the surface, and one
+// exterior to the molecule.
+class MolecularVolumeComplementMask : private MolecularMaskBase
+                                    , public madness::FunctionFunctorInterface<double,3> {
+public:
+    MolecularVolumeComplementMask(double sigma, 
+                                  const std::vector<double> atomic_radii,
+                                  const std::vector<madness::coord_3d> atomic_coords) 
+        : MolecularMaskBase(sigma, atomic_radii, atomic_coords)
+    {}
+    
+    virtual double operator()(const madness::coord_3d& r) const {
+        double value = 1.0;
+        for (int i=0; i<natom; i++) {
+            value *= atomic_cmask(r,i);
+        }
+        return value;
+    }
+};
+
+/// Switches between \a positive values \c Vint and \c Vext with special log derivative
+
+
+/// Switches between \a positive values \c Vint on the interior and \c Vext on the interior.
+/// It has value 
+/// \f[
+///  V_(r,\sigma) = \exp \left( \log V_{int} C(r,\sigma) + \log V_{ext} (1 - C(r,\sigma)  \right)
+///  = V_{ext} \exp \left( \log \frac{V_{int}}{V_{ext}} C(r,\sigma) \right)
+///  = V_{int} \exp \left( \log \frac{V_{ext}}{V_{int}} \overline{C}(r,\sigma) \right)
+/// /f]
+/// where \f$ C(r,\sigma) \f$ is the regular volume mask provided by MolecularVolumeMask,
+/// and \f$ \overline{C} \f$ is its complement.
+/// Its log-derivative is precisely located in the surface with value
+/// \f[ 
+/// \nabla \log V = \frac{\nabla V}{V} = \log \frac{V_{int}}{V_{ext}} \nabla C
+/// \f] 
+/// with \f$ \nabla C \f$ already being computed by MolecularVolumeMaskGrad.
+/// The advantage of this is that if \f$ \| V_{ext} - V_{int} \| \f$
+/// is big, the log derivative of the regular volume mask (\f$ C \f$) is
+/// displaced from the surface (perhaps by multiple values of \f$
+/// \sigma \f$).  This leads to slow convergence w.r.t \f$ \sigma \f$ and 
+/// potential inaccuracies depending how the numerical representation is computed. 
+/// The surface charge
+/// in dielectric problems is controlled by \f$ \nabla \log \epsilon
+/// \f$ and hence the dielectric should employ this form of the switch.
+class MolecularVolumeExponentialSwitch : public madness::FunctionFunctorInterface<double,3> {
+    const MolecularVolumeComplementMask cmask;
+    const double Vint, Vext, fac;
+public:
+    MolecularVolumeExponentialSwitch(double sigma, 
+                                     double Vint, 
+                                     double Vext,
+                                     const std::vector<double> atomic_radii,
+                                     const std::vector<madness::coord_3d> atomic_coords) 
+        : cmask(sigma, atomic_radii, atomic_coords)
+        , Vint(Vint)
+        , Vext(Vext)
+        , fac(log(Vext/Vint))
+    {
+        if (Vint <= 0 || Vext <= 0) throw "Only works for positive values";
+    }
+    
+    virtual double operator()(const madness::coord_3d& r) const {
+        double c = cmask(r);
+        if (c == 0.0) return Vint;
+        else if (c == 1.0) return Vext;
+        else return Vint * exp(fac * c); 
+    }
+};
+
+/// Computes the reciprocal of MolecularVolumeExponentialSwitch
+class MolecularVolumeExponentialSwitchReciprocal : public madness::FunctionFunctorInterface<double,3> {
+    const MolecularVolumeExponentialSwitch s;
+public:
+    MolecularVolumeExponentialSwitchReciprocal(double sigma, 
+                                               double Vint, 
+                                               double Vext,
+                                               const std::vector<double> atomic_radii,
+                                               const std::vector<madness::coord_3d> atomic_coords) 
+        : s(sigma, Vint, Vext, atomic_radii, atomic_coords)
+    {}
+    
+    virtual double operator()(const madness::coord_3d& r) const {
+        return 1.0/s(r);
+    }
+};
+
 
 // This functor is a shell that limits to a delta function in the
 // molecular surface and integrates to the molecular surface area.
@@ -157,6 +245,28 @@ public:
     virtual double operator()(const madness::coord_3d& r) const {
         madness::coord_3d grad = gradient(r);
         return grad[i];
+    }
+};
+
+/// Returns the requested component of the derivative of the log of MolecularVolumeExponentialSwitch
+class MolecularVolumeExponentialSwitchLogGrad : public madness::FunctionFunctorInterface<double,3> {
+    const MolecularVolumeMaskGrad g;
+    const double fac;
+public:
+    MolecularVolumeExponentialSwitchLogGrad(double sigma, 
+                                            double Vint, 
+                                            double Vext,
+                                            const std::vector<double> atomic_radii,
+                                            const std::vector<madness::coord_3d> atomic_coords,
+                                            int i) 
+        : g(sigma, atomic_radii, atomic_coords, i)
+        , fac(log(Vint/Vext))
+    {
+        if (Vint <= 0 || Vext <= 0) throw "Only works for positive values";
+    }
+    
+    virtual double operator()(const madness::coord_3d& r) const {
+        return fac * g(r);
     }
 };
 

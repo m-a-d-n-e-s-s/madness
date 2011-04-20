@@ -2,7 +2,6 @@
 
 thisDir=`pwd | sed 's/.*\///'`
 parse.py $thisDir.job.o*
-echo 
 if [ -n "$1" ]; then
     extract.py $1
 fi

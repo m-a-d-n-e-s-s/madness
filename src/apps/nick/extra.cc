@@ -174,7 +174,7 @@ void compare1F1(World& world, double cutoff) {
     double rMIN = 0.0;
     double rMAX = 10.0;
     double dr   = 1.0;
-    double k    = 1.0;
+    double k    = 1.0; //NOT USED
     double Z    = 1.0;
     /***************************************
      *Load graphing parameters from the file: param
@@ -213,7 +213,7 @@ void compare1F1(World& world, double cutoff) {
         }
     }
     //make functor
-    const double kvec[3] = {0, 0, k};
+    const madness::Vector<double,3> kvec = vec(0.0, 0.0, 1.0);
     PhiK phi_k =  PhiK(Z, kvec, cutoff);
     complexd ONE(1.0,0.0);
     complexd I(0.0,1.0);
@@ -407,8 +407,7 @@ void printBasis(World& world, double Z, double cutoff) {
         }
     }
     //make functions
-    double kvec[3] = {0, 0, k};
-    //    vector3D kVec(dARR);
+    Vector<double,3> kvec = vec(0.0, 0.0, k);
     PhiK phi_k(Z, kvec, cutoff);
     //for(double TH=0; TH<3.14; TH+=0.3 ) {
     //    for(double r=0; r<sqrt(3)*phi_k.domain*phi_k.k; r+=1.0 ) {
@@ -421,7 +420,7 @@ void printBasis(World& world, double Z, double cutoff) {
         sinTH =  std::sin(TH);
         cosPHI = std::cos(PHI);
         sinPHI = std::sin(PHI);
-        double rvec[3] = {r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH};
+        Vector<double,3> rvec = vec(r*sinTH*cosPHI, r*sinTH*sinPHI, r*cosTH);
         output = phi_k(rvec);
         PRINT(r);
         std::cout.precision(7);

@@ -27,7 +27,8 @@ Software requirements:
   o  LAPACK
 
   o  C and C++ compilers: gcc, g++ (most versions 4.1.*, 4.3.*, 4.4.*
-     should work but we recommend 4.4.2)
+     should work but we recommend 4.4.2). Your compiler must also support
+     C++0x TR1. If it does not, you can use Boost to fulfill this requirement.
 
   o  If you are building from the respository you will also need
      autoconf and automake.
@@ -38,8 +39,10 @@ Optional:
   o  Google performance tools (the malloc library is fast and it is the only
      free multithreaded performance analysis tool)
      
-
-  o  GTest from google unit test
+  o  GTest for google unit test
+  
+  o  Boost - Required if your compiler does not support C++0x TR1. Otherwise it
+     is not needed or used.
 
 
 If you checked the source out of subversion:
@@ -60,8 +63,23 @@ Configure options:
 
   o  --with-google-test=dir ... installation directory for google unit test library
      (that specified with --prefix=dir when configuring the library)
+     
+  o  --with-boost=dir ... installation directory for Boost (that specified with 
+     --prefix=dir when configuring the library)
+  
+  o  --enable-debugging[=yes|no|OPTION] ... Enable debugging C and C++ compilers 
+     [default=no]
+     
+  o  --enable-optimization[=yes|no|OPTION] ... Enable optimization for C and C++ 
+     [default=yes]
+     
+  o  --enable-warning[=yes|no|GNU|Pathscale|Portland|Intel|IBM] ... Automatically set 
+     warnings for compiler.[default=yes]
+     
+  o  --enable-optimal[=yes|no|GNU|Pathscale|Portland|Intel|IBM] ... Auto detect 
+     optimal CXXFLAGS for compiler, or specify compiler vendor.[default=yes] 
 
-  o  --enable-spinlocks ... forces use of spin locks instead of futex (enabled by
+  o  --enable-spinlocks ... forces use of spin locks instead of mutex (enabled by
      default on Cray XT and IBM BG/P)
 
   o  --enable-never-spin ... completely disables use of spinlocks (necessary for using VMs)
@@ -74,33 +92,38 @@ CONFIGURE COMMAND EXAMPLES
      (some systems might require additional libraries to resolve Fortran
       symbols used by LAPACK/BLAS)
 
-     - 32 or 64 bit using system default BLAS and LAPACK
+     - 32 or 64 bit using GCC TR1 support and system default BLAS and LAPACK
     
-       ./configure LIBS="-llapack -lblas -lgfortran"
+       ./configure LIBS="-llapack -lblas -lgfortran" CXXFLAGS="-std=c++0x"
+       
+     - 32 or 64 bit using Boost TR1 support (installed in /usr/local) and system
+       default BLAS and LAPACK
+    
+       ./configure LIBS="-llapack -lblas -lgfortran" --with-boost=/usr/local
 
      - 64-bit with Intel MKL installed
 
-       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm"
+       ./configure LDFLAGS="-L/opt/intel/mkl/10.0.1.014/lib/em64t" LIBS="-lmkl -lguide -lpthread -lm" CXXFLAGS="-std=c++0x"
 
      - 32-bit with Intel MKL installed
 
-       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/32 -lmkl -lguide -lpthread -lm"
+       ./configure LDFLAGS="-L/opt/intel/mkl/10.0.1.014/lib/32" LIBS="-lmkl -lguide -lpthread -lm" CXXFLAGS="-std=c++0x"
 
      - 32-bit with Intel MKL installed and also including MPFR and GSL 
 
-       ./configure LIBS="-I/usr/include/gsl -L/opt/intel/mkl/10.0.1.014/lib/32 -lgsl -lgslcblas -lmkl -lguide -lpthread -lm -lmpfr -lgmp"
+       ./configure LDFLAGS="-I/usr/include/gsl -L/opt/intel/mkl/10.0.1.014/lib/32" LIBS="-lgsl -lgslcblas -lmkl -lguide -lpthread -lm -lmpfr -lgmp" CXXFLAGS="-std=c++0x"
 
      - 64-bit with MKL, google's fast malloc and profiler library
 
-       ./configure LIBS="-L/opt/intel/mkl/10.0.1.014/lib/em64t -lmkl -lguide -lpthread -lm" -with-google-perf=/usr/local/gperftools
+       ./configure LDFLAGS="-L/opt/intel/mkl/10.0.1.014/lib/em64t" LIBS="-lmkl -lguide -lpthread -lm" -with-google-perf=/usr/local/gperftools CXXFLAGS="-std=c++0x"
 
       - 64-bit with AMD ACML
 
-      ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -lacml  -lacml_mv -lgfortran -lstdc++"
+      ./configure LDFLAGS="-L/usr/local/acml4.2.0/gfortran64_int64/lib" LIBS="-lacml  -lacml_mv -lgfortran -lstdc++" CXXFLAGS="-std=c++0x"
 
       - 64-bit with AMD ACML, google's super-fast malloc and google's profiler library
 
-      ./configure LIBS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306 -lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++"
+      ./configure LDFLAGS="-L/usr/local/acml4.2.0/gfortran64_int64/lib -L/usr/local/gperftools-20090306/lib -L/usr/local/libunwind-20090306" LIBS="-lacml  -lacml_mv -lprofiler -ltcmalloc -lunwind-x86_64 -lgfortran -lstdc++" CXXFLAGS="-std=c++0x"
 
 
   o  Cray-XT (e.g., jaguar@ornl and jaguarpf@ornl, kraken at NICS and franklin at NERSC) 
@@ -118,19 +141,20 @@ CONFIGURE COMMAND EXAMPLES
        module swap gcc/4.3.2 gcc/4.4.2
        module load acml/4.3.0
 
-       ./configure
+       ./configure CXXFLAGS=-std=c++0x
 
      - with GNU compilers and scilib
 
        module swap PrgEnv-pgi PrgEnv-gnu
        module swap gcc/4.3.2 gcc/4.4.2
-       ./configure
+       ./configure CXXFLAGS=-std=c++0x
 
 
   o  IBM BlueGene-P @ ANL
 
      For other BGP boxes you will need to find these compilers and libraries.  
-     They seem to be site dependent.
+     They seem to be site dependent. You will also need a copy of the Boost
+     header files installed in your home directory.
 
 #!/bin/bash
 export LIBS=""
@@ -141,7 +165,7 @@ export LIBS="${LIBS} -L/soft/apps/ibmcmp-aug2009/xlsmp/bg/1.7/bglib -lxlsmp -lxl
 export LIBS="${LIBS} -L/bgsys/drivers/ppcfloor/gnu-linux/powerpc-bgp-linux/lib -lrt"
 export LIBS="${LIBS} -lpthread"
 
-export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
+export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include -I/path/to/boost/install"
 
 ./configure \
   --build=powerpc-bgp-linux-gnu \
@@ -150,12 +174,71 @@ export CPPFLAGS="-I/bgsys/drivers/ppcfloor/arch/include"
   CPPFLAGS="${CPPFLAGS}" 
 
 
-  o  Macintosh Darwin 10.6, snow leopard --- YOU MUST USE THE APPLE PROVIDED COMPILER (4.2.1 tested)
+  o  Macintosh Darwin 10.6, snow leopard
+     Tested with Apple GCC 4.2.1, Apple clang 2.0, Intel 11.1 & 12.0, GNU GCC 4.4.x & 4.5.x, 
+     and LLVM clang 2.8 
      
-     - using vecLib (comes standard on OS X)
+     - Apple GCC 4.2.1 using vecLib
+       
+       Set the following system variables
+       export OMPI_CC=/usr/bin/gcc-4.2
+       export OMPI_CXX=/usr/bin/g++-4.2
 
-       ./configure LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
-                   CPPFLAGS='-I/System/Library/Frameworks/vecLib.framework/Headers'
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers"
+       
+     - Apple clang 2.0 using vecLib
+       
+       Set the following system variables
+       export OMPI_CC=/usr/bin/clang
+       export OMPI_CXX=/usr/bin/clang++
+
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" \
+       CXXFLAGS="-std=c++0x"
+     
+     - GNU GCC 4.4.x or later using vecLib
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/gnu_gcc/gcc
+       export OMPI_CXX=/path/to/gun_gcc/g++
+
+       ./configure  MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx \
+       LIBS="/System/Library/Frameworks/vecLib.framework/vecLib" \
+       CPPFLAGS="-I/System/Library/Frameworks/vecLib.framework/Headers" \
+       CXXFLAGS="-std=c++0x"
+       
+     - Intel 11.x and 2011 (12.x) with Apple GCC
+     
+       Set the following system variables
+       export OMPI_CC=icc
+       export OMPI_CXX=icpc
+
+       ./configure MPICC=/usr/bin/mpicc MPICXX=/usr/bin/mpicxx
+       
+     - Intel 11.x with GNU GCC 4.4.x and Boost
+       Note: Intel 11.x does not work correctly with GNU GCC 4.5.x and later on
+       Macs.
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/intel/icc
+       export OMPI_CXX=/path/to/intel/icpc
+
+       ./configure --with-boost=/path/to/boost/ MPICC=/usr/bin/mpicc \
+        MPICXX=/usr/bin/mpicxx CFLAGS=-gcc-name=/path/to/gcc44/gcc \
+        CXXFLAGS=-gxx-name=/path/to/gcc44/g++
+        
+     - Intel 2011 (12.x) and GNU GCC 4.5.x and Boost
+     
+       Set the following system variables
+       export OMPI_CC=/path/to/intel/icc
+       export OMPI_CXX=/path/to/intel/icpc
+
+       ./configure --with-boost=/path/to/boost/ MPICC=/usr/bin/mpicc \
+       MPICXX=/usr/bin/mpicxx CFLAGS="-gcc-name=/path/to/gcc45/gcc" \
+        CXXFLAGS="-gxx-name=/path/to/gcc45/g++ -std=c++0x"
 
 
   o On x86 without SSE3 -- configure with the option CPPFLAGS="-DDISABLE_SSE3", requires autoconf-2.65+, automake-1.11+

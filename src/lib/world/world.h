@@ -255,47 +255,41 @@ Please refer to world/archive/archive.h and documentation therein for
 information about this.  In addition, the keys must support
  - testing for equality, either by overloading \c == or by
    specializing \c std::equal_to<key_type>, and
- - computing a hash value by invoking \c madness::hash(key),
-   which can be done either by providing the member
-   function with signature
-\code
-   hashT hash() const;
-\endcode
-   or by specializing \c madness::Hash<key_type>.
-
-\c hashT is presently an unsigned 32-bit integer.  MADNESS provides
-hash operations for all fundamental types, and variable and fixed
-dimension arrays of the same.  Since having a good hash is important,
-we are using Bob Jenkin's "lookup v3" hash from
-http://www.burtleburtle.net/bob/c/lookup3.c.
+ - computing a hash value. See worldhash.h for details.
 
 Here is an example of a key that might be used in an octtree.
 \code
-   struct Key {
-       typedef unsigned long ulong;
-       ulong n, i, j, k;
-       hashT hashval;
+struct Key {
+   typedef unsigned long ulong;
+   ulong n, i, j, k;
+   hashT hashval;
 
-       Key() {};
+   Key() {}
 
-       // Precompute the hash function for speed
-       Key(ulong n, ulong i, ulong j, ulong k)
-           : n(n), i(i), j(j), k(k), hashval(madness::hash(&this->n,4,0)) {};
+   // Precompute the hash function for speed
+   Key(ulong n, ulong i, ulong j, ulong k)
+       : n(n), i(i), j(j), k(k), hashval(0)
+   {
+       madness::hash_combine(hashval, n);
+       madness::hash_combine(hashval, i);
+       madness::hash_combine(hashval, j);
+       madness::hash_combine(hashval, k);
+   }
 
-       hashT hash() const {
-           return hashval;
-       };
+   hashT hash() const {
+       return hashval;
+   }
 
-       template <typename Archive>
-       void serialize(const Archive& ar) {
-           ar & n & i & j & k & hashval;
-       }
+   template <typename Archive>
+   void serialize(const Archive& ar) {
+       ar & n & i & j & k & hashval;
+   }
 
-       bool operator==(const Key& b) const {
-           // Different keys will probably have a different hash
-           return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
-       };
-   };
+   bool operator==(const Key& b) const {
+       // Different keys will probably have a different hash
+       return hashval==b.hashval && n==b.n && i==b.i && j==b.j && k==b.k;
+   }
+};
 \endcode
 
 \par Distributed Objects (WorldObject)
@@ -351,8 +345,8 @@ typedef UINT64_T uint64_t;
 // Madness world header files needed by world
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
-#include <world/sharedptr.h>
-#include <world/archive.h>
+//#include <world/sharedptr.h>
+//#include <world/archive.h>
 #include <world/worldprofile.h>
 #include <world/worldthread.h>
 
@@ -396,6 +390,46 @@ namespace madness {
         MPI_Abort(MPI_COMM_WORLD,1);
     }
 
+    namespace detail {
+        // These  functions are here to eliminate cyclic compile time dependencies
+        // in other header files. It would be nice to get rid of these but the
+        // objects in question need world and world needs them.
+
+        /// Get the rank of the given world
+
+        /// Equivalent to \c w.rank()
+        /// \param w The world
+        /// \return The rank of this node in the given world
+        ProcessID world_rank(const World& w);
+
+        /// Get the size of the given world
+
+        /// Equivalent to \c w.size()
+        /// \param w The world
+        /// \return The size of the given world
+        ProcessID world_size(const World& w);
+
+        /// Convert world id to world pointer
+
+        /// The id will only be valid if the process calling this routine
+        /// is a member of that world.  Thus a null return value does not
+        /// necessarily mean the world does not exist --- it could just
+        /// not include the calling process.
+        /// Equivalent to \c World::world_from_id()
+        /// \param id The world id
+        /// \return A pointer to the world associated with \c id
+        World* world_from_id(unsigned int id);
+
+        /// Get the world id of \c w
+
+        /// Equivalent to \c w.id()
+        /// \param w The world
+        /// \return The world id of \c w
+        unsigned int world_id(const World& w);
+
+    }  // namespace detail
+
+
     class uniqueidT {
         friend class World;
     private:
@@ -423,7 +457,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & archive::wrap_opaque(*this);
+            ar & worldid & objid;
         }
 
         unsigned long get_world_id() const {
@@ -610,12 +644,14 @@ namespace madness {
         }
 
 
-        /// Returns a pointer to the world with given ID or null if not found
+        /// Convert world id to world pointer
 
         /// The id will only be valid if the process calling this routine
         /// is a member of that world.  Thus a null return value does not
         /// necessarily mean the world does not exist --- it could just
         /// not include the calling process.
+        /// \param id The world id
+        /// \return A pointer to the world associated with \c id
         static World* world_from_id(unsigned long id);
 
 
@@ -679,6 +715,12 @@ namespace madness {
     }; // class World
 
     namespace archive {
+
+        template <typename, typename>
+        struct ArchiveLoadImpl;
+        template <typename, typename>
+        struct ArchiveStoreImpl;
+
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
             static inline void load(const Archive& ar, World*& wptr) {

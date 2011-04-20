@@ -231,7 +231,7 @@ int main(int argc, char** argv) {
 
 
         // Derivative in the z-direction
-        test_axis = BC_FREE;
+        test_axis = 2;
 
         // Z Right B.C.: Dirichlet
         // Z Left  B.C.: Free
