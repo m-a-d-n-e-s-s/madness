@@ -274,6 +274,44 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	return nerror;
 }
 
+
+int testGenTensor_update(const long& k, const long& dim, const double& eps, const TensorType& tt) {
+
+	print("entering update");
+	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
+
+	std::vector<Slice> s(dim,Slice(0,k/2-1));
+	std::vector<Slice> s2(dim,Slice(k/2,k-1));
+//	print(s,s2);
+	t0.fillrandom();
+	t1=2.3;
+
+//	Tensor<double> t2=copy(t0(s));
+
+	double norm=0.0;
+	int nerror=0;
+
+	// default ctor
+//	GenTensor<double> g0(t0,eps,tt);
+	const GenTensor<double> g1(t1,eps,tt);
+
+	// test inplace add: g0+=g1
+	{
+		GenTensor<double> g0(t0,eps,tt);
+		g0.update_by(g1);
+		t0+=t1;
+		norm=(g0.full_tensor_copy()-t0).normf();
+		print(ok(is_small(norm,eps)),"algebra g0+=g1      ",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
+	print("all done\n");
+	return nerror;
+}
+
+
 int testGenTensor_transform(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 	print("entering transform");
@@ -452,26 +490,48 @@ int main(int argc, char**argv) {
 
 
 
-#if 0
+#if 1
+
     // do some benchmarking
-    Tensor<double> t5(5,5,5,5,5,5);
-    t5.fillindex();
-    t5.fillrandom();
-    t5=0.0;
-    Tensor<double> t6;
-    if(world.rank() == 0) print("starting at time", wall_time());
-    for (unsigned int i=0; i<1000; i++) {
-        SepRep<double> sr5(t5,eps,TT_2D);
-        SepRep<double> tmp(sr5);
-        tmp+=sr5;
-        tmp.reduceRank(eps);
-        print("tmp.rank()",tmp.rank());
-        t6=t5-sr5.reconstructTensor();
-        print("error norm",t6.normf());
-        t6=sr5.reconstructTensor();
+
+	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
+
+	t0.fillrandom();
+	t1=2.3;
+	long nloop=1000;
+	const GenTensor<double> g1(t1,eps,TT_2D);
+	double tim=wall_time();
+
+    if(world.rank() == 0) print("starting at time", wall_time()-tim);
+    for (unsigned int i=0; i<nloop; i++) {
+		GenTensor<double> g0(t0,eps,TT_2D);
     }
-    if(world.rank() == 0) print("ending at time  ", wall_time());
-    print(t6);
+    if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
+    tim=wall_time();
+
+    for (unsigned int i=0; i<nloop; i++) {
+		GenTensor<double> g0(t0,eps,TT_2D);
+		g0.update_by(g1);
+    }
+    if(world.rank() == 0) print("update_by at time  ", wall_time()-tim);
+    tim=wall_time();
+
+    for (unsigned int i=0; i<nloop; i++) {
+		GenTensor<double> g0(t0,eps,TT_2D);
+		g1.accumulate_into(t0,1.0);
+    }
+    if(world.rank() == 0) print("accumulate_into at time  ", wall_time()-tim);
+    tim=wall_time();
+
+    for (unsigned int i=0; i<nloop; i++) {
+		GenTensor<double> g0(t0,eps,TT_2D);
+		g0+=g1;
+    }
+    if(world.rank() == 0) print("inplace_add at time  ", wall_time()-tim);
+    tim=wall_time();
+
+    MADNESS_EXCEPTION("end benchmark",0);
 #endif
 
     int error=0;
@@ -485,16 +545,18 @@ int main(int argc, char**argv) {
     error+=testGenTensor_assignment(k,dim,eps,TT_3D);
     error+=testGenTensor_assignment(k,dim,eps,TT_2D);
 
+    error+=testGenTensor_update(k,dim,eps,TT_2D);
+//
 //    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
 //    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
-
-    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
-    error+=testGenTensor_transform(k,dim,eps,TT_3D);
-    error+=testGenTensor_transform(k,dim,eps,TT_2D);
-
-    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
-    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+//
+//    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_transform(k,dim,eps,TT_3D);
+//    error+=testGenTensor_transform(k,dim,eps,TT_2D);
+//
+//    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 

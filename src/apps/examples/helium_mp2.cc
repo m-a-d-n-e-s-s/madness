@@ -61,13 +61,13 @@ static const double shift=0.0;
 //static const TensorType tt = TT_3D;
 //static const long truncate_mode = 0;
 
-template<typename T>
-static std::string stringify(T arg) {
-	std::ostringstream o;
-	if (!(o << arg))
-		throw std::domain_error("stringify(double)");
-	return o.str();
-}
+//template<typename T>
+//static std::string stringify(T arg) {
+//	std::ostringstream o;
+//	if (!(o << arg))
+//		throw std::domain_error("stringify(double)");
+//	return o.str();
+//}
 
 static double guess(const coord_3d& r) {
     const double x=r[0]+shift, y=r[1]+shift, z=r[2];
@@ -340,7 +340,7 @@ void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, 
     print("finished difference");
     double rnorm = inner(r,r);
     print("finished rnorm");
-    double eps_new = eps + inner(Vpsi,r)/(norm*norm);
+    double eps_new = eps + inner(r,Vpsi)/(norm*norm);
     print("finished inner(Vpair,r)");
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
@@ -368,7 +368,7 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
     real_function_3d tmp;
 
     // direct Vpsi
-    if (1) {
+    if (0) {
     	// set the impl of arg to get the structure of the target tree
     	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_Vpsi.get_impl())
     			.muster(copy_of_Vpsi3.get_impl());
@@ -378,8 +378,10 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
 
     // composite Vpsi
     else {
-    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_psi2.get_impl())
-					.g12(copy_of_V.get_impl()).muster(copy_of_psi.get_impl());
+//    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_psi2.get_impl())
+//					.g12(copy_of_V.get_impl()).muster(copy_of_psi.get_impl());
+    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_Vpsi2.get_impl())
+					.muster(copy_of_psi.get_impl());
 
     	tmp = op(arg).truncate();
     }
@@ -427,6 +429,53 @@ void compute_energy(World& world, const real_function_3d& psi, const real_functi
 
 
 
+void compute_energy(World& world, const real_function_6d& pair,
+		const real_function_3d& pot1, const real_function_3d& pot2, double& ke, double& pe) {
+
+	// compute kinetic energy
+	ke=0.0;
+	if (1) {
+		for (int axis=0; axis<6; axis++) {
+			real_derivative_6d D = free_space_derivative<double,6>(world, axis);
+			real_function_6d dpsi = D(pair);
+			double a=0.5*inner(dpsi,dpsi);
+			ke += a;
+			print("done with axis",axis, a);
+		}
+	}
+	print("kinetic energy:", ke);
+
+	if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
+
+
+	// compute potential energy
+	pe=0.0;
+	if (1) {
+		// doomed copy of pair, to save pair
+		real_function_6d copy_of_pair=copy(pair);
+
+		// two-electron interaction potential
+		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
+
+		real_function_6d v11=CompositeFactory<double,6,3>(world)
+				.ket(copy_of_pair.get_impl())
+				.g12(eri.get_impl())
+				.V_for_particle1(copy(pot1).get_impl())
+				.V_for_particle2(copy(pot2).get_impl())
+				;
+
+
+		double a=inner(pair,v11);
+		print("<phi|V_tot|phi> ", a);
+		pe=a;
+	}
+
+	if(world.rank() == 0) printf("\npotential at time %.1fs\n\n", wall_time());
+
+}
+
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -434,9 +483,10 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
+
     double L = 16;   // box size
-    long k = 5 ;        // wavelet order
-    double thresh = 1.e-3; // precision
+    long k = 4 ;        // wavelet order
+    double thresh = 1.e-2; // precision
     TensorType tt = TT_2D;
     long truncate_mode = 0;
 
@@ -472,8 +522,8 @@ int main(int argc, char** argv) {
 
 //    real_function_3d Vnuc = real_factory_3d(world).f(V).truncate_mode(0);
 //    print("helium potential ",Vnuc.tree_size());
-    real_function_3d psi  = real_factory_3d(world).f(guess);
-//    real_function_3d psi  = real_factory_3d(world).f(gauss_3d);
+//    real_function_3d psi  = real_factory_3d(world).f(guess);
+    real_function_3d psi  = real_factory_3d(world).f(gauss_3d);
     if(world.rank() == 0) printf("\nguess at time %.1fs\n\n", wall_time());
     print("helium guess tree size    ", psi.tree_size());
     print("helium guess number coeff ", psi.size());
@@ -496,10 +546,10 @@ int main(int argc, char** argv) {
     if (1) {
 		real_function_3d copy_of_psi=copy(psi);
 		real_function_3d copy_of_pot=copy(pot);
+		real_function_3d Vpsi2=pot*psi;
 
 		real_function_3d Vpsi=CompositeFactory<double,3,3>(world)
-							.ket(copy_of_psi.get_impl())
-							.g12(copy_of_pot.get_impl())
+							.ket(Vpsi2.get_impl())
 							;
 		print("computing <psi | V | psi> on the fly");
 		pe=inner(psi,Vpsi);
@@ -510,18 +560,12 @@ int main(int argc, char** argv) {
     for (int i=0; i<10; i++) {
     	iterate(world,pot,psi,te);
         compute_energy(world,psi,pot,ke,pe);
+        psi.reconstruct();
+		trajectory<3> traj(-L/2,L/2,201);
+		std::string filename="iteration"+stringify(i);
+		plot_along<3>(world,traj,psi,filename);
+
     }
-
-//    psi.reconstruct();
-//    trajectory<3> traj=trajectory<3>(-L/2,L/2,101);
-//    plot_along(world,traj,psi,"psi");
-
-//    std::ostringstream oss;
-//    oss << "psi.dat";
-//    const Vector<double,3> lo(-L/2);
-//    const Vector<double,3> hi(+L/2);
-//    plot_line(oss.str().c_str(), 10001, lo, hi, psi);
-
 
 #endif
 
@@ -547,7 +591,9 @@ int main(int argc, char** argv) {
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+//	real_function_3d orbital=real_factory_3d(world).f(gauss_3d);
     print("orbital.tree_size()",orbital.tree_size());
+    print("orbital.size()     ",orbital.size());
     {
 //    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     	double norm=inner(orbital,orbital);
@@ -571,7 +617,9 @@ int main(int argc, char** argv) {
     }
 
     real_function_6d pair=hartree_product(orbital,orbital);
+//    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
     print("pair.tree_size()",pair.tree_size());
+    print("pair.size()     ",pair.size());
 
     // normalize pair function
     double norm=inner(pair,pair);
@@ -584,70 +632,37 @@ int main(int argc, char** argv) {
     real_function_3d pot2=real_factory_3d(world).f(Z2);
     if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
+    double ke=0.0;
+    double pe=0.0;
+    compute_energy(world,pair,pot1,pot2,ke,pe);
+	double eps=ke+pe;
 
-    // compute kinetic energy
-    double kinetic_energy = 0.0;
-    if (1) {
-		for (int axis=0; axis<6; axis++) {
-			real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-			real_function_6d dpsi = D(pair);
-			kinetic_energy += 0.5*inner(dpsi,dpsi);
-			print("done with axis",axis);
-		}
-    }
-    print("kinetic energy:", kinetic_energy);
-
-    if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
-
-    // iterate once
-    if (0) {
+    // iterate
+	for (unsigned int i=0; i<10; i++) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 		real_function_6d copy2_of_pair=copy(pair);
 
 		// two-electron interaction potential
-		real_function_6d eri=ERIFactory<double,6>(world);
+		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
-				.ket(copy_of_pair.get_impl())
-				.g12(eri.get_impl())
-				.V_for_particle1(pot1.get_impl())
-				.V_for_particle2(pot2.get_impl())
-				.muster(copy2_of_pair.get_impl())
-				;
+							.ket(copy_of_pair.get_impl())
+							.g12(eri.get_impl())
+							.V_for_particle1(pot1.get_impl())
+							.V_for_particle2(pot2.get_impl())
+							.muster(copy2_of_pair.get_impl())
+							;
 
-	    double eps=-kinetic_energy;
-	    iterate(world,v11,pair,eps);
-    }
+		iterate(world,v11,pair,eps);
+		compute_energy(world,pair,pot1,pot2,ke,pe);
+	    print("pair.tree_size()",pair.tree_size());
+	    print("pair.size()     ",pair.size());
 
-
-    // compute potential energy
-    double potential_energy=0.0;
-    {
-		// doomed copy of pair, to save pair
-		real_function_6d copy_of_pair=copy(pair);
-
-		// two-electron interaction potential
-		real_function_6d eri=ERIFactory<double,6>(world);
-
-		real_function_6d v11=CompositeFactory<double,6,3>(world)
-				.ket(copy_of_pair.get_impl())
-				.g12(eri.get_impl())
-				.V_for_particle1(pot1.get_impl())
-				.V_for_particle2(pot2.get_impl())
-				;
-
-
-		double a=inner(pair,v11);
-		print("<phi|V_tot|phi> ", a);
-		potential_energy=a;
-    }
-
-
-
+	}
 
     print("for he orbitals");
-    print("total energy   :",kinetic_energy+potential_energy);
+    print("total energy   :",ke+pe);
     print("expected energy:",-2.8477);
 
 #endif

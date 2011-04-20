@@ -437,6 +437,7 @@ namespace madness {
 			// set up a trial function
 			SepRep trial(reference.tensor_type(),reference.get_k(),reference.dim());
 			trial.configs_.undo_structure();
+			trial.configs_.reserve(10);
 //			trial.configs_.semi_flatten();
 //			if (useTrial) trial=trial2;
 //			else trial.configs_.ensureSpace(maxTrialRank);
@@ -498,7 +499,8 @@ namespace madness {
 			}
 #endif
 
-			*this=trial.configs_;
+			// copy shrinks the matrices
+			*this=copy(trial.configs_);
 			this->configs_.make_structure();
 //			timeReduce_.end();
 
@@ -716,6 +718,14 @@ namespace madness {
 				MADNESS_ASSERT(0);
 			}
 
+		}
+
+		/// inplace add
+		void update_by(const SepRep<T>& rhs) {
+			if (rhs.rank()==1) configs_.rank1_update_slow(rhs.configs_,1.0);
+			else {
+				MADNESS_EXCEPTION("rhs rank != 1",0);
+			}
 		}
 
 		/// check compatibility

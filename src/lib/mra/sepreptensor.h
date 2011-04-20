@@ -307,6 +307,11 @@ namespace madness {
 
 		}
 
+		/// inplace addition
+		GenTensor<T>& update_by(const GenTensor<T>& rhs) {
+			_ptr->update_by(rhs._ptr.get());
+			return *this;
+		}
 
 
 
@@ -592,6 +597,9 @@ namespace madness {
     	virtual SepRepTensor<T>* inplace_add(const SepRepTensor<T>* rhs,
     			const std::vector<Slice>& lhs_s, const std::vector<Slice>& rhs_s) =0;
 
+    	/// inplace add
+    	virtual SepRepTensor* update_by(const SepRepTensor<T>* rhs) =0;
+
     	/// return the type of the derived class
         virtual TensorType type() const =0;
 
@@ -854,6 +862,19 @@ namespace madness {
     		return this;
     	}
 
+
+
+    	/// inplace add: this(lhs_s) += rhs(rhs_s)
+    	LowRankTensor<T>* update_by(const SepRepTensor<T>* rhs) {
+
+    		// some checks
+    		MADNESS_ASSERT(this->type()==rhs->type());
+
+    		const LowRankTensor<T>* rhs2=dynamic_cast<const LowRankTensor<T>* > (rhs);
+    		this->_data.update_by(rhs2->_data);
+    		return this;
+    	}
+
     };
 
 
@@ -1042,6 +1063,17 @@ namespace madness {
     		const FullTensor<T>* rhs2=dynamic_cast<const FullTensor<T>* >(rhs);
     		this->data(lhs_s)+=rhs2->data(rhs_s);
     		return this;
+    	}
+
+    	/// inplace add
+    	FullTensor<T>* update_by(const SepRepTensor<T>* rhs) {
+    		// some checks
+    		MADNESS_ASSERT(this->type()==rhs->type());
+
+    		const FullTensor<T>* rhs2=dynamic_cast<const FullTensor<T>* >(rhs);
+    		this->data+=rhs2->data;
+    		return this;
+
     	}
 
     };

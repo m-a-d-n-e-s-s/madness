@@ -208,6 +208,42 @@ namespace madness {
 			s_.clear();
 		}
 
+		/// reserve enough space to hold at least r configurations
+		void reserve(const long r) {
+
+			// this should at least hold the current information
+			MADNESS_ASSERT(r>=this->rank());
+			MADNESS_ASSERT(this->rank()==0 or vector_.size()>0);
+
+			// fast return if possible
+			// nothing to be done
+			if (r==0) return;
+			// already large enuff?
+			if (this->vector_[0].dim(0)>=r) return;
+
+			// for convenience
+			const long rank=this->rank();
+			const long kvec=this->kVec();
+			this->undo_structure();
+
+			// transfer weights
+			Tensor<double> newWeights(r);
+			if (rank>0) newWeights(Slice(0,rank-1))=weights_(Slice(0,rank-1));
+			std::swap(weights_,newWeights);
+
+			// transfer vectors
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+
+				tensorT newVector(r,kvec);
+				if (rank>0) newVector(this->c0())=vector_[idim](this->c0());
+				std::swap(vector_[idim],newVector);
+
+			}
+			MADNESS_ASSERT(weights_.dim(0)==vector_[0].dim(0));
+			this->make_structure();
+
+		}
+
 		/// return a Slice that corresponds the that part of vector_ that holds coefficients
 		const std::vector<Slice>& c0() const {
 			MADNESS_ASSERT(s_.size()>0);
@@ -234,6 +270,108 @@ namespace madness {
 
 		}
 
+
+		/// rank-1 update of this as in:	 *this += alpha * rhs
+
+		/// M. Brand, Linear Algebra Appl 2006 vol. 415 (1) pp. 20-30
+		void rank1_update_slow(const SRConf<T>& rhs2, const double& alpha) {
+
+			// works only for SVD
+			MADNESS_ASSERT(this->dim_eff()==2);
+			if (rhs2.rank()!=1) print("rhs rank != 1");
+			MADNESS_ASSERT(rhs2.rank()==1);
+
+			SRConf<T> rhs=rhs2;
+			rhs.undo_structure();
+			this->undo_structure();
+
+			const long rank=this->rank();
+			const long kvec=this->kVec();
+
+			// use the language of the article
+			const tensorT a=(rhs.ref_vector(0)(0,Slice(_)))*rhs.weights(0);
+			const tensorT bT=(rhs.ref_vector(1)).reshape(1,kvec);
+			const tensorT b=bT.reshape(kvec);
+			const tensorT UT=this->ref_vector(0)(this->c0());
+			const tensorT VT=this->ref_vector(1)(this->c0());
+
+			const tensorT U=transpose(UT);
+			const tensorT V=transpose(VT);
+
+			// eq (6)
+			const tensorT m=inner(UT,a);
+			const tensorT p=a-inner(U,m);
+			const double Ra=p.normf();
+			const tensorT P=p*(1.0/Ra);
+
+			// eq (7)
+			const tensorT n=inner(VT,b);
+			const tensorT q=b-inner(V,n);
+			const double Rb=q.normf();
+			const tensorT Q=q*(1.0/Rb);
+
+//			print("m,n");
+//			print(m);
+//			print(n);
+//
+//			print("a,b");
+//			print(a);
+//			print(b);
+//
+//			print("p,q");
+//			print(p);
+//			print(q);
+//
+//			print("P,Q");
+//			print(P);
+//			print(Q);
+//
+//			print("Ra,Rb",Ra,Rb);
+
+			// eq (8)
+			tensorT mp(rank+1);
+			mp(Slice(0,rank-1))=m;
+			mp(rank)=Ra;
+			tensorT nq(rank+1);
+			nq(Slice(0,rank-1))=n;
+			nq(rank)=Rb;
+			tensorT K=outer(mp,nq);
+			for (long i=0; i<rank; i++) {
+				K(i,i)+=this->weights(i);
+			}
+
+			// diagonalize K
+			tensorT Up,Sp,VTp;
+			svd(K,Up,Sp,VTp);
+			tensorT UTp=transpose(Up);
+			tensorT Vp=transpose(VTp);
+
+
+
+			// rotate U, VT
+			tensorT UP(kvec,rank+1);
+			tensorT VQ(kvec,rank+1);
+			UP(Slice(_),Slice(0,rank-1))=U;
+			UP(Slice(_),rank)=P;
+			VQ(Slice(_),Slice(0,rank-1))=V;
+			VQ(Slice(_),rank)=Q;
+
+			tensorT U_new=inner(UP,Up);
+			tensorT V_new=inner(VQ,Vp);
+
+			// insert new vectors
+//			print("weights");
+//			print(weights_);
+//			print("Sp");
+//			print(Sp);
+			weights_=Sp;
+			vector_[0]=transpose(U_new);
+			vector_[1]=transpose(V_new);
+			rank_+=1;
+
+		}
+
+
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
 
 		/// bounds checking should have been performed by caller
@@ -243,9 +381,7 @@ namespace madness {
 
 			// fast return if possible; no fast return for this.rank()==0
 			// since we might work with slices!
-			if (rhs2.rank()==0) {
-				return;
-			}
+			if (rhs2.rank()==0) return;
 
 
 			// unflatten this and rhs; shallow wrt vector_
@@ -274,59 +410,31 @@ namespace madness {
 				MADNESS_ASSERT(lhs_k>=(rhs_s[idim].end-rhs_s[idim].start+1));
 			}
 
+			lhs.reserve(newRank);
+
 			// assign weights, and include factors alpha and beta
-			Tensor<double> newWeights(newRank);
-			if (lhsRank>0) newWeights(Slice(0,lhsRank-1))=lhs.weights_(Slice(0,lhsRank-1))*alpha;
-			newWeights(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*beta;
-			std::swap(lhs.weights_,newWeights);
+			if (alpha!=1.0) lhs.scale(alpha);
+			lhs.weights_(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*beta;
 
 
 			// assign vectors
 			for (unsigned int idim=0; idim<lhs.dim_eff(); idim++) {
 
+				// insert rhs at the right place
 				if (dim_pv==1) {
-					Tensor<T> newVector(newRank,lhs_k);
-
-					// lhs unchanged
-					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_))=
-							lhs.ref_vector(idim)(Slice(0,lhsRank-1),Slice(_));
-
-					// insert rhs at the right place
-					newVector(Slice(lhsRank,newRank-1),lhs_s[idim])=
+					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[idim])=
 							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[idim]);
 
-					std::swap(lhs.vector_[idim],newVector);
-
 				} else if (dim_pv==2) {
-
-					Tensor<T> newVector(newRank,lhs_k,lhs_k);
-
-					// lhs unchanged
-					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_),Slice(_))=
-							lhs.ref_vector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_));
-
-					// insert rhs at the right place
-					newVector(Slice(lhsRank,newRank-1),lhs_s[2*idim],lhs_s[2*idim+1])=
+					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[2*idim],lhs_s[2*idim+1])=
 							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[2*idim],rhs_s[2*idim+1]);
 
-					std::swap(lhs.vector_[idim],newVector);
-
 				} else if (dim_pv==3) {
-
-					Tensor<T> newVector(newRank,lhs_k,lhs_k,lhs_k);
-
-					// lhs unchanged
-					if (lhsRank>0) newVector(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_))=
-							lhs.ref_vector(idim)(Slice(0,lhsRank-1),Slice(_),Slice(_),Slice(_));
-
-					// insert rhs at the right place
-					newVector(Slice(lhsRank,newRank-1),lhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2])=
+					lhs.ref_vector(idim)(Slice(lhsRank,newRank-1),lhs_s[3*idim],lhs_s[3*idim+1],lhs_s[3*idim+2])=
 							rhs.ref_vector(idim)(Slice(0,rhsRank-1),rhs_s[3*idim],rhs_s[3*idim+1],rhs_s[3*idim+2]);
 
-					std::swap(lhs.vector_[idim],newVector);
 				} else {
-					print("extend dim_pv in srconf::inplace_add");
-					MADNESS_ASSERT(0);
+					MADNESS_EXCEPTION("extend dim_pv in srconf::inplace_add",0);
 				}
 			}
 
@@ -334,8 +442,7 @@ namespace madness {
 			lhs.make_slices();
 		}
 
-		/// append an SRConf to this
-//		SRConf& operator-=(const SRConf& rhs);
+
 
 		/// deep copy of rhs, shrink
 		friend SRConf<T> copy(const SRConf<T>& rhs) {
@@ -396,7 +503,7 @@ namespace madness {
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			const int rr=weights_.dim(0);
+			const int rr=weights_.dim(0);	// not the rank!
 			const int k=this->get_k();
 
 			// reshape the vectors and adapt the Slices
@@ -416,7 +523,7 @@ namespace madness {
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			const int rr=weights_.dim(0);
+			const int rr=weights_.dim(0);	// not the rank!
 			const int kvec=this->kVec();
 
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
@@ -426,12 +533,10 @@ namespace madness {
 			make_slices();
 		}
 
-
 		/// return reference to one of the vectors F
 		Tensor<T>& ref_vector(const unsigned int& idim) {
 			return vector_[idim];
 		}
-
 
 		/// return reference to one of the vectors F
 		const Tensor<T>& ref_vector(const unsigned int& idim) const {
@@ -485,9 +590,6 @@ namespace madness {
 	        	}
 	        }
 		}
-
-		/// remove all configurations whose weight is smaller than the threshold
-//		void truncate(const double& thresh);
 
 		/// return if this has only one additional dimension (apart from rank)
 		bool is_flat() const {
