@@ -184,7 +184,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if (i==0 || i==(n-1)) ifEndPti = 0.5;
             const double r = i*dr + 1e-10;
             const complexd YlPsir = YlPsi(i,l);
-            P(l) += real(YlPsir*conj(YlPsir))r*r*dr*ifEndPti;
+            P(l) += real(YlPsir*conj(YlPsir))*r*r*dr*ifEndPti;
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
