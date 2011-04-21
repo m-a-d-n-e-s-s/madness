@@ -76,7 +76,7 @@ namespace madness {
         rehash() {
             //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
             // default hash is still best
-            hashval = hash_value(1);
+            hashval = hash_value(l);
             hash_combine(hashval, n);
         }
 
