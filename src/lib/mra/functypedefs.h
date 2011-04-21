@@ -47,6 +47,16 @@ namespace madness {
     typedef Vector<double,5> coord_5d;
     typedef Vector<double,6> coord_6d;
 
+    typedef std::vector<double> vector_real;
+    typedef std::vector< std::complex<double> > vector_complex;
+
+    typedef std::vector< Vector<double,1> > vector_coord_1d;
+    typedef std::vector< Vector<double,2> > vector_coord_2d;
+    typedef std::vector< Vector<double,3> > vector_coord_3d;
+    typedef std::vector< Vector<double,4> > vector_coord_4d;
+    typedef std::vector< Vector<double,5> > vector_coord_5d;
+    typedef std::vector< Vector<double,6> > vector_coord_6d;
+
     typedef Function<double,1> real_function_1d;
     typedef Function<double,2> real_function_2d;
     typedef Function<double,3> real_function_3d;
