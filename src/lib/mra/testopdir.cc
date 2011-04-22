@@ -255,7 +255,8 @@ void testgradG(World& world) {
 
     real_function_3d q = real_factory_3d(world).functor(real_functor_3d(new Charge()));
     //q.truncate();
-    print("Q",q.trace()-1.0);
+    double chargeerr = q.trace()-1.0;
+    if (world.rank() == 0) print("err in Q",chargeerr);
 
     for (int d=0; d<3; d++) {
         real_function_3d dq = (*g[d])(q);
