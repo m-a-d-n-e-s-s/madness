@@ -268,6 +268,8 @@ namespace madness {
 		/// normalize
 		void normalize() {configs_.normalize();};
 
+		void fillrandom() {configs_.fillWithRandom();}
+
 		/// return the condition number, i.e. the largest EV^2 divided by machine precision
 		double conditionNumber() const {
 
@@ -568,6 +570,7 @@ namespace madness {
 			 * then to the real dimension
 			 */
 
+
 			// for convenience
 			const unsigned int conf_dim=this->configs_.dim_eff();
 			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
@@ -727,6 +730,8 @@ namespace madness {
 				MADNESS_EXCEPTION("rhs rank != 1",0);
 			}
 		}
+
+		void finalize_accumulate() {configs_.finalize_accumulate();}
 
 		/// check compatibility
 		friend bool compatible(const SepRep& rhs, const SepRep& lhs) {

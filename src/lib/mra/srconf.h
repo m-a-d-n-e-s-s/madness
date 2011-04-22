@@ -51,11 +51,8 @@ namespace madness {
 	}
 
 
-
-	/*!
+	/**
 	 * A SRConf handles all the configurations in a Separated Representation.
-	 *
-	 *
 	 */
 
 	template <typename T>
@@ -75,6 +72,10 @@ namespace madness {
 		/// for vectors or (r,kprime,k) for operators
 		std::vector<tensorT> vector_;
 
+		/// for SVD updates these matrices diagonalize the new singular value matrix
+		/// cf eq. (11) of Brand2006: U', V'
+		std::vector<tensorT> subspace_vec_;
+
 		/// what is the rank of this
 		long rank_;
 
@@ -84,20 +85,23 @@ namespace madness {
 		/// vector_(rank,maxk,maxk), etc
 		unsigned int maxk_;
 
-		/// Slice containing the actual data, ignoring "empty" configurations
+		/// Slice containing the actual data in each vector, ignoring "empty" configurations
 		std::vector<Slice> s_;
 
 		/// how will this be represented
 		TensorType tensortype_;
 
+		/// flag if we are in updating mode
+		bool updating_;
+
 	public:
 
 		/// default ctor
-		SRConf() : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(TT_NONE) {
+		SRConf() : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(TT_NONE), updating_(false) {
 		};
 
 		/// default ctor
-		SRConf(const TensorType& tt) : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(tt) {
+		SRConf(const TensorType& tt) : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(tt), updating_(false) {
 		};
 
 
@@ -107,7 +111,8 @@ namespace madness {
 			, rank_(0)
 			, maxk_(k)
 			, s_()
-			, tensortype_(tt) {
+			, tensortype_(tt)
+			, updating_(false) {
 
 			// make sure dim is integer multiple of requested TT
 			const unsigned int nvec=compute_nvec(tt);
@@ -126,7 +131,8 @@ namespace madness {
 			: dim_(dim)
 			, rank_(0)
 			, maxk_(k)
-			, tensortype_(tt) {
+			, tensortype_(tt)
+			, updating_(false) {
 
 			// make sure dim is integer multiple of requested TT
 			const unsigned int nvec=compute_nvec(tt);
@@ -150,7 +156,8 @@ namespace madness {
 				const unsigned int& dim, const unsigned int maxk, const TensorType& tt)
 			: dim_(dim)
 			, maxk_(maxk)
-			, tensortype_(tt) {
+			, tensortype_(tt)
+			, updating_(false) {
 
 			// consistency check
 			MADNESS_ASSERT(vectors.size()>0);
@@ -176,9 +183,11 @@ namespace madness {
 			// check for self-assignment
 			if (&rhs==this) return *this;
 
+			MADNESS_ASSERT(not rhs.updating_);
 			// these always hold
 			dim_=rhs.dim_;
 			tensortype_=rhs.tensortype_;
+			updating_=rhs.updating_;
 			maxk_=rhs.maxk_;
 			s_=rhs.s_;
 
@@ -224,7 +233,8 @@ namespace madness {
 			// for convenience
 			const long rank=this->rank();
 			const long kvec=this->kVec();
-			this->undo_structure();
+			const bool had_structure=this->has_structure();
+			if (had_structure) this->undo_structure();
 
 			// transfer weights
 			Tensor<double> newWeights(r);
@@ -240,7 +250,7 @@ namespace madness {
 
 			}
 			MADNESS_ASSERT(weights_.dim(0)==vector_[0].dim(0));
-			this->make_structure();
+			if (had_structure) this->make_structure(true);
 
 		}
 
@@ -281,6 +291,15 @@ namespace madness {
 			if (rhs2.rank()!=1) print("rhs rank != 1");
 			MADNESS_ASSERT(rhs2.rank()==1);
 
+			if (this->rank()==0) {
+				*this+=rhs2;
+				return;
+			}
+
+//			if (updating_) finalize_accumulate();
+			if (not updating_) init_accumulate();
+			MADNESS_ASSERT(updating_);
+
 			SRConf<T> rhs=rhs2;
 			rhs.undo_structure();
 			this->undo_structure();
@@ -295,38 +314,23 @@ namespace madness {
 			const tensorT UT=this->ref_vector(0)(this->c0());
 			const tensorT VT=this->ref_vector(1)(this->c0());
 
-			const tensorT U=transpose(UT);
-			const tensorT V=transpose(VT);
+//			const tensorT U=transpose(UT);
+//			const tensorT V=transpose(VT);
 
 			// eq (6)
-			const tensorT m=inner(UT,a);
-			const tensorT p=a-inner(U,m);
+			const tensorT mm=inner(UT,a);
+			const tensorT m=inner(subspace_vec_[0],mm,0,0);
+			const tensorT p=a-inner(UT,mm,0,0);
+//			const tensorT p=a-inner(U,mm);
 			const double Ra=p.normf();
-			const tensorT P=p*(1.0/Ra);
 
 			// eq (7)
-			const tensorT n=inner(VT,b);
-			const tensorT q=b-inner(V,n);
+			const tensorT nn=inner(VT,b);
+			const tensorT n=inner(subspace_vec_[1],nn,0,0);
+			const tensorT q=b-inner(VT,nn,0,0);
+//			const tensorT q=b-inner(V,nn);
 			const double Rb=q.normf();
-			const tensorT Q=q*(1.0/Rb);
 
-//			print("m,n");
-//			print(m);
-//			print(n);
-//
-//			print("a,b");
-//			print(a);
-//			print(b);
-//
-//			print("p,q");
-//			print(p);
-//			print(q);
-//
-//			print("P,Q");
-//			print(P);
-//			print(Q);
-//
-//			print("Ra,Rb",Ra,Rb);
 
 			// eq (8)
 			tensorT mp(rank+1);
@@ -341,36 +345,103 @@ namespace madness {
 			}
 
 			// diagonalize K
-			tensorT Up,Sp,VTp;
+			tensorT Up,VTp;
+			Tensor<double> Sp;
+//			tensorT Up(kvec,rank+1);
+//			tensorT VTp(rank+1,kvec);
+//			Tensor<double> Sp(rank+1);
 			svd(K,Up,Sp,VTp);
-			tensorT UTp=transpose(Up);
+//			tensorT UTp=transpose(Up);
 			tensorT Vp=transpose(VTp);
+//			tensorT& Vp=VTp;
 
+			// rank-increasing update
+			if (Sp(rank)>1.e-10) {
+				const tensorT P=p*(1.0/Ra);
+				const tensorT Q=q*(1.0/Rb);
+				update_left_subspace(Up,P,0);
+				update_left_subspace(Vp,Q,1);
+				rank_++;
+				weights_=Sp(Slice(0,rank_-1));
 
+			// non-rank-increasing update
+			} else {
+				Up=Up(Slice(0,rank-1),Slice(0,rank-1));
+				Vp=Vp(Slice(0,rank-1),Slice(0,rank-1));
+				update_left_subspace(Up,tensorT(),0);
+				update_left_subspace(Vp,tensorT(),1);
+				weights_=Sp(Slice(0,rank-1));
 
-			// rotate U, VT
-			tensorT UP(kvec,rank+1);
-			tensorT VQ(kvec,rank+1);
-			UP(Slice(_),Slice(0,rank-1))=U;
-			UP(Slice(_),rank)=P;
-			VQ(Slice(_),Slice(0,rank-1))=V;
-			VQ(Slice(_),rank)=Q;
+			}
 
-			tensorT U_new=inner(UP,Up);
-			tensorT V_new=inner(VQ,Vp);
-
-			// insert new vectors
-//			print("weights");
 //			print(weights_);
-//			print("Sp");
-//			print(Sp);
-			weights_=Sp;
-			vector_[0]=transpose(U_new);
-			vector_[1]=transpose(V_new);
-			rank_+=1;
+
+//			this->finalize_accumulate();
+			this->make_structure();
 
 		}
 
+
+		/// update left subspace as in section 4.1, Brand2006
+
+		/// note that in the language of the article there are only left subspaces
+		/// note that we have U^T (r,k) instead of U (k,r)
+		/// @param[in] C	the C matrix
+		/// @param[in] p	the p vector (pass only in if rank is increasing)
+		/// @param[in] idim	dimension to be updated
+		void update_left_subspace(const tensorT& C, const tensorT& p, const int idim) {
+
+			MADNESS_ASSERT(this->is_flat());
+			MADNESS_ASSERT(idim==0 or idim==1);
+
+			// rank increasing
+			if (p.has_data()) {
+				const long rank=this->rank();
+				this->reserve(rank+1);
+
+				// U
+				vector_[idim](rank,Slice(_))=p;
+
+				// U'
+				tensorT scr(rank+1,rank+1);
+				scr(Slice(0,rank-1),Slice(0,rank-1))=subspace_vec_[idim];
+				scr(rank,rank)=1.0;
+				subspace_vec_[idim]=inner(scr,C);
+
+			// not rank increasing
+			} else {
+
+				// U
+				// nothing to be done
+
+				// U'
+				subspace_vec_[idim]=inner(subspace_vec_[idim],C);
+			}
+		}
+
+		/// initialize accumulation
+		void init_accumulate() {
+			// works only for SVD
+			MADNESS_ASSERT(dim_eff()==2);
+			subspace_vec_.resize(2);
+			for (int idim=0; idim<2; idim++) {
+				subspace_vec_[idim]=tensorT(this->rank(),this->rank());
+				for (unsigned int r=0; r<this->rank(); r++) {
+					subspace_vec_[idim](r,r)=1.0;
+				}
+			}
+			updating_=true;
+		}
+
+		/// finalize accumulation: incorporate V', U' into vector_
+		void finalize_accumulate() {
+			MADNESS_ASSERT(subspace_vec_.size()==2);
+			MADNESS_ASSERT(updating_);
+			vector_[0]=inner(subspace_vec_[0],vector_[0],0,0);
+			vector_[1]=inner(subspace_vec_[1],vector_[1],0,0);
+			subspace_vec_.clear();
+			updating_=false;
+		}
 
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
 
@@ -389,6 +460,7 @@ namespace madness {
 			const SRConf<T>& rhs=rhs2;
 			MADNESS_ASSERT(lhs.has_structure() or (lhs.rank()==0));
 			MADNESS_ASSERT(rhs.has_structure());
+			MADNESS_ASSERT(not updating_ or rhs2.updating_);
 
 			// for convenience
 			const long lhsRank=lhs.rank();
@@ -450,6 +522,8 @@ namespace madness {
 			// if rhs is non-existent simply construct a new SRConf
 			if (rhs.rank()==0) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
 
+			MADNESS_ASSERT(not rhs.updating_);
+
 			// pass a copy of the weights and vectors of rhs to ctor
 			std::vector<tensorT> vector(rhs.dim_eff());
 			for (unsigned int idim=0; idim<rhs.dim_eff(); idim++)
@@ -496,10 +570,10 @@ namespace madness {
 			}
 		}
 
-		void make_structure() {
+		void make_structure(bool force=false) {
 
 			// fast return if rank is zero
-			if (this->rank()==0) return;
+			if ((not force) and this->rank()==0) return;
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
@@ -516,10 +590,10 @@ namespace madness {
 
 		}
 
-		void undo_structure() {
+		void undo_structure(bool force=false) {
 
 			// fast return if rank is zero
-			if (this->rank()==0) return;
+			if ((not force) and this->rank()==0) return;
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);

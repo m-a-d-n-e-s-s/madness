@@ -313,7 +313,8 @@ namespace madness {
 			return *this;
 		}
 
-
+		/// finalize update_by
+		void finalize_accumulate() {_ptr->finalize_accumulate();}
 
 	    /// Multiplication of tensor by a scalar of a supported type to produce a new tensor
 
@@ -364,6 +365,9 @@ namespace madness {
     		return this->_ptr->transform_dir(c,axis);
     	}
 
+    	void fillrandom() {
+    		_ptr->fillrandom();;
+    	}
 
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
 	    GenTensor<T>& gaxpy(std::complex<double> alpha, const GenTensor<T>& rhs, std::complex<double> beta) {
@@ -600,6 +604,8 @@ namespace madness {
     	/// inplace add
     	virtual SepRepTensor* update_by(const SepRepTensor<T>* rhs) =0;
 
+		virtual void finalize_accumulate() =0;
+
     	/// return the type of the derived class
         virtual TensorType type() const =0;
 
@@ -618,6 +624,8 @@ namespace madness {
     	virtual long rank() const =0;
 
     	virtual void reduceRank(const double& eps) =0;
+
+    	virtual void fillrandom() =0;
 
     	virtual SepRepTensor* swapdim(const long idim, const long jdim) const =0;
 
@@ -759,6 +767,8 @@ namespace madness {
         /// reduce the rank of this; return if FullTensor
         void reduceRank(const double& eps) {_data.reduceRank(eps);};
 
+        void fillrandom() {_data.fillrandom();}
+
         /// return the rank of this
         long rank() const {return _data.rank();};
 
@@ -847,6 +857,8 @@ namespace madness {
 	    void accumulate_into(Tensor<T>& t, const double fac) const {
 	    	_data.accumulate_into(t,fac);
 	    }
+
+		void finalize_accumulate() {_data.finalize_accumulate();}
 
     private:
 
@@ -979,6 +991,8 @@ namespace madness {
         /// reduce the rank of this; return if FullTensor
         void reduceRank(const double& eps) {return;};
 
+        void fillrandom() {data.fillrandom();}
+
         /// return the rank of this
         long rank() const {return -1;};
 
@@ -1075,6 +1089,8 @@ namespace madness {
     		return this;
 
     	}
+
+		void finalize_accumulate() {return;}
 
     };
 

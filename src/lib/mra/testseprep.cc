@@ -278,14 +278,15 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 int testGenTensor_update(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 	print("entering update");
-	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
-	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
+	Tensor<double> t0=Tensor<double>(k,k,k,k);
+	Tensor<double> t1=Tensor<double>(k,k,k,k);
 
 	std::vector<Slice> s(dim,Slice(0,k/2-1));
 	std::vector<Slice> s2(dim,Slice(k/2,k-1));
 //	print(s,s2);
-	t0.fillrandom();
-	t1=2.3;
+	t0.fillindex();
+//	t0.scale(1.0/t0.normf());
+	t1=2.0;
 
 //	Tensor<double> t2=copy(t0(s));
 
@@ -294,13 +295,31 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 
 	// default ctor
 //	GenTensor<double> g0(t0,eps,tt);
-	const GenTensor<double> g1(t1,eps,tt);
+//	g1=1.0;
+//	g1.scale(2.23e4);
 
 	// test inplace add: g0+=g1
 	{
+		GenTensor<double> g1(t1,eps,tt);
+		g1.fillrandom();
+		g1.scale(2.34e4);
 		GenTensor<double> g0(t0,eps,tt);
+
+		print("rank(g0, g1)",g0.rank(), g1.rank());
 		g0.update_by(g1);
-		t0+=t1;
+		t0+=g1.full_tensor_copy();
+//		g0.finalize_accumulate();
+//		print("rank(g0+g1)",g0.rank(),g0.normf());
+//		print(g0.full_tensor_copy().reshape(9,9));
+
+		g1.fillrandom();
+		g1.scale(8.34e2);
+		g0.update_by(g1);
+		t0+=g1.full_tensor_copy();
+		g0.finalize_accumulate();
+
+		print("rank(g0+g1+g1)",g0.rank(),g0.normf());
+
 		norm=(g0.full_tensor_copy()-t0).normf();
 		print(ok(is_small(norm,eps)),"algebra g0+=g1      ",g0.what_am_i(),norm);
 		if (!is_small(norm,eps)) nerror++;
@@ -474,7 +493,7 @@ int main(int argc, char**argv) {
     srand(time(NULL));
 
     // the parameters
-    const long k=4;
+    const long k=6;
     const unsigned int dim=6;
     double eps=1.e-3;
 
@@ -497,54 +516,54 @@ int main(int argc, char**argv) {
 	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
 	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
 
-	t0.fillrandom();
+	t0=2.0;
 	t1=2.3;
-	long nloop=1000;
+	long nloop=100000;
 	const GenTensor<double> g1(t1,eps,TT_2D);
 	double tim=wall_time();
 
     if(world.rank() == 0) print("starting at time", wall_time()-tim);
     for (unsigned int i=0; i<nloop; i++) {
-		GenTensor<double> g0(t0,eps,TT_2D);
+//		GenTensor<double> g0(t0,eps,TT_2D);
     }
     if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
     tim=wall_time();
 
+	GenTensor<double> g0(t0,eps,TT_2D);
     for (unsigned int i=0; i<nloop; i++) {
-		GenTensor<double> g0(t0,eps,TT_2D);
 		g0.update_by(g1);
     }
     if(world.rank() == 0) print("update_by at time  ", wall_time()-tim);
     tim=wall_time();
 
     for (unsigned int i=0; i<nloop; i++) {
-		GenTensor<double> g0(t0,eps,TT_2D);
+//		GenTensor<double> g0(t0,eps,TT_2D);
 		g1.accumulate_into(t0,1.0);
     }
     if(world.rank() == 0) print("accumulate_into at time  ", wall_time()-tim);
     tim=wall_time();
 
     for (unsigned int i=0; i<nloop; i++) {
-		GenTensor<double> g0(t0,eps,TT_2D);
-		g0+=g1;
+//		GenTensor<double> g0(t0,eps,TT_2D);
+//		g0+=g1;
     }
     if(world.rank() == 0) print("inplace_add at time  ", wall_time()-tim);
     tim=wall_time();
 
-    MADNESS_EXCEPTION("end benchmark",0);
+//    MADNESS_EXCEPTION("end benchmark",0);
 #endif
 
     int error=0;
     print("hello world");
 
-    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
-    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
-    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
-
-    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
-    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-
+//    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
+//    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
+//
+//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+//
     error+=testGenTensor_update(k,dim,eps,TT_2D);
 //
 //    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
