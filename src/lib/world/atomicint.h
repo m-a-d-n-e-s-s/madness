@@ -37,8 +37,6 @@
 
 /// \brief Implements AtomicInteger
 
-#include <madness_config.h>
-
 #ifdef HAVE_IBMBGP
 #define MADATOMIC_USE_BGP
 #elif defined(USE_X86_32_ASM) || defined(USE_X86_64_ASM)
@@ -52,12 +50,10 @@
 #elif defined(MADATOMIC_USE_AIX)
 #  include <sys/atomic_op.h>
 #elif defined(MADATOMIC_USE_GCC)
-#  if defined(HAVE_EXT_ATOMICITY_H)
-#    include <ext/atomicity.h>
-#  elif defined(HAVE_BITS_ATOMICITY_H)
+#  ifdef GCC_ATOMICS_IN_BITS
 #    include <bits/atomicity.h>
 #  else
-#    error Cannot find a suitable header for atomic operations
+#    include <ext/atomicity.h>
 #  endif
 #endif
 
