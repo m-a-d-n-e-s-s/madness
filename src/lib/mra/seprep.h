@@ -268,7 +268,7 @@ namespace madness {
 		/// normalize
 		void normalize() {configs_.normalize();};
 
-		void fillrandom() {configs_.fillWithRandom();}
+		void fillrandom(const int r=1) {configs_.fillWithRandom(r);}
 
 		/// return the condition number, i.e. the largest EV^2 divided by machine precision
 		double conditionNumber() const {
@@ -725,10 +725,34 @@ namespace madness {
 
 		/// inplace add
 		void update_by(const SepRep<T>& rhs) {
-			if (rhs.rank()==1) configs_.rank1_update_slow(rhs.configs_,1.0);
-			else {
-				MADNESS_EXCEPTION("rhs rank != 1",0);
+			if (this->rank()==0) {
+				*this+=rhs;
+				return;
 			}
+
+			SepRep<T> rhs2(rhs);
+//			tensorT before=rhs2.reconstructTensor();
+//			rhs2.configs_.undo_structure();
+//			rhs2.configs_.orthogonalize();
+//			rhs2.configs_.make_structure();
+//			tensorT after=rhs2.reconstructTensor();
+//			print("before-after",(before-after).normf());
+
+			rhs2.configs_.make_structure();
+			this->configs_.make_structure();
+			*this+=rhs2;
+			tensorT before=reconstructTensor();
+			configs_.undo_structure();
+			configs_.ortho3();
+			configs_.make_structure();
+			tensorT after=reconstructTensor();
+			double norm=before.normf();
+			print("before-after",(before-after).normf()/norm);
+
+
+//			configs_.rank_n_update_sequential(rhs.configs_);
+
+//			MADNESS_ASSERT(0);
 		}
 
 		void finalize_accumulate() {configs_.finalize_accumulate();}
@@ -792,6 +816,9 @@ namespace madness {
 
 			return this->configs_.transform_dir(c,axis);
 		}
+
+		///
+		SRConf<T>& config() {return configs_;}
 
 	private:
 
