@@ -230,13 +230,13 @@ namespace madness {
 
             CompCost ccleast = 0;
             std::vector<CompCost> cclist;
-            int cc_index = 0;
+            //int cc_index = 0;
             for (int i = 0; i < count; ++i) {
                 CompCost cctmp = compute_comp_cost(costlist[i], len[i]-1);
                 cclist.push_back(cctmp);
                 if ((i==0) || (cctmp < ccleast)) {
                     ccleast = cctmp;
-                    cc_index = i;
+                    //cc_index = i;
                 }
             }
             madness::print("The computational cost of each distribution is", cclist);
