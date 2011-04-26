@@ -3333,6 +3333,25 @@ namespace madness {
             return sum;
         }
 
+
+        /// print the number of configurations per node
+        void print_stats() const {
+        	int dim=NDIM/2;
+        	std::vector<long> n(std::pow(k,dim));
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+                const nodeT& node = it->second;
+                if (node.has_coeff())
+                    n[node.coeff().rank()]++;
+            }
+            world.gop.sum(&n[0],n.size());
+            print("configurations     number of nodes");
+            for (unsigned int i=0; i<n.size(); i++) {
+//                world.gop.sum(n[i]);
+                print("           ",i,"    ",n[i]);
+            }
+        }
+
         /// In-place scale by a constant
         void scale_inplace(const T q, bool fence);
 

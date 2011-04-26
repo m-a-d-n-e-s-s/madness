@@ -234,6 +234,7 @@ namespace madness {
 //			if (this->rank()==0) {
 //				// this is a deep copy
 //				*this=rhs(rhs_s);
+//				this->scale(beta);
 //				return;
 //			}
 
@@ -724,35 +725,42 @@ namespace madness {
 		}
 
 		/// inplace add
-		void update_by(const SepRep<T>& rhs) {
+		void update_by(const SepRep<T>& rhs2) {
 			if (this->rank()==0) {
-				*this+=rhs;
+				*this+=rhs2;
 				return;
 			}
 
-			SepRep<T> rhs2(rhs);
-//			tensorT before=rhs2.reconstructTensor();
-//			rhs2.configs_.undo_structure();
-//			rhs2.configs_.orthogonalize();
-//			rhs2.configs_.make_structure();
-//			tensorT after=rhs2.reconstructTensor();
-//			print("before-after",(before-after).normf());
+			if (rhs2.rank()==1) {
+				configs_.rank_n_update_sequential(rhs2.configs_);
 
-			rhs2.configs_.make_structure();
-			this->configs_.make_structure();
-			*this+=rhs2;
-			tensorT before=reconstructTensor();
-			configs_.undo_structure();
-			configs_.ortho3();
-			configs_.make_structure();
-			tensorT after=reconstructTensor();
-			double norm=before.normf();
-			print("before-after",(before-after).normf()/norm);
+			} else {
+				SepRep<T> rhs3=rhs2;
+				rhs3.configs_.undo_structure();										// 0.3 s
+
+				const unsigned int chunk_size=8;
+
+				for (unsigned int i=0; i<rhs2.rank(); i+=chunk_size) {
+					int begin=i;
+					int end=std::min(rhs2.rank()-1,i+chunk_size-1);
+
+					// very hard-wired
+					SepRep<T> rhs(rhs2.tensor_type(),rhs2.get_k(),rhs2.dim());
+					rhs.configs_.weights_=rhs3.configs_.weights_(Slice(begin,end));
+					rhs.configs_.ref_vector(0)=rhs3.configs_.ref_vector(0)(Slice(begin,end),Slice(_));
+					rhs.configs_.ref_vector(1)=rhs3.configs_.ref_vector(1)(Slice(begin,end),Slice(_));
+					rhs.configs_.rank_=end-begin+1;
+					rhs.configs_.make_slices();
+
+					rhs.configs_.ortho3();
+
+					const tensorT a=(rhs.configs_.ref_vector(0)(rhs.configs_.c0()));
+					const tensorT b=(rhs.configs_.ref_vector(1)(rhs.configs_.c0()));
+					configs_.rank_n_update_chunkwise(a,b,rhs.configs_.weights_(Slice(0,rhs.rank()-1)));
+				}
+			}
 
 
-//			configs_.rank_n_update_sequential(rhs.configs_);
-
-//			MADNESS_ASSERT(0);
 		}
 
 		void finalize_accumulate() {configs_.finalize_accumulate();}

@@ -362,11 +362,12 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 
 	// test rank-1 + rank-2
 	{
-		t0.fillindex();
+		t0=2.0;
+		t1.fillindex();
+		t0.scale(1.0/t0.normf());
 		GenTensor<double> g0(t0,eps,tt);
 		GenTensor<double> g1(t1,eps,tt);
-		g1.fillrandom();
-		g1.scale(2.34e2);
+//		g1+=g1;
 
 		g0.update_by(g1);
 		t0+=g1.full_tensor_copy();
@@ -377,6 +378,30 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 		if (!is_small(norm,eps)) nerror++;
 
 	}
+
+	// test rank-1 + rank-6
+	{
+		SepRep<double> sr0(TT_2D,k,dim);
+		SepRep<double> sr1(TT_2D,k,dim);
+		SepRep<double> sr2(TT_2D,k,dim);
+		sr0.fillrandom(1);
+		sr1.fillrandom(4);
+		sr2.fillrandom(5);
+
+		t0=sr0.reconstructTensor();
+		sr0.update_by(sr1);
+		sr0.update_by(sr2);
+		sr0.finalize_accumulate();
+
+		t0+=sr1.reconstructTensor();
+		t0+=sr2.reconstructTensor();
+
+		norm=(sr0.reconstructTensor()-t0).normf();
+		print(ok(is_small(norm,eps)),"update rank-2 + rank-4/5   ",norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
 
 	print("all done\n");
 	return nerror;
@@ -427,6 +452,8 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 		print("norm",(t-t3).normf());
 		norm=(t-t3).normf();
 		print(ok(is_small(norm,eps)),"sophisticated rank reduce   ",norm);
+		if (!is_small(norm,eps)) nerror++;
+
 	}
 
 
@@ -602,39 +629,22 @@ int main(int argc, char**argv) {
     const unsigned int dim=6;
     double eps=1.e-3;
 
-#if 0
+    // some test
+#if 1
+    SRConf<double> sr1;
+    Tensor<double> a(12,k*k*k), b(12,k*k*k);
+    a.fillrandom();
+    b.fillrandom();
+	double cpu0, cpu1;
+	cpu0=wall_time();
 
-    //					tt	 k d
-    SepRep<double> sr1(TT_2D,4,2);
-    sr1.fillrandom(2);
-//    sr1.config().weights_[1]*=3.0;
-//    sr1.config().vector_[0](1,2)*=4.e2;
-    Tensor<double> t=sr1.reconstructTensor();
+    for (int i=0; i<1.e5; i++) {
+        sr1.ortho4(a,b);
+    }
 
-    SepRep<double> sr2(TT_2D,4,2);
-    sr2.fillrandom();
+	cpu1=wall_time();
+	if(world.rank() == 0) print("chunk Brand at time ", cpu1-cpu0);
 
-    sr2.config().vector_[0].fillrandom()*2.0;
-    sr1+=sr2;
-    t+=sr2.reconstructTensor();
-
-    sr2.config().vector_[0].fillrandom();
-    sr1+=sr2;
-    t+=sr2.reconstructTensor();
-
-    sr2.config().vector_[0].fillrandom();
-    sr1+=sr2;
-    t+=sr2.reconstructTensor();
-
-    sr1.config().ortho3();
-
-    Tensor<double> t3=sr1.reconstructTensor();
-    print("t,t3");
-    print(t);
-    print(t3);
-    print("norm",(t-t3).normf());
-
-    return 0;
 
 #endif
 
@@ -642,6 +652,72 @@ int main(int argc, char**argv) {
 #if 0
 
     // do some benchmarking
+	long nloop=1.e5;
+
+    print("benchmarking with k ",k);
+    print("dimensions          ",dim);
+    print("nloop               ",nloop);
+
+   	for (int R=8; R<12; R+=4) {
+   	    for (int r=8; r<12; r+=4) {
+
+   	    	// do some prep
+   	    	print("r",r);
+    		print("R",R);
+    		double cpu0, cpu1;
+    		SepRep<double> sr0(TT_2D,k,dim);
+    		SepRep<double> sr1(TT_2D,k,dim);
+    		SepRep<double> sr2(TT_2D,k,dim);
+    		Tensor<double> t0(k,k,k,k,k,k);
+
+    		sr0.fillrandom(r);
+    		sr1.fillrandom(R);
+    		sr2.fillrandom(r+R);
+
+    		// start benchmark
+//    		cpu0=wall_time();
+//    		for (int i=0; i<nloop; i++) {
+//    			SepRep<double> sr00=sr0;
+//    			SepRep<double> sr11=sr1;
+//    		}
+//
+//    		cpu1=wall_time();
+//    		if(world.rank() == 0) print("base pure Brand at time ", cpu1-cpu0);
+    		cpu0=wall_time();
+
+    		for (int i=0; i<nloop; i++) {
+    			SepRep<double> sr00=sr0;
+    			SepRep<double> sr11=sr1;
+    			sr11.update_by(sr00);
+    		}
+
+    		cpu1=wall_time();
+    		if(world.rank() == 0) print("chunk Brand at time ", cpu1-cpu0);
+    		cpu0=wall_time();
+//
+//    		for (int i=0; i<nloop; i++) {
+//    			SepRep<double> sr22=sr2;
+//        		sr22.config().ortho3();
+//    		}
+//
+//    		cpu1=wall_time();
+//    		if(world.rank() == 0) print("pure block at time ", cpu1-cpu0);
+//    		cpu0=wall_time();
+//
+//    		for (int i=0; i<nloop; i++) {
+//        		sr0.accumulate_into(t0,1.0);
+//    		}
+//
+//    		cpu1=wall_time();
+//    		if(world.rank() == 0) print("reconstruct at time", cpu1-cpu0);
+//    		cpu0=wall_time();
+
+   	    }
+    }
+
+
+
+#if 0
 
 	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
 	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
@@ -649,34 +725,81 @@ int main(int argc, char**argv) {
 	t0.fillindex();
 	t0=2.5;
 	t1=2.3;
-	long nloop=1.e5;
 	GenTensor<double> g1(t1,eps,TT_2D);
 	g1.fillrandom();
+	SepRep<double> sr0(TT_2D,k,dim);
+	SepRep<double> sr1(TT_2D,k,dim);
 	double tim=wall_time();
 
     if(world.rank() == 0) print("starting at time", wall_time()-tim);
     for (unsigned int i=0; i<nloop; i++) {
 //		GenTensor<double> g0(t0,eps,TT_2D);
-    	g1.fillrandom();
+//    	g1.fillrandom(4);
+    	sr1.fillrandom(4);
+
     }
     if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
+    double base1=wall_time()-tim;
     tim=wall_time();
 
-	GenTensor<double> g0(t0,eps,TT_2D);
+    if(world.rank() == 0) print("starting at time", wall_time()-tim);
     for (unsigned int i=0; i<nloop; i++) {
-    	g1.fillrandom();
-		g0.update_by(g1);
+//		GenTensor<double> g0(t0,eps,TT_2D);
+      	sr1.fillrandom(8);
+  }
+    if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
+    double base2=wall_time()-tim;
+    tim=wall_time();
+
+    for (unsigned int i=0; i<nloop; i++) {
+    	sr1.fillrandom(4);
+    	sr1.config().ortho3();
 //		g0.finalize_accumulate();
     }
-    if(world.rank() == 0) print("update_by at time  ", wall_time()-tim);
+    if(world.rank() == 0) print("ortho3/4 at time  ", wall_time()-tim-base1);
     tim=wall_time();
 
     for (unsigned int i=0; i<nloop; i++) {
-    	g1.fillrandom();
+    	sr1.fillrandom(8);
+    	sr1.config().ortho3();
+//		g0.finalize_accumulate();
+    }
+    if(world.rank() == 0) print("ortho3/8 at time  ", wall_time()-tim-base2);
+    tim=wall_time();
+
+//    for (unsigned int i=0; i<nloop; i++) {
+//    	sr1.fillrandom(16);
+//    	sr1.config().ortho3();
+////		g0.finalize_accumulate();
+//    }
+//    if(world.rank() == 0) print("ortho3/16 at time  ", wall_time()-tim-base2);
+//    tim=wall_time();
+
+
+    sr0.fillrandom(10);
+	sr1.fillrandom(1);
+    for (unsigned int i=0; i<nloop; i++) {
+		sr0.update_by(sr1);
+    }
+    if(world.rank() == 0) print("update_by/1 at time  ", wall_time()-tim);
+    tim=wall_time();
+
+	sr1.fillrandom(4);
+    for (unsigned int i=0; i<nloop; i++) {
+		sr0.update_by(sr1);
+    }
+    if(world.rank() == 0) print("update_by/4 at time  ", wall_time()-tim);
+    tim=wall_time();
+
+    GenTensor<double> g0(t0,eps,TT_2D);
+    for (int i=0; i<8; i++) g1+=g1;
+    for (unsigned int i=0; i<nloop; i++) {
+//    	g1.fillrandom();
 		g1.accumulate_into(t0,1.0);
     }
     if(world.rank() == 0) print("accumulate_into at time  ", wall_time()-tim);
     tim=wall_time();
+#endif
 
 //    GenTensor<double> g2(t0,eps,TT_2D);
 //    GenTensor<double> g3(t1,eps,TT_2D);
@@ -702,7 +825,7 @@ int main(int argc, char**argv) {
 //    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
 //
     error+=testGenTensor_update(k,dim,eps,TT_2D);
-    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+//    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
 
 //
 //    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);

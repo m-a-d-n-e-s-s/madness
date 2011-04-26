@@ -446,6 +446,7 @@ namespace madness {
             d+=transform_dir(tensor_right,rmt,this->axis);
 
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
+            d.reduceRank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
 
             return None;
