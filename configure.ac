@@ -121,6 +121,7 @@ AM_CONDITIONAL([CAN_BUILD_DOC], [test $HAVE_DOXYGEN = YES])
 AC_HEADER_TIME
 AC_HEADER_STDC
 AC_CHECK_HEADERS([limits.h stddef.h stdint.h stdlib.h string.h sys/param.h sys/time.h unistd.h])
+AC_CHECK_HEADERS([bits/atomicity.h ext/atomicity.h])
 AC_HEADER_STDBOOL
 # No longer used
 #ACX_GNU_HASHMAP

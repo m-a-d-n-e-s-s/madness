@@ -40,6 +40,7 @@
 
 #include <mra/power.h>
 #include <world/array.h>
+#include <world/binfsar.h>
 #include <world/worldhash.h>
 #include <stdint.h>
 
@@ -71,14 +72,6 @@ namespace madness {
         Vector<Translation, NDIM> l;
         hashT hashval;
 
-        // Recomputes hashval
-        void
-        rehash() {
-            //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
-            // default hash is still best
-            hashval = hash_value(1);
-            hash_combine(hashval, n);
-        }
 
         // Helper function for operator <
         int
@@ -201,11 +194,11 @@ namespace madness {
             return hashval;
         }
 
-        template<typename Archive>
-        inline void
-        serialize(Archive& ar) {
-            ar & archive::wrap((unsigned char*) this, sizeof(*this));
-        }
+        // template<typename Archive>
+        // inline void
+        // serialize(Archive& ar) {
+        //     ar & archive::wrap((unsigned char*) this, sizeof(*this));
+        // }
 
         Level
         level() const {
@@ -300,6 +293,15 @@ namespace madness {
         	}
         	return contains;
         }
+
+        /// Recomputes hashval ... presently only done when reading from external storage
+        void
+        rehash() {
+            //hashval = sdbm(sizeof(n)+sizeof(l), (unsigned char*)(&n));
+            // default hash is still best
+            hashval = hash_value(l);
+            hash_combine(hashval, n);
+        }
     };
 
     template<std::size_t NDIM>
@@ -389,6 +391,35 @@ namespace madness {
         for (KeyChildIterator<NDIM>
                 it(parent); it; ++it)
             (obj ->* memfun)(it.key());
+    }
+
+    namespace archive {
+
+        // For efficiency serialize opaque so is just one memcpy, but
+        // when reading from external storage rehash() so that we
+        // can read data even if hash algorithm/function has changed.
+
+        template <class Archive, std::size_t NDIM>
+        struct ArchiveLoadImpl< Archive, Key<NDIM> > {
+            static void load(const Archive& ar, Key<NDIM>& t) {
+                ar & archive::wrap((unsigned char*) &t, sizeof(t));
+            }
+        };
+
+        template <std::size_t NDIM>
+        struct ArchiveLoadImpl< BinaryFstreamInputArchive, Key<NDIM> > {
+            static void load(const BinaryFstreamInputArchive& ar, Key<NDIM>& t) {
+                ar & archive::wrap((unsigned char*) &t, sizeof(t));
+                t.rehash(); // <<<<<<<<<< This is the point
+            }
+        };
+
+        template <class Archive, std::size_t NDIM>
+        struct ArchiveStoreImpl< Archive, Key<NDIM> > {
+            static void store(const Archive& ar, const Key<NDIM>& t) {
+                ar & archive::wrap((unsigned char*) &t, sizeof(t));
+            }
+        };
     }
 
 }

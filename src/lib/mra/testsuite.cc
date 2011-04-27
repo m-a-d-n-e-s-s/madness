@@ -181,7 +181,6 @@ double ttt, sss;
 
 template <typename T, std::size_t NDIM>
 void test_basic(World& world) {
-    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -237,8 +236,6 @@ void test_basic(World& world) {
     new_err = f.err(*functor);
     CHECK(new_norm-norm, 1e-9, "new_norm");
     CHECK(new_err, 3e-5, "new_err");
-
-    //MADNESS_ASSERT(ok);
 
     world.gop.fence();
     if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
@@ -305,7 +302,6 @@ struct myunaryop_square {
 
 template <typename T, std::size_t NDIM>
 void test_math(World& world) {
-    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -545,8 +541,6 @@ void test_math(World& world) {
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
     }
-
-    //MADNESS_ASSERT(ok);
 
     world.gop.fence();
 }
@@ -1041,7 +1035,6 @@ void test_qm(World& world) {
 
 template <typename T, std::size_t NDIM>
 void test_plot(World& world) {
-    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
     if (world.rank() == 0) {

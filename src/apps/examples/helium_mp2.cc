@@ -450,7 +450,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 	// compute potential energy
 	pe=0.0;
-	if (1) {
+	if (0) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 
@@ -618,6 +618,7 @@ int main(int argc, char** argv) {
 
     real_function_6d pair=hartree_product(orbital,orbital);
 //    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
+//	pair.get_impl()->print_stats();
     print("pair.tree_size()",pair.tree_size());
     print("pair.size()     ",pair.size());
 
@@ -636,6 +637,7 @@ int main(int argc, char** argv) {
     double pe=0.0;
     compute_energy(world,pair,pot1,pot2,ke,pe);
 	double eps=ke+pe;
+    return 0;
 
     // iterate
 	for (unsigned int i=0; i<10; i++) {
@@ -656,6 +658,7 @@ int main(int argc, char** argv) {
 
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);
+//		pair.get_impl()->print_stats();
 	    print("pair.tree_size()",pair.tree_size());
 	    print("pair.size()     ",pair.size());
 
