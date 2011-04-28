@@ -48,6 +48,7 @@
 #include <cstddef>
 #include <stdint.h>
 #include <madness_config.h>
+#include <world/enable_if.h>
 
 // Select header that contains type_traits
 #if defined(MADNESS_USE_TYPE_TRAITS)
@@ -641,7 +642,20 @@ namespace madness {
 //        static const bool value = function_traits<T>::value;
 //    };
 
+    template <typename fnT, typename Enabler = void>
+    struct result_of {
+        typedef typename fnT::result_type type;
+    };
 
+    template <typename fnT>
+    struct result_of<fnT, typename enable_if_c<function_traits<fnT>::value>::type> {
+        typedef typename function_traits<fnT>::result_type type;
+    };
+
+    template <typename fnT>
+    struct result_of<fnT, typename enable_if_c<memfunc_traits<fnT>::value>::type> {
+        typedef typename memfunc_traits<fnT>::result_type type;
+    };
 
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
 
@@ -827,6 +841,8 @@ namespace madness {
 #define FUNCTION_ARG2T(FUNCTION)   typename function_traits< FUNCTION >::arg2_type
 #define FUNCTION_ARG3T(FUNCTION)   typename function_traits< FUNCTION >::arg3_type
 #define FUNCTION_ARG4T(FUNCTION)   typename function_traits< FUNCTION >::arg4_type
+
+#define RESULT_OF(FUNCTION) typename madness::result_of< FUNCTION >::type
 
 #define IS_SAME(A, B) std::is_same< A, B >
 #define IS_EQ(A, B) is_eq< A, B >
