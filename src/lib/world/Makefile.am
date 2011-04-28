@@ -2,7 +2,8 @@ include $(top_srcdir)/config/MakeGlobal.am
 
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
-               gtest_example qtest worldprofile_test worldptr_test worldref_test
+               gtest_example qtest worldprofile_test worldptr_test worldref_test \
+               worldreduce_test functional_test
 
 lib_LIBRARIES = libMADworld.a
 
@@ -14,7 +15,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
-	deferred_deleter.h scopedptr.h
+	deferred_deleter.h scopedptr.h worldreduce.h
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
@@ -35,6 +36,16 @@ worldref_test_SOURCES = worldref_test.cc
 worldref_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 worldref_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
 worldref_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+
+worldreduce_test_SOURCES = worldreduce_test.cc
+worldreduce_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+worldreduce_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+worldreduce_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+
+functional_test_SOURCES = functional_test.cc
+functional_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+functional_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+functional_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
 testprof_SOURCES = testprof.cc
 testprof_LDADD = libMADworld.a
