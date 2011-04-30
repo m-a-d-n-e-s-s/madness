@@ -450,6 +450,46 @@ namespace madness {
 #undef MADNESS_MEM_FN
 #undef MADNESS_MEM_FN_VOID
 
+    // Provide serialization for standard library functional types
+    namespace archive {
+
+        template <class, class>
+        struct ArchiveSerializeImpl;
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::plus<T> > {
+            static inline void serialize(const Archive&, std::plus<T>&) { }
+        };
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::minus<T> > {
+            static inline void serialize(const Archive&, std::minus<T>&) { }
+        };
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::multiplies<T> > {
+            static inline void serialize(const Archive&, std::multiplies<T>&) { }
+        };
+
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::divides<T> > {
+            static inline void serialize(const Archive&, std::divides<T>&) { }
+        };
+
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::negate<T> > {
+            static inline void serialize(const Archive&, std::negate<T>&) { }
+        };
+
+        template <typename Archive, typename T>
+        struct ArchiveSerializeImpl<Archive, std::modulus<T> > {
+            static inline void serialize(const Archive&, std::modulus<T>&) { }
+        };
+
+    } // namespace archive
+
 } // namespace madness
 
 #endif // MADNESS_WORLD_FUNCTIONAL_H__INCLUDED
