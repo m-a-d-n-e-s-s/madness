@@ -53,6 +53,7 @@
 #include <world/worldrange.h>
 #include <world/worldfut.h>
 #include <world/worldtime.h>
+#include <world/task_fn.h>
 
 namespace madness {
 
@@ -61,95 +62,8 @@ namespace madness {
     class WorldTaskQueue;
     template <typename functionT> struct TaskFunction;
     template <typename memfunT> struct TaskMemfun;
-
-    /// All world tasks must be derived from this public interface
-
-    /// Multiple worlds with independent queues feed tasks into shared task
-    /// pool that is mapped to the H/W.
-    ///
-    /// For simplicity and backward compatibility we maintain two run interfaces
-    /// but new code should adopt the multithreaded interface
-    ///
-    /// \c run(World&) - the user implements this for a single-threaded task
-    ///
-    /// \c run(World&, \c const \c TaskThreadEnv&) - the user implements this for
-    /// a multi-threaded task.
-    ///
-    class TaskInterface : public DependencyInterface , public PoolTaskInterface {
-        friend class WorldTaskQueue;
-    private:
-        volatile World* world;
-        CallbackInterface* completion;
-
-        // Used for submission to underlying queue when all dependencies are satisfied
-        struct Submit : public CallbackInterface {
-            PoolTaskInterface* p;
-            Submit(PoolTaskInterface* p) : p(p) {}
-            void notify() {
-                ThreadPool::add(p);
-            }
-        } submit;
-
-
-        /// Set task info
-
-        /// \param w The world object that contains the task
-        /// \param c Call this callback on completion
-        void set_info(World* w, CallbackInterface* c) {
-            world = w;
-            completion = c;
-        }
-
-        /// Adds call back to schedule task when outstanding dependencies are satisfied
-        void register_submit_callback() { register_callback(&submit); }
-
-    protected:
-        virtual void run(const TaskThreadEnv& env);
-
-    public:
-        static bool debug;
-
-        /// Create a new task with ndepend dependencies (default 0) and given attributes
-        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
-                : DependencyInterface(ndepend)
-                , PoolTaskInterface(attr)
-                , world(0)
-                , completion(0)
-                , submit(this)
-        {}
-
-        /// Create a new task with zero dependencies and given attributes
-        explicit TaskInterface(const TaskAttributes& attr)
-                : DependencyInterface(0)
-                , PoolTaskInterface(attr)
-                , world(0)
-                , completion(0)
-                , submit(this)
-        {}
-
-//         void serialize(Buffer& ar) {
-//             throw "there is no way this is correct";
-//             ar & *static_cast<PoolTaskInterface*>(this) & world;
-//         }
-
-        /// Runs a single-threaded task ... derived classes must implement this.
-
-        /// This interface may disappear so new code should use the multi-threaded interface.
-        virtual void run(World& /*world*/);
-
-        /// Runs a multi-threaded task
-        virtual void run(World& world, const TaskThreadEnv& env) {
-            //print("in virtual run(world,env) method", env.nthread(), env.id());
-            if (env.nthread() != 1)
-                MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
-            run(world);
-        }
-
-        World* get_world() const { return const_cast<World*>(world); }
-
-        virtual ~TaskInterface() { if (completion) completion->notify(); }
-
-    };
+    template <typename fnT>
+    typename TaskFnBase<fnT>::futureT submit_task(World&, TaskFnBase<fnT>*, ProcessID = -1);
 
 
     /// Multi-threaded queue to manage and run tasks.
@@ -181,6 +95,32 @@ namespace madness {
 
         /// Returns the number of pending tasks
         size_t size() const { return nregistered; }
+
+        /// Add a new local task taking ownership of the pointer
+
+        /// The task pointer (t) is assumed to have been created with
+        /// \c new and when the task is eventually run the queue
+        /// will call the task's destructor using \c delete.
+        ///
+        /// Once the task is complete it will execute
+        /// task_complete_callback to decrement the number of pending
+        /// tasks and be deleted.
+        template <typename fnT>
+        typename TaskFnBase<fnT>::futureT add(TaskFnBase<fnT>* t)  {
+            nregistered++;
+
+            t->set_info(&world, this);       // Stuff info
+
+            if (t->ndep() == 0) {
+                ThreadPool::add(t); // If no dependencies directly submit
+            } else {
+                // With dependencies must use the callback to avoid race condition
+                t->register_submit_callback();
+                //t->dec();
+            }
+
+            return t->result();
+        }
 
         /// Add a new local task taking ownership of the pointer
 
@@ -727,21 +667,6 @@ namespace madness {
         void fence();
     };
 
-
-    // Internal: Convenience for serializing
-    template <typename refT, typename functionT>
-    struct TaskHandlerInfo {
-        refT ref;
-        functionT func;
-        TaskAttributes attr;
-        TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr)
-                : ref(ref), func(func),attr(attr) {}
-        TaskHandlerInfo() {}
-        template <typename Archive>
-        void serialize(const Archive& ar) {
-            ar & ref & archive::wrap_opaque(func) & attr;
-        }
-    };
 
     // Internal: Common functionality for TaskFunction and TaskMemfun classes
     class TaskFunctionBase : public TaskInterface {
@@ -2012,6 +1937,13 @@ namespace madness {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         }
     };
+
+    // This function is here because WorldTaskQueue would be an incomplete type otherwise.
+    template <typename fnT, typename a1T, typename a2T, typename a3T,
+    typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+    void TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>::handler(const AmArg& arg) {
+        arg.get_world()->taskq.add(new TaskFn_(arg));
+    }
 
 }
 

@@ -15,7 +15,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
-	deferred_deleter.h scopedptr.h worldreduce.h
+	deferred_deleter.h scopedptr.h worldreduce.h task_fn.h
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
