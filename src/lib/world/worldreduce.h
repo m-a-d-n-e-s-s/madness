@@ -83,21 +83,12 @@ namespace madness {
 
                 // Sort and remove duplicate elements from process map
                 std::vector<ProcessID> group(first, last);
-                std::cout << "Initial Group = ";
-                for(std::vector<ProcessID>::const_iterator it = group.begin(); it != group.end(); ++it)
-                    std::cout << *it << " ";
-                std::cout << "\n";
 
                 std::sort(group.begin(), group.end());
                 std::unique(group.begin(), group.end());
 
                 // Get the size of the group
                 const int size = group.size();
-
-                std::cout << "Final Group = ";
-                for(std::vector<ProcessID>::const_iterator it = group.begin(); it != group.end(); ++it)
-                    std::cout << *it << " ";
-                std::cout << "\n";
 
                 // Get the group rank of this process
                 const ProcessID rank = std::distance(group.begin(),
@@ -142,10 +133,6 @@ namespace madness {
                     ++count_;
                 } else
                     child1_ = -1;
-
-                std::cout << "ReductionInterface::set_group: parent=" << parent_
-                        << ", child0=" << child0_ << ", child1=" << child1_
-                        << ", count=" << count_ << "\n";
             }
 
             ProcessID parent() const { return parent_; }
@@ -190,7 +177,6 @@ namespace madness {
 
             template <typename opT>
             Future<T> set_op(World& w, const opT& op) {
-                std::cout << "GroupReduction::set_op()\n";
                 MADNESS_ASSERT(ReductionInterface::count() != 0);
 
                 TaskAttributes attr;
@@ -198,19 +184,16 @@ namespace madness {
                 switch(ReductionInterface::count()) {
                 case 3:
                     {
-                        std::cout << "GroupReduction::set_op() count 3\n";
                         Future<T> temp = w.taskq.add(make_task(op, r0_, r1_, attr));
                         result_ = w.taskq.add(make_task(op, temp, r2_, attr));
                     }
                     break;
 
                 case 2:
-                    std::cout << "GroupReduction::set_op() count 2\n";
                     result_ = w.taskq.add(make_task(op, r0_, r1_, attr));
                     break;
 
                 case 1:
-                    std::cout << "GroupReduction::set_op() count 1\n";
                     result_.set(r0_);
                     break;
                 }
@@ -232,7 +215,6 @@ namespace madness {
 
             template <typename U>
             void set_future(const U& u) {
-                std::cout << "GroupReduction(): Setting a future\n";
                 if(! r0_.probe())
                     r0_.set(u);
                 else if(! r1_.probe())
@@ -273,7 +255,6 @@ namespace madness {
 
         template <typename valueT>
         Void reduce_value(const key& k, const valueT& value) {
-            std::cout << "WorldReduce::reduce_value( key=" << k << ", value=" << value << " )\n";
             typename reduce_container::accessor acc;
             insert<valueT>(acc, k);
             acc->second->reduce(value);
@@ -282,7 +263,6 @@ namespace madness {
 
         template <typename valueT>
         Void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
-            std::cout << "WorldReduce::send_to_parent( parent=" << parent << ", key=" << k << ", value=" << value << " )\n";
             if(parent != -1)
                 WorldObject_::send(parent, & WorldReduce_::template reduce_value<valueT>, k, value);
 
@@ -294,10 +274,8 @@ namespace madness {
 
         template <typename valueT>
         void insert(typename reduce_container::accessor& acc, const key& k) {
-            std::cout << "WorldReduce::insert( key=" << k << " )\n";
             std::shared_ptr<detail::GroupReduction<valueT> > reduction;
             if(reductions_.insert(acc, k)) {
-                std::cout << "WorldReduce::insert: making new group\n";
                 reduction.reset(new detail::GroupReduction<valueT>());
                 acc->second = reduction;
             }

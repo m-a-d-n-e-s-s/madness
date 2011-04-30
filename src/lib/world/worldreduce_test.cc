@@ -93,11 +93,6 @@ namespace {
     }
 
     TEST_F(WorldReduceTest, ReduceEven) {
-
-        std::cout << "Even Group = ";
-        for(std::vector<ProcessID>::const_iterator it = even.begin(); it != even.end(); ++it)
-            std::cout << *it << " ";
-        std::cout << "\n";
         if((pworld->rank() % 2) == 0) {
             madness::Future<ProcessID> result = reducer->reduce(1, pworld->rank(),
                     std::plus<ProcessID>(), even.begin(), even.end(), 0);
