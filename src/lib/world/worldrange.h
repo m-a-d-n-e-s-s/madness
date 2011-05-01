@@ -35,6 +35,7 @@
 
 #include <iterator>
 #include <world/worldthread.h>
+#include <world/typestuff.h>
 
 /// \file worldrange.h
 /// \brief Implement Range class for parallel iteration
