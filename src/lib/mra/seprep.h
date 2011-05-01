@@ -421,8 +421,8 @@ namespace madness {
 			const double threshold=eps*facReduce;
 
 			// what we expect the trial rank might be (engineering problem)
-			const unsigned int maxTrialRank=218;
-			const unsigned int maxloop=218;
+			const unsigned int maxTrialRank=300;
+			const unsigned int maxloop=300;
 
 			const bool print=false;
 			double norm=1.0;
@@ -629,28 +629,18 @@ namespace madness {
 				}
 				inner_result(sscr,sr.configs_.ref_vector(1)(sr.configs_.c0()),0,0,s);
 
-//				for (unsigned int i0=0; i0<conf_k; i0++) {
-//					scr=copy(sr.configs_.weights_);
-//					scr.emul(sr.configs_.refVector(0)(Slice(_),Slice(i0,i0,0)));
-//					for (unsigned int i1=0; i1<conf_k; i1++) {
-//						scr1=copy(scr);
-//						scr1.emul(sr.configs_.refVector(1)(Slice(_),Slice(i1,i1,0)));
-//						s(i0,i1)=scr1.sum();
-//					}
-//				}
-
 
 			} else if (conf_dim==3) {
 
 				for (unsigned int i0=0; i0<conf_k; i0++) {
-					scr=copy(sr.configs_.weights_);
-					scr.emul(sr.configs_.ref_vector(0)(Slice(0,rank-1),Slice(i0,i0,0)));
+					scr=copy(sr.configs_.weights_(Slice(0,sr.rank()-1)));
+					scr.emul(sr.configs_.ref_vector(0)(Slice(0,rank-1),i0));
 					for (unsigned int i1=0; i1<conf_k; i1++) {
 						scr1=copy(scr);
-						scr1.emul(sr.configs_.ref_vector(1)(Slice(0,rank-1),Slice(i1,i1,0)));
+						scr1.emul(sr.configs_.ref_vector(1)(Slice(0,rank-1),i1));
 						for (unsigned int i2=0; i2<conf_k; i2++) {
 							scr2=copy(scr1);
-							scr2.emul(sr.configs_.ref_vector(2)(Slice(0,rank-1),Slice(i2,i2,0)));
+							scr2.emul(sr.configs_.ref_vector(2)(Slice(0,rank-1),i2));
 							s(i0,i1,i2)=scr2.sum();
 						}
 					}
@@ -705,18 +695,6 @@ namespace madness {
 				}
 				inner_result(sscr,sr.configs_.ref_vector(1)(sr.configs_.c0()),0,0,s);
 
-				// transpose
-//				long dd[2];
-//				dd[0]=rank;
-//				dd[1]=conf_k;
-//				tensorT sscr2(2,dd,false);
-//				fast_transpose(rank,conf_k,sscr.ptr(),sscr2.ptr());
-//				fast_transpose(rank,conf_k,sr.configs_.refVector(1).ptr(),sscr.ptr());
-//				tensorT st=sscr.reshape(conf_k,rank);
-//				tensorT s2t=sscr2.reshape(conf_k,rank);
-//				inner_result(s2t,st,1,1,s);
-
-
 			} else {
 				print("only config_dim=2 in SepRep::accumulate_into");
 				MADNESS_ASSERT(0);
@@ -735,7 +713,7 @@ namespace madness {
 				configs_.rank_n_update_sequential(rhs2.configs_);
 
 			} else {
-				SepRep<T> rhs3=rhs2;
+				SepRep<T> rhs3=copy(rhs2);
 				rhs3.configs_.undo_structure();										// 0.3 s
 
 				const unsigned int chunk_size=8;
@@ -752,7 +730,7 @@ namespace madness {
 					rhs.configs_.rank_=end-begin+1;
 					rhs.configs_.make_slices();
 
-					rhs.configs_.ortho3();
+					rhs.configs_.orthonormalize();
 
 					const tensorT a=(rhs.configs_.ref_vector(0)(rhs.configs_.c0()));
 					const tensorT b=(rhs.configs_.ref_vector(1)(rhs.configs_.c0()));

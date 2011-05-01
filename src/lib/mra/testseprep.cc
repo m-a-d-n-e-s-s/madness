@@ -371,6 +371,7 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 
 		g0.update_by(g1);
 		t0+=g1.full_tensor_copy();
+//		t0+=t1;
 		g0.finalize_accumulate();
 
 		norm=(g0.full_tensor_copy()-t0).normf();
@@ -443,7 +444,7 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 		sr1+=sr2;
 		t+=sr2.reconstructTensor();
 
-		sr1.config().ortho3();
+		sr1.config().orthonormalize();
 
 		Tensor<double> t3=sr1.reconstructTensor();
 //		print("t,t3");
@@ -625,26 +626,63 @@ int main(int argc, char**argv) {
     srand(time(NULL));
 
     // the parameters
-    const long k=6;
+    const long k=4;
     const unsigned int dim=6;
     double eps=1.e-3;
 
     // some test
-#if 1
-    SRConf<double> sr1;
-    Tensor<double> a(12,k*k*k), b(12,k*k*k);
-    a.fillrandom();
-    b.fillrandom();
-	double cpu0, cpu1;
+#if 0
+    SepRep<double> s1(TT_2D,k,dim);
+    s1.fillrandom(12);
+    SRConf<double> sr1=s1.config();
+    sr1.weights_[7]*=3.3e1;
+    sr1.ref_vector(0).scale(1.2);
+    sr1.ref_vector(0)(3,Slice(_)).scale(5.0);
+    sr1.ref_vector(0)(6,Slice(_)).scale(5.e3);
+    sr1.ref_vector(1)(5,Slice(_)).scale(500.0);
+	sr1.orthonormalize();
+	s1=sr1;
+
+    SepRep<double> s2(TT_2D,k,dim);
+	SRConf<double> tmp=copy(sr1);
+	tmp.rank_=2;
+//	tmp.weights_=Tensor<double>(2);
+	tmp.weights_=tmp.weights_(Slice(0,1));
+	tmp.vector_[0]=tmp.vector_[0](Slice(0,1),Slice(_));
+	tmp.vector_[1]=tmp.vector_[1](Slice(0,1),Slice(_));
+	tmp.vector_[0]=tmp.vector_[0].reshape(2,tmp.kVec());
+	tmp.vector_[1]=tmp.vector_[1].reshape(2,tmp.kVec());
+	tmp.make_slices();
+
+    s2.fillrandom(8);
+//	s2=copy(tmp);
+    SRConf<double> sr2=s2.config();
+   	print("norm(s2)",s2.reconstructTensor().normf());
+
+
+    double cpu0, cpu1;
 	cpu0=wall_time();
 
-    for (int i=0; i<1.e5; i++) {
-        sr1.ortho4(a,b);
+	Tensor<double> t1=(s1.reconstructTensor())+2.0*s2.reconstructTensor();
+//	print(sr1.weights_);
+
+
+    for (int i=0; i<2; i++) {
+    	sr2.orthonormalize();
+//    	sr1.low_rank_add(sr2);
+    	sr1.low_rank_add_sequential(sr2);
     }
+
+   	SepRep<double> s11(sr1);
+   	SepRep<double> s22(sr2);
+
+   	print("norm(s2)",s22.reconstructTensor().normf());
+   	Tensor<double> t2=(s11.reconstructTensor());//+s22.reconstructTensor());
+   	print("difference norm",(t2-t1).normf());
 
 	cpu1=wall_time();
 	if(world.rank() == 0) print("chunk Brand at time ", cpu1-cpu0);
-
+	return 0;
 
 #endif
 
@@ -816,28 +854,28 @@ int main(int argc, char**argv) {
     int error=0;
     print("hello world");
 
-//    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
-//    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-//
-    error+=testGenTensor_update(k,dim,eps,TT_2D);
-//    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
+    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
+    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
 
-//
-//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_transform(k,dim,eps,TT_3D);
-//    error+=testGenTensor_transform(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
+    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+
+    error+=testGenTensor_update(k,dim,eps,TT_2D);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+
+
+    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
+    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+
+    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
+    error+=testGenTensor_transform(k,dim,eps,TT_3D);
+    error+=testGenTensor_transform(k,dim,eps,TT_2D);
+
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 

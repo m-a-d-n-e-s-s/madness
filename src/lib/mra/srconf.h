@@ -39,6 +39,7 @@
 
 #include "tensor/tensor.h"
 #include "mra/funcdefaults.h"
+#include <linalg/clapack.h>
 
 namespace madness {
 
@@ -195,21 +196,30 @@ namespace madness {
 			maxk_=rhs.maxk_;
 			s_=rhs.s_;
 
-			// assign vectors; shallow copy
-			vector_.resize(rhs.vector_.size());
-			for (unsigned int i=0; i<rhs.vector_.size(); i++) {
-//				vector_[i]=(rhs.refVector_struct(i));
-				vector_[i]=rhs.vector_[i];
-			}
+			if (rhs.rank()==0) {
+				// construct empty vector
+				weights_=Tensor<double>(0);
+				vector_=std::vector<Tensor<T> > (rhs.dim_eff());
+				for (unsigned int idim=0; idim<dim_eff(); idim++) vector_[idim]=Tensor<T>(0,this->kVec());
+				make_structure();
 
-			// shallow copy
-			weights_=(rhs.weights_);
 
-			rank_=rhs.rank();
+			} else {
+				// assign vectors; shallow copy
+				vector_.resize(rhs.vector_.size());
+				for (unsigned int i=0; i<rhs.vector_.size(); i++) {
+					vector_[i]=rhs.vector_[i];
+				}
 
-			// consistency check
-			for (unsigned int idim=0; idim<dim_eff(); idim++) {
-				MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
+				// shallow copy
+				weights_=(rhs.weights_);
+
+				rank_=rhs.rank();
+
+				// consistency check
+				for (unsigned int idim=0; idim<dim_eff(); idim++) {
+					MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
+				}
 			}
 
 			return *this;
@@ -555,127 +565,46 @@ namespace madness {
 			subspace_vec_.clear();
 		}
 
-		/// sophisticated version of ortho2
+		/// orthonormalize this
+		void orthonormalize() {
 
-		/// after calling this we will have an optimally rank-reduced representation
-		/// with the left and right subspaces being bi-orthogonal and normalized;
-		/// outline of the algorithm:
-		///  - canonical orthogonalization of the subspaces (screen for small eigenvalues)
-		///  - SVD of the modified overlap (incorporates the roots of eigenvalues)
-		/// operation count is O(kr^2 + r^3)
-		void ortho3() {
+			if (rank()==0 or rank()==1) return;
+			vector_[0]=vector_[0](c0());
+			vector_[1]=vector_[1](c0());
 
-			const double thresh=1.e-10;
-
-			// overlap of 1 and 2
-			tensorT S1=inner(vector_[0](c0()),vector_[0](c0()),1,1);
-			tensorT S2=inner(vector_[1](c0()),vector_[1](c0()),1,1);	// 0.5 / 2.1
-
-			// diagonalize
-			tensorT U1, U2;
-			Tensor<double> e1, e2;
-		    syev(S1,U1,e1);
-		    syev(S2,U2,e2);										// 2.3 / 4.0
-
-		    // remove small negative eigenvalues
-		    e1.screen(1.e-13);
-		    e2.screen(1.e-13);
-		    Tensor<double> sqrt_e1(rank()), sqrt_e2(rank());
-
-		    // shrink U1, U2
-		    int lo1=0;
-		    int lo2=0;
-		    for (unsigned int r=0; r<rank(); r++) {
-		    	if (e1(r)<thresh) lo1=r+1;
-		    	if (e2(r)<thresh) lo2=r+1;
-		    	sqrt_e1(r)=sqrt(e1(r));
-		    	sqrt_e2(r)=sqrt(e2(r));
-		    }
-		    U1=U1(Slice(_),Slice(lo1,-1));
-		    U2=U2(Slice(_),Slice(lo2,-1));
-		    sqrt_e1=sqrt_e1(Slice(lo1,-1));
-		    sqrt_e2=sqrt_e2(Slice(lo2,-1));
-		    unsigned int rank1=rank()-lo1;
-		    unsigned int rank2=rank()-lo2;						// 0.0 / 0.0
-
-		    // set up overlap M; include X+
-		    tensorT M(rank1,rank2);
-		    for (unsigned int i=0; i<rank1; i++) {
-		    	for (unsigned int j=0; j<rank2; j++) {
-		    		for (unsigned int r=0; r<rank(); r++) {
-			    		M(i,j)+=U1(r,i)*sqrt_e1(i)*weights(r)*U2(r,j) * sqrt_e2(j);
-//			    		M(i,j)+=U1(r,i)*weights(r)*U2(r,j);
-		    		}
-		    	}
-		    }
-
-		    // include X-
-	    	for (unsigned int r=0; r<rank1; r++) {
-	    		double fac=1.0/sqrt_e1(r);
-	    		for (unsigned int t=0; t<rank(); t++) {
-		    		U1(t,r)*=fac;
-		    		if (sqrt_e1(r)<thresh) throw;
-	    		}
-	    	}
-
-		   	for (unsigned int r=0; r<rank2; r++) {
-	    		double fac=1.0/sqrt_e2(r);
-	    		for (unsigned int t=0; t<rank(); t++) {
-		    		U2(t,r)*=fac;
-		    		if (sqrt_e2(r)<thresh) throw;
-		    	}
-		    }													// 0.2 / 0.6
-
-		    // decompose M
-			tensorT Up,VTp;
-			Tensor<double> Sp;
-			svd(M,Up,Sp,VTp);									// 1.5 / 3.0
-
-			// make transformation matrices
-			Up=inner(Up,U1,0,1);
-			VTp=inner(VTp,U2,1,1);
-
-			// transform 1 and 2
-		    vector_[0]=inner(Up,vector_[0](c0()),1,0);
-		    vector_[1]=inner(VTp,vector_[1](c0()),1,0);				// 0.5 / 2.5
-		    weights_=Sp;
-		    rank_=weights_.size();
-		    make_slices();
-			return;
-
+			ortho5(vector_[0],vector_[1],weights_);
+			rank_=weights_.size();
+			make_slices();
 		}
 
-		/// rank-revealing Gram-Schmidt
 
-		/// provide two tensors (weights must be included in either of them)
-		/// that will give your full tensor as a_ij = sum_r a(r,i) b(r,j)
-		/// @param[in/out]	a(r,k)	tensor holding the first subspace
-		/// @param[in/out]	b(r,k)	tensor holding the other subspace (will be orthogonalized)
-		void ortho4(tensorT& a, tensorT& b) {
+		/// project and add rhs on this, subtract it from rhs
 
-			MADNESS_ASSERT(a.conforms(b));
+		/// !!! requires this and rhs to have orthonormalized right subspaces !!!
+		/// x1 y1 += x2 y2
+		void project_and_orthogonalize(SRConf<T>& rhs) {
 
-			const long rank=a.dim(0);
+			if (rhs.rank()==0) return;
 
-			// compute overlap of the b vectors
-			tensorT S(rank,rank);
-//			for (int r=0; r<rank; r++) {
-//				S(r,r)=b(r,Slice(_)).normf();
-//				tensorT bb=b(r,Slice(_));
-//				for (int i=r+1; i<rank; i++) {
-//					S(i,r)=-bb.trace(b(i,Slice(_)));
-//				}
-//			}
-			S=inner(a,b,1,1);
-			tensorT U;
-			invert_lower_triangular_matrix(S,U);
+			// aliasing for clarity
+			tensorT x1=vector_[0](c0());
+			tensorT y1=vector_[1](c0());
+			tensorT x2=rhs.vector_[0](rhs.c0());
+			tensorT y2=rhs.vector_[1](rhs.c0());
 
+			/// projector of right subspace of rhs on right subspace of lhs
+			tensorT U=inner(y2,y1,1,1);
+
+			x1+=inner(U,x2,0,0);
+			y2-=inner(U,y1,1,0);
 
 		}
-
 
 		/// invert lower triangular matrix in by backsubstitution
-		static void invert_lower_triangular_matrix(tensorT& in, tensorT& out) {
+
+		/// @param[in]	in	matrix to be reverted (upper triangle is ignored)
+		/// @param[out]	out	inverse of in
+		static void invert_lower_triangular_matrix(const tensorT& in, tensorT& out) {
 
 			MADNESS_ASSERT(in.ndim()==2);
 			MADNESS_ASSERT(in.dim(0)==in.dim(1));
@@ -698,6 +627,75 @@ namespace madness {
 			for (int r=0; r<rank; r++) {
 				for (int i=0; i<=r; i++) {
 					out(r,i)=out(r,i)/in(i,i);
+				}
+			}
+		}
+
+		/// append configurations of rhs to this
+
+		/// simplified version of inplace_add for flattened configurations
+		void append(const SRConf<T>& rhs) {
+
+			// fast return if possible
+			if (rhs.rank()==0) return;
+			if (this->rank()==0) {
+				*this=copy(rhs);
+				return;
+			}
+
+			MADNESS_ASSERT(this->is_flat() and rhs.is_flat());
+
+			const long newRank=this->rank()+rhs.rank();
+			const long lhsRank=this->rank();
+			const long rhsRank=rhs.rank();
+			reserve(newRank);
+
+			// assign weights
+			this->weights_(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1));
+
+			// assign vectors
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				vector_[idim](Slice(lhsRank,newRank-1),Slice(_))=rhs.vector_[idim](rhs.c0());
+			}
+
+			rank_=newRank;
+			make_slices();
+
+		}
+
+		/// add rhs to this
+
+		/// this and rhs2 must be orthonormalized
+		void low_rank_add(const SRConf<T>& rhs2) {
+
+			if (rhs2.rank()==0) return;
+			SRConf<T> rhs=copy(rhs2);
+
+			this->project_and_orthogonalize(rhs);
+			rhs.orthonormalize();
+			this->append(rhs);
+		}
+
+		void low_rank_add_sequential(const SRConf<T>& rhs) {
+
+//			MADNESS_EXCEPTION("srconf::low_rank_add_sequential not yet working",0);
+			if (rhs.rank()==0) return;
+			MADNESS_ASSERT(rhs.is_flat());
+
+			const double thresh=1.e-8;
+
+			SRConf<T> one_term(rhs.dim(),rhs.get_k(),rhs.type());
+			for (unsigned int i=0; i<rhs.rank(); i++) {
+				one_term.weights_=Tensor<double>(1);
+				one_term.weights_[0]=rhs.weights(i);
+				one_term.vector_[0]=copy(rhs.vector_[0](i,Slice(_)).reshape(1,rhs.kVec()));
+				one_term.vector_[1]=copy(rhs.vector_[1](i,Slice(_)).reshape(1,rhs.kVec()));
+				one_term.rank_=1;
+				one_term.make_slices();
+				this->project_and_orthogonalize(one_term);
+				one_term.normalize_and_shift_weights_to_y();
+				if (one_term.weights(0)>thresh) {
+					this->append(one_term);
 				}
 			}
 		}
@@ -838,7 +836,6 @@ namespace madness {
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
 			const int rr=weights_.dim(0);	// not the rank!
-//			const int rr=vector_[0].dim(0);	// not the rank!
 			const int k=this->get_k();
 
 			// reshape the vectors and adapt the Slices
@@ -927,6 +924,17 @@ namespace madness {
 	        }
 		}
 
+		/// does what you think it does
+		void normalize_and_shift_weights_to_y() {
+			MADNESS_ASSERT(rank()==0 or dim_eff()==2);
+			for (unsigned int i=0; i<rank(); i++) {
+				double norm=vector_[1](i,Slice(_)).normf();
+				vector_[0](i,Slice(_)).scale(1.0/norm);
+				vector_[1](i,Slice(_)).scale(norm*weights(i));
+				weights_[i]=1.0;
+			}
+		}
+
 		/// return if this has only one additional dimension (apart from rank)
 		bool is_flat() const {
 			return (vector_[0].ndim()==2);
@@ -989,7 +997,7 @@ namespace madness {
 			const unsigned int dim_eff=rhs.dim_eff();
 
 			// get the weight matrix
-			Tensor<T> weightMatrix=outer(lhs.weights_,rhs.weights_);
+			Tensor<T> weightMatrix=outer(lhs.weights_(Slice(0,lhs.rank()-1)),rhs.weights_(Slice(0,rhs.rank()-1)));
 			SRConf<T> lhs3(lhs);
 			lhs3.undo_structure();
 			SRConf<T> rhs3(rhs);
@@ -1125,6 +1133,281 @@ namespace madness {
 		}
 
 	};
+
+
+
+
+	/// sophisticated version of ortho2
+
+	/// after calling this we will have an optimally rank-reduced representation
+	/// with the left and right subspaces being bi-orthogonal and normalized;
+	/// outline of the algorithm:
+	///  - canonical orthogonalization of the subspaces (screen for small eigenvalues)
+	///  - SVD of the modified overlap (incorporates the roots of eigenvalues)
+	/// operation count is O(kr^2 + r^3)
+	template<typename T>
+	void ortho3(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights) {
+
+		typedef Tensor<T> tensorT;
+
+		// need to turn the weights over to the vectors for the symmetric diagonalization
+		// being meaningful!!
+		// ?? DO I ??
+		MADNESS_EXCEPTION("need to fix ortho3",0);
+
+		const double thresh=1.e-14;
+		const long rank=x.dim(0);
+
+		// overlap of 1 and 2
+		tensorT S1=inner(x,x,1,1);
+		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
+
+		// diagonalize
+		tensorT U1, U2;
+		Tensor<double> e1, e2;
+	    syev(S1,U1,e1);
+	    syev(S2,U2,e2);										// 2.3 / 4.0
+
+	    // remove small negative eigenvalues
+	    e1.screen(1.e-13);
+	    e2.screen(1.e-13);
+	    Tensor<double> sqrt_e1(rank), sqrt_e2(rank);
+
+	    // shrink U1, U2
+	    int lo1=0;
+	    int lo2=0;
+	    for (unsigned int r=0; r<rank; r++) {
+	    	if (e1(r)<thresh) lo1=r+1;
+	    	if (e2(r)<thresh) lo2=r+1;
+	    	sqrt_e1(r)=sqrt(e1(r));
+	    	sqrt_e2(r)=sqrt(e2(r));
+	    }
+	    U1=U1(Slice(_),Slice(lo1,-1));
+	    U2=U2(Slice(_),Slice(lo2,-1));
+	    sqrt_e1=sqrt_e1(Slice(lo1,-1));
+	    sqrt_e2=sqrt_e2(Slice(lo2,-1));
+	    unsigned int rank1=rank-lo1;
+	    unsigned int rank2=rank-lo2;						// 0.0 / 0.0
+
+	    // set up overlap M; include X+
+	    tensorT M(rank1,rank2);
+	    for (unsigned int i=0; i<rank1; i++) {
+	    	for (unsigned int j=0; j<rank2; j++) {
+	    		for (unsigned int r=0; r<rank; r++) {
+		    		M(i,j)+=U1(r,i)*sqrt_e1(i)*weights(r)*U2(r,j) * sqrt_e2(j);
+//			    		M(i,j)+=U1(r,i)*weights(r)*U2(r,j);
+	    		}
+	    	}
+	    }
+
+	    // include X-
+    	for (unsigned int r=0; r<rank1; r++) {
+    		double fac=1.0/sqrt_e1(r);
+    		for (unsigned int t=0; t<rank; t++) {
+	    		U1(t,r)*=fac;
+	    		if (sqrt_e1(r)<thresh) throw;
+    		}
+    	}
+
+	   	for (unsigned int r=0; r<rank2; r++) {
+    		double fac=1.0/sqrt_e2(r);
+    		for (unsigned int t=0; t<rank; t++) {
+	    		U2(t,r)*=fac;
+	    		if (sqrt_e2(r)<thresh) throw;
+	    	}
+	    }													// 0.2 / 0.6
+
+	    // decompose M
+		tensorT Up,VTp;
+		Tensor<double> Sp;
+		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
+
+//	        int m = M.dim(0), n = M.dim(1), rmax = std::min(m,n);
+//	        Tensor<double> Sp = Tensor< typename Tensor<T>::scalar_type >(rmax);
+//	        tensorT Up = Tensor<T>(m,rmax);
+//	        tensorT VTp = Tensor<T>(rmax,n);
+//	        for (int i=0; i<rmax; i++) {
+//	        	Up(i,i)=1.0;
+//	        	VTp(i,i)=1.0;
+//	        	Sp(i)=1.0;
+//	        }
+
+//			tensorT Up(M),VTp(transpose(M));
+//			Tensor<double> Sp(std::min(M.dim(0),M.dim(1)));
+
+		// make transformation matrices
+		Up=inner(Up,U1,0,1);
+		VTp=inner(VTp,U2,1,1);
+
+		// transform 1 and 2
+	    x=inner(Up,x,1,0);
+	    y=inner(VTp,y,1,0);				// 0.5 / 2.5
+	    weights=Sp;
+		return;
+	}
+
+
+	/// rank-revealing Gram-Schmidt
+
+	/// provide two tensors (weights must be included in either of them)
+	/// that will give your full tensor as a_ij = sum_r a(r,i) b(r,j)
+	/// @param[in/out]	a(r,k)	tensor holding the first subspace (will be orthogonalized)
+	/// @param[in/out]	b(r,k)	tensor holding the other subspace (will include the weights)
+	/// @param[in/out]	weights	tensor holding the weights
+	template<typename T>
+	static void ortho4(Tensor<T>& a, Tensor<T>& b, Tensor<double>& weights) {
+
+
+		// need to turn the weights over to y instead of x
+		MADNESS_EXCEPTION("fix srconf::ortho4",0);
+
+		typedef Tensor<T> tensorT;
+		MADNESS_ASSERT(a.conforms(b));
+		const long rank=a.dim(0);
+//			print("inner(aT,a)");
+//			print(inner(a,a,1,1));
+
+		// normalize a and b and transfer weights
+		Tensor<double> w(rank,rank);
+
+		for (int i=0; i<rank; i++) {
+			double norma=a(i,Slice(_)).normf();
+			double normb=b(i,Slice(_)).normf();
+			a(i,Slice(_)).scale(1.0/norma);
+			b(i,Slice(_)).scale(1.0/normb);
+			w(i,i)=weights(i)*norma*normb;
+		}
+		weights=1.0;
+
+//			print("inner(aT,a)");
+//			print(inner(a,a,1,1));
+
+
+		// compute and regularize the overlap of the a vectors
+		tensorT S=inner(a,a,1,1);
+		for (int r=0; r<rank; r++) {
+			S(r,r)+=1.e-14;
+		}
+//			tensorT S2=inner(b,b,1,1);
+
+		// decompose the overlap using Cholesky
+		tensorT U=(S);
+		cholesky(U);
+//			print("U^T,U");
+//			print(inner(U,U,0,0));
+
+		// invert the *upper* triangular matrix (note Fortran ordering)
+//			invert_lower_triangular_matrix(transpose(U),U1);
+		integer info;
+		integer n=U.dim(0);
+		tensorT U1=copy(U);				// U
+		// SUBROUTINE DTRTRI( UPLO, DIAG, N, A, LDA, INFO )
+		dtrtri_("L","N",&n, U.ptr(), &n, &info);
+		tensorT U2=U;					// U^-1
+
+		U1=inner(U1,w);
+		a=inner(U2,a,0,0);
+		b=inner(U1,b,1,0);
+
+		int maxrank=rank;
+		for (int i=0; i<rank; i++) {
+			double norm=a(i,Slice(_)).normf();
+			if (norm*norm<1.e-10) {
+				maxrank=i;
+				break;
+			}
+		}
+
+		// shrink
+		a=a(Slice(0,maxrank-1),Slice(_));
+		b=b(Slice(0,maxrank-1),Slice(_));
+		weights=weights(Slice(0,maxrank-1));
+	}
+
+
+	/// orthonormalize and truncate right subspace (y) using symmetric orthogonalization
+	template<typename T>
+	static void ortho5(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights) {
+
+		typedef Tensor<T> tensorT;
+
+		const double thresh=1.e-14;
+		const long rank=x.dim(0);
+
+		// normalize x and turn its norm and the weights over to y
+		for (unsigned int i=0; i<rank; i++) {
+			double norm=x(i,Slice(_)).normf();
+			x(i,Slice(_)).scale(1.0/norm);
+			y(i,Slice(_)).scale(norm*weights(i));
+		}
+
+		// overlap of 1 and 2
+		tensorT S=inner(y,y,1,1);
+
+#if 0
+		for (unsigned int i=0; i<rank(); i++) {
+			S(i,i)+=1.e-10;
+		}
+#endif
+
+		// diagonalize
+		tensorT U;
+		Tensor<double> e;
+		syev(S,U,e);
+//			cholesky(S);
+
+#if 0
+		U=tensorT(rank(),rank());
+		for (unsigned int i=0; i<rank(); i++) U(i,i)=1.0;
+		e=Tensor<double>(rank());
+		e=1.0;
+#endif
+		double e_max=e.max();
+
+		// fast return if possible
+		if (e_max<thresh) {
+			x.clear();
+			y.clear();
+			weights.clear();
+			return;
+
+		}
+
+		// remove small negative eigenvalues
+		e.screen(e_max*1.e-13);
+		Tensor<double> sqrt_e(rank);
+
+		// shrink U1, U2
+		int lo=0;
+		for (unsigned int r=0; r<rank; r++) {
+			if (e(r)<thresh) lo=r+1;
+			sqrt_e(r)=sqrt(std::abs(e(r)));
+		}
+
+		U=(U(Slice(_),Slice(lo,-1)));
+		sqrt_e=sqrt_e(Slice(lo,-1));
+		unsigned int rank1=rank-lo;
+
+
+		// make Y+, Y-
+		tensorT Ym(rank,rank1);
+		tensorT Yp(rank,rank1);
+		for (unsigned int i=0; i<rank; i++) {
+			for (unsigned int j=0; j<rank1; j++) {
+				Ym(i,j)=U(i,j)*1.0/sqrt_e(j);
+				Yp(i,j)=U(i,j)*sqrt_e(j);
+			}
+		}
+
+		// transform 1 and 2
+		x=inner(Yp,x,0,0);
+		y=inner(Ym,y,0,0);				// 0.5 / 2.5
+		weights=Tensor<double>(rank1);
+		weights=1.0;
+
+	}
+
+
 
 }
 

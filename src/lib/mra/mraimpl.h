@@ -442,13 +442,7 @@ namespace madness {
             }
         }
         else {
-        	tensorT g0=project(key);
-#if HAVE_GENTENSOR
-        	coeffT g(g0,thresh,FunctionDefaults<NDIM>::get_tensor_type());
-            coeffs.replace(key,nodeT(g,false));
-#else
-            coeffs.replace(key,nodeT(g0,false));
-#endif
+            coeffs.replace(key,nodeT(coeffT(project(key),targs),false));
         }
         return None;
     }
