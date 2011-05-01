@@ -609,8 +609,10 @@ which merely blows instead of sucking.
     /// \ingroup futures
     template <> class Future<void> {
     public:
-        RemoteReference< FutureImpl<void> > remote_ref(World&) const {
-            return RemoteReference< FutureImpl<void> >();
+        typedef RemoteReference< FutureImpl<void> > remote_refT;
+
+        remote_refT remote_ref(World&) const {
+            return remote_refT();
         }
 
         Future() {}
@@ -643,8 +645,10 @@ which merely blows instead of sucking.
     /// \ingroup futures
     template <> class Future<Void> {
     public:
-        RemoteReference< FutureImpl<Void> > remote_ref(World& /*world*/) const {
-            return RemoteReference< FutureImpl<Void> >();
+        typedef RemoteReference< FutureImpl<Void> > remote_refT;
+
+        remote_refT remote_ref(World& /*world*/) const {
+            return remote_refT();
         }
 
         Future() {}
