@@ -181,6 +181,7 @@ double ttt, sss;
 
 template <typename T, std::size_t NDIM>
 void test_basic(World& world) {
+    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -302,6 +303,7 @@ struct myunaryop_square {
 
 template <typename T, std::size_t NDIM>
 void test_math(World& world) {
+    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -622,7 +624,6 @@ namespace madness {
 
 template <typename T, std::size_t NDIM>
 void test_op(World& world) {
-
     test_rnlp();
 
     typedef Vector<double,NDIM> coordT;
@@ -1035,6 +1036,7 @@ void test_qm(World& world) {
 
 template <typename T, std::size_t NDIM>
 void test_plot(World& world) {
+    bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
     if (world.rank() == 0) {
