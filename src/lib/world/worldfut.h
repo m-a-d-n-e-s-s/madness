@@ -617,22 +617,17 @@ which merely blows instead of sucking.
 
         Future() {}
 
-        Future(const RemoteReference< FutureImpl<void> >& /*ref*/) {}
+        Future(const RemoteReference< FutureImpl<void> >&) {}
 
-        Future(const Future<Void>& /*f*/) {}
+        Future(const Future<Void>&) {}
 
-        inline void set(const Future<void>& /*f*/) {}
+        inline void set(const Future<void>&) {}
 
-        inline Future<void>& operator=(const Future<void>& /*f*/) {
+        inline Future<void>& operator=(const Future<void>&) {
             return *this;
         }
 
         inline void set() {}
-
-        template <class Archive>
-        void serialize(const Archive& /*ar*/) {}
-
-        virtual ~Future() {}
     };
 
     /// Specialization of FutureImpl<Void> for internal convenience ... does nothing useful!
@@ -664,11 +659,6 @@ which merely blows instead of sucking.
         }
 
         inline void set(const Void& /*f*/) {}
-
-        template <class Archive>
-        void serialize(const Archive& /*ar*/) {}
-
-        virtual ~Future() {}
     };
 
     /// Specialization of Future for vector of Futures
