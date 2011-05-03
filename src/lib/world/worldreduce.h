@@ -37,6 +37,7 @@
 
 #include <world/worldtypes.h>
 #include <world/worldobj.h>
+#include <world/worldtask.h>
 #include <algorithm>
 #include <iterator>
 
@@ -257,19 +258,18 @@ namespace madness {
         Void reduce_value(const key& k, const valueT& value) {
             typename reduce_container::accessor acc;
             insert<valueT>(acc, k);
+            // The accessor ensures the data is write locked.
             acc->second->reduce(value);
             return None;
         }
 
         template <typename valueT>
-        Void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
+        void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
             if(parent != -1)
                 WorldObject_::send(parent, & WorldReduce_::template reduce_value<valueT>, k, value);
 
             // We do not need the local reduction anymore
             reductions_.erase(k);
-
-            return None;
         }
 
         template <typename valueT>
@@ -295,6 +295,10 @@ namespace madness {
 
         /// Create a group reduction.
 
+        /// The reduction groups are differentiated by key value. There fore it
+        /// is the user's responsibility to ensure that the key is unique to the
+        /// group. All reductions are guaranteed to be complete after a global
+        /// fence. You may safely reuse group keys after a fence.
         /// \tparam valueT The type that will be reduced
         /// \tparam opT The reduction operation type
         /// \tparam initerT Input iterator type for list of process in group
@@ -332,8 +336,9 @@ namespace madness {
 
             // Forward the results of the local reductions to the parent
             if(! acc->second->is_root())
-                WorldObject_::task(WorldObject_::get_world().rank(),
-                        & WorldReduce_::template send_to_parent<valueT>, acc->second->parent(), k, result);
+                WorldObject_::get_world().taskq.add(make_task(function(static_cast<derivedT*>(this),
+                    & WorldReduce_::template send_to_parent<valueT>),
+                    acc->second->parent(), k, result));
 
             // Reduce the local value
             acc->second->reduce(value);

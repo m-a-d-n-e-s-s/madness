@@ -45,18 +45,21 @@
 
 madness::World* pworld;
 
+// WorldReduce must be used in the same way WorldObject is used.
+// Note: This object must be stored in a shared pointer and the deleter must be
+// a DeferredDeleter.
+class Reducer : public madness::WorldReduce<Reducer, std::size_t> {
+    typedef madness::WorldReduce<Reducer, std::size_t> WorldReducer_;
+public:
+
+    Reducer(madness::World& w) :
+        WorldReducer_(w)
+    { process_pending(); }
+
+    virtual ~Reducer() { }
+};
+
 namespace {
-
-    class Reducer : public madness::WorldReduce<Reducer, std::size_t> {
-        typedef madness::WorldReduce<Reducer, std::size_t> WorldReducer_;
-    public:
-
-        Reducer(madness::World& w) :
-            WorldReducer_(w)
-        { process_pending(); }
-
-        virtual ~Reducer() { }
-    };
 
     class WorldReduceTest : public ::testing::Test {
     public:
@@ -81,18 +84,29 @@ namespace {
     }
 
     TEST_F(WorldReduceTest, ReduceAll) {
+        // Setup the reduction group
+        // reduce(
+        //      group key,
+        //      local reduction value,
+        //      reduction operation,
+        //      first element in the reduction group list,
+        //      last element in the reduction group list,
+        //      root node)
         madness::Future<ProcessID> result = reducer->reduce(0, pworld->rank(),
                 std::plus<ProcessID>(), all.begin(), all.end(), 0);
 
+        // The final value is available only on the root node.
         if(pworld->rank() == 0) {
             ProcessID sum = 0;
             for(std::vector<ProcessID>::const_iterator it = all.begin(); it != all.end(); ++it)
                 sum += *it;
             EXPECT_EQ(sum, result.get());
         }
+
     }
 
     TEST_F(WorldReduceTest, ReduceEven) {
+        // You can only setup the reduction on nodes that are included in the group.
         if((pworld->rank() % 2) == 0) {
             madness::Future<ProcessID> result = reducer->reduce(1, pworld->rank(),
                     std::plus<ProcessID>(), even.begin(), even.end(), 0);
@@ -104,6 +118,7 @@ namespace {
                 EXPECT_EQ(sum, result.get());
             }
         }
+
     }
 }
 
