@@ -41,7 +41,7 @@
 
 namespace madness {
 
-// Macros or generating comma seperated lists with a prefix element
+// Macros for generating comma separated lists with a prefix element
 // It can create a list of up to 10 elements
 #define MADNESS_LISTP0( P , L ) P
 #define MADNESS_LISTP1( P , L ) P , L( 0 )
@@ -58,7 +58,7 @@ namespace madness {
 #define MADNESS_LIST_PREFIX( P , L , N ) MADNESS_LISTP##N( P , L )
 
 
-// Macros or generating comma seperated lists
+// Macros for generating comma separated lists
 // It can create a list of up to 10 elements
 #define MADNESS_LIST0( L )
 #define MADNESS_LIST1( L ) L( 0 )
@@ -75,48 +75,48 @@ namespace madness {
 #define MADNESS_LIST( L , N ) MADNESS_LIST##N( L )
 
 // Macros for generating numbered list elements
-#define MADNESS_MEM_FN_TYPE( N )  a##N##T
-#define MADNESS_MEM_FN_ARG( N )  a##N
-#define MADNESS_MEM_FN_PARAM( N ) MADNESS_MEM_FN_TYPE( N ) MADNESS_MEM_FN_ARG( N )
-#define MADNESS_MEM_FN_TPARAM( N ) typename MADNESS_MEM_FN_TYPE( N )
-#define MADNESS_MEM_FN_TYPEDEF( N ) typedef MADNESS_MEM_FN_TYPE( N ) arg##N##_type;
+#define MADNESS_FN_TYPE( N )  a##N##T
+#define MADNESS_FN_ARG( N )  a##N
+#define MADNESS_FN_PARAM( N ) const MADNESS_FN_TYPE( N ) & MADNESS_FN_ARG( N )
+#define MADNESS_FN_TPARAM( N ) typename MADNESS_FN_TYPE( N )
+#define MADNESS_FN_TYPEDEF( N ) typedef MADNESS_FN_TYPE( N ) arg##N##_type;
 
 // Macros for generating a list of numbered typedefs
-#define MADNESS_MEM_FN_TYPEDEF0
-#define MADNESS_MEM_FN_TYPEDEF1 \
-    MADNESS_MEM_FN_TYPEDEF( 0 )
-#define MADNESS_MEM_FN_TYPEDEF2 \
-    MADNESS_MEM_FN_TYPEDEF1 \
-    MADNESS_MEM_FN_TYPEDEF( 1 )
-#define MADNESS_MEM_FN_TYPEDEF3 \
-    MADNESS_MEM_FN_TYPEDEF2 \
-    MADNESS_MEM_FN_TYPEDEF( 2 )
-#define MADNESS_MEM_FN_TYPEDEF4 \
-    MADNESS_MEM_FN_TYPEDEF3 \
-    MADNESS_MEM_FN_TYPEDEF( 3 )
-#define MADNESS_MEM_FN_TYPEDEF5 \
-    MADNESS_MEM_FN_TYPEDEF4 \
-    MADNESS_MEM_FN_TYPEDEF( 4 )
-#define MADNESS_MEM_FN_TYPEDEF6 \
-    MADNESS_MEM_FN_TYPEDEF5 \
-    MADNESS_MEM_FN_TYPEDEF( 5 )
-#define MADNESS_MEM_FN_TYPEDEF7 \
-    MADNESS_MEM_FN_TYPEDEF6 \
-    MADNESS_MEM_FN_TYPEDEF( 6 )
-#define MADNESS_MEM_FN_TYPEDEF8 \
-    MADNESS_MEM_FN_TYPEDEF7 \
-    MADNESS_MEM_FN_TYPEDEF( 7 )
-#define MADNESS_MEM_FN_TYPEDEF9 \
-    MADNESS_MEM_FN_TYPEDEF8 \
-    MADNESS_MEM_FN_TYPEDEF( 8 )
-#define MADNESS_MEM_FN_TYPEDEF10 \
-    MADNESS_MEM_FN_TYPEDEF9 \
-    MADNESS_MEM_FN_TYPEDEF( 9 )
+#define MADNESS_FN_TYPEDEF0
+#define MADNESS_FN_TYPEDEF1 \
+    MADNESS_FN_TYPEDEF( 0 )
+#define MADNESS_FN_TYPEDEF2 \
+    MADNESS_FN_TYPEDEF1 \
+    MADNESS_FN_TYPEDEF( 1 )
+#define MADNESS_FN_TYPEDEF3 \
+    MADNESS_FN_TYPEDEF2 \
+    MADNESS_FN_TYPEDEF( 2 )
+#define MADNESS_FN_TYPEDEF4 \
+    MADNESS_FN_TYPEDEF3 \
+    MADNESS_FN_TYPEDEF( 3 )
+#define MADNESS_FN_TYPEDEF5 \
+    MADNESS_FN_TYPEDEF4 \
+    MADNESS_FN_TYPEDEF( 4 )
+#define MADNESS_FN_TYPEDEF6 \
+    MADNESS_FN_TYPEDEF5 \
+    MADNESS_FN_TYPEDEF( 5 )
+#define MADNESS_FN_TYPEDEF7 \
+    MADNESS_FN_TYPEDEF6 \
+    MADNESS_FN_TYPEDEF( 6 )
+#define MADNESS_FN_TYPEDEF8 \
+    MADNESS_FN_TYPEDEF7 \
+    MADNESS_FN_TYPEDEF( 7 )
+#define MADNESS_FN_TYPEDEF9 \
+    MADNESS_FN_TYPEDEF8 \
+    MADNESS_FN_TYPEDEF( 8 )
+#define MADNESS_FN_TYPEDEF10 \
+    MADNESS_FN_TYPEDEF9 \
+    MADNESS_FN_TYPEDEF( 9 )
 
-#define MADNESS_MEM_FN_TYPEDEF_LIST( N ) MADNESS_MEM_FN_TYPEDEF##N
+#define MADNESS_FN_TYPEDEF_LIST( N ) MADNESS_FN_TYPEDEF##N
 
-#define MADNESS_MEM_FN_CONST const
-#define MADNESS_MEM_FN_NO_CONST
+#define MADNESS_FN_CONST const
+#define MADNESS_FN_NO_CONST
 
 
     template <typename fnT, typename Enable = void>
@@ -126,15 +126,15 @@ namespace madness {
 
 // Macros for generating PtrFn objects
 #define MADNESS_PTR_FN( ARITY ) \
-    template < MADNESS_LIST_PREFIX( typename resT , MADNESS_MEM_FN_TPARAM , ARITY ) > \
-    struct PtrFn< resT(*)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ),       \
+    template < MADNESS_LIST_PREFIX( typename resT , MADNESS_FN_TPARAM , ARITY ) > \
+    struct PtrFn< resT(*)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ),           \
             typename disable_if<std::is_void<resT> >::type  >                   \
     {                                                                           \
         static const int arity = ARITY;                                         \
         static const bool value = true;                                         \
         typedef resT result_type;                                               \
-        MADNESS_MEM_FN_TYPEDEF_LIST( ARITY )                                    \
-        typedef resT(*fn_type)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) );  \
+        MADNESS_FN_TYPEDEF_LIST( ARITY )                                        \
+        typedef resT(*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) );      \
                                                                                 \
     private:                                                                    \
         fn_type fn_;                                                            \
@@ -143,23 +143,23 @@ namespace madness {
         PtrFn() : fn_(0) { }                                                    \
         PtrFn(fn_type fn) : fn_(fn) { }                                         \
                                                                                 \
-        resT operator()( MADNESS_LIST( MADNESS_MEM_FN_PARAM , ARITY )  ) const { \
+        resT operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
             MADNESS_ASSERT(fn_);                                                \
-            return fn_( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );           \
+            return fn_( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );               \
         }                                                                       \
                                                                                 \
         template <typename Archive>                                             \
         void serialize(Archive& ar) { ar & archive::wrap_opaque(fn_); }         \
     };                                                                          \
                                                                                 \
-    template < MADNESS_LIST( MADNESS_MEM_FN_TPARAM , ARITY ) >                  \
-    struct PtrFn< void(*)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ) >      \
+    template < MADNESS_LIST( MADNESS_FN_TPARAM , ARITY ) >                      \
+    struct PtrFn< void(*)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) >          \
     {                                                                           \
         static const int arity = ARITY;                                         \
         static const bool value = true;                                         \
         typedef void result_type;                                               \
-        MADNESS_MEM_FN_TYPEDEF_LIST( ARITY )                                    \
-        typedef void(*fn_type)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) );  \
+        MADNESS_FN_TYPEDEF_LIST( ARITY )                                        \
+        typedef void(*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) );      \
                                                                                 \
     private:                                                                    \
         fn_type fn_;                                                            \
@@ -168,9 +168,9 @@ namespace madness {
         PtrFn() : fn_(0) { }                                                    \
         PtrFn(fn_type fn) : fn_(fn) { }                                         \
                                                                                 \
-        void operator()( MADNESS_LIST( MADNESS_MEM_FN_PARAM , ARITY )  ) const { \
+        void operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
             MADNESS_ASSERT(fn_);                                                \
-            fn_( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );                  \
+            fn_( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );                      \
         }                                                                       \
                                                                                 \
         template <typename Archive>                                             \
@@ -198,16 +198,16 @@ namespace madness {
 
 // Macros for generating MemFn object types
 #define MADNESS_MEM_FN( ARITY , CONST ) \
-    template <typename resT, MADNESS_LIST_PREFIX( typename objT , MADNESS_MEM_FN_TPARAM , ARITY ) > \
-    struct MemFn< resT(objT::*)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ) CONST, \
-            typename disable_if<std::is_void<resT> >::type > \
+    template <typename resT, MADNESS_LIST_PREFIX( typename objT , MADNESS_FN_TPARAM , ARITY ) > \
+    struct MemFn< resT(objT::*)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST, \
+            typename disable_if<std::is_void<resT> >::type >                    \
     {                                                                           \
         static const int arity = ARITY;                                         \
         static const bool value = true;                                         \
         typedef resT result_type;                                               \
-        MADNESS_MEM_FN_TYPEDEF_LIST( ARITY )                                    \
+        MADNESS_FN_TYPEDEF_LIST( ARITY )                                        \
         typedef CONST objT object_type;                                         \
-        typedef resT(objT::*fn_type)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ) CONST; \
+        typedef resT(objT::*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST; \
                                                                                 \
     private:                                                                    \
         object_type* obj_;                                                      \
@@ -219,33 +219,33 @@ namespace madness {
         MemFn(object_type* obj, fn_type fn) : obj_(obj), fn_(fn) { }            \
         MemFn(fn_type fn) : obj_(NULL), fn_(fn) { }                             \
                                                                                 \
-        resT operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_MEM_FN_PARAM , ARITY ) ) const { \
+        resT operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
-            return (obj.*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );    \
+            return (obj.*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );        \
         }                                                                       \
                                                                                 \
-        resT operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_MEM_FN_PARAM , ARITY ) ) const { \
+        resT operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(obj);                                                \
             MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
-            return (obj->*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );   \
+            return (obj->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );       \
         }                                                                       \
                                                                                 \
-        resT operator()( MADNESS_LIST( MADNESS_MEM_FN_PARAM , ARITY )  ) const { \
+        resT operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
             MADNESS_ASSERT(obj_);                                               \
             MADNESS_ASSERT(fn_);                                                \
-            return (obj_->*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );  \
+            return (obj_->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );      \
         }                                                                       \
                                                                                 \
         template <typename Archive>                                             \
-        void serialize(Archive& ar) { serialize_<object_type>(ar); }            \
+        void serialize(Archive& ar) { serialize_<objT>(ar); }                   \
                                                                                 \
     private:                                                                    \
         template <typename T, typename Archive>                                 \
         typename enable_if<std::is_base_of<WorldObject<T>, T> >::type           \
         serialize_(Archive& ar) {                                               \
-            ar & static_cast<WorldObject<T> >(obj_)                             \
+            ar & static_cast<CONST WorldObject<T>* >(obj_)                      \
                 & archive::wrap_opaque(fn_);                                    \
         }                                                                       \
                                                                                 \
@@ -257,15 +257,15 @@ namespace madness {
         }                                                                       \
     };                                                                          \
                                                                                 \
-    template < MADNESS_LIST_PREFIX( typename objT , MADNESS_MEM_FN_TPARAM , ARITY ) > \
-    struct MemFn< void(objT::*)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ) CONST > \
+    template < MADNESS_LIST_PREFIX( typename objT , MADNESS_FN_TPARAM , ARITY ) > \
+    struct MemFn< void(objT::*)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST > \
     {                                                                           \
         static const int arity = ARITY;                                         \
         static const bool value = true;                                         \
         typedef void result_type;                                               \
-        MADNESS_MEM_FN_TYPEDEF_LIST( ARITY )                                    \
+        MADNESS_FN_TYPEDEF_LIST( ARITY )                                        \
         typedef CONST objT object_type;                                         \
-        typedef void(objT::*fn_type)( MADNESS_LIST( MADNESS_MEM_FN_TYPE , ARITY ) ) CONST; \
+        typedef void(objT::*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST; \
                                                                                 \
     private:                                                                    \
         object_type* obj_;                                                      \
@@ -277,33 +277,33 @@ namespace madness {
         MemFn(object_type* obj, fn_type fn) : obj_(obj), fn_(fn) { }            \
         MemFn(fn_type fn) : obj_(NULL), fn_(fn) { }                             \
                                                                                 \
-        void operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_MEM_FN_PARAM , ARITY ) ) const { \
+        void operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
-            (obj.*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );           \
+            (obj.*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );               \
         }                                                                       \
                                                                                 \
-        void operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_MEM_FN_PARAM , ARITY ) ) const { \
+        void operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(obj);                                                \
             MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
-            (obj->*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );          \
+            (obj->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );              \
         }                                                                       \
                                                                                 \
-        void operator()( MADNESS_LIST( MADNESS_MEM_FN_PARAM , ARITY )  ) const { \
+        void operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
             MADNESS_ASSERT(obj_);                                               \
             MADNESS_ASSERT(fn_);                                                \
-            (obj_->*fn_)( MADNESS_LIST( MADNESS_MEM_FN_ARG , ARITY ) );         \
+            (obj_->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );             \
         }                                                                       \
                                                                                 \
         template <typename Archive>                                             \
-        void serialize(Archive& ar) { serialize_<object_type>(ar); }            \
+        void serialize(Archive& ar) { serialize_<objT>(ar); }                   \
                                                                                 \
     private:                                                                    \
         template <typename T, typename Archive>                                 \
         typename enable_if<std::is_base_of<WorldObject<T>, T> >::type           \
         serialize_(Archive& ar) {                                               \
-            ar & static_cast<WorldObject<T> >(obj_)                             \
+            ar & static_cast<CONST WorldObject<T>* >(obj_)                      \
                     & archive::wrap_opaque(fn_);                                \
         }                                                                       \
                                                                                 \
@@ -317,31 +317,31 @@ namespace madness {
 
     // Generate MemFn object types for member functions that take 0 to 10
     // parameters and return a type
-    MADNESS_MEM_FN( 0 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 1 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 2 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 3 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 4 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 5 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 6 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 7 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 8 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 9 , MADNESS_MEM_FN_NO_CONST )
-    MADNESS_MEM_FN( 10 , MADNESS_MEM_FN_NO_CONST )
+    MADNESS_MEM_FN( 0 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 1 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 2 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 3 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 4 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 5 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 6 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 7 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 8 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 9 , MADNESS_FN_NO_CONST )
+    MADNESS_MEM_FN( 10 , MADNESS_FN_NO_CONST )
 
     // Generate MemFn object types for const member functions that take 0 to 10
     // parameters and return a type
-    MADNESS_MEM_FN( 0 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 1 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 2 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 3 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 4 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 5 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 6 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 7 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 8 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 9 , MADNESS_MEM_FN_CONST )
-    MADNESS_MEM_FN( 10 , MADNESS_MEM_FN_CONST )
+    MADNESS_MEM_FN( 0 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 1 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 2 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 3 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 4 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 5 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 6 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 7 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 8 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 9 , MADNESS_FN_CONST )
+    MADNESS_MEM_FN( 10 , MADNESS_FN_CONST )
 
     /// Member function factory
 
@@ -424,29 +424,27 @@ namespace madness {
 #undef MADNESS_LIST9
 #undef MADNESS_LIST10
 #undef MADNESS_LIST
-#undef MADNESS_MEM_FN_TYPE
-#undef MADNESS_MEM_FN_ARG
-#undef MADNESS_MEM_FN_PARAM
-#undef MADNESS_MEM_FN_TPARAM
-#undef MADNESS_MEM_FN_TYPEDEF
-#undef MADNESS_MEM_FN_TYPEDEF0
-#undef MADNESS_MEM_FN_TYPEDEF1
-#undef MADNESS_MEM_FN_TYPEDEF2
-#undef MADNESS_MEM_FN_TYPEDEF3
-#undef MADNESS_MEM_FN_TYPEDEF4
-#undef MADNESS_MEM_FN_TYPEDEF5
-#undef MADNESS_MEM_FN_TYPEDEF6
-#undef MADNESS_MEM_FN_TYPEDEF7
-#undef MADNESS_MEM_FN_TYPEDEF8
-#undef MADNESS_MEM_FN_TYPEDEF9
-#undef MADNESS_MEM_FN_TYPEDEF10
-#undef MADNESS_MEM_FN_TYPEDEF_LIST
-#undef MADNESS_MEM_FN_CONST
-#undef MADNESS_MEM_FN_NO_CONST
+#undef MADNESS_FN_TYPE
+#undef MADNESS_FN_ARG
+#undef MADNESS_FN_PARAM
+#undef MADNESS_FN_TPARAM
+#undef MADNESS_FN_TYPEDEF
+#undef MADNESS_FN_TYPEDEF0
+#undef MADNESS_FN_TYPEDEF1
+#undef MADNESS_FN_TYPEDEF2
+#undef MADNESS_FN_TYPEDEF3
+#undef MADNESS_FN_TYPEDEF4
+#undef MADNESS_FN_TYPEDEF5
+#undef MADNESS_FN_TYPEDEF6
+#undef MADNESS_FN_TYPEDEF7
+#undef MADNESS_FN_TYPEDEF8
+#undef MADNESS_FN_TYPEDEF9
+#undef MADNESS_FN_TYPEDEF10
+#undef MADNESS_FN_TYPEDEF_LIST
+#undef MADNESS_FN_CONST
+#undef MADNESS_FN_NO_CONST
 #undef MADNESS_PTR_FN
-#undef MADNESS_PTR_FN_VOID
 #undef MADNESS_MEM_FN
-#undef MADNESS_MEM_FN_VOID
 
     // Provide serialization for standard library functional types
     namespace archive {
