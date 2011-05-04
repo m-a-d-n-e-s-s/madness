@@ -206,6 +206,17 @@ namespace madness {
 
     } // namespace
 
+    namespace detail {
+
+        // Remove Future, const, volatile, and reference qualifiers from the type
+        template <typename T>
+        struct remove_fcvr{
+            typedef typename remove_future< typename std::remove_cv<
+                    typename std::remove_reference<T>::type >::type >::type type;
+        };
+
+    }  // namespace detail
+
 
     /// Task function base class
 
@@ -217,7 +228,7 @@ namespace madness {
     public:
 
         typedef fnT functionT;                          ///< The task function type
-        typedef typename remove_future<typename result_of<fnT>::type>::type resultT;
+        typedef typename detail::remove_fcvr<typename result_of<fnT>::type>::type resultT;
                                                         ///< The result type of the function
         typedef Future<resultT> futureT;                ///< The future result type for the task function
         typedef typename futureT::remote_refT refT;     ///< The remote reference type for the task result future

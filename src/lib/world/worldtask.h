@@ -57,27 +57,20 @@ namespace madness {
             arg5_type, arg6_type, arg7_type, arg8_type, arg9_type> TaskFn_;
                                                 ///< This class type
 
-        // Remove Future, const, volatile, and reference qualifiers from the type
-        template <typename T>
-        struct remove_fcvr{
-            typedef typename remove_future< typename std::remove_cv<
-                    typename std::remove_reference<T>::type >::type >::type type;
-        };
-
     public:
         typedef typename TaskFnBase_::functionT functionT;  ///< The function type
         typedef typename TaskFnBase_::resultT resultT;      ///< The result type (give by the fuction)
         typedef typename TaskFnBase_::futureT futureT;      ///< Result future type
         typedef typename TaskFnBase_::refT refT;            ///< Remote reference to the result future type
-        typedef typename remove_fcvr<arg1_type>::type arg1T;///< Argument 1 type
-        typedef typename remove_fcvr<arg2_type>::type arg2T;///< Argument 2 type
-        typedef typename remove_fcvr<arg3_type>::type arg3T;///< Argument 3 type
-        typedef typename remove_fcvr<arg4_type>::type arg4T;///< Argument 4 type
-        typedef typename remove_fcvr<arg5_type>::type arg5T;///< Argument 5 type
-        typedef typename remove_fcvr<arg6_type>::type arg6T;///< Argument 6 type
-        typedef typename remove_fcvr<arg7_type>::type arg7T;///< Argument 7 type
-        typedef typename remove_fcvr<arg8_type>::type arg8T;///< Argument 8 type
-        typedef typename remove_fcvr<arg9_type>::type arg9T;///< Argument 9 type
+        typedef typename detail::remove_fcvr<arg1_type>::type arg1T;///< Argument 1 type
+        typedef typename detail::remove_fcvr<arg2_type>::type arg2T;///< Argument 2 type
+        typedef typename detail::remove_fcvr<arg3_type>::type arg3T;///< Argument 3 type
+        typedef typename detail::remove_fcvr<arg4_type>::type arg4T;///< Argument 4 type
+        typedef typename detail::remove_fcvr<arg5_type>::type arg5T;///< Argument 5 type
+        typedef typename detail::remove_fcvr<arg6_type>::type arg6T;///< Argument 6 type
+        typedef typename detail::remove_fcvr<arg7_type>::type arg7T;///< Argument 7 type
+        typedef typename detail::remove_fcvr<arg8_type>::type arg8T;///< Argument 8 type
+        typedef typename detail::remove_fcvr<arg9_type>::type arg9T;///< Argument 9 type
 
         static const unsigned int arity;    ///< The number of arguments given for the function
                                             ///< \note This may not match the arity of the function
