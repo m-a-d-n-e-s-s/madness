@@ -148,9 +148,9 @@ namespace madness {
     			const Tensor<double>& r1=ops[mu].getop(1)->rnlij(n,l1);
     			const Tensor<double>& r2=ops[mu].getop(2)->rnlij(n,l2);
 
-    			const double norm0=r0.normf();
-    			const double norm1=r1.normf();
-    			const double norm2=r2.normf();
+//    			const double norm0=r0.normf();
+//    			const double norm1=r1.normf();
+//    			const double norm2=r2.normf();
 //    			if (norm0*norm1*norm2*ops[mu].getfac() > thresh/rank) {
 
 					const Tensor<double> r01=outer(r0,r1*ops[mu].getfac());

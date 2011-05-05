@@ -493,13 +493,13 @@ namespace madness {
         }
 
         /// Accumulate inplace and if necessary connect node to parent
-        Void accumulate(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
-        		const Key<NDIM>& key, const TensorArgs& args) {
+        Void accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        		const Key<NDIM>& key) {
 
             if (has_coeff()) {
             	MADNESS_ASSERT(coeff().type()==TT_FULL);
 //            	if (coeff().type==TT_FULL) {
-            		coeff() += coeffT(t,-1.0,TT_FULL);
+        		coeff() += coeffT(t,-1.0,TT_FULL);
 //            	} else {
 //            		tensorT cc=coeff().full_tensor_copy();;
 //            		cc += t;
@@ -511,6 +511,38 @@ namespace madness {
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
             	coeff() = coeffT(t,-1.0,TT_FULL);
+//                coeff() = copy(t);
+//                coeff() = coeffT(t,args);
+                if ((!_has_children) && key.level()> 0) {
+                    Key<NDIM> parent = key.parent();
+                    const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
+                }
+            }
+            return None;
+        }
+
+
+        /// Accumulate inplace and if necessary connect node to parent
+        Void accumulate(const coeffT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        		const Key<NDIM>& key, const TensorArgs& args) {
+
+            if (has_coeff()) {
+            	MADNESS_ASSERT(coeff().type()==TT_FULL);
+//            	if (coeff().type==TT_FULL) {
+//        		coeff() += coeffT(t,-1.0,TT_FULL);
+            		coeff() += t;
+//            	} else {
+//            		tensorT cc=coeff().full_tensor_copy();;
+//            		cc += t;
+//            		coeff()=coeffT(cc,args);
+//            	}
+            }
+            else {
+                // No coeff and no children means the node is newly
+                // created for this operation and therefore we must
+                // tell its parent that it exists.
+//            	coeff() = coeffT(t,-1.0,TT_FULL);
+            	coeff() = t;
 //                coeff() = copy(t);
 //                coeff() = coeffT(t,args);
                 if ((!_has_children) && key.level()> 0) {
@@ -2138,7 +2170,9 @@ namespace madness {
 	        // new coeffs are simply the hartree/kronecker/outer product
 	        tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
 
-            coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
+	        coeffT bla=coeffT(tcube,targs);
+	        nodeT no=nodeT(coeffT(tcube,targs),false);
+	        coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
 
 			return None;
 
@@ -2834,7 +2868,7 @@ namespace madness {
             if (result.normf()> 0.3*args.tol/args.fac) {
                 // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
-                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, targs, TaskAttributes::hipri());
+                coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
             }
             return None;
         }
@@ -2882,7 +2916,7 @@ namespace madness {
                         } else {
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, targs, TaskAttributes::hipri());
+                                coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
                             }
                         }
                     } else if (d.distsq() >= 1)
@@ -2985,7 +3019,7 @@ namespace madness {
 							// to reduce the rank at the end, and we can't keep track of
 							// which nodes have already been processed
 //							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
-							tensorT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm);
+							coeffT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm);
 //							tensorT result = op->apply(source, d, fnode.full_tensor_reference(), tol/fac/cnorm);
 
 							// accumulate the result on this node

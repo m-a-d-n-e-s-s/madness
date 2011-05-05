@@ -3,8 +3,9 @@
 /// \brief test the SeparatedRepresentation (SepRep) for representing matrices
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "mra/seprep.h"
-#include "mra/mra.h"
+//#include "mra/seprep.h"
+//#include "mra/mra.h"
+#include "mra/gentensor.h"
 
 using namespace madness;
 
@@ -274,7 +275,6 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	return nerror;
 }
 
-
 int testGenTensor_update(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 	print("entering update");
@@ -382,23 +382,51 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 
 	// test rank-1 + rank-6
 	{
-		SepRep<double> sr0(TT_2D,k,dim);
-		SepRep<double> sr1(TT_2D,k,dim);
-		SepRep<double> sr2(TT_2D,k,dim);
+		GenTensor<double> sr0(TT_2D,k,dim);
+		GenTensor<double> sr1(TT_2D,k,dim);
+		GenTensor<double> sr2(TT_2D,k,dim);
 		sr0.fillrandom(1);
 		sr1.fillrandom(4);
 		sr2.fillrandom(5);
 
-		t0=sr0.reconstructTensor();
+		t0=sr0.reconstruct_tensor();
 		sr0.update_by(sr1);
 		sr0.update_by(sr2);
 		sr0.finalize_accumulate();
 
-		t0+=sr1.reconstructTensor();
-		t0+=sr2.reconstructTensor();
+		t0+=sr1.reconstruct_tensor();
+		t0+=sr2.reconstruct_tensor();
 
-		norm=(sr0.reconstructTensor()-t0).normf();
+		norm=(sr0.reconstruct_tensor()-t0).normf();
 		print(ok(is_small(norm,eps)),"update rank-2 + rank-4/5   ",norm);
+		if (!is_small(norm,eps)) nerror++;
+
+	}
+
+	// test accumulate_into (low rank)
+	{
+		GenTensor<double> sr0(TT_2D,k,dim);
+		GenTensor<double> sr1(TT_2D,k,dim);
+		GenTensor<double> sr2(TT_2D,k,dim);
+		GenTensor<double> sr3(TT_2D,k,dim);
+		sr0.fillrandom(2);
+		sr1.fillrandom(4);
+		sr2.fillrandom(5);
+		sr3=copy(sr1);
+
+		t0=sr0.reconstruct_tensor();
+		t0+=sr1.reconstruct_tensor();
+		t0+=sr2.reconstruct_tensor();
+		t0+=sr3.reconstruct_tensor();
+
+		sr0.config().orthonormalize();
+
+		sr1.accumulate_into(sr0);
+		sr2.accumulate_into(sr0);
+		sr3.accumulate_into(sr0);
+
+		norm=(sr0.reconstruct_tensor()-t0).normf();
+		print(ok(is_small(norm,eps)),"accumulate_into (low rank) ",norm);
 		if (!is_small(norm,eps)) nerror++;
 
 	}
@@ -407,7 +435,6 @@ int testGenTensor_update(const long& k, const long& dim, const double& eps, cons
 	print("all done\n");
 	return nerror;
 }
-
 
 int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
@@ -423,30 +450,30 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 
 	{
 		//					tt	 k d
-		SepRep<double> sr1(TT_2D,4,2);
+		GenTensor<double> sr1(TT_2D,4,2);
 		sr1.fillrandom(2);
 	//    sr1.config().weights_[1]*=3.0;
 	//    sr1.config().vector_[0](1,2)*=4.e2;
-		Tensor<double> t=sr1.reconstructTensor();
+		Tensor<double> t=sr1.reconstruct_tensor();
 
-		SepRep<double> sr2(TT_2D,4,2);
+		GenTensor<double> sr2(TT_2D,4,2);
 		sr2.fillrandom();
 
 		sr2.config().vector_[0].fillrandom()*2.0;
 		sr1+=sr2;
-		t+=sr2.reconstructTensor();
+		t+=sr2.reconstruct_tensor();
 
 		sr2.config().vector_[0].fillrandom();
 		sr1+=sr2;
-		t+=sr2.reconstructTensor();
+		t+=sr2.reconstruct_tensor();
 
 		sr2.config().vector_[0].fillrandom();
 		sr1+=sr2;
-		t+=sr2.reconstructTensor();
+		t+=sr2.reconstruct_tensor();
 
 		sr1.config().orthonormalize();
 
-		Tensor<double> t3=sr1.reconstructTensor();
+		Tensor<double> t3=sr1.reconstruct_tensor();
 //		print("t,t3");
 //		print(t);
 //		print(t3);
@@ -461,8 +488,6 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 	print("all done\n");
 	return nerror;
 }
-
-
 
 int testGenTensor_transform(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 

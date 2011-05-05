@@ -173,7 +173,7 @@ namespace madness {
                                   GenTensor<R>& work2,
                                   GenTensor<Q>& work3,
                                   const Q mufac,
-                                  Tensor<R>& result) const {
+                                  GenTensor<R>& result) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 
@@ -319,8 +319,8 @@ namespace madness {
         void muopxv_fast2(Level n,
                          const ConvolutionData1D<Q>* const ops[NDIM],
                          const GenTensor<T>& f, const GenTensor<T>& f0,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
-                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                         GenTensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
                          double tol,
                          const Q mufac,
                          GenTensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
@@ -674,7 +674,7 @@ namespace madness {
 
 
         template <typename T>
-        Tensor<TENSOR_RESULT_TYPE(T,Q)> apply2(const Key<NDIM>& source,
+        GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2(const Key<NDIM>& source,
                                               const Key<NDIM>& shift,
                                               const GenTensor<T>& coeff,
                                               double tol) const {
@@ -705,7 +705,7 @@ namespace madness {
 
             //print("sepop",source,shift,op->norm,tol);
 
-            Tensor<resultT> r(v2k), r0(vk);
+            GenTensor<resultT> r(v2k,tt), r0(vk,tt);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
     //        GenTensor<Q> work5(2*k,2*k);
             GenTensor<Q> work5(v2k,tt);

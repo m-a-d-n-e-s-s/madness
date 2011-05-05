@@ -109,7 +109,7 @@ namespace madness {
 			} else {
 				MADNESS_ASSERT(0);
 			}
-			MADNESS_ASSERT(this->configs_.has_structure() or this->rank()==0);
+			MADNESS_ASSERT(this->rank()==0 or this->configs_.has_structure());
 
 		}
 
@@ -141,6 +141,7 @@ namespace madness {
 			MADNESS_ASSERT(&(*this)!=&rhs);
 
 			configs_+=rhs.configs_;
+//			rhs.accumulate_into(*this,1.0);
 			return *this;
 		}
 
@@ -659,6 +660,12 @@ namespace madness {
 			Tensor<T> s2=s.reshape(dim,d);
 
 			return s2;
+		}
+
+		/// accumulate this into t
+		void accumulate_into(SepRep<T>& t, const double fac) const {
+			t.configs_.low_rank_add_sequential(this->configs_);
+//			t.configs_.low_rank_add(this->configs_);
 		}
 
 		/// reconstruct this to full rank, and accumulate into t

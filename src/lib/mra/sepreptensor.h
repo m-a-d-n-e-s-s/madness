@@ -291,8 +291,9 @@ namespace madness {
 				print("damn");
 				MADNESS_ASSERT(this->_ptr->type()==rhs._ptr->type());
 			}
-			const std::vector<Slice> s(this->ndim(),Slice(_));
-			this->_ptr->inplace_add(rhs._ptr.get(),s,s);
+			rhs.accumulate_into(*this,1.0);
+//			const std::vector<Slice> s(this->ndim(),Slice(_));
+//			this->_ptr->inplace_add(rhs._ptr.get(),s,s);
 			return *this;
 
 		}
@@ -385,8 +386,18 @@ namespace madness {
 	    	_ptr->accumulate_into(t,fac);
 	    }
 
+	    /// accumulate this into t
+	    void accumulate_into(GenTensor<T>& t, const double fac) const {
+	    	_ptr->accumulate_into(t._ptr.get(),fac);
+	    }
+
 	    /// accumulate this into t, reconstruct this if necessary
 	    void accumulate_into(Tensor<T>& t, const std::complex<double> fac) const {
+	    	MADNESS_EXCEPTION("GenTensor::accumulate_into only with double fac",0);
+	    }
+
+	    /// accumulate this into t
+	    void accumulate_into(GenTensor<T>& rhs, const std::complex<double> fac) const {
 	    	MADNESS_EXCEPTION("GenTensor::accumulate_into only with double fac",0);
 	    }
 
@@ -660,6 +671,9 @@ namespace madness {
     	/// accumulate this into t, reconstruct this if necessary
 	    virtual void accumulate_into(Tensor<T>& t, const double fac) const = 0;
 
+	    /// accumulate this into t
+	    virtual void accumulate_into(SepRepTensor<T>* t, const double fac) const = 0;
+
     };
 
     template<typename T>
@@ -856,6 +870,12 @@ namespace madness {
 	    /// accumulate this into t, reconstruct this if necessary
 	    void accumulate_into(Tensor<T>& t, const double fac) const {
 	    	_data.accumulate_into(t,fac);
+	    }
+
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(SepRepTensor<T>* t, const double fac) const {
+	    	LowRankTensor<T>* other=dynamic_cast<LowRankTensor<T>* >(t);
+	    	_data.accumulate_into(other->_data,fac);
 	    }
 
 		void finalize_accumulate() {_data.finalize_accumulate();}
@@ -1062,7 +1082,14 @@ namespace madness {
 
 	    /// accumulate this into t, reconstruct this if necessary
 	    void accumulate_into(Tensor<T>& t, const double fac) const {
-	    	t.gaxpy(1.0,t,fac);
+	    	t.gaxpy(1.0,data,fac);
+	    }
+
+	    /// accumulate this into t, reconstruct this if necessary
+	    void accumulate_into(SepRepTensor<T>* rhs, const double fac) const {
+	    	MADNESS_ASSERT(this->type()==rhs->type());
+	    	FullTensor<T>* rhs2=dynamic_cast<FullTensor<T>* >(rhs);
+	    	rhs2->data.gaxpy(1.0,this->data,fac);
 	    }
 
     private:

@@ -40,11 +40,13 @@
 #include "tensor/tensor.h"
 #include "mra/funcdefaults.h"
 #include <linalg/clapack.h>
+#include <linalg/tensor_lapack.h>
 
 namespace madness {
 
 	/// return the number of vectors (i.e. dim_eff) according to the TensorType
 	static unsigned int compute_nvec(const TensorType& tt) {
+		if (tt==TT_FULL) return 1;
 		if (tt==TT_2D) return 2;
 		if (tt==TT_3D) return 3;
 		print("unknown TensorType",tt);
@@ -109,7 +111,6 @@ namespace madness {
 		SRConf(const TensorType& tt) : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(tt), updating_(false) {
 		};
 
-
 		/// ctor with dimensions for a vector configuration (tested)
 		SRConf(const unsigned int& dim, const unsigned int& k, const TensorType& tt)
 			: dim_(dim)
@@ -130,31 +131,10 @@ namespace madness {
 			make_structure();
 		}
 
-
-		/// ctor with dimensions for a vector configuration (tested)
-		SRConf(const unsigned int& dim, const unsigned int& k, const unsigned int& rank, const TensorType& tt)
-			: dim_(dim)
-			, rank_(0)
-			, maxk_(k)
-			, tensortype_(tt)
-			, updating_(false) {
-
-			// make sure dim is integer multiple of requested TT
-			const unsigned int nvec=compute_nvec(tt);
-			MADNESS_ASSERT(dim%nvec==0);
-
-			// construct empty vector
-			weights_=Tensor<double>(rank);
-			vector_=std::vector<Tensor<T> > (nvec);
-			for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(rank,this->kVec());
-			make_structure();
-		}
-
 		/// copy ctor (tested); shallow copy
 		SRConf(const SRConf& rhs)  {
 			*this=rhs;
 		}
-
 
 		/// ctor with provided weights and effective vectors; shallow copy
 		SRConf(const Tensor<double>& weights, const std::vector<Tensor<T> >& vectors,
@@ -182,6 +162,34 @@ namespace madness {
 			make_slices();
 		}
 
+		/// explicit ctor with one vector (aka full representation), shallow
+		SRConf(const tensorT& vector1)
+			: dim_(vector1.ndim())
+			, weights_(Tensor<double>())
+			, rank_(-1)
+			, maxk_(vector1.dim(0))
+			, tensortype_(TT_FULL)
+			, updating_(false) {
+
+			vector_.resize(1);
+			vector_[0]=vector1;
+		}
+
+		/// explicit ctor with two vectors (aka SVD), shallow
+		SRConf(const Tensor<double>& weights, const tensorT& vector1, const tensorT& vector2,
+				const unsigned int& dim, const unsigned int maxk)
+			: dim_(vector1.ndim())
+			, maxk_(vector1.dim(0))
+			, tensortype_(TT_2D)
+			, updating_(false) {
+
+			vector_.resize(2);
+			vector_[0]=vector1;
+			vector_[1]=vector2;
+			weights_=weights;
+			rank_=weights.dim(0);
+		}
+
 		/// assignment operator (tested), shallow copy of vectors
 		SRConf& operator=(const SRConf& rhs)  {
 
@@ -196,13 +204,20 @@ namespace madness {
 			maxk_=rhs.maxk_;
 			s_=rhs.s_;
 
-			if (rhs.rank()==0) {
+			if (rhs.has_no_data()) {
 				// construct empty vector
 				weights_=Tensor<double>(0);
 				vector_=std::vector<Tensor<T> > (rhs.dim_eff());
+				rank_=0;
 				for (unsigned int idim=0; idim<dim_eff(); idim++) vector_[idim]=Tensor<T>(0,this->kVec());
 				make_structure();
 
+
+			} else if (rhs.type()==TT_FULL) {
+				weights_=Tensor<double>();
+				rank_=-1;
+				vector_.resize(1);
+				vector_[0]=rhs.ref_vector(0);
 
 			} else {
 				// assign vectors; shallow copy
@@ -213,7 +228,6 @@ namespace madness {
 
 				// shallow copy
 				weights_=(rhs.weights_);
-
 				rank_=rhs.rank();
 
 				// consistency check
@@ -231,12 +245,21 @@ namespace madness {
 			s_.clear();
 		}
 
+		/// does this have any data
+		bool has_data() const {
+			if (tensortype_==TT_FULL) return (vector_[0].size()!=0);
+			return rank()>0;
+		}
+
+		///
+		bool has_no_data() const {return !has_data();}
+
 		/// reserve enough space to hold at least r configurations
 		void reserve(long r) {
 
 			// this should at least hold the current information
 			MADNESS_ASSERT(r>=this->rank());
-			MADNESS_ASSERT(this->rank()==0 or vector_.size()>0);
+			MADNESS_ASSERT(has_data() or vector_.size()>0);
 
 			// fast return if possible
 			// nothing to be done
@@ -281,10 +304,10 @@ namespace madness {
 		SRConf& operator+=(const SRConf& rhs) {
 
 			// fast return if possible
-			if (this->rank()==0) {
+			if (this->has_no_data()) {
 				*this=copy(rhs);
 				return *this;
-			} else if (rhs.rank()==0) {
+			} else if (rhs.has_no_data()) {
 				return *this;
 			}
 
@@ -568,7 +591,11 @@ namespace madness {
 		/// orthonormalize this
 		void orthonormalize() {
 
-			if (rank()==0 or rank()==1) return;
+			if (has_no_data()) return;
+			if (rank()==1) {
+				normalize_and_shift_weights_to_x();
+				return;
+			}
 			vector_[0]=vector_[0](c0());
 			vector_[1]=vector_[1](c0());
 
@@ -584,7 +611,7 @@ namespace madness {
 		/// x1 y1 += x2 y2
 		void project_and_orthogonalize(SRConf<T>& rhs) {
 
-			if (rhs.rank()==0) return;
+			if (rhs.has_no_data()) return;
 
 			// aliasing for clarity
 			tensorT x1=vector_[0](c0());
@@ -637,8 +664,8 @@ namespace madness {
 		void append(const SRConf<T>& rhs) {
 
 			// fast return if possible
-			if (rhs.rank()==0) return;
-			if (this->rank()==0) {
+			if (rhs.has_no_data()) return;
+			if (this->has_no_data()) {
 				*this=copy(rhs);
 				return;
 			}
@@ -668,19 +695,37 @@ namespace madness {
 		/// this and rhs2 must be orthonormalized
 		void low_rank_add(const SRConf<T>& rhs2) {
 
-			if (rhs2.rank()==0) return;
+			if (rhs2.has_no_data()) return;
 			SRConf<T> rhs=copy(rhs2);
+			rhs.undo_structure();
+			this->undo_structure();
+
+			rhs.orthonormalize();
+			this->orthonormalize();
 
 			this->project_and_orthogonalize(rhs);
 			rhs.orthonormalize();
 			this->append(rhs);
 		}
 
-		void low_rank_add_sequential(const SRConf<T>& rhs) {
+		void low_rank_add_sequential(const SRConf<T>& rhs2) {
 
 //			MADNESS_EXCEPTION("srconf::low_rank_add_sequential not yet working",0);
-			if (rhs.rank()==0) return;
-			MADNESS_ASSERT(rhs.is_flat());
+			if (rhs2.has_no_data()) return;
+
+			this->undo_structure();
+			this->orthonormalize();
+
+			if (this->has_no_data()) {
+				*this=copy(rhs2);
+				undo_structure();
+				orthonormalize();
+				return;
+			}
+
+			SRConf<T> rhs=copy(rhs2);
+			rhs.undo_structure();
+			rhs.normalize_and_shift_weights_to_x();
 
 			const double thresh=1.e-8;
 
@@ -693,7 +738,7 @@ namespace madness {
 				one_term.rank_=1;
 				one_term.make_slices();
 				this->project_and_orthogonalize(one_term);
-				one_term.normalize_and_shift_weights_to_y();
+				one_term.normalize_and_shift_weights_to_x();
 				if (one_term.weights(0)>thresh) {
 					this->append(one_term);
 				}
@@ -709,16 +754,24 @@ namespace madness {
 
 			// fast return if possible; no fast return for this.rank()==0
 			// since we might work with slices!
-			if (rhs2.rank()==0) return;
+			if (rhs2.has_no_data()) return;
 
+			// fast return for full rank tensors
+			if (type()==TT_FULL) {
+				vector_[0](lhs_s)+=rhs2.vector_[0](rhs_s);
+				return;
+			}
 
 			// unflatten this and rhs; shallow wrt vector_
 			SRConf<T>& lhs=*this;
 			const SRConf<T>& rhs=rhs2;
-			if (lhs.rank()==0) lhs.make_structure(true);
-			MADNESS_ASSERT(lhs.has_structure() or (lhs.rank()==0));
+			if (lhs.has_no_data()) lhs.make_structure(true);
+			MADNESS_ASSERT(lhs.has_structure() or (lhs.has_no_data()));
 			MADNESS_ASSERT(rhs.has_structure());
 			MADNESS_ASSERT(not updating_ or rhs2.updating_);
+
+			// conficts with lhs_s ??
+			MADNESS_ASSERT(alpha==1.0);
 
 			// for convenience
 			const long lhsRank=lhs.rank();
@@ -778,9 +831,11 @@ namespace madness {
 		friend SRConf<T> copy(const SRConf<T>& rhs) {
 
 			// if rhs is non-existent simply construct a new SRConf
-			if (rhs.rank()==0) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
+			if (rhs.has_no_data()) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
 
 			MADNESS_ASSERT(not rhs.updating_);
+
+			if (rhs.type()==TT_FULL) return SRConf<T>(copy(rhs.ref_vector(0)));
 
 			// pass a copy of the weights and vectors of rhs to ctor
 			std::vector<tensorT> vector(rhs.dim_eff());
@@ -816,7 +871,7 @@ namespace madness {
 
 		/// redo the Slices for getting direct access to the configurations
 		void make_slices() {
-			if (this->rank()==0) {
+			if (this->has_no_data()) {
 				s_.clear();
 			} else {
 				// first dim is the rank
@@ -831,7 +886,7 @@ namespace madness {
 		void make_structure(bool force=false) {
 
 			// fast return if rank is zero
-			if ((not force) and this->rank()==0) return;
+			if ((not force) and this->has_no_data()) return;
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
@@ -851,7 +906,7 @@ namespace madness {
 		void undo_structure(bool force=false) {
 
 			// fast return if rank is zero
-			if ((not force) and this->rank()==0) return;
+			if ((not force) and this->has_no_data()) return;
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
@@ -893,7 +948,10 @@ namespace madness {
 			}
 
 			this->normalize();
-			weights_(Slice(0,this->rank()-1))=1.0;
+			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
+				vector_[idim].scale(madness::RandomValue<T>()*10.0);
+			}
+			weights_(Slice(0,this->rank()-1)).fillrandom().scale(10.0);
 			make_slices();
 		}
 
@@ -925,15 +983,18 @@ namespace madness {
 		}
 
 		/// does what you think it does
-		void normalize_and_shift_weights_to_y() {
-			MADNESS_ASSERT(rank()==0 or dim_eff()==2);
+		void normalize_and_shift_weights_to_x() {
+			MADNESS_ASSERT(has_no_data() or dim_eff()==2);
 			for (unsigned int i=0; i<rank(); i++) {
 				double norm=vector_[1](i,Slice(_)).normf();
-				vector_[0](i,Slice(_)).scale(1.0/norm);
-				vector_[1](i,Slice(_)).scale(norm*weights(i));
+				double fac=1.0/norm;
+				if (norm<1.e-14) fac=0.0;
+				vector_[0](i,Slice(_)).scale(norm*weights(i));
+				vector_[1](i,Slice(_)).scale(fac);
 				weights_[i]=1.0;
 			}
 		}
+
 
 		/// return if this has only one additional dimension (apart from rank)
 		bool is_flat() const {
@@ -992,7 +1053,7 @@ namespace madness {
 			MADNESS_ASSERT(rhs.dim()>0);
 
 			// fast return if either rank is 0
-			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
+			if ((lhs.has_no_data()) or (rhs.has_no_data())) return 0.0;
 
 			const unsigned int dim_eff=rhs.dim_eff();
 
@@ -1055,9 +1116,18 @@ namespace madness {
 		/// The input dimensions of \c t must all be the same .
 		SRConf<T> transform(const Tensor<T>& c) const {
 
+			// fast return if possible
+			if (this->has_no_data()) {
+				return copy(*this);
+			}
+
+			// fast return for full rank tensor
+			if (type()==TT_FULL) {
+				return SRConf<T> (madness::transform(this->vector_[0],c));
+			}
+
 			// copying shrinks the vectors to (r,k,k,..)
 			SRConf<T> result=copy(*this);
-			if (this->rank()==0) return result;
 
 			// make sure this is not flattened
 			MADNESS_ASSERT(this->has_structure());
@@ -1083,9 +1153,14 @@ namespace madness {
 		/// The input dimensions of \c t must all be the same .
 		SRConf<T> general_transform(const Tensor<T> c[]) const {
 
+			// fast return if possible
+			if (this->has_no_data()) return SRConf<T>(copy(*this));
+			if (type()==TT_FULL) {
+				return SRConf<T> (madness::general_transform(this->vector_[0],c));
+			}
+
 			// copying shrinks the vectors to (r,k,k,..)
 			SRConf<T> result=copy(*this);
-			if (this->rank()==0) return result;
 
 			// make sure this is not flattened
 			if (not this->has_structure()) {
@@ -1111,9 +1186,17 @@ namespace madness {
 
 		SRConf<T> transform_dir(const Tensor<T>& c, const int& axis) const {
 
+			if (this->has_no_data()) {
+				return SRConf<T>(copy(*this));
+			}
+
+			// fast return for full rank tensor
+			if (type()==TT_FULL) {
+				return SRConf<T> (madness::transform_dir(this->vector_[0],c,axis));
+			}
+
 			// copying shrinks the vectors to (r,k,k,..)
 			SRConf<T> result=copy(*this);
-			if (this->rank()==0) return result;
 
 			// only a matrix is allowed for c
 			MADNESS_ASSERT(c.ndim()==2);
@@ -1327,7 +1410,7 @@ namespace madness {
 
 	/// orthonormalize and truncate right subspace (y) using symmetric orthogonalization
 	template<typename T>
-	static void ortho5(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights) {
+	void ortho5(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights) {
 
 		typedef Tensor<T> tensorT;
 
@@ -1337,7 +1420,9 @@ namespace madness {
 		// normalize x and turn its norm and the weights over to y
 		for (unsigned int i=0; i<rank; i++) {
 			double norm=x(i,Slice(_)).normf();
-			x(i,Slice(_)).scale(1.0/norm);
+			double fac=1.0/norm;
+			if (norm<1.e-14) fac=0.0;
+			x(i,Slice(_)).scale(fac);
 			y(i,Slice(_)).scale(norm*weights(i));
 		}
 
