@@ -37,6 +37,7 @@
 #define MADNESS_WORLD_WORLDTASK_H__INCLUDED
 
 #include <world/worldtaskqueue.h>
+#include <world/world.h>
 
 namespace madness {
 
@@ -393,140 +394,307 @@ namespace madness {
 
     // Task function factory functions
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \param fn The function to be run by the task queue
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT>
     TaskFnBase<fnT>* make_task(fnT fn, const TaskAttributes& attr = TaskAttributes()) {
-        typedef TaskFn<fnT> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn);
-        return task;
+        return new TaskFn<fnT>(typename TaskFnBase<fnT>::futureT(), fn, attr);
     }
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT, typename a1T>
     TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1);
-        return task;
+        return new TaskFn<fnT, a1T>(typename TaskFnBase<fnT>::futureT(), fn, a1,
+            attr);
     }
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT, typename a1T, typename a2T>
     TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T>(typename TaskFnBase<fnT>::futureT(), fn,
+            a1, a2, attr);
     }
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT, typename a1T, typename a2T, typename a3T>
     TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T>(typename TaskFnBase<fnT>::futureT(),
+            fn, a1, a2, a3, attr);
     }
 
-    template <typename fnT,typename a1T, typename a2T,
-        typename a3T, typename a4T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const TaskAttributes& attr = TaskAttributes())
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
+    template <typename fnT,typename a1T, typename a2T, typename a3T, typename a4T>
+    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+            const a4T& a4, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T>(typename TaskFnBase<fnT>::futureT(),
+            fn, a1, a2, a3, a4, attr);
     }
 
-    template <typename fnT, typename a1T, typename a2T,
-        typename a3T, typename a4T, typename a5T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const a5T& a5, const TaskAttributes& attr = TaskAttributes())
-    {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, attr);
-        return task;
-    }
+    /// Construct a task function
 
-    template <typename fnT, typename a1T, typename a2T, typename a3T,
-        typename a4T, typename a5T, typename a6T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \param a5 Task argument 5
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
+    template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+        typename a5T>
+    TaskFnBase<fnT>* make_task(fnT fn,
+            const a1T& a1, const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<typename result_of<fnT>::type, fnT, a1T, a2T, a3T, a4T, a5T, a6T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, a5, a6, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T, a5T>(
+            typename TaskFnBase<fnT>::futureT(), fn, a1, a2, a3, a4, attr);
     }
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \param a5 Task argument 5
+    /// \param a6 Task argument 6
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
+    template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+        typename a5T, typename a6T>
+    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+            const a4T& a4, const a5T& a5, const a6T& a6,
+            const TaskAttributes& attr = TaskAttributes())
+    {
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T>(
+            typename TaskFnBase<fnT>::futureT(), fn, a1, a2, a3, a4, a5, a6, attr);
+    }
+
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \param a5 Task argument 5
+    /// \param a6 Task argument 6
+    /// \param a7 Task argument 7
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT, typename a0T, typename a1T, typename a2T, typename a3T,
         typename a4T, typename a5T, typename a6T, typename a7T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+            const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, a5, a6, a7, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T>(
+            typename TaskFnBase<fnT>::futureT(), fn, a1, a2, a3, a4, a5, a6, a7,
+            attr);
     }
 
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
+    /// \tparam a8T Task argument 8 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \param a5 Task argument 5
+    /// \param a6 Task argument 6
+    /// \param a7 Task argument 7
+    /// \param a8 Task argument 8
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
     template <typename fnT, typename a0T, typename a1T, typename a2T, typename a3T,
     typename a4T, typename a5T, typename a6T, typename a7T, typename a8T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
-            const a8T& a8, const TaskAttributes& attr = TaskAttributes())
+    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+            const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8,
+            const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, a5, a6, a7, a8, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T>(
+            typename TaskFnBase<fnT>::futureT(), fn, a1, a2, a3, a4, a5, a6, a7,
+            a8, attr);
     }
 
-    template <typename fnT, typename a0T, typename a1T, typename a2T, typename a3T,
-        typename a4T, typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2,
-            const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
-            const a8T& a8, const a9T& a9, const TaskAttributes& attr = TaskAttributes())
+    /// Construct a task function
+
+    /// The result of this function should be passed to the \c WorldTaskQueue
+    /// via the \c add() function.
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
+    /// \tparam a8T Task argument 8 type
+    /// \tparam a9T Task argument 9 type
+    /// \param fn The function to be run by the task queue
+    /// \param a1 Task argument 1
+    /// \param a2 Task argument 2
+    /// \param a3 Task argument 3
+    /// \param a4 Task argument 4
+    /// \param a5 Task argument 5
+    /// \param a6 Task argument 6
+    /// \param a7 Task argument 7
+    /// \param a8 Task argument 8
+    /// \param a9 Task argument 9
+    /// \return A task function allocated with new.
+    /// \note If you do not pass the task function to the task queue, it is your
+    /// responsibility to delete it.
+    template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+    typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+    TaskFnBase<fnT>* make_task(fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+            const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7, const a8T& a8,
+            const a9T& a9, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> task_type;
-        typename task_type::futureT r;
-        task_type* task = new task_type(r, fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
-        return task;
+        return new TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>(
+            typename TaskFnBase<fnT>::futureT(), fn, a1, a2, a3, a4, a5, a6, a7,
+            a8, a9, attr);
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
     /// \return A future that will be set by the \c dest process when the task
     /// is complete.
     template <typename fnT>
-    typename TaskFn<fnT>::functionT
+    typename TaskFn<fnT>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), voidT(), voidT(), voidT(),
-            voidT(), voidT(), voidT(), voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT>::handler, new_am_arg(
+            typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr), voidT(),
+            voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -534,25 +702,30 @@ namespace madness {
     /// \return A future that will be set by the \c dest process when the task
     /// is complete.
     template <typename fnT, typename a1T>
-    typename TaskFn<fnT, a1T>::functionT
+    typename TaskFn<fnT, a1T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, voidT(), voidT(), voidT(),
-            voidT(), voidT(), voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T>::handler, new_am_arg(
+            typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr), a1,
+            voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -561,25 +734,31 @@ namespace madness {
     /// \return A future that will be set by the \c dest process when the task
     /// is complete.
     template <typename fnT, typename a1T, typename a2T>
-    typename TaskFn<fnT, a1T, a2T>::functionT
+    typename TaskFn<fnT, a1T, a2T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, voidT(), voidT(),
-            voidT(), voidT(), voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T>::handler, new_am_arg(
+            typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr), a1, a2,
+            voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -589,25 +768,32 @@ namespace madness {
     /// \return A future that will be set by the \c dest process when the task
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T>
-    typename TaskFn<fnT, a1T, a2T, a3T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, voidT(), voidT(),
-            voidT(), voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T>::handler, new_am_arg(
+            typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr), a1, a2, a3,
+            voidT(), voidT(), voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -618,25 +804,33 @@ namespace madness {
     /// \return A future that will be set by the \c dest process when the task
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, a4, voidT(),
-            voidT(), voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T>::handler, new_am_arg(
+            typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr), a1, a2, a3,
+            a4, voidT(), voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -649,26 +843,35 @@ namespace madness {
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
         typename a5T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const a5T& a5,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, a4, a5, voidT(),
-            voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, a5, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T, a5T>::handler,
+            new_am_arg(typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr),
+            a1, a2, a3, a4, a5, voidT(), voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -682,26 +885,36 @@ namespace madness {
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
         typename a5T, typename a6T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, a4, a5, a6,
-            voidT(), voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, a5, a6, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T>::handler,
+            new_am_arg(typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr),
+            a1, a2, a3, a4, a5, a6, voidT(), voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -716,26 +929,37 @@ namespace madness {
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
         typename a5T, typename a6T, typename a7T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
             const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, a4, a5, a6, a7,
-            voidT(), voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, a5, a6, a7, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T>::handler,
+            new_am_arg(typename TaskFnBase<fnT>::infotT(r.remote_ref(), fn, attr),
+            a1, a2, a3, a4, a5, a6, a7, voidT(), voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
+    /// \tparam a8T Task argument 8 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -751,26 +975,38 @@ namespace madness {
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
         typename a5T, typename a6T, typename a7T, typename a8T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
             const a8T& a8, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> taskfnT;
-        typedef typename taskfnT::futureT futureT;
-        typedef typename taskfnT::infoT infotT;
         typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            infotT(result.remote_ref(), fn, attr), a1, a2, a3, a4, a5, a6, a7,
-            a8, voidT()));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, a5, a6, a7, a8, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T,
+            a8T>::handler, new_am_arg(typename TaskFnBase<fnT>::infotT(r.remote_ref(),
+            fn, attr), a1, a2, a3, a4, a5, a6, a7, a8, voidT()));
+
+        return r;
     }
 
     /// Send the task to \c dest and submit it to the task queue there.
 
+    /// \tparam fnT The type of the function to be run
+    /// \tparam a1T Task argument 1 type
+    /// \tparam a2T Task argument 2 type
+    /// \tparam a3T Task argument 3 type
+    /// \tparam a4T Task argument 4 type
+    /// \tparam a5T Task argument 5 type
+    /// \tparam a6T Task argument 6 type
+    /// \tparam a7T Task argument 7 type
+    /// \tparam a8T Task argument 8 type
+    /// \tparam a9T Task argument 9 type
     /// \param world The world that will handle the task
     /// \param dest The process where the task should be sent to run
     /// \param fn The function to be run by the task
@@ -787,19 +1023,24 @@ namespace madness {
     /// is complete.
     template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
         typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>::functionT
+    typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>::futureT
     remote_task(World& world, ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
             const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
             const a8T& a8, const a9T& a9, const TaskAttributes& attr = TaskAttributes())
     {
-        typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> taskfnT;
+        typedef Future<void> voidT;
 
-        typename taskfnT::futureT result;
-        world.am.send(dest, & taskfnT::handler, new_am_arg(
-            typename taskfnT::infoT(result.remote_ref(), fn, attr), a1, a2, a3,
-            a4, a5, a6, a7, a8, a9));
+        // If dest is this process, then just submit it to the task queue.
+        if(dest == world.rank())
+            return world.taskq.add(make_task(fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr));
 
-        return result;
+        // Send the task to dest process
+        typename TaskFnBase<fnT>::futureT r;
+        world.am.send(dest, & TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T,
+            a9T>::handler, new_am_arg(typename TaskFnBase<fnT>::infoT(r.remote_ref(),
+            fn, attr), a1, a2, a3, a4, a5, a6, a7, a8, a9));
+
+        return r;
     }
 
     namespace {
