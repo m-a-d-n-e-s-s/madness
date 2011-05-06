@@ -40,7 +40,8 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include "mra/electron_repulsion.h"
-#include "mra/sepreptensor.h"
+//#include "mra/sepreptensor.h"
+#include "mra/gentensor.h"
 #include "world/print.h"
 
 

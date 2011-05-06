@@ -31,15 +31,15 @@
   $Id$
 */
 
-#ifndef SEPREPTENSOR_H_
-#define SEPREPTENSOR_H_
+#ifndef GENTENSOR_H_
+#define GENTENSOR_H_
 
 #define HAVE_GENTENSOR 1
 
 
 /*!
  *
- * \file SepRepTensor.h
+ * \file GenTensor.h
  * \brief Provides a tensor with taking advantage of possibly low rank
  *
  ****************************************************************
@@ -49,45 +49,38 @@
  ****************************************************************
  *
  *
- * a SepRepTensor is a generalized form of a Tensor
+ * a GenTensor is a generalized form of a Tensor
  *
  * for now only little functionality shall be implemented; feel free to extend
  *
  * a consequence is that we (usually) can't directly access individual
  * matrix elements
  *
- * LowRankTensors' ctors will most likely not be shallow
+ * GenTensors' ctors will most likely not be shallow
  *
- * note that a LowRankTensor might have zero rank, but is still a valid
+ * note that a GenTensor might have zero rank, but is still a valid
  * tensor, and should therefore return a FullTensor with zeros in it.
  *
- * \par Slicing in LowRankTensors:
+ * \par Slicing in GenTensors:
  *
- * LowRankTensors differ from FullTensors in that we can't directly access
+ * A GenTensor differs from a Tensor in that we can't directly access
  * individual matrix elements, and thus can't directly assign or manipulate slices
  * as lvalues. For rvalues we simply provide a slices of the constituent vectors
- * in SRConf, which are valid LowRankTensors by themselves
+ * in SRConf, which is a valid GenTensor by itself
  * \code
  *  lhs = rhs(s)
  * \endcode
  *
- * Manipulations of slices of LowRankTensors are heavily restricted, but should
+ * Manipulations of slices of a GenTensor are heavily restricted, but should
  * cover the most important cases:
- * - assignment to a slice that was zero before, as in (t being some Tensor of
- *   dimensions 2,2,2,2, and s being the (2,2,2,2) slice); this is performed
- *   by inplace addition
- * 	  \code
- *    LowRankTensor lrt1(3,3,3,3), lrt2(t);
- *    lrt1(s) = lrt2;
- * 	  \endcode
  * - assignment to zero; done by inplace subtraction of the slice
  *    \code
- *    LowRankTensor lrt1(t);
+ *    GenTensor lrt1(t);
  *    lrt1(s) = 0.0;
  *    \endcode
  * - in-place addition
  *    \code
- *    LowRankTensor lrt1(3,3,3,3), lrt2(t);
+ *    GenTensor lrt1(3,3,3,3), lrt2(t);
  *    lrt1(s) += lrt2;
  *    \endcode
  *
@@ -101,10 +94,6 @@
 
 namespace madness {
 
-	template <class T> class SliceLowRankTensor;
-	template <class T> class SepRepTensor;
-	template <class T> class FullTensor;
-	template <class T> class LowRankTensor;
 	template <class T> class SliceGenTensor;
 
 
@@ -170,7 +159,6 @@ namespace madness {
 #else
 
 
-
 	/// A GenTensor is a generalized tensor, possibly in a low rank representation
 
 	/// Since not all operations are possible (or sensible) for low rank tensors,
@@ -234,8 +222,7 @@ namespace madness {
     			MADNESS_ASSERT(maxk==dim[0]);
     		}
 
-    		//						tt, k , dim
-   			_ptr=sr_ptr(new configT(tt,dim[0],dim.size()));
+   			_ptr=sr_ptr(new configT(dim.size(),dim[0],tt));
 
 		}
 
@@ -249,8 +236,7 @@ namespace madness {
     			MADNESS_ASSERT(maxk==dim[0]);
     		}
 
-    		//						tt, k , dim
-   			_ptr=sr_ptr(new configT(targs.tt,dim[0],dim.size()));
+   			_ptr=sr_ptr(new configT(dim.size(),dim[0],targs.tt));
 
 		}
 
@@ -280,7 +266,7 @@ namespace madness {
 			} else if (tt==TT_2D) {
 				this->computeSVD(targs.thresh,values_eff);
 			} else if (tt==TT_FULL){
-				full_tensor()=copy(rhs);
+				_ptr.reset(new configT(copy(rhs)));
 			} else {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor(tensorT,targs)",0);
 			}
@@ -312,6 +298,12 @@ namespace madness {
 		GenTensor& operator=(const SliceGenTensor<T>& rhs) {
 			*this=rhs._refGT.copy_slice(rhs._s);
 			return *this;
+		}
+
+		/// deep copy of rhs by deep copying rhs.configs
+		friend gentensorT copy(const gentensorT& rhs) {
+			if (rhs._ptr) return gentensorT(copy(*rhs._ptr));
+			return gentensorT();
 		}
 
 		/// general slicing, shallow; for temporary use only!
@@ -410,13 +402,7 @@ namespace madness {
 
 		}
 
-		/// access the tensor values, iff this is full rank representation
-		tensorT& full_tensor() {
-			MADNESS_ASSERT(tensor_type()==TT_FULL);
-//			print("full_tensor");
-//			print(_ptr->ref_vector(0));
-			return _ptr->ref_vector(0);
-		}
+	public:
 
 		/// access the tensor values, iff this is full rank representation
 		const tensorT& full_tensor() const {
@@ -426,57 +412,67 @@ namespace madness {
 			return _ptr->ref_vector(0);
 		}
 
-	public:
-
-		/// deep copy of rhs by deep copying rhs.configs
-		friend gentensorT copy(const gentensorT& rhs) {
-			if (rhs._ptr) return gentensorT(copy(*rhs._ptr));
-			return gentensorT();
+		/// access the tensor values, iff this is full rank representation
+		tensorT& full_tensor() {
+			MADNESS_ASSERT(tensor_type()==TT_FULL);
+//			print("full_tensor");
+//			print(_ptr->ref_vector(0));
+			return _ptr->ref_vector(0);
 		}
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
+			rhs.accumulate_into(*this,1.0);
+//			_ptr->undo_structure();
+//			rhs._ptr->undo_structure();
+//    		_ptr->append(*rhs._ptr);
 
-			MADNESS_ASSERT(compatible(*this,rhs));
-			MADNESS_ASSERT(&(*this)!=&rhs);
-
-			if (tensor_type()==TT_FULL) {
-				full_tensor()+=rhs.full_tensor();
-			} else {
-				(*_ptr)+=(*rhs._ptr);
-			}
 			return *this;
 		}
 
-		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
-		void inplace_add(const gentensorT& rhs, const std::vector<Slice>& lhs_s,
-				const std::vector<Slice>& rhs_s, const double alpha, const double beta) {
+		/// inplace addition
+		gentensorT& operator+=(const SliceGenTensor<T>& rhs) {
 
-			// fast return if possible
-			if (rhs.rank()==0) return;
+			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
+			const std::vector<Slice> s(this->ndim(),Slice(0,get_k()-1,1));
+			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,1.0);
+			return *this;
 
-			// no fast return possible!!!
-			//			if (this->rank()==0) {
-			//				// this is a deep copy
-			//				*this=rhs(rhs_s);
-			//				this->scale(beta);
-			//				return;
-			//			}
-
-			if (tensor_type()==TT_FULL) {
-				full_tensor()(lhs_s).gaxpy(alpha,rhs.full_tensor()(rhs_s),beta);
-			} else {
-				this->_ptr->inplace_add(*rhs._ptr,lhs_s,rhs_s, alpha, beta);
-			}
 		}
 
+		/// multiply with a number
+		template<typename Q>
+        gentensorT operator*(const Q& x) const {
+        	GenTensor<T> result(copy(*this));
+        	result.scale(x);
+        	return result;
+        }
+
+	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
+	    gentensorT& gaxpy(std::complex<double> alpha, const gentensorT& rhs, std::complex<double> beta) {
+	    	MADNESS_EXCEPTION("GenTensor::gaxpy only with double factors",0);
+	    }
+
+	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
+	    gentensorT& gaxpy(double alpha, const gentensorT& rhs, double beta) {
+	    	MADNESS_EXCEPTION("no GenTensor::gaxpy yet",0);
+	    	return *this;
+	    }
+
 		/// multiply with a scalar
-		gentensorT& scale(const T& dfac) {
+		gentensorT& scale(const double& dfac) {
+			if (!_ptr) return *this;
 			if (tensor_type()==TT_FULL) {
 				full_tensor().scale(dfac);
 			} else {
 				_ptr->scale(dfac);
 			}
+			return *this;
+		};
+
+		/// multiply with a scalar
+		gentensorT& scale(const std::complex<double>& dfac) {
+			MADNESS_EXCEPTION("only double factors in GenTensor::scale",0);
 			return *this;
 		};
 
@@ -491,37 +487,26 @@ namespace madness {
 			else _ptr->fillWithRandom(r);
 		}
 
-		/// return the condition number, i.e. the largest EV^2 divided by machine precision
-		double conditionNumber() const {
-
-			if (tensor_type()==TT_FULL) return 1.0;
-
-			double largeEV=_ptr->maxWeight();
-
-			// sqrt(rank()) comes with Gauss error analysis
-			//	const double condition=sqrt(rank()) * std::max(largeEV*largeEV*machinePrecision,machinePrecision*1.0);
-			const double condition=std::max(largeEV*largeEV*machinePrecision,machinePrecision*1.0);
-
-			return condition;
-		}
-
-		/// reserve enough space to hold maxRank configurations
-		void reserve(const unsigned int& r) {
-			if (tensor_type()==TT_FULL) return;
-			_ptr->ensureSpace(r);
-		};
-
-		/// do we have data?
-		bool has_data() const {return (_ptr and _ptr->has_data());}
+		/// do we have data? note difference to SRConf::has_data() !
+		bool has_data() const {return (_ptr);}
 
 		/// do we have data?
 		bool has_no_data() const {return (!has_data());}
 
 		/// return the separation rank
-		unsigned int rank() const {return _ptr->rank();};
+		long rank() const {return _ptr->rank();};
 
 		/// return the dimension
 		unsigned int dim() const {return _ptr->dim();};
+
+		/// returns the dimensions
+		long dim(const int& i) const {return _ptr->get_k();};
+
+		/// returns the number of dimensions
+		long ndim() const {
+			if (_ptr) return _ptr->dim();
+			return -1;
+		};
 
 		/// return the polynomial order
 		unsigned int get_k() const {return _ptr->get_k();};
@@ -529,223 +514,31 @@ namespace madness {
 		/// return the number length of the underlying vectors
 		unsigned int kVec() const {return _ptr->kVec();};
 
-		/// return the number of coefficients
-		unsigned int nCoeff() const {return _ptr->nCoeff();};
-
 		/// returns the TensorType of this
 		TensorType tensor_type() const {
 			if (_ptr) return _ptr->type();
 			return TT_NONE;
 		};
 
-		/// return a vector of Tensor views of an SRConf
-		//	const std::vector<tensor<T> > refSRConf(const unsigned int& srIndex) const;
+        /// return the type of the derived class for me
+        std::string what_am_i() const {return TensorArgs::what_am_i(_ptr->type());};
 
-		/// return the weight of an SRConf
-		double weight(const unsigned int& i) const {
-			MADNESS_ASSERT(not (tensor_type()==TT_FULL));
-			return _ptr->weights(i);
+		/// returns the number of coefficients (might return zero, although tensor exists)
+		size_t size() const {
+			if (_ptr) return _ptr->nCoeff();
+			return 0;
 		};
 
+		/// returns the Frobenius norm
+		double normf() const {
+			_ptr->undo_structure();
+			return _ptr->normf();
+		};
 
-		/// reduce the rank using SVD
-		void computeSVD(const double& eps,const Tensor<T>& values_eff) {
-
-			// SVD works only with matrices (2D)
-			MADNESS_ASSERT(values_eff.ndim()==2);
-			MADNESS_ASSERT(this->tensor_type()==TT_2D);
-
-			// fast return if possible
-			if (values_eff.normf()<eps*facReduce) return;
-
-			// output from svd
-			Tensor<T> U;
-			Tensor<T> VT;
-			Tensor< typename Tensor<T>::scalar_type > s;
-
-			svd(values_eff,U,s,VT);
-
-			// find the maximal singular value that's supposed to contribute
-			// singular values are ordered (largest first)
-			const double threshold=eps*eps*facReduce;
-			double residual=0.0;
-			long i;
-			for (i=s.dim(0)-1; i>=0; i--) {
-				residual+=s(i)*s(i);
-				if (residual>threshold) break;
-			}
-
-			// convert SVD output to our convention
-			if (i>=0) {
-				this->_ptr->weights_=s(Slice(0,i));
-				this->_ptr->vector_[0]=transpose(U(Slice(_),Slice(0,i)));
-				this->_ptr->vector_[1]=(VT(Slice(0,i),Slice(_)));
-				this->_ptr->rank_=i+1;
-				MADNESS_ASSERT(this->_ptr->kVec()==this->_ptr->vector_[0].dim(1));
-				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
-				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->weights_.dim(0));
-			}
-			this->_ptr->make_structure();
+		/// returns the trace of <this|rhs>
+		T trace_conj(const GenTensor<T>& rhs) const {
+			return overlap(*_ptr,*rhs._ptr);
 		}
-
-		void reduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()) {
-
-			// direct reduction on the polynomial values on the Tensor
-			if (this->tensor_type()==TT_3D) {
-				this->doReduceRank(eps,values);
-				this->_ptr->make_structure();
-			} else if (this->tensor_type()==TT_2D) {
-				MADNESS_ASSERT(not values.has_data());
-				Tensor<T> values=this->reconstruct_tensor();
-
-				// adapt form of values
-				std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
-				Tensor<T> values_eff=values.reshape(d);
-
-				this->computeSVD(eps,values_eff);
-			} else {
-				MADNESS_ASSERT(0);
-			}
-			MADNESS_ASSERT(this->_ptr->has_structure() or this->rank()==0);
-		}
-
-		/// reduce the separation rank of this to a near optimal value
-		/// follow section 3 in BM2005
-		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
-			//				const SepRep& trial2=SepRep()) {
-			/*
-			 * basic idea is to use the residual Frobenius norm to check
-			 * convergence. Don't know if this is rigorous, probably not..
-			 *
-			 * convergence criterion: optimize the trial SepRep until the
-			 * residual doesn't change any more
-			 */
-
-			//			madness::print(values);
-
-			/*
-			 * figure out what to do:
-			 * 	1. this exists and is to be reduced
-			 * 	2. this doesn't exist, but values are provided
-			 */
-			gentensorT& reference=*this;
-			const bool haveSR=(reference.rank()!=0);
-			const bool haveVal=(values.ndim()!=-1);
-
-			// set factors
-			double facSR=0.0;
-			if (haveSR) facSR=1.0;
-
-			double facVal=0.0;
-			if (haveVal) facVal=1.0;
-
-			// fast return if possible
-			if ((not haveSR) and (not haveVal)) return;
-
-
-			//			reference.configs_=this->_ptr->semi_flatten();
-			reference._ptr->undo_structure();
-
-			//			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
-
-			//			timeReduce_.start();
-
-			/*
-			 * some constants
-			 */
-
-			// the threshold
-			const double threshold=eps*facReduce;
-
-			// what we expect the trial rank might be (engineering problem)
-			const unsigned int maxTrialRank=300;
-			const unsigned int maxloop=300;
-
-			const bool print=false;
-			double norm=1.0;
-
-			const unsigned int config_dim=this->_ptr->dim_eff();
-			const unsigned int rG1=reference.rank();
-
-			// scratch Tensor for this and the reference
-			std::vector<Tensor<T> > B1(config_dim);
-			for (unsigned int idim=0; idim<config_dim; idim++) B1[idim]=Tensor<T> (maxTrialRank,rG1);
-			// scratch Tensor for this and the residual
-			std::vector<Tensor<T> > B2(config_dim);
-			for (unsigned int idim=0; idim<config_dim; idim++) B2[idim]=Tensor<T> (maxTrialRank,1);
-
-			// set up a trial function
-			gentensorT trial(reference.tensor_type(),reference.get_k(),reference.dim());
-			trial._ptr->undo_structure();
-			trial._ptr->reserve(10);
-			//			trial._ptr->semi_flatten();
-			//			if (useTrial) trial=trial2;
-			//			else trial._ptr->ensureSpace(maxTrialRank);
-
-			// and the residual
-			gentensorT residual(trial.tensor_type(),trial.get_k(),trial.dim());
-
-			// loop while || F-G || > epsilon
-			for (unsigned int iloop=0; iloop<maxloop; iloop++) {
-
-				// compute the residual wrt reference minus trial
-				residual._ptr->fillWithRandom(1);
-				residual._ptr->undo_structure();
-
-				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
-
-				// exit if residual is supposedly small
-				norm=residual.FrobeniusNorm();
-				if (print) printf("trial norm in reduceRank %d %12.8f\n", trial.rank(), norm);
-#if bench
-				if (iloop>5) break;
-#else
-				if (norm<threshold) break;
-#endif
-				// otherwise add residual to the trial function ..
-				//				trial._ptr->unflatten();
-				//				residual._ptr->unflatten();
-				trial._ptr->make_structure();
-				residual._ptr->make_structure();
-				trial+=residual;
-				trial._ptr->undo_structure();
-				residual._ptr->undo_structure();
-				//				trial._ptr->semi_flatten();
-				//				residual._ptr->semi_flatten();
-
-				// .. and optimize trial wrt the reference
-				bool successful=trial.optimize(reference,facSR,residual,0.0,
-						values,facVal,threshold,10,B1,B2);
-
-				MADNESS_ASSERT(successful);
-
-			}
-			if (print) std::cout << "final trial norm in reduceRank " << trial.rank() << " " << norm  << std::endl;
-			if (print) std::cout << "threshold " << threshold << std::endl;
-
-#if !bench
-			// check actual convergence
-			if (norm>threshold) {
-				//		trial.printCoeff("trial");
-				//		this->printCoeff("failed SepRep");
-				std::cout << "failed to reduce rank in SepRep::reduceRank() " << std::endl;
-				printf("initial rank %d, trial rank %d\n",this->rank(), trial.rank());
-				printf("residual's norm         %24.16f\n", norm);
-				printf("this' condition number  %24.16f\n", this->conditionNumber());
-				printf("trial' condition number %24.16f\n", trial.conditionNumber());
-				printf("norm(this) %12.8f\n", this->FrobeniusNorm());
-				printf("no convergence in SepRep::reduceRank()");
-				MADNESS_ASSERT(0);
-			}
-#endif
-
-			// copy shrinks the matrices
-			*this=copy(*trial._ptr);
-			this->_ptr->make_structure();
-			//			timeReduce_.end();
-
-		}
-
 
 		/// overlap between two SepReps (Frobenius inner product)
 		friend T overlap(const gentensorT& rhs, const gentensorT& lhs)  {
@@ -760,31 +553,51 @@ namespace madness {
 			return ovlp;
 		}
 
+        /// Inplace multiply by corresponding elements of argument Tensor
+        GenTensor<T>& emul(const GenTensor<T>& t) {
+        	print("no GenTensor<T>::emul yet");
+        	MADNESS_ASSERT(0);
+        }
 
-		/// return the Frobenius norm of this
-		double FrobeniusNorm() const {
-
-			// fast return if possible
-			if (this->rank()==0) return 0.0;
-
-			//			double ovlp=overlap(this->configs_,this->configs_);
-			double ovlp=std::abs(overlap(*this,*this));
-
-			// estimate the accuracy one can expect
-			const double condition=this->conditionNumber();
-
-			if (sqrt(fabs(ovlp))<condition) {
-				//	if (fabs(ovlp)<condition) {
-				//		std::cout << "truncating due to condition " << condition << std::endl;
-				ovlp=0.0;
+		/// return a Tensor, no matter what
+		Tensor<T> full_tensor_copy() const {
+			const TensorType tt=tensor_type();
+			if (tt==TT_NONE) return Tensor<T>();
+			else if (tt==TT_3D or tt==TT_2D) return this->reconstruct_tensor();
+			else if (tt==TT_FULL) {
+				return copy(full_tensor());
+			} else {
+				print(TensorArgs::what_am_i(tt),"unknown tensor type");
+				MADNESS_ASSERT(0);
 			}
-			if (ovlp<-condition) {
-				std::cout << "norm<0.0 in SepRep::FrobeniusNorm() " << ovlp << std::endl;
-				printf(" condition number       :  %24.16f\n half machine precision :  %24.16f\n",
-						condition,sqrtMachinePrecision);
-			}
+		}
 
-			return sqrt(ovlp);
+		template <typename Archive>
+        void serialize(Archive& ar) {}
+
+		// reduce the rank of this
+		void reduceRank(const double& eps) {
+
+			// direct reduction on the polynomial values on the Tensor
+			if (tensor_type()==TT_FULL) {
+				return;
+			} else if (this->tensor_type()==TT_3D) {
+				this->doReduceRank(eps,Tensor<T>());
+				this->_ptr->make_structure();
+			} else if (this->tensor_type()==TT_2D) {
+
+				// reconstruct and re-reduce
+
+				// adapt form of values
+				Tensor<T> values=this->reconstruct_tensor();
+				std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
+				Tensor<T> values_eff=values.reshape(d);
+
+				this->computeSVD(eps,values_eff);
+			} else {
+				MADNESS_EXCEPTION("unknown tensor type in GenTensor::reduceRank()",0);
+			}
+			MADNESS_ASSERT(this->_ptr->has_structure() or this->rank()==0);
 		}
 
 		/// print this' coefficients
@@ -797,9 +610,6 @@ namespace madness {
 			}
 		}
 
-		/// print the weights
-		//		void printWeights(const std::string) const;
-
 		/// reconstruct this to return a full tensor
 		Tensor<T> reconstruct_tensor() const {
 
@@ -808,6 +618,8 @@ namespace madness {
 			 * then to the real dimension
 			 */
 
+			// fast return for full rank tensors
+			if (tensor_type()==TT_FULL) return full_tensor();
 
 			// for convenience
 			const unsigned int conf_dim=this->_ptr->dim_eff();
@@ -824,6 +636,7 @@ namespace madness {
 
 				return Tensor<T> (dim,d,true);
 			}
+
 
 			// set up result Tensor (in configurational dimensions)
 			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
@@ -858,7 +671,7 @@ namespace madness {
 				//				s=inner(s,sr._ptr->refVector(1),0,0);
 				tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
 				for (unsigned int r=0; r<rank; r++) {
-					const double w=this->weight(r);
+					const double w=_ptr->weights(r);
 					for (unsigned int k=0; k<conf_k; k++) {
 						sscr(r,k)*=w;
 					}
@@ -882,7 +695,7 @@ namespace madness {
 					}
 				}
 			} else {
-				print("only config_dim=1,2,3 in SepRep::reconstructTensor");
+				print("only config_dim=1,2,3 in GenTensor::reconstructTensor");
 				MADNESS_ASSERT(0);
 			}
 
@@ -893,21 +706,34 @@ namespace madness {
 			for (long i=0; i<dim; i++) d[i] = k;
 
 			Tensor<T> s2=s.reshape(dim,d);
-
 			return s2;
 		}
 
 	    /// accumulate this into t
-	    void accumulate_into(GenTensor<T>& t) const {
-			t._ptr->low_rank_add_sequential(*_ptr);
+	    void accumulate_into(GenTensor<T>& t, const double& fac=1.0) const {
+
+	    	if (has_no_data()) return;
+
+	    	// need case-by-case decision
+	    	if (tensor_type()==TT_FULL) {
+				t.full_tensor()+=this->full_tensor()*fac;
+	    	} else if (tensor_type()==TT_2D) {
+		    	t._ptr->low_rank_add_sequential(*_ptr, fac);
+	    	} else if (tensor_type()==TT_3D) {
+	    		t._ptr->undo_structure();
+	    		_ptr->undo_structure();
+	    		t._ptr->append(*this->_ptr,fac);
+	    	} else {
+	    		MADNESS_EXCEPTION("unknown tensor type in GenTensor::accumulate_into",0);
+	    	}
 	    }
 
 		/// reconstruct this to full rank, and accumulate into t
-	    template<typename Q>
-		void accumulate_into(Tensor<T>& t, const Q fac) const {
+		void accumulate_into(Tensor<T>& t, const double fac=1.0) const {
 
 			// fast return if possible
-			if (this->has_no_data()) return;
+			if (this->has_no_data()) return;	// no SRConf at all
+			if (_ptr->has_no_data()) return;	// rank==0
 
 			// fast return for full rank tensors
 			if (tensor_type()==TT_FULL) {
@@ -928,81 +754,47 @@ namespace madness {
 			tensorT s=t.reshape(conf_dim,d);
 
 			// flatten this
-			gentensorT sr=*this;
-			sr._ptr->undo_structure();
+			_ptr->undo_structure();
 
 			if (conf_dim==2) {
 
-				tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
+				tensorT sscr=copy(_ptr->ref_vector(0)(_ptr->c0()));
 				if (fac!=1.0) sscr.scale(fac);
 				for (unsigned int r=0; r<rank; r++) {
-					const double w=this->weight(r);
+					const double w=_ptr->weights(r);
 					for (unsigned int k=0; k<conf_k; k++) {
 						sscr(r,k)*=w;
 					}
 				}
-				inner_result(sscr,sr._ptr->ref_vector(1)(sr._ptr->c0()),0,0,s);
+				inner_result(sscr,_ptr->ref_vector(1)(_ptr->c0()),0,0,s);
 
 			} else {
-				print("only config_dim=2 in SepRep::accumulate_into");
-				MADNESS_ASSERT(0);
-			}
 
-		}
-
-		/// inplace add
-		void update_by(const gentensorT& rhs2) {
-			if (this->rank()==0) {
-				*this+=rhs2;
-				return;
-			}
-
-			if (rhs2.rank()==1) {
-				_ptr->rank_n_update_sequential(*rhs2._ptr);
-
-			} else {
-				gentensorT rhs3=copy(rhs2);
-				rhs3._ptr->undo_structure();										// 0.3 s
-
-				const unsigned int chunk_size=8;
-
-				for (unsigned int i=0; i<rhs2.rank(); i+=chunk_size) {
-					int begin=i;
-					int end=std::min(rhs2.rank()-1,i+chunk_size-1);
-
-					// very hard-wired
-					configT rhs(rhs2.dim(),rhs2.get_k(),rhs2.tensor_type());
-					rhs.weights_=rhs3._ptr->weights_(Slice(begin,end));
-					rhs.ref_vector(0)=rhs3._ptr->ref_vector(0)(Slice(begin,end),Slice(_));
-					rhs.ref_vector(1)=rhs3._ptr->ref_vector(1)(Slice(begin,end),Slice(_));
-					rhs.rank_=end-begin+1;
-					rhs.make_slices();
-
-					rhs.orthonormalize();
-
-					const tensorT a=(rhs.ref_vector(0)(rhs.c0()));
-					const tensorT b=(rhs.ref_vector(1)(rhs.c0()));
-					_ptr->rank_n_update_chunkwise(a,b,rhs.weights_(Slice(0,rhs.rank()-1)));
+				// include weights in first vector
+				tensorT scr1=copy(_ptr->ref_vector(0)(_ptr->c0()));
+				if (fac!=1.0) scr1.scale(fac);
+				for (unsigned int r=0; r<rank; r++) {
+					scr1(r,Slice(_))*=_ptr->weights(r);
 				}
-			}
 
+				// merge second and third vector to G(r,k1,k2)
+				tensorT scr2(rank,conf_k,conf_k);
+				for (unsigned int r=0; r<rank; r++) {
+					scr2(r,Slice(_),Slice(_))=outer(_ptr->ref_vector(1)(r,Slice(_)),
+													_ptr->ref_vector(2)(r,Slice(_)));
+				}
+
+				inner_result(scr1,scr2,0,0,s);
+
+			}
 
 		}
 
-		void finalize_accumulate() {_ptr->finalize_accumulate();}
-
-		/// check compatibility
+	    /// check compatibility
 		friend bool compatible(const gentensorT& rhs, const gentensorT& lhs) {
 			return ((rhs.tensor_type()==lhs.tensor_type()) and (rhs.get_k()==lhs.get_k())
 					and (rhs.dim()==lhs.dim()));
 		};
-
-		/// check consistency of this
-		bool consistent() const {
-			print("no SepRep.h::consistent()");
-			MADNESS_ASSERT(0);
-			return true;
-		}
 
 		/// compute a best one-term approximation wrt to this
 		gentensorT oneTermApprox(const double& eps, std::vector<tensorT>& B1) const {
@@ -1032,16 +824,14 @@ namespace madness {
 			return residual;
 		}
 
-		/// cast this into a SepRep with different maxk
-		//		SepRep cast(const unsigned int maxk) const;
-
 		/// transform the Legendre coefficients with the tensor
 		gentensorT transform(const Tensor<T> c) const {
 			return gentensorT (this->_ptr->transform(c));
 		}
 
 		/// transform the Legendre coefficients with the tensor
-		gentensorT general_transform(const Tensor<T> c[]) const {
+		template<typename Q>
+		gentensorT general_transform(const Tensor<Q> c[]) const {
 			return gentensorT (this->_ptr->general_transform(c));
 		}
 
@@ -1101,7 +891,7 @@ namespace madness {
 				 * norm doesn't change any more
 				 */
 				//		const double norm=fabs(this->_ptr->weights(this->rank()-1));
-				const double norm=this->FrobeniusNorm();
+				const double norm=this->normf();
 				if (iloop>1) {
 					const double ratio=oldnorm/norm;
 					//			std::cout << "  ratio " << ratio << " norm " << norm << std::endl;
@@ -1378,111 +1168,248 @@ namespace madness {
 			}
 		}
 
-	public:
-
-
-		/// inplace addition
-		GenTensor<T>& operator+=(const SliceGenTensor<T>& rhs) {
-
-			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
-			const std::vector<Slice> s(this->ndim(),Slice(_));
-			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,1.0);
-			return *this;
-
-		}
-
-		template<typename Q>
-        GenTensor<T> operator*(const Q& x) const {
-        	GenTensor<T> result(copy(*this));
-        	result.scale(x);
-        	return result;
-        }
-
-	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
-	    GenTensor<T>& gaxpy(std::complex<double> alpha, const GenTensor<T>& rhs, std::complex<double> beta) {
-	    	MADNESS_EXCEPTION("GenTensor::gaxpy only with double factors",0);
-	    }
-
-	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
-	    GenTensor<T>& gaxpy(double alpha, const GenTensor<T>& rhs, double beta) {
-	    	this->_ptr->gaxpy(alpha, rhs._ptr.get(), beta);
-	    	return *this;
-	    }
-
-		/// reduce the rank of this; don't do nothing if FullTensor
-		void reduceRank(const double& eps) {_ptr->reduceRank(eps);};
-
-		/// returns the number of coefficients (might return zero, although tensor exists)
-		size_t size() const {
-			if (_ptr) return _ptr->size();
-			return 0;
-		};
-
-        /// return the type of the derived class for me
-        std::string what_am_i() const {return TensorArgs::what_am_i(_ptr->type());};
-
-		/// returns the dimensions
-		long dim(const int& i) const {return _ptr->dim(i);};
-
-		/// returns the number of dimensions
-		long ndim() const {
-			if (_ptr) return _ptr->dim();
-			return -1;
-		};
-
-		/// returns the Frobenius norm
-		double normf() const {return _ptr->normf();};
-
-		/// returns the trace of <this|rhs>
-		T trace_conj(const GenTensor<T>& rhs) const {
-			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
-			return _ptr->trace_conj(rhs._ptr.get());
-		}
-
-        /// Inplace multiplication by scalar of supported type (legacy name)
-
-        /// @param[in] x Scalar value
-        /// @return %Reference to this tensor
-        template <typename Q>
-        typename IsSupported<TensorTypeData<Q>,GenTensor<T>&>::type
-        scale(Q x) {
-            if (_ptr) _ptr->scale(x);
-            return *this;
-        }
-
-        /// Inplace multiply by corresponding elements of argument Tensor
-        GenTensor<T>& emul(const GenTensor<T>& t) {
-        	print("no GenTensor<T>::emul yet");
-        	MADNESS_ASSERT(0);
-        }
-
-		/// return a Tensor, no matter what
-		Tensor<T> full_tensor_copy() const {
-			const TensorType tt=tensor_type();
-			if (tt==TT_NONE) return Tensor<T>();
-			else if (tt==TT_3D or tt==TT_2D) return this->reconstruct_tensor();
-			else if (tt==TT_FULL) {
-				return copy(full_tensor());
-			} else {
-				print(TensorArgs::what_am_i(tt),"unknown tensor type");
-				MADNESS_ASSERT(0);
-			}
-		}
-
-		template <typename Archive>
-        void serialize(Archive& ar) {}
-
-	private:
-
 		/// release memory
 		void clear() {_ptr.reset();};
 
-		/// ctor with a SepRepTensor, shallow
-		GenTensor(SepRepTensor<T>* sr) : _ptr(sr) {}
+		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
+		void inplace_add(const gentensorT& rhs, const std::vector<Slice>& lhs_s,
+				const std::vector<Slice>& rhs_s, const double alpha, const double beta) {
+
+			// fast return if possible
+			if (rhs.rank()==0) return;
+
+			// no fast return possible!!!
+			//			if (this->rank()==0) {
+			//				// this is a deep copy
+			//				*this=rhs(rhs_s);
+			//				this->scale(beta);
+			//				return;
+			//			}
+
+			if (tensor_type()==TT_FULL) {
+				full_tensor()(lhs_s).gaxpy(alpha,rhs.full_tensor()(rhs_s),beta);
+			} else {
+				this->_ptr->inplace_add(*rhs._ptr,lhs_s,rhs_s, alpha, beta);
+			}
+		}
+
+		/// inplace add
+		void update_by(const gentensorT& rhs2) {
+			if (this->rank()==0) {
+				*this+=rhs2;
+				return;
+			}
+
+			if (rhs2.rank()==1) {
+				_ptr->rank_n_update_sequential(*rhs2._ptr);
+
+			} else {
+				gentensorT rhs3=copy(rhs2);
+				rhs3._ptr->undo_structure();										// 0.3 s
+
+				const long chunk_size=8;
+
+				for (unsigned int i=0; i<rhs2.rank(); i+=chunk_size) {
+					int begin=i;
+					int end=std::min(rhs2.rank()-1,i+chunk_size-1);
+
+					// very hard-wired
+					configT rhs(rhs2.dim(),rhs2.get_k(),rhs2.tensor_type());
+					rhs.weights_=rhs3._ptr->weights_(Slice(begin,end));
+					rhs.ref_vector(0)=rhs3._ptr->ref_vector(0)(Slice(begin,end),Slice(_));
+					rhs.ref_vector(1)=rhs3._ptr->ref_vector(1)(Slice(begin,end),Slice(_));
+					rhs.rank_=end-begin+1;
+					rhs.make_slices();
+
+					rhs.orthonormalize();
+
+					const tensorT a=(rhs.ref_vector(0)(rhs.c0()));
+					const tensorT b=(rhs.ref_vector(1)(rhs.c0()));
+					_ptr->rank_n_update_chunkwise(a,b,rhs.weights_(Slice(0,rhs.rank()-1)));
+				}
+			}
+
+
+		}
+
+		void finalize_accumulate() {_ptr->finalize_accumulate();}
+
+		/// reduce the separation rank of this to a near optimal value
+		/// follow section 3 in BM2005
+		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
+			//				const SepRep& trial2=SepRep()) {
+			/*
+			 * basic idea is to use the residual Frobenius norm to check
+			 * convergence. Don't know if this is rigorous, probably not..
+			 *
+			 * convergence criterion: optimize the trial SepRep until the
+			 * residual doesn't change any more
+			 */
+
+			//			madness::print(values);
+
+			/*
+			 * figure out what to do:
+			 * 	1. this exists and is to be reduced
+			 * 	2. this doesn't exist, but values are provided
+			 */
+			gentensorT& reference=*this;
+			const bool haveSR=(reference.rank()!=0);
+			const bool haveVal=(values.ndim()!=-1);
+
+			// set factors
+			double facSR=0.0;
+			if (haveSR) facSR=1.0;
+
+			double facVal=0.0;
+			if (haveVal) facVal=1.0;
+
+			// fast return if possible
+			if ((not haveSR) and (not haveVal)) return;
+
+
+			//			reference.configs_=this->_ptr->semi_flatten();
+			reference._ptr->undo_structure();
+
+			//			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
+
+			//			timeReduce_.start();
+
+			/*
+			 * some constants
+			 */
+
+			// the threshold
+			const double threshold=eps*facReduce;
+
+			// what we expect the trial rank might be (engineering problem)
+			const unsigned int maxTrialRank=300;
+			const unsigned int maxloop=300;
+
+			const bool print=false;
+			double norm=1.0;
+
+			const unsigned int config_dim=this->_ptr->dim_eff();
+			const unsigned int rG1=reference.rank();
+
+			// scratch Tensor for this and the reference
+			std::vector<Tensor<T> > B1(config_dim);
+			for (unsigned int idim=0; idim<config_dim; idim++) B1[idim]=Tensor<T> (maxTrialRank,rG1);
+			// scratch Tensor for this and the residual
+			std::vector<Tensor<T> > B2(config_dim);
+			for (unsigned int idim=0; idim<config_dim; idim++) B2[idim]=Tensor<T> (maxTrialRank,1);
+
+			// set up a trial function
+			gentensorT trial(reference.tensor_type(),reference.get_k(),reference.dim());
+			trial._ptr->undo_structure();
+			trial._ptr->reserve(10);
+			//			trial._ptr->semi_flatten();
+			//			if (useTrial) trial=trial2;
+			//			else trial._ptr->ensureSpace(maxTrialRank);
+
+			// and the residual
+			gentensorT residual(trial.tensor_type(),trial.get_k(),trial.dim());
+
+			// loop while || F-G || > epsilon
+			for (unsigned int iloop=0; iloop<maxloop; iloop++) {
+
+				// compute the residual wrt reference minus trial
+				residual._ptr->fillWithRandom(1);
+				residual._ptr->undo_structure();
+
+				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
+
+				// exit if residual is supposedly small
+				norm=residual.normf();
+				if (print) printf("trial norm in reduceRank %d %12.8f\n", int(trial.rank()), norm);
+#if bench
+				if (iloop>5) break;
+#else
+				if (norm<threshold) break;
+#endif
+				// otherwise add residual to the trial function ..
+				//				trial._ptr->unflatten();
+				//				residual._ptr->unflatten();
+				trial._ptr->make_structure();
+				residual._ptr->make_structure();
+				trial+=residual;
+				trial._ptr->undo_structure();
+				residual._ptr->undo_structure();
+				//				trial._ptr->semi_flatten();
+				//				residual._ptr->semi_flatten();
+
+				// .. and optimize trial wrt the reference
+				bool successful=trial.optimize(reference,facSR,residual,0.0,
+						values,facVal,threshold,10,B1,B2);
+
+				MADNESS_ASSERT(successful);
+
+			}
+			if (print) std::cout << "final trial norm in reduceRank " << trial.rank() << " " << norm  << std::endl;
+			if (print) std::cout << "threshold " << threshold << std::endl;
+
+#if !bench
+			// check actual convergence
+			if (norm>threshold) {
+				//		trial.printCoeff("trial");
+				//		this->printCoeff("failed SepRep");
+				std::cout << "failed to reduce rank in SepRep::reduceRank() " << std::endl;
+				printf("initial rank %d, trial rank %d\n", int(this->rank()), int(trial.rank()));
+				printf("residual's norm         %24.16f\n", norm);
+				printf("norm(this) %12.8f\n", this->normf());
+				printf("no convergence in SepRep::reduceRank()");
+				MADNESS_ASSERT(0);
+			}
+#endif
+
+			// copy shrinks the matrices
+			*this=copy(*trial._ptr);
+			this->_ptr->make_structure();
+			//			timeReduce_.end();
+
+		}
+
+		/// reduce the rank using SVD
+		void computeSVD(const double& eps,const Tensor<T>& values_eff) {
+
+			// SVD works only with matrices (2D)
+			MADNESS_ASSERT(values_eff.ndim()==2);
+			MADNESS_ASSERT(this->tensor_type()==TT_2D);
+
+			// fast return if possible
+			if (values_eff.normf()<eps*facReduce) return;
+
+			// output from svd
+			Tensor<T> U;
+			Tensor<T> VT;
+			Tensor< typename Tensor<T>::scalar_type > s;
+
+			svd(values_eff,U,s,VT);
+
+			// find the maximal singular value that's supposed to contribute
+			// singular values are ordered (largest first)
+			const double threshold=eps*eps*facReduce;
+			double residual=0.0;
+			long i;
+			for (i=s.dim(0)-1; i>=0; i--) {
+				residual+=s(i)*s(i);
+				if (residual>threshold) break;
+			}
+
+			// convert SVD output to our convention
+			if (i>=0) {
+				this->_ptr->weights_=s(Slice(0,i));
+				this->_ptr->vector_[0]=transpose(U(Slice(_),Slice(0,i)));
+				this->_ptr->vector_[1]=(VT(Slice(0,i),Slice(_)));
+				this->_ptr->rank_=i+1;
+				MADNESS_ASSERT(this->_ptr->kVec()==this->_ptr->vector_[0].dim(1));
+				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
+				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->weights_.dim(0));
+			}
+			this->_ptr->make_structure();
+		}
 
 	};
-
-
 
 
 
@@ -1525,7 +1452,7 @@ namespace madness {
 		/// inplace addition
 		SliceGenTensor<T>& operator+=(const GenTensor<T>& rhs) {
 			std::vector<Slice> s(this->_refGT.ndim(),Slice(_));
-			_refGT.inplace_add(rhs,this->_s,s);
+			_refGT.inplace_add(rhs,this->_s,s,1.0,1.0);
 			return *this;
 		}
 
@@ -1559,9 +1486,9 @@ namespace madness {
     void to_full_rank(GenTensor<T>& arg) {
 
     	if (arg.has_data()) {
-        	if (arg.type()==TT_FULL) {
+        	if (arg.tensor_type()==TT_FULL) {
         		;
-        	} else if (arg.type()==TT_3D) {
+        	} else if (arg.tensor_type()==TT_3D) {
         		Tensor<T> t=arg.reconstruct_tensor();
             	arg=GenTensor<T>(t,0.0,TT_FULL);
         	} else {
@@ -1582,10 +1509,10 @@ namespace madness {
 //    	print("to_low_rank");
 
     	if (arg.has_data()) {
-        	if (arg.type()==TT_FULL) {
-				const Tensor<T> t1=arg.full_tensor();
+        	if (arg.tensor_type()==TT_FULL) {
+				const Tensor<T> t1=arg.reconstruct_tensor();
 				arg=(GenTensor<T>(t1,eps,target_type));
-	     	} else if (arg.type()==TT_3D) {
+	     	} else if (arg.tensor_type()==TT_3D) {
          		;
          	} else {
          		throw std::runtime_error("unknown TensorType in to_full_tensor");
@@ -1653,4 +1580,4 @@ namespace madness {
 
 }
 
-#endif /* SEPREPTENSOR_H_ */
+#endif /* GENTENSOR_H_ */

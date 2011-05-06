@@ -682,7 +682,7 @@ namespace madness {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
-            const TensorType tt=coeff.type();
+            const TensorType tt=coeff.tensor_type();
 
             if (coeff.dim(0) == k) {
                 // This processes leaf nodes with only scaling

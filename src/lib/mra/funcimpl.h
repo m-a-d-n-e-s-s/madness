@@ -47,7 +47,8 @@
 #include <mra/funcdefaults.h>
 #include "mra/flonode.h"
 #include "mra/function_factory_and_interface.h"
-#include "mra/sepreptensor.h"
+//#include "mra/sepreptensor.h"
+#include "mra/gentensor.h"
 #include <world/typestuff.h>
 
 namespace madness {
@@ -321,12 +322,7 @@ namespace madness {
 #if HAVE_GENTENSOR
         	Tensor<T> result;
         	if (this->has_coeff()) {
-				if (_coeffs.type()==TT_2D) result=_coeffs.reconstruct_tensor();
-				else if (_coeffs.type()==TT_3D) result=_coeffs.reconstruct_tensor();
-				else if (_coeffs.type()==TT_FULL) result=_coeffs.full_tensor();
-				else {
-					MADNESS_EXCEPTION("unknown tensor type in full_tensor_copy",_coeffs.type());
-				}
+				result=_coeffs.reconstruct_tensor();
         	} else {
         		result=Tensor<T>();
         	}
@@ -341,7 +337,7 @@ namespace madness {
         Tensor<T>&
         full_tensor_reference() {
 #if HAVE_GENTENSOR
-        	MADNESS_ASSERT(_coeffs.type()==TT_FULL);
+        	MADNESS_ASSERT(_coeffs.tensor_type()==TT_FULL);
         	return _coeffs.full_tensor();
 #else
         	return coeff();
@@ -383,11 +379,8 @@ namespace madness {
 
         /// reduces the rank of the coefficients (if applicable)
         void reduceRank(const double& eps) {
-#if HAVE_GENTENSOR
         	_coeffs.reduceRank(eps);
-#endif
         }
-
 
 
         /// Transforms the coeffs to the SR
@@ -444,7 +437,7 @@ namespace madness {
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {
 #if HAVE_GENTENSOR
-        	const TensorType tt=_coeffs.type();
+        	const TensorType tt=_coeffs.tensor_type();
             coeff()=GenTensor<T>(tt);
 #else
             coeff() = Tensor<T>();
@@ -497,7 +490,7 @@ namespace madness {
         		const Key<NDIM>& key) {
 
             if (has_coeff()) {
-            	MADNESS_ASSERT(coeff().type()==TT_FULL);
+            	MADNESS_ASSERT(coeff().tensor_type()==TT_FULL);
 //            	if (coeff().type==TT_FULL) {
         		coeff() += coeffT(t,-1.0,TT_FULL);
 //            	} else {
@@ -527,7 +520,7 @@ namespace madness {
         		const Key<NDIM>& key, const TensorArgs& args) {
 
             if (has_coeff()) {
-            	MADNESS_ASSERT(coeff().type()==TT_FULL);
+            	MADNESS_ASSERT(coeff().tensor_type()==TT_FULL);
 //            	if (coeff().type==TT_FULL) {
 //        		coeff() += coeffT(t,-1.0,TT_FULL);
             		coeff() += t;
