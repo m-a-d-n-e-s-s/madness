@@ -195,17 +195,6 @@ namespace madness {
         }
     }; // struct TaskHandlerInfo
 
-    namespace {
-
-        // Remove Future, const, volatile, and reference qualifiers from the type
-        template <typename T>
-        struct remove_fcvr{
-            typedef typename remove_future< typename std::remove_cv<
-                    typename std::remove_reference<T>::type >::type >::type type;
-        };
-
-    } // namespace
-
     namespace detail {
 
         // Remove Future, const, volatile, and reference qualifiers from the type
