@@ -48,7 +48,6 @@
  *  g=g1(s) is deep
  ****************************************************************
  *
- *
  * a GenTensor is a generalized form of a Tensor
  *
  * for now only little functionality shall be implemented; feel free to extend
