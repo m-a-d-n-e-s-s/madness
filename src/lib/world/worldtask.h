@@ -231,7 +231,7 @@ namespace madness {
         template <typename Arg>
         static const Arg& am_arg(const Future<Arg>& arg) {
             MADNESS_ASSERT(arg.probe());
-            return arg;
+            return arg.get();
         }
 
         /// Convert a void future into the type needed for an AM arg
