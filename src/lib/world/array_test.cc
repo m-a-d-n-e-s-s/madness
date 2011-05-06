@@ -40,7 +40,7 @@
 namespace {
     TEST(VectorTest, SizeWorks) {
         madness::Vector<double,3> v;
-        EXPECT_EQ(3, v.size());
+        EXPECT_EQ(3u, v.size());
     }
 
     TEST(VectorTest, InitializerWorks) {
@@ -52,7 +52,7 @@ namespace {
 
     TEST(VectorTest, Hash) {
         madness::Vector<double,33> v(1.0);
-        EXPECT_NE(0, v.hash());
+        EXPECT_NE(0u, v.hash());
     }
 }
 

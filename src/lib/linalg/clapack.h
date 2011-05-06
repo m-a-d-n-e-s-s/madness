@@ -214,4 +214,9 @@ void dtrsm_(const char* side, const char* uplo, const char* transa, const char* 
             const real8* a, const integer* lda, real8* b, const integer* ldb, 
             char_len sidelen, char_len uplolen, char_len transalen, char_len diaglen);
 
+//			SUBROUTINE DTRTRI( UPLO, DIAG, N, A, LDA, INFO )
+extern "C"
+void dtrtri_(const char* uplo, const char* diag, const integer* n, const real8* a,
+            const integer* lda, integer *info);
+
 #endif // MADNESS_LINALG_CLAPACK_H__INCLUDED
