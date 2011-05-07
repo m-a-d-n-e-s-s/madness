@@ -117,14 +117,17 @@ namespace madness {
         /// Runs a single-threaded task ... derived classes must implement this.
 
         /// This interface may disappear so new code should use the multi-threaded interface.
-        virtual void run(World& /*world*/);
+        virtual void run(World&) {
+            //print("in virtual run(world) method");
+            MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
+        }
 
         /// Runs a multi-threaded task
         virtual void run(World& world, const TaskThreadEnv& env) {
             //print("in virtual run(world,env) method", env.nthread(), env.id());
             if (env.nthread() != 1)
                 MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
-            run(world);
+            this->run(world);
         }
 
         /// Send this task to \c dest and submit it to the task queue there.
