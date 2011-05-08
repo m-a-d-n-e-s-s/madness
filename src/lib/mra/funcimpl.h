@@ -437,8 +437,8 @@ namespace madness {
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {
 #if HAVE_GENTENSOR
-        	const TensorType tt=_coeffs.tensor_type();
-            coeff()=GenTensor<T>(tt);
+//        	const TensorType tt=_coeffs.tensor_type();
+            coeff()=coeffT();
 #else
             coeff() = Tensor<T>();
 #endif
@@ -520,24 +520,12 @@ namespace madness {
         		const Key<NDIM>& key, const TensorArgs& args) {
 
             if (has_coeff()) {
-            	MADNESS_ASSERT(coeff().tensor_type()==TT_FULL);
-//            	if (coeff().type==TT_FULL) {
-//        		coeff() += coeffT(t,-1.0,TT_FULL);
-            		coeff() += t;
-//            	} else {
-//            		tensorT cc=coeff().full_tensor_copy();;
-//            		cc += t;
-//            		coeff()=coeffT(cc,args);
-//            	}
-            }
-            else {
+           		coeff() += t;
+            } else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
                 // tell its parent that it exists.
-//            	coeff() = coeffT(t,-1.0,TT_FULL);
-            	coeff() = t;
-//                coeff() = copy(t);
-//                coeff() = coeffT(t,args);
+            	coeff() = copy(t);
                 if ((!_has_children) && key.level()> 0) {
                     Key<NDIM> parent = key.parent();
                     const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
@@ -2163,8 +2151,8 @@ namespace madness {
 	        // new coeffs are simply the hartree/kronecker/outer product
 	        tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
 
-	        coeffT bla=coeffT(tcube,targs);
-	        nodeT no=nodeT(coeffT(tcube,targs),false);
+//	        coeffT bla=coeffT(tcube,targs);
+//	        nodeT no=nodeT(coeffT(tcube,targs),false);
 	        coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
 
 			return None;
@@ -2286,7 +2274,7 @@ namespace madness {
 
                             if (result.normf() > tol*0.3) {
                                 Key<NDIM> dest(n,lnew);
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, targs, TaskAttributes::hipri());
+                                coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
                             }
                         }
                         else {
@@ -3007,13 +2995,15 @@ namespace madness {
                     	const double cnorm=fnode.get_norm_tree();
 
 						if (cnorm*opnorm> tol/fac) {
-//	                        const tensorT c=fnode.coeff().full_tensor_copy();
 							// for now do all the convolutions in one task, since we need
 							// to reduce the rank at the end, and we can't keep track of
 							// which nodes have already been processed
 //							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
 							coeffT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm);
-//							tensorT result = op->apply(source, d, fnode.full_tensor_reference(), tol/fac/cnorm);
+//							result.right_orthonormalize();
+//				            to_full_rank(result);
+//				            to_low_rank(result,targs.thresh,targs.tt);
+//							result.reduceRank();
 
 							// accumulate the result on this node
 							if (result.normf()> 0.3*tol/fac) {
@@ -3025,9 +3015,10 @@ namespace madness {
                     }
                 }
             }
-            print("done with node");
-            node.node_to_low_rank(thresh);
-//            node.reduceRank(thresh);
+            print("done with node/1",node.coeff().rank());
+//            to_low_rank(node.coeff(),targs.thresh,targs.tt);
+            node.reduceRank(thresh);
+            print("done with node/2",node.coeff().rank());
             return None;
         }
 
@@ -3051,6 +3042,7 @@ namespace madness {
             }
             if (fence)
                 world.gop.fence();
+            print("done with apply_target_driven");
         }
 
 
@@ -3174,7 +3166,7 @@ namespace madness {
             }
 
             double operator()(double a, double b) const {
-                return a+b;
+                return (a+b);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
@@ -3203,6 +3195,7 @@ namespace madness {
                         const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
                         if (gnode.has_coeff()) {
                             if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+                            	SRConf<R> conf=fnode.coeff().config();
                                 madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
                                 MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
                             }
@@ -3393,12 +3386,13 @@ namespace madness {
                 const fnodeT& node = it->second;
 
                 if (node.has_coeff()) {
-//                    coeffs.replace(key,nodeT(node.full_tensor_copy()*q,node.has_children()).node_to_low_rank());
-                    coeffs.replace(key,nodeT(node.coeff()*q,node.has_children()));
+                    coeffs.replace(key,nodeT(coeffT(node.full_tensor_copy()*q,targs),node.has_children()));
+//                    coeffs.replace(key,nodeT(node.coeff()*q,node.has_children()));
                 }
                 else {
 //                    coeffs.replace(key,nodeT(tensorT(),node.has_children()).node_to_low_rank());
-                    coeffs.replace(key,nodeT(coeffT(FunctionDefaults<NDIM>::get_tensor_type()),node.has_children()));
+//                    coeffs.replace(key,nodeT(coeffT(FunctionDefaults<NDIM>::get_tensor_type()),node.has_children()));
+                    coeffs.replace(key,nodeT(coeffT(),node.has_children()));
                 }
             }
             if (fence)

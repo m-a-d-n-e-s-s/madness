@@ -335,11 +335,11 @@ void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, 
    	print("finished convolution");
 
     double norm = tmp.norm2();
-    print("finished norm");
+    print("finished norm",norm);
     real_function_6d r = tmp-psi;
     print("finished difference");
     double rnorm = inner(r,r);
-    print("finished rnorm");
+    print("finished rnorm",rnorm);
     double eps_new = eps + inner(r,Vpsi)/(norm*norm);
     print("finished inner(Vpair,r)");
     if (world.rank() == 0) {
@@ -450,7 +450,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 	// compute potential energy
 	pe=0.0;
-	if (1) {
+	if (0) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 
@@ -468,6 +468,8 @@ void compute_energy(World& world, const real_function_6d& pair,
 		double a=inner(pair,v11);
 		print("<phi|V_tot|phi> ", a);
 		pe=a;
+	} else {
+		pe=-2.0*ke;
 	}
 
 	if(world.rank() == 0) printf("\npotential at time %.1fs\n\n", wall_time());
@@ -639,7 +641,7 @@ int main(int argc, char** argv) {
 	double eps=ke+pe;
 
     // iterate
-	for (unsigned int i=0; i<10; i++) {
+	for (unsigned int i=0; i<1; i++) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 		real_function_6d copy2_of_pair=copy(pair);

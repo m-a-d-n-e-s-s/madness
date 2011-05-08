@@ -65,6 +65,8 @@ namespace madness {
 
 		typedef Tensor<T> tensorT;
 
+		static const double thresh=1.e-10;
+
 		/// the number of dimensions (the order of the tensor)
 		unsigned int dim_;
 
@@ -105,10 +107,6 @@ namespace madness {
 
 		/// default ctor
 		SRConf() : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(TT_NONE), updating_(false) {
-		};
-
-		/// default ctor
-		SRConf(const TensorType& tt) : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(tt), updating_(false) {
 		};
 
 		/// ctor with dimensions for a vector configuration (tested)
@@ -255,7 +253,7 @@ namespace madness {
 
 		/// does this have any data?
 		bool has_data() const {
-			if (tensortype_==TT_FULL) return (vector_[0].size()!=0);
+			if (tensortype_==TT_FULL) return (vector_.size()>0 and vector_[0].has_data());
 			return rank()>0;
 		}
 
@@ -576,7 +574,7 @@ namespace madness {
 		}
 
 		/// orthonormalize this
-		void orthonormalize() {
+		void right_orthonormalize() {
 
 			if (type()==TT_FULL) return;
 			if (has_no_data()) return;
@@ -659,6 +657,7 @@ namespace madness {
 			if (rhs.has_no_data()) return;
 			if (this->has_no_data()) {
 				*this=copy(rhs);
+				this->scale(fac);
 				return;
 			}
 
@@ -692,11 +691,11 @@ namespace madness {
 			rhs.undo_structure();
 			this->undo_structure();
 
-			rhs.orthonormalize();
-			this->orthonormalize();
+			rhs.right_orthonormalize();
+			this->right_orthonormalize();
 
 			this->project_and_orthogonalize(rhs);
-			rhs.orthonormalize();
+			rhs.right_orthonormalize();
 			this->append(rhs);
 		}
 
@@ -706,12 +705,13 @@ namespace madness {
 			if (rhs2.has_no_data()) return;
 
 			this->undo_structure();
-//			this->orthonormalize();
+			this->right_orthonormalize();
 
 			if (this->has_no_data()) {
 				*this=copy(rhs2);
+				this->scale(fac);
 				undo_structure();
-				orthonormalize();
+				right_orthonormalize();
 				return;
 			}
 
@@ -722,7 +722,7 @@ namespace madness {
 			Tensor<double> weight(1);
 			weight(long(0))=rhs.weights(0);
 
-			const double thresh=1.e-8;
+//			const double thresh=1.e-8;
 
 
 			for (unsigned int i=0; i<rhs.rank(); i++) {
@@ -767,7 +767,7 @@ namespace madness {
 			MADNESS_ASSERT(rhs.has_structure());
 			MADNESS_ASSERT(not updating_ or rhs2.updating_);
 
-			// conficts with lhs_s ??
+			// conflicts with lhs_s ??
 			MADNESS_ASSERT(alpha==1.0);
 
 			// for convenience
@@ -886,7 +886,8 @@ namespace madness {
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			const int rr=weights_.dim(0);	// not the rank!
+			int rr=weights_.dim(0);	// not the rank!
+			if (weights_.size()==0) rr=0;
 			const int k=this->get_k();
 
 			// reshape the vectors and adapt the Slices
@@ -907,7 +908,8 @@ namespace madness {
 
 			const int dim_pv=this->dim_per_vector();
 			MADNESS_ASSERT(dim_pv>0 and dim_pv<=3);
-			const int rr=weights_.dim(0);	// not the rank!
+			int rr=weights_.dim(0);	// not the rank!
+			if (weights_.size()==0) rr=0;
 			const int kvec=this->kVec();
 
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
@@ -1037,6 +1039,9 @@ namespace madness {
 		template<typename Q>
 		friend TENSOR_RESULT_TYPE(T,Q) overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
 
+			// fast return if either rank is 0
+			if ((lhs.has_no_data()) or (rhs.has_no_data())) return 0.0;
+
 			/*
 			 * the structure of an SRConf is (r,k) or (r,k',k), with
 			 * r the slowest index; the overlap is therefore simply calculated
@@ -1049,9 +1054,6 @@ namespace madness {
 			MADNESS_ASSERT(rhs.dim()>0);
 
 			typedef TENSOR_RESULT_TYPE(T,Q) resultT;
-
-			// fast return if either rank is 0
-			if ((lhs.has_no_data()) or (rhs.has_no_data())) return 0.0;
 
 			if (rhs.type()==TT_FULL) {
 				return rhs.ref_vector(0).trace(lhs.ref_vector(0));
@@ -1272,7 +1274,7 @@ namespace madness {
 		// ?? DO I ??
 		MADNESS_EXCEPTION("need to fix ortho3",0);
 
-		const double thresh=1.e-14;
+//		const double thresh=1.e-14;
 		const long rank=x.dim(0);
 
 		// overlap of 1 and 2
@@ -1294,8 +1296,8 @@ namespace madness {
 	    int lo1=0;
 	    int lo2=0;
 	    for (unsigned int r=0; r<rank; r++) {
-	    	if (e1(r)<thresh) lo1=r+1;
-	    	if (e2(r)<thresh) lo2=r+1;
+	    	if (e1(r)<SRConf<T>::thresh) lo1=r+1;
+	    	if (e2(r)<SRConf<T>::thresh) lo2=r+1;
 	    	sqrt_e1(r)=sqrt(e1(r));
 	    	sqrt_e2(r)=sqrt(e2(r));
 	    }
@@ -1322,7 +1324,7 @@ namespace madness {
     		double fac=1.0/sqrt_e1(r);
     		for (unsigned int t=0; t<rank; t++) {
 	    		U1(t,r)*=fac;
-	    		if (sqrt_e1(r)<thresh) throw;
+	    		if (sqrt_e1(r)<SRConf<T>::thresh) throw;
     		}
     	}
 
@@ -1330,7 +1332,7 @@ namespace madness {
     		double fac=1.0/sqrt_e2(r);
     		for (unsigned int t=0; t<rank; t++) {
 	    		U2(t,r)*=fac;
-	    		if (sqrt_e2(r)<thresh) throw;
+	    		if (sqrt_e2(r)<SRConf<T>::thresh) throw;
 	    	}
 	    }													// 0.2 / 0.6
 
@@ -1448,7 +1450,7 @@ namespace madness {
 
 		typedef Tensor<T> tensorT;
 
-		const double thresh=1.e-14;
+//		const double thresh=1.e-14;
 		const long rank=x.dim(0);
 
 		// normalize x and turn its norm and the weights over to y
@@ -1484,7 +1486,7 @@ namespace madness {
 		double e_max=e.max();
 
 		// fast return if possible
-		if (e_max<thresh) {
+		if (e_max<SRConf<T>::thresh) {
 			x.clear();
 			y.clear();
 			weights.clear();
@@ -1499,7 +1501,7 @@ namespace madness {
 		// shrink U1, U2
 		int lo=0;
 		for (unsigned int r=0; r<rank; r++) {
-			if (e(r)<thresh) lo=r+1;
+			if (e(r)<SRConf<T>::thresh) lo=r+1;
 			sqrt_e(r)=sqrt(std::abs(e(r)));
 		}
 

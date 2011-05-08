@@ -49,14 +49,9 @@
  ****************************************************************
  *
  * a GenTensor is a generalized form of a Tensor
- *
  * for now only little functionality shall be implemented; feel free to extend
- *
  * a consequence is that we (usually) can't directly access individual
  * matrix elements
- *
- * GenTensors' ctors will most likely not be shallow
- *
  * note that a GenTensor might have zero rank, but is still a valid
  * tensor, and should therefore return a FullTensor with zeros in it.
  *
@@ -84,6 +79,37 @@
  *    \endcode
  *
  * Note that *all* of these operation increase the rank of lhs
+ *
+ * \par Addition in GenTensors
+ *
+ * Addition in a GenTensor is a fairly complicated issue, and there are several
+ * algorithms you can use, each with certain pros and cons
+ *
+ * - append()
+ *   plain concatenating of the configurations will increase the rank and will
+ *   introduce linear dependencies and redundancies. Also, you might have to
+ *   reallocate memory and copy a lot of data around. However, no accuracy is lost
+ *   and it is fairly fast. Final rank reduction might be expensive, since you
+ *   might have accumulated a huge amount of terms.
+ *
+ * - low_rank_add_sequential()
+ *   only for SVD (2-way decomposition)
+ *   take the 2nd vector as a basis of a vector space, project the overlap of the
+ *   old and new terms on the lhs basis, perform modified Gram-Schmidt
+ *   orthogonalization on the rhs basis and increase the basis if necessary.
+ *   This will require the left hand side to be right-orthonormal, and the caller is
+ *   responsible for doing that. If a new GenTensor is created and only additions
+ *   using this method are performed the tensor will automatically be orthonormal.
+ *   Cost depends on the number of terms of the rhs and the lhs
+ *
+ * - addition of slices
+ *   as of now we can add slices only using append()
+ *
+ * - addition in full rank form
+ *   at times it might be sensible to accumulate your result in a full rank tensor,
+ *   and after collecting all the contribution you can transform it into a low
+ *   rank tensor. This will also maintain "all" digits, and cost depends not on
+ *   the number of terms on the lhs.
  */
 
 
@@ -107,7 +133,6 @@ namespace madness {
 			: thresh(thresh1)
 			, tt(tt1) {
 		}
-
 		static std::string what_am_i(const TensorType& tt) {
 			if (tt==TT_2D) return "TT_2D";
 			if (tt==TT_3D) return "TT_3D";
@@ -144,11 +169,17 @@ namespace madness {
 
         bool has_data() const {return this->size()!=0;};
 		long rank() const {return -1;}
-        void reduceRank(const double& eps) {return;};
 
-		/// return the type of the derived class for me
+        void reduceRank(const double& eps) {return;};
+        void right_orthonormalize() {};
+
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
-		TensorType type() const {return TT_FULL;}
+		TensorType tensor_type() const {return TT_FULL;}
+
+		void accumulate_into(Tensor<T>& t, const double& fac) const {t+=*this *fac;}
+		void accumulate_into(Tensor<T>& t, const std::complex<double>& fac) const {t+=*this*fac;}
+		void accumulate_into(GenTensor<T>& t, const double& fac) const {t+=*this*fac;}
+		void accumulate_into(GenTensor<T>& t, const std::complex<double>& fac) const {t+=*this*fac;}
 
 		template <typename Archive>
         void serialize(Archive& ar) {}
@@ -197,14 +228,6 @@ namespace madness {
 
 		/// empty ctor
 		GenTensor() : _ptr() {
-		}
-
-		/// default ctor with a tensor type
-		GenTensor(const TensorType tt) : _ptr(new configT(tt)) {
-		}
-
-		/// default ctor with a tensor type
-		GenTensor(const TensorArgs& targs) : _ptr(new configT(targs.tt)) {
 		}
 
 		/// copy ctor, shallow
@@ -374,14 +397,16 @@ namespace madness {
 					if (rank>0) {
 						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),s[2*idim],s[2*idim+1]));
 					} else {
-						vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,s[2*idim+1].end-s[2*idim+1].start+1);
+						vectors[idim]=tensorT(0,s[2*idim].end-s[2*idim].start+1,
+												s[2*idim+1].end-s[2*idim+1].start+1);
 					}
 				} else if (merged_dim==3) {
 					if (rank>0) {
 						vectors[idim]=copy(sr._ptr->ref_vector(idim)(Slice(0,rank-1),
 								s[3*idim],s[3*idim+1],s[3*idim+2]));
 					} else {
-						vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,s[3*idim+1].end-s[3*idim+1].start+1,
+						vectors[idim]=tensorT(0,s[3*idim].end-s[3*idim].start+1,
+								s[3*idim+1].end-s[3*idim+1].start+1,
 								s[3*idim+2].end-s[3*idim+2].start+1);
 
 					}
@@ -406,26 +431,18 @@ namespace madness {
 		/// access the tensor values, iff this is full rank representation
 		const tensorT& full_tensor() const {
 			MADNESS_ASSERT(tensor_type()==TT_FULL);
-//			print("full_tensor");
-//			print(_ptr->ref_vector(0));
 			return _ptr->ref_vector(0);
 		}
 
 		/// access the tensor values, iff this is full rank representation
 		tensorT& full_tensor() {
 			MADNESS_ASSERT(tensor_type()==TT_FULL);
-//			print("full_tensor");
-//			print(_ptr->ref_vector(0));
 			return _ptr->ref_vector(0);
 		}
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
 			rhs.accumulate_into(*this,1.0);
-//			_ptr->undo_structure();
-//			rhs._ptr->undo_structure();
-//    		_ptr->append(*rhs._ptr);
-
 			return *this;
 		}
 
@@ -440,12 +457,16 @@ namespace madness {
 		}
 
 		/// multiply with a number
-		template<typename Q>
-        gentensorT operator*(const Q& x) const {
-        	GenTensor<T> result(copy(*this));
+		gentensorT operator*(const double& x) const {
+			gentensorT result(copy(*this));
         	result.scale(x);
         	return result;
-        }
+		}
+
+		/// multiply with a number
+		gentensorT operator*(const std::complex<double>& x) const {
+			MADNESS_EXCEPTION("only double factors in GenTensor::operator*",0);
+		}
 
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
 	    gentensorT& gaxpy(std::complex<double> alpha, const gentensorT& rhs, std::complex<double> beta) {
@@ -453,8 +474,9 @@ namespace madness {
 	    }
 
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
-	    gentensorT& gaxpy(double alpha, const gentensorT& rhs, double beta) {
-	    	MADNESS_EXCEPTION("no GenTensor::gaxpy yet",0);
+	    gentensorT& gaxpy(const double alpha, const gentensorT& rhs, const double beta) {
+	    	if (not alpha==1.0) this->scale(alpha);
+	    	rhs.accumulate_into(*this,beta);
 	    	return *this;
 	    }
 
@@ -475,6 +497,16 @@ namespace madness {
 			return *this;
 		};
 
+		/// orthonormalize the right subspace and shift the weights to the left one
+		void right_orthonormalize() {
+			if (has_no_data()) return;
+			if (tensor_type()==TT_2D) {
+				_ptr->undo_structure();
+				if (rank()==1) _ptr->normalize_and_shift_weights_to_x();
+				else _ptr->right_orthonormalize();
+			}
+		}
+
 		/// normalize
 		void normalize() {
 			TensorType tt=tensor_type();
@@ -493,7 +525,10 @@ namespace madness {
 		bool has_no_data() const {return (!has_data());}
 
 		/// return the separation rank
-		long rank() const {return _ptr->rank();};
+		long rank() const {
+			if (_ptr) return _ptr->rank();
+			else return 0;
+		};
 
 		/// return the dimension
 		unsigned int dim() const {return _ptr->dim();};
@@ -578,7 +613,7 @@ namespace madness {
 		void reduceRank(const double& eps) {
 
 			// direct reduction on the polynomial values on the Tensor
-			if (tensor_type()==TT_FULL) {
+			if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) {
 				return;
 			} else if (this->tensor_type()==TT_3D) {
 				this->doReduceRank(eps,Tensor<T>());
@@ -709,15 +744,32 @@ namespace madness {
 		}
 
 	    /// accumulate this into t
+	    void accumulate_into(GenTensor<T>& t, const std::complex<double>& fac) const {
+	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
+	    }
+
+	    /// accumulate this into t
 	    void accumulate_into(GenTensor<T>& t, const double& fac=1.0) const {
 
 	    	if (has_no_data()) return;
 
 	    	// need case-by-case decision
 	    	if (tensor_type()==TT_FULL) {
-				t.full_tensor()+=this->full_tensor()*fac;
+	    		if (t.has_no_data()) {
+	    			t=copy(*this);
+	    			t.full_tensor()*=fac;
+	    		} else {
+	    			t.full_tensor()+=this->full_tensor()*fac;
+	    		}
 	    	} else if (tensor_type()==TT_2D) {
-		    	t._ptr->low_rank_add_sequential(*_ptr, fac);
+	    		if (t.tensor_type()==TT_FULL) {
+	    			accumulate_into(t.full_tensor(),fac);
+	    		} else {
+		    		t._ptr->low_rank_add_sequential(*_ptr, fac);
+//					t._ptr->undo_structure();
+//					_ptr->undo_structure();
+//					t._ptr->append(*this->_ptr,fac);
+	    		}
 	    	} else if (tensor_type()==TT_3D) {
 	    		t._ptr->undo_structure();
 	    		_ptr->undo_structure();
@@ -725,6 +777,11 @@ namespace madness {
 	    	} else {
 	    		MADNESS_EXCEPTION("unknown tensor type in GenTensor::accumulate_into",0);
 	    	}
+	    }
+
+	    /// accumulate this into t
+	    void accumulate_into(Tensor<T>& t, const std::complex<double>& fac) const {
+	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
 	    }
 
 		/// reconstruct this to full rank, and accumulate into t
@@ -789,6 +846,13 @@ namespace madness {
 
 		}
 
+		/// append this to rhs, shape must conform
+		void append( gentensorT& rhs, const double fac=1.0) const {
+			rhs._ptr->undo_structure();
+			_ptr->undo_structure();
+			rhs._ptr->append(*this->_ptr,fac);
+		}
+
 	    /// check compatibility
 		friend bool compatible(const gentensorT& rhs, const gentensorT& lhs) {
 			return ((rhs.tensor_type()==lhs.tensor_type()) and (rhs.get_k()==lhs.get_k())
@@ -825,6 +889,7 @@ namespace madness {
 
 		/// transform the Legendre coefficients with the tensor
 		gentensorT transform(const Tensor<T> c) const {
+			_ptr->make_structure();
 			return gentensorT (this->_ptr->transform(c));
 		}
 
@@ -838,6 +903,9 @@ namespace madness {
 		gentensorT transform_dir(const Tensor<T>& c, const int& axis) const {
 			return this->_ptr->transform_dir(c,axis);
 		}
+
+		/// return a reference to the SRConf
+		const SRConf<T>& config() const {return *_ptr;}
 
 		/// return a reference to the SRConf
 		SRConf<T>& config() {return *_ptr;}
@@ -1188,6 +1256,8 @@ namespace madness {
 			if (tensor_type()==TT_FULL) {
 				full_tensor()(lhs_s).gaxpy(alpha,rhs.full_tensor()(rhs_s),beta);
 			} else {
+				rhs._ptr->make_structure();
+				_ptr->make_structure();
 				this->_ptr->inplace_add(*rhs._ptr,lhs_s,rhs_s, alpha, beta);
 			}
 		}
@@ -1376,7 +1446,10 @@ namespace madness {
 			MADNESS_ASSERT(this->tensor_type()==TT_2D);
 
 			// fast return if possible
-			if (values_eff.normf()<eps*facReduce) return;
+			if (values_eff.normf()<eps*facReduce) {
+				_ptr=sr_ptr(new configT(_ptr->dim(),_ptr->get_k(),tensor_type()));
+				return;
+			}
 
 			// output from svd
 			Tensor<T> U;
@@ -1487,39 +1560,30 @@ namespace madness {
     	if (arg.has_data()) {
         	if (arg.tensor_type()==TT_FULL) {
         		;
-        	} else if (arg.tensor_type()==TT_3D) {
+        	} else if (arg.tensor_type()==TT_3D or arg.tensor_type()==TT_2D) {
         		Tensor<T> t=arg.reconstruct_tensor();
             	arg=GenTensor<T>(t,0.0,TT_FULL);
         	} else {
         		throw std::runtime_error("unknown TensorType in to_full_tensor");
         	}
-
-    	} else {
-    		arg=GenTensor<T>(TT_FULL);
     	}
-
-//    	print("to_full_rank");
     }
 
     /// transform the argument SepRepTensor to LowRankTensor form
     template <typename T>
     void to_low_rank(GenTensor<T>& arg, const double& eps, const TensorType& target_type) {
 
-//    	print("to_low_rank");
-
     	if (arg.has_data()) {
         	if (arg.tensor_type()==TT_FULL) {
 				const Tensor<T> t1=arg.reconstruct_tensor();
 				arg=(GenTensor<T>(t1,eps,target_type));
-	     	} else if (arg.tensor_type()==TT_3D) {
+	     	} else if (arg.tensor_type()==TT_2D or arg.tensor_type()==TT_NONE) {
          		;
          	} else {
          		throw std::runtime_error("unknown TensorType in to_full_tensor");
          	}
-    	} else {
-    		arg=GenTensor<T>(target_type);
     	}
-     }
+    }
 
     /// Often used to transform all dimensions from one basis to another
     /// \code
@@ -1564,7 +1628,7 @@ namespace madness {
     /// \code
     /// transform_dir(t,c,1) = r(i,j,k,...) = sum(j') t(i,j',k,...) * c(j',j)
     /// \endcode
-    /// @param[in] t Tensor to transform (size of dimension to be transformed must match size of first dimension of \c c )
+    /// @param[in] t Tensor to transform (size of dim to be transformed must match size of first dim of \c c )
     /// @param[in] c Matrix used for the transformation
     /// @param[in] axis Dimension (or axis) to be transformed
     /// @result Returns a new, contiguous tensor

@@ -306,7 +306,7 @@ void test_math(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
-    bool ok = true;
+
     if (world.rank() == 0) {
         print("Test basic math operations - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }

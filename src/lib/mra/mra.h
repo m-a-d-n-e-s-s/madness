@@ -990,6 +990,7 @@ namespace madness {
             if ((not (this==&g)) and (not g.is_on_demand())) {
             	if (!is_compressed()) compress();
             	if (!g.is_compressed()) g.compress();
+            	print("compressing");
             }
             MADNESS_ASSERT(not g.get_impl()->is_redundant());
             if (g.is_on_demand()) this->reconstruct();
@@ -1460,6 +1461,7 @@ namespace madness {
         	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
         			f.get_impl()->get_functor().get(),true,true);
 			source.norm_tree();
+			print("inner(source,source",inner(source,source));
 			source.get_impl()->compress(true,true,true);
 
         	// apply (bypass apply_only)

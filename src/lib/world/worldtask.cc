@@ -84,13 +84,13 @@ namespace madness {
 
     bool WorldTaskQueue::ProbeAllDone::operator()() const {
 
-		if (cpu_time()-start > 120000) {
+		if (cpu_time()-start > 12000000) {
 			for (int loop = 0; loop<3; loop++) {
 				std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
 				std::cout.flush();
-				myusleep(100000000);
+				myusleep(10000000000);
 			}
-			MADNESS_ASSERT(cpu_time()-start < 120000);
+			MADNESS_ASSERT(cpu_time()-start < 12000000);
 		}
 		return (tq->size() == 0);
     }

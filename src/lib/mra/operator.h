@@ -184,6 +184,7 @@ namespace madness {
             work1=general_transform(f,trans2);
 //            aligned_axpy(size, result.ptr(), w1, mufac);
 //            Tensor<T> w=work1.reconstruct_tensor();
+//            work1.append(result,mufac);
             work1.accumulate_into(result,mufac);
 //            Tensor<T> w=work1.full_tensor_copy();
 //            aligned_axpy(size, result.ptr(), w.ptr(), mufac);
@@ -683,6 +684,7 @@ namespace madness {
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
             const TensorType tt=coeff.tensor_type();
+            const double thresh=1.e-2;
 
             if (coeff.dim(0) == k) {
                 // This processes leaf nodes with only scaling
@@ -706,6 +708,7 @@ namespace madness {
             //print("sepop",source,shift,op->norm,tol);
 
             GenTensor<resultT> r(v2k,tt), r0(vk,tt);
+//            GenTensor<resultT> r(v2k,TT_FULL), r0(vk,TT_FULL);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
     //        GenTensor<Q> work5(2*k,2*k);
             GenTensor<Q> work5(v2k,tt);
@@ -720,7 +723,11 @@ namespace madness {
                                 work1, work2, work5);
                 }
             }
+//            to_full_rank(r);
+//            to_full_rank(r0);
 //            r(s0).gaxpy(1.0,r0,1.0);
+//            to_low_rank(r0,thresh,tt);
+//            to_low_rank(r,thresh,tt);
             r(s0)+=r0;
             return r;
         }
