@@ -77,9 +77,9 @@ namespace madness {
 // Macros for generating numbered list elements
 #define MADNESS_FN_TYPE( N )  a##N##T
 #define MADNESS_FN_ARG( N )  a##N
-#define MADNESS_FN_PARAM( N ) const MADNESS_FN_TYPE( N ) & MADNESS_FN_ARG( N )
+#define MADNESS_FN_PARAM( N ) arg##N##_type MADNESS_FN_ARG( N )
 #define MADNESS_FN_TPARAM( N ) typename MADNESS_FN_TYPE( N )
-#define MADNESS_FN_TYPEDEF( N ) typedef MADNESS_FN_TYPE( N ) arg##N##_type;
+#define MADNESS_FN_TYPEDEF( N ) typedef const typename std::remove_reference< MADNESS_FN_TYPE( N ) >::type & arg##N##_type;
 
 // Macros for generating a list of numbered typedefs
 #define MADNESS_FN_TYPEDEF0
