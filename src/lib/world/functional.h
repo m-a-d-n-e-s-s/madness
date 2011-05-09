@@ -41,6 +41,46 @@
 
 namespace madness {
 
+    namespace {
+        // Parameter types a la Boost
+
+        template <typename T>
+        struct param_type {
+        private:
+            template <typename U, bool isa>
+            struct impl {
+                typedef const U & type;
+            };
+
+            template <typename U>
+            struct impl<U, true> {
+                typedef const T type;
+            };
+        public:
+            typedef typename impl<T, std::is_arithmetic<T>::value>::type type;
+        };
+
+        template <typename T>
+        struct param_type<T *> {
+            typedef T * const type;
+        };
+
+        template <typename T>
+        struct param_type<T &> {
+            typedef T & type;
+        };
+
+        template <typename T, std::size_t N>
+        struct param_type<T [N]> {
+           typedef const T * const type;
+        };
+
+        template <typename T, std::size_t N>
+        struct param_type<const T [N]> {
+           typedef const T * const type;
+        };
+    } // namespace
+
 // Macros for generating comma separated lists with a prefix element
 // It can create a list of up to 10 elements
 #define MADNESS_LISTP0( P , L ) P
@@ -79,7 +119,7 @@ namespace madness {
 #define MADNESS_FN_ARG( N )  a##N
 #define MADNESS_FN_PARAM( N ) arg##N##_type MADNESS_FN_ARG( N )
 #define MADNESS_FN_TPARAM( N ) typename MADNESS_FN_TYPE( N )
-#define MADNESS_FN_TYPEDEF( N ) typedef const typename std::remove_reference< MADNESS_FN_TYPE( N ) >::type & arg##N##_type;
+#define MADNESS_FN_TYPEDEF( N ) typedef typename param_type< MADNESS_FN_TYPE( N ) >::type arg##N##_type;
 
 // Macros for generating a list of numbered typedefs
 #define MADNESS_FN_TYPEDEF0
