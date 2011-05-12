@@ -1,34 +1,34 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2011 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
-  
+
+
   $Id$
 */
 
@@ -49,9 +49,9 @@ private:
     const int nproc;
 public:
     LevelPmap() : nproc(0) {};
-    
+
     LevelPmap(World& world) : nproc(world.nproc()) {}
-    
+
     /// Find the owner of a given key
     ProcessID owner(const Key<3>& key) const {
         Level n = key.level();
@@ -89,11 +89,11 @@ inline double mask1(double x) {
        from 0->1 in [0,1].  n iterations produce 2*n-1
        zero derivatives at the end points. Order of polyn
        is 3^n.
-       
+
        Currently use one iteration so that first deriv.
        is zero at interior boundary and is exactly representable
        by low order multiwavelet without refinement */
-    
+
     x = (x*x*(3.-2.*x));
     return x;
 }
@@ -104,7 +104,7 @@ double mask3(const coordT& ruser) {
     double x= rsim[0], y=rsim[1], z=rsim[2];
     double lo = 0.0625, hi = 1.0-lo, result = 1.0;
     double rlo = 1.0/lo;
-    
+
     if (x<lo)
         result *= mask1(x*rlo);
     else if (x>hi)
@@ -1054,11 +1054,11 @@ int main (int argc, char **argv) {
             print(e);
             error("caught a Tensor exception");
         }
-        catch (const char* s) {
+        catch (char* s) {
             print(s);
             error("caught a string exception");
         }
-        catch (char* s) {
+        catch (const char* s) {
             print(s);
             error("caught a string exception");
         }
