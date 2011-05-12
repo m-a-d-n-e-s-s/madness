@@ -6,10 +6,9 @@ omega 1.32
 natom 1
    1.0    0.0 0.0 0.0
 k 8
-thresh 1e-4
+thresh 1e-6
 safety 1e-0
-cut 0.3
-iState 2s
+cut 0.025
 prefix data
 nplot 999
 nprint 1
