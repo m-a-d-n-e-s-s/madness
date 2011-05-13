@@ -51,8 +51,13 @@ using std::max;
 
 using madness::Tensor;
 
+#ifdef MADNESS_HAS_EIGEN3
+#  include <linalg/eigen.h>
+#endif
+#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
 #include <linalg/tensor_lapack.h>
 #include <linalg/clapack.h>
+#endif
 
 #ifdef STATIC
 #  undef STATIC
@@ -65,6 +70,7 @@ using madness::Tensor;
 #  define STATIC
 #endif
 
+#ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
 /// These oddly-named wrappers enable the generic svd iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -213,9 +219,11 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
            info, jobzlen, uplo_len );
 }
 
+#endif //MADNESS_HAS_EIGEN3
 
 namespace madness {
 
+#ifndef MADNESS_HAS_EIGEN3
     static void mask_info(integer& info) {
         if ( (info&0xffffffff) == 0) info = 0;
     }
@@ -259,6 +267,7 @@ namespace madness {
 
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
     }
+#endif //MADNESS_HAS_EIGEN3
 
     /// Example and test code for interface to LAPACK SVD interfae
     template <typename T>
@@ -281,6 +290,7 @@ namespace madness {
         return b.absmax();
     }
 
+#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Solve Ax = b for general A using the LAPACK *gesv routines.
 
     A should be a square matrix (float, double, float_complex,
@@ -318,6 +328,7 @@ namespace madness {
 
         if (b.ndim() == 2) x = transpose(x);
     }
+#endif //MADNESS_HAS_EIGEN3
 
     template <typename T>
     double test_gesv(int n, int nrhs) {
@@ -355,6 +366,7 @@ namespace madness {
     }
 
 
+#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
 
     A should be a matrix (float, double, float_complex,
@@ -454,6 +466,7 @@ namespace madness {
         else
             x = lapack_inout;
     }
+#endif //MADNESS_HAS_EIGEN3
 
     template <typename T>
     double test_gelss(int n, int nrhs) {
@@ -471,6 +484,7 @@ namespace madness {
         return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
     }
 
+#ifndef MADNESS_HAS_EIGEN3
     /** \brief   Real-symmetric or complex-Hermitian eigenproblem.
 
     A is a real symmetric or complex Hermitian matrix.  Return V and e
@@ -500,6 +514,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
+#endif //MADNESS_HAS_EIGEN3
 
     // This stupidity since current defn of conj_tranpose() only
     // takes complex types ... was that a sensible design choice?
@@ -532,6 +547,7 @@ namespace madness {
     }
 
 
+#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -577,6 +593,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         V = transpose(V);
     }
+#endif //MADNESS_HAS_EIGEN3
 
 
     template <typename T>
@@ -596,6 +613,7 @@ namespace madness {
         return err;
     }
 
+#ifndef MADNESS_HAS_EIGEN3
     /// Compute the Cholesky factorization of the symmetric positive definite matrix A
 
     /// For memory efficiency A is modified inplace.  Its upper
@@ -614,6 +632,7 @@ namespace madness {
             for (int j=0; j<i; ++j)
                 A(i,j) = 0.0;
     }
+#endif //MADNESS_HAS_EIGEN3
 
 //     template <typename T>
 //     void triangular_solve(const Tensor<T>& L, Tensor<T>& B, const char* side, const char* transa) {
@@ -641,6 +660,7 @@ namespace madness {
     }
 
     void init_tensor_lapack() {
+#ifndef MADNESS_HAS_EIGEN3
 	char e[] = "e";
 	dlamch_(e,1);
 	slamch_(e,1);
@@ -649,6 +669,7 @@ namespace madness {
 // 	for (int i=0; i<10; ++i) {
 // 	    cout << "init_tensor_lapack: dlamch: " << modes[i] << " = " << dlamch_(modes+i,1) << endl;
 // 	}
+#endif //MADNESS_HAS_EIGEN3
     }
 
 
@@ -696,6 +717,7 @@ namespace madness {
     //   return 0;
     // }
 
+#ifndef MADNESS_HAS_EIGEN3
     // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
     // versions were happy with the instantiations caused by the test code above
 
@@ -749,4 +771,5 @@ namespace madness {
 //     template
 //     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,
 //                           const char* side, const char* transa);
+#endif //MADNESS_HAS_EIGEN3
 }
