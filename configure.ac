@@ -147,6 +147,9 @@ AC_FUNC_FORK
 AC_FUNC_ERROR_AT_LINE
 ACX_POSIX_MEMALIGN
 
+# Check for EIGEN3
+ACX_WITH_EIGEN3
+
 # Checks for Fortran linking conventions and BLAS+LAPACK at the same time
 ACX_FORTRAN_SYMBOLS
 
