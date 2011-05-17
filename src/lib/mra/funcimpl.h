@@ -521,6 +521,7 @@ namespace madness {
 
             if (has_coeff()) {
            		coeff() += t;
+//           		t.accumulate_into(coeff(),args.thresh,1.0);
             } else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
@@ -2795,10 +2796,9 @@ namespace madness {
                 d(cdata.s0) = 0.0;
 
             d.reduceRank(thresh);
-
             acc->second.set_coeff(d);
-
             s.reduceRank(thresh);
+
             return s;
         }
 
@@ -2938,7 +2938,11 @@ namespace madness {
         Void do_apply_target_driven(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
+
+            // fac accounts for the number of neighbors
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            if (NDIM==6) fac=100;//729.0;
+
             //const long lmax = 1L << (key.level()-1);
 
 //            FunctionImpl<R,NDIM>* f=const_cast< FunctionImpl<R,NDIM>*>(ff);
@@ -2983,8 +2987,6 @@ namespace madness {
                     double tol = truncate_tol(thresh, key);
 
                     // get the NS coeffs from the source tree
-//                    tensorT c=f->functor->coeff(source,true).full_tensor_copy();
-//                    pimplT pc=f->functor->get_precomputed();
                     const typename dcT::const_iterator it=fcoeffs.find(source).get();
 
                     if (it!=fcoeffs.end()) {
@@ -2995,30 +2997,27 @@ namespace madness {
                     	const double cnorm=fnode.get_norm_tree();
 
 						if (cnorm*opnorm> tol/fac) {
+
 							// for now do all the convolutions in one task, since we need
 							// to reduce the rank at the end, and we can't keep track of
 							// which nodes have already been processed
-//							tensorT result = op->apply(source, d, c, tol/fac/cnorm);
-							coeffT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm);
-//							result.right_orthonormalize();
-//				            to_full_rank(result);
-//				            to_low_rank(result,targs.thresh,targs.tt);
-//							result.reduceRank();
+							coeffT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm,tol/fac);
 
 							// accumulate the result on this node
-							if (result.normf()> 0.3*tol/fac) {
+//							if (result.normf()> 0.3*tol/fac) {
 								node.accumulate(result,this->coeffs,key,targs);
-							}
+//							}
+
 //						} else if (d.distsq() > 1) {
 //							break; // Assumes monotonic decay beyond nearest neighbor
 						}
                     }
                 }
             }
-            print("done with node/1",node.coeff().rank());
+            long oldrank2=node.coeff().rank();
+            node.reduceRank(truncate_tol(thresh, key));
 //            to_low_rank(node.coeff(),targs.thresh,targs.tt);
-            node.reduceRank(thresh);
-            print("done with node/2",node.coeff().rank());
+            print("done with node",key,node.coeff().normf(),oldrank2,node.coeff().rank());
             return None;
         }
 
@@ -3031,18 +3030,34 @@ namespace madness {
         		const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
+            Vector<Translation, NDIM> l;
+//            l=vec(2,5,3,4,4,4);
+//            l[0]=2;
+//            l[1]=5;
+//            l[2]=3;
+//            l[3]=4;
+//            l[4]=4;
+//            l[5]=4;
+
+
+            const keyT key1(3,l);
+
             // looping through all the coefficients of the target (this)
             typename dcT::iterator end = coeffs.end();
              for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
 
             	const keyT& key = it->first;
 
-                ProcessID p = coeffs.owner(key);
-                woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
+//            	if (key==key1) {
+
+            		ProcessID p = coeffs.owner(key);
+            		woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
+//            	}
             }
             if (fence)
                 world.gop.fence();
             print("done with apply_target_driven");
+//    		MADNESS_EXCEPTION("debug stop",0);
         }
 
 
@@ -3357,12 +3372,19 @@ namespace madness {
         /// print the number of configurations per node
         void print_stats() const {
         	int dim=NDIM/2;
-        	std::vector<long> n(std::pow(k,dim));
+        	int k0=k;
+        	if (is_compressed()) k0=2*k;
+        	std::vector<long> n(std::pow(k0,dim)+1);
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
-                if (node.has_coeff())
-                    n[node.coeff().rank()]++;
+                if (node.has_coeff()) {
+                	if (node.coeff().rank()>long(n.size())) {
+                		print("large rank",node.coeff().rank());
+                	} else {
+                		n[node.coeff().rank()]++;
+                	}
+                }
             }
             world.gop.sum(&n[0],n.size());
             print("configurations     number of nodes");

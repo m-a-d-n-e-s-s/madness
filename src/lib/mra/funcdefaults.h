@@ -143,20 +143,33 @@ namespace madness {
     };
 
 
-    template <std::size_t NDIM>
     static
     inline
-    std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
-        s << "BoundaryConditions(";
-        for (int d=0; d<NDIM; ++d) {
-            s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
-            if (d == NDIM-1)
-                s << ")";
-            else
-                s << ", ";
-        }
+    std::ostream& operator << (std::ostream& s, const TensorType& tt) {
+       	std::string str="confused tensor type";
+       	if (tt==TT_FULL) str="full rank tensor";
+       	if (tt==TT_2D) str="low rank tensor 2-way";
+       	if (tt==TT_3D) str="low rank tensor 3-way";
+       	if (tt==TT_NONE) str="no tensor type specified";
+       	s << str.c_str();
         return s;
     }
+
+    template <std::size_t NDIM>
+     static
+     inline
+     std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
+         s << "BoundaryConditions(";
+         for (int d=0; d<NDIM; ++d) {
+             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
+             if (d == NDIM-1)
+                 s << ")";
+             else
+                 s << ", ";
+         }
+         return s;
+     }
+
 
     /// FunctionDefaults holds default paramaters as static class members
 

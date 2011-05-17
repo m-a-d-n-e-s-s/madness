@@ -222,7 +222,7 @@ namespace madness {
 		static const double sqrtMachinePrecision=1.e-7;
 
 		/// safety for rank reduction
-		static const double facReduce=1.e-4;
+		static const double facReduce=1.e-3;
 
 	public:
 
@@ -328,6 +328,12 @@ namespace madness {
 			return gentensorT();
 		}
 
+		/// return some of the terms of the SRConf (start,..,end), inclusively
+		/// shallow copy
+		const GenTensor get_configs(const int& start, const int& end) const {
+			return gentensorT(config().get_configs(start,end));
+		}
+
 		/// general slicing, shallow; for temporary use only!
 		SliceGenTensor<T> operator()(const std::vector<Slice>& s) {
 			return SliceGenTensor<T>(*this,s);
@@ -416,7 +422,7 @@ namespace madness {
 			// work-around for rank==0
 			Tensor<double> weights;
 			if (rank>0) {
-				weights=copy(this->_ptr->weights_);
+				weights=copy(this->_ptr->weights_(Slice(0,rank-1)));
 			} else {
 				weights=Tensor<double>(int(0));
 			}
@@ -442,7 +448,14 @@ namespace madness {
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
-			rhs.accumulate_into(*this,1.0);
+//			rhs.accumulate_into(*this,1.0);
+			if (tensor_type()==TT_FULL) {
+				if (not rhs.tensor_type()==TT_FULL)
+					MADNESS_EXCEPTION("gentensorT::operator+= failure; call accumulate_into",0);
+				this->full_tensor()+=rhs.full_tensor();
+				return *this;
+			}
+			rhs.append(*this,1.0);
 			return *this;
 		}
 
@@ -476,7 +489,8 @@ namespace madness {
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
 	    gentensorT& gaxpy(const double alpha, const gentensorT& rhs, const double beta) {
 	    	if (not alpha==1.0) this->scale(alpha);
-	    	rhs.accumulate_into(*this,beta);
+//	    	rhs.accumulate_into(*this,beta);
+	    	rhs.append(*this,beta);
 	    	return *this;
 	    }
 
@@ -498,12 +512,12 @@ namespace madness {
 		};
 
 		/// orthonormalize the right subspace and shift the weights to the left one
-		void right_orthonormalize() {
+		void right_orthonormalize(const double& thresh) {
 			if (has_no_data()) return;
 			if (tensor_type()==TT_2D) {
 				_ptr->undo_structure();
 				if (rank()==1) _ptr->normalize_and_shift_weights_to_x();
-				else _ptr->right_orthonormalize();
+				else _ptr->right_orthonormalize(thresh*facReduce);
 			}
 		}
 
@@ -565,8 +579,9 @@ namespace madness {
 
 		/// returns the Frobenius norm
 		double normf() const {
+			if (has_no_data()) return 0.0;
 			_ptr->undo_structure();
-			return _ptr->normf();
+			return config().normf();
 		};
 
 		/// returns the trace of <this|rhs>
@@ -612,6 +627,8 @@ namespace madness {
 		// reduce the rank of this
 		void reduceRank(const double& eps) {
 
+			if (rank()==0) return;
+
 			// direct reduction on the polynomial values on the Tensor
 			if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) {
 				return;
@@ -620,18 +637,39 @@ namespace madness {
 				this->_ptr->make_structure();
 			} else if (this->tensor_type()==TT_2D) {
 
-				// reconstruct and re-reduce
+				// determine what is faster: reconstruction or direct rank reduction
+				const double ratio=(_ptr->kVec())/(2.0*rank());
+				if (ratio>1.0) {
 
-				// adapt form of values
-				Tensor<T> values=this->reconstruct_tensor();
-				std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
-				Tensor<T> values_eff=values.reshape(d);
+					config().undo_structure();
+					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
+						config().divide_and_conquer_reduce(eps*facReduce);
 
-				this->computeSVD(eps,values_eff);
+					} else if (OrthoMethod::om==sequential_) {
+						config().sequential_orthogonalization(eps*facReduce);
+
+					} else if (OrthoMethod::om==reconstruct_) {
+						reconstruct_and_decompose(eps);
+
+					} else {
+						MADNESS_EXCEPTION("confused about orthogonalization method??",0);
+					}
+					config().make_structure();
+				} else {
+					reconstruct_and_decompose(eps);
+				}
 			} else {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor::reduceRank()",0);
 			}
 			MADNESS_ASSERT(this->_ptr->has_structure() or this->rank()==0);
+		}
+
+		/// reduce rank by reconstruction of the full tensor and subsequent SVD decomposition
+		void reconstruct_and_decompose(const double& eps) {
+			Tensor<T> values=this->reconstruct_tensor();
+			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
+			Tensor<T> values_eff=values.reshape(d);
+			this->computeSVD(eps,values_eff);
 		}
 
 		/// print this' coefficients
@@ -744,12 +782,12 @@ namespace madness {
 		}
 
 	    /// accumulate this into t
-	    void accumulate_into(GenTensor<T>& t, const std::complex<double>& fac) const {
+	    void accumulate_into(GenTensor<T>& t, const double& thresh, const std::complex<double>& fac) const {
 	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
 	    }
 
 	    /// accumulate this into t
-	    void accumulate_into(GenTensor<T>& t, const double& fac=1.0) const {
+	    void accumulate_into(GenTensor<T>& t, const double& thresh, const double& fac) const {
 
 	    	if (has_no_data()) return;
 
@@ -765,10 +803,10 @@ namespace madness {
 	    		if (t.tensor_type()==TT_FULL) {
 	    			accumulate_into(t.full_tensor(),fac);
 	    		} else {
-		    		t._ptr->low_rank_add_sequential(*_ptr, fac);
-//					t._ptr->undo_structure();
-//					_ptr->undo_structure();
-//					t._ptr->append(*this->_ptr,fac);
+
+		    		t._ptr->undo_structure();
+		    		_ptr->undo_structure();
+		    		t.config().low_rank_add_sequential(*_ptr,thresh*facReduce,fac);
 	    		}
 	    	} else if (tensor_type()==TT_3D) {
 	    		t._ptr->undo_structure();
@@ -785,7 +823,7 @@ namespace madness {
 	    }
 
 		/// reconstruct this to full rank, and accumulate into t
-		void accumulate_into(Tensor<T>& t, const double fac=1.0) const {
+		void accumulate_into(Tensor<T>& t, const double fac) const {
 
 			// fast return if possible
 			if (this->has_no_data()) return;	// no SRConf at all
@@ -896,7 +934,7 @@ namespace madness {
 		/// transform the Legendre coefficients with the tensor
 		template<typename Q>
 		gentensorT general_transform(const Tensor<Q> c[]) const {
-			return gentensorT (this->_ptr->general_transform(c));
+			return gentensorT (this->config().general_transform(c));
 		}
 
 		/// inner product
@@ -909,6 +947,9 @@ namespace madness {
 
 		/// return a reference to the SRConf
 		SRConf<T>& config() {return *_ptr;}
+
+		/// return the additional safety for rank reduction
+		static double fac_reduce() {return facReduce;};
 
 	private:
 
@@ -1460,7 +1501,7 @@ namespace madness {
 
 			// find the maximal singular value that's supposed to contribute
 			// singular values are ordered (largest first)
-			const double threshold=eps*eps*facReduce;
+			const double threshold=eps*eps*facReduce*facReduce;
 			double residual=0.0;
 			long i;
 			for (i=s.dim(0)-1; i>=0; i--) {
@@ -1477,6 +1518,8 @@ namespace madness {
 				MADNESS_ASSERT(this->_ptr->kVec()==this->_ptr->vector_[0].dim(1));
 				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
 				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->weights_.dim(0));
+			} else {
+				_ptr=sr_ptr(new configT(dim(),get_k(),tensor_type()));
 			}
 			this->_ptr->make_structure();
 		}

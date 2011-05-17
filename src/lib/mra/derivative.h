@@ -320,7 +320,6 @@ namespace madness {
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
 
                 d= transform_dir(tensor_left,right_rpt,this->axis);
-                d.right_orthonormalize();
                 d+=transform_dir(tensor_center,right_r0t,this->axis);
 
 //<<<<<<< .working
@@ -443,7 +442,6 @@ namespace madness {
             coeffT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,1));
 
             coeffT d= transform_dir(tensor_left,rpt,this->axis);
-            d.right_orthonormalize();
             d+=transform_dir(tensor_center,r0t,this->axis);
             d+=transform_dir(tensor_right,rmt,this->axis);
 

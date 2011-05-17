@@ -166,7 +166,7 @@ namespace madness {
 
 
         template <typename T, typename R>
-        void apply_transformation2(Level n, long dimk,
+        void apply_transformation2(Level n, long dimk,  double tol,
                                   const Tensor<T> trans2[NDIM],
                                   const GenTensor<T>& f,
                                   GenTensor<R>& work1,
@@ -178,16 +178,10 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 
 #if 1
-            long size = 1;
-            for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
-
-            work1=general_transform(f,trans2);
-//            aligned_axpy(size, result.ptr(), w1, mufac);
-//            Tensor<T> w=work1.reconstruct_tensor();
-//            work1.append(result,mufac);
-            work1.accumulate_into(result,mufac);
-//            Tensor<T> w=work1.full_tensor_copy();
-//            aligned_axpy(size, result.ptr(), w.ptr(), mufac);
+//            GenTensor<T> r=general_transform(f,trans2);
+//            r.accumulate_into(result,-1.0,mufac);
+            result=general_transform(f,trans2);
+            result.scale(mufac);
 
 #else
 
@@ -363,7 +357,7 @@ namespace madness {
                 }
                 trans2[d]=ops[d]->R;
             }
-            apply_transformation2(n, twok, trans2, f, work1, work2, work5, mufac, result);
+            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -388,7 +382,7 @@ namespace madness {
                     }
                     trans2[d]=ops[d]->T;
                 }
-                apply_transformation2(n, k, trans2, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -673,18 +667,21 @@ namespace madness {
         }
 
 
+        /// apply this operator on coefficients in low rank form
 
+        /// @param[in]	tol		thresh/#neigh*cnorm
+        /// @param[in]	tol2	thresh/#neigh
         template <typename T>
         GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2(const Key<NDIM>& source,
                                               const Key<NDIM>& shift,
                                               const GenTensor<T>& coeff,
-                                              double tol) const {
+                                              double tol, double tol2) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
             const TensorType tt=coeff.tensor_type();
-            const double thresh=1.e-2;
 
             if (coeff.dim(0) == k) {
                 // This processes leaf nodes with only scaling
@@ -702,15 +699,17 @@ namespace madness {
             }
 
             tol = tol/rank; // Error is per separated term
+            tol2= tol2/rank;
+            const int chunksize=4;
+            const int nchunks=coeff.rank()/chunksize+1;
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
 
             //print("sepop",source,shift,op->norm,tol);
 
-            GenTensor<resultT> r(v2k,tt), r0(vk,tt);
-//            GenTensor<resultT> r(v2k,TT_FULL), r0(vk,TT_FULL);
+            GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt);
+//            GenTensor<resultT> r(v2k,TT_FULL), r0(vk,TT_FULL), result(v2k,TT_FULL);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
-    //        GenTensor<Q> work5(2*k,2*k);
             GenTensor<Q> work5(v2k,tt);
 
             const GenTensor<T> f0 = copy(coeff(s0));
@@ -718,18 +717,30 @@ namespace madness {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
                 if (muop.norm > tol) {
-                    Q fac = ops[mu].getfac();
-                    muopxv_fast2(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
-                                work1, work2, work5);
+
+                	// loop over chunks of coeff's terms
+                	for (int i=0; i<coeff.rank(); i+=chunksize) {
+                		int end=std::min(i+chunksize,int(coeff.rank()))-1;
+                		const GenTensor<resultT> chunk=input->get_configs(i,end);
+						const GenTensor<resultT> chunk0=f0.get_configs(i,end);
+
+						// assuming w(i)>w(i+1)
+						if (chunk.config().weights(end-i)*muop.norm > tol*0.01) {
+							Q fac = ops[mu].getfac();
+							muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
+									tol/std::abs(fac), fac,	work1, work2, work5);
+
+							r(s0)+=r0;
+							r.reduceRank(tol2/nchunks);			// reduce 1
+							result+=r;
+						}
+                	}
+
+                    result.reduceRank(tol2);					// reduce 2
                 }
             }
-//            to_full_rank(r);
-//            to_full_rank(r0);
-//            r(s0).gaxpy(1.0,r0,1.0);
-//            to_low_rank(r0,thresh,tt);
-//            to_low_rank(r,thresh,tt);
-            r(s0)+=r0;
-            return r;
+            result.reduceRank(tol2*rank);						// reduce 3
+            return result;
         }
 
     };

@@ -1463,6 +1463,8 @@ namespace madness {
 			source.norm_tree();
 			print("inner(source,source",inner(source,source));
 			source.get_impl()->compress(true,true,true);
+			source.get_impl()->print_stats();
+			print("stats for source tree including V");
 
         	// apply (bypass apply_only)
         	print("applying operator in target-driven algorithm");

@@ -256,8 +256,8 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	for (int i=0; i<3; i++) {
 		for (int j=0; j<3; j++) {
 
-			Tensor<double> t0=copy(t[0]);
-			Tensor<double> t1=copy(t[1]);
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
 
 			GenTensor<double> g0(t0,eps,tt);
 			GenTensor<double> g1(t1,eps,tt);
@@ -489,52 +489,147 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 	print("entering rank reduce");
-	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
-	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
-
-	t0.fillindex();
-	t1=2.0;
 
 	double norm=0.0;
 	int nerror=0;
 
-	{
-		//					tt	 k d
-		GenTensor<double> sr1(tt,k,dim);
-		sr1.fillrandom(2);
-	//    sr1.config().weights_[1]*=3.0;
-	//    sr1.config().vector_[0](1,2)*=4.e2;
-		Tensor<double> t=sr1.reconstruct_tensor();
-		GenTensor<double> sr2(tt,k,dim);
-		sr2.fillrandom();
-		Tensor<double> tt=sr2.reconstruct_tensor();
 
-//		sr1.right_orthonormalize();
-		sr2.config().vector_[0].fillrandom()*2.0;
-		sr1+=sr2;
-		t+=sr2.reconstruct_tensor();
-		sr2.config().vector_[0].fillrandom();
-		sr1+=sr2;
-		t+=sr2.reconstruct_tensor();
+	// set up three tensors (zeros, rank 2, full rank)
+	std::vector<long> d(dim,k);
+	std::vector<Tensor<double> > t(3);
 
-		sr2.config().vector_[0].fillrandom();
-		sr1+=sr2;
-		t+=sr2.reconstruct_tensor();
+	t[0]=Tensor<double>(d);
+	t[1]=Tensor<double>(d).fillindex();
+	t[1].scale(1.0/t[1].normf());
+	t[2]=Tensor<double>(d).fillrandom();
 
-//		sr1.right_orthonormalize();
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
 
-		Tensor<double> t3=sr1.reconstruct_tensor();
-		print("norm",(t-t3).normf());
-		norm=(t-t3).normf();
-		print(ok(is_small(norm,eps)),"sophisticated rank reduce   ",sr1.what_am_i(),norm);
-		if (!is_small(norm,eps)) nerror++;
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
 
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.config().orthonormalize(eps);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction orthonormalize   ",g0.what_am_i(),norm,g0.rank());
+			if (!is_small(norm,eps)) nerror++;
+		}
 	}
 
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.config().undo_structure();
+			g0.reconstruct_and_decompose(eps/1.e-3);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction reconstruct   ",g0.what_am_i(),norm,g0.rank());
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+//			t1.scale(-1.0);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.config().right_orthonormalize(eps);
+			g0.config().right_orthonormalize(eps);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction right_orthonormalize   ",g0.what_am_i(),norm,g0.rank(),t0.normf());
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.config().undo_structure();
+			g0.config().rank_revealing_modified_gram_schmidt2(eps);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction RR/MGS2   ",g0.what_am_i(),norm,g0.rank());
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.config().divide_and_conquer_reduce(eps);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction divide&conquer",OrthoMethod(),
+					g0.what_am_i(),norm,g0.rank());
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+
+
+
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0+=g1;
+			t0+=t1;
+			g0.reduceRank(eps);
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"rank reduction reduceRank   ",OrthoMethod(),g0.what_am_i(),norm);
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
 
 	print("all done\n");
 	return nerror;
 }
+
 
 int testGenTensor_transform(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
@@ -654,8 +749,8 @@ int testGenTensor_reconstruct(const long& k, const long& dim, const double& eps,
 		GenTensor<double> g0(t0,eps,tt);
 
 		GenTensor<double> g=copy(g0);
-		g.right_orthonormalize();
-		g0.accumulate_into(g,-1.0);
+		g.right_orthonormalize(eps);
+		g0.accumulate_into(g,eps,-1.0);
 
 		norm=(g.full_tensor_copy()).normf();
 		print(ok(is_small(norm,eps)),"accumulate_into gentensor",g0.what_am_i(),norm);
@@ -679,7 +774,9 @@ int main(int argc, char**argv) {
     // the parameters
     long k=6;
     const unsigned int dim=6;
-    double eps=1.e-3;
+    double eps=1.e-5;
+    print("k    ",k);
+    print("eps  ",eps);
 
     // some test
 #if 0
@@ -738,6 +835,7 @@ int main(int argc, char**argv) {
 #endif
 
 
+
 #if 0
 
     // do some benchmarking
@@ -772,28 +870,62 @@ int main(int argc, char**argv) {
 
     		cpu1=wall_time();
     		if(world.rank() == 0) print("baseline at time ", cpu1-cpu0);
+//    		cpu0=wall_time();
+//
+//    		for (int i=0; i<nloop; i++) {
+//    			GenTensor<double> g00=g0;
+//    			g00.accumulate_into(t0);
+//    		}
+//
+//    		cpu1=wall_time();
+//    		if(world.rank() == 0) print("accumulate_into tensor at time ", cpu1-cpu0);
+//    		cpu0=wall_time();
+//
+////			GenTensor<double> g00=g0;
+////   			GenTensor<double> g11=g1;
+//   			g1.config().right_orthonormalize();
+//    		for (int i=0; i<nloop; i++) {
+//    			GenTensor<double> g00=g0;
+//    			GenTensor<double> g11=g1;
+//    			g00.accumulate_into(g11);
+//    		}
+//
+//    		cpu1=wall_time();
+//    		if(world.rank() == 0) print("accumulate_into gentensor at time ", cpu1-cpu0);
+
+
     		cpu0=wall_time();
-
     		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g0;
-    			g00.accumulate_into(t0);
+    			GenTensor<double> g00=g2;
+//    			g00.config().rank_revealing_modified_gram_schmidt2(eps);
     		}
-
     		cpu1=wall_time();
-    		if(world.rank() == 0) print("accumulate_into tensor at time ", cpu1-cpu0);
+    		if(world.rank() == 0) print("RR/MGS at time ", cpu1-cpu0);
+
+
     		cpu0=wall_time();
-
-//			GenTensor<double> g00=g0;
-//   			GenTensor<double> g11=g1;
-   			g1.config().right_orthonormalize();
     		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g0;
-    			GenTensor<double> g11=g1;
-    			g00.accumulate_into(g11);
+    			GenTensor<double> g00=g2;
+    			g00.config().right_orthonormalize(eps);
     		}
-
     		cpu1=wall_time();
-    		if(world.rank() == 0) print("accumulate_into gentensor at time ", cpu1-cpu0);
+    		if(world.rank() == 0) print("right_orthonormalize at time ", cpu1-cpu0);
+
+    		cpu0=wall_time();
+    		for (int i=0; i<nloop; i++) {
+    			GenTensor<double> g00=g2;
+    			g00.config().sequential_orthogonalization(eps);
+    		}
+    		cpu1=wall_time();
+    		if(world.rank() == 0) print("RR/LRT add at time ", cpu1-cpu0);
+
+    		cpu0=wall_time();
+    		for (int i=0; i<nloop; i++) {
+    			GenTensor<double> g00=g2;
+    			g00.config().orthonormalize(eps);
+    		}
+    		cpu1=wall_time();
+    		if(world.rank() == 0) print("orthonormalize at time ", cpu1-cpu0);
 
    	    }
     }
