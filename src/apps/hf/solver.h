@@ -620,7 +620,11 @@ namespace madness
     //*************************************************************************
 
     //*************************************************************************
-    std::vector<double> _occs;
+    std::vector<double> _occsa;
+    //*************************************************************************
+
+    //*************************************************************************
+    std::vector<double> _occsb;
     //*************************************************************************
 
     //*************************************************************************
@@ -855,13 +859,16 @@ namespace madness
       ar & _params.spinpol;
       ar & (unsigned int)(_kpoints.size());
       for (unsigned int i = 0; i < _kpoints.size(); i++) ar & _kpoints[i];
-      ar & (unsigned int)(_occs.size());
-      for (unsigned int i = 0; i < _occs.size(); i++) ar & _occs[i];
+//      ar & (unsigned int)(_occsa.size());
+//      for (unsigned int i = 0; i < _occsa.size(); i++) ar & _occsa[i];
       ar & (unsigned int)(_phisa.size());
       for (unsigned int i = 0; i < _phisa.size(); i++) ar & _phisa[i];
       if (_params.spinpol)
       {
-        MADNESS_EXCEPTION("spin polarized is not implemented", 0);
+//        ar & (unsigned int)(_occsb.size());
+//        for (unsigned int i = 0; i < _occsb.size(); i++) ar & _occsb[i];
+        ar & (unsigned int)(_phisb.size());
+        for (unsigned int i = 0; i < _phisb.size(); i++) ar & _phisb[i];
       }
     }
     //*************************************************************************
@@ -888,15 +895,15 @@ namespace madness
         _kpoints.push_back(tkpt);
       }
       // occs
-      unsigned int noccs;
-      ar & noccs;
-      _occs.clear();
-      for (unsigned int i = 0; i < noccs; i++)
-      {
-        double tocc;
-        ar & tocc;
-        _occs.push_back(tocc);
-      }
+//      unsigned int noccs;
+//      ar & noccs;
+//      _occs.clear();
+//      for (unsigned int i = 0; i < noccs; i++)
+//      {
+//        double tocc;
+//        ar & tocc;
+//        _occs.push_back(tocc);
+//      }
       // orbitals
       unsigned int norbs;
       ar & norbs;
@@ -920,9 +927,29 @@ namespace madness
       // orthonormalize
       for (unsigned int i = 0; i < _kpoints.size(); i++)
         gram_schmidt(_phisa, _kpoints[i]);
+
       if (_params.spinpol)
       {
-        MADNESS_EXCEPTION("spin-polarized not implemented", 0);
+        _phisb.clear();
+        _eigsb.clear();
+        for (unsigned int i = 0; i < norbs; i++)
+        {
+          functionT tfunc;
+          ar & tfunc;
+          _phisb.push_back(tfunc);
+          _eigsb.push_back(-0.1);
+        }
+        // check for k mismatch
+        if (_phisb[0].k() != k)
+        {
+          reconstruct(_world,_phisb);
+          for (unsigned int i = 0; i < _phisb.size(); i++)
+            _phisb[i] = madness::project(_phisb[i], k, thresh, false);
+          _world.gop.fence();
+        }
+        // orthonormalize
+        for (unsigned int i = 0; i < _kpoints.size(); i++)
+          gram_schmidt(_phisb, _kpoints[i]);
       }
     }
     //*************************************************************************
@@ -1054,6 +1081,19 @@ namespace madness
             functorT aofunc(new AtomicBasisFunctor(_aobasis.get_atomic_basis_function(_mentity,i),
                 _params.L, _params.periodic, kpt));
             ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+            // WSTHORNTON
+            // if at k-point == (0.0,0.0,0.0) basis function should be real
+//            if ((abs(kpt.k[0]) < 1e-12) && (abs(kpt.k[1]) < 1e-12) &&
+//                (abs(kpt.k[2]) < 1e-12))
+//            {
+//              if (!::madness::is_real<T,NDIM>(ao[i]))
+//              {
+//                double t1 = (imag(ao[i])).norm2();
+//                if (_world.rank() == 0)
+//                  printf("ERROR: ao basis function imaginary: %5.3d     %15.8f\n\n", i, t1);
+//
+//              }
+//            }
         }
         world.gop.fence();
 
@@ -1122,17 +1162,31 @@ namespace madness
     //*************************************************************************
     void initial_guess()
     {
+//      // Get initial guess for the electronic density
+//      if (_world.rank() == 0) print("Guessing rho ...\n\n");
+//      rfunctionT rho = (_params.restart == 0) ? rfactoryT(_world).functor(rfunctorT(
+//          new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic))).initial_level(3) :
+//            compute_rho(_phisa, _kpoints);
+//      if (_params.restart == 1)
+//      {
+//        if (_params.spinpol)
+//          rho += compute_rho(_phisb, _kpoints);
+//        else
+//          rho.scale(2.0);
+//      }
+
       // Get initial guess for the electronic density
       if (_world.rank() == 0) print("Guessing rho ...\n\n");
-      rfunctionT rho = (_params.restart == 0) ? rfactoryT(_world).functor(rfunctorT(
-          new GuessDensity(_mentity, _aobasis, _params.L, _params.periodic))).initial_level(3) :
-            compute_rho(_phisa, _kpoints);
-      if (_params.restart == 1)
+
+      rfunctionT rho = rfactoryT(_world);
+      if (_params.restart == 0)
       {
-        if (_params.spinpol)
-          rho += compute_rho(_phisb, _kpoints);
-        else
-          rho.scale(2.0);
+        rho = rfactoryT(_world).functor(rfunctorT(new GuessDensity(_mentity,
+              _aobasis, _params.L, _params.periodic))).initial_level(3);
+      }
+      else
+      {
+        MADNESS_EXCEPTION("restart not working right now!",0);
       }
 
       // This is a cheat
@@ -1212,7 +1266,8 @@ namespace madness
         // set the number of orbitals
         _eigsa = std::vector<double>(norbs, 0.0);
         _eigsb = std::vector<double>(norbs, 0.0);
-        _occs = std::vector<double>(norbs, 0.0);
+        _occsa = std::vector<double>(norbs, 0.0);
+        _occsb = std::vector<double>(norbs, 0.0);
         int kp = 0;
         if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
         // Need to do kinetic piece for every k-point
@@ -1249,7 +1304,7 @@ namespace madness
           // Get k-point from list
           KPoint& kpt = _kpoints[ki];
           // Build kinetic matrx
-          ctensorT kinetic = ::kinetic_energy_matrix(_world, ao, _params.periodic, kpt);
+          ctensorT kinetic = ::kinetic_energy_matrix<T,NDIM>(_world, ao, _params.periodic, kpt);
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
           ctensorT overlap = matrix_inner(_world, ao, ao, true);
@@ -1271,58 +1326,66 @@ namespace madness
           _world.gop.fence();
 
           // Set occupation numbers
-          if (_params.spinpol)
-          {
-            MADNESS_EXCEPTION("spin polarized not implemented", 0);
-          }
-          else
-          {
-            int filledbands = _params.nelec / 2;
-            int occstart = kp;
-            int occend = kp + filledbands;
-//            for (int i = occstart; i < occend; i++) _occs[i] = _params.maxocc;
-//            if (_params.nelec > _params.ncharge)
-//              _occs[occend] = 1.0;
-            double availcharge = _params.ncharge;
-            //double tol = 1e-6;
-            for (int i = occstart; i < occend; i++)
-            {
-              if (_world.rank() == 0) printf("availcharge = %.8f\n", availcharge);
-              // do we have charge to give? can we give a full dose?
-              if ((int) round(availcharge - _params.maxocc) >= 0)
-              {
-                if (_world.rank() == 0) printf("%d\tcase #1: availcharge - maxocc = %.8f\n", i, availcharge - _params.maxocc);
-                _occs[i] = _params.maxocc;
-                availcharge -= _params.maxocc;
-              }
-              // can we give 1 electron?
-              else if ((int) round(availcharge - 1.0) > 0)
-              {
-                if (_world.rank() == 0) printf("%d\tcase #2: availcharge - 1.0 = %.8f\n", i, availcharge - 1.0);
-                _occs[i] = 1.0;
-                availcharge -= 1.0;
-              }
-              else
-              {
-                if (_world.rank() == 0) printf("case #2: availcharge = %.8f\n", availcharge);
-                _occs[i] = 0.0;
-              }
-            }
-          }
+//          if (_params.spinpol)
+//          {
+//            MADNESS_EXCEPTION("spin polarized not implemented", 0);
+//          }
+//          else
+//          {
+//            int filledbands = _params.nelec / 2;
+//            int occstart = kp;
+//            int occend = kp + filledbands;
+////            for (int i = occstart; i < occend; i++) _occs[i] = _params.maxocc;
+////            if (_params.nelec > _params.ncharge)
+////              _occs[occend] = 1.0;
+//            double availcharge = _params.ncharge;
+//            //double tol = 1e-6;
+//            for (int i = occstart; i < occend; i++)
+//            {
+//              if (_world.rank() == 0) printf("availcharge = %.8f\n", availcharge);
+//              // do we have charge to give? can we give a full dose?
+//              if ((int) round(availcharge - _params.maxocc) >= 0)
+//              {
+//                if (_world.rank() == 0) printf("%d\tcase #1: availcharge - maxocc = %.8f\n", i, availcharge - _params.maxocc);
+//                _occs[i] = _params.maxocc;
+//                availcharge -= _params.maxocc;
+//              }
+//              // can we give 1 electron?
+//              else if ((int) round(availcharge - 1.0) > 0)
+//              {
+//                if (_world.rank() == 0) printf("%d\tcase #2: availcharge - 1.0 = %.8f\n", i, availcharge - 1.0);
+//                _occs[i] = 1.0;
+//                availcharge -= 1.0;
+//              }
+//              else
+//              {
+//                if (_world.rank() == 0) printf("case #2: availcharge = %.8f\n", availcharge);
+//                _occs[i] = 0.0;
+//              }
+//            }
+//          }
           // Construct and diagonlize Fock matrix
           ctensorT fock = potential + kinetic;
           fock = 0.5 * (fock + transpose(fock));
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, c, e);
 
+          // diagonlize kinetic
           ctensorT ck; rtensorT ek;
           sygv(kinetic, overlap, 1, ck, ek);
-
+          // diagonalize potential
           ctensorT cp; rtensorT ep;
           sygv(potential, overlap, 1, cp, ep);
-
+          // diagonalize overlap
           ctensorT co; rtensorT eo;
           syev(overlap, co, eo);
+
+          if (_world.rank() == 0)
+          {
+            print("fock eigenvectors dims:",c.dim(0),c.dim(1));
+            print("fock eigenvectors:");
+            print(c);
+          }
 
           if (_world.rank() == 0)
           {
@@ -1341,6 +1404,11 @@ namespace madness
             print("overlap eigenvalues");
             print(eo);
           }
+          if (_world.rank() == 0)
+          {
+            print("fock eigenvalues");
+            print(e);
+          }
 
           compress(_world, ao);
           _world.gop.fence();
@@ -1350,6 +1418,24 @@ namespace madness
           _world.gop.fence();
           truncate(_world, tmp_orbitals);
           normalize(_world, tmp_orbitals);
+
+          // WSTHORNTON
+          // if at k-point == (0.0,0.0,0.0) basis function should be real
+          if ((abs(kpt.k[0]) < 1e-12) && (abs(kpt.k[1]) < 1e-12) &&
+              (abs(kpt.k[2]) < 1e-12))
+          {
+            if (_world.rank() == 0) printf("checking gamma point orbitals \n\n");
+            for (unsigned int io = 0; io < tmp_orbitals.size(); io++)
+            {
+              if (!is_real<T,NDIM>(tmp_orbitals[io]))
+              {
+                double t1 = (imag(tmp_orbitals[io])).norm2();
+                if (_world.rank() == 0)
+                  printf("ERROR: mo function imaginary: %5.3d     %15.8f\n\n", io, t1);
+              }
+            }
+          }
+
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
           ctensorT overlap2 = matrix_inner(_world, tmp_orbitals, tmp_orbitals, true);
@@ -1493,14 +1579,12 @@ namespace madness
            MolecularEntity mentity)
        : _world(world), _vnucrhon(vnucrhon), _phisa(phis), _phisb(phis),
          _eigsa(eigs), _eigsb(eigs), _params(params),
-         _kpoints(kpoints), _occs(occs), _mentity(mentity)
+         _kpoints(kpoints), _occsa(occs), _occsb(occs), _mentity(mentity)
     {
       _residual = 1e5;
       if (params.periodic)
       {
         Tensor<double> box = FunctionDefaults<NDIM>::get_cell_width();
-        //_cop = PeriodicCoulombOpPtr<T,NDIM>(const_cast<World&>(world),
-        //    FunctionDefaults<NDIM>::get_k(), params.lo, params.thresh * 0.1, box);
         _cop = CoulombOperatorPtr(const_cast<World&>(world), params.lo, params.thresh * 0.1);
       }
       else
@@ -1530,12 +1614,107 @@ namespace madness
     //*************************************************************************
 
     //***************************************************************************
+    // set occupation numbers (only for insulators ... no smearing)
+    void set_occs2(const std::vector<KPoint>& kpoints,
+                   const std::vector<double>& eigsa,
+                   const std::vector<double>& eigsb,
+                   std::vector<double>& occsa,
+                   std::vector<double>& occsb)
+    {
+      for (unsigned int ik = 0; ik < kpoints.size(); ik++)
+      {
+        // get k-point
+        KPoint k = kpoints[ik];
+
+        // pull subset of data that corresponds to k
+        const std::vector<double> k_eigsa(eigsa.begin() + k.begin, eigsa.begin() + k.end);
+        const std::vector<double> k_eigsb(eigsb.begin() + k.begin, eigsb.begin() + k.end);
+        std::vector<double> k_occsa(occsa.begin() + k.begin, occsa.begin() + k.end);
+        std::vector<double> k_occsb(occsb.begin() + k.begin, occsb.begin() + k.end);
+
+        // demand all vectors have the same size
+        unsigned int sz = k_eigsa.size();
+        MADNESS_ASSERT(k_eigsb.size() == sz);
+        MADNESS_ASSERT(k_occsa.size() == sz);
+        MADNESS_ASSERT(k_occsb.size() == sz);
+        // concatenate eigenvalues
+        std::vector<double> teigs;
+        //std::copy(k_eigsa.begin(), k_eigsa.end(), teigs.begin());
+        //teigs.insert(teigs.end(), k_eigsb.begin(), k_eigsb.end());
+        //std::copy(k_eigsb.begin(), k_eigsb.end(), back_inserter(teigs));
+        for (unsigned int ist = 0; ist < k_eigsa.size(); ist++) teigs.push_back(k_eigsa[ist]);
+        for (unsigned int ist = 0; ist < k_eigsb.size(); ist++) teigs.push_back(k_eigsb[ist]);
+        // indicies
+        std::vector<unsigned int> inds(2*sz);
+        for (unsigned int i = 0; i < 2*sz; i++) inds[i] = i;
+        // sort by eigenvalue
+        for (unsigned int i = 0; i < 2*sz; i++)
+        {
+          for (unsigned int j = i+1; j < 2*sz; j++)
+          {
+            if (teigs[j] < teigs[i])
+            {
+              double t1 = teigs[i];
+              teigs[i] = teigs[j];
+              teigs[j] = t1;
+              int it1 = inds[i];
+              inds[i] = inds[j];
+              inds[j] = it1;
+            }
+          }
+        }
+        // assign occupation numbers
+        double availablecharge = _params.ncharge;
+        for (unsigned int i = 0; (i < 2*sz) && (availablecharge > 0.0) ; i++)
+        {
+          unsigned int current = inds[i];
+          if (current >= sz)
+          {
+            current -= sz;
+            k_occsb[current] = 1.0;
+            availablecharge -= 1.0;
+          }
+          else
+          {
+            k_occsa[current] = 1.0;
+            availablecharge -= 1.0;
+          }
+        }
+
+        for (unsigned int ik1 = k.begin, ik2 = 0; ik1 < k.end; ik1++,ik2++)
+        {
+          occsa[ik1] = k_occsa[ik2];
+          occsb[ik1] = k_occsb[ik2];
+        }
+      }
+
+      for (unsigned int ik = 0; ik < kpoints.size(); ik++)
+      {
+        KPoint k = kpoints[ik];
+        if (_world.rank() == 0)
+        {
+          printf("k-point is: %d: \n",ik);
+        }
+        for (unsigned int ist = k.begin; ist < k.end; ist++)
+        {
+          if (_world.rank() == 0)
+          {
+            printf("occa:    %12.5f          occb:    %12.5f \n",occsa[ist],occsb[ist]);
+          }
+        }
+      }
+
+    }
+    //***************************************************************************
+
+    //***************************************************************************
     /*!
      \ingroup periodic_solver
      \brief Compute the electronic density for either a molecular or periodic
             system.
      */
-    rfuntionT compute_rho_slow(const vecfuncT& phis, std::vector<KPoint> kpoints)
+    rfuntionT compute_rho_slow(const vecfuncT& phis, std::vector<KPoint> kpoints,
+                               std::vector<double> occs)
     {
       // Electron density
       rfuntionT rho = rfactoryT(_world);
@@ -1555,7 +1734,8 @@ namespace madness
           rfuntionT prod = abs_square(phij);
           double rnrm = prod.trace();
           prod.scale(1/rnrm);
-          rho += 0.5 * _occs[j] * kpoint.weight * prod;
+//          rho += 0.5 * _occs[j] * kpoint.weight * prod;
+          rho += occs[j] * kpoint.weight * prod;
         }
       }
       rho.truncate();
@@ -1568,7 +1748,8 @@ namespace madness
     }
 
 
-    rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints)
+    rfuntionT compute_rho(const vecfuncT& phis, std::vector<KPoint> kpoints,
+                          std::vector<double> occs)
     {
       if (_world.rank() == 0) _outputF << "computing rho ..." << endl;
       rfunctionT rho = rfactoryT(_world);       // Electron density
@@ -1590,7 +1771,8 @@ namespace madness
           KPoint kpoint = kpoints[kp];
           // loop through bands
           for (unsigned int j = kpoint.begin; j < kpoint.end; j++)  {
-              rho.gaxpy(1.0, phisq[j], 0.5 * _occs[j] * kpoint.weight / (phinorm[j]*phinorm[j]), false);
+//            rho.gaxpy(1.0, phisq[j], 0.5 * _occs[j] * kpoint.weight / (phinorm[j]*phinorm[j]), false);
+            rho.gaxpy(1.0, phisq[j], occs[j] * kpoint.weight / (phinorm[j]*phinorm[j]), false);
         }
       }
       _world.gop.fence();
@@ -1717,11 +1899,6 @@ namespace madness
       // Nuclear and coulomb potentials
       rfuntionT vc = apply(*_cop, rho);
       rfuntionT vlocal = _vnuc + vc;
-      // WSTHORNTON
-      std::ostringstream strm;
-      strm << "vlocal" << _it << ".out";
-      std::string fname = strm.str();
-      //plot_line(fname.c_str(), 100, coordT(-5.0), coordT(5.0), _vnuc, vc);
       // Calculate energies for Coulomb and nuclear
       double ce = 0.5*inner(vc,rho);
       double pe = inner(_vnuc,rho);
@@ -1759,48 +1936,60 @@ namespace madness
           xc = fc.trace();
         }
       }
-      //else if (_params.functional == 2)
-      //{
-      //  // Loop over k-points and states for both eletrons
-      //  for (unsigned int ik = 0; ik < kpoints.size(); ik++)
-      //  {
-      //    KPoint ikp = kpoints[ik];
-      //    for (unsigned int ist = ikp.begin; ist < ikp.end; ist++)
-      //    {
-      //      functionT utmp_result = factoryT(_world);
-      //      functionT utmp1 = _phisa[ist];
-      //      for (unsigned int jk = 0; jk < kpoints.size(); jk++)
-      //      {
-      //        KPoint jkp = kpoints[jk];
-      //        for (unsigned int jst = jkp.begin; jst < jkp.end; jst++)
-      //        {
-      //          functionT utmp2 = _phisa[jst];
-      //        }
-      //      }
-      //    }
-      //  }
-      //
-      //}
+      else if (_params.functional == 2)
+      {
+        pfuncsa = mul_sparse(_world, vlocal, phisa, _params.thresh * 0.1);
+        apply_hf_exchange2(_phisa, _phisb, pfuncsa, pfuncsb, xc);
+      }
       std::cout.precision(8);
       if (_world.rank() == 0)
       {
-        print("Energies:");
-        print("Kinetic energy:\t\t ", ke);
-        print("Potential energy:\t ", pe);
-        print("Coulomb energy:\t\t ", ce);
-        print("Exchage energy:\t\t ", xc, "\n");
-        print("Total energy:\t\t ", ke + pe + ce + xc, "\n\n");
+        printf("Energies:\n");
+        printf("Kinetic energy:     %20.10f\n", ke);
+        printf("Potential energy:   %20.10f\n", pe);
+        printf("Coulomb energy:     %20.10f\n", ce);
+        printf("Exchange energy:    %20.10f\n", xc);
+        printf("Total energy:       %20.10f\n\n", ke + pe + ce + xc);
       }
     }
     //*************************************************************************
 
+    // working for a molecule / atom ... need to test with periodic boundary
+    // conditions as a gamma point only calculation
+    //*************************************************************************
+    void apply_hf_exchange2(vecfuncT& phisa, vecfuncT& phisb,
+                           vecfuncT& funcsa, vecfuncT& funcsb,
+                           double& xc)
+    {
+      for (unsigned int i = 0; i < phisa.size(); i++)
+      {
+        bool isreal1 = is_real<T,NDIM>(phisa[i]);
+        MADNESS_ASSERT(isreal1);
+        rfunctionT phi_i = real(phisa[i]);
+        for (unsigned int j = 0; j < phisa.size(); j++)
+        {
+          bool isreal2 = is_real<T,NDIM>(phisa[j]);
+          MADNESS_ASSERT(isreal2);
+          rfunctionT phi_j = real(phisa[j]);
+          rfunctionT prod = phi_i*phi_j;
+          rfunctionT Vex = apply(*_cop,prod);
+          functionT tf1 = Vex*phisa[j];
+          funcsa[i] -= tf1;
+          xc -= real(inner(phisa[i],tf1));
+        }
+      }
+    }
+    //*************************************************************************
+
+    // not working and not tested .... supposed to be for the periodic boundary
+    // conditions with k-points
     //*************************************************************************
     void apply_hf_exchange(vecfuncT& phisa, vecfuncT& phisb,
                            vecfuncT& funcsa, vecfuncT& funcsb)
     {
       for (unsigned int ink1 = 0, ik1 = 0; ink1 < _phisa.size(); ++ink1)
       {
-        for (unsigned int ink2 = 0, ik2 = 0; ink2 < _phisa.size(); ++ink2)
+        for (unsigned int ink2 = 0, ik2 = 0; ink2 <= ink1; ink2++)
         {
           KPoint k1 = _kpoints[ik1];
           KPoint k2 = _kpoints[ik2];
@@ -1808,27 +1997,55 @@ namespace madness
           if (ink1 == k1.end) ik1++;
           if (ink2 == k2.end) ik2++;
 
-          if (ink1 == ink2)
-          {
-            rfunctionT prod = abs_square(phisa[ink1]);
-            rfunctionT fr = apply(*_cop,prod);
-            funcsa[ink1] -= funcsa[ink1]*fr;
-          }
-          else
-          {
-            Vector<double,3> q = vec(k1.k[0]-k2.k[0],
-                                     k1.k[1]-k2.k[1],
-                                     k1.k[2]-k2.k[2]);
-            functionT cexp = factoryT(_world).functor(functorT(new ComplexExp<3>(q, double_complex(1.0,0.0))));
-            cexp.truncate();
+          MADNESS_ASSERT(ik1 == 0);
+          MADNESS_ASSERT(ik2 == 0);
 
-            functionT f = phisa[ink1]*conj(phisa[ink2])*cexp;
-            SeparatedConvolution<double_complex,3> hfexop =
-                PeriodicHFExchangeOperator(_world, q, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1);
-            functionT fr = apply(hfexop,f);
-            funcsa[ink1] -= funcsa[ink1]*fr*conj(cexp);
-            funcsa[ink2] -= funcsa[ink2]*conj(fr)*cexp;
+          // no phase factor
+          if (ik1 == ik2)
+          {
+//            // same state (diagonal piece)
+//            if (ink1 == ink2)
+//            {
+//              rfunctionT prod = abs_square(phisa[ink1]);
+//              rfunctionT fr = apply(*_cop,prod);
+//              funcsa[ink1] -= funcsa[ink1]*fr;
+//            }
+//            else
+            {
+              Vector<double,3> q = 0.0;
+              functionT f = phisa[ink1]*conj(phisa[ink2]);
+              SeparatedConvolution<double_complex,3> hfexop =
+                  PeriodicHFExchangeOperator(_world, q, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1);
+              functionT fr = apply(hfexop,f);
+              funcsa[ink1] -= funcsa[ink2]*fr;
+              funcsa[ink2] -= funcsa[ink1]*conj(fr);
+
+              // test code
+              rfunctionT g1 = abs(phisa[ink1]);
+              rfunctionT g2 = abs(phisa[ink2]);
+              rfunctionT ff = g1*g2;
+
+              printf("norm diff: %20.8f\n", abs(ff.norm2()-f.norm2()));
+              MADNESS_ASSERT(abs(ff.norm2()-f.norm2()) <= 1e-5);
+              rfunctionT fr2 = apply(*_cop,ff);
+              MADNESS_ASSERT(abs(fr.norm2()-fr2.norm2()) <= 1e-5);
+            }
           }
+//          else
+//          {
+//            Vector<double,3> q = VectorFactory(k1.k[0]-k2.k[0],
+//                                               k1.k[1]-k2.k[1],
+//                                               k1.k[2]-k2.k[2]);
+//            functionT cexp = factoryT(_world).functor(functorT(new ComplexExp<3>(q, double_complex(1.0,0.0))));
+//            cexp.truncate();
+//
+//            functionT f = phisa[ink1]*conj(phisa[ink2])*cexp;
+//            SeparatedConvolution<double_complex,3> hfexop =
+//                PeriodicHFExchangeOperator(_world, q, _params.lo, FunctionDefaults<3>::get_thresh() * 0.1);
+//            functionT fr = apply(hfexop,f);
+//            funcsa[ink1] -= phisa[ink1]*fr*conj(cexp);
+//            funcsa[ink2] -= phisa[ink2]*conj(fr)*cexp;
+//          }
         }
       }
     }
@@ -1879,14 +2096,14 @@ namespace madness
 
       // WSTHORNTON
       // multiply gamma-point WF by random phase
-      double_complex t1 = RandomValue<double_complex>();
-      double_complex t2 = exp(t1);
-      std::vector<double_complex> phase(_phisa.size(), t2);
-      scale(_world, _phisa, phase);
+//      double_complex t1 = RandomValue<double_complex>();
+//      double_complex t2 = exp(t1);
+//      std::vector<double_complex> phase(_phisa.size(), t2);
+//      scale(_world, _phisa, phase);
 
-      //for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++)
-      for (_it = 0; _it < _params.maxits && _residual > 1e-5; _it++)
+      for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++)
       {
+        // should we reproject?
         if ((_it > 0) && (_residual < 20*_params.thresh))
         {
           reproject();
@@ -1894,9 +2111,12 @@ namespace madness
 
         if (_world.rank() == 0) _outputF << "_it = " << _it << endl;
 
+        // Set occupation numbers
+        set_occs2(_kpoints,_eigsa,_eigsb,_occsa,_occsb);
+
         // Compute density
-        _rhoa = compute_rho(_phisa, _kpoints);
-        _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints) : _rhoa;
+        _rhoa = compute_rho(_phisa, _kpoints, _occsa);
+        _rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints, _occsb) : _rhoa;
         _rho = _rhoa + _rhob;
         double rtrace = _rho.trace();
         if (_world.rank() == 0) _outputF << "trace of rho" << rtrace << endl;
@@ -1920,10 +2140,11 @@ namespace madness
         END_TIMER(_world,"apply potential");
 
         // Do right hand side for all k-points
-        do_rhs(_phisa, pfuncsa, _eigsa, _kpoints);
+        std::vector<double> alpha(_phisa.size(), 0.0);
+        do_rhs(_phisa, pfuncsa, _kpoints, alpha, _eigsa);
 
         // Make BSH Green's function
-        std::vector<poperatorT> bopsa = make_bsh_operators(_eigsa);
+        std::vector<poperatorT> bopsa = make_bsh_operators(alpha);
         std::vector<T> sfactor(pfuncsa.size(), -2.0);
         scale(_world, pfuncsa, sfactor);
 
@@ -1939,8 +2160,9 @@ namespace madness
         vecfuncT tmpb = zero_functions<valueT,NDIM>(_world, _phisb.size());
         if (_params.spinpol)
         {
-          do_rhs(_phisb, pfuncsb, _eigsb, _kpoints);
-          std::vector<poperatorT> bopsb = make_bsh_operators(_eigsb);
+          alpha = std::vector<double>(_phisb.size(), 0.0);
+          do_rhs(_phisb, pfuncsb,  _kpoints, alpha, _eigsb);
+          std::vector<poperatorT> bopsb = make_bsh_operators(alpha);
           scale(_world, pfuncsb, sfactor);
           truncate<valueT,NDIM>(_world, pfuncsb);
           tmpb = apply(_world, bopsb, pfuncsb);
@@ -1950,38 +2172,7 @@ namespace madness
         // Update orbitals
         update_orbitals(tmpa, tmpb, _kpoints);
 
-//        std::cout.precision(8);
-//        if (_world.rank() == 0)
-//        {
-//          print("Iteration: ", it, "\nEigenvalues for alpha spin: \n");
-//          for (unsigned int i = 0; i < _eigsa.size(); i++)
-//          {
-//            print(_eigsa[i]);
-//          }
-//          print("\n\n");
-//        }
-//        if (_params.spinpol)
-//        {
-//          if (_world.rank() == 0)
-//          {
-//            print("Eigenvalues for beta spin: \n");
-//            for (unsigned int i = 0; i < _eigsb.size(); i++)
-//            {
-//              print(_eigsb[i]);
-//            }
-//            print("\n\n");
-//          }
-//        }
       }
-
-      //    for (unsigned int ai = 0; ai < ao.size(); ai++)
-      //    {
-      //      std::ostringstream strm;
-      //      strm << "aod" << ai << ".dx";
-      //      std::string fname = strm.str();
-      //      vector<long> npt(3,101);
-      //      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
-      //    }
 
       if (_params.plotorbs)
       {
@@ -2063,8 +2254,9 @@ namespace madness
     //*************************************************************************
     void do_rhs(vecfuncT& wf,
                 vecfuncT& vwf,
+                std::vector<KPoint> kpoints,
                 std::vector<T>& alpha,
-                std::vector<KPoint> kpoints)
+                std::vector<double>& eigs)
     {
       // tolerance
       double trantol = 0.1*_params.thresh/std::min(30.0,double(wf.size()));
@@ -2075,24 +2267,20 @@ namespace madness
       {
         // Get k-point and orbitals for this k-point
         KPoint kpoint = kpoints[kp];
-//        double k0 = 2.0 * madness::constants::pi * kpoint.k[0];
-//        double k1 = 2.0 * madness::constants::pi * kpoint.k[1];
-//        double k2 = 2.0 * madness::constants::pi * kpoint.k[2];
         double k0 = kpoint.k[0];
         double k1 = kpoint.k[1];
         double k2 = kpoint.k[2];
-        // WSTHORNTON
         // Extract the relevant portion of the list of orbitals and the list of the
         // V times the orbitals
         vecfuncT k_wf(wf.begin() + kpoint.begin, wf.begin() + kpoint.end);
         vecfuncT k_vwf(vwf.begin() + kpoint.begin, vwf.begin() + kpoint.end);
-
         // Build fock matrix
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
         tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
-
         // Do right hand side stuff for kpoint
-        bool isgamma = (is_equal(k0,0.0,1e-5) && is_equal(k1,0.0,1e-5) && is_equal(k2,0.0,1e-5));
+        bool isgamma = (is_equal(k0,0.0,1e-5) &&
+                        is_equal(k1,0.0,1e-5) &&
+                        is_equal(k2,0.0,1e-5));
         if (_params.periodic && !isgamma) // Non-zero k-point
         {
           // Do the gradient term and k^2/2
@@ -2118,28 +2306,6 @@ namespace madness
 
         if (_params.canon) // canonical orbitals
         {
-
-//          // Debug output
-//          if (_world.rank() == 0)
-//          { print("Overlap matrix:");
-//            print(overlap);
-//          }
-//          if (_world.rank() == 0)
-//          { print("Fock matrix:");
-//            print(fock);
-//          }
-
-          // Debug output
-          if (_params.print_matrices && _world.rank() == 0)
-          { _matF << "Iteration: " << _it << endl;
-            _matF << "Overlap matrix:" << endl;
-            print_tensor2d<valueT>(_matF, overlap);
-          }
-          if (_params.print_matrices && _world.rank() == 0)
-          { _matF << "Fock matrix:" << endl;
-            print_tensor2d<valueT>(_matF, fock);
-          }
-
           ctensorT U; rtensorT e;
           sygv(fock, overlap, 1, U, e);
 
@@ -2244,8 +2410,9 @@ namespace madness
           for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
             ei++, fi++)
           {
+            // Save the latest eigenvalues
+            eigs[ei] = abs(e(fi,fi));
             valueT t1 = (_params.solver == 0) ? e(fi,fi) : fock(fi,fi);
-            //if (real(e(fi,fi)) > -0.1)
             if (real(t1) > -0.1)
             {
               alpha[ei] = -0.5;
@@ -2314,10 +2481,11 @@ namespace madness
 
       START_TIMER(_world);
       if (_world.rank() == 0) _outputF << "Building kinetic energy matrix ...\n\n" << endl;
-        tensorT kinetic = ::kinetic_energy_matrix(_world, psi,
+        tensorT kinetic = ::kinetic_energy_matrix<T,NDIM>(_world, psi,
                                                   _params.periodic,
                                                   kpoint);
       END_TIMER(_world,"potential energy matrix");
+      if (_world.rank() == 0) printf("\n");
 
       if (_world.rank() == 0) _outputF << "Constructing Fock matrix ...\n\n" << endl;
       tensorT fock = potential + kinetic;
@@ -2373,16 +2541,16 @@ namespace madness
         _outputF << endl;
       }
 
-      if (_world.rank() == 0)
-      {
-        _outputF << endl;
-        printf("Occupations\n-----------\n");
-        for (unsigned int i = 0; i < rnvec.size(); i++)
-        {
-          _outputF << "occ " << i << _occs[i] << endl;
-        }
-        _outputF << endl;
-      }
+//      if (_world.rank() == 0)
+//      {
+//        _outputF << endl;
+//        printf("Occupations\n-----------\n");
+//        for (unsigned int i = 0; i < rnvec.size(); i++)
+//        {
+//          _outputF << "occ " << i << _occs[i] << endl;
+//        }
+//        _outputF << endl;
+//      }
 
       return rm;
     }
@@ -2516,45 +2684,45 @@ namespace madness
     }
     //*************************************************************************
 
-    //*************************************************************************
-    void update_eigenvalues(const vecfuncT& wavefs,
-        const vecfuncT& pfuncs, const vecfuncT& phis,
-        std::vector<T>& eigs)
-    {
-      // Update e
-      if (_world.rank() == 0) printf("Updating e ...\n\n");
-      for (unsigned int ei = 0; ei < eigs.size(); ei++)
-      {
-        functionT r = wavefs[ei] - phis[ei];
-        double tnorm = wavefs[ei].norm2();
-        // Compute correction to the eigenvalues
-        T ecorrection = -0.5*real(inner(pfuncs[ei], r)) / (tnorm*tnorm);
-        T eps_old = eigs[ei];
-        T eps_new = eps_old + ecorrection;
-//        if (_world.rank() == 0) printf("ecorrection = %.8f\n\n", ecorrection);
-//        if (_world.rank() == 0) printf("eps_old = %.8f eps_new = %.8f\n\n", eps_old, eps_new);
-        // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
-        // I bounce the new eigenvalue back into the negative side of the real axis. I
-        // keep doing this until it's good or I've already done it 10 times.
-        int counter = 50;
-        while (eps_new >= 0.0 && counter < 20)
-        {
-          // Split the difference between the new and old estimates of the
-          // pi-th eigenvalue.
-          eps_new = eps_old + 0.5 * (eps_new - eps_old);
-          counter++;
-        }
-        // Still no go, forget about it. (1$ to Donnie Brasco)
-        if (eps_new >= 0.0)
-        {
-          if (_world.rank() == 0) printf("FAILURE OF WST: exiting!!\n\n");
-          _exit(0);
-        }
-        // Set new eigenvalue
-        eigs[ei] = eps_new;
-      }
-    }
-    //*************************************************************************
+//    //*************************************************************************
+//    void update_eigenvalues(const vecfuncT& wavefs,
+//        const vecfuncT& pfuncs, const vecfuncT& phis,
+//        std::vector<T>& eigs)
+//    {
+//      // Update e
+//      if (_world.rank() == 0) printf("Updating e ...\n\n");
+//      for (unsigned int ei = 0; ei < eigs.size(); ei++)
+//      {
+//        functionT r = wavefs[ei] - phis[ei];
+//        double tnorm = wavefs[ei].norm2();
+//        // Compute correction to the eigenvalues
+//        T ecorrection = -0.5*real(inner(pfuncs[ei], r)) / (tnorm*tnorm);
+//        T eps_old = eigs[ei];
+//        T eps_new = eps_old + ecorrection;
+////        if (_world.rank() == 0) printf("ecorrection = %.8f\n\n", ecorrection);
+////        if (_world.rank() == 0) printf("eps_old = %.8f eps_new = %.8f\n\n", eps_old, eps_new);
+//        // Sometimes eps_new can go positive, THIS WILL CAUSE THE ALGORITHM TO CRASH. So,
+//        // I bounce the new eigenvalue back into the negative side of the real axis. I
+//        // keep doing this until it's good or I've already done it 10 times.
+//        int counter = 50;
+//        while (eps_new >= 0.0 && counter < 20)
+//        {
+//          // Split the difference between the new and old estimates of the
+//          // pi-th eigenvalue.
+//          eps_new = eps_old + 0.5 * (eps_new - eps_old);
+//          counter++;
+//        }
+//        // Still no go, forget about it. (1$ to Donnie Brasco)
+//        if (eps_new >= 0.0)
+//        {
+//          if (_world.rank() == 0) printf("FAILURE OF WST: exiting!!\n\n");
+//          _exit(0);
+//        }
+//        // Set new eigenvalue
+//        eigs[ei] = eps_new;
+//      }
+//    }
+//    //*************************************************************************
 
 //    //*************************************************************************
 //    double get_eig(int indx)
