@@ -325,167 +325,6 @@ int testGenTensor_algebra(const long& k, const long& dim, const double& eps, con
 	return nerror;
 }
 
-//int testGenTensor_update(const long& k, const long& dim, const double& eps, const TensorType& tt) {
-//
-//	print("entering update");
-//	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
-//	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
-//
-//	t0.fillindex();
-//	t1=2.0;
-//
-//	double norm=0.0;
-//	int nerror=0;
-//
-//	// test rank-0 + rank-1
-//	{
-//		GenTensor<double> g1(t1,eps,tt);
-//		GenTensor<double> g0(Tensor<double>(k,k,k,k,k,k),eps,tt);
-//
-//		g0.update_by(g1);
-//		g0.finalize_accumulate();
-//		t0=g1.full_tensor_copy();
-//
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update g0+=g1       ",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test rank-1 + rank-1
-//	{
-//		t0=2.0;
-//		GenTensor<double> g0(t0,eps,tt);
-//		GenTensor<double> g1(t1,eps,tt);
-//
-//		g0.update_by(g1);
-//		g0.finalize_accumulate();
-//		t0+=g1.full_tensor_copy();
-//
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update g0+=g1       ",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test rank-2 + rank-1
-//	{
-//		t0.fillindex();
-//		GenTensor<double> g0(t0,eps,tt);
-//
-//		GenTensor<double> g1(t1,eps,tt);
-//		g1.fillrandom();
-//		g1.scale(2.34e4);
-//
-//		g0.update_by(g1);
-//		g0.finalize_accumulate();
-//		t0+=g1.full_tensor_copy();
-//
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update g0+=g1       ",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test rank-2 + rank-1 + rank-1
-//	{
-//		GenTensor<double> g1(t1,eps,tt);
-//		g1.fillrandom();
-//		g1.scale(2.34e4);
-//		GenTensor<double> g0(t0,eps,tt);
-//
-//		g0.update_by(g1);
-//		t0+=g1.full_tensor_copy();
-//		g0.finalize_accumulate();
-//
-//		g1.fillrandom();
-//		g1.scale(8.34e2);
-//		g0.update_by(g1);
-//		t0+=g1.full_tensor_copy();
-//		g0.finalize_accumulate();
-//
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update g0+=g1+=g1   ",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test rank-1 + rank-2
-//	{
-//		t0=2.0;
-//		t1.fillindex();
-//		t0.scale(1.0/t0.normf());
-//		GenTensor<double> g0(t0,eps,tt);
-//		GenTensor<double> g1(t1,eps,tt);
-////		g1+=g1;
-//
-//		g0.update_by(g1);
-//		t0+=g1.full_tensor_copy();
-////		t0+=t1;
-//		g0.finalize_accumulate();
-//
-//		norm=(g0.full_tensor_copy()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update rank-1 + rank-2   ",g0.what_am_i(),norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test rank-1 + rank-6
-//	{
-//		GenTensor<double> sr0(TT_2D,k,dim);
-//		GenTensor<double> sr1(TT_2D,k,dim);
-//		GenTensor<double> sr2(TT_2D,k,dim);
-//		sr0.fillrandom(1);
-//		sr1.fillrandom(4);
-//		sr2.fillrandom(5);
-//
-//		t0=sr0.reconstruct_tensor();
-//		sr0.update_by(sr1);
-//		sr0.update_by(sr2);
-//		sr0.finalize_accumulate();
-//
-//		t0+=sr1.reconstruct_tensor();
-//		t0+=sr2.reconstruct_tensor();
-//
-//		norm=(sr0.reconstruct_tensor()-t0).normf();
-//		print(ok(is_small(norm,eps)),"update rank-2 + rank-4/5   ",norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//	// test accumulate_into (low rank)
-//	{
-//		GenTensor<double> sr0(TT_2D,k,dim);
-//		GenTensor<double> sr1(TT_2D,k,dim);
-//		GenTensor<double> sr2(TT_2D,k,dim);
-//		GenTensor<double> sr3(TT_2D,k,dim);
-//		sr0.fillrandom(2);
-//		sr1.fillrandom(4);
-//		sr2.fillrandom(5);
-//		sr3=copy(sr1);
-//
-//		t0=sr0.reconstruct_tensor();
-//		t0+=sr1.reconstruct_tensor();
-//		t0+=sr2.reconstruct_tensor();
-//		t0+=sr3.reconstruct_tensor();
-//
-//		sr0.config().orthonormalize();
-//
-//		sr1.accumulate_into(sr0,1.0);
-//		sr2.accumulate_into(sr0,1.0);
-//		sr3.accumulate_into(sr0,1.0);
-//
-//		norm=(sr0.reconstruct_tensor()-t0).normf();
-//		print(ok(is_small(norm,eps)),"accumulate_into (low rank) ",norm);
-//		if (!is_small(norm,eps)) nerror++;
-//
-//	}
-//
-//
-//	print("all done\n");
-//	return nerror;
-//}
-
 int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
 	print("entering rank reduce");
@@ -518,6 +357,29 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 			g0.config().orthonormalize(eps);
 			norm=(g0.full_tensor_copy()-t0).normf();
 			print(ok(is_small(norm,eps)),"rank reduction orthonormalize   ",g0.what_am_i(),norm,g0.rank());
+			if (!is_small(norm,eps)) nerror++;
+		}
+	}
+
+
+	// test rank reduction g0+=g1
+	for (int i=0; i<3; i++) {
+		for (int j=0; j<3; j++) {
+
+			Tensor<double> t0=copy(t[i]);
+			Tensor<double> t1=copy(t[j]);
+
+			GenTensor<double> g0(t0,eps,tt);
+			GenTensor<double> g1(t1,eps,tt);
+
+			g0.config().undo_structure();
+			g1.config().undo_structure();
+			g0.config().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
+			g1.config().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
+			g0.add_SVD(g1,eps);
+			t0+=t1;
+			norm=(g0.full_tensor_copy()-t0).normf();
+			print(ok(is_small(norm,eps)),"add SVD   ",g0.what_am_i(),norm,g0.rank());
 			if (!is_small(norm,eps)) nerror++;
 		}
 	}
@@ -629,7 +491,6 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 	print("all done\n");
 	return nerror;
 }
-
 
 int testGenTensor_transform(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
@@ -774,7 +635,7 @@ int main(int argc, char**argv) {
     // the parameters
     long k=6;
     const unsigned int dim=6;
-    double eps=1.e-5;
+    double eps=1.e-1;
     print("k    ",k);
     print("eps  ",eps);
 
@@ -1069,3 +930,7 @@ int main(int argc, char**argv) {
 
     return 0;
 }
+
+
+
+

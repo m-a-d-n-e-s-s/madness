@@ -888,7 +888,19 @@ namespace madness {
 		void append( gentensorT& rhs, const double fac=1.0) const {
 			rhs._ptr->undo_structure();
 			_ptr->undo_structure();
-			rhs._ptr->append(*this->_ptr,fac);
+			rhs.config().append(*this->_ptr,fac);
+		}
+
+		/// add SVD
+		void add_SVD(const gentensorT& rhs, const double& thresh) {
+			if (rhs.has_no_data()) return;
+			if (has_no_data()) {
+				*this=rhs;
+				return;
+			}
+			config().undo_structure();
+			rhs._ptr->undo_structure();
+			config().add_SVD(rhs.config(),thresh);
 		}
 
 	    /// check compatibility

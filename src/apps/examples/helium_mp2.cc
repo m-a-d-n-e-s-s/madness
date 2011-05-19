@@ -327,10 +327,13 @@ static double he_correlation(const coord_6d& r) {
 
 void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
-    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.001, 1e-6);
+    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.0001, 1e-6);
 
-    print("starting convolution");
-   	real_function_6d tmp = op(Vpsi).truncate();
+    if(world.rank() == 0) printf("\nstarting convolution at time %.1fs\n\n", wall_time());
+   	real_function_6d tmp = op(Vpsi);
+    if(world.rank() == 0) printf("\nending convolution at time   %.1fs\n\n", wall_time());
+   	tmp.truncate();
+    if(world.rank() == 0) printf("\ntruncated at time   %.1fs\n\n", wall_time());
    	tmp.scale(-2.0);
    	print("finished convolution");
 
@@ -450,7 +453,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 	// compute potential energy
 	pe=0.0;
-	if (0) {
+	if (1) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 
@@ -501,7 +504,6 @@ int main(int argc, char** argv) {
     }
 
     if(world.rank() == 0) printf("\nstarting at time %.1fs\n\n", wall_time());
-
 
     // hydrogen
 #if 0
@@ -590,6 +592,9 @@ int main(int argc, char** argv) {
     print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
     print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
 
+    print("orthogonalization  ", OrthoMethod());
+    print("facReduce          ", GenTensor<double>::fac_reduce());
+    print("max displacement   ", 2);
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
@@ -641,7 +646,7 @@ int main(int argc, char** argv) {
 	double eps=ke+pe;
 
     // iterate
-	for (unsigned int i=0; i<1; i++) {
+	for (unsigned int i=0; i<15; i++) {
 		// doomed copy of pair, to save pair
 		real_function_6d copy_of_pair=copy(pair);
 		real_function_6d copy2_of_pair=copy(pair);
@@ -659,6 +664,7 @@ int main(int argc, char** argv) {
 
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);
+	    print("virial ratio   :", pe/ke, ke+pe);
 		pair.get_impl()->print_stats();
 	    print("pair.tree_size()",pair.tree_size());
 	    print("pair.size()     ",pair.size());

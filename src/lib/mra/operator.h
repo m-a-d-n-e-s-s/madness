@@ -725,18 +725,20 @@ namespace madness {
 						const GenTensor<resultT> chunk0=f0.get_configs(i,end);
 
 						// assuming w(i)>w(i+1)
-						if (chunk.config().weights(end-i)*muop.norm > tol*0.01) {
+						if (chunk.config().weights(end-i)*muop.norm > tol*0.1) {
 							Q fac = ops[mu].getfac();
 							muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
 									tol/std::abs(fac), fac,	work1, work2, work5);
 
 							r(s0)+=r0;
 							r.reduceRank(tol2/nchunks);			// reduce 1
-							result+=r;
+							MADNESS_ASSERT(OrthoMethod::om==ortho3_);
+//							result+=r;
+							result.add_SVD(r,tol2/nchunks);
 						}
                 	}
 
-                    result.reduceRank(tol2);					// reduce 2
+//                    result.reduceRank(tol2);					// reduce 2
                 }
             }
             result.reduceRank(tol2*rank);						// reduce 3

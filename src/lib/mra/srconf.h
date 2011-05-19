@@ -291,7 +291,6 @@ namespace madness {
 			}
 
 			SRConf<T> result(weights_(s),v,dim(),get_k(),type());
-			result.make_slices();
 			return result;
 		}
 
@@ -635,30 +634,41 @@ namespace madness {
 				return;
 			}
 
+			// divide the SRConf into two
 			const long chunksize=8;
-			const long nchunks=rank()/chunksize+1;
-			SRConf<T> collect(dim(),get_k(),type());
-			collect.reserve(rank());
+			if (rank()>chunksize) {
+        		SRConf<T> chunk1=this->get_configs(0,rank()/2);
+        		SRConf<T> chunk2=this->get_configs(rank()/2+1,rank()-1);
+        		chunk1.divide_and_conquer_reduce(thresh*0.5);
+        		chunk2.divide_and_conquer_reduce(thresh*0.5);
 
-        	// loop over chunks of this's terms
-        	for (long i=0; i<rank(); i+=chunksize) {
-        		int end=std::min(i+chunksize,rank())-1;
-        		SRConf<T> chunk=this->get_configs(i,end);
-
-        		if (OrthoMethod::om==ortho3_) chunk.orthonormalize(thresh/nchunks);
-        		else if (OrthoMethod::om==ortho6_) chunk.right_orthonormalize(thresh/nchunks);
-        		else {
+        		// collect the two SRConfs
+        		*this=chunk1;
+        		if (OrthoMethod::om==ortho3_) {
+        			this->add_SVD(chunk2,thresh);
+        		} else if (OrthoMethod::om==ortho6_) {
+        			this->append(chunk2);
+        			this->right_orthonormalize(thresh);
+        		} else {
         			MADNESS_EXCEPTION("confused ortho method in SRConf::divide_and_conquer_reduce",0);
         		}
-				collect.append(chunk);
-        	}
 
-        	if (OrthoMethod::om==ortho3_) collect.orthonormalize(thresh);
-    		else if (OrthoMethod::om==ortho6_) collect.right_orthonormalize(thresh);
-    		else {
-    			MADNESS_EXCEPTION("confused ortho method in SRConf::divide_and_conquer_reduce",0);
-    		}
-    		*this=collect;
+
+			} else {
+
+				// and reduce the rank
+				if (OrthoMethod::om==ortho3_) this->orthonormalize(thresh);
+				else if (OrthoMethod::om==ortho6_) this->right_orthonormalize(thresh);
+				else {
+					MADNESS_EXCEPTION("confused ortho method in SRConf::divide_and_conquer_reduce",0);
+				}
+			}
+		}
+
+		/// add rhs to this, where both SRConfs are biorthonormal
+		void optimal_low_rank_add(const SRConf<T>& rhs) {
+
+
 
 		}
 
@@ -935,7 +945,21 @@ namespace madness {
 
 		}
 
+		/// add two orthonormal configurations, yielding an optimal SVD decomposition
+		void add_SVD(const SRConf<T>& rhs, const double& thresh) {
 
+			if (rhs.has_no_data()) return;
+			if (has_no_data()) {
+				*this=rhs;
+				return;
+			}
+			MADNESS_ASSERT(is_flat() and rhs.is_flat());
+
+			ortho4(ref_vector(0),ref_vector(1),weights_,
+					rhs.ref_vector(0),rhs.ref_vector(1),rhs.weights_,thresh);
+			rank_=weights_.size();
+
+		}
 
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
 
@@ -1493,11 +1517,15 @@ namespace madness {
 		tensorT S1=inner(x,x,1,1);
 		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
 
+//	    print("norm(S1)",S1.normf());
+//	    print("norm(S2)",S2.normf());
+
 		// diagonalize
 		tensorT U1, U2;
 		Tensor<double> e1, e2;
 	    syev(S1,U1,e1);
 	    syev(S2,U2,e2);										// 2.3 / 4.0
+
 
 	    const double e1_max=e1.absmax();
 	    const double e2_max=e2.absmax();
@@ -1548,6 +1576,7 @@ namespace madness {
 	    		}
 	    	}
 	    }
+
 
 	    // include X-
     	for (unsigned int r=0; r<rank1; r++) {
@@ -1607,6 +1636,178 @@ namespace madness {
 		return;
 	}
 
+
+
+	/// specialized version of ortho3
+
+	/// does the same as ortho3, but takes two bi-orthonormal configs as input
+	/// and saves on the inner product. Result will be written onto the first config
+	///
+	/// @param[in/out]	x1	left subspace, will hold the result on exit
+	/// @param[in/out]	y1	right subspace, will hold the result on exit
+	/// @param[in]		x2	left subspace, will be accumulated onto x1
+	/// @param[in]		y2	right subspace, will be accumulated onto y1
+	template<typename T>
+	void ortho4(Tensor<T>& x1, Tensor<T>& y1, Tensor<double>& w1,
+				const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<double>& w2,
+				const double& thresh) {
+
+
+		typedef Tensor<T> tensorT;
+
+		const long rank1=x1.dim(0);
+		const long rank2=x2.dim(0);
+		const long rank=rank1+rank2;
+
+		// for convenience: blocks of the matrices
+		const Slice s0(0,rank1-1), s1(rank1,rank-1);
+
+
+		const double w_max=std::max(w1.absmax(),w2.absmax());
+		const double norm_max=w_max*rank;		// max Frobenius norm
+
+		// the overlap between 1 and 2;
+		// the overlap of 1 and 1, and 2 and 2 is assumed to be the identity matrix
+		tensorT Sx12=inner(x1,x2,1,1);
+		tensorT Sy12=inner(y1,y2,1,1);
+
+		tensorT Sx(rank,rank);
+		tensorT Sy(rank,rank);
+
+		// the identity matrix (half of it)
+		for (long i=0; i<rank; i++) {
+			Sx(i,i)=0.5;
+			Sy(i,i)=0.5;
+		}
+		Sx(s0,s1)=Sx12;
+		Sy(s0,s1)=Sy12;
+		Sx+=transpose(Sx);
+		Sy+=transpose(Sy);
+
+		// overlap of 1 and 2
+//		tensorT S1=inner(x,x,1,1);
+//		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
+
+		// diagonalize
+		tensorT U1, U2;
+		Tensor<double> e1, e2;
+	    syev(Sx,U1,e1);
+	    syev(Sy,U2,e2);										// 2.3 / 4.0
+
+//	    print("norm(Sx)",Sx.normf());
+//	    print("norm(Sy)",Sy.normf());
+
+	    const double e1_max=e1.absmax();
+	    const double e2_max=e2.absmax();
+
+		// fast return if possible
+		if ((e1_max*norm_max<thresh) or (e2_max*norm_max<thresh)) {
+			x1.clear();
+			y1.clear();
+			w1.clear();
+			return;
+		}
+
+	    // remove small negative eigenvalues
+	    e1.screen(1.e-13);
+	    e2.screen(1.e-13);
+	    Tensor<double> sqrt_e1(rank), sqrt_e2(rank);
+
+
+	    // shrink U1, U2
+	    int lo1=0;
+	    int lo2=0;
+	    for (unsigned int r=0; r<rank; r++) {
+	    	if (e1(r)*norm_max<thresh) lo1=r+1;
+	    	if (e2(r)*norm_max<thresh) lo2=r+1;
+	    	sqrt_e1(r)=sqrt(std::abs(e1(r)));
+	    	sqrt_e2(r)=sqrt(std::abs(e2(r)));
+	    }
+
+	    U1=U1(Slice(_),Slice(lo1,-1));
+	    U2=U2(Slice(_),Slice(lo2,-1));
+	    sqrt_e1=sqrt_e1(Slice(lo1,-1));
+	    sqrt_e2=sqrt_e2(Slice(lo2,-1));
+	    unsigned int rank_x=rank-lo1;
+	    unsigned int rank_y=rank-lo2;						// 0.0 / 0.0
+
+
+	    MADNESS_ASSERT(sqrt_e1.size()==rank_x);
+	    MADNESS_ASSERT(sqrt_e2.size()==rank_y);
+
+
+	    // set up overlap M; include X+
+	    tensorT M(rank_x,rank_y);
+	    for (unsigned int i=0; i<rank_x; i++) {
+	    	for (unsigned int j=0; j<rank_y; j++) {
+	    		for (unsigned int r=0; r<rank; r++) {
+		    		if (r<rank1) M(i,j)+=U1(r,i)*sqrt_e1(i)*w1(r)*U2(r,j) * sqrt_e2(j);
+		    		if (r>=rank1) M(i,j)+=U1(r,i)*sqrt_e1(i)*w2(r-rank1)*U2(r,j) * sqrt_e2(j);
+	    		}
+	    	}
+	    }
+
+
+	    // include X-
+    	for (unsigned int r=0; r<rank_x; r++) {
+    		double fac=1.0/sqrt_e1(r);
+    		for (unsigned int t=0; t<rank; t++) {
+	    		U1(t,r)*=fac;
+//	    		if (sqrt_e1(r)<thresh) throw;
+    		}
+    	}
+
+	   	for (unsigned int r=0; r<rank_y; r++) {
+    		double fac=1.0/sqrt_e2(r);
+    		for (unsigned int t=0; t<rank; t++) {
+	    		U2(t,r)*=fac;
+//	    		if (sqrt_e2(r)<thresh) throw;
+	    	}
+	    }													// 0.2 / 0.6
+
+
+	    // decompose M
+		tensorT Up,VTp;
+		Tensor<double> Sp;
+		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
+
+		// make transformation matrices
+		Up=inner(Up,U1,0,1);
+		VTp=inner(VTp,U2,1,1);
+
+		// find the maximal singular value that's supposed to contribute
+		// singular values are ordered (largest first)
+		double residual=0.0;
+		long i;
+		for (i=Sp.dim(0)-1; i>=0; i--) {
+			residual+=Sp(i)*Sp(i);
+			if (residual>thresh*thresh) break;
+		}
+
+		// convert SVD output to our convention
+		if (i>=0) {
+
+			// make it contiguous
+		    tensorT Up1=copy(Up(Slice(0,i),s0));
+		    tensorT Up2=copy(Up(Slice(0,i),s1));
+		    tensorT VTp1=copy(VTp(Slice(0,i),s0));
+		    tensorT VTp2=copy(VTp(Slice(0,i),s1));
+
+			// transform 1 and 2
+		    x1=inner(Up1,x1,1,0);
+		    inner_result(Up2,x2,1,0,x1);
+		    y1=inner(VTp1,y1,1,0);
+		    inner_result(VTp2,y2,1,0,y1);
+		    w1=Sp(Slice(0,i));
+
+		} else {
+			x1.clear();
+			y1.clear();
+			w1.clear();
+		}
+
+		return;
+	}
 
 
 	/// orthonormalize and truncate right subspace (y) using symmetric orthogonalization
@@ -1781,7 +1982,101 @@ namespace madness {
 
 	}
 
+	/// add two bi-orthonormal configs
 
+	/// follow sec. 8 of my notes: Addition of SVD decompositions
+	/// DOESN'T WORK..
+	template<typename T>
+	void ortho7(Tensor<T>& x1, Tensor<T>& y1, Tensor<double>& w1,
+			const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<double>& w2, const double& thresh) {
+
+		MADNESS_EXCEPTION("ortho7 does not work",0);
+		typedef Tensor<T> tensorT;
+		const long rank1=x1.dim(0);
+		const long rank2=x2.dim(0);
+		const long rank=rank1+rank2;
+
+		// overlap of the two configurations
+		tensorT U=inner(y1,y2,1,1);
+
+
+		// for convenience: blocks of the matrices
+		const Slice s0(0,rank1-1), s1(rank1,rank-1);
+
+		// the matrices X-, X+, Y-, Y+
+		tensorT Xm(rank,rank), Xp(rank,rank), Ym(rank,rank), Yp(rank,rank), E(rank,rank);
+		for (long i=0; i<rank; i++) {
+			Xm(i,i)=1.0;
+			Xp(i,i)=1.0;
+			Ym(i,i)=1.0;
+			Yp(i,i)=1.0;
+			E(i,i)=1.0;
+		}
+
+		Xm(s0,s1)=-1.0*U;
+		Xp(s0,s1)=U;
+		Ym(s1,s0)=-1.0*transpose(U);
+		Yp(s1,s0)=transpose(U);
+		print("identity");
+		print((inner(Yp,Ym)-E).normf());
+		print((inner(Ym,Yp)-E).normf());
+		print((inner(Ym,Ym,0,0)-E).normf());
+		print((inner(Ym,Ym,1,0)-E).normf());
+		print((inner(Ym,Ym,0,1)-E).normf());
+		print((inner(Ym,Ym,1,1)-E).normf());
+
+		print("identity 2");
+
+		tensorT tmp1=inner(Ym(s0,s0),y1) + inner(Ym(s0,s1),y2);
+		tensorT tmp2=inner(Xm(s0,s0),x1) + inner(Xm(s0,s1),x2);
+		print((inner(y1,tmp1,1,1)-E(s0,s0)).normf());				// 0
+		print((inner(x1,tmp2,1,1)-E(s0,s0)).normf());				// not 0
+
+		print("U UT");
+		print(inner(U,U,1,1));
+		print("UT U");
+		print(inner(U,U,0,0));
+		return;
+		print((inner(tmp1,tmp1,1,1)-E).normf());
+		print((inner(tmp2,tmp2,1,1)-E).normf());
+
+		print((inner(x1,x1,1,1)-E(s0,s0)).normf());
+		print((inner(y1,y1,1,1)-E(s0,s0)).normf());
+		print((inner(x2,x2,1,1)-E(s1,s1)).normf());
+		print((inner(y2,y2,1,1)-E(s1,s1)).normf());
+
+		return;
+
+		// the M matrix
+		tensorT M(rank,rank);
+		for (int i=0; i<rank1; i++) M(i,i)=w1(i);
+		for (int i=0; i<rank2; i++) M(rank1+i,rank1+i)=w2(i);
+		M=inner(inner(Xp,M),Yp);
+
+		// SVD on the M matrix
+		tensorT Um,VTm;
+		Tensor<double> s;
+		svd(M,Um,s,VTm);
+
+		// the transformation matrices for x1, x2, y1, y2
+		tensorT t11=inner(Um,Xm(Slice(_),s0));
+		tensorT t12=inner(Um,Xm(Slice(_),s1));
+		tensorT t21=inner(VTm,Ym(Slice(_),s0),0,0);
+		tensorT t22=inner(VTm,Ym(Slice(_),s1),0,0);
+//		tensorT t11=Xm(Slice(_),s1);
+//		tensorT t12=(Xm(Slice(_),s1));
+//		tensorT t21=(Ym(Slice(_),s0));
+//		tensorT t22=(Ym(Slice(_),s1));
+
+		x1=inner(t11,x1) + inner(t12,x2);
+		y1=inner(t21,y1) + inner(t22,y2);
+
+		print("identity 1");
+		print((inner(x1,x1,1,1)-E).normf());
+		print((inner(y1,y1,1,1)-E).normf());
+
+		w1=s;
+	}
 
 }
 
