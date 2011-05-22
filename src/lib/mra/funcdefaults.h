@@ -369,7 +369,11 @@ namespace madness {
 
         /// Sets the default tensor type
         static void set_tensor_type(const TensorType& t) {
+#if !HAVE_GENTENSOR
         	tt=t;
+#else
+        	tt=TT_FULL;
+#endif
         }
 
         /// Gets the user cell for the simulation

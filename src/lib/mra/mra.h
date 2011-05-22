@@ -1461,7 +1461,6 @@ namespace madness {
         	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
         			f.get_impl()->get_functor().get(),true,true);
 			source.norm_tree();
-			print("inner(source,source",inner(source,source));
 			source.get_impl()->compress(true,true,true);
 			source.get_impl()->print_stats();
 			print("stats for source tree including V");

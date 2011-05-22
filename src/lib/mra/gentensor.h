@@ -167,22 +167,24 @@ namespace madness {
         GenTensor<T> full_tensor_copy() const {return *this;}
         GenTensor<T> full_tensor_copy() {return *this;}
 
-        bool has_data() const {return this->size()!=0;};
+        bool has_data() const {return this->size()>0;};
 		long rank() const {return -1;}
 
         void reduceRank(const double& eps) {return;};
-        void right_orthonormalize() {};
+        void right_orthonormalize(const double& eps) {return;};
+        void reconstruct_and_decompose(const double& eps) {return;}
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
 		TensorType tensor_type() const {return TT_FULL;}
 
-		void accumulate_into(Tensor<T>& t, const double& fac) const {t+=*this *fac;}
-		void accumulate_into(Tensor<T>& t, const std::complex<double>& fac) const {t+=*this*fac;}
-		void accumulate_into(GenTensor<T>& t, const double& fac) const {t+=*this*fac;}
+		void accumulate_into(Tensor<T>& t, const double& eps, const double& fac) const {t+=*this *fac;}
+		void accumulate_into(Tensor<T>& t, const std::complex<double>& fac) const {MADNESS_EXCEPTION("",0);}
+		void accumulate_into(GenTensor<T>& t, const double& eps, const double& fac) const {t+=*this*fac;}
 		void accumulate_into(GenTensor<T>& t, const std::complex<double>& fac) const {t+=*this*fac;}
+		void add_SVD(const GenTensor<T>& rhs, const double& eps) {*this+=rhs;}
 
-		template <typename Archive>
-        void serialize(Archive& ar) {}
+		/// return the additional safety for rank reduction
+		static double fac_reduce() {return -1.0;};
 
 	};
 
@@ -328,6 +330,22 @@ namespace madness {
 			return gentensorT();
 		}
 
+
+        /// Replaces this GenTensor with one loaded from an archive
+        template <typename Archive>
+        void load(World& world, Archive& ar) {
+            _ptr.reset(new configT());
+            _ptr->load(ar);
+        }
+
+
+        /// Stores the GenTensor to an archive
+        template <typename Archive>
+        void store(Archive& ar) const {
+            _ptr->store(ar);
+        }
+
+
 		/// return some of the terms of the SRConf (start,..,end), inclusively
 		/// shallow copy
 		const GenTensor get_configs(const int& start, const int& end) const {
@@ -349,12 +367,12 @@ namespace madness {
 			MADNESS_EXCEPTION("no assignment with a number for GenTensor",0);
 		}
 
-	private:
 
 		/// ctor w/ configs, shallow (indirectly, via vector_)
 		GenTensor(const SRConf<T>& config) : _ptr(new configT(config)) {
 		}
 
+	private:
 		/// return a slice of this (deep copy)
 		gentensorT copy_slice(const std::vector<Slice>& s) const {
 
@@ -894,6 +912,10 @@ namespace madness {
 		/// add SVD
 		void add_SVD(const gentensorT& rhs, const double& thresh) {
 			if (rhs.has_no_data()) return;
+			if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) {
+				this->full_tensor()+=rhs.full_tensor();
+				return;
+			}
 			if (has_no_data()) {
 				*this=rhs;
 				return;
@@ -1607,39 +1629,6 @@ namespace madness {
 	};
 
 
-
-    /// transform the argument SepRepTensor to FullTensor form
-    template <typename T>
-    void to_full_rank(GenTensor<T>& arg) {
-
-    	if (arg.has_data()) {
-        	if (arg.tensor_type()==TT_FULL) {
-        		;
-        	} else if (arg.tensor_type()==TT_3D or arg.tensor_type()==TT_2D) {
-        		Tensor<T> t=arg.reconstruct_tensor();
-            	arg=GenTensor<T>(t,0.0,TT_FULL);
-        	} else {
-        		throw std::runtime_error("unknown TensorType in to_full_tensor");
-        	}
-    	}
-    }
-
-    /// transform the argument SepRepTensor to LowRankTensor form
-    template <typename T>
-    void to_low_rank(GenTensor<T>& arg, const double& eps, const TensorType& target_type) {
-
-    	if (arg.has_data()) {
-        	if (arg.tensor_type()==TT_FULL) {
-				const Tensor<T> t1=arg.reconstruct_tensor();
-				arg=(GenTensor<T>(t1,eps,target_type));
-	     	} else if (arg.tensor_type()==TT_2D or arg.tensor_type()==TT_NONE) {
-         		;
-         	} else {
-         		throw std::runtime_error("unknown TensorType in to_full_tensor");
-         	}
-    	}
-    }
-
     /// Often used to transform all dimensions from one basis to another
     /// \code
     /// result(i,j,k...) <-- sum(i',j', k',...) t(i',j',k',...) c(i',i) c(j',j) c(k',k) ...
@@ -1695,6 +1684,80 @@ namespace madness {
     }
 
     #endif /* HAVE_GENTENSOR */
+
+
+    /// transform the argument SepRepTensor to FullTensor form
+    template <typename T>
+    void to_full_rank(GenTensor<T>& arg) {
+
+    	if (arg.has_data()) {
+        	if (arg.tensor_type()==TT_FULL) {
+        		;
+        	} else if (arg.tensor_type()==TT_3D or arg.tensor_type()==TT_2D) {
+        		Tensor<T> t=arg.reconstruct_tensor();
+            	arg=GenTensor<T>(t,0.0,TT_FULL);
+        	} else {
+        		throw std::runtime_error("unknown TensorType in to_full_tensor");
+        	}
+    	}
+    }
+
+    /// transform the argument SepRepTensor to LowRankTensor form
+    template <typename T>
+    void to_low_rank(GenTensor<T>& arg, const double& eps, const TensorType& target_type) {
+
+    	if (arg.has_data()) {
+        	if (arg.tensor_type()==TT_FULL) {
+				const Tensor<T> t1=arg.reconstruct_tensor();
+				arg=(GenTensor<T>(t1,eps,target_type));
+	     	} else if (arg.tensor_type()==TT_2D or arg.tensor_type()==TT_NONE) {
+         		;
+         	} else {
+         		throw std::runtime_error("unknown TensorType in to_full_tensor");
+         	}
+    	}
+    }
+
+    namespace archive {
+    /// Serialize a tensor
+    template <class Archive, typename T>
+    struct ArchiveStoreImpl< Archive, GenTensor<T> > {
+
+    	friend class GenTensor<T>;
+    	/// Stores the GenTensor to an archive
+    	static void store(const Archive& ar, const GenTensor<T>& t) {
+    		bool exist=t.has_data();
+    		ar & exist;
+    		if (exist) ar & t.config();
+    	};
+
+
+    };
+
+
+    /// Deserialize a tensor ... existing tensor is replaced
+    template <class Archive, typename T>
+    struct ArchiveLoadImpl< Archive, GenTensor<T> > {
+
+    	friend class GenTensor<T>;
+    	/// Replaces this GenTensor with one loaded from an archive
+    	static void load(const Archive& ar, GenTensor<T>& t) {
+    		// check for pointer existence
+    		bool exist;
+    		ar & exist;
+    		if (exist) {
+    			SRConf<T> conf;
+    			ar & conf;
+    			//t.config()=conf;
+    			t=GenTensor<T>(conf);
+    		}
+    	};
+    };
+    };
+
+
+
+
 
 }
 

@@ -3,8 +3,6 @@
 /// \brief test the SeparatedRepresentation (SepRep) for representing matrices
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-//#include "mra/seprep.h"
-//#include "mra/mra.h"
 #include "mra/gentensor.h"
 
 using namespace madness;
@@ -18,6 +16,7 @@ std::string ok(const bool b) {if (b) return "ok   "; return "fail ";};
 bool is_large(const double& val, const double& eps) {
 	return (val>eps);
 }
+#if HAVE_GENTENSOR
 
 int testGenTensor_ctor(const long& k, const long& dim, const double& eps, const TensorType& tt) {
 
@@ -625,7 +624,6 @@ int testGenTensor_reconstruct(const long& k, const long& dim, const double& eps,
 
 
 
-
 int main(int argc, char**argv) {
 
     initialize(argc,argv);
@@ -931,6 +929,6 @@ int main(int argc, char**argv) {
     return 0;
 }
 
-
+#endif
 
 

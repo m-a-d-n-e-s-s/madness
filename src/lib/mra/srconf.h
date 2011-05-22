@@ -75,6 +75,28 @@ namespace madness {
     	return s;
     }
 
+	/// return the index of the last singular vector/value to meet the threshold
+
+	/// given a matrix A in SVD form, truncate the singular values such that the
+	/// accuracy threshold is still met.
+	/// @param[in]	thresh	the threshold eps: || A(svd) - A(truncated) || < eps
+	/// @param[in] 	rank	the number of singular vectors in w
+	/// @paran[in]	w		the weights/singular values of A(svd)
+	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
+	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
+
+		// find the maximal singular value that's supposed to contribute
+		// singular values are ordered (largest first)
+		double residual=0.0;
+		long i;
+		for (i=rank-1; i>=0; i--) {
+			residual+=w(i)*w(i);
+			if (residual>thresh*thresh) break;
+		}
+		return i;
+	}
+
+
 
 	/**
 	 * A SRConf handles all the configurations in a Separated Representation.
@@ -294,7 +316,6 @@ namespace madness {
 			return result;
 		}
 
-
 		/// dtor
 		virtual ~SRConf() {
 			vector_.clear();
@@ -302,6 +323,15 @@ namespace madness {
 			weights_.clear();
 			s_.clear();
 		}
+
+        template <typename Archive>
+        void serialize(Archive& ar) {
+                int i=int(tensortype_);
+                ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
+                tensortype_=TensorType(i);
+                make_slices();
+        }
+
 
 		/// does this have any data?
 		bool has_data() const {

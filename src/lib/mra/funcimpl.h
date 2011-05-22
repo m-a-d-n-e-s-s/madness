@@ -2114,9 +2114,18 @@ namespace madness {
         	MADNESS_ASSERT(p1->is_nonstandard());
         	MADNESS_ASSERT(p2->is_nonstandard());
 
-        	typename FunctionImpl<T,LDIM>::dcT::const_iterator it1=p1->coeffs.find(p1->cdata.key0);
-        	typename FunctionImpl<T,LDIM>::dcT::const_iterator it2=p2->coeffs.find(p2->cdata.key0);
-        	hartree_product_spawn(p1,p2,cdata.key0,it1,it2);
+			typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+			typedef FunctionImpl<T,LDIM> implL;
+
+            if (world.rank() == coeffs.owner(cdata.key0)) {
+            	Future<datumL> datum1=p1->find_datum(p1->cdata.key0);
+            	Future<datumL> datum2=p2->find_datum(p2->cdata.key0);
+
+            	ProcessID owner = coeffs.owner(cdata.key0);
+            	woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, cdata.key0,
+            			datum1,datum2);
+            }
+
         	this->compressed=false;
         	if (fence) world.gop.fence();
         	return None;
@@ -2127,13 +2136,11 @@ namespace madness {
         template<std::size_t LDIM>
         Void hartree_product_op(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
         		const keyT& key,
-        		typename FunctionImpl<T,LDIM>::dcT::const_iterator it1,
-        		typename FunctionImpl<T,LDIM>::dcT::const_iterator it2) {
+        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
 
         	MADNESS_ASSERT(NDIM==6);
         	MADNESS_ASSERT(LDIM==3);
-        	MADNESS_ASSERT(it1->second.has_coeff());
-        	MADNESS_ASSERT(it2->second.has_coeff());
 
 			// break key into particles (these are the child keys, with it1/it2 come the parent keys)
 			const Vector<Translation, NDIM>& l=key.translation();
@@ -2143,17 +2150,15 @@ namespace madness {
 			const Key<LDIM> key2(key.level(),l2);
 
 			// iterators point to nodes in nonstandard representation: get the sum coeffs
-			const coeffT s1=it1->second.coeff()(p1->cdata.s0);
-			const coeffT s2=it2->second.coeff()(p2->cdata.s0);
+			const coeffT s1=datum1.second.coeff()(p1->cdata.s0);
+			const coeffT s2=datum2.second.coeff()(p2->cdata.s0);
 
-	        coeffT coeff1=p1->parent_to_child(s1,it1->first,key1);
-	        coeffT coeff2=p2->parent_to_child(s2,it2->first,key2);
+	        coeffT coeff1=p1->parent_to_child(s1,datum1.first,key1);
+	        coeffT coeff2=p2->parent_to_child(s2,datum2.first,key2);
 
 	        // new coeffs are simply the hartree/kronecker/outer product
 	        tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
 
-//	        coeffT bla=coeffT(tcube,targs);
-//	        nodeT no=nodeT(coeffT(tcube,targs),false);
 	        coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
 
 			return None;
@@ -2171,30 +2176,31 @@ namespace madness {
         template<std::size_t LDIM>
         Void hartree_product_spawn(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
         		const Key<NDIM>& key,
-        		const typename FunctionImpl<T,LDIM>::dcT::const_iterator it1,
-        		const typename FunctionImpl<T,LDIM>::dcT::const_iterator it2) {
+        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
 
         	// for now
         	MADNESS_ASSERT(LDIM==3);
         	MADNESS_ASSERT(NDIM==6);
 
-        	// iterator must always point to a valid node
-        	MADNESS_ASSERT(it1!=p1->coeffs.end());
-        	MADNESS_ASSERT(it2!=p2->coeffs.end());
+        	// for convenience
+			typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+        	typedef FunctionNode<T,LDIM> nodeL;
+        	typedef FunctionImpl<T,LDIM> implL;
 
-			typedef FunctionNode<T,LDIM> nodeL;
-
-            // always a valid node (internal or leaf)
-            const nodeL& node1=it1->second;
-            const nodeL& node2=it2->second;
+        	const nodeL& node1=datum1.second;
+        	const nodeL& node2=datum2.second;
 
             // if the final norm is small, perform the hartree product and return
-            const double norm1=node1.get_norm_tree();
-            const double norm2=node2.get_norm_tree();
+        	const coeffT s1=node1.coeff()(p1->cdata.s0);
+        	const coeffT s2=node2.coeff()(p2->cdata.s0);
+            const double norm1=s1.normf();
+            const double norm2=s2.normf();
             const double norm=norm1*norm2;	// computing the outer product
             if (norm < truncate_tol(thresh, key)) {
+
 				ProcessID owner = coeffs.owner(key);
-				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, it1, it2);
+				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, datum1, datum2);
 				return None;
             }
 
@@ -2207,7 +2213,7 @@ namespace madness {
             if (error < truncate_tol(thresh,key)) {
 				// should be local anyways
 				ProcessID owner = coeffs.owner(key);
-				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, it1, it2);
+				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, datum1, datum2);
 				return None;
             }
 
@@ -2224,18 +2230,20 @@ namespace madness {
 				const Key<LDIM> key2(child.level(),l2);
 
 				// point to "outermost" leaf node
-				typename FunctionImpl<T,LDIM>::dcT::const_iterator it11=it1;
-				typename FunctionImpl<T,LDIM>::dcT::const_iterator it22=it2;
+				Future<datumL> datum11 =  (node1.has_children())
+//						? p1->task(p1->coeffs.owner(p1->cdata.key0),&implL:: find_datum,key1)
+						? p1->find_datum(key1)
+						: Future<datumL>(datum1);
+				Future<datumL> datum22 =  (node2.has_children())
+//						? p2->task(p2->coeffs.owner(p2->cdata.key0),&implL:: find_datum,key2)
+						? p2->find_datum(key2)
+						: Future<datumL>(datum2);
 
-				if (it1->second.has_children()) {
-					it11=p1->coeffs.find(key1);
-				}
-				if (it2->second.has_children()) {
-					it22=p2->coeffs.find(key2);
-				}
+				datum11.get();
+				datum22.get();
 
 				ProcessID owner = coeffs.owner(child);
-				woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, child, it11, it22);
+				woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, child, datum11, datum22);
 			}
 
             coeffs.replace(key, nodeT(coeffT(),true));  // empty internal node w/ children
@@ -2356,6 +2364,33 @@ namespace madness {
 
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
+
+        /// return the a Future to a std::pair<key, node>, which MUST exist
+        Future<std::pair<Key<NDIM>,FunctionNode<T,NDIM> > > find_datum(keyT key) const {
+
+//        	return std::pair<Key<NDIM>,FunctionNode<T,NDIM> >(key,coeffs.find(key).get()->second);
+
+        	PROFILE_MEMBER_FUNC(FunctionImpl);
+        	Future<std::pair<Key<NDIM>, FunctionNode<T,NDIM> > > result;
+        	woT::task(coeffs.owner(key), &implT::sock_it_to_me3, key, result.remote_ref(world), TaskAttributes::hipri());
+        	return result;
+        }
+
+        Void sock_it_to_me3(const keyT& key,
+        		const RemoteReference< FutureImpl< std::pair<keyT,nodeT> > >& ref) const {
+
+        	MADNESS_ASSERT(coeffs.probe(key));
+        	const nodeT& node = coeffs.find(key).get()->second;
+        	Future< std::pair<keyT,nodeT> > result(ref);
+        	if (node.has_coeff()) {
+        		//madness::print("sock found it with coeff",key);
+        		result.set(std::pair<keyT,nodeT>(key,node));
+        	} else {
+        		//madness::print("sock found it without coeff",key);
+        		result.set(std::pair<keyT,nodeT>(key,nodeT()));
+        	}
+        	return None;
+        }
 
 
 
@@ -2998,6 +3033,8 @@ namespace madness {
 
 						if (cnorm*opnorm> tol/fac) {
 
+//							print("cnorm",cnorm);
+
 							// for now do all the convolutions in one task, since we need
 							// to reduce the rank at the end, and we can't keep track of
 							// which nodes have already been processed
@@ -3015,8 +3052,15 @@ namespace madness {
                 }
             }
             long oldrank2=node.coeff().rank();
+
+            // both are fine
             node.reduceRank(truncate_tol(thresh, key));
-//            to_low_rank(node.coeff(),targs.thresh,targs.tt);
+//            node.coeff().reconstruct_and_decompose(truncate_tol(thresh, key));	// reduce0
+
+
+            if (node.coeff().tensor_type()==TT_FULL) {
+            	to_low_rank(node.coeff(),targs.thresh,targs.tt);
+            }
             print("done with node",key,node.coeff().normf(),oldrank2,node.coeff().rank());
             return None;
         }
@@ -3030,21 +3074,25 @@ namespace madness {
         		const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-            Vector<Translation, NDIM> l;
-//            l=vec(2,5,3,4,4,4);
+//            Vector<Translation, NDIM> l;
 //            l[0]=2;
 //            l[1]=5;
 //            l[2]=3;
 //            l[3]=4;
 //            l[4]=4;
 //            l[5]=4;
+//            const keyT key1(3,l);
 
+//            for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=f.get_coeffs().end(); ++it) {
+//            	const keyT& key = it->first;
+//            	const nodeT& node = it->second;
+//            	print("fode",key,node.coeff().normf());
+//            }
 
-            const keyT key1(3,l);
 
             // looping through all the coefficients of the target (this)
             typename dcT::iterator end = coeffs.end();
-             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
 
             	const keyT& key = it->first;
 
@@ -3210,7 +3258,6 @@ namespace madness {
                         const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
                         if (gnode.has_coeff()) {
                             if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
-                            	SRConf<R> conf=fnode.coeff().config();
                                 madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
                                 MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
                             }
@@ -3371,6 +3418,7 @@ namespace madness {
 
         /// print the number of configurations per node
         void print_stats() const {
+        	if (this->targs.tt==TT_FULL) return;
         	int dim=NDIM/2;
         	int k0=k;
         	if (is_compressed()) k0=2*k;
