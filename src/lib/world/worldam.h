@@ -101,6 +101,7 @@ namespace madness {
 
         void set_src(ProcessID source) const { src = source; }
 
+        // This is not inline in order to keep World opaque.
         void set_world(World* world) const;
 
         void set_func(am_handlerT handler) const { func = handler; }
@@ -110,15 +111,19 @@ namespace madness {
         void set_pending() const { flags |= 0x1ul; }
 
         bool is_pending() const { return flags & 0x1ul; }
-
+        
         void clear_flags() const { flags = 0; }
-
+        
         am_handlerT get_func() const { return func; }
 
-        archive::BufferInputArchive make_input_arch() const;
+        archive::BufferInputArchive make_input_arch() const {
+            return archive::BufferInputArchive(buf(),size());
+        }
 
-        archive::BufferOutputArchive make_output_arch() const;
-
+        archive::BufferOutputArchive make_output_arch() const {
+            return archive::BufferOutputArchive(buf(),size());
+        }
+        
     public:
         AmArg() {}
 
@@ -143,6 +148,7 @@ namespace madness {
         /// For incoming AM gives the source process
         ProcessID get_src() const { return src; }
 
+        // This is not inline in order to keep World opaque.
         /// For incoming AM gives the associated world
         World* get_world() const;
     };
@@ -278,17 +284,83 @@ namespace madness {
 
         std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to MPI::COMM_WORLD
 
-        void free_managed_send_buf(int i);
-
+        void free_managed_send_buf(int i) {
+            // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
+            if (managed_send_buf[i]) {
+                free_am_arg(managed_send_buf[i]);
+                managed_send_buf[i] = 0;
+            }
+        }
 
         /// Private: Finds/waits for a free send request
-        int get_free_send_request();
+    int get_free_send_request() {
+        // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
+//             // Sequentially loop looking for next free request.
+//             while (!send_req[cur_msg].Test()) {
+//                 cur_msg++;
+//                 if (cur_msg >= NSEND) cur_msg = 0;
+//                 myusleep(5);
+//             }
+
+        // Wait for oldest request to complete
+        while (!send_req[cur_msg].Test()) {
+            // If the oldest message has still not completed then there is likely
+            // severe network or end-point congestion, so pause for 100us in a rather
+            // abitrary attempt to decreate the injection rate.  The server thread
+            // is still polling every 1us (which is required to suck data off the net
+            // and by some engines to ensure progress on sends).
+            myusleep(100);
+        }
+
+        free_managed_send_buf(cur_msg);
+        int result = cur_msg;
+        cur_msg++;
+        if (cur_msg >= NSEND) cur_msg = 0;
+
+        return result;
+    }
+
+        // Not inline in order to keep World opaque
+        static void increment_worldam_nrecv(World* world);
 
         /// This handles all incoming RMI messages for all instances
-        static void handler(void *buf, std::size_t nbyte);
-
+        static void handler(void *buf, std::size_t nbyte) {
+            // It will be singled threaded since only the RMI receiver
+            // thread will invoke it ... however note that nrecv will
+            // be read by the main thread during fence operations.
+            AmArg* arg = (AmArg*)(buf);
+            am_handlerT func = arg->get_func();
+            World* world = arg->get_world();
+            MADNESS_ASSERT(arg->size() + sizeof(AmArg) == nbyte);
+            MADNESS_ASSERT(world);
+            MADNESS_ASSERT(func);
+            func(*arg);
+            //world->am.nrecv++;  // Must be AFTER execution of the function
+            increment_worldam_nrecv(world);  // Must be AFTER execution of the function
+        }
+        
         /// Sends a non-blocking active message
-        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr, bool managed);
+        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr, bool managed) {
+            arg->set_world(&world);
+            arg->set_src(rank);
+            arg->set_func(op);
+            arg->clear_flags(); // Is this the right place for this?
+            
+            MADNESS_ASSERT(arg->get_world());
+            MADNESS_ASSERT(arg->get_func());
+            
+            // Map dest from world's communicator to comm_world
+            dest = map_to_comm_world[dest];
+            
+            lock();    // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            nsent++;
+            int i = get_free_send_request();
+            send_req[i] = RMI::isend(arg, arg->size()+sizeof(AmArg), dest, handler, attr);
+            if (managed) managed_send_buf[i] = (AmArg*)(arg);
+            unlock();  // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+            return send_req[i];
+        }
+        
 
     public:
         WorldAmInterface(World& world);
@@ -302,10 +374,27 @@ namespace madness {
 //        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
 
         /// Sends a managed non-blocking active message
-        void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
-
+    void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
+        isend(dest, op, arg, attr, true);
+    }
         /// Frees as many send buffers as possible
-        void free_managed_buffers();
+    void free_managed_buffers() {
+        int ind[NSEND];
+        lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        int n = SafeMPI::Request::Testsome(NSEND, send_req, ind);
+        if (n != MPI_UNDEFINED) {
+            for (int i=0; i<n; ++i) {
+                free_managed_send_buf(ind[i]);
+            }
+        }
+        unlock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+    }
+
+//    RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr) {
+//        std::cerr << "ISEND_ING AM\n";
+//        return isend(dest, op, arg, attr, false);
+//    }
+        
     };
 }
 
