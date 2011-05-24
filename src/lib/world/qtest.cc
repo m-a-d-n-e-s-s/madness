@@ -189,6 +189,22 @@ pthread_key_t idkey; // Must be external
 
 static __thread int my_thread_id;
 
+static int __num_hw_processors() {
+#ifdef _SC_NPROCESSORS_CONF
+    int ncpu = sysconf(_SC_NPROCESSORS_CONF);
+    if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+#elif defined(HC_NCPU)
+    int mib[2]={CTL_HW,HW_NCPU}, ncpu;
+    size_t len = sizeof(ncpu);
+    if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
+        MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
+    std::cout << "NCPU " << ncpu << std::endl;
+#else
+    int ncpu=1;
+#endif
+    return ncpu;
+}
+
 static void set_thread_affinity(int cpu) {
 #ifndef ON_A_MAC
 #define HAVE_SCHED_SETAFFINITY
@@ -196,6 +212,7 @@ static void set_thread_affinity(int cpu) {
 #ifdef HAVE_SCHED_SETAFFINITY
     cpu_set_t mask;
     CPU_ZERO(&mask);
+    cpu = cpu % __num_hw_processors();
     CPU_SET(cpu,&mask);
     if (sched_setaffinity(0, sizeof(mask), &mask) == -1) {
         perror("system error message");
@@ -364,19 +381,7 @@ class ThreadPool {
     ThreadPool() {}; // Verboten;
 
     static int num_hw_processors() {
-#ifdef _SC_NPROCESSORS_CONF
-        int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-        if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
-#elif defined(HC_NCPU)
-        int mib[2]={CTL_HW,HW_NCPU}, ncpu;
-        size_t len = sizeof(ncpu);
-        if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
-	    MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
-        std::cout << "NCPU " << ncpu << std::endl;
-#else
-        int ncpu=1;
-#endif
-        return ncpu;
+        return __num_hw_processors();
     }
 
 
@@ -586,7 +591,7 @@ int main() {
     while(1) {
         std::pair<bool,int> item = dq.pop_front();
         if (item.first) {
-            MADNESS_ASSERT(item.second == ++j);
+            MADNESS_ASSERT(item.second == j++);
             MADNESS_ASSERT(dq.size() == 6-j);
         }
         else {
