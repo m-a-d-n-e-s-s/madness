@@ -50,14 +50,24 @@ void fred(int i) {
     dave(i);
 }
 
-int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
-
+void realmain(int argc, char** argv)
+{
     World world(MPI::COMM_WORLD);
     for (int i=0; i<1000; ++i)
         fred(i);
 
     WorldProfile::print(world);
+}
+
+int main(int argc, char** argv) {
+    MPI::Init(argc, argv);
+
+    //This programming style guarantees that
+    //the world instance is destroyed before
+    //MPI::Finalize().
+    //It is necessary if the destructor of the
+    //class World also takes care of MPI status.
+    realmain(argc, argv);
 
     MPI::Finalize();
     return 0;
