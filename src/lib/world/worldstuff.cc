@@ -57,6 +57,8 @@ namespace madness {
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
 
+    static int finalizestate = 0;
+
     World::World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
@@ -173,6 +175,7 @@ namespace madness {
 
 
     World::~World() {
+        if (finalizestate == 1) return;
         worlds.remove(this);
         delete &taskq;
         delete &gop;
@@ -238,6 +241,7 @@ namespace madness {
         RMI::end();
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
         MPI::Finalize();
+	finalizestate = 1;
     }
 
     // Enables easy printing of MadnessExceptions
