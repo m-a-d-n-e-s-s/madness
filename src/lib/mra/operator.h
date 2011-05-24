@@ -727,6 +727,7 @@ namespace madness {
                 	const int r_max=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
 //                	print("r_max",coeff.config().weights(r_max));
 
+                	if (r_max>0) {
                 	// loop over chunks of coeff's terms
 //                	for (int i=0; i<coeff.rank(); i+=chunksize) {
 //                	for (int i=0; i<=r_max; i+=chunksize) {
@@ -734,8 +735,8 @@ namespace madness {
 //                		int end=std::min(i+chunksize,int(coeff.rank()))-1;
 //                		const GenTensor<resultT> chunk=input->get_configs(i,end);
 //						const GenTensor<resultT> chunk0=f0.get_configs(i,end);
-                		const GenTensor<resultT> chunk=input->get_configs(0,r_max);
-						const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
+                	    const GenTensor<resultT> chunk=input->get_configs(0,r_max);
+                	    const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
 
 //						if (std::abs(chunk.config().weights(end-i)*muop.norm) > tol2*0.01) {
 						Q fac = ops[mu].getfac();
@@ -749,6 +750,7 @@ namespace madness {
 //						result.add_SVD(r,tol2/nchunks);
 //                	}
 //                	print("result.normf()",result.normf());
+                	}
 #else
 					Q fac = ops[mu].getfac();
 					muopxv_fast2(source.level(), muop.ops, *input, f0, r, r0,

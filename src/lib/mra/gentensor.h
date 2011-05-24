@@ -140,7 +140,9 @@ namespace madness {
 			return "unknown tensor type";
 		}
 		template <typename Archive>
-		void serialize(const Archive& ar) {}
+		void serialize(const Archive& ar) {
+			MADNESS_EXCEPTION("no serialization of TensorArgs",0);
+		}
 	};
 
 
@@ -187,6 +189,44 @@ namespace madness {
 		static double fac_reduce() {return -1.0;};
 
 	};
+
+	namespace archive {
+	/// Serialize a tensor
+	template <class Archive, typename T>
+	struct ArchiveStoreImpl< Archive, GenTensor<T> > {
+		static void store(const Archive& s, const GenTensor<T>& t) {
+			if (t.iscontiguous()) {
+				s & t.size() & t.id();
+				if (t.size()) s & t.ndim() & wrap(t.dims(),TENSOR_MAXDIM) & wrap(t.ptr(),t.size());
+			}
+			else {
+				s & copy(t);
+			}
+		};
+	};
+
+
+	/// Deserialize a tensor ... existing tensor is replaced
+	template <class Archive, typename T>
+	struct ArchiveLoadImpl< Archive, GenTensor<T> > {
+		static void load(const Archive& s, GenTensor<T>& t) {
+			long sz, id;
+			s & sz & id;
+			if (id != t.id()) throw "type mismatch deserializing a tensor";
+			if (sz) {
+				long _ndim, _dim[TENSOR_MAXDIM];
+				s & _ndim & wrap(_dim,TENSOR_MAXDIM);
+				t = Tensor<T>(_ndim, _dim, false);
+				if (sz != t.size()) throw "size mismatch deserializing a tensor";
+				s & wrap(t.ptr(), t.size());
+			}
+			else {
+				t = Tensor<T>();
+			}
+		};
+	};
+
+	}
 
 #else
 
@@ -330,20 +370,27 @@ namespace madness {
 			return gentensorT();
 		}
 
-
-        /// Replaces this GenTensor with one loaded from an archive
-        template <typename Archive>
-        void load(World& world, Archive& ar) {
-            _ptr.reset(new configT());
-            _ptr->load(ar);
-        }
-
-
-        /// Stores the GenTensor to an archive
-        template <typename Archive>
-        void store(Archive& ar) const {
-            _ptr->store(ar);
-        }
+//        /// Replaces this GenTensor with one loaded from an archive
+//        template <typename Archive>
+//        void load(World& world, Archive& ar) {
+//            bool exist;
+//            ar & exist;
+//            if (exist) {
+//               _ptr.reset(new configT());
+//               _ptr->load(ar);
+//            } else {
+//               _ptr.reset();
+//            }
+//        }
+//
+//
+//        /// Stores the GenTensor to an archive
+//        template <typename Archive>
+//        void store(Archive& ar) const {
+//            bool exist=(_ptr);
+//            ar & exist;
+//            if (exist) _ptr->store(ar);
+//        }
 
 
 		/// return some of the terms of the SRConf (start,..,end), inclusively
@@ -1683,6 +1730,45 @@ namespace madness {
     	return t.transform_dir(c,axis);
     }
 
+    namespace archive {
+		/// Serialize a tensor
+		template <class Archive, typename T>
+		struct ArchiveStoreImpl< Archive, GenTensor<T> > {
+
+			friend class GenTensor<T>;
+			/// Stores the GenTensor to an archive
+			static void store(const Archive& ar, const GenTensor<T>& t) {
+				bool exist=t.has_data();
+				ar & exist;
+				if (exist) ar & t.config();
+			};
+
+
+		};
+
+
+		/// Deserialize a tensor ... existing tensor is replaced
+		template <class Archive, typename T>
+		struct ArchiveLoadImpl< Archive, GenTensor<T> > {
+
+			friend class GenTensor<T>;
+			/// Replaces this GenTensor with one loaded from an archive
+			static void load(const Archive& ar, GenTensor<T>& t) {
+				// check for pointer existence
+				bool exist;
+				ar & exist;
+				if (exist) {
+					SRConf<T> conf;
+					ar & conf;
+					//t.config()=conf;
+					t=GenTensor<T>(conf);
+				}
+			};
+		};
+    };
+
+
+
     #endif /* HAVE_GENTENSOR */
 
 
@@ -1718,42 +1804,7 @@ namespace madness {
     	}
     }
 
-    namespace archive {
-    /// Serialize a tensor
-    template <class Archive, typename T>
-    struct ArchiveStoreImpl< Archive, GenTensor<T> > {
 
-    	friend class GenTensor<T>;
-    	/// Stores the GenTensor to an archive
-    	static void store(const Archive& ar, const GenTensor<T>& t) {
-    		bool exist=t.has_data();
-    		ar & exist;
-    		if (exist) ar & t.config();
-    	};
-
-
-    };
-
-
-    /// Deserialize a tensor ... existing tensor is replaced
-    template <class Archive, typename T>
-    struct ArchiveLoadImpl< Archive, GenTensor<T> > {
-
-    	friend class GenTensor<T>;
-    	/// Replaces this GenTensor with one loaded from an archive
-    	static void load(const Archive& ar, GenTensor<T>& t) {
-    		// check for pointer existence
-    		bool exist;
-    		ar & exist;
-    		if (exist) {
-    			SRConf<T> conf;
-    			ar & conf;
-    			//t.config()=conf;
-    			t=GenTensor<T>(conf);
-    		}
-    	};
-    };
-    };
 
 
 

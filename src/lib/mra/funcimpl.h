@@ -1248,8 +1248,10 @@ namespace madness {
         ///
         /// Given coefficients from a parent cell, compute the value of
         /// the functions at the quadrature points of a child
-        Future<coeffT> fcube_for_mul_too(const keyT& key) const {
+        coeffT fcube_for_mul_too(const keyT& key) const {
 
+        	// check for locality: can't serialize futures..
+        	coeffs.probe(key);
             typedef std::pair<keyT,coeffT> argT;
 
 			Future<argT> result;
@@ -2118,8 +2120,10 @@ namespace madness {
 			typedef FunctionImpl<T,LDIM> implL;
 
             if (world.rank() == coeffs.owner(cdata.key0)) {
-            	Future<datumL> datum1=p1->find_datum(p1->cdata.key0);
-            	Future<datumL> datum2=p2->find_datum(p2->cdata.key0);
+            	Future<datumL> datum1=p1->task(p1->get_coeffs().owner(p1->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
+            	        p1->cdata.key0,TaskAttributes::hipri());
+            	Future<datumL> datum2=p2->task(p2->get_coeffs().owner(p2->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
+            	        p2->cdata.key0,TaskAttributes::hipri());
 
             	ProcessID owner = coeffs.owner(cdata.key0);
             	woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, cdata.key0,
@@ -2229,26 +2233,39 @@ namespace madness {
 				const Key<LDIM> key1(child.level(),l1);
 				const Key<LDIM> key2(child.level(),l2);
 
-				// point to "outermost" leaf node
-				Future<datumL> datum11 =  (node1.has_children())
-//						? p1->task(p1->coeffs.owner(p1->cdata.key0),&implL:: find_datum,key1)
-						? p1->find_datum(key1)
-						: Future<datumL>(datum1);
-				Future<datumL> datum22 =  (node2.has_children())
-//						? p2->task(p2->coeffs.owner(p2->cdata.key0),&implL:: find_datum,key2)
-						? p2->find_datum(key2)
-						: Future<datumL>(datum2);
+                // point to "outermost" leaf node
+				Future<datumL> datum11, datum22;
+				if (node1.has_children()) {
+				    datum11=p1->task(p1->coeffs.owner(key1), &FunctionImpl<T,LDIM>::find_datum, key1,
+				            TaskAttributes::hipri());
+				} else {
+					datum11.set(datum1);
+				}
 
-				datum11.get();
-				datum22.get();
+				if (node1.has_children()) {
+	                datum22=p2->task(p2->coeffs.owner(key2), &FunctionImpl<T,LDIM>::find_datum, key2,
+                            TaskAttributes::hipri());
+				} else {
+					datum22.set(datum2);
+				}
 
-				ProcessID owner = coeffs.owner(child);
-				woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, child, datum11, datum22);
+                woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child, datum11, datum22,TaskAttributes::hipri());
 			}
 
             coeffs.replace(key, nodeT(coeffT(),true));  // empty internal node w/ children
 			return None;
 
+        }
+
+        /// work-around for serializing the Future<datumL>
+        template<std::size_t LDIM>
+        Void hartree_product_spawn2(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+                        const Key<NDIM>& key,
+                        const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+                        const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
+                ProcessID owner = coeffs.owner(key);
+                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, key, datum1, datum2,TaskAttributes::hipri());
+                return None;
         }
 
 
@@ -2366,30 +2383,9 @@ namespace madness {
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
 
         /// return the a Future to a std::pair<key, node>, which MUST exist
-        Future<std::pair<Key<NDIM>,FunctionNode<T,NDIM> > > find_datum(keyT key) const {
-
-//        	return std::pair<Key<NDIM>,FunctionNode<T,NDIM> >(key,coeffs.find(key).get()->second);
-
-        	PROFILE_MEMBER_FUNC(FunctionImpl);
-        	Future<std::pair<Key<NDIM>, FunctionNode<T,NDIM> > > result;
-        	woT::task(coeffs.owner(key), &implT::sock_it_to_me3, key, result.remote_ref(world), TaskAttributes::hipri());
-        	return result;
-        }
-
-        Void sock_it_to_me3(const keyT& key,
-        		const RemoteReference< FutureImpl< std::pair<keyT,nodeT> > >& ref) const {
-
+        std::pair<Key<NDIM>,FunctionNode<T,NDIM> > find_datum(keyT key) const {
         	MADNESS_ASSERT(coeffs.probe(key));
-        	const nodeT& node = coeffs.find(key).get()->second;
-        	Future< std::pair<keyT,nodeT> > result(ref);
-        	if (node.has_coeff()) {
-        		//madness::print("sock found it with coeff",key);
-        		result.set(std::pair<keyT,nodeT>(key,node));
-        	} else {
-        		//madness::print("sock found it without coeff",key);
-        		result.set(std::pair<keyT,nodeT>(key,nodeT()));
-        	}
-        	return None;
+        	return std::pair<Key<NDIM>,FunctionNode<T,NDIM> >(key,coeffs.find(key).get()->second);
         }
 
 

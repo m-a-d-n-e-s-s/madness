@@ -255,7 +255,8 @@ namespace madness {
 
             // ket
             if (impl_ket) {
-            	val_ket=impl_ket->fcube_for_mul_too(key);
+            	ProcessID owner = impl_ket->get_coeffs().owner(key);
+            	val_ket=impl_ket->task(owner, &FunctionImpl<T,NDIM>::fcube_for_mul_too,key);
             } else {
             	val_ket=Future<coeffT>(coeffT());
             }
@@ -270,14 +271,18 @@ namespace madness {
 
             // v1
             if (impl_m1) {
-            	val_pot1=impl_m1->fcube_for_mul_too(key1);
+//            	val_pot1=impl_m1->fcube_for_mul_too(key1);
+            	ProcessID owner = impl_m1->get_coeffs().owner(key1);
+            	val_pot1=impl_m1->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key1);
             } else {
             	val_pot1=Future<coeffT>(coeffT());
             }
 
             // v2
             if (impl_m2) {
-            	val_pot2=impl_m2->fcube_for_mul_too(key2);
+//            	val_pot2=impl_m2->fcube_for_mul_too(key2);
+            	ProcessID owner = impl_m2->get_coeffs().owner(key2);
+            	val_pot2=impl_m2->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key2);
             } else {
             	val_pot2=Future<coeffT>(coeffT());
             }
