@@ -258,15 +258,17 @@ namespace madness {
             	ProcessID owner = impl_ket->get_coeffs().owner(key);
             	val_ket=impl_ket->task(owner, &FunctionImpl<T,NDIM>::fcube_for_mul_too,key);
             } else {
-            	val_ket=Future<coeffT>(coeffT());
+//                val_ket=Future<coeffT>(coeffT());
+            	val_ket.set(coeffT());
             }
 
             // eri (bypass its FunctionImpl)
             if (impl_eri) {
             	coeffT eri_val=impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
-            	val_eri=Future<coeffT>(eri_val);
+//              val_eri=Future<coeffT>(eri_val);
+            	val_eri.set(eri_val);
             } else {
-            	val_eri=Future<coeffT>(coeffT());
+            	val_eri.set(coeffT());
             }
 
             // v1
@@ -275,7 +277,7 @@ namespace madness {
             	ProcessID owner = impl_m1->get_coeffs().owner(key1);
             	val_pot1=impl_m1->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key1);
             } else {
-            	val_pot1=Future<coeffT>(coeffT());
+            	val_pot1.set(coeffT());
             }
 
             // v2
@@ -284,7 +286,7 @@ namespace madness {
             	ProcessID owner = impl_m2->get_coeffs().owner(key2);
             	val_pot2=impl_m2->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key2);
             } else {
-            	val_pot2=Future<coeffT>(coeffT());
+            	val_pot2.set(coeffT());
             }
 
             impl->assemble_coeff(key,val_ket,val_eri,val_pot1,val_pot2);

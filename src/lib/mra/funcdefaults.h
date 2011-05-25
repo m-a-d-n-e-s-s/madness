@@ -33,6 +33,8 @@
 #ifndef MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 #define MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 
+#define HAVE_GENTENSOR 1
+
 /// \file funcdefaults.h
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation
 /// \ingroup mrabcext
@@ -369,7 +371,7 @@ namespace madness {
 
         /// Sets the default tensor type
         static void set_tensor_type(const TensorType& t) {
-#if !HAVE_GENTENSOR
+#if HAVE_GENTENSOR
         	tt=t;
 #else
         	tt=TT_FULL;

@@ -34,8 +34,6 @@
 #ifndef GENTENSOR_H_
 #define GENTENSOR_H_
 
-#define HAVE_GENTENSOR 1
-
 
 /*!
  *
@@ -907,6 +905,7 @@ namespace madness {
 			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
 			const unsigned int rank=this->rank();
 			long d[TENSOR_MAXDIM];
+			MADNESS_ASSERT(conf_dim==2 or conf_dim==3);
 
 			// set up result Tensor (in configurational dimensions)
 			for (long i=0; i<conf_dim; i++) d[i] = conf_k;

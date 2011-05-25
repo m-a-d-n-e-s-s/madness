@@ -121,8 +121,9 @@ namespace madness {
     	/// return the coefficients of the function in 6D (x1,y1,z1, x2,y2,z2)
     	Tensor<double> coeff(const Key<NDIM>& key) const {
 
+    	    typedef Tensor<double> tensorT;
+
     		MADNESS_ASSERT(NDIM==6);
-    		Tensor<double> c(k,k,k,k,k,k);
 
     		const Level n=key.level();
     		const Vector<Translation,NDIM> l=key.translation();
@@ -141,26 +142,25 @@ namespace madness {
    			map[4]=2;
    			map[5]=5;
 
-    		// accumulate the terms r^n_ll'_kk'
-    		for (int mu=0; mu<rank; mu++) {
+   			tensorT scr1(rank,k*k), scr2(rank,k*k,k*k);
 
-    			const Tensor<double>& r0=ops[mu].getop(0)->rnlij(n,l0);
-    			const Tensor<double>& r1=ops[mu].getop(1)->rnlij(n,l1);
-    			const Tensor<double>& r2=ops[mu].getop(2)->rnlij(n,l2);
+   			// lump all the terms together
+   			for (long mu=0; mu<rank; mu++) {
+   	            const Tensor<double> r0=(ops[mu].getop(0)->rnlij(n,l0)).reshape(k*k);
+   	            const Tensor<double> r1=(ops[mu].getop(1)->rnlij(n,l1)).reshape(k*k);
+   	            const Tensor<double> r2=(ops[mu].getop(2)->rnlij(n,l2)).reshape(k*k);
 
-//    			const double norm0=r0.normf();
-//    			const double norm1=r1.normf();
-//    			const double norm2=r2.normf();
-//    			if (norm0*norm1*norm2*ops[mu].getfac() > thresh/rank) {
+   	            // include weights in first vector
+   	            scr1(mu,Slice(_))=r0*ops[mu].getfac();
 
-					const Tensor<double> r01=outer(r0,r1*ops[mu].getfac());
-					Tensor<double> r123=outer(r01,r2);
-	//    			r123.scale(ops[mu].getfac());
-					c+=r123.mapdim(map);
-//    			}
-    		}
+   	            // merge second and third vector to scr(r,k1,k2)
+   	            scr2(mu,Slice(_),Slice(_))=outer(r1,r2);
+   			}
 
-    		return c;
+            tensorT c=inner(scr1,scr2,0,0);
+            return copy(c.reshape(k,k,k,k,k,k).mapdim(map));
+
+
     	}
 
     };

@@ -1462,8 +1462,7 @@ namespace madness {
         			f.get_impl()->get_functor().get(),true,true);
 			source.norm_tree();
 			source.get_impl()->compress(true,true,true);
-			source.get_impl()->print_stats();
-			print("stats for source tree including V");
+		    printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
         	// apply (bypass apply_only)
         	print("applying operator in target-driven algorithm");

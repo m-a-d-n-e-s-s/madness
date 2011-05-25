@@ -1250,14 +1250,10 @@ namespace madness {
         /// the functions at the quadrature points of a child
         coeffT fcube_for_mul_too(const keyT& key) const {
 
-        	// check for locality: can't serialize futures..
-        	coeffs.probe(key);
             typedef std::pair<keyT,coeffT> argT;
 
 			Future<argT> result;
-			woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world),
-					TaskAttributes::hipri());
-
+			woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world));
 			return woT::task(coeffs.owner(key), &implT::fcube_for_mul2, key, result);
 
         }
@@ -2422,14 +2418,64 @@ namespace madness {
 
         /// actually not quite constant
         void assemble_coeff(const keyT& key,
-        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
-        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) const {
+//        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
+//        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) const {
+            const coeffT& val_ket, const coeffT& val_eri,
+            const coeffT& val_pot1, const coeffT& val_pot2) const {
 
 			woT::task(coeffs.owner(key), &implT:: template do_assemble_coeff<3>,
 					key,val_ket,val_eri,val_pot1,val_pot2);
 
         }
 
+#if 1
+
+        /// assemble the provided coefficients and insert them into the tree at key
+        template<size_t LDIM>
+        Void do_assemble_coeff(const keyT& key,
+                const coeffT& val_ket, const coeffT& val_eri,
+                const coeffT& val_pot1, const coeffT& val_pot2) {
+
+
+            // sort of makes sense
+            MADNESS_ASSERT(val_ket.has_data());
+
+            tensorT ket=val_ket.full_tensor_copy();
+            tensorT coeff_v(cdata.vk);      // 6D, all addends
+
+
+
+            // include the one-electron potential
+            if (val_pot1.has_data()) {
+                MADNESS_ASSERT(val_pot2.has_data());
+
+                FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
+                Tensor<T> unity=Tensor<double>(cdataL.vk,false);
+                unity=1.0;
+
+                // direct product: V(1) * E(2) + E(1) * V(2)
+                coeff_v = outer(val_pot1.full_tensor_copy(),unity)
+                          + outer(unity,val_pot2.full_tensor_copy());
+            }
+
+
+            // add 2-particle contribution
+            if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
+
+            // multiply potential with ket
+            if (val_eri.has_data() or val_pot1.has_data()) {
+
+                tensorT tcube(cdata.vk,false);
+
+                TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+                ket=tcube;
+            }
+
+            coeffs.replace(key,nodeT(coeffT(values2coeffs(key,ket),targs)));
+            return None;
+        }
+
+#else
         /// assemble the provided coefficients and insert them into the tree at key
         template<size_t LDIM>
         Void do_assemble_coeff(const keyT& key,
@@ -2475,7 +2521,7 @@ namespace madness {
 			return None;
         }
 
-
+#endif
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2799,6 +2845,7 @@ namespace madness {
 
             // Copy child scaling coeffs into contiguous block
             coeffT d(cdata.v2k,targs);
+//            tensorT d(cdata.v2k);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 d(child_patch(kit.key())) += v[i].get();
@@ -2812,6 +2859,7 @@ namespace madness {
             if (acc->second.has_coeff()) {
             	print(" stuff in compress_op");
                 const coeffT& c = acc->second.coeff();
+//                const tensorT c = acc->second.coeff().full_tensor_copy();
                 if (c.dim(0) == k) {
                     d(cdata.s0) += c;
                 }
@@ -2822,13 +2870,16 @@ namespace madness {
 
             // this is deep copy
             coeffT s= copy(d(cdata.s0));
+//            tensorT s=copy(d(cdata.s0));
 
             if (key.level()> 0 && !nonstandard)
                 d(cdata.s0) = 0.0;
 
             d.reduceRank(thresh);
+//            coeffT dd=coeffT(d,targs);
             acc->second.set_coeff(d);
             s.reduceRank(thresh);
+//            coeffT ss=coeffT(s,targs);
 
             return s;
         }
@@ -3058,6 +3109,8 @@ namespace madness {
             	to_low_rank(node.coeff(),targs.thresh,targs.tt);
             }
             print("done with node",key,node.coeff().normf(),oldrank2,node.coeff().rank());
+            printf("\ndone with this at time %.1fs\n\n", wall_time());
+            std::cout.flush();
             return None;
         }
 

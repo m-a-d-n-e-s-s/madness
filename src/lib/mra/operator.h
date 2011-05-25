@@ -702,15 +702,13 @@ namespace madness {
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
 
-            //print("sepop",source,shift,op->norm,tol);
-
-//            print(coeff.config().weights_);
-//            print("rank,tol,tol2",rank,tol,tol2);
 
             GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt);
 //            GenTensor<resultT> r(v2k,TT_FULL), r0(vk,TT_FULL), result(v2k,TT_FULL);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
             GenTensor<Q> work5(v2k,tt);
+
+//            result.config().reserve(coeff.rank()*rank);
 
             const GenTensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; ++mu) {
@@ -728,13 +726,6 @@ namespace madness {
 //                	print("r_max",coeff.config().weights(r_max));
 
                 	if (r_max>0) {
-                	// loop over chunks of coeff's terms
-//                	for (int i=0; i<coeff.rank(); i+=chunksize) {
-//                	for (int i=0; i<=r_max; i+=chunksize) {
-//                	for (int i=r_max+1; i<coeff.rank(); i+=chunksize) {
-//                		int end=std::min(i+chunksize,int(coeff.rank()))-1;
-//                		const GenTensor<resultT> chunk=input->get_configs(i,end);
-//						const GenTensor<resultT> chunk0=f0.get_configs(i,end);
                 	    const GenTensor<resultT> chunk=input->get_configs(0,r_max);
                 	    const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
 
@@ -744,12 +735,13 @@ namespace madness {
 								tol/std::abs(fac), fac,	work1, work2, work5);
 
 						r(s0)+=r0;
-//						r.reduceRank(tol2/nchunks*0.1);				// reduce 1
+						r.reduceRank(tol2*0.5);				// reduce 1
 						MADNESS_ASSERT(OrthoMethod::om==ortho3_);
-						result+=r;
-//						result.add_SVD(r,tol2/nchunks);
-//                	}
-//                	print("result.normf()",result.normf());
+//						result+=r;
+						result.add_SVD(r,tol2);
+//                  	print("result.normf()",result.normf());
+//						result.reduceRank(tol2);                        // reduce 2
+
                 	}
 #else
 					Q fac = ops[mu].getfac();
@@ -760,10 +752,9 @@ namespace madness {
 
 #endif
 
-                    result.reduceRank(tol2);						// reduce 2
                 }
             }
-            result.reduceRank(tol2*rank);							// reduce 3
+//            result.reduceRank(tol2*rank);							// reduce 3
             return result;
         }
 
