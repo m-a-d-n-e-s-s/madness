@@ -488,7 +488,6 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-
     double L = 16;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
@@ -586,6 +585,8 @@ int main(int argc, char** argv) {
     FunctionDefaults<6>::set_tensor_type(TT_2D);
 
 
+    print("world.rank()       ", world.rank());
+
     print("polynomial order:  ", FunctionDefaults<6>::get_k());
     print("threshold:         ", FunctionDefaults<6>::get_thresh());
     print("cell size:         ", L);
@@ -594,7 +595,7 @@ int main(int argc, char** argv) {
 
     print("orthogonalization  ", OrthoMethod());
     print("facReduce          ", GenTensor<double>::fac_reduce());
-    print("max displacement   ", 2);
+    print("max displacement   ", Displacements<6>::bmax_default());
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
@@ -642,8 +643,9 @@ int main(int argc, char** argv) {
 
     double ke=0.0;
     double pe=0.0;
-    compute_energy(world,pair,pot1,pot2,ke,pe);
-	double eps=ke+pe;
+//    compute_energy(world,pair,pot1,pot2,ke,pe);
+    print("\n\n\nfixed energy \n\n");
+	double eps=-3.0;//ke+pe;
 
     // iterate
 	for (unsigned int i=0; i<15; i++) {
@@ -661,6 +663,8 @@ int main(int argc, char** argv) {
 							.V_for_particle2(pot2.get_impl())
 							.muster(copy2_of_pair.get_impl())
 							;
+//		double a=inner(pair,v11);
+//		print("test pot ",a);
 
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);

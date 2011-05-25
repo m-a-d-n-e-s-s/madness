@@ -988,7 +988,7 @@ namespace madness {
 			ortho4(ref_vector(0),ref_vector(1),weights_,
 					rhs.ref_vector(0),rhs.ref_vector(1),rhs.weights_,thresh);
 			rank_=weights_.size();
-
+			make_slices();
 		}
 
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
@@ -1352,6 +1352,14 @@ namespace madness {
 			const TENSOR_RESULT_TYPE(T,Q) overlap=weightMatrix.sum();
 			return overlap;
 		}
+
+		/// calculate the Frobenius norm, if this is in SVD form
+        typename TensorTypeData<T>::float_scalar_type svd_normf() const {
+            if (has_no_data()) return 0.0;
+            MADNESS_ASSERT(type()==TT_2D);
+            return weights_(Slice(0,rank()-1)).normf();
+        }
+
 
 		/// calculate the Frobenius norm
 		typename TensorTypeData<T>::float_scalar_type normf() const {

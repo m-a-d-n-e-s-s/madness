@@ -520,7 +520,8 @@ namespace madness {
         		const Key<NDIM>& key, const TensorArgs& args) {
 
             if (has_coeff()) {
-           		coeff() += t;
+                coeff().add_SVD(t,args.thresh);
+//           		coeff() += t;
 //           		t.accumulate_into(coeff(),args.thresh,1.0);
             } else {
                 // No coeff and no children means the node is newly
@@ -1430,7 +1431,30 @@ namespace madness {
         };
 
 
-        /// reduce the rank of the nodes to low rank, optional fence
+        /// reduce the rank of the nodes, optional fence
+        struct do_reduce_rank {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            // threshold for rank reduction / SVD truncation
+            TensorArgs args;
+
+            // constructor takes target precision
+            do_reduce_rank() {}
+            do_reduce_rank(const TensorArgs& targs) : args(targs) {}
+
+            //
+            bool operator()(typename rangeT::iterator& it) const {
+
+                nodeT& node = it->second;
+                node.reduceRank(args.thresh);
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {}
+        };
+
+
+
+        /// change representation of nodes' coeffs to low rank, optional fence
         struct do_low_rank_inplace {
             typedef Range<typename dcT::iterator> rangeT;
 
@@ -2245,7 +2269,8 @@ namespace madness {
 					datum22.set(datum2);
 				}
 
-                woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child, datum11, datum22,TaskAttributes::hipri());
+                woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
+                        datum11, datum22);
 			}
 
             coeffs.replace(key, nodeT(coeffT(),true));  // empty internal node w/ children
@@ -2260,7 +2285,8 @@ namespace madness {
                         const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
                         const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
                 ProcessID owner = coeffs.owner(key);
-                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, key, datum1, datum2,TaskAttributes::hipri());
+                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, key,
+                        datum1, datum2,TaskAttributes::hipri());
                 return None;
         }
 
@@ -3115,6 +3141,73 @@ namespace madness {
         }
 
 
+        /// apply an operator on the coeffs c (at node key)
+
+        /// the result is accumulated inplace to this's tree at various FunctionNodes
+        /// @param[in] op   the operator to act on the source function
+        /// @param[in] f    the source function (not used???)
+        /// @param[in] key  key of the source FunctionNode of f which is processed
+        template <typename opT, typename R>
+        Void do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // insert timer here
+
+            // fac is the number of contributing neighbors (approx)
+            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            if (NDIM==6) fac=100.0;
+            double cnorm = coeff.normf();
+
+            // for accumulation: keep slightly tighter TensorArgs
+            TensorArgs apply_targs(targs);
+            apply_targs.thresh/=fac;
+
+            const std::vector<keyT>& disp = op->get_disp(key.level());
+
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+
+            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+                const keyT& d = *it;
+
+                keyT dest = neighbor(key, d, is_periodic);
+
+                if (dest.is_valid()) {
+                    double opnorm = op->norm(key.level(), d);
+                    // working assumption here is that the operator is isotropic and
+                    // montonically decreasing with distance
+                    double tol = truncate_tol(thresh, key);
+
+                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
+
+                    if (cnorm*opnorm> tol/fac) {
+
+//                        // Most expensive part is the kernel ... do it in a separate task
+//                        if (d.distsq()==0) {
+//                            // This introduces finer grain parallelism
+//                            ProcessID where = world.rank();
+//                            do_op_args args(key, d, dest, tol, fac, cnorm);
+//                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+//                        } else {
+                            const coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
+
+                            // apply2 returns result in SVD form
+                            const double result_norm=result.config().svd_normf();
+                            if (result_norm> 0.3*tol/fac) {
+                                // accumulate also expects result in SVD form
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
+                                        TaskAttributes::hipri());
+                            }
+//                        }
+                    } else if (d.distsq() >= 1)
+                        break; // Assumes monotonic decay beyond nearest neighbor
+                }
+            }
+            print("done with source node",key,wall_time());
+            return None;
+        }
+
+
+
+
         /// apply an operator on f to return this
 
         /// similar to apply, but loop through this's FunctionNodes, not through f's
@@ -3144,19 +3237,45 @@ namespace madness {
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
 
             	const keyT& key = it->first;
-
-//            	if (key==key1) {
-
-            		ProcessID p = coeffs.owner(key);
-            		woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
-//            	}
+           		ProcessID p = coeffs.owner(key);
+                woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
             }
+
             if (fence)
                 world.gop.fence();
             print("done with apply_target_driven");
 //    		MADNESS_EXCEPTION("debug stop",0);
         }
 
+
+
+        /// similar to apply, but loop through this's FunctionNodes, not through f's
+         template <typename opT, typename R>
+         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f,
+                 const std::vector<bool>& is_periodic, bool fence) {
+             PROFILE_MEMBER_FUNC(FunctionImpl);
+
+             // looping through all the coefficients of the source f
+             typename dcT::const_iterator end = f.get_coeffs().end();
+             for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
+
+                 const keyT& key = it->first;
+                 const coeffT& coeff = it->second.coeff();
+                 ProcessID p = f.get_coeffs().owner(key);
+                 woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+             }
+
+             if (fence)
+                 world.gop.fence();
+
+             print("done with apply_source_driven");
+             print("before rank reduction of target nodes");
+             print_stats();
+             flo_unary_op_node_inplace(do_reduce_rank(targs),true);
+             print("after rank reduction of target nodes");
+             print_stats();
+
+         }
 
         /// compute the error for a (compressed) node using the wavelet coeffs
 

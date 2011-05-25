@@ -1464,15 +1464,15 @@ namespace madness {
 			source.get_impl()->compress(true,true,true);
 		    printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
-        	// apply (bypass apply_only)
-        	print("applying operator in target-driven algorithm");
-        	result=copy(source);
-//        	result.set_impl(source,true);
-//        	result.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
-//        			f.get_impl()->get_functor().get(),false,true);
 
+            print("applying operator in source-driven algorithm");
+            result.set_impl(source, true);
+            result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
 
-        	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
+            // apply (bypass apply_only)
+//            result=copy(source);
+//            print("applying operator in target-driven algorithm");
+//        	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
 
 
         } else {
