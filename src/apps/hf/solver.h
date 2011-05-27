@@ -776,11 +776,11 @@ namespace madness
           {
             _kpoints.push_back(KPoint(coordT(0.0), 1.0));
           }
-          if ((_params.ngridk0 == 0) && (_params.ngridk1 == 0) && (_params.ngridk2 == 0))
-          {
-            _kpoints.push_back(KPoint(coordT(0.0), 0.5));
-            _kpoints.push_back(KPoint(coordT(0.0), 0.5));
-          }
+//          if ((_params.ngridk0 == 0) && (_params.ngridk1 == 0) && (_params.ngridk2 == 0))
+//          {
+//            _kpoints.push_back(KPoint(coordT(0.0), 0.5));
+//            _kpoints.push_back(KPoint(coordT(0.0), 0.5));
+//          }
           else // NORMAL BANDSTRUCTURE
           {
             _kpoints = genkmesh(_params.ngridk0, _params.ngridk1,
@@ -1421,20 +1421,20 @@ namespace madness
 
           // WSTHORNTON
           // if at k-point == (0.0,0.0,0.0) basis function should be real
-          if ((abs(kpt.k[0]) < 1e-12) && (abs(kpt.k[1]) < 1e-12) &&
-              (abs(kpt.k[2]) < 1e-12))
-          {
-            if (_world.rank() == 0) printf("checking gamma point orbitals \n\n");
-            for (unsigned int io = 0; io < tmp_orbitals.size(); io++)
-            {
-              if (!is_real<T,NDIM>(tmp_orbitals[io]))
-              {
-                double t1 = (imag(tmp_orbitals[io])).norm2();
-                if (_world.rank() == 0)
-                  printf("ERROR: mo function imaginary: %5.3d     %15.8f\n\n", io, t1);
-              }
-            }
-          }
+//          if ((abs(kpt.k[0]) < 1e-12) && (abs(kpt.k[1]) < 1e-12) &&
+//              (abs(kpt.k[2]) < 1e-12))
+//          {
+//            if (_world.rank() == 0) printf("checking gamma point orbitals \n\n");
+//            for (unsigned int io = 0; io < tmp_orbitals.size(); io++)
+//            {
+//              if (!is_real<T,NDIM>(tmp_orbitals[io]))
+//              {
+//                double t1 = (imag(tmp_orbitals[io])).norm2();
+//                if (_world.rank() == 0)
+//                  printf("ERROR: mo function imaginary: %5.3d     %15.8f\n\n", io, t1);
+//              }
+//            }
+//          }
 
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
@@ -1926,10 +1926,12 @@ namespace madness
           // potential
           rfuntionT vxc = copy(rhoa);
 //          vxc.unaryop(&::libxc_ldaop<double>);
+          START_TIMER(_world);
           vxc.unaryop(&::ldaop<double>);
           pfuncsa = mul_sparse(_world, vlocal + vxc, phisa, _params.thresh * 0.1);
 //          rfuntionT vxc2 = binary_op(rhoa, rhoa, &::libxc_ldaop_sp<double>);
 //          pfuncsa = mul_sparse(_world, vlocal + vxc2, phisa, _params.thresh * 0.1);
+          END_TIMER(_world,"Applying LDA potential");
           // energy
           rfuntionT fc = copy(rhoa);
           fc.unaryop(&::ldaeop<double>);
@@ -1938,8 +1940,20 @@ namespace madness
       }
       else if (_params.functional == 2)
       {
+        START_TIMER(_world);
         pfuncsa = mul_sparse(_world, vlocal, phisa, _params.thresh * 0.1);
-        apply_hf_exchange2(_phisa, _phisb, pfuncsa, pfuncsb, xc);
+        END_TIMER(_world,"Applying local potential");
+        START_TIMER(_world);
+        // gamma-point?
+        if ((_params.ngridk0 == 1) && (_params.ngridk1 == 1) && (_params.ngridk2 == 1))
+        {
+          apply_hf_exchange3(_phisa, _phisb, pfuncsa, pfuncsb, xc);
+        }
+        else
+        {
+          apply_hf_exchange4(_phisa, _phisb, pfuncsa, pfuncsb, xc);
+        }
+        END_TIMER(_world, "Applying HF exchange");
       }
       std::cout.precision(8);
       if (_world.rank() == 0)
@@ -1957,23 +1971,117 @@ namespace madness
     // working for a molecule / atom ... need to test with periodic boundary
     // conditions as a gamma point only calculation
     //*************************************************************************
-    void apply_hf_exchange2(vecfuncT& phisa, vecfuncT& phisb,
+//    void apply_hf_exchange2(vecfuncT& phisa, vecfuncT& phisb,
+//                           vecfuncT& funcsa, vecfuncT& funcsb,
+//                           double& xc)
+//    {
+//      Vector<double,3> q = vec(0.0,0.0,0.0);
+//      SeparatedConvolution<double_complex,3> hfexop =
+//          PeriodicHFExchangeOperator(_world, q, _params.lo,
+//              FunctionDefaults<3>::get_thresh() * 0.1);
+//      for (unsigned int i = 0; i < phisa.size(); i++)
+//      {
+//        bool isreal1 = is_real<T,NDIM>(phisa[i]);
+//        MADNESS_ASSERT(isreal1);
+////        rfunctionT phi_i = real(phisa[i]);
+//        for (unsigned int j = 0; j < phisa.size(); j++)
+//        {
+//          bool isreal2 = is_real<T,NDIM>(phisa[j]);
+//          MADNESS_ASSERT(isreal2);
+////          rfunctionT phi_j = real(phisa[j]);
+////          rfunctionT prod = phi_i*phi_j;
+//          functionT prod = phisa[i]*phisa[j];
+//          prod.truncate();
+////          rfunctionT Vex = apply(*_cop,prod);
+//          rfunctionT Vex = real(apply(hfexop,prod));
+//          functionT tf1 = Vex*phisa[j];
+//          funcsa[i] -= tf1;
+//          xc -= real(inner(phisa[i],tf1));
+//        }
+//      }
+//    }
+    //*************************************************************************
+
+    // working for a molecule / atom ... works for a gamma point calculation
+    //*************************************************************************
+    void apply_hf_exchange3(vecfuncT& phisa, vecfuncT& phisb,
+                            vecfuncT& funcsa, vecfuncT& funcsb,
+                            double& xc)
+    {
+      for (unsigned int j = 0; j < phisa.size(); j++)
+      {
+        rfunctionT phi_j = real(phisa[j]);
+        // do diagonal piece first
+        rfunctionT dprod = phi_j*phi_j;
+        dprod.truncate();
+        rfunctionT dVex = apply(*_cop,dprod);
+        functionT tf_jjj = dVex*phisa[j];
+        funcsa[j] -= tf_jjj;
+        xc -= real(inner(phisa[j],tf_jjj));
+        for (unsigned int i = j+1; i < phisa.size(); i++)
+        {
+          rfunctionT phi_i = real(phisa[i]);
+          rfunctionT prod = phi_i*phi_j;
+          prod.truncate();
+          rfunctionT Vex = apply(*_cop,prod);
+          // do the jij-th term
+          functionT tf_jij = Vex*phisa[j];
+          funcsa[i] -= tf_jij;
+          xc -= real(inner(phisa[i],tf_jij));
+          // do the iji-th term (in the complex case, use the complex
+          // conjugate)
+          functionT tf_iji = Vex*phisa[i];
+          funcsa[j] -= tf_iji;
+          xc -= real(inner(phisa[j],tf_iji));
+        }
+      }
+    }
+    //*************************************************************************
+
+    //*************************************************************************
+    KPoint find_kpt_from_orb(unsigned int idx)
+    {
+      for (unsigned int i = 0; i < _kpoints.size(); i++)
+      {
+        KPoint k1 = _kpoints[i];
+        if (k1.is_orb_in_kpoint(idx)) return k1;
+      }
+      MADNESS_EXCEPTION("Error: find_kpt_from_orb: didn't find kpoint\n", 0);
+    }
+    //************************************************************************
+
+    // hf exchange with k-points for periodic solid
+    //*************************************************************************
+    void apply_hf_exchange4(vecfuncT& phisa, vecfuncT& phisb,
                            vecfuncT& funcsa, vecfuncT& funcsb,
                            double& xc)
     {
       for (unsigned int i = 0; i < phisa.size(); i++)
       {
-        bool isreal1 = is_real<T,NDIM>(phisa[i]);
-        MADNESS_ASSERT(isreal1);
-        rfunctionT phi_i = real(phisa[i]);
+        functionT phi_i = phisa[i];
+        KPoint k_i = find_kpt_from_orb(i);
         for (unsigned int j = 0; j < phisa.size(); j++)
         {
-          bool isreal2 = is_real<T,NDIM>(phisa[j]);
-          MADNESS_ASSERT(isreal2);
-          rfunctionT phi_j = real(phisa[j]);
-          rfunctionT prod = phi_i*phi_j;
-          rfunctionT Vex = apply(*_cop,prod);
-          functionT tf1 = Vex*phisa[j];
+          functionT phi_j = phisa[j];
+          KPoint k_j = find_kpt_from_orb(j);
+          Vector<double,3> q = vec((k_i.k[0]-k_j.k[0])*_params.L,
+                                   (k_i.k[1]-k_j.k[1])*_params.L,
+                                   (k_i.k[2]-k_j.k[2])*_params.L);
+          Vector<double,3> q2 = vec(k_i.k[0]-k_j.k[0],
+                                    k_i.k[1]-k_j.k[1],
+                                    k_i.k[2]-k_j.k[2]);
+          functionT cexp =
+              factoryT(_world).functor(functorT(new
+                  ComplexExp<3>(q2, double_complex(1.0,0.0))));
+          functionT cexp2 = conj(cexp);
+          cexp.truncate();
+          cexp2.truncate();
+          functionT prod = phi_i*phi_j*cexp;
+          SeparatedConvolution<double_complex,3> hfexop =
+              PeriodicHFExchangeOperator(_world, q, _params.lo,
+                  FunctionDefaults<3>::get_thresh() * 0.1);
+          functionT Vex = apply(hfexop,prod);
+          functionT tf1 = Vex*phisa[j]*cexp2;
           funcsa[i] -= tf1;
           xc -= real(inner(phisa[i],tf1));
         }
@@ -2121,12 +2229,12 @@ namespace madness
         double rtrace = _rho.trace();
         if (_world.rank() == 0) _outputF << "trace of rho" << rtrace << endl;
 
-        if(_it < 2 || (_it % 10) == 0)
-        {
-          START_TIMER(_world);
-          //loadbal();
-          END_TIMER(_world, "Load balancing");
-        }
+//        if(_it < 2 || (_it % 10) == 0)
+//        {
+//          START_TIMER(_world);
+//          //loadbal();
+//          END_TIMER(_world, "Load balancing");
+//        }
 
         std::vector<functionT> pfuncsa =
                 zero_functions<valueT,NDIM>(_world, _phisa.size());
@@ -2135,9 +2243,9 @@ namespace madness
 
         // Apply the potentials to the orbitals
         if (_world.rank() == 0) _outputF << "applying potential ...\n" << endl;
-        START_TIMER(_world);
+        //START_TIMER(_world);
         apply_potential(pfuncsa, pfuncsb, _phisa, _phisb, _rhoa, _rhob, _rho);
-        END_TIMER(_world,"apply potential");
+        //END_TIMER(_world,"apply potential");
 
         // Do right hand side for all k-points
         std::vector<double> alpha(_phisa.size(), 0.0);
@@ -2171,7 +2279,7 @@ namespace madness
 
         // Update orbitals
         update_orbitals(tmpa, tmpb, _kpoints);
-
+        save_orbitals();
       }
 
       if (_params.plotorbs)

@@ -137,6 +137,8 @@ struct KPoint
 {
   coordT k;
   double weight;
+  // the first wavefunction for this k-point has index begin
+  // the last wavefunction for this k-point has index end-1
   unsigned int begin;
   unsigned int end;
 
@@ -159,6 +161,11 @@ struct KPoint
    : weight(weight), begin(-1), end(-1)
   {
     k[0] = k0; k[1] = k1; k[2] = k2;
+  }
+
+  bool is_orb_in_kpoint(unsigned int idx)
+  {
+    return ((idx >= begin) && (idx < end)) ? true : false;
   }
 
   template <typename Archive>

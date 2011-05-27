@@ -244,5 +244,24 @@ Function<std::complex<Q>,NDIM> function_real2complex(const Function<Q,NDIM>& r)
 }
 //***************************************************************************
 
+
+////***************************************************************************
+//template <typename Q, int NDIM>
+//bool is_real(const Function<std::complex<Q>,NDIM>& f)
+//{
+//  Function<Q,NDIM> fim = imag(f);
+//  return (fim.norm2() < 1e-8) ? true : false;
+//}
+////***************************************************************************
+//
+////***************************************************************************
+//template <typename Q, int NDIM>
+//bool is_imag(const Function<std::complex<Q>,NDIM>& f)
+//{
+//  Function<Q,NDIM> fre = real(f);
+//  return (fre.norm2() < 1e-8) ? true : false;
+//}
+////***************************************************************************
+
 }
 #endif /* COMPLEXFUN_H_ */
