@@ -2962,6 +2962,27 @@ namespace madness {
             return None;
         }
 
+
+        /// same as do_apply_kernel, but use low rank tensors
+        template <typename opT, typename R>
+        Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args& args,
+                const TensorArgs& apply_targs) {
+
+            tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            coeffT result=coeffT(result_full,apply_targs);
+
+            // Screen here to reduce communication cost of negligible data
+            // and also to ensure we don't needlessly widen the tree when
+            // applying the operator
+            if (result.config().svd_normf()> 0.3*args.tol/args.fac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                        TaskAttributes::hipri());
+            }
+            return None;
+        }
+
         /// apply an operator on the coeffs c (at node key)
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
@@ -3153,13 +3174,35 @@ namespace madness {
             // insert timer here
 
             // fac is the number of contributing neighbors (approx)
+            const double tol = truncate_tol(thresh, key);
+
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             if (NDIM==6) fac=100.0;
             double cnorm = coeff.normf();
 
+            double wall0=wall_time();
+            long neighbors=0;
+            long generated_terms=0;
+
+//            Vector<Translation, NDIM> l;
+//            l[0]=1; l[1]=1; l[2]=1; l[3]=1; l[4]=1; l[5]=1;      // k=5, rank=507
+            //                         l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
+            //                         l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
+            //                         l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
+//            const keyT key1(2,l);
+//            const bool print_now=(key==key1);
+            const bool print_now=false;
+
+
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
-            apply_targs.thresh/=fac;
+            apply_targs.thresh=tol/fac;
+
+            // for the kernel it may be more efficient to do the convolution in full rank
+            const long break_even=100;       // what should this number be ?!
+            tensorT coeff_full;
+            if (coeff.rank()>break_even) coeff_full=coeff.full_tensor_copy();
+
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
 
@@ -3174,34 +3217,48 @@ namespace madness {
                     double opnorm = op->norm(key.level(), d);
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
-                    double tol = truncate_tol(thresh, key);
 
                     //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
 
                     if (cnorm*opnorm> tol/fac) {
+                        double wall00=wall_time();
 
-//                        // Most expensive part is the kernel ... do it in a separate task
-//                        if (d.distsq()==0) {
-//                            // This introduces finer grain parallelism
-//                            ProcessID where = world.rank();
-//                            do_op_args args(key, d, dest, tol, fac, cnorm);
-//                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
-//                        } else {
-                            const coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
+                        neighbors++;
+
+                        if (print_now) print("full apply",coeff_full.has_data(),d.distsq(),(d.distsq()<=2));
+
+                        // Most expensive part is the kernel ... do it in a separate task
+                        if (coeff_full.has_data() and d.distsq()<=2) {
+                            // This introduces finer grain parallelism
+                            ProcessID where = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            woT::task(where, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
+                                    args,apply_targs);
+//                            result_full=op->apply(key, d, coeff_full, tol/fac/cnorm);
+
+                        } else {
 
                             // apply2 returns result in SVD form
+                            coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
                             const double result_norm=result.config().svd_normf();
                             if (result_norm> 0.3*tol/fac) {
+
+                                generated_terms+=result.rank();
+
                                 // accumulate also expects result in SVD form
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
                                         TaskAttributes::hipri());
                             }
-//                        }
+                        }
+                        double wall11=wall_time();
+                        if (print_now) print("finished dest",dest,wall11-wall00);
                     } else if (d.distsq() >= 1)
                         break; // Assumes monotonic decay beyond nearest neighbor
                 }
             }
-            print("done with source node",key,wall_time());
+            double wall1=wall_time();
+            print("done with source node",key,wall1-wall0, cnorm, neighbors,generated_terms,coeff.rank(),
+                    coeff_full.has_data());
             return None;
         }
 
@@ -3217,19 +3274,8 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
 //            Vector<Translation, NDIM> l;
-//            l[0]=2;
-//            l[1]=5;
-//            l[2]=3;
-//            l[3]=4;
-//            l[4]=4;
-//            l[5]=4;
+//            l[0]=2; l[1]=5; l[2]=3; l[3]=4; l[4]=4; l[5]=4;
 //            const keyT key1(3,l);
-
-//            for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=f.get_coeffs().end(); ++it) {
-//            	const keyT& key = it->first;
-//            	const nodeT& node = it->second;
-//            	print("fode",key,node.coeff().normf());
-//            }
 
 
             // looping through all the coefficients of the target (this)
@@ -3255,14 +3301,26 @@ namespace madness {
                  const std::vector<bool>& is_periodic, bool fence) {
              PROFILE_MEMBER_FUNC(FunctionImpl);
 
+//             Vector<Translation, NDIM> l;
+//             l[0]=1; l[1]=1; l[2]=1; l[3]=1; l[4]=1; l[5]=1;      // k=5, rank=507
+//             l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
+//             l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
+//             l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
+//             const keyT key1(2,l);
+
+
              // looping through all the coefficients of the source f
              typename dcT::const_iterator end = f.get_coeffs().end();
              for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
 
                  const keyT& key = it->first;
                  const coeffT& coeff = it->second.coeff();
-                 ProcessID p = f.get_coeffs().owner(key);
-                 woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+
+//                 if (key==key1) {
+
+                     ProcessID p = f.get_coeffs().owner(key);
+                     woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+//                 }
              }
 
              if (fence)

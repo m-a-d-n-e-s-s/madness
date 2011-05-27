@@ -89,7 +89,8 @@ namespace madness {
     public:
         typedef Q opT;  ///< The apply function uses this to infer resultT=opT*inputT
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
-        bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations and may be non-zero at both ends of the unit cell
+        bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations
+                           ///< and may be non-zero at both ends of the unit cell
     private:
         mutable std::vector< ConvolutionND<Q,NDIM> > ops;
         const BoundaryConditions<NDIM> bc;
@@ -678,9 +679,10 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
+            const TensorType tt=coeff.tensor_type();
+
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
-            const TensorType tt=coeff.tensor_type();
 
             if (coeff.dim(0) == k) {
                 // This processes leaf nodes with only scaling
@@ -689,7 +691,7 @@ namespace madness {
                 // it is not necessary.  It is necessary for operators such
                 // as differentiation and time evolution and will also occur
                 // if the application of the operator widens the tree.
-                dummy = GenTensor<T>(v2k,tt);
+                dummy = GenTensor<T>(v2k,coeff.tensor_type());
                 dummy(s0) += coeff;
                 input = &dummy;
             }
@@ -702,15 +704,13 @@ namespace madness {
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
 
-
             GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt);
-//            GenTensor<resultT> r(v2k,TT_FULL), r0(vk,TT_FULL), result(v2k,TT_FULL);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
             GenTensor<Q> work5(v2k,tt);
 
-//            result.config().reserve(coeff.rank()*rank);
 
-            const GenTensor<T> f0 = copy(coeff(s0));
+//            const GenTensor<T> f0 = copy(coeff(s0));
+            const GenTensor<T> f0 = copy((*input)(s0));
             for (int mu=0; mu<rank; ++mu) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
@@ -718,42 +718,32 @@ namespace madness {
                 // delta(g)  <  delta(T) * || f ||
                 if (muop.norm > tol) {
 
-#if HAVE_GENTENSOR
-                	// get maximum rank of coeff to contribute:
-                	//  delta(g)  <  eps  <  || T || * delta(f)
-                	//  delta(coeff) * || T || < tol2
-                	const int r_max=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
-//                	print("r_max",coeff.config().weights(r_max));
+                    // get maximum rank of coeff to contribute:
+                    //  delta(g)  <  eps  <  || T || * delta(f)
+                    //  delta(coeff) * || T || < tol2
+                    const int r_max=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                    //                	print("r_max",coeff.config().weights(r_max));
 
-                	if (r_max>0) {
-                	    const GenTensor<resultT> chunk=input->get_configs(0,r_max);
-                	    const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
+                    if (r_max>0) {
+                        const GenTensor<resultT> chunk=input->get_configs(0,r_max);
+                        const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
 
-//						if (std::abs(chunk.config().weights(end-i)*muop.norm) > tol2*0.01) {
-						Q fac = ops[mu].getfac();
-						muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
-								tol/std::abs(fac), fac,	work1, work2, work5);
+                        Q fac = ops[mu].getfac();
+                        muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
+                                tol/std::abs(fac), fac,	work1, work2, work5);
 
-						r(s0)+=r0;
-						r.reduceRank(tol2*0.5);				// reduce 1
-						MADNESS_ASSERT(OrthoMethod::om==ortho3_);
-//						result+=r;
-						result.add_SVD(r,tol2);
-//                  	print("result.normf()",result.normf());
-//						result.reduceRank(tol2);                        // reduce 2
+                        r(s0)+=r0;
+                        r.reduceRank(tol2*0.5);				// reduce 1
+                        MADNESS_ASSERT(OrthoMethod::om==ortho3_);
+                        result.add_SVD(r,tol2);
+//                     	print("result.normf()",result.normf());
+//  					result.reduceRank(tol2);                        // reduce 2
 
-                	}
-#else
-					Q fac = ops[mu].getfac();
-					muopxv_fast2(source.level(), muop.ops, *input, f0, r, r0,
-							tol/std::abs(fac), fac,	work1, work2, work5);
-
-					r(s0)+=r0;
-
-#endif
+                    }
 
                 }
             }
+
 //            result.reduceRank(tol2*rank);							// reduce 3
             return result;
         }

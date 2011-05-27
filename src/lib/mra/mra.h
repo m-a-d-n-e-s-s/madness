@@ -1464,6 +1464,11 @@ namespace madness {
 			source.get_impl()->compress(true,true,true);
 		    printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
+		    if (f.get_impl()->world.rank()==0) {
+		        source.get_impl()->print_stats();
+		        print("stats for source = V phi");
+		    }
+
 
             print("applying operator in source-driven algorithm");
             result.set_impl(source, true);

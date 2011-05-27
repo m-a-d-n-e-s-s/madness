@@ -124,9 +124,7 @@ namespace madness {
 	struct TensorArgs {
 		double thresh;
 		TensorType tt;
-		TensorArgs() {
-			MADNESS_EXCEPTION("no default ctor for TensorArgs",0);
-		}
+        TensorArgs() : thresh(-1.0), tt(TT_NONE) {}
 		TensorArgs(const double& thresh1, const TensorType& tt1)
 			: thresh(thresh1)
 			, tt(tt1) {
@@ -139,7 +137,9 @@ namespace madness {
 		}
 		template <typename Archive>
 		void serialize(const Archive& ar) {
-			MADNESS_EXCEPTION("no serialization of TensorArgs",0);
+		    int i=int(tt);
+		    ar & thresh & i;
+		    tt=TensorType(i);
 		}
 	};
 
