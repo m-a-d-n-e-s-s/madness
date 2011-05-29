@@ -1,5 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
-bin_PROGRAMS = tdse tdse4 test
+bin_PROGRAMS = tdse tdse4 
 
 tdse_SOURCES = tdse.cc 
 tdse_LDADD = $(MRALIBS)
