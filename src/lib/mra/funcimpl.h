@@ -3067,6 +3067,7 @@ namespace madness {
         Void do_apply_target_driven(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
+            MADNESS_EXCEPTION("do_apply_target_driven is obsolete",0);
 
             // fac accounts for the number of neighbors
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -3184,15 +3185,6 @@ namespace madness {
             long neighbors=0;
             long generated_terms=0;
 
-//            Vector<Translation, NDIM> l;
-//            l[0]=1; l[1]=1; l[2]=1; l[3]=1; l[4]=1; l[5]=1;      // k=5, rank=507
-            //                         l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
-            //                         l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
-            //                         l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
-//            const keyT key1(2,l);
-//            const bool print_now=(key==key1);
-            const bool print_now=false;
-
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
@@ -3222,36 +3214,44 @@ namespace madness {
 
                     if (cnorm*opnorm> tol/fac) {
                         double wall00=wall_time();
-
                         neighbors++;
 
-                        if (print_now) print("full apply",coeff_full.has_data(),d.distsq(),(d.distsq()<=2));
+                        double cost_ratio=op->estimate_costs(key, d, coeff, tol/fac/cnorm, tol/fac);
 
-                        // Most expensive part is the kernel ... do it in a separate task
-                        if (coeff_full.has_data() and d.distsq()<=2) {
-                            // This introduces finer grain parallelism
-                            ProcessID where = world.rank();
-                            do_op_args args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
-                                    args,apply_targs);
-//                            result_full=op->apply(key, d, coeff_full, tol/fac/cnorm);
+                        if (cost_ratio>0.0) {
+                            // Most expensive part is the kernel ... do it in a separate task
+                            if (coeff_full.has_data() and (cost_ratio<1.0)) {
 
-                        } else {
+//                            tensorT result_full = op->apply(key, d, coeff_full, tol/fac/cnorm);
+//                            coeffT result=coeffT(result_full,apply_targs);
+//                            // accumulate also expects result in SVD form
+//                            coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
+//                                    TaskAttributes::hipri());
 
-                            // apply2 returns result in SVD form
-                            coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
-                            const double result_norm=result.config().svd_normf();
-                            if (result_norm> 0.3*tol/fac) {
 
-                                generated_terms+=result.rank();
+                                // This introduces finer grain parallelism
+                                ProcessID where = world.rank();
+                                do_op_args args(key, d, dest, tol, fac, cnorm);
+                                woT::task(where, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
+                                        args,apply_targs);
 
-                                // accumulate also expects result in SVD form
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
-                                        TaskAttributes::hipri());
+                            } else {
+
+                                // apply2 returns result in SVD form
+                                coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
+                                const double result_norm=result.config().svd_normf();
+                                if (result_norm> 0.3*tol/fac) {
+
+                                    generated_terms+=result.rank();
+
+                                    // accumulate also expects result in SVD form
+                                    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
+                                            TaskAttributes::hipri());
+                                }
                             }
                         }
                         double wall11=wall_time();
-                        if (print_now) print("finished dest",dest,wall11-wall00);
+//                        print("finished dest",dest,wall11-wall00);
                     } else if (d.distsq() >= 1)
                         break; // Assumes monotonic decay beyond nearest neighbor
                 }
@@ -3272,6 +3272,8 @@ namespace madness {
         void apply_target_driven(opT& op, const FunctionImpl<R,NDIM>& f,
         		const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            MADNESS_EXCEPTION("apply_target_driven is obsolete",0);
 
 //            Vector<Translation, NDIM> l;
 //            l[0]=2; l[1]=5; l[2]=3; l[3]=4; l[4]=4; l[5]=4;
@@ -3302,11 +3304,12 @@ namespace madness {
              PROFILE_MEMBER_FUNC(FunctionImpl);
 
 //             Vector<Translation, NDIM> l;
+//             l[0]=4; l[1]=4; l[2]=4; l[3]=4; l[4]=4; l[5]=4;      // k=5, rank=995
 //             l[0]=1; l[1]=1; l[2]=1; l[3]=1; l[4]=1; l[5]=1;      // k=5, rank=507
 //             l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
 //             l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
 //             l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
-//             const keyT key1(2,l);
+//             const keyT key1(3,l);
 
 
              // looping through all the coefficients of the source f
@@ -3318,8 +3321,12 @@ namespace madness {
 
 //                 if (key==key1) {
 
-                     ProcessID p = f.get_coeffs().owner(key);
-                     woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+                     if (coeff.has_data() and (coeff.rank()!=0)) {
+                         ProcessID p = f.get_coeffs().owner(key);
+                         woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+                     } else {
+                         print("done with empty source node",key);
+                     }
 //                 }
              }
 
