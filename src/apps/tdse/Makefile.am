@@ -6,5 +6,3 @@ tdse_LDADD = $(MRALIBS)
 
 tdse4_SOURCES = tdse4.cc 
 tdse4_LDADD = $(MRALIBS)
-
-test_SOURCES = test.cc
