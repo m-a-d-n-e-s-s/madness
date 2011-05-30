@@ -765,7 +765,7 @@ namespace madness {
             const double full_operator_cost=pow(coeff.dim(0),NDIM+1);
             const double low_operator_cost=pow(coeff.dim(0),NDIM/2+1);
             const double low_reduction_cost=pow(coeff.dim(0),NDIM/2);
-            const double low_final_rank=10.0;   // just a guess
+//            const double low_final_rank=10.0;   // just a guess
 
             double full_cost=0;
             double low_cost=0;
@@ -784,7 +784,7 @@ namespace madness {
 
             double ratio=-1.0;
             if (low_cost>0) ratio=full_cost/low_cost;
-            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);
+//            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);
             return ratio;
 
         }

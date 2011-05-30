@@ -684,9 +684,6 @@ namespace madness {
 			}
 		}
 
-		template <typename Archive>
-        void serialize(Archive& ar) {}
-
 		// reduce the rank of this
 		void reduceRank(const double& eps) {
 

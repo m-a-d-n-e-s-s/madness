@@ -57,7 +57,7 @@
 #define FUNCTION_INSTANTIATE_5
 #define FUNCTION_INSTANTIATE_6
 
-static const bool VERIFY_TREE = false; //true;
+static const bool VERIFY_TREE = true;
 
 
 namespace madness {
@@ -634,6 +634,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
+            impl->world.gop.fence();
             const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, fence);
             return *this;
         }
@@ -1460,20 +1461,20 @@ namespace madness {
 
         	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
         			f.get_impl()->get_functor().get(),true,true);
-			source.norm_tree();
-			source.get_impl()->compress(true,true,true);
-		    printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
+                source.get_impl()->world.gop.fence();
+		source.norm_tree();
+		source.get_impl()->compress(true,true,true);
+		if (f.get_impl()->world.rank()==0) printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
-		    if (f.get_impl()->world.rank()==0) {
-		        source.get_impl()->print_stats();
-		        print("stats for source = V phi");
-		    }
+		source.get_impl()->print_stats();
+		if (f.get_impl()->world.rank()==0) print("stats for source = V phi");
 
 
-            print("applying operator in source-driven algorithm");
-            result.set_impl(source, true);
-            result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
-
+		print("applying operator in source-driven algorithm");
+		result.set_impl(source, true);
+		result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
+		result.get_impl()->world.gop.fence();
+	
             // apply (bypass apply_only)
 //            result=copy(source);
 //            print("applying operator in target-driven algorithm");

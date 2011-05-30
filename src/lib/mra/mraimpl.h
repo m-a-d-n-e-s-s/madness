@@ -93,18 +93,20 @@ namespace madness {
 
             if (is_compressed()) {
                 if (node.has_children()) {
-                    bad = node.coeff().dim(0) != 2*cdata.k;
+                    bad = (node.coeff().has_data()) and (node.coeff().dim(0) != 2*cdata.k);
                 }
                 else {
-                    bad = node.coeff().size() != 0;
+//                    bad = node.coeff().size() != 0;
+                    bad = node.coeff().has_data();
                 }
             }
             else {
                 if (node.has_children()) {
-                    bad = node.coeff().size() != 0;
+//                    bad = node.coeff().size() != 0;
+                    bad = node.coeff().has_data();
                 }
                 else {
-                    bad = node.coeff().dim(0) != cdata.k;
+                    bad = (node.coeff().has_data()) and ( node.coeff().dim(0) != cdata.k);
                 }
             }
 

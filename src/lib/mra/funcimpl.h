@@ -3182,6 +3182,7 @@ namespace madness {
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
+            bool verbose=false;
             long neighbors=0;
             long generated_terms=0;
 
@@ -3213,7 +3214,7 @@ namespace madness {
                     //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
 
                     if (cnorm*opnorm> tol/fac) {
-                        double wall00=wall_time();
+//                        double wall00=wall_time();
                         neighbors++;
 
                         double cost_ratio=op->estimate_costs(key, d, coeff, tol/fac/cnorm, tol/fac);
@@ -3250,15 +3251,17 @@ namespace madness {
                                 }
                             }
                         }
-                        double wall11=wall_time();
+//                        double wall11=wall_time();
 //                        print("finished dest",dest,wall11-wall00);
                     } else if (d.distsq() >= 1)
                         break; // Assumes monotonic decay beyond nearest neighbor
                 }
             }
             double wall1=wall_time();
-            print("done with source node",key,wall1-wall0, cnorm, neighbors,generated_terms,coeff.rank(),
-                    coeff_full.has_data());
+            if (verbose) {
+                print("done with source node",key,wall1-wall0, cnorm, neighbors,generated_terms,coeff.rank(),
+                        coeff_full.has_data());
+            }
             return None;
         }
 
@@ -3324,8 +3327,8 @@ namespace madness {
                      if (coeff.has_data() and (coeff.rank()!=0)) {
                          ProcessID p = f.get_coeffs().owner(key);
                          woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
-                     } else {
-                         print("done with empty source node",key);
+//                     } else {
+//                         print("done with empty source node",key);
                      }
 //                 }
              }
@@ -3333,13 +3336,15 @@ namespace madness {
              if (fence)
                  world.gop.fence();
 
-             print("done with apply_source_driven");
-             print("before rank reduction of target nodes");
-             print_stats();
+//             print("done with apply_source_driven");
+//             print("before rank reduction of target nodes");
+//             print_stats();
              flo_unary_op_node_inplace(do_reduce_rank(targs),true);
-             print("after rank reduction of target nodes");
-             print_stats();
+//             print("after rank reduction of target nodes");
+//             print_stats();
 
+             if (fence)
+                 world.gop.fence();
          }
 
         /// compute the error for a (compressed) node using the wavelet coeffs
@@ -3655,24 +3660,32 @@ namespace madness {
         	int dim=NDIM/2;
         	int k0=k;
         	if (is_compressed()) k0=2*k;
-        	std::vector<long> n(std::pow(k0,dim)+1);
-            typename dcT::const_iterator end = coeffs.end();
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-                const nodeT& node = it->second;
-                if (node.has_coeff()) {
-                	if (node.coeff().rank()>long(n.size())) {
-                		print("large rank",node.coeff().rank());
-                	} else {
-                		n[node.coeff().rank()]++;
-                	}
-                }
-            }
-            world.gop.sum(&n[0],n.size());
-            print("configurations     number of nodes");
-            for (unsigned int i=0; i<n.size(); i++) {
-//                world.gop.sum(n[i]);
-                print("           ",i,"    ",n[i]);
-            }
+		Tensor<long> n(int(std::pow(k0,dim)+1));
+//        	std::vector<long> n(std::pow(k0,dim)+1);
+		if (world.rank()==0) print("n.size(),k0,dim",n.size(),k0,dim);
+		typename dcT::const_iterator end = coeffs.end();
+		for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+		    const nodeT& node = it->second;
+		    if (node.has_coeff()) {
+		    	if (node.coeff().rank()>long(n.size())) {
+		    		print("large rank",node.coeff().rank());
+		    	} else if (node.coeff().rank()<0) {
+		    		print("small rank",node.coeff().rank());
+		    	} else {
+		    		n[node.coeff().rank()]++;
+		    	}
+		    }
+		}
+
+		world.gop.sum(n.ptr(), n.size());
+
+		if (world.rank()==0) {
+        	        print("configurations     number of nodes");
+        	        for (unsigned int i=0; i<n.size(); i++) {
+				long m=n[i];
+				if (world.rank()==0) print("           ",i,"    ",m);
+			}
+		}
         }
 
         /// In-place scale by a constant
