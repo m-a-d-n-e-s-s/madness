@@ -3325,7 +3325,9 @@ namespace madness {
 //                 if (key==key1) {
 
                      if (coeff.has_data() and (coeff.rank()!=0)) {
-                         ProcessID p = f.get_coeffs().owner(key);
+//                         ProcessID p = f.get_coeffs().owner(key);
+                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+
                          woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
 //                     } else {
 //                         print("done with empty source node",key);

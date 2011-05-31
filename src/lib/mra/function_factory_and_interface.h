@@ -561,6 +561,9 @@ namespace madness {
     /// and also one- and two-electron potentials
 	///
 	/// This Factory constructs a FuncImpl, and also the functor to it.
+	///
+	/// NOTE: pass in only copies of functions, since use in here will corrupt the
+	/// tree structure and functions will not pass the VERIFY test after this.
     template<typename T, std::size_t NDIM, std::size_t MDIM>
     class CompositeFactory : public FunctionFactory<T, NDIM> {
     public:

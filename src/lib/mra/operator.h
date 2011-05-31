@@ -736,19 +736,23 @@ namespace madness {
                         r.reduceRank(tol2*0.5);				// reduce 1
                         MADNESS_ASSERT(OrthoMethod::om==ortho3_);
                         result.add_SVD(r,tol2);
-//                     	print("result.normf()",result.normf());
-//  					result.reduceRank(tol2);                        // reduce 2
 
                     }
-
                 }
             }
 
-//            result.reduceRank(tol2*rank);							// reduce 3
             return result;
         }
 
         /// estimate the ratio of cost of full rank versus low rank
+
+        /// @param[in]  source  source key
+        /// @param[in]  shift   displacement
+        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol2    thresh/#neigh
+        /// @return cost_ratio  r=-1:   no terms left
+        ///                     0<r<1:  better to do low rank
+        ///                     1<r:    better to do full rank
         template<typename T>
         double estimate_costs(const Key<NDIM>& source,
                 const Key<NDIM>& shift,
@@ -765,7 +769,6 @@ namespace madness {
             const double full_operator_cost=pow(coeff.dim(0),NDIM+1);
             const double low_operator_cost=pow(coeff.dim(0),NDIM/2+1);
             const double low_reduction_cost=pow(coeff.dim(0),NDIM/2);
-//            const double low_final_rank=10.0;   // just a guess
 
             double full_cost=0;
             double low_cost=0;
@@ -776,6 +779,8 @@ namespace madness {
                 // delta(g)  <  delta(T) * || f ||
                 if (muop.norm > tol) {
                     long nterms=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+
+                    // take only the first overlap computation of rank reduction into account
                     low_cost+=nterms*low_operator_cost + 2.0*nterms*nterms*low_reduction_cost;
 
                     full_cost+=full_operator_cost;

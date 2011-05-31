@@ -327,24 +327,21 @@ static double he_correlation(const coord_6d& r) {
 
 void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
+    MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.0001, 1e-6);
 
     if(world.rank() == 0) printf("\nstarting convolution at time %.1fs\n\n", wall_time());
-   	real_function_6d tmp = op(Vpsi);
+    real_function_6d tmp = op(Vpsi);
+//   	real_function_6d tmp = copy(psi);
     if(world.rank() == 0) printf("\nending convolution at time   %.1fs\n\n", wall_time());
+    tmp.scale(-2.0);
    	tmp.truncate();
     if(world.rank() == 0) printf("\ntruncated at time   %.1fs\n\n", wall_time());
-   	tmp.scale(-2.0);
-   	print("finished convolution");
 
     double norm = tmp.norm2();
-    print("finished norm",norm);
     real_function_6d r = tmp-psi;
-    print("finished difference");
     double rnorm = inner(r,r);
-    print("finished rnorm",rnorm);
     double eps_new = eps + inner(r,Vpsi)/(norm*norm);
-    print("finished inner(Vpair,r)");
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
         print("eps_new",eps_new);
@@ -454,14 +451,12 @@ void compute_energy(World& world, const real_function_6d& pair,
 	// compute potential energy
 	pe=0.0;
 	if (1) {
-		// doomed copy of pair, to save pair
-		real_function_6d copy_of_pair=copy(pair);
 
 		// two-electron interaction potential
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
-				.ket(copy_of_pair.get_impl())
+				.ket(copy(pair).get_impl())
 				.g12(eri.get_impl())
 				.V_for_particle1(copy(pot1).get_impl())
 				.V_for_particle2(copy(pot2).get_impl())
@@ -583,6 +578,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<6>::set_thresh(thresh);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<6>::set_apply_randomize(true);
 
 
     print("world.rank()       ", world.rank());
@@ -596,6 +592,7 @@ int main(int argc, char** argv) {
     print("orthogonalization  ", OrthoMethod());
     print("facReduce          ", GenTensor<double>::fac_reduce());
     print("max displacement   ", Displacements<6>::bmax_default());
+    print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
@@ -626,7 +623,7 @@ int main(int argc, char** argv) {
 
     real_function_6d pair=hartree_product(orbital,orbital);
 //    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
-	pair.get_impl()->print_stats();
+//	pair.get_impl()->print_stats();
     print("pair.tree_size()",pair.tree_size());
     print("pair.size()     ",pair.size());
 
@@ -649,19 +646,16 @@ int main(int argc, char** argv) {
 
     // iterate
 	for (unsigned int i=0; i<15; i++) {
-		// doomed copy of pair, to save pair
-		real_function_6d copy_of_pair=copy(pair);
-		real_function_6d copy2_of_pair=copy(pair);
 
 		// two-electron interaction potential
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
-							.ket(copy_of_pair.get_impl())
+							.ket(copy(pair).get_impl())
 							.g12(eri.get_impl())
-							.V_for_particle1(pot1.get_impl())
-							.V_for_particle2(pot2.get_impl())
-							.muster(copy2_of_pair.get_impl())
+							.V_for_particle1(copy(pot1).get_impl())
+							.V_for_particle2(copy(pot2).get_impl())
+							.muster(copy(pair).get_impl())
 							;
 //		double a=inner(pair,v11);
 //		print("test pot ",a);
@@ -669,7 +663,7 @@ int main(int argc, char** argv) {
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);
 	    print("virial ratio   :", pe/ke, ke+pe);
-		pair.get_impl()->print_stats();
+//		pair.get_impl()->print_stats();
 	    print("pair.tree_size()",pair.tree_size());
 	    print("pair.size()     ",pair.size());
 
