@@ -47,6 +47,8 @@
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <mra/funcplot.h>
+#include <mra/lbdeux.h>
+
 #include <iostream>
 
 
@@ -476,6 +478,29 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 
 
+struct LBCost {
+    double leaf_value;
+    double parent_value;
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
+        : leaf_value(leaf_value)
+        , parent_value(parent_value)
+    {}
+
+    double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
+        if (key.level() <= 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        else if (node.is_leaf()) {
+            return leaf_value;
+        }
+        else {
+            return parent_value;
+        }
+    }
+};
+
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -624,6 +649,11 @@ int main(int argc, char** argv) {
     real_function_6d pair=hartree_product(orbital,orbital);
 //    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
 //	pair.get_impl()->print_stats();
+
+    LoadBalanceDeux<6> lb(world);
+    lb.add_tree(pair,LBCost(1.0,1.0));
+    FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+
     print("pair.tree_size()",pair.tree_size());
     print("pair.size()     ",pair.size());
 
