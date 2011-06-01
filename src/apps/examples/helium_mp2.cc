@@ -327,18 +327,47 @@ static double he_correlation(const coord_6d& r) {
 
 
 
+struct LBCost {
+    double leaf_value;
+    double parent_value;
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
+        : leaf_value(leaf_value)
+        , parent_value(parent_value)
+    {}
+
+    double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
+        if (key.level() <= 1) {
+            return 100.0*(leaf_value+parent_value);
+        }
+        return std::abs(node.coeff().rank());
+//        else if (node.is_leaf()) {
+//            return leaf_value;
+//        }
+//        else {
+//            return parent_value;
+//        }
+    }
+};
+
+
 void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.0001, 1e-6);
 
-    if(world.rank() == 0) printf("\nstarting convolution at time %.1fs\n\n", wall_time());
+    if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
-//   	real_function_6d tmp = copy(psi);
-    if(world.rank() == 0) printf("\nending convolution at time   %.1fs\n\n", wall_time());
+    if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
+
+    
+    LoadBalanceDeux<6> lb(world);
+    lb.add_tree(tmp,LBCost(1.0,1.0));
+    FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+    if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
+
     tmp.scale(-2.0);
-   	tmp.truncate();
-    if(world.rank() == 0) printf("\ntruncated at time   %.1fs\n\n", wall_time());
+    tmp.truncate();
+    if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
     double norm = tmp.norm2();
     real_function_6d r = tmp-psi;
@@ -478,29 +507,6 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 
 
-struct LBCost {
-    double leaf_value;
-    double parent_value;
-    LBCost(double leaf_value=1.0, double parent_value=1.0)
-        : leaf_value(leaf_value)
-        , parent_value(parent_value)
-    {}
-
-    double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
-        if (key.level() <= 1) {
-            return 100.0*(leaf_value+parent_value);
-        }
-        return node.rank();
-//        else if (node.is_leaf()) {
-//            return leaf_value;
-//        }
-//        else {
-//            return parent_value;
-//        }
-    }
-};
-
-
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -626,9 +632,13 @@ int main(int argc, char** argv) {
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
 
-	if (world.rank()==0) {
-	    print("orbital.tree_size()",orbital.tree_size());
-	    print("orbital.size()     ",orbital.size());
+	{ 
+		long tree_size=orbital.tree_size();
+		long size=orbital.size();
+		if (world.rank()==0) {
+		    print("orbital.tree_size()",tree_size);
+		    print("orbital.size()     ",size);
+		}
 	}
 
 
@@ -658,9 +668,14 @@ int main(int argc, char** argv) {
     lb.add_tree(pair,LBCost(1.0,1.0));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
 
-    if (world.rank()==0) {
-        print("pair.tree_size()",pair.tree_size());
-        print("pair.size()     ",pair.size());
+
+    { 
+    	long tree_size=pair.tree_size();
+    	long size=pair.size();
+    	if (world.rank()==0) {
+    	    print("pair.tree_size()",tree_size);
+    	    print("pair.size()     ",size);
+    	}
     }
 
     // normalize pair function
@@ -696,10 +711,16 @@ int main(int argc, char** argv) {
 
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);
-		if (world.rank()==0) {
-		    print("virial ratio   :", pe/ke, ke+pe);
-		    print("pair.tree_size()",pair.tree_size());
-		    print("pair.size()     ",pair.size());
+
+
+		{ 
+			long tree_size=pair.tree_size();
+			long size=pair.size();
+			if (world.rank()==0) {
+		    	    print("virial ratio   :", pe/ke, ke+pe);
+			    print("pair.tree_size()",tree_size);
+			    print("pair.size()     ",size);
+			}
 		}
 
 	}

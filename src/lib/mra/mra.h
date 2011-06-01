@@ -1462,6 +1462,7 @@ namespace madness {
     	    // fill_on_demand_tree turns the tree into compressed NS form
     	    source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
     	            f.get_impl()->get_functor().get(),true,true);
+            source.get_impl()->compress(true,true,true);
 
     	    if (f.get_impl()->world.rank()==0) printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
