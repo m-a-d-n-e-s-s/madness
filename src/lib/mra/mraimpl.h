@@ -1048,6 +1048,7 @@ namespace madness {
         if (fence) world.gop.fence();
     }
 
+#if 1
     template <typename T, std::size_t NDIM>
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
         MADNESS_ASSERT(coeffs.probe(key));
@@ -1069,6 +1070,30 @@ namespace madness {
             return result;
         }
     }
+#else
+
+    template <typename T, std::size_t NDIM>
+    Future<Tensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+        MADNESS_ASSERT(coeffs.probe(key));
+        // get fetches remote data (here actually local)
+        nodeT& node = coeffs.find(key).get()->second;
+        if (node.has_children()) {
+            std::vector< Future<tensorT> > v = future_vector_factory<tensorT >(1<<NDIM);
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                PROFILE_BLOCK(compress_send);
+                // readily available
+                v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
+            }
+            return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard);
+        }
+        else {
+            Future<tensorT> result(node.coeff().full_tensor_copy());
+            if (!keepleaves) node.clear_coeff();
+            return result;
+        }
+    }
+#endif
 
     template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::plot_cube_kernel(archive::archive_ptr< Tensor<T> > ptr,

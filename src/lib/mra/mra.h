@@ -57,7 +57,7 @@
 #define FUNCTION_INSTANTIATE_5
 #define FUNCTION_INSTANTIATE_6
 
-static const bool VERIFY_TREE = true;
+static const bool VERIFY_TREE = false; //true;
 
 
 namespace madness {
@@ -1452,41 +1452,28 @@ namespace madness {
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-        // prepare the function on which the operator acts
-        if (f.is_on_demand()) {
+    	// prepare the function on which the operator acts
+    	if (f.is_on_demand()) {
 
-        	// make the nodes of ff given the tree of f
-        	Function<R,NDIM> source;
-        	source.set_impl(f);
+    	    // make the nodes of ff given the tree of f
+    	    Function<R,NDIM> source;
+    	    source.set_impl(f);
 
-        	source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
-        			f.get_impl()->get_functor().get(),true,true);
-                source.get_impl()->world.gop.fence();
-		source.norm_tree();
-		source.get_impl()->compress(true,true,true);
-		if (f.get_impl()->world.rank()==0) printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
+    	    // fill_on_demand_tree turns the tree into compressed NS form
+    	    source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
+    	            f.get_impl()->get_functor().get(),true,true);
 
-		source.get_impl()->print_stats();
-		if (f.get_impl()->world.rank()==0) print("stats for source = V phi");
+    	    if (f.get_impl()->world.rank()==0) printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
 
+    	    result.set_impl(source, true);
+    	    result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
 
-		print("applying operator in source-driven algorithm");
-		result.set_impl(source, true);
-		result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
-		result.get_impl()->world.gop.fence();
-	
-            // apply (bypass apply_only)
-//            result=copy(source);
-//            print("applying operator in target-driven algorithm");
-//        	result.get_impl()->apply_target_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
-
-
-        } else {
-            if (VERIFY_TREE) ff.verify_tree();
-        	ff.reconstruct();
-        	ff.nonstandard(op.doleaves, true);
-            result = apply_only(op, ff, fence);
-        }
+    	} else {
+    	    if (VERIFY_TREE) ff.verify_tree();
+    	    ff.reconstruct();
+    	    ff.nonstandard(op.doleaves, true);
+    	    result = apply_only(op, ff, fence);
+    	}
 
 
         if (not f.is_on_demand()) ff.standard();

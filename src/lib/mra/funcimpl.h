@@ -2436,7 +2436,6 @@ namespace madness {
 
     		// construct the interior nodes also
     		if (not leaves_only) this->compress(nonstandard,true,true);
-    		print("made boxes on on-demand tree",this->tree_size());
 
         }
 
@@ -2444,8 +2443,6 @@ namespace madness {
 
         /// actually not quite constant
         void assemble_coeff(const keyT& key,
-//        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
-//        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) const {
             const coeffT& val_ket, const coeffT& val_eri,
             const coeffT& val_pot1, const coeffT& val_pot2) const {
 
@@ -2861,6 +2858,7 @@ namespace madness {
             }
         }
 
+#if 1
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
 
         /// @param[in] key 	this's key
@@ -2909,6 +2907,56 @@ namespace madness {
 
             return s;
         }
+#else
+
+        /// calculate the wavelet coefficients using the sum coefficients of all child nodes
+
+        /// @param[in] key  this's key
+        /// @param[in] v    sum coefficients of the child nodes
+        /// @return         the sum coefficients
+        tensorT compress_op(const keyT& key, const std::vector< Future<tensorT> >& v, bool nonstandard) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            // Copy child scaling coeffs into contiguous block
+//            coeffT d(cdata.v2k,targs);
+            tensorT d(cdata.v2k);
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                d(child_patch(kit.key())) += v[i].get();
+            }
+
+            d = filter(d);
+
+            typename dcT::accessor acc;
+            MADNESS_ASSERT(coeffs.find(acc, key));
+
+            if (acc->second.has_coeff()) {
+                print(" stuff in compress_op");
+                const tensorT& c = acc->second.coeff().full_tensor_copy();
+                if (c.dim(0) == k) {
+                    d(cdata.s0) += c;
+                }
+                else {
+                    d += c;
+                }
+            }
+
+            // this is deep copy
+//            coeffT s= copy(d(cdata.s0));
+            tensorT s=copy(d(cdata.s0));
+
+            if (key.level()> 0 && !nonstandard)
+                d(cdata.s0) = 0.0;
+
+//            d.reduceRank(thresh);
+            coeffT dd=coeffT(d,targs);
+            acc->second.set_coeff(dd);
+//            s.reduceRank(thresh);
+            coeffT ss=coeffT(s,targs);
+
+            return s;
+        }
+#endif
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {
@@ -3057,112 +3105,6 @@ namespace madness {
         }
 
 
-        /// apply an operator on f and accumulate the result in this
-
-        /// the result is accumulated inplace to this's tree at FunctionNode at key
-        /// @param[in] op		the operator to act on the source function
-        /// @param[in] f		the source function
-        /// @param[in] key		key of node that is computed
-        template <typename opT, typename R>
-        Void do_apply_target_driven(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            // insert timer here
-            MADNESS_EXCEPTION("do_apply_target_driven is obsolete",0);
-
-            // fac accounts for the number of neighbors
-            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-            if (NDIM==6) fac=100;//729.0;
-
-            //const long lmax = 1L << (key.level()-1);
-
-//            FunctionImpl<R,NDIM>* f=const_cast< FunctionImpl<R,NDIM>*>(ff);
-//            FunctionImpl<R,NDIM>* f;
-
-            // the node we're going to construct
-            typename dcT::accessor acc;
-         	MADNESS_ASSERT(coeffs.find(acc,key));
-         	nodeT& node = acc->second;
-//         	const bool doleaves=node.coeff().dim(0)==this->get_k();
-         	node.clear_coeff();
-
-            const dcT& fcoeffs=f->get_coeffs();
-
-//        	print("working on key",key);
-
-            // disp is all the possible displacements (starting from close to farther away)
-            const std::vector<keyT>& disp = op->get_disp(key.level());
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-
-            // loop thru all neighbors of key on f and accumulate on this' key
-            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-
-            	// d is the displacement (..,-1,0,1,..)
-//            	const keyT& d = *it;
-            	keyT dd = *it;
-//            	keyT d(dd);
-
-            	// source is the neighbor (key + d) from which we get the coeffs
-                keyT source = neighbor(key, dd, is_periodic);
-//                print("   source",source);
-
-                // mirror the displacement, since the algorithm is reversed
-                Vector<Translation, NDIM> l=dd.translation();
-                keyT d(dd.level(),l*-1);
-
-                if (source.is_valid()) {
-//                if (source.is_valid() and d.distsq()<2) {
-                    double opnorm = op->norm(key.level(), d);
-                    // working assumption here is that the operator is isotropic and
-                    // monotonically decreasing with distance
-                    double tol = truncate_tol(thresh, key);
-
-                    // get the NS coeffs from the source tree
-                    const typename dcT::const_iterator it=fcoeffs.find(source).get();
-
-                    if (it!=fcoeffs.end()) {
-                    	const nodeT& fnode=it->second;
-                    	MADNESS_ASSERT(fnode.has_coeff());
-//                        const double cnorm=fnode.coeff().normf();
-                    	// norm_tree >= coeff().normf();
-                    	const double cnorm=fnode.get_norm_tree();
-
-						if (cnorm*opnorm> tol/fac) {
-
-//							print("cnorm",cnorm);
-
-							// for now do all the convolutions in one task, since we need
-							// to reduce the rank at the end, and we can't keep track of
-							// which nodes have already been processed
-							coeffT result = op->apply2(source, d, fnode.coeff(), tol/fac/cnorm,tol/fac);
-
-							// accumulate the result on this node
-//							if (result.normf()> 0.3*tol/fac) {
-								node.accumulate(result,this->coeffs,key,targs);
-//							}
-
-//						} else if (d.distsq() > 1) {
-//							break; // Assumes monotonic decay beyond nearest neighbor
-						}
-                    }
-                }
-            }
-            long oldrank2=node.coeff().rank();
-
-            // both are fine
-            node.reduceRank(truncate_tol(thresh, key));
-//            node.coeff().reconstruct_and_decompose(truncate_tol(thresh, key));	// reduce0
-
-
-            if (node.coeff().tensor_type()==TT_FULL) {
-            	to_low_rank(node.coeff(),targs.thresh,targs.tt);
-            }
-            print("done with node",key,node.coeff().normf(),oldrank2,node.coeff().rank());
-            printf("\ndone with this at time %.1fs\n\n", wall_time());
-            std::cout.flush();
-            return None;
-        }
-
-
         /// apply an operator on the coeffs c (at node key)
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
@@ -3267,39 +3209,6 @@ namespace madness {
 
 
 
-
-        /// apply an operator on f to return this
-
-        /// similar to apply, but loop through this's FunctionNodes, not through f's
-        template <typename opT, typename R>
-        void apply_target_driven(opT& op, const FunctionImpl<R,NDIM>& f,
-        		const std::vector<bool>& is_periodic, bool fence) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-
-            MADNESS_EXCEPTION("apply_target_driven is obsolete",0);
-
-//            Vector<Translation, NDIM> l;
-//            l[0]=2; l[1]=5; l[2]=3; l[3]=4; l[4]=4; l[5]=4;
-//            const keyT key1(3,l);
-
-
-            // looping through all the coefficients of the target (this)
-            typename dcT::iterator end = coeffs.end();
-            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
-
-            	const keyT& key = it->first;
-           		ProcessID p = coeffs.owner(key);
-                woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
-            }
-
-            if (fence)
-                world.gop.fence();
-            print("done with apply_target_driven");
-//    		MADNESS_EXCEPTION("debug stop",0);
-        }
-
-
-
         /// similar to apply, but loop through this's FunctionNodes, not through f's
          template <typename opT, typename R>
          void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f,
@@ -3338,12 +3247,8 @@ namespace madness {
              if (fence)
                  world.gop.fence();
 
-//             print("done with apply_source_driven");
-//             print("before rank reduction of target nodes");
-//             print_stats();
+             // reduce the rank of the final nodes
              flo_unary_op_node_inplace(do_reduce_rank(targs),true);
-//             print("after rank reduction of target nodes");
-//             print_stats();
 
              if (fence)
                  world.gop.fence();
@@ -3635,7 +3540,7 @@ namespace madness {
                 if (node.has_coeff())
                     sum+=node.size();
             }
-
+            print("proc",world.rank(),sum);
 #else
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
@@ -3658,36 +3563,35 @@ namespace madness {
 
         /// print the number of configurations per node
         void print_stats() const {
-        	if (this->targs.tt==TT_FULL) return;
-        	int dim=NDIM/2;
-        	int k0=k;
-        	if (is_compressed()) k0=2*k;
-		Tensor<long> n(int(std::pow(k0,dim)+1));
-//        	std::vector<long> n(std::pow(k0,dim)+1);
-		if (world.rank()==0) print("n.size(),k0,dim",n.size(),k0,dim);
-		typename dcT::const_iterator end = coeffs.end();
-		for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
-		    const nodeT& node = it->second;
-		    if (node.has_coeff()) {
-		    	if (node.coeff().rank()>long(n.size())) {
-		    		print("large rank",node.coeff().rank());
-		    	} else if (node.coeff().rank()<0) {
-		    		print("small rank",node.coeff().rank());
-		    	} else {
-		    		n[node.coeff().rank()]++;
-		    	}
-		    }
-		}
+            if (this->targs.tt==TT_FULL) return;
+            int dim=NDIM/2;
+            int k0=k;
+            if (is_compressed()) k0=2*k;
+            Tensor<long> n(int(std::pow(k0,dim)+1));
+            if (world.rank()==0) print("n.size(),k0,dim",n.size(),k0,dim);
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+                const nodeT& node = it->second;
+                if (node.has_coeff()) {
+                    if (node.coeff().rank()>long(n.size())) {
+                        print("large rank",node.coeff().rank());
+                    } else if (node.coeff().rank()<0) {
+                        print("small rank",node.coeff().rank());
+                    } else {
+                        n[node.coeff().rank()]++;
+                    }
+                }
+            }
 
-		world.gop.sum(n.ptr(), n.size());
+            world.gop.sum(n.ptr(), n.size());
 
-		if (world.rank()==0) {
-        	        print("configurations     number of nodes");
-        	        for (unsigned int i=0; i<n.size(); i++) {
-				long m=n[i];
-				if (world.rank()==0) print("           ",i,"    ",m);
-			}
-		}
+            if (world.rank()==0) {
+                print("configurations     number of nodes");
+                for (unsigned int i=0; i<n.size(); i++) {
+                    long m=n[i];
+                    if (world.rank()==0) print("           ",i,"    ",m);
+                }
+            }
         }
 
         /// In-place scale by a constant

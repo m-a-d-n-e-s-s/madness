@@ -442,13 +442,13 @@ void compute_energy(World& world, const real_function_6d& pair,
 			real_function_6d dpsi = D(pair);
 			double a=0.5*inner(dpsi,dpsi);
 			ke += a;
-			print("done with axis",axis, a);
+			if (world.rank()==0) print("done with axis",axis, a);
 		}
 	}
-	print("kinetic energy:", ke);
-
-	if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
-
+	if (world.rank()==0) {
+	    print("kinetic energy:", ke);
+	    printf("\nkinetic at time %.1fs\n\n", wall_time());
+	}
 
 	// compute potential energy
 	pe=0.0;
@@ -466,7 +466,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 
 		double a=inner(pair,v11);
-		print("<phi|V_tot|phi> ", a);
+        if (world.rank()==0) print("<phi|V_tot|phi> ", a);
 		pe=a;
 	} else {
 		pe=-2.0*ke;
@@ -490,12 +490,13 @@ struct LBCost {
         if (key.level() <= 1) {
             return 100.0*(leaf_value+parent_value);
         }
-        else if (node.is_leaf()) {
-            return leaf_value;
-        }
-        else {
-            return parent_value;
-        }
+        return node.rank();
+//        else if (node.is_leaf()) {
+//            return leaf_value;
+//        }
+//        else {
+//            return parent_value;
+//        }
     }
 };
 
@@ -606,28 +607,34 @@ int main(int argc, char** argv) {
     FunctionDefaults<6>::set_apply_randomize(true);
 
 
-    print("world.rank()       ", world.rank());
 
-    print("polynomial order:  ", FunctionDefaults<6>::get_k());
-    print("threshold:         ", FunctionDefaults<6>::get_thresh());
-    print("cell size:         ", L);
-    print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
-    print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
-
-    print("orthogonalization  ", OrthoMethod());
-    print("facReduce          ", GenTensor<double>::fac_reduce());
-    print("max displacement   ", Displacements<6>::bmax_default());
-    print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
+    if (world.rank()==0) {
+        print("polynomial order:  ", FunctionDefaults<6>::get_k());
+        print("threshold:         ", FunctionDefaults<6>::get_thresh());
+        print("cell size:         ", L);
+        print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
+        print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
+        print("");
+        print("orthogonalization  ", OrthoMethod());
+        print("facReduce          ", GenTensor<double>::fac_reduce());
+        print("max displacement   ", Displacements<6>::bmax_default());
+        print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
+        print("world.size()       ", world.size());
+        print("");
+    }
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
-//	real_function_3d orbital=real_factory_3d(world).f(gauss_3d);
-    print("orbital.tree_size()",orbital.tree_size());
-    print("orbital.size()     ",orbital.size());
+
+	if (world.rank()==0) {
+	    print("orbital.tree_size()",orbital.tree_size());
+	    print("orbital.size()     ",orbital.size());
+	}
+
+
+
     {
-//    	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     	double norm=inner(orbital,orbital);
-    	print("norm(orbital)",norm);
     	orbital.scale(1.0/sqrt(norm));
 
     	// compute kinetic energy
@@ -636,30 +643,28 @@ int main(int argc, char** argv) {
     		real_derivative_3d D = free_space_derivative<double,3>(world, axis);
     		real_function_3d dpsi = D(orbital);
     		kinetic_energy += 0.5*inner(dpsi,dpsi);
-    		print("done with axis",axis);
     	}
-    	print("kinetic energy/electron  :", kinetic_energy);
+    	if (world.rank()==0) print("kinetic energy/electron  :", kinetic_energy);
 
     	// compute potential energy
     	real_function_3d one_el_pot=real_factory_3d(world).f(Z2);
     	double pe=inner(orbital,one_el_pot*orbital);
-    	print("potential energy/electron:",pe);
+    	if (world.rank()==0) print("potential energy/electron:",pe);
     }
 
     real_function_6d pair=hartree_product(orbital,orbital);
-//    real_function_6d pair=real_factory_6d(world).f(he_orbitals);
-//	pair.get_impl()->print_stats();
 
     LoadBalanceDeux<6> lb(world);
     lb.add_tree(pair,LBCost(1.0,1.0));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
 
-    print("pair.tree_size()",pair.tree_size());
-    print("pair.size()     ",pair.size());
+    if (world.rank()==0) {
+        print("pair.tree_size()",pair.tree_size());
+        print("pair.size()     ",pair.size());
+    }
 
     // normalize pair function
     double norm=inner(pair,pair);
-    print("norm(ij_pair)",norm);
     pair.scale(1.0/sqrt(norm));
     if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
 
@@ -670,9 +675,8 @@ int main(int argc, char** argv) {
 
     double ke=0.0;
     double pe=0.0;
-//    compute_energy(world,pair,pot1,pot2,ke,pe);
-    print("\n\n\nfixed energy \n\n");
-	double eps=-3.0;//ke+pe;
+    compute_energy(world,pair,pot1,pot2,ke,pe);
+	double eps=ke+pe;
 
     // iterate
 	for (unsigned int i=0; i<15; i++) {
@@ -692,10 +696,11 @@ int main(int argc, char** argv) {
 
 		iterate(world,v11,pair,eps);
 		compute_energy(world,pair,pot1,pot2,ke,pe);
-	    print("virial ratio   :", pe/ke, ke+pe);
-//		pair.get_impl()->print_stats();
-	    print("pair.tree_size()",pair.tree_size());
-	    print("pair.size()     ",pair.size());
+		if (world.rank()==0) {
+		    print("virial ratio   :", pe/ke, ke+pe);
+		    print("pair.tree_size()",pair.tree_size());
+		    print("pair.size()     ",pair.size());
+		}
 
 	}
 
