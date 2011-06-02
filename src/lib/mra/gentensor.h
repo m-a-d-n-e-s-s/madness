@@ -271,7 +271,9 @@ namespace madness {
 		}
 
 		/// copy ctor, shallow
-		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr) {
+//		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr) { // DON'T DO THIS: USE_COUNT BLOWS UP
+		GenTensor(const GenTensor<T>& rhs) {
+			_ptr=rhs._ptr;
 		};
 
 		/// ctor with dimensions
@@ -352,7 +354,7 @@ namespace madness {
 
 		/// shallow assignment operator: g0 = g1
 		gentensorT& operator=(const gentensorT& rhs) {
-			_ptr=rhs._ptr;
+			if (this != &rhs) _ptr=rhs._ptr;
 			return *this;
 		}
 

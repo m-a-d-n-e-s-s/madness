@@ -231,6 +231,11 @@ namespace madness {
 			, tensortype_(TT_2D)
 			, updating_(false) {
 
+			MADNESS_ASSERT(weights.ndim()==1);
+			MADNESS_ASSERT(vector1.ndim()==2);
+			MADNESS_ASSERT(vector2.ndim()==2);
+			MADNESS_ASSERT(weights.dim(0)==vector1.dim(0));
+			MADNESS_ASSERT(vector2.dim(0)==vector1.dim(0));
 			vector_.resize(2);
 			vector_[0]=vector1;
 			vector_[1]=vector2;

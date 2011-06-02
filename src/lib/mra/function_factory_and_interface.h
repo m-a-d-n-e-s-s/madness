@@ -644,7 +644,6 @@ namespace madness {
         /// provide a function as tree structure
         CompositeFactory&
         muster(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
-        	print("tree structure set in CompositeFactory");
         	_tree=f;
         	return *this;
         }
@@ -726,7 +725,7 @@ namespace madness {
     		// return if we already have a valid eri
     		if (this->_eri) return this->_eri;
 
-    		print("set dcut in ERIFactory to ", _dcut);
+    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
 
     		// construction of the functor is const in spirit, but non-const in sad reality..
     		const_cast< std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >& >(this->_eri)=
