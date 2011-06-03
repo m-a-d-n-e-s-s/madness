@@ -26,6 +26,9 @@ AC_DEFUN([ACX_ENABLE_WARN], [
       GNU)
         acx_enable_warn_flags="-Wall -Wno-strict-aliasing -Wno-deprecated"
       ;;
+      clang)
+        acx_enable_warn_flags="-Wall"
+      ;;
       Pathscale)
         acx_enable_warn_flags="-Wall"
       ;;
