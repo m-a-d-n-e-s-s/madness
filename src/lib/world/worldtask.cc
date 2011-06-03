@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: $
 */
 
 #include <world/worldtask.h>
@@ -46,6 +46,11 @@ namespace madness {
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
         run(*w, env);
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
+    }
+
+    void TaskInterface::run(World& /*world*/) {
+        //print("in virtual run(world) method");
+        MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
     }
 
     WorldTaskQueue::WorldTaskQueue(World& world)

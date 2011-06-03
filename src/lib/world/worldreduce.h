@@ -185,13 +185,13 @@ namespace madness {
                 switch(ReductionInterface::count()) {
                 case 3:
                     {
-                        Future<T> temp = w.taskq.add(make_task(op, r0_, r1_, attr));
-                        result_ = w.taskq.add(make_task(op, temp, r2_, attr));
+                        Future<T> temp = w.taskq.add(op, r0_, r1_, attr);
+                        result_ = w.taskq.add(op, temp, r2_, attr);
                     }
                     break;
 
                 case 2:
-                    result_ = w.taskq.add(make_task(op, r0_, r1_, attr));
+                    result_ = w.taskq.add(op, r0_, r1_, attr);
                     break;
 
                 case 1:
@@ -264,12 +264,13 @@ namespace madness {
         }
 
         template <typename valueT>
-        void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
+        Void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
             if(parent != -1)
                 WorldObject_::send(parent, & WorldReduce_::template reduce_value<valueT>, k, value);
 
             // We do not need the local reduction anymore
             reductions_.erase(k);
+            return None;
         }
 
         template <typename valueT>
@@ -336,9 +337,9 @@ namespace madness {
 
             // Forward the results of the local reductions to the parent
             if(! acc->second->is_root())
-                WorldObject_::get_world().taskq.add(make_task(function(static_cast<derivedT*>(this),
-                    & WorldReduce_::template send_to_parent<valueT>),
-                    acc->second->parent(), k, result));
+                WorldObject_::get_world().taskq.add(*this,
+                    & WorldReduce_::template send_to_parent<valueT>,
+                    acc->second->parent(), k, result);
 
             // Reduce the local value
             acc->second->reduce(value);

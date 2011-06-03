@@ -59,6 +59,9 @@ public:
     virtual ~Reducer() { }
 };
 
+template <typename T>
+T add(const T& t1, const T& t2) { return t1 + t2; }
+
 namespace {
 
     class WorldReduceTest : public ::testing::Test {
@@ -80,7 +83,7 @@ namespace {
     };
 
     TEST_F(WorldReduceTest, Construct) {
-        EXPECT_NO_THROW(Reducer(*pworld));
+        EXPECT_NO_THROW( Reducer x(*pworld) );
     }
 
     TEST_F(WorldReduceTest, ReduceAll) {
@@ -93,7 +96,7 @@ namespace {
         //      last element in the reduction group list,
         //      root node)
         madness::Future<ProcessID> result = reducer->reduce(0, pworld->rank(),
-                std::plus<ProcessID>(), all.begin(), all.end(), 0);
+                & add<ProcessID>, all.begin(), all.end(), 0);
 
         // The final value is available only on the root node.
         if(pworld->rank() == 0) {
@@ -109,7 +112,7 @@ namespace {
         // You can only setup the reduction on nodes that are included in the group.
         if((pworld->rank() % 2) == 0) {
             madness::Future<ProcessID> result = reducer->reduce(1, pworld->rank(),
-                    std::plus<ProcessID>(), even.begin(), even.end(), 0);
+                    & add<ProcessID>, even.begin(), even.end(), 0);
 
             if(pworld->rank() == 0) {
                 ProcessID sum = 0;
