@@ -715,7 +715,8 @@ namespace madness
       if (_params.periodic) FunctionDefaults<3>::set_bc(BC_PERIODIC);
       _residual = 1e5;
       make_nuclear_potential();
-      initial_guess();
+
+      if (_params.restart==0) initial_guess();
 //      for (unsigned int kp = 0; kp < _kpoints.size(); kp++)
 //      {
 //        _Q.push_back(tensorT(1,1));
@@ -951,6 +952,17 @@ namespace madness
         for (unsigned int i = 0; i < _kpoints.size(); i++)
           gram_schmidt(_phisb, _kpoints[i]);
       }
+      else
+      {
+        for (unsigned int i = 0; i < norbs; i++)
+        {
+          _phisb.push_back(_phisa[i]);
+          _eigsb.push_back(_eigsa[i]);
+        }
+      }
+      // create vector for occupation numbers
+      _occsa = std::vector<double>(norbs, 0.0);
+      _occsb = std::vector<double>(norbs, 0.0);
     }
     //*************************************************************************
 
