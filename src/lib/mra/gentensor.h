@@ -272,8 +272,8 @@ namespace madness {
 
 		/// copy ctor, shallow
 //		GenTensor(const GenTensor<T>& rhs) : _ptr(rhs._ptr) { // DON'T DO THIS: USE_COUNT BLOWS UP
-		GenTensor(const GenTensor<T>& rhs) {
-			_ptr=rhs._ptr;
+		GenTensor(const GenTensor<T>& rhs) : _ptr() {
+			if (rhs.has_data()) _ptr=rhs._ptr;
 		};
 
 		/// ctor with dimensions
@@ -313,11 +313,18 @@ namespace madness {
 		GenTensor(const Tensor<T>& rhs, const TensorArgs& targs)
 			: _ptr(new configT(rhs.ndim(),rhs.dim(0),targs.tt)) {
 
+
+			// fast return if possible
+			if (not rhs.has_data()) {
+				_ptr.reset();
+				return;
+			}
+
 			MADNESS_ASSERT(rhs.ndim()>0);
 			MADNESS_ASSERT(rhs.iscontiguous());
-    		for (long idim=0; idim<rhs.ndim(); idim++) {
-    			MADNESS_ASSERT(rhs.dim(0)==rhs.dim(idim));
-    		}
+	    		for (long idim=0; idim<rhs.ndim(); idim++) {
+	    			MADNESS_ASSERT(rhs.dim(0)==rhs.dim(idim));
+	    		}
 
 			// adapt form of values
 			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
@@ -369,29 +376,6 @@ namespace madness {
 			if (rhs._ptr) return gentensorT(copy(*rhs._ptr));
 			return gentensorT();
 		}
-
-//        /// Replaces this GenTensor with one loaded from an archive
-//        template <typename Archive>
-//        void load(World& world, Archive& ar) {
-//            bool exist;
-//            ar & exist;
-//            if (exist) {
-//               _ptr.reset(new configT());
-//               _ptr->load(ar);
-//            } else {
-//               _ptr.reset();
-//            }
-//        }
-//
-//
-//        /// Stores the GenTensor to an archive
-//        template <typename Archive>
-//        void store(Archive& ar) const {
-//            bool exist=(_ptr);
-//            ar & exist;
-//            if (exist) _ptr->store(ar);
-//        }
-
 
 		/// return some of the terms of the SRConf (start,..,end), inclusively
 		/// shallow copy
@@ -728,6 +712,8 @@ namespace madness {
 
 		/// reduce rank by reconstruction of the full tensor and subsequent SVD decomposition
 		void reconstruct_and_decompose(const double& eps) {
+		    if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) return;
+		    MADNESS_ASSERT(tensor_type()==TT_2D);
 			Tensor<T> values=this->reconstruct_tensor();
 			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
 			Tensor<T> values_eff=values.reshape(d);
@@ -1727,6 +1713,20 @@ namespace madness {
 
     	return t.transform_dir(c,axis);
     }
+
+		template<typename T>
+		static inline
+		std::ostream& operator<<(std::ostream& s, const GenTensor<T>& g) {
+			std::string str="GenTensor has no data";
+			if (g.has_no_data()) {
+				std::string str="GenTensor has no data";
+				s << str.c_str() ;
+			} else {
+				str="GenTensor has data";
+				s << str.c_str() << g.config();
+			}
+			return s;
+		}
 
     namespace archive {
 		/// Serialize a tensor

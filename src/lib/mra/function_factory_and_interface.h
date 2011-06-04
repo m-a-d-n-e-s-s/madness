@@ -103,6 +103,7 @@ namespace madness {
 
 		virtual coeffT coeff(const keyT&, const bool NS=false) {
 			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
+			return coeffT();
 		}
 
 		/// does this functor directly provide sum coefficients? or only function values?

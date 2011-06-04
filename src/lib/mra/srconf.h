@@ -331,10 +331,10 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-                int i=int(tensortype_);
-                ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
-                tensortype_=TensorType(i);
-                make_slices();
+              	int i=int(tensortype_);
+              	ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
+              	tensortype_=TensorType(i);
+		make_slices();
         }
 
 
@@ -957,6 +957,8 @@ namespace madness {
 		void rank_revealing_modified_gram_schmidt2(const double& thresh) {
 
 			if (has_no_data()) return;
+			if (type()==TT_FULL or type()==TT_NONE) return;
+			MADNESS_ASSERT(type()==TT_2D);
 
 			normalize();
 			if (rank()==1) return;
@@ -1120,10 +1122,15 @@ namespace madness {
 
 		/// redo the Slices for getting direct access to the configurations
 		void make_slices() {
+			if (type()==TT_FULL) return;
 			if (this->has_no_data()) {
 				s_.clear();
 			} else {
 				// first dim is the rank
+				if (vector_[0].ndim()>TENSOR_MAXDIM) {
+					print(*this);
+					MADNESS_EXCEPTION("serializing failed",0);
+				}
 				s_.resize(vector_[0].ndim());
 				s_[0]=Slice(0,this->rank()-1);
 				for (int i=1; i<vector_[0].ndim(); i++) {
@@ -2121,6 +2128,18 @@ namespace madness {
 		w1=s;
 	}
 
+	template<typename T>
+	static inline
+	std::ostream& operator<<(std::ostream& s, const SRConf<T>& sr) {
+
+		s << "dim_          " << sr.dim_ << "\n";;
+		s << "rank_         " << sr.rank_ << "\n";;
+		s << "maxk_         " << sr.maxk_ << "\n";;
+		s << "vector_.size()" << sr.vector_.size() << "\n";
+		s << "has_data()    " << sr.has_data() << "\n";
+		s << "TensorType    " << sr.type() << "\n\n";
+		return s;
+	}
 }
 
 #endif /* SRCONF_H_ */
