@@ -2227,7 +2227,7 @@ namespace madness
       for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++, rit++)
       {
         // should we reproject?
-        if ((_it > 0) && ((_residual < 20*_params.thresh) || (rit == rtpthresh)))
+        if ((_it > 0) && ((_residual < 20*_params.thresh) || (rit == rpthresh)))
         {
           // reproject orbitals and reset threshold
           reproject();
