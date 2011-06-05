@@ -2221,12 +2221,17 @@ namespace madness
 //      std::vector<double_complex> phase(_phisa.size(), t2);
 //      scale(_world, _phisa, phase);
 
-      for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++)
+      // keep track of how many iterations have gone by without reprojecting
+      int rit = 0;
+      int rpthresh = 7;
+      for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++, rit++)
       {
         // should we reproject?
-        if ((_it > 0) && (_residual < 20*_params.thresh))
+        if ((_it > 0) && ((_residual < 20*_params.thresh) || (rit == rtpthresh)))
         {
+          // reproject orbitals and reset threshold
           reproject();
+          rit = 0;
         }
 
         if (_world.rank() == 0) _outputF << "_it = " << _it << endl;
