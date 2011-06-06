@@ -2223,7 +2223,7 @@ namespace madness
 
       // keep track of how many iterations have gone by without reprojecting
       int rit = 0;
-      int rpthresh = 7;
+      int rpthresh = 20;
       for (_it = 0; _it < _params.maxits && _residual > _params.rcriterion; _it++, rit++)
       {
         // should we reproject?
