@@ -285,6 +285,7 @@ AC_CONFIG_FILES([
        src/apps/exciting/Makefile
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
+       src/apps/jacob/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
