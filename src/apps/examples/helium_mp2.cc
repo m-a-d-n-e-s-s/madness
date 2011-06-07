@@ -326,6 +326,16 @@ static double he_correlation(const coord_6d& r) {
 }
 
 
+void save_function(World& world, real_function_6d& pair, std::string name) {
+    archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+    ar & pair;
+}
+
+void load_function(World& world, real_function_6d& pair, std::string name) {
+    archive::ParallelInputArchive ar(world, name.c_str());
+    ar & pair;
+}
+
 
 struct LBCost {
     double leaf_value;
@@ -514,12 +524,15 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 void solve(World& world, real_function_6d& pair, double& energy, long maxiter, double dcut) {
 
+    const long k=FunctionDefaults<6>::get_k();
+    const double thresh=FunctionDefaults<6>::get_thresh();
+
 	if (world.rank()==0) {
 		print("solving the helium atom with parameters");
 		print("energy   ",energy);
-		print("dcut	",dcut);
-		print("k	",FunctionDefaults<6>::get_k());
-		print("thresh	",FunctionDefaults<6>::get_thresh());
+		print("dcut     ",dcut);
+		print("k        ",k);
+		print("thresh   ",thresh);
 	}
 
 	// one-electron potential
@@ -546,9 +559,30 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		long size=pair.size();
 		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
 		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
+		std::string name="restart_k"+stringify(k)+"_thresh_"+stringify(thresh)+"_it_"+stringify(i);
+		save_function(world,pair,name);
 
 	}
 	
+
+    // plot xy plane containing the origin
+    for (int i=0; i<20; i++) {
+        coord_6d fix_coord(0.0);
+        // electron 2:
+        fix_coord[3]=0.0;
+        fix_coord[4]=0.1+0.1*i;
+        fix_coord[5]=0.0;
+
+        pair.reconstruct();
+        std::shared_ptr<FunctionImpl<double,6> > pair_impl=pair.get_impl();
+        Tensor<double> cell(6,2);
+        cell(Slice(_),0)=-2.0;
+        cell(Slice(_),1)= 2.0;
+        std::string filename="plot_plane_d"+stringify(fix_coord[4])+"_k"+stringify(k)+"_eps"+stringify(thresh);
+        pair_impl->print_plane(filename,"xy",fix_coord,cell);
+
+    }
+
 	if (world.rank()==0) print("finished",maxiter,"iterations");
 	double ke, pe;
 	compute_energy(world,pair,pot1,pot2,ke,pe);
@@ -556,6 +590,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
   
 
 }
+
 
 
 
@@ -751,7 +786,7 @@ int main(int argc, char** argv) {
     if (1) {
         FunctionDefaults<6>::set_thresh(1.e-3);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-3);
-    	solve(world,pair1,energy,8,1.e-8);
+    	solve(world,pair1,energy,4,1.e-8);
     	pair=pair1;
     }	
 
@@ -785,111 +820,6 @@ int main(int argc, char** argv) {
 
 #endif
 
-    // HO
-#if 0
-    // one orbital at a time
-     {
-     	real_function_3d orbital=real_factory_3d(world).f(gauss_3d);
-     	double norm=inner(orbital,orbital);
-     	print("norm(orbital)",norm);
-     	orbital.scale(1.0/sqrt(norm));
-
-     	// compute kinetic energy
-     	double kinetic_energy = 0.0;
-     	for (int axis=0; axis<3; axis++) {
-     		real_derivative_3d D = free_space_derivative<double,3>(world, axis);
-     		real_function_3d dpsi = D(orbital);
-     		kinetic_energy += 0.5*inner(dpsi,dpsi);
-     		print("done with axis",axis);
-     	}
-     	print("kinetic energy/electron  :", kinetic_energy);
-
-     	// compute potential energy
-     	real_function_3d one_el_pot=real_factory_3d(world).f(HO_3d);
-     	double pe=inner(orbital,one_el_pot*orbital);
-     	print("potential energy/electron:",pe);
-     	double pe4=inner(orbital,one_el_pot);
-     	double pe5=inner(orbital,orbital);
-     	print("<phi|phi> /electron:",pe5);
-     	print("<phi|V> /electron:  ",pe4);
-
-
-     	// compute potential energy on demand
-     	real_function_3d v_phi=real_factory_3d(world).f(HO_vphi_3d);
-
-     	double pe3=inner(orbital,v_phi);
-     	print("potential energy 2/electron:",pe3);
-
-
-     	real_function_3d copy_of_orbital=copy(orbital);
-     	real_factory_3d comp_factory=real_factory_3d(world).empty();
-        std::shared_ptr<CompositeFunctorInterface<double,3,3> >
-        	comp(new CompositeFunctorInterface<double,3,3>(comp_factory,
-        			copy_of_orbital.get_impl(),
-        			one_el_pot.get_impl(),
-        			v_phi.get_impl(),
-        			v_phi.get_impl()
-        			));
-
-     	real_function_3d v_phi_od=real_factory_3d(world).functor(comp).is_on_demand();
-     	double pe2=inner(orbital,v_phi_od);
-     	print("potential energy od/electron:",pe2);
-
-
-
-     }
-
-
-
-     // pair function
-     real_function_6d pair=real_factory_6d(world).f(gauss_6d);
-
-     // two-electron potential
-     real_function_6d pot_r12=real_factory_6d(world).f(HO_6d).is_on_demand();
-     real_function_6d pot_ho=real_factory_6d(world).f(HO_6d);
-
-     // one-electron potential
-     real_function_3d pot1=real_factory_3d(world).f(HO_3d);
-     real_function_3d pot2=real_factory_3d(world).f(HO_3d);
-
-     // normalize pair function
-     double norm=inner(pair,pair);
-     print("norm(ij_pair)",norm);
-     pair.scale(1.0/sqrt(norm));
-
-     // compute kinetic energy
-     double kinetic_energy = 0.0;
-     for (int axis=0; axis<6; axis++) {
-     	real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-     	real_function_6d dpsi = D(pair);
-     	kinetic_energy += 0.5*inner(dpsi,dpsi);
-     	print("done with axis",axis);
-     }
-     print("kinetic energy:", kinetic_energy);
-
-     real_function_6d copy_of_pair=copy(pair);
-     real_factory_6d comp_factory=real_factory_6d(world).empty();
-     std::shared_ptr<CompositeFunctorInterface<double,6,3> >
-     	comp(new CompositeFunctorInterface<double,6,3>(comp_factory,
-     			copy_of_pair.get_impl(),
-     			pot_r12.get_impl(),
-     			pot1.get_impl(),
-     			pot2.get_impl()
-     			));
-
-     // this will project comp to the MRA function V_phi
-     real_function_6d V_pair=real_factory_6d(world).functor(comp).is_on_demand();
-     double potential_energy=inner(pair,V_pair);
-     print("<phi|V_ftor>", potential_energy);
-     print("for HO orbitals");
-     print("total energy   :",kinetic_energy+potential_energy);
-
-     // direct
-     double direct=inner(pair,pot_ho*pair);
-     print("direct 2e-pot*pair:",direct);
-
-
-#endif
 
      // hylleraas for ACS
 #if 0
