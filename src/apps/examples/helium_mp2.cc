@@ -336,32 +336,38 @@ struct LBCost {
     {}
 
     double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
-        if (key.level() <= 1) {
-            return 100.0*(leaf_value+parent_value);
-        }
-        return std::abs(node.coeff().rank());
+//        if (key.level() <= 1) {
+//            return 100.0*(leaf_value+parent_value);
+//        }
 //        else if (node.is_leaf()) {
-//            return leaf_value;
-//        }
-//        else {
-//            return parent_value;
-//        }
+        if (node.is_leaf()) {
+            return std::abs(node.coeff().rank());
+        } else {
+            return parent_value;
+        }
     }
 };
 
 
-void iterate(World& world, const real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
+void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
     MADNESS_ASSERT(eps<0.0);
-    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.0001, 1e-6);
+    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
 
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
+//    long vpsi_size=Vpsi.size();
+//    world.gop.fence();
+//    if (world.rank()==0) print("Vpsi.size()", vpsi_size,double(vpsi_size)/1024/1024/128,"GByte");
+//    Vpsi.clear();
+//    world.gop.fence();
+
     
     LoadBalanceDeux<6> lb(world);
-    lb.add_tree(tmp,LBCost(1.0,1.0));
+    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
+    lb.add_tree(tmp,LBCost(1.0,ncoeff));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
     if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
 
@@ -484,7 +490,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 	if (1) {
 
 		// two-electron interaction potential
-		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
+		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-8);
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
 				.ket(copy(pair).get_impl())
@@ -502,6 +508,52 @@ void compute_energy(World& world, const real_function_6d& pair,
 	}
 
 	if(world.rank() == 0) printf("\npotential at time %.1fs\n\n", wall_time());
+
+}
+
+
+void solve(World& world, real_function_6d& pair, double& energy, long maxiter, double dcut) {
+
+	if (world.rank()==0) {
+		print("solving the helium atom with parameters");
+		print("energy   ",energy);
+		print("dcut	",dcut);
+		print("k	",FunctionDefaults<6>::get_k());
+		print("thresh	",FunctionDefaults<6>::get_thresh());
+	}
+
+	// one-electron potential
+	real_function_3d pot1=real_factory_3d(world).f(Z2);
+	real_function_3d pot2=real_factory_3d(world).f(Z2);
+	if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
+
+	for (long i=0; i<maxiter; i++) {
+
+		// two-electron interaction potential
+		real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+
+		real_function_6d v11=CompositeFactory<double,6,3>(world)
+							.ket(copy(pair).get_impl())
+							.g12(eri.get_impl())
+							.V_for_particle1(copy(pot1).get_impl())
+							.V_for_particle2(copy(pot2).get_impl())
+							.muster(copy(pair).get_impl())
+							;
+
+		iterate(world,v11,pair,energy);
+
+		long tree_size=pair.tree_size();
+		long size=pair.size();
+		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
+		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
+
+	}
+	
+	if (world.rank()==0) print("finished",maxiter,"iterations");
+	double ke, pe;
+	compute_energy(world,pair,pot1,pot2,ke,pe);
+	if (world.rank()==0) print("virial ratio   :", pe/ke, ke+pe);
+  
 
 }
 
@@ -642,10 +694,10 @@ int main(int argc, char** argv) {
 	}
 
 
-
     {
     	double norm=inner(orbital,orbital);
     	orbital.scale(1.0/sqrt(norm));
+//	orbital.print_tree();
 
     	// compute kinetic energy
     	double kinetic_energy = 0.0;
@@ -665,8 +717,14 @@ int main(int argc, char** argv) {
     real_function_6d pair=hartree_product(orbital,orbital);
 
     LoadBalanceDeux<6> lb(world);
-    lb.add_tree(pair,LBCost(1.0,1.0));
+    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
+    lb.add_tree(pair,LBCost(1.0,ncoeff));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+
+    // normalize pair function
+    double norm=inner(pair,pair);
+    pair.scale(1.0/sqrt(norm));
+    if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
 
 
     { 
@@ -678,56 +736,52 @@ int main(int argc, char** argv) {
     	}
     }
 
-    // normalize pair function
-    double norm=inner(pair,pair);
-    pair.scale(1.0/sqrt(norm));
-    if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
-
-    // one-electron potential
+    // where we want to end up
+    double max_thresh=FunctionDefaults<6>::get_thresh();
+    
+    // initial energy 
+    double ke,pe;
     real_function_3d pot1=real_factory_3d(world).f(Z2);
     real_function_3d pot2=real_factory_3d(world).f(Z2);
-    if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
-
-    double ke=0.0;
-    double pe=0.0;
     compute_energy(world,pair,pot1,pot2,ke,pe);
-	double eps=ke+pe;
-
-    // iterate
-	for (unsigned int i=0; i<15; i++) {
-
-		// two-electron interaction potential
-		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
-
-		real_function_6d v11=CompositeFactory<double,6,3>(world)
-							.ket(copy(pair).get_impl())
-							.g12(eri.get_impl())
-							.V_for_particle1(copy(pot1).get_impl())
-							.V_for_particle2(copy(pot2).get_impl())
-							.muster(copy(pair).get_impl())
-							;
-//		double a=inner(pair,v11);
-//		print("test pot ",a);
-
-		iterate(world,v11,pair,eps);
-		compute_energy(world,pair,pot1,pot2,ke,pe);
+    double energy=ke+pe;
 
 
-		{ 
-			long tree_size=pair.tree_size();
-			long size=pair.size();
-			if (world.rank()==0) {
-		    	    print("virial ratio   :", pe/ke, ke+pe);
-			    print("pair.tree_size()",tree_size);
-			    print("pair.size()     ",size);
-			}
-		}
+    // solve for thresh=1.e-3
+    if (1) {
+        FunctionDefaults<6>::set_thresh(1.e-3);
+    	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-3);
+    	solve(world,pair1,energy,8,1.e-8);
+    	pair=pair1;
+    }	
 
-	}
+    // solve for thresh=1.e-4
+    if (max_thresh<9.e-4) {
+        FunctionDefaults<6>::set_thresh(1.e-4);
+    	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-4);
+    	solve(world,pair1,energy,8,1.e-8);
+    	pair=pair1;
+    }
 
-    print("for he orbitals");
-    print("total energy   :",ke+pe);
-    print("expected energy:",-2.8477);
+    // solve for thresh=1.e-5
+    if (max_thresh<9.e-5) {
+        FunctionDefaults<6>::set_thresh(1.e-5);
+    	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-5);
+    	solve(world,pair1,energy,8,1.e-8);
+    	pair=pair1;
+    }
+
+    // solve for thresh=1.e-6
+    if (max_thresh<9.e-6) {
+        FunctionDefaults<6>::set_thresh(1.e-6);
+    	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-6);
+    	solve(world,pair1,energy,8,1.e-8);
+    	pair=pair1;
+    }
+
+    // finally solve
+    FunctionDefaults<6>::set_thresh(max_thresh);
+    solve(world,pair,energy,10,1.e-8);
 
 #endif
 

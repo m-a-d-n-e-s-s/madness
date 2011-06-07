@@ -2256,20 +2256,20 @@ namespace madness {
                 // point to "outermost" leaf node
 				Future<datumL> datum11, datum22;
 				if (node1.has_children()) {
-				    datum11=p1->task(p1->coeffs.owner(key1), &FunctionImpl<T,LDIM>::find_datum, key1,
-				            TaskAttributes::hipri());
+					datum11=p1->task(p1->coeffs.owner(key1), &FunctionImpl<T,LDIM>::find_datum, key1,
+						TaskAttributes::hipri());
 				} else {
 					datum11.set(datum1);
 				}
 
-				if (node1.has_children()) {
-	                datum22=p2->task(p2->coeffs.owner(key2), &FunctionImpl<T,LDIM>::find_datum, key2,
-                            TaskAttributes::hipri());
+				if (node2.has_children()) {
+					datum22=p2->task(p2->coeffs.owner(key2), &FunctionImpl<T,LDIM>::find_datum, key2,
+						TaskAttributes::hipri());
 				} else {
 					datum22.set(datum2);
 				}
 
-                woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
+			woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
                         datum11, datum22);
 			}
 
@@ -2615,7 +2615,7 @@ namespace madness {
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
                     coeffT c(cdata.vk,targs);
-                    c(s) = node.coeff()(s);
+                    c(s) += node.coeff()(s);
                     coeffs.replace(key,nodeT(c,false));
                 }
                 else {
@@ -2868,11 +2868,12 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             // Copy child scaling coeffs into contiguous block
-            coeffT d(cdata.v2k,targs);
-//            tensorT d(cdata.v2k);
+            tensorT d(cdata.v2k);
+//            coeffT d(cdata.v2k,targs);
             int i=0;
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                d(child_patch(kit.key())) += v[i].get();
+//                d(child_patch(kit.key())) += v[i].get();
+                d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
             }
 
             d = filter(d);
@@ -2882,8 +2883,8 @@ namespace madness {
 
             if (acc->second.has_coeff()) {
             	print(" stuff in compress_op");
-                const coeffT& c = acc->second.coeff();
-//                const tensorT c = acc->second.coeff().full_tensor_copy();
+//                const coeffT& c = acc->second.coeff();
+                const tensorT c = acc->second.coeff().full_tensor_copy();
                 if (c.dim(0) == k) {
                     d(cdata.s0) += c;
                 }
@@ -2893,19 +2894,19 @@ namespace madness {
             }
 
             // this is deep copy
-            coeffT s= copy(d(cdata.s0));
-//            tensorT s=copy(d(cdata.s0));
+//            coeffT s= copy(d(cdata.s0));
+            tensorT s=copy(d(cdata.s0));
 
             if (key.level()> 0 && !nonstandard)
                 d(cdata.s0) = 0.0;
 
-            d.reduceRank(thresh);
-//            coeffT dd=coeffT(d,targs);
-            acc->second.set_coeff(d);
-            s.reduceRank(thresh);
-//            coeffT ss=coeffT(s,targs);
+//            d.reduceRank(thresh);
+            coeffT dd=coeffT(d,targs);
+            acc->second.set_coeff(dd);
+//            s.reduceRank(thresh);
+            coeffT ss=coeffT(s,targs);
 
-            return s;
+            return ss;
         }
 #else
 
@@ -3108,9 +3109,9 @@ namespace madness {
         /// apply an operator on the coeffs c (at node key)
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
-        /// @param[in] op   the operator to act on the source function
-        /// @param[in] f    the source function (not used???)
-        /// @param[in] key  key of the source FunctionNode of f which is processed
+        /// @param[in] op     the operator to act on the source function
+        /// @param[in] key    key of the source FunctionNode of f which is processed
+        /// @param[in] coeff  coeffs of FunctionNode being processed
         template <typename opT, typename R>
         Void do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -3120,7 +3121,7 @@ namespace madness {
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-            if (NDIM==6) fac=100.0;
+            if (NDIM==6) fac=729; //100.0;
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
@@ -3165,18 +3166,27 @@ namespace madness {
                             // Most expensive part is the kernel ... do it in a separate task
                             if (coeff_full.has_data() and (cost_ratio<1.0)) {
 
-//                            tensorT result_full = op->apply(key, d, coeff_full, tol/fac/cnorm);
-//                            coeffT result=coeffT(result_full,apply_targs);
-//                            // accumulate also expects result in SVD form
-//                            coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
-//                                    TaskAttributes::hipri());
+#if 0
+				// no finewr grain parallelism
+            			tensorT result_full = op->apply(key, d, coeff_full, tol/fac/cnorm);
+            			coeffT result=coeffT(result_full,apply_targs);
 
+            			// Screen here to reduce communication cost of negligible data
+            			// and also to ensure we don't needlessly widen the tree when
+            			// applying the operator
+            			if (result.config().svd_normf()> 0.3*tol/fac) {
+					coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
+            			            TaskAttributes::hipri());
+            			}
+#else				
 
                                 // This introduces finer grain parallelism
-                                ProcessID where = world.rank();
+                         	ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : world.rank();
+                         	ProcessID here = world.rank();
                                 do_op_args args(key, d, dest, tol, fac, cnorm);
-                                woT::task(where, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
+                                woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
                                         args,apply_targs);
+#endif					
 
                             } else {
 
@@ -3209,7 +3219,7 @@ namespace madness {
 
 
 
-        /// similar to apply, but loop through this's FunctionNodes, not through f's
+        /// similar to apply, but for low rank coeffs
          template <typename opT, typename R>
          void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f,
                  const std::vector<bool>& is_periodic, bool fence) {
@@ -3540,7 +3550,7 @@ namespace madness {
                 if (node.has_coeff())
                     sum+=node.size();
             }
-            print("proc",world.rank(),sum);
+//            print("proc",world.rank(),sum);
 #else
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {

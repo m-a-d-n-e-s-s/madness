@@ -70,8 +70,37 @@ namespace madness {
 #include <mra/indexit.h>
 #include <mra/funcimpl.h>
 #include <mra/loadbal.h>
+#include <mra/lbdeux.h>
 
 namespace madness {
+
+
+    template<size_t NDIM> 
+    struct LBCost2 {
+        double leaf_value;
+        double parent_value;
+        LBCost2(double leaf_value=1.0, double parent_value=1.0)
+            : leaf_value(leaf_value)
+            , parent_value(parent_value)
+        {}
+    
+        double operator()(const Key<NDIM>& key, const FunctionNode<double,NDIM>& node) const {
+    //        if (key.level() <= 1) {
+    //            return 100.0*(leaf_value+parent_value);
+    //        }
+    //        else if (node.is_leaf()) {
+            if (node.is_leaf()) {
+                return std::abs(node.coeff().rank());
+            } else {
+                return parent_value;
+            }
+        }
+    };
+
+
+
+
+
 	/// \ingroup mra
     /// \addtogroup function
 
@@ -1464,7 +1493,13 @@ namespace madness {
     	            f.get_impl()->get_functor().get(),true,true);
             source.get_impl()->compress(true,true,true);
 
-    	    if (f.get_impl()->world.rank()==0) printf("\ncompressed in apply at time   %.1fs\n\n", wall_time());
+    	    if (f.get_impl()->world.rank()==0) printf("compressed in apply at time   %.1fs\n", wall_time());
+
+	    LoadBalanceDeux<NDIM> lb(source.get_impl()->get_world());
+	    double ncoeff=std::pow(FunctionDefaults<NDIM>::get_k(),NDIM);
+	    lb.add_tree(source,LBCost2<NDIM>(1.0,ncoeff));
+	    FunctionDefaults<NDIM>::redistribute(f.get_impl()->get_world(), lb.load_balance(2.0,false));
+    	    if (f.get_impl()->world.rank()==0) printf("loadbal in apply at time   %.1fs\n", wall_time());
 
     	    result.set_impl(source, true);
     	    result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
