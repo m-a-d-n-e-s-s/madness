@@ -35,15 +35,17 @@
 
 /// \file moldft/molecule.cc
 /// \brief Simple management of molecular information and potential
-
+///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+///#include <mra/mra.h>
 #include <tensor/tensor.h>
 #include <linalg/tensor_lapack.h>
 #include <constants.h>
-#include <moldft/molecule.h>
-#include <moldft/atomutil.h>
+#include <jacob/molecule.h>
+#include <jacob/atomutil.h>
 #include <misc/misc.h>
 #include <iomanip>
 #include <set>
+
 
 static const double PI = 3.1415926535897932384;
 
@@ -141,13 +143,18 @@ void Molecule::read_file(const std::string& filename) {
     throw "No end to the geometry in the input file";
 finished:
     ;
-}
+}  
+
 
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
+    rsqasymptotic.push_back(36.0*c*c);       //jacob added
+    double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
+    atomic_radii.push_back(radius*2.0*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
     //printf("smoothing param %.6f\n", c);
     rcut.push_back(1.0/c);
+
 }
 
 void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
@@ -169,6 +176,17 @@ madness::Tensor<double> Molecule::get_all_coords() const {
     return c;
 }
 
+std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
+  std::vector< madness::Vector<double,3> > c(natom());
+  for (int i=0; i<natom(); ++i) {
+    const Atom atom = get_atom(i);
+    c[i][0] = atom.x;
+    c[i][1] = atom.y;
+    c[i][2] = atom.z;
+  }
+  return c;
+}
+
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
     for (int i=0; i<natom(); ++i) {
@@ -184,11 +202,13 @@ void Molecule::set_eprec(double value) {
     eprec = value;
     for (unsigned int i=0; i<atoms.size(); ++i) {
         rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
+	std::cout << "RCUT " << i << " " << rcut[i] << std::endl;
     }
     core_pot.set_eprec(value);
 }
 
 void Molecule::set_rcut(double value) {
+  throw "THIS LOOKS WRONG ... RJH";
     for (unsigned int i=0; i<atoms.size(); ++i) {
         rcut[i] = (value<=0.0) ? 1.0 : value;
     }
@@ -252,29 +272,62 @@ double Molecule::nuclear_dipole(int axis) const {
 
     return sum;
 }
+double Molecule::nuclear_charge_density(double x, double y, double z) const {
+  // Only one atom will contribute due to the short range of the nuclear            
+  // charge density                                                                                                                                        
+    for (unsigned int i=0; i<atoms.size(); i++) {
+    double big = rsqasymptotic[i];
+    double xx = atoms[i].x - x;
+    double rsq = xx*xx;
+    if (rsq <  big) {
+      double yy = atoms[i].y - y;
+      rsq += yy*yy;
+      if (rsq < big) {
+	double zz = atoms[i].z - z;
+	rsq += zz*zz;
+	if (rsq < big) {
+	  double r = sqrt(rsq);
+	  return atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+	}
+      }
+    }
+  }
+  return 0.0;
+  /*
+  double sum = 0.0;
+  for (unsigned int i = 0; i<atoms.size(); i++){
+    double r = distance(atoms[i].x, atoms[i].y,atoms[i].z, x, y, z);
+    int atn = atoms[i].atomic_number;
+    double xi = get_atomic_data(atn).nuclear_gaussian_exponent;
+    double rhoc = double(atn)*pow(xi/PI, 0.5*3.0);
+    sum -= rhoc*exp(-r*r*xi);
+  }
+  return sum;   */
+}
 
-double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
+  double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
     double sum = 0.0;
     unsigned int z1 = atoms[i].atomic_number;
     if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
     for (unsigned int j=0; j<atoms.size(); ++j) {
-        if (j != (unsigned int)(i)) {
-            unsigned int z2 = atoms[j].atomic_number;
-            if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
-            double r = inter_atomic_distance(i,j);
-            double xx;
-            if (axis == 0) xx = atoms[i].x - atoms[j].x;
-            else if (axis == 1) xx = atoms[i].y - atoms[j].y;
-            else xx = atoms[i].z - atoms[j].z;
-            sum -= xx * z1 * z2/ (r * r * r);
-        }
+      if (j != (unsigned int)(i)) {
+	unsigned int z2 = atoms[j].atomic_number;
+	if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
+	double r = inter_atomic_distance(i,j);
+	double xx;
+	if (axis == 0) xx = atoms[i].x - atoms[j].x;
+	else if (axis == 1) xx = atoms[i].y - atoms[j].y;
+	else xx = atoms[i].z - atoms[j].z;
+	sum -= xx * z1 * z2/ (r * r * r);
+      }
     }
     return sum;
-}
+  }
 
 double Molecule::smallest_length_scale() const {
     double rcmax = 0.0;
     for (unsigned int i=0; i<atoms.size(); ++i) {
+  std::cout << "SLS CUT " << i << " " << rcut[i] << std::endl;
         rcmax = std::max(rcmax,rcut[i]);
     }
     return 1.0/rcmax;
@@ -565,14 +618,14 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
 
 
 // double Molecule::nuclear_charge_density(double x, double y, double z) const {
-//     if > 6 return 0.0
-//     double sum = 0.0;
-//     for (unsigned int i=0; i<atoms.size(); ++i) {
-//         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
-//         //sum -= atoms[i].q/(r+1e-8);
-//         sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
-//     }
-//     return sum;
+//  if > 6 return 0.0;
+//   double sum = 0.0;
+//   for (unsigned int i=0; i<atoms.size(); ++i) {
+//    double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
+     //         //sum -= atoms[i].q/(r+1e-8);
+//   sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+//   }
+//  return sum;
 // }
 
 unsigned int Molecule::n_core_orb_all() const {
@@ -592,7 +645,7 @@ double Molecule::core_eval(int atom, unsigned int core, int m, double x, double 
     double xx = x - atoms[atom].x;
     double yy = y - atoms[atom].y;
     double zz = z - atoms[atom].z;
-    double rsq = xx*xx + yy*yy + zz*zz;
+    double rsq= xx*xx + yy*yy + zz*zz;
     return core_pot.core_eval(atn, core, m, rsq, xx, yy, zz);
 }
 

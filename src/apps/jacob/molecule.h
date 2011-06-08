@@ -36,8 +36,8 @@
 /// \file moldft/molecule.h
 /// \brief Declaration of molecule related classes and functions
 
-#include <moldft/corepotential.h>
-#include <moldft/atomutil.h>
+#include <jacob/corepotential.h>
+#include <jacob/atomutil.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -48,6 +48,7 @@
 #include <cmath>
 #include <tensor/tensor.h>
 #include <misc/misc.h>
+#include <world/array.h>
 
 
 class Atom {
@@ -92,6 +93,8 @@ private:
     bool test_for_sigma(double xaxis, double yaxis, double zaxis) const;
 
     bool test_for_inverse() const;
+
+    std::vector<double> rsqasymptotic;// value od r*r beyond which the potential is assymptotic 1./r Jacob added
 
 public:
     /// Makes a molecule with zero atoms
@@ -140,6 +143,10 @@ public:
 
     madness::Tensor<double> get_all_coords() const;
 
+    std::vector< madness::Vector<double,3> > get_all_coords_vec() const;
+
+    std::vector<double> atomic_radii;
+    
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
 
@@ -172,6 +179,8 @@ public:
     double nuclear_repulsion_derivative(int i, int j) const;
 
     double nuclear_dipole(int axis) const;
+    
+    double nuclear_charge_density(double x, double y, double z) const;//nuclear charge density jacob added
 
     double smallest_length_scale() const;
 

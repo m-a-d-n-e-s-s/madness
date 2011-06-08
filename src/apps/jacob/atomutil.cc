@@ -33,7 +33,7 @@
 */
 
 #include <constants.h>
-#include <moldft/atomutil.h>
+#include <jacob/atomutil.h>
 #include <misc/misc.h>
 #include <algorithm>
 #include <cmath>
@@ -42,7 +42,7 @@
 /// \file atomutil.cc
 /// \brief implementation of utility functions for atom
 
-static const unsigned int NUMBER_OF_ATOMS_IN_TABLE = 110;
+static const unsigned int NUMBER_OF_ATOMS_IN_TABLE = 110;  
 static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Bq",  "bq",   0  ,  0   ,  0.0               , 0.0           ,0.0             , 0.0    },
     {"H",   "h",    1  ,  1   ,  2.6569547399e-05  , 1.32234e-05   ,2.1248239171e+09, 0.30   },
@@ -170,7 +170,6 @@ unsigned int symbol_to_atomic_number(const std::string& symbol) {
     throw "unknown atom";
 }
 
-
 /// Returns radius for smoothing nuclear potential with energy precision eprec
 double smoothing_parameter(double Z, double eprec) {
     // The min is since asymptotic form not so good at low acc.
@@ -224,8 +223,8 @@ double smoothed_potential(double r) {
     static const double q6[16] = {.15873015873015873, -0.25195263290501128e-1, 0.39992481413494903e-2, -0.63480129229574217e-3, 0.10076210989447071e-3, -0.15993985425859338e-4, 0.25387278290368119e-5, -0.40297464132256025e-6, 0.63964378952634106e-7, -0.10146488064153093e-7, 0.16103633738263416e-8, -0.26645848419611212e-9, 0.42505693478320828e-10, 0.0, 0.0, 0.0};
 
 
-//     double rsq = r*r;
-//     double formula = erf(r)/r + exp(-rsq)/sqrt(madness::constants::pi);
+    double rsq = r*r;
+    double formula = erf(r)/r + exp(-rsq)/sqrt(madness::constants::pi);
 
     const double* a;
 
@@ -288,11 +287,11 @@ double smoothed_potential(double r) {
     double r8 = r4*r4;
     double result = d0 + r8*d1;
 
-//     if (abs(result-formula) > 1e-12) {
-//         printf("ERROR in potn: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
-//                r, formula, result, formula-result);
-//         throw "bad";
-//     }
+    if (abs(result-formula) > 1e-12) {
+        printf("ERROR in potn: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
+               sqrt(rsq), formula, result, formula-result);
+        throw "bad";
+    }
 
     return result;
 }
@@ -436,6 +435,15 @@ double smoothed_density(double r) {
     static const double lo5=4.3, hi5=6.0, m5=(hi5+lo5)*0.5;;
     static const double q5[16] = {.194174757283199449635533806186, -0.377038363822809854533904553548e-1, 0.732113336025487404677631262998e-2, -0.142157955818121977656787779445e-2, 0.276035491577857853206947989669e-3, -0.536002798939302119922940621252e-4, 0.104095545759619899370994180918e-4, -0.202342699022285881220852553495e-5, 0.395148591040236277570987404111e-6, -0.787827633774820556895499032076e-7, 0.169720741458720884543048912858e-7, -0.438693569448717273299105660721e-8, 0.137973675089051423676674830951e-8, -0.588399255663432376876450088919e-9, 0.349125002345335342767874275642e-9, -0.117798500933314757378027836748e-9};
 
+    if (r > hi5) {
+      return 0.0;
+    }
+    else {
+      double rsq = r*r;
+      return exp(-rsq)*(2.5 - rsq) * rpithreehalf;
+    }
+
+    /*
     double rsq = r*r;
     double formula = exp(-rsq)*(2.5 - rsq) * rpithreehalf;
 
@@ -498,11 +506,12 @@ double smoothed_density(double r) {
 
     if (abs(result-formula) > 1e-12) {
         printf("ERROR in rho: r=%.10f formula=%.10f result=%.10f err=%.1e\n",
-               r, formula, result, formula-result);
+               sqrt(rsq), formula, result, formula-result);
         throw "bad";
     }
 
     return result;
+    */
 }
 
 
