@@ -759,7 +759,8 @@ namespace madness {
                 const GenTensor<T>& coeff,
                 double tol, double tol2) const {
 
-            MADNESS_ASSERT(NDIM==6);
+            if (coeff.tensor_type()==TT_FULL) return 0.5;
+            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
 

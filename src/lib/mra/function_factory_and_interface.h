@@ -217,14 +217,11 @@ namespace madness {
 			if (impl_eri) {
 				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(true);
 			}
-			if (impl_m1) {
-				if (not impl_m1->is_on_demand()) impl_m1->make_redundant(true);
-				if (not impl_m2->is_on_demand()) impl_m2->make_redundant(true);
-			}
-			if (impl_p1) {
-				if (not impl_p1->is_on_demand()) impl_p1->make_redundant(true);
-				if (not impl_p2->is_on_demand()) impl_p2->make_redundant(true);
-			}
+			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(true);
+			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(true);
+
+			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(true);
+			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(true);
 
 		}
 

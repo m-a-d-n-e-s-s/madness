@@ -2469,8 +2469,7 @@ namespace madness {
 
 
             // include the one-electron potential
-            if (val_pot1.has_data()) {
-                MADNESS_ASSERT(val_pot2.has_data());
+            if (val_pot1.has_data() and val_pot2.has_data()) {
 
                 FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
                 Tensor<T> unity=Tensor<double>(cdataL.vk,false);
@@ -2479,6 +2478,10 @@ namespace madness {
                 // direct product: V(1) * E(2) + E(1) * V(2)
                 coeff_v = outer(val_pot1.full_tensor_copy(),unity)
                           + outer(unity,val_pot2.full_tensor_copy());
+            } else if (val_pot1.has_data()) {
+
+                MADNESS_ASSERT(LDIM==NDIM);
+                coeff_v = (val_pot1.full_tensor_copy());
             }
 
 
@@ -2649,7 +2652,8 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
-                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank());
+//                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank());
+                    coeffs.replace(child,nodeT(ss,-1.0,false));
                     // Note value -1.0 for norm tree to indicate result of refinement
                 }
             }
@@ -3023,7 +3027,11 @@ namespace madness {
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
-            if (result.config().svd_normf()> 0.3*args.tol/args.fac) {
+            double norm;
+            MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
+            if (result.tensor_type()==TT_2D) norm=result.config().svd_normf();
+            if (result.tensor_type()==TT_FULL) norm=result.normf();
+            if (norm > 0.3*args.tol/args.fac) {
                 // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
                 coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
@@ -3138,6 +3146,7 @@ namespace madness {
             const long break_even=100;       // what should this number be ?!
             tensorT coeff_full;
             if (coeff.rank()>break_even) coeff_full=coeff.full_tensor_copy();
+            if (coeff.tensor_type()==TT_FULL) coeff_full=coeff.full_tensor();
 
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
@@ -3166,33 +3175,23 @@ namespace madness {
                             // Most expensive part is the kernel ... do it in a separate task
                             if (coeff_full.has_data() and (cost_ratio<1.0)) {
 
-#if 0
-				// no finewr grain parallelism
-            			tensorT result_full = op->apply(key, d, coeff_full, tol/fac/cnorm);
-            			coeffT result=coeffT(result_full,apply_targs);
-
-            			// Screen here to reduce communication cost of negligible data
-            			// and also to ensure we don't needlessly widen the tree when
-            			// applying the operator
-            			if (result.config().svd_normf()> 0.3*tol/fac) {
-					coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
-            			            TaskAttributes::hipri());
-            			}
-#else				
 
                                 // This introduces finer grain parallelism
-                         	ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : world.rank();
-                         	ProcessID here = world.rank();
+                                ProcessID here = world.rank();
+                                ProcessID there =  world.random_proc();
+            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
                                 do_op_args args(key, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
                                         args,apply_targs);
-#endif					
 
                             } else {
 
                                 // apply2 returns result in SVD form
                                 coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
-                                const double result_norm=result.config().svd_normf();
+                                double result_norm=-1.0;
+                                if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
+                                if (result.tensor_type()==TT_FULL) result_norm=result.normf();
+                                MADNESS_ASSERT(result_norm>-0.5);
                                 if (result_norm> 0.3*tol/fac) {
 
                                     generated_terms+=result.rank();

@@ -537,6 +537,10 @@ namespace madness {
 
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
 	    gentensorT& gaxpy(const double alpha, const gentensorT& rhs, const double beta) {
+            if (tensor_type()==TT_FULL) {
+                full_tensor().gaxpy(alpha,rhs.full_tensor(),beta);
+                return *this;
+            }
 	    	if (not alpha==1.0) this->scale(alpha);
 //	    	rhs.accumulate_into(*this,beta);
 	    	rhs.append(*this,beta);

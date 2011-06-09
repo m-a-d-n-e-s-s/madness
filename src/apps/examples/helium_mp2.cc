@@ -78,7 +78,7 @@ static double guess(const coord_3d& r) {
 
 static double V(const coord_3d& r) {
     const double x=r[0]+shift, y=r[1]+shift, z=r[2];
-    return -1.0/(sqrt(x*x+y*y+z*z+1e-8));
+    return -1.0/(sqrt(x*x+y*y+z*z+1e-10));
 }
 
 static double HO_3d(const coord_3d& r) {
@@ -326,13 +326,14 @@ static double he_correlation(const coord_6d& r) {
 }
 
 
-void save_function(World& world, real_function_6d& pair, std::string name) {
+void save_function(World& world, const real_function_6d& pair, const std::string name) {
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
     ar & pair;
 }
 
-void load_function(World& world, real_function_6d& pair, std::string name) {
+void load_function(World& world, real_function_6d& pair, const std::string name) {
     archive::ParallelInputArchive ar(world, name.c_str());
+//    archive::ParallelInputArchive ar(world, "restart");
     ar & pair;
 }
 
@@ -359,6 +360,16 @@ struct LBCost {
 };
 
 
+struct true_op {
+    bool operator()(FunctionImpl<double,3>* impl, const Key<3>& key, const FunctionNode<double,3>& t) const {
+        return true;
+    }
+
+    template <typename Archive> void serialize (Archive& ar) {}
+};
+
+
+
 void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
     MADNESS_ASSERT(eps<0.0);
@@ -374,6 +385,9 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
 //    Vpsi.clear();
 //    world.gop.fence();
 
+    long size=tmp.size();
+    if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
+
     
     LoadBalanceDeux<6> lb(world);
     double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
@@ -382,6 +396,11 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
 
     tmp.scale(-2.0);
+    size=tmp.size();
+    if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
+    tmp.compress();
+    size=tmp.size();
+    if(world.rank() == 0) print("tmp.size() compressed before truncation ",size);
     tmp.truncate();
     if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
@@ -401,36 +420,35 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
 
 	real_function_3d Vpsi = (V*psi);
     Vpsi.scale(-2.0).truncate();
-	real_function_3d copy_of_Vpsi = copy(Vpsi);
-	real_function_3d copy_of_Vpsi2 = copy(Vpsi);
-	real_function_3d copy_of_Vpsi3 = copy(Vpsi);
-	real_function_3d copy_of_V = copy(V);
-	real_function_3d copy_of_V2 = copy(V);
-	real_function_3d copy_of_psi = copy(psi);
-	real_function_3d copy_of_psi2 = copy(psi);
-	real_function_3d copy_of_psi3 = copy(psi);
-	copy_of_psi2.scale(-2.0);
 
-    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.0001, 1e-6);
     real_function_3d tmp;
 
     // direct Vpsi
     if (0) {
     	// set the impl of arg to get the structure of the target tree
-    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_Vpsi.get_impl())
-    			.muster(copy_of_Vpsi3.get_impl());
+    	real_function_3d arg=CompositeFactory<double,3,3>(world)
+    	        .ket(copy(Vpsi).get_impl())
+    			.muster(copy(Vpsi).get_impl());
 
     	tmp = op(arg).truncate();
     }
 
     // composite Vpsi
     else {
-//    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_psi2.get_impl())
-//					.g12(copy_of_V.get_impl()).muster(copy_of_psi.get_impl());
-    	real_function_3d arg=CompositeFactory<double,3,3>(world).ket(copy_of_Vpsi2.get_impl())
-					.muster(copy_of_psi.get_impl());
+//        psi.refine_general(true_op());
+        print("psi.size()",psi.size(),psi.tree_size());
+    	real_function_3d arg=CompositeFactory<double,3,3>(world)
+//    	        .V_for_particle1(copy(V).get_impl())
+    	        .ket(copy(Vpsi).get_impl())
+				.muster(copy(Vpsi).get_impl());
 
-    	tmp = op(arg).truncate();
+    	tmp = op(arg);
+    	print("tmp.size()",tmp.size(),tmp.norm2());
+//    	tmp.scale(-2.0);
+    	tmp.truncate();
+        print("tmp.truncated.size()",tmp.size());
+
     }
 
 //    // conventional
@@ -559,7 +577,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		long size=pair.size();
 		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
 		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
-		std::string name="restart_k"+stringify(k)+"_thresh_"+stringify(thresh)+"_it_"+stringify(i);
+		std::string name="restart_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
 		save_function(world,pair,name);
 
 	}
@@ -608,18 +626,36 @@ int main(int argc, char** argv) {
     TensorType tt = TT_2D;
     long truncate_mode = 0;
 
-    if (argc==6) {
-		L = atof(argv[1]);   // box size
-		k = atoi(argv[2]) ;        // wavelet order
-		thresh = atof(argv[3]); // precision
-		tt = TensorType(atoi(argv[4]));
-		truncate_mode = atoi(argv[5]);
+    if (world.rank()==0) {
+        print("number of arguments",argc);
+        for(int i = 0; i < argc; i++) {
+            print("argv[",i,"] = ",argv[i]);
+        }
     }
 
-    if(world.rank() == 0) printf("\nstarting at time %.1fs\n\n", wall_time());
+
+    if (argc==3 or argc==4) {
+//		L = atof(argv[1]);   // box size
+		k = atoi(argv[1]) ;        // wavelet order
+		thresh = atof(argv[2]); // precision
+//		tt = TensorType(atoi(argv[4]));
+//		truncate_mode = atoi(argv[5]);
+    }
+
+    bool restart=false;
+    std::string restart_name;
+    if (argc==4) {
+        restart_name=stringify(argv[3]);
+        restart=true;
+    }
+
+    if (world.rank()==0) {
+        print("restart mode",restart, restart_name);
+        printf("\nstarting at time %.1fs\n\n", wall_time());
+    }
 
     // hydrogen
-#if 0
+#if 1
 
     tt=TT_FULL;
 
@@ -661,12 +697,10 @@ int main(int argc, char** argv) {
 
 	// compute the potential energy on the fly
     if (1) {
-		real_function_3d copy_of_psi=copy(psi);
-		real_function_3d copy_of_pot=copy(pot);
-		real_function_3d Vpsi2=pot*psi;
 
 		real_function_3d Vpsi=CompositeFactory<double,3,3>(world)
-							.ket(Vpsi2.get_impl())
+		                    .V_for_particle1(copy(pot).get_impl())
+							.ket(copy(psi).get_impl())
 							;
 		print("computing <psi | V | psi> on the fly");
 		pe=inner(psi,Vpsi);
@@ -674,20 +708,20 @@ int main(int argc, char** argv) {
     }
 
 
-    for (int i=0; i<10; i++) {
+    for (int i=0; i<20; i++) {
     	iterate(world,pot,psi,te);
         compute_energy(world,psi,pot,ke,pe);
         psi.reconstruct();
-		trajectory<3> traj(-L/2,L/2,201);
-		std::string filename="iteration"+stringify(i);
-		plot_along<3>(world,traj,psi,filename);
+//		trajectory<3> traj(-L/2,L/2,201);
+//		std::string filename="iteration"+stringify(i);
+//		plot_along<3>(world,traj,psi,filename);
 
     }
 
 #endif
 
     // helium
-#if 1
+#if 0
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -749,18 +783,33 @@ int main(int argc, char** argv) {
     	if (world.rank()==0) print("potential energy/electron:",pe);
     }
 
-    real_function_6d pair=hartree_product(orbital,orbital);
 
-    LoadBalanceDeux<6> lb(world);
-    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
-    lb.add_tree(pair,LBCost(1.0,ncoeff));
-    FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+    real_function_6d pair;
+    // where we start and where we end
+    double current_thresh=1.e-2;
+    const double max_thresh=FunctionDefaults<6>::get_thresh();
 
-    // normalize pair function
-    double norm=inner(pair,pair);
-    pair.scale(1.0/sqrt(norm));
+    if (not restart) {
+        pair=hartree_product(orbital,orbital);
+
+        LoadBalanceDeux<6> lb(world);
+        double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
+        lb.add_tree(pair,LBCost(1.0,ncoeff));
+        FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+
+        // normalize pair function
+        double norm=inner(pair,pair);
+        pair.scale(1.0/sqrt(norm));
+    } else {
+        load_function(world,pair,restart_name);
+        if (world.rank()==0) {
+            print("restart from file",restart_name);
+            print("k       ",pair.k());
+            print("thresh  ",pair.thresh());
+            current_thresh=pair.thresh();
+        }
+    }
     if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
-
 
     { 
     	long tree_size=pair.tree_size();
@@ -770,9 +819,6 @@ int main(int argc, char** argv) {
     	    print("pair.size()     ",size);
     	}
     }
-
-    // where we want to end up
-    double max_thresh=FunctionDefaults<6>::get_thresh();
     
     // initial energy 
     double ke,pe;
@@ -783,27 +829,30 @@ int main(int argc, char** argv) {
 
 
     // solve for thresh=1.e-3
-    if (1) {
+    if (current_thresh>1.e-3) {
         FunctionDefaults<6>::set_thresh(1.e-3);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-3);
     	solve(world,pair1,energy,4,1.e-8);
     	pair=pair1;
+    	current_thresh=1.e-3;
     }	
 
     // solve for thresh=1.e-4
-    if (max_thresh<9.e-4) {
+    if ((current_thresh>1.e-4) and (max_thresh<9.e-4)) {
         FunctionDefaults<6>::set_thresh(1.e-4);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-4);
     	solve(world,pair1,energy,8,1.e-8);
     	pair=pair1;
+    	current_thresh=1.e-4;
     }
 
     // solve for thresh=1.e-5
-    if (max_thresh<9.e-5) {
+    if ((current_thresh>1.e-5) and (max_thresh<9.e-5)) {
         FunctionDefaults<6>::set_thresh(1.e-5);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-5);
     	solve(world,pair1,energy,8,1.e-8);
     	pair=pair1;
+        current_thresh=1.e-5;
     }
 
     // solve for thresh=1.e-6

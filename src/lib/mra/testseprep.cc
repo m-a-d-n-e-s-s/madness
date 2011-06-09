@@ -892,10 +892,10 @@ int main(int argc, char**argv) {
     int error=0;
     print("hello world");
 #if 1
-//    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
-//    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
-//
+    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
+    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
+    error+=testGenTensor_ctor(k,dim,eps,TT_2D);
+
 //    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
 //    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
@@ -904,11 +904,7 @@ int main(int argc, char**argv) {
 //    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
 //    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
 
-//    error+=testGenTensor_update(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_update(k,dim,eps,TT_3D);
-//    error+=testGenTensor_update(k,dim,eps,TT_2D);
-
-//    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);
     error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
 
