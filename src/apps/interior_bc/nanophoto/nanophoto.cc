@@ -171,6 +171,7 @@ int main(int argc, char **argv) {
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
 
+#if 0
     // get the domain mask -- this segment can be commented out
     if(world.rank() == 0) {
         printf("Projecting the domain mask\n");
@@ -215,6 +216,7 @@ int main(int argc, char **argv) {
     sprintf(funcname, "density");
     vtk_output(world, funcname, dens);
     dens.clear();
+#endif
 
     // do we already have a solution, or do we need to calculate it?
     real_function_3d usol;
@@ -240,7 +242,7 @@ int main(int argc, char **argv) {
         tpm->fop = SURFACE;
         real_function_3d surf = real_factory_3d(world).functor(tpm);
         sprintf(funcname, "surface");
-        vtk_output(world, funcname, surf);
+        //vtk_output(world, funcname, surf);
 
         if(world.rank() == 0) {
             printf("Projecting the rhs function\n");
@@ -249,7 +251,7 @@ int main(int argc, char **argv) {
         tpm->fop = DIRICHLET_RHS;
         real_function_3d rhs = real_factory_3d(world).functor(tpm);
         sprintf(funcname, "rhs");
-        vtk_output(world, funcname, rhs);
+        //vtk_output(world, funcname, rhs);
 
         // green's function
         // note that this is really -G...
@@ -275,7 +277,7 @@ int main(int argc, char **argv) {
         FunctionSpace<double, 3> space(world);
         double resid_thresh = 1.0e-3;
         double update_thresh = 1.0e-3;
-        int maxiter = 30;
+        int maxiter = 50;
         GMRES(space, dcio, grhs, usol, maxiter, resid_thresh, update_thresh,
             true);
 
@@ -294,7 +296,7 @@ int main(int argc, char **argv) {
     }
 
     // print out the solution function to a vtk file
-    sprintf(funcname, "solution");
+    sprintf(funcname, "solution-depth");
     vtk_output(world, funcname, usol);
 
     finalize();
@@ -324,8 +326,8 @@ void vtk_output(World &world, const char *funcname,
         npts[i] = 251;
     }
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
-    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
+    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
@@ -334,7 +336,8 @@ void vtk_output(World &world, const char *funcname,
     plotlo[1] = -20.0 / 0.052918; plothi[1] = 20.0 / 0.052918; npts[1] = 251;
     plotlo[2] = -10.0 / 0.052918; plothi[2] = 30.0 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
@@ -343,16 +346,18 @@ void vtk_output(World &world, const char *funcname,
     plotlo[1] = -0.25 / 0.052918; plothi[1] = 0.25 / 0.052918; npts[1] = 251;
     plotlo[2] = 4.75 / 0.052918; plothi[2] = 5.25 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
     plotvtk_end<3>(world, filename);
 
     // print out the solution function near the area of interest
     sprintf(filename, "%s-hyperfine.vts", funcname);
     plotlo[0] = 0.0 / 0.052918; plothi[0] = 0.0 / 0.052918; npts[0] = 1;
-    plotlo[1] = -0.0015 / 0.052918; plothi[1] = 0.0015 / 0.052918; npts[1] = 251;
-    plotlo[2] = 5.03611645505839 / 0.052918; plothi[2] = 5.03911645505839 / 0.052918; npts[2] = 251;
+    plotlo[1] = -0.002 / 0.052918; plothi[1] = 0.002 / 0.052918; npts[1] = 251;
+    plotlo[2] = 5.0355 / 0.052918; plothi[2] = 5.0395 / 0.052918; npts[2] = 251;
     scaled_plotvtk_begin(world, filename, plotlo, plothi, npts);
-    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    //plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts);
+    plotvtk_data(func, funcname, world, filename, plotlo, plothi, npts, false, true);
     plotvtk_end<3>(world, filename);
 }
 

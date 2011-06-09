@@ -687,7 +687,11 @@ class DirichletCondIntOp : public Operator<Function<double, NDIM> > {
         void action(const Function<double, NDIM> &invec,
                     Function<double, NDIM> &outvec) const {
 
-                outvec = invec + G(b*invec);
+                Function<double, NDIM> f = b*invec;
+                f.broaden();
+                f.broaden();
+                outvec = invec + G(f);
+                f.clear();
                 outvec.scale(-1.0);
                 outvec.truncate();
         }
