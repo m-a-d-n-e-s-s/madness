@@ -1,5 +1,4 @@
 AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
-    if test "$acx_with_eigen3" != yes; then
 # Dubiously checks for Fortran linking conventions and BLAS+LAPACK at the same time
 # mostly to avoid the need for having a fortran compiler installed
 
@@ -12,6 +11,8 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
    
        if test $host = "powerpc-bgp-linux-gnu"; then
           fsym="lc"
+          echo "Fortran linking convention is $fsym" 
+          AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])
        fi
        if test $fsym = no; then
            AC_CHECK_FUNC([dgemm_],[fsym="lcu"])
@@ -28,10 +29,14 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
        if test $fsym = no; then
            AC_CHECK_FUNC([DGEMM_],[fsym="ucu"])
        fi
+   
+
+    if test "$acx_with_eigen3" != yes; then
+
        if test $fsym = no; then
            AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
        fi
-   
+
        echo "Fortran linking convention is $fsym" 
 
        if test $fsym = lc; then

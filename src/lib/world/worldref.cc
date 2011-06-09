@@ -30,7 +30,7 @@
 
   $Id$
 */
-
+#include <madness_config.h>
 #include <world/worldref.h>
 #include <world/worldmutex.h>
 
