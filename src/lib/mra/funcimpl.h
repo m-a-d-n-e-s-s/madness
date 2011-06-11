@@ -2166,7 +2166,7 @@ namespace madness {
         	MADNESS_ASSERT(NDIM==6);
         	MADNESS_ASSERT(LDIM==3);
 
-			// break key into particles (these are the child keys, with it1/it2 come the parent keys)
+			// break key into particles (these are the child keys, with datum1/2 come the parent keys)
 			const Vector<Translation, NDIM>& l=key.translation();
 			const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
 			const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
@@ -2414,48 +2414,92 @@ namespace madness {
 
         /// construct the FunctionNodes of this on-demand FunctionImpl
 
-        /// this must be an on-demand FunctionImpl,
-        /// @param[in]	leaves_only	if true, construct only the leaf nodes,
-        ///							if false, construct the interior nodes also
-        /// @param[in]	nonstandard	if true compute sum and difference coeffs
-        ///							if false, compute sum coeffs only
-        ///							leaf nodes are always standard
-        void fill_on_demand_tree(const implT* muster, FunctionFunctorInterface<T,NDIM>* functor,
-        		const bool leaves_only, const bool nonstandard) {
+        /// descend the tree of this until we find a leaf node of muster; there
+        /// we construct a function node, and possibly refine by one scale
+        /// @param[in]  muster  take this function as a template to fill this' nodes
+        /// @param[in]  do_refine   if tnorm tells us that the coefficients provided by
+        ///                         the functor are inaccurate, refine by one (1) scale
+        /// @return     nothing, but fills this' leaf nodes with sum coefficients
+        void fill_on_demand_tree(const implT* muster, const bool do_refine, const bool fence=true) {
 
         	// some checks
         	MADNESS_ASSERT(functor);
         	MADNESS_ASSERT(muster);
 
-        	this->copy_coeffs(*muster,true);
+        	// get rid of all what we have right now
+        	coeffs.clear();
 
-        	// go over the tree, and construct the leaf nodes on functor's impl
-        	// functor is a shared_ptr, get returns its pointer
-    		this->flo_unary_op_node_inplace(do_make_nodes(this,functor),true);
+        	const keyT& key0=cdata.key0;
+            woT::task(coeffs.owner(key0),&implT::fill_coeff_spawn,muster,key0,do_refine);
 
-
-    		// construct the interior nodes also
-    		if (not leaves_only) this->compress(nonstandard,true,true);
-
+            if (fence) world.gop.fence();
         }
+
+        /// recursive part of the fill_on_demand_tree function
+
+        /// @param[in]  muster  take this function as a template to fill this' nodes
+        /// @param[in]  key     the current key we are working on
+        /// @param[in]  do_refine   if tnorm tells us that the coefficients by functor are
+        ///                         inaccurate, refine by one (1) scale
+        /// @return     nothing, but fills this' leaf nodes with sum coefficients
+        Void fill_coeff_spawn(const implT* muster, const keyT key, const bool do_refine) {
+
+            // key of muster exists and is local
+            MADNESS_ASSERT(muster->coeffs.probe(key));
+            const nodeT node=muster->coeffs.find(key).get()->second;
+
+            // if this is a leaf node of muster fill this's node
+            // otherwise descend down the tree of muster
+            if (node.is_leaf()) {
+
+                // note that fill_coeff can also spawn more tasks on the children
+                // if we have to refine
+                functor->fill_coeff(this,key,do_refine);
+            } else {
+
+                // insert an empty internal node
+                this->coeffs.replace(key, nodeT(coeffT(),true));
+
+                // descend down the tree
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    woT::task(coeffs.owner(child),&implT::fill_coeff_spawn,muster,child,do_refine);
+                }
+            }
+
+            return None;
+        }
+
+
+        /// fill the children of this node with coefficients provided by its functor
+        Void fill_coeff_refine(const keyT& key) {
+
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                functor->fill_coeff(this,child,false);    // no further refinement
+            }
+            return None;
+        }
+
+
 
         /// assemble the provided coefficients and insert them into the tree at key
 
-        /// actually not quite constant
-        void assemble_coeff(const keyT& key,
+        /// check for the autorefine criterion, and if it is not met, refine by 1 scale
+        void assemble_coeff(const bool do_refine, const keyT& key,
             const coeffT& val_ket, const coeffT& val_eri,
-            const coeffT& val_pot1, const coeffT& val_pot2) const {
+            const coeffT& val_pot1, const coeffT& val_pot2) {
 
-			woT::task(coeffs.owner(key), &implT:: template do_assemble_coeff<3>,
-					key,val_ket,val_eri,val_pot1,val_pot2);
+            woT::task(coeffs.owner(key),  &implT:: template do_assemble_coeff<3>,
+                    do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
 
         }
 
-#if 1
-
         /// assemble the provided coefficients and insert them into the tree at key
+
+        /// check for the autorefine criterion, and if it is not met, refine by 1 scale
         template<size_t LDIM>
-        Void do_assemble_coeff(const keyT& key,
+        Void do_assemble_coeff(const bool do_refine, const keyT& key,
                 const coeffT& val_ket, const coeffT& val_eri,
                 const coeffT& val_pot1, const coeffT& val_pot2) {
 
@@ -2466,18 +2510,16 @@ namespace madness {
             tensorT ket=val_ket.full_tensor_copy();
             tensorT coeff_v(cdata.vk);      // 6D, all addends
 
-
-
             // include the one-electron potential
             if (val_pot1.has_data() and val_pot2.has_data()) {
 
                 FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
-                Tensor<T> unity=Tensor<double>(cdataL.vk,false);
-                unity=1.0;
+                Tensor<T> identity=Tensor<double>(cdataL.vk,false);
+                identity=1.0;
 
                 // direct product: V(1) * E(2) + E(1) * V(2)
-                coeff_v = outer(val_pot1.full_tensor_copy(),unity)
-                          + outer(unity,val_pot2.full_tensor_copy());
+                coeff_v = outer(val_pot1.full_tensor_copy(),identity)
+                          + outer(identity,val_pot2.full_tensor_copy());
             } else if (val_pot1.has_data()) {
 
                 MADNESS_ASSERT(LDIM==NDIM);
@@ -2488,66 +2530,38 @@ namespace madness {
             // add 2-particle contribution
             if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
 
-            // multiply potential with ket
-            if (val_eri.has_data() or val_pot1.has_data()) {
+            // check for need of refinement
+            bool needs_refinement=false;
+            if (do_refine and (val_eri.has_data() or val_pot1.has_data())) {
 
-                tensorT tcube(cdata.vk,false);
+                double lo_ket, hi_ket, lo_pot, hi_pot;
+                tnorm(ket, &lo_ket, &hi_ket);
+                tnorm(coeff_v, &lo_pot, &hi_pot);
+                double test = lo_ket*hi_pot + lo_pot*hi_ket + hi_ket*hi_pot;
+                //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
+                needs_refinement= (test> truncate_tol(thresh, key));
 
-                TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
-                ket=tcube;
             }
 
-            coeffs.replace(key,nodeT(coeffT(values2coeffs(key,ket),targs)));
+            if (needs_refinement and do_refine) {
+                // insert empty internal node and refine one scale
+                coeffs.replace(key,nodeT(coeffT(),true));   // empty internal node
+                this->fill_coeff_refine(key);
+
+            } else {
+                // multiply potential with ket
+                if (val_eri.has_data() or val_pot1.has_data()) {
+
+                    tensorT tcube(cdata.vk,false);
+
+                    TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+                    ket=tcube;
+                }
+
+                coeffs.replace(key,nodeT(coeffT(values2coeffs(key,ket),targs)));  // leaf node
+            }
             return None;
         }
-
-#else
-        /// assemble the provided coefficients and insert them into the tree at key
-        template<size_t LDIM>
-        Void do_assemble_coeff(const keyT& key,
-        		const Future<coeffT>& val_ket, const Future<coeffT>& val_eri,
-        		const Future<coeffT>& val_pot1, const Future<coeffT>& val_pot2) {
-
-
-        	// sort of makes sense
-        	MADNESS_ASSERT(val_ket.get().has_data());
-
-        	tensorT ket=val_ket.get().full_tensor_copy();
-			tensorT coeff_v(cdata.vk);		// 6D, all addends
-
-
-
-        	// include the one-electron potential
-        	if (val_pot1.get().has_data()) {
-            	MADNESS_ASSERT(val_pot2.get().has_data());
-
-            	FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
-				Tensor<T> unity=Tensor<double>(cdataL.vk,false);
-				unity=1.0;
-
-				// direct product: V(1) * E(2) + E(1) * V(2)
-				coeff_v = outer(val_pot1.get().full_tensor_copy(),unity)
-						  + outer(unity,val_pot2.get().full_tensor_copy());
-        	}
-
-
-			// add 2-particle contribution
-			if (val_eri.get().has_data()) coeff_v+=val_eri.get().full_tensor_copy();
-
-			// multiply potential with ket
-			if (val_eri.get().has_data() or val_pot1.get().has_data()) {
-
-				tensorT tcube(cdata.vk,false);
-
-				TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
-				ket=tcube;
-			}
-
-			coeffs.replace(key,nodeT(coeffT(values2coeffs(key,ket),targs)));
-			return None;
-        }
-
-#endif
 
         /// Permute the dimensions according to map
         void mapdim(const implT& f, const std::vector<long>& map, bool fence);
@@ -2652,6 +2666,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
+                    ss.reduceRank(targs.thresh);
 //                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank());
                     coeffs.replace(child,nodeT(ss,-1.0,false));
                     // Note value -1.0 for norm tree to indicate result of refinement
@@ -3178,8 +3193,8 @@ namespace madness {
 
                                 // This introduces finer grain parallelism
                                 ProcessID here = world.rank();
-                                ProcessID there =  world.random_proc();
-            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
+//                                ProcessID there =  world.random_proc();
+//            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
                                 do_op_args args(key, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
                                         args,apply_targs);
@@ -3423,40 +3438,6 @@ namespace madness {
             return sum;
         }
 
-        /// make all the leaf nodes in an on-demand function
-
-        /// loop over the leaf nodes of the calling FuncImpl and fill them
-        /// using the functor
-         struct do_make_nodes {
-              typedef Range<typename dcT::iterator> rangeT;
-              const FunctionImpl<T,NDIM>* impl;
-              const FunctionFunctorInterface<T,NDIM>* functor;
-
-              /// constructor needs functor
-              do_make_nodes(const FunctionImpl<T,NDIM>* impl, const FunctionFunctorInterface<T,NDIM>* func)
-              	  : impl(impl)
-              	  , functor(func) {
-              }
-
-              // iterator iterates on this's nodes
-              bool operator()(const typename rangeT::iterator& it) const {
-
-            	  const keyT& key=it->first;
-            	  nodeT& node=it->second;
-            	  const bool is_leaf=(node.is_leaf());
-            	  node.clear_coeff();
-
-                  // construct this's sum coefficients on the fly and insert them into the tree
-            	  if (is_leaf) {
-        			  functor->fill_coeff(impl,key);
-            	  }
-
-                  return true;
-              }
-              template <typename Archive> void serialize(const Archive& ar) {}
-
-         };
-
 
         /// Returns the inner product ASSUMING same distribution
         /// note that if (g==f) both functions might be reconstructed
@@ -3464,19 +3445,12 @@ namespace madness {
         /// (and therefore not const)
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner_local2(const FunctionImpl<R,NDIM>& f) {
-        	MADNESS_ASSERT(not f.is_compressed());
-        	MADNESS_ASSERT(this->is_on_demand());
+            MADNESS_ASSERT(not f.is_compressed());
+            MADNESS_ASSERT(this->is_on_demand());
 
         	// looks a little weird: first make sure all the gnodes are constructed,
         	// afterwards use them to compute the inner product;
-        	// flo_unary_op_node_inplace implicitly use *this for the range
-        	// first construct the tree structure
-        	// make leaves only, since f is reconstructed
-//        	this->copy_coeffs(f,true);
-//    		flo_unary_op_node_inplace(do_make_nodes(this->functor.get(),false),true);
-
-    		this->fill_on_demand_tree(&f,this->functor.get(),true,false);
-
+    		this->fill_on_demand_tree(&f,false);
 
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
             typename dcT::const_iterator end = f.coeffs.end();

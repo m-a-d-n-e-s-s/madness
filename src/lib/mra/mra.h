@@ -1487,11 +1487,14 @@ namespace madness {
     	    // make the nodes of ff given the tree of f
     	    Function<R,NDIM> source;
     	    source.set_impl(f);
+    	    source.get_impl()->set_functor(f.get_impl()->get_functor());
+    	    FunctionImpl<R,NDIM>* muster=f.get_impl()->get_functor()->get_muster().get();
 
-    	    // fill_on_demand_tree turns the tree into compressed NS form
-    	    source.get_impl()->fill_on_demand_tree(f.get_impl()->get_functor()->get_muster().get(),
-    	            f.get_impl()->get_functor().get(),true,true);
-            source.get_impl()->compress(true,true,true);
+    	    print("muster tree_size",muster->tree_size());
+            source.get_impl()->fill_on_demand_tree(muster,true);
+
+            print("source tree_size",source.tree_size());
+            source.get_impl()->compress(true);
 
     	    if (f.get_impl()->world.rank()==0) printf("compressed in apply at time   %.1fs\n", wall_time());
 

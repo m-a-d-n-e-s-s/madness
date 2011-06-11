@@ -111,7 +111,8 @@ namespace madness {
 			return false;
 		}
 
-		virtual Void fill_coeff(const FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key) const {
+		virtual Void fill_coeff(FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key,
+		        const bool do_refine) const {
 			MADNESS_EXCEPTION("implement fill_coeff for FunctionFunctorInterface",0);
 		}
 
@@ -241,7 +242,7 @@ namespace madness {
 
 		/// @param[in]	key		compute sum coeffs for this Node
 		/// @param[in,out] impl	the FunctionImpl where the Node will be inserted
-		Void fill_coeff(const FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key) const {
+		Void fill_coeff(FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key, const bool do_refine) const {
 
 			// break key into particles
 			const Vector<Translation, NDIM> l=key.translation();
@@ -287,7 +288,7 @@ namespace madness {
             			val_pot2.set(coeffT());
             		}
 
-            		impl->assemble_coeff(key,val_ket,val_eri,val_pot1,val_pot2);
+            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
 			return None;
 		}
 
@@ -297,11 +298,6 @@ namespace madness {
 			return muster_impl;
 		}
 
-
-		/// return the tree keeping the precomputed nodes
-//		std::shared_ptr< FunctionImpl<T,NDIM> > get_precomputed() const {
-//			return this_impl;
-//		}
 	};
 
 

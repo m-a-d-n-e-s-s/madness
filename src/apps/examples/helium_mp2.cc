@@ -301,6 +301,7 @@ static double f6d_sr(const coord_6d& r) {
 
 static double hylleraas_3term(const coord_6d& r) {
 
+    // E = -2.902432028988 E_h
 
     // separation for 2-way decomposition (SVD; r1 -- r2)
 	const double x1=r[0], x2=r[3];
@@ -654,8 +655,9 @@ int main(int argc, char** argv) {
         printf("\nstarting at time %.1fs\n\n", wall_time());
     }
 
+
     // hydrogen
-#if 1
+#if 0
 
     tt=TT_FULL;
 
@@ -721,7 +723,7 @@ int main(int argc, char** argv) {
 #endif
 
     // helium
-#if 0
+#if 1
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -748,6 +750,32 @@ int main(int argc, char** argv) {
         print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
         print("world.size()       ", world.size());
         print("");
+    }
+
+    if (0) {
+        // compute the energy of Hylleraas
+        real_function_6d pair=real_factory_6d(world).f(hylleraas_3term);
+        long tree_size=pair.tree_size();
+        long size=pair.size();
+        if (world.rank()==0) print("Hylleraas-3term;  tree size",tree_size);
+        if (world.rank()==0) print("Hylleraas-3term;  size     ",size);
+
+        // normalize pair function
+        double norm=inner(pair,pair);
+        pair.scale(1.0/sqrt(norm));
+
+        tree_size=pair.tree_size();
+        size=pair.size();
+        if (world.rank()==0) print("Hylleraas-3term;  tree size",tree_size);
+        if (world.rank()==0) print("Hylleraas-3term;  size     ",size);
+
+        // initial energy
+        double ke,pe;
+        real_function_3d pot1=real_factory_3d(world).f(Z2);
+        real_function_3d pot2=real_factory_3d(world).f(Z2);
+        compute_energy(world,pair,pot1,pot2,ke,pe);
+
+        return 0;
     }
 
     // one orbital at a time
