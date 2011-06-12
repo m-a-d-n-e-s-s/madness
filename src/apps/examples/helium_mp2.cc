@@ -327,12 +327,14 @@ static double he_correlation(const coord_6d& r) {
 }
 
 
-void save_function(World& world, const real_function_6d& pair, const std::string name) {
+void save_function(World& world, const real_function_6d& pair,
+                   const double& energy, const std::string name) {
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
     ar & pair;
 }
 
-void load_function(World& world, real_function_6d& pair, const std::string name) {
+void load_function(World& world, real_function_6d& pair, 
+                   double& energy, const std::string name) {
     archive::ParallelInputArchive ar(world, name.c_str());
 //    archive::ParallelInputArchive ar(world, "restart");
     ar & pair;
@@ -349,9 +351,11 @@ struct LBCost {
 
     double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
 //        if (key.level() <= 1) {
-//            return 100.0*(leaf_value+parent_value);
+//		return 100.0;
 //        }
-//        else if (node.is_leaf()) {
+//        else {
+//		return 1.0;
+//	}
         if (node.is_leaf()) {
             return std::abs(node.coeff().rank());
         } else {
@@ -361,14 +365,21 @@ struct LBCost {
 };
 
 
+//struct true_op {
+//    bool operator()(FunctionImpl<double,3>* impl, const Key<3>& key, const FunctionNode<double,3>& t) const {
+//        return true;
+//    }
+//
+//    template <typename Archive> void serialize (Archive& ar) {}
+//};
+
 struct true_op {
-    bool operator()(FunctionImpl<double,3>* impl, const Key<3>& key, const FunctionNode<double,3>& t) const {
+    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
         return true;
     }
 
     template <typename Archive> void serialize (Archive& ar) {}
 };
-
 
 
 void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
@@ -573,14 +584,21 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 							;
 
 		iterate(world,v11,pair,energy);
+		pair.reconstruct();
 
 		long tree_size=pair.tree_size();
 		long size=pair.size();
 		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
 		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
 		std::string name="restart_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
-		save_function(world,pair,name);
+		save_function(world,pair,energy,name);
 
+
+		if (i%3==0) {
+			double ke, pe;
+			compute_energy(world,pair,pot1,pot2,ke,pe);
+			if (world.rank()==0) print("virial ratio in iteration  :",i, pe/ke, ke+pe);
+		}
 	}
 	
 
@@ -813,6 +831,7 @@ int main(int argc, char** argv) {
 
 
     real_function_6d pair;
+    double energy;
     // where we start and where we end
     double current_thresh=1.e-2;
     const double max_thresh=FunctionDefaults<6>::get_thresh();
@@ -829,13 +848,17 @@ int main(int argc, char** argv) {
         double norm=inner(pair,pair);
         pair.scale(1.0/sqrt(norm));
     } else {
-        load_function(world,pair,restart_name);
+        load_function(world,pair,energy,restart_name);
+    	pair=project(pair,FunctionDefaults<6>::get_k(),pair.thresh());	// change to appropriate k
+        long tree_size=pair.tree_size();
+    	long size=pair.size();
         if (world.rank()==0) {
-            print("restart from file",restart_name);
-            print("k       ",pair.k());
-            print("thresh  ",pair.thresh());
-            current_thresh=pair.thresh();
+            print("restart from file ",restart_name);
+            print("k                 ",pair.k());
+            print("thresh            ",pair.thresh());
+//            print("read energy       ",energy);
         }
+        current_thresh=pair.thresh();
     }
     if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
 
@@ -849,12 +872,14 @@ int main(int argc, char** argv) {
     }
     
     // initial energy 
-    double ke,pe;
-    real_function_3d pot1=real_factory_3d(world).f(Z2);
-    real_function_3d pot2=real_factory_3d(world).f(Z2);
-    compute_energy(world,pair,pot1,pot2,ke,pe);
-    double energy=ke+pe;
-
+//    if (not restart) {
+        double ke,pe;
+        real_function_3d pot1=real_factory_3d(world).f(Z2);
+        real_function_3d pot2=real_factory_3d(world).f(Z2);
+        compute_energy(world,pair,pot1,pot2,ke,pe);
+        energy=ke+pe;
+        if (world.rank()==0) print("computed energy   ",energy);
+//    }
 
     // solve for thresh=1.e-3
     if (current_thresh>1.e-3) {

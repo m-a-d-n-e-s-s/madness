@@ -2430,7 +2430,10 @@ namespace madness {
         	coeffs.clear();
 
         	const keyT& key0=cdata.key0;
-            woT::task(coeffs.owner(key0),&implT::fill_coeff_spawn,muster,key0,do_refine);
+		if (world.rank() == coeffs.owner(key0))
+//           		fill_coeff_spawn(muster,key0,do_refine);
+			woT::task(coeffs.owner(key0),&implT::fill_coeff_spawn,muster,key0,
+	    			do_refine,TaskAttributes::hipri());
 
             if (fence) world.gop.fence();
         }
@@ -2445,6 +2448,7 @@ namespace madness {
         Void fill_coeff_spawn(const implT* muster, const keyT key, const bool do_refine) {
 
             // key of muster exists and is local
+            MADNESS_ASSERT(coeffs.is_local(key));
             MADNESS_ASSERT(muster->coeffs.probe(key));
             const nodeT node=muster->coeffs.find(key).get()->second;
 
@@ -2463,7 +2467,8 @@ namespace madness {
                 // descend down the tree
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
-                    woT::task(coeffs.owner(child),&implT::fill_coeff_spawn,muster,child,do_refine);
+                    woT::task(coeffs.owner(child),&implT::fill_coeff_spawn,muster,child,
+		    		do_refine,TaskAttributes::hipri());
                 }
             }
 
@@ -2476,6 +2481,8 @@ namespace madness {
 
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                 const keyT& child = kit.key();
+//		woT::task(coeffs.owner(child),&FunctionFunctorInterface<T,NDIM>::fill_coeff,
+//			child,false);
                 functor->fill_coeff(this,child,false);    // no further refinement
             }
             return None;
@@ -3450,7 +3457,7 @@ namespace madness {
 
         	// looks a little weird: first make sure all the gnodes are constructed,
         	// afterwards use them to compute the inner product;
-    		this->fill_on_demand_tree(&f,false);
+//    		this->fill_on_demand_tree(&f,false);
 
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
             typename dcT::const_iterator end = f.coeffs.end();
