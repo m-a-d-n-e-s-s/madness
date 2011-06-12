@@ -642,8 +642,6 @@ int main(int argc, char** argv) {
     double L = 16;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
-    TensorType tt = TT_2D;
-    long truncate_mode = 0;
 
     if (world.rank()==0) {
         print("number of arguments",argc);
@@ -850,8 +848,6 @@ int main(int argc, char** argv) {
     } else {
         load_function(world,pair,energy,restart_name);
     	pair=project(pair,FunctionDefaults<6>::get_k(),pair.thresh());	// change to appropriate k
-        long tree_size=pair.tree_size();
-    	long size=pair.size();
         if (world.rank()==0) {
             print("restart from file ",restart_name);
             print("k                 ",pair.k());

@@ -913,38 +913,50 @@ namespace madness {
         void print_plane(const std::string filename, const std::string plane, const coordT& x_user,
         		const Tensor<double>& cell_user) {
 
-        	// translate verbose plane to something computer-readable
-        	int dim0;
-        	int dim1;
-        	if (plane=="xy") {
-        		dim0=0;
-        		dim1=1;
-        	} else if (plane=="xz") {
-        		dim0=0;
-        		dim1=2;
-        	} else if (plane=="yz") {
-        		dim0=1;
-        		dim1=2;
-        	} else {
-        		print("unknown slice in WF::printSlice: ", plane);
-        		MADNESS_ASSERT(0);
-        	}
+            // get the local information
+            Tensor<double> localinfo=print_plane_local(plane,x_user,cell_user);
 
-        	coordT x_sim;
-        	user_to_sim<NDIM>(x_user,x_sim);
-        	x_sim[2]+=1.e-10;
+            // lump all the local information together, and gather on node0
+            std::vector<Tensor<double> > localinfo_vec(1,localinfo);
+            std::vector<Tensor<double> > printinfo=world.gop.concat0(localinfo_vec);
+            world.gop.fence();
 
-        	// prepare file
-        	FILE * pFile;
-        	pFile = fopen(filename.c_str(), "w");
+            // do the actual print
+            if (world.rank()==0) do_print_plane(filename,printinfo);
 
-        	fprintf(pFile,"\\psset{unit=10cm}\n");
-        	fprintf(pFile,"\\begin{pspicture}(0,0)(1,1)\n");
-        	fprintf(pFile,"\\pslinewidth=0.005pt\n");
+        }
 
 
+        /// collect the data for a plot of the MRA structure locally on each node
+        Tensor<double> print_plane_local(const std::string plane, const coordT& x_user,
+                const Tensor<double>& cell_user) {
 
-        	typename dcT::iterator end = coeffs.end();
+            // translate verbose plane to something computer-readable
+            int dim0, dim1;
+            if (plane=="xy") {
+                dim0=0;
+                dim1=1;
+            } else if (plane=="xz") {
+                dim0=0;
+                dim1=2;
+            } else if (plane=="yz") {
+                dim0=1;
+                dim1=2;
+            } else {
+                print("unknown slice in WF::printSlice: ", plane);
+                MADNESS_ASSERT(0);
+            }
+
+            coordT x_sim;
+            user_to_sim<NDIM>(x_user,x_sim);
+            x_sim[2]+=1.e-10;
+
+            // dimensions are: (# boxes)(hue, x lo left, y lo left, x hi right, y hi right)
+            Tensor<double> plotinfo(coeffs.size(),5);
+            long counter=0;
+
+            // loop over local boxes, if the fit, add the info to the output tensor
+            typename dcT::iterator end = coeffs.end();
             for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
@@ -952,42 +964,77 @@ namespace madness {
                 // thisKeyContains ignores dim0 and dim1
                 if (key.thisKeyContains(x_sim,dim0,dim1) and node.is_leaf() and (node.has_coeff())) {
 
-                	// next: only key inside the given box
-                	for (size_t i=0; i<NDIM; i++) {
-                		if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
-                	}
+                    // next: only key inside the given box
+                    for (size_t i=0; i<NDIM; i++) {
+                        if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
+                    }
 
-                	Level n=key.level();
-                	Vector<Translation,NDIM> l=key.translation();
-                	// get the diametral edges of the node in the plotting plane
-                	double scale=std::pow(0.5,double(n));
-                	double xloleft = scale*l[dim0];
-                	double yloleft = scale*l[dim1];
-                	double xhiright = scale*(l[dim0]+1);
-                	double yhiright = scale*(l[dim1]+1);
+                    Level n=key.level();
+                    Vector<Translation,NDIM> l=key.translation();
+                    // get the diametral edges of the node in the plotting plane
+                    double scale=std::pow(0.5,double(n));
+                    double xloleft = scale*l[dim0];
+                    double yloleft = scale*l[dim1];
+                    double xhiright = scale*(l[dim0]+1);
+                    double yhiright = scale*(l[dim1]+1);
 
-                	// color
-                	const int rank=node.coeff().rank();
-         	        const double maxrank=40.0;
-           	        double hue=0.7-(0.7/maxrank)*(rank);
-           	        double color= std::max(0.0,hue);
+                    // color
+                    const int rank=node.coeff().rank();
+                    const double maxrank=40.0;
+                    double hue=0.7-(0.7/maxrank)*(rank);
+                    double color= std::max(0.0,hue);
 
-           	        // plot only if Box is within bounds
-//                	if ((xloleft>=x0) and (yloleft>=y0)
-//                			and (xhiright<=x1) and (yhiright<=y1)) {
-           	        if (1) {
-
-                		fprintf(pFile,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
-                		fprintf(pFile,"\\psframe["//linewidth=0.5pt,"
-                				"fillstyle=solid,"
-                				"fillcolor=mycolor]"
-                				"(%12.8f,%12.8f)(%12.8f,%12.8f)\n",
-                				xloleft,yloleft,xhiright,yhiright);
-                	}
+                    plotinfo(counter,0)=color;
+                    plotinfo(counter,1)=xloleft;
+                    plotinfo(counter,2)=yloleft;
+                    plotinfo(counter,3)=xhiright;
+                    plotinfo(counter,4)=yhiright;
+                    ++counter;
                 }
             }
+
+            // shrink the info
+            if (counter==0) plotinfo=Tensor<double>();
+            else plotinfo=plotinfo(Slice(0,counter-1),Slice(_));
+            return plotinfo;
+        }
+
+        /// print the MRA structure
+        Void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo) {
+
+            // invoke only on master node
+            MADNESS_ASSERT(world.rank()==0);
+
+            // prepare file
+            FILE * pFile;
+            pFile = fopen(filename.c_str(), "w");
+
+            fprintf(pFile,"\\psset{unit=10cm}\n");
+            fprintf(pFile,"\\begin{pspicture}(0,0)(1,1)\n");
+            fprintf(pFile,"\\pslinewidth=0.005pt\n");
+
+            for (std::vector<Tensor<double> >::const_iterator it=plotinfo.begin(); it!=plotinfo.end(); ++it) {
+
+                Tensor<double> localinfo=*it;
+                if (localinfo.has_data()) {
+
+                    for (long i=0; i<localinfo.dim(0); ++i) {
+
+                        fprintf(pFile,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",localinfo(i,0));
+                        fprintf(pFile,"\\psframe["//linewidth=0.5pt,"
+                                "fillstyle=solid,"
+                                "fillcolor=mycolor]"
+                                "(%12.8f,%12.8f)(%12.8f,%12.8f)\n",
+                                localinfo(i,1),localinfo(i,2),localinfo(i,3),localinfo(i,4));
+                    }
+                }
+            }
+
+
             fprintf(pFile,"\\end{pspicture}\n");
             fclose(pFile);
+
+            return None;
         }
 
 
