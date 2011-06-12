@@ -244,6 +244,7 @@ namespace madness {
 		/// @param[in,out] impl	the FunctionImpl where the Node will be inserted
 		Void fill_coeff(FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key, const bool do_refine) const {
 
+			MADNESS_ASSERT(impl->get_coeffs().is_local(key));
 			// break key into particles
 			const Vector<Translation, NDIM> l=key.translation();
 			const Key<MDIM> key1(key.level(),vec(l[0],l[1],l[2]));
@@ -255,7 +256,7 @@ namespace madness {
             		// ket
             		if (impl_ket) {
             			ProcessID owner = impl_ket->get_coeffs().owner(key);
-            			val_ket=impl_ket->task(owner, &FunctionImpl<T,NDIM>::fcube_for_mul_too,key);
+            			val_ket=impl_ket->task(owner, &FunctionImpl<T,NDIM>::fcube_for_mul3,key,key);
             		} else {
 //          		      val_ket=Future<coeffT>(coeffT());
             			val_ket.set(coeffT());
@@ -272,23 +273,25 @@ namespace madness {
 
             		// v1
             		if (impl_m1) {
-//          		  	val_pot1=impl_m1->fcube_for_mul_too(key1);
+//          		  	val_pot1=impl_m1->fcube_for_mul3(key1);
             			ProcessID owner = impl_m1->get_coeffs().owner(key1);
-            			val_pot1=impl_m1->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key1);
+            			val_pot1=impl_m1->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul3, key1,key1);
             		} else {
             			val_pot1.set(coeffT());
             		}
 
             		// v2
             		if (impl_m2) {
-//          		  	val_pot2=impl_m2->fcube_for_mul_too(key2);
+//          		  	val_pot2=impl_m2->fcube_for_mul3(key2);
             			ProcessID owner = impl_m2->get_coeffs().owner(key2);
-            			val_pot2=impl_m2->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul_too, key2);
+            			val_pot2=impl_m2->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul3, key2,key2);
             		} else {
             			val_pot2.set(coeffT());
             		}
 
-            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
+//            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
+            		impl->task(world.rank(),&FunctionImpl<T,NDIM>:: template do_assemble_coeff<MDIM>,
+			              do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
 			return None;
 		}
 

@@ -1493,11 +1493,13 @@ namespace madness {
     	    source.get_impl()->set_functor(f.get_impl()->get_functor());
     	    FunctionImpl<R,NDIM>* muster=f.get_impl()->get_functor()->get_muster().get();
 
-    	    if (f.get_impl()->world.rank()==0) print("muster tree_size",muster->tree_size());
+            long tree_size=muster->tree_size();
+    	    if (f.get_impl()->world.rank()==0) print("muster tree_size",tree_size);
             source.get_impl()->fill_on_demand_tree(muster,true);
             f.get_impl()->world.gop.fence();
 
-            if (f.get_impl()->world.rank()==0) print("source tree_size",source.tree_size());
+            tree_size=source.tree_size();
+            if (f.get_impl()->world.rank()==0) print("source tree_size",tree_size);
             source.get_impl()->compress(true,false,true);
 
     	    if (f.get_impl()->world.rank()==0) printf("compressed in apply at time   %.1fs\n", wall_time());

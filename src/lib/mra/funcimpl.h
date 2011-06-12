@@ -1243,22 +1243,25 @@ namespace madness {
         }
 
 
-        /// Compute the function values for multiplication
+        /// Compute the function values for multiplication for child 
 
-        /// same as fcube_for_mul, but first find the appropriate parent node
-        ///
-        /// Given coefficients from a parent cell, compute the value of
-        /// the functions at the quadrature points of a child
-        coeffT fcube_for_mul_too(const keyT& key) const {
-
+	/// call as fcube_for_mul3(key,key); walk up the tree to find an appropriate node 
+	/// @param[in] child	the key for which we want the values
+	/// @param[in] parent	the key where we start looking for it
+	/// @param[out] 	values at the quadrature points of child
+        Future<coeffT> fcube_for_mul3(const keyT child, const keyT parent) {
+            
+	    MADNESS_ASSERT(parent.is_valid());
             typedef std::pair<keyT,coeffT> argT;
+	    if (coeffs.probe(parent)) {
+        	const argT result= std::pair<keyT,coeffT>(parent,coeffs.find(parent).get()->second.coeff());
+		return woT::task(coeffs.owner(parent), &implT::fcube_for_mul2, child, result);
+	    } else {
+                const keyT grandparent = parent.parent();
+	        return woT::task(coeffs.owner(grandparent),&implT::fcube_for_mul3,child,grandparent);
+	    }
 
-			Future<argT> result;
-			woT::task(coeffs.owner(key), &implT::sock_it_to_me, key, result.remote_ref(world));
-			return woT::task(coeffs.owner(key), &implT::fcube_for_mul2, key, result);
-
-        }
-
+	}
 
 #if HAVE_GENTENSOR
 
@@ -2458,7 +2461,8 @@ namespace madness {
 
                 // note that fill_coeff can also spawn more tasks on the children
                 // if we have to refine
-                functor->fill_coeff(this,key,do_refine);
+//                functor->fill_coeff(this,key,do_refine);
+		woT::task(coeffs.owner(key),&implT::fill_coeff_op,key,do_refine);
             } else {
 
                 // insert an empty internal node
@@ -2475,32 +2479,14 @@ namespace madness {
             return None;
         }
 
-
         /// fill the children of this node with coefficients provided by its functor
-        Void fill_coeff_refine(const keyT& key) {
+        Void fill_coeff_op(const keyT& key, const bool do_refine) {
 
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-//		woT::task(coeffs.owner(child),&FunctionFunctorInterface<T,NDIM>::fill_coeff,
-//			child,false);
-                functor->fill_coeff(this,child,false);    // no further refinement
-            }
+	    MADNESS_ASSERT(coeffs.is_local(key));
+            functor->fill_coeff(this,key,do_refine);    // no further refinement
             return None;
         }
 
-
-
-        /// assemble the provided coefficients and insert them into the tree at key
-
-        /// check for the autorefine criterion, and if it is not met, refine by 1 scale
-        void assemble_coeff(const bool do_refine, const keyT& key,
-            const coeffT& val_ket, const coeffT& val_eri,
-            const coeffT& val_pot1, const coeffT& val_pot2) {
-
-            woT::task(coeffs.owner(key),  &implT:: template do_assemble_coeff<3>,
-                    do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
-
-        }
 
         /// assemble the provided coefficients and insert them into the tree at key
 
@@ -2553,7 +2539,13 @@ namespace madness {
             if (needs_refinement and do_refine) {
                 // insert empty internal node and refine one scale
                 coeffs.replace(key,nodeT(coeffT(),true));   // empty internal node
-                this->fill_coeff_refine(key);
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+	            woT::task(coeffs.owner(child),&implT::fill_coeff_op,child,false);
+//                    functor->fill_coeff(this,child,false);    // no further refinement
+	        }
+//                this->fill_coeff_refine(key);
 
             } else {
                 // multiply potential with ket
