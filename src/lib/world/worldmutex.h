@@ -72,7 +72,13 @@ namespace madness {
         unsigned int count;
 
         /// Yield for specified number of microseconds unless dedicated CPU
-        void yield(int us) { usleep(us); }
+        void yield(int us) { 
+#ifdef HAVE_IBMBGP
+	    cpu_relax();
+#else
+	    myusleep(us); 
+#endif
+	}
 
     public:
         MutexWaiter() : count(0) { }

@@ -127,6 +127,10 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     inline void cpu_relax() {
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
+#elif defined(HAVE_IBMBGP)
+	for (int i=0; i<25; i++) {
+	    asm volatile ("nop\n");
+	}
 #else
 #endif
     }

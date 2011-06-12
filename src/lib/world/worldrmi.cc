@@ -69,7 +69,7 @@ namespace madness {
             MutexWaiter waiter;
             while (!(narrived = SafeMPI::Request::Testsome(NRECV+1, recv_req, ind, status))) {
                 if (finished) return;
-#ifdef HAVE_CRAYXT
+#if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
                 myusleep(1);
 #else
                 waiter.wait();
@@ -321,7 +321,7 @@ namespace madness {
             std::cerr << instance_ptr->rank << ":RMI: sending exit request to server thread" << std::endl;
 
         finished = true;
-        usleep(10000);
+        myusleep(10000);
 
         //delete this;
     }
