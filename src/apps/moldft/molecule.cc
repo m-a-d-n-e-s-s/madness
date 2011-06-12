@@ -172,10 +172,9 @@ madness::Tensor<double> Molecule::get_all_coords() const {
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
     for (int i=0; i<natom(); ++i) {
-        Atom atom = get_atom(i);
-        atom.x = c(i,0);
-        atom.y = c(i,1);
-        atom.z = c(i,2);
+        atoms[i].x = c(i,0);
+        atoms[i].y = c(i,1);
+        atoms[i].z = c(i,2);
     }
 }
 
