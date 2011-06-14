@@ -37,6 +37,8 @@
 
 /// \brief Implements AtomicInteger
 
+#include <madness_config.h>
+
 #ifdef HAVE_IBMBGP
 #define MADATOMIC_USE_BGP
 #elif defined(USE_X86_32_ASM) || defined(USE_X86_64_ASM)
