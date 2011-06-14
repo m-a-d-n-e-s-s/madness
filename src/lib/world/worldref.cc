@@ -30,18 +30,14 @@
 
   $Id$
 */
-#include <madness_config.h>
+
 #include <world/worldref.h>
 #include <world/worldmutex.h>
+#include <iostream>
 
 namespace madness {
     namespace detail {
         RemoteCounter::pimpl_mapT RemoteCounter::pimpl_map_;
-
-        void RemoteCounter::unregister_ptr_(void* k) {
-            std::size_t ereased = pimpl_map_.erase(k);
-            MADNESS_ASSERT(ereased > 0);
-        }
 
         /// Clean-up the implementation object
 
@@ -65,36 +61,6 @@ namespace madness {
             pimpl_ = WorldPtr<implT>();
         }
 
-        RemoteCounter::RemoteCounter(const WorldPtr<implT>& p) :
-            pimpl_(p)
-        {
-#ifdef MADNESS_ASSERTIONS_DISABLE
-            // Check to make sure the pimpl still exists.
-            if(p.is_local()) {
-                pimpl_mapT::const_iterator it;
-                const pimpl_mapT::const_iterator end = pimpl_map_.end();
-                for(it = pimpl_map_.begin(); it != end; ++it)
-                    if(it->second == p)
-                        break;
-
-                MADNESS_ASSERT(it != end);
-            }
-#endif
-        }
-
-        RemoteCounter::RemoteCounter() : pimpl_() { }
-
-        RemoteCounter::RemoteCounter(const RemoteCounter& other) :
-            pimpl_(other.pimpl_)
-        {
-            if(pimpl_ && pimpl_.is_local())
-                pimpl_->add_ref();
-        }
-
-        RemoteCounter::~RemoteCounter() {
-            destroy();
-        }
-
         RemoteCounter& RemoteCounter::operator=(const RemoteCounter& other) {
             WorldPtr<implT> temp = other.pimpl_;
 
@@ -106,23 +72,6 @@ namespace madness {
             }
 
             return *this;
-        }
-
-        long RemoteCounter::use_count() const { return (pimpl_.is_local() ? pimpl_->use_count() : 0); }
-        bool RemoteCounter::unique() const { return use_count() == 1; }
-        bool RemoteCounter::empty() const { return pimpl_; }
-        bool RemoteCounter::is_local() const { return pimpl_.is_local(); }
-        bool RemoteCounter::has_owner() const { return pimpl_.has_owner(); }
-        ProcessID RemoteCounter::owner() const { return pimpl_.owner(); }
-        WorldPtr<RemoteCounter::implT>::worldidT
-        RemoteCounter::get_worldid() const { return pimpl_.get_worldid(); }
-        World& RemoteCounter::get_world() const { return pimpl_.get_world(); }
-        void RemoteCounter::swap(RemoteCounter& other) {
-            madness::detail::swap(pimpl_, other.pimpl_);
-        }
-
-        void swap(RemoteCounter& l, RemoteCounter& r) {
-            l.swap(r);
         }
 
         std::ostream& operator<<(std::ostream& out, const RemoteCounter& counter) {
