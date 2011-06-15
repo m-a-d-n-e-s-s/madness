@@ -16,29 +16,25 @@ writeION = False
 writeY   = False
 f = open(inputFile, 'r')
 lines = f.readlines()
+#only opening files for which we have data
 for line in lines:
-    print ".",
-    line = lines.pop(0)
     exState = re.match( "^[1-9]", line)
     kState  = re.match( "^0", line)
-    Yl      = re.match( "^Y", line)
+    Yl      = re.match( "^Y(\d)0", line)
     if exState:
         writeEX = True
-        print "matchEX"
     if kState:
         writeION = True
-        print "matchION"
     if Yl:
         writeY = True
         print "matchY"
-print writeY
+        break
 if writeEX:
     exFile = open("ex.dat", 'w')
 if writeION:
     ionFile = open("ion.dat", 'w')
 if writeY:
     RlFile = open("Rl.dat", 'w')
-    print "here"
 while 1:
     if(lines):
         line = lines.pop(0)
