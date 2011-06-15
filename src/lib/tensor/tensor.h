@@ -294,7 +294,12 @@ namespace madness {
             if (_size) {
                 TENSOR_ASSERT(_size>=0 && _size<268435456, "invalid size in new tensor",_size,0);
                 try {
+#if HAVE_IBMBGP
+#define TENSOR_ALIGNMENT 32
+#else
 #define TENSOR_ALIGNMENT 16
+#endif
+
 #ifdef WORLD_GATHER_MEM_STATS
                     _p = new T[size];
                     _shptr = std::shared_ptr<T>(_p);
