@@ -32,6 +32,7 @@
 */
 #include <mra/mraimpl.h>
 
+#ifdef FUNCTION_INSTANTIATE_6
 namespace madness {
     template class FunctionDefaults<6>;
     template class Function<double, 6>;
@@ -49,4 +50,4 @@ namespace madness {
     template void plotdx<double_complex,6>(const Function<double_complex,6>&, const char*, const Tensor<double>&,
                                            const std::vector<long>&, bool binary);
 }
-
+#endif

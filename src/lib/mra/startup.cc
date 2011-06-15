@@ -103,13 +103,16 @@ namespace madness {
         //if (world.rank() == 0) print("loading coeffs, etc.");
 
         load_coeffs(world, data_dir);
+
+        //if (world.rank() == 0) print("loading quadrature, etc.");
+
         load_quadrature(world, data_dir);
 
         // This to init static data while single threaded
         double djunk[2];
         legendre_scaling_functions(0.0,0,djunk);
 
-
+	
         //if (world.rank() == 0) print("testing coeffs, etc.");
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
