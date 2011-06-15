@@ -48,7 +48,9 @@
 
 namespace SafeMPI {
     
+#ifndef HAVE_IBMBGP
 #define SERIALIZE_MPI
+#endif
     
 #ifdef SERIALIZE_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
