@@ -138,21 +138,22 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             // control for endpoint quadrature
             double ifEndPtj = 1.0;
             if (j==0 || j==(n-1)) ifEndPtj = 0.5;
-            for( int k=0; k<n; k++ ) {
-                const double phi = k*dPHI;
-                const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
-                // parallelism introduced via eval_local_only
-                psiVal = psi.eval_local_only(rVec, maxLocalDepth);
-                if( psiVal.first ) { //boolean: true for local coeffs
-                    // control for endpoint quadrature
-                    double ifEndPtk = 1.0;
-                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
-                    for( int l=0; l<=lMAX; l++) {
-                        R(l) += psiVal.second * Y[l](rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
-                    }         //psiVal.second returns psi(rVec)
-                }
+            // for( int k=0; k<n; k++ ) {
+            //     const double phi = k*dPHI;
+            //     const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+            const vector3D rVec = vec(r*sinTH, r*sinTH, r*std::cos(th));
+            // parallelism introduced via eval_local_only
+            psiVal = psi.eval_local_only(rVec, maxLocalDepth);
+            if( psiVal.first ) { //boolean: true for local coeffs
+                // control for endpoint quadrature
+                // double ifEndPtk = 1.0;
+                // if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+                for( int l=0; l<=lMAX; l++) {
+                    R(l) += psiVal.second * Y[l](rVec) * 2*PI* sinTH*dTH * ifEndPtj;
+                }         //psiVal.second returns psi(rVec)
             }
         }
+    }
         for( int l=0; l<=lMAX; l++) {
             YlPsi(i,l) = R(l);
         }
@@ -536,9 +537,9 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
-        //projectL(world, L, wf, nGrid, lMAX, cutoff);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        projectL(world, L, wf, nGrid, lMAX, cutoff);
         //zSlice(world, nGrid, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
