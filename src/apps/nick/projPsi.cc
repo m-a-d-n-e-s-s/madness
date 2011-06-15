@@ -506,6 +506,7 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
     PRINTLINE("the x and y cutoff is 1/8 that of the z cutoff");
+    PRINTLINE("set_project_randomize(true)");
     // Setup defaults for numerical functions
     int    kMAD      = 8;
     double L         = 10.0;
@@ -531,7 +532,7 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
-    FunctionDefaults<NDIM>::set_apply_randomize(true);
+    FunctionDefaults<NDIM>::set_project_randomize(true);
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
