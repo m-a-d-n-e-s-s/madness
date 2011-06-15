@@ -505,6 +505,7 @@ int main(int argc, char**argv) {
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
+    PRINTLINE("the x and y cutoff is 1/8 that of the z cutoff");
     // Setup defaults for numerical functions
     int    kMAD      = 8;
     double L         = 10.0;
@@ -530,13 +531,14 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
+    FunctionDefaults<NDIM>::set_apply_randomize(true);
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        loadList(world, boundList, unboundList);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
         //projectL(world, L, wf, nGrid, lMAX, cutoff);
-        zSlice(world, nGrid, L, th, phi, wf);
+        //zSlice(world, nGrid, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
         //compareGroundState(world, Z);
