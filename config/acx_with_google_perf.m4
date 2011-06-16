@@ -12,7 +12,7 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
         acx_with_google_perf="no"
       ;;
       *)
-        LDFLAGS="$LDFLAGS -L$withval/lib"
+        LIBS="$LIBS -L$withval/lib"
         acx_with_google_perf="$withval"
       esac
     ],
