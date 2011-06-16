@@ -398,7 +398,9 @@ public:
         if      (ndim == 1) doplot1<T,1>();
         else if (ndim == 2) doplot1<T,2>();
         else if (ndim == 3) doplot1<T,3>();
+#ifdef FUNCTION_INSTANTIATE_4
         else if (ndim == 4) doplot1<T,4>();
+#endif
 //         else if (ndim == 5) doplot1<T,5>();
 //         else if (ndim == 6) doplot1<T,6>();
         else                MADNESS_EXCEPTION("invalid ndim", ndim);
