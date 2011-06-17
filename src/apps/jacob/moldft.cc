@@ -124,7 +124,7 @@ void drot3(long n, double* restrict a, double* restrict b, double s, double c, l
 
 class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
   Molecule molecule;
-  // std::vector<coord_3d> specialpts;
+  std::vector<coord_3d> specialpts;
 public:
   NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
   
@@ -139,10 +139,6 @@ public:
   Level special_level() {
     return 10;
   }
-
-  // std::vector< Vector<double,NDIM> > special_points() const {
-  //  return molecule.get_all_coords_vec();
-  // }
 };
 
 class LevelPmap : public WorldDCPmapInterface< Key<3> > {
@@ -2507,12 +2503,14 @@ struct Calculation {
 	//	print("VOLUME WHERE MADE", volume.trace());
 	//	realfunct surface_functor(new MolecularVolumeMask(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec()));
 	//	realfunc surface = real_factory_3d(world).functor(surface_functor);
-	realfunct gradx_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 0));
-	realfunc gradx = real_factory_3d(world).functor(gradx_functor);
-	realfunct grady_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 1));
-	realfunc grady = real_factory_3d(world).functor(grady_functor);
-	realfunct gradz_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 2));
-	realfunc gradz = real_factory_3d(world).functor(gradz_functor);*/
+
+
+	//realfunct gradx_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 0));
+	//realfunc gradx = real_factory_3d(world).functor(gradx_functor);
+	//realfunct grady_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 1));
+	//realfunc grady = real_factory_3d(world).functor(grady_functor);
+	//realfunct gradz_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 2));
+	//realfunc gradz = real_factory_3d(world).functor(gradz_functor);*/
 	realfunct rhon_functor(new NuclearDensityFunctor(molecule));
 	//	print("SIGMA",param.sigma);
 	//	print("RADII", molecule.atomic_radii);
@@ -2526,29 +2524,27 @@ struct Calculation {
 	//   }
 	//   throw "done";
 	// }
-	if (world.rank()==0){
+	if (world.rank()==0)
 	  print("starting to project rhon");
-	  rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
-	//	finalize();
-
-	//	exit(0);
-
-	  print("TRACE OF RHON", rhon.trace());
-	  rhon.truncate(); //Jacob added     
-	  print("rhon truncated");
-	}
+	
+	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
+	  //	finalize();
+	  
+	  //	exit(0);
+	//	if (world.rank()==0)
+	//  print("TRACE OF RHON", rhon.trace());
 	//	SolventPotential Solvent(world,volume, param.epsilon_1,param.epsilon_2,gradx,grady,gradz,param.maxiter); //jacob added                    
-
+	
         for(int iter = 0;iter < param.maxiter;iter++){
-            if(world.rank() == 0)
-                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
-
-            if (iter > 0 && update_residual < 0.1) {
-                //do_this_iter = false;
-                param.maxsub = maxsub_save;      
-            }
-
-            if(param.localize && do_this_iter) {
+	  if(world.rank() == 0)
+	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+	  
+	  if (iter > 0 && update_residual < 0.1) {
+	    //do_this_iter = false;
+	    param.maxsub = maxsub_save;      
+	  }
+	  
+	  if(param.localize && do_this_iter) {
                 tensorT U;
                 if (param.localize_pm) {
                     U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
@@ -2779,9 +2775,6 @@ struct Calculation {
             analyze_vectors(world, bmo, bocc, beps);
         }
 	if(param.solvent){
-	  if(world.rank()==0){
-	    //  print("\n Entering Solvation Mode\n");
-	  }
 	  SolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec()); //jacob added      
 	  realfunc vsolvent = Solvent.ReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
 	  efree = 0.5*rhot.inner(vsolvent);
