@@ -260,20 +260,7 @@ namespace madness {
 
             RemoteCounter(const WorldPtr<implT>& p) :
                 pimpl_(p)
-            {
-#ifndef MADNESS_ASSERTIONS_DISABLE
-                // Check to make sure the pimpl still exists.
-                if(p.is_local()) {
-                    pimpl_mapT::const_iterator it;
-                    const pimpl_mapT::const_iterator end = pimpl_map_.end();
-                    for(it = pimpl_map_.begin(); it != end; ++it)
-                        if(it->second == p)
-                            break;
-
-                    MADNESS_ASSERT(it != end);
-                }
-#endif
-            }
+            { }
 
         public:
 
