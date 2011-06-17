@@ -68,29 +68,10 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
     return s;
 }
 
-/// Read coordinates from a file
-
-/// Scans the file for the first geometry block in the format
-/// \code
-///    geometry
-///       tag x y z
-///       ...
-///    end
-/// \endcode
-/// The charge \c q is inferred from the tag which is
-/// assumed to be the standard symbol for an element.
-/// Same as the simplest NWChem format.  For ghost
-/// atoms (\c bq ) the  charge is read as a fifth field
-/// on the line.
-///
-/// This code is just for the examples ... don't trust it!
-Molecule::Molecule(const std::string& filename) {
-    read_file(filename);
-}
-
 void Molecule::read_file(const std::string& filename) {
     atoms.clear();
-    rcut.clear();
+    field = 0.0;
+
     std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
@@ -143,18 +124,16 @@ void Molecule::read_file(const std::string& filename) {
     throw "No end to the geometry in the input file";
 finished:
     ;
+
+    set_eprec(eprec);
 }  
 
 
 void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
     atoms.push_back(Atom(x,y,z,q,atomic_number));
-    double c = smoothing_parameter(q, eprec); // eprec is error per atom
-    rsqasymptotic.push_back(36.0*c*c);       //jacob added
     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
     atomic_radii.push_back(radius*2.0*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
     //printf("smoothing param %.6f\n", c);
-    rcut.push_back(1.0/c);
-
 }
 
 void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
@@ -199,12 +178,15 @@ void Molecule::set_all_coords(const madness::Tensor<double>& c) {
 
 /// updates rcuts with given eprec
 void Molecule::set_eprec(double value) {
-    eprec = value;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        rcut[i] = 1.0 / smoothing_parameter(atoms[i].q, eprec);
-	std::cout << "RCUT " << i << " " << rcut[i] << std::endl;
-    }
-    core_pot.set_eprec(value);
+  eprec = value;
+  rsqasymptotic.resize(natom());
+  rcut.resize(natom());
+  for (unsigned int i=0; i<atoms.size(); ++i) {
+    double c = smoothing_parameter(atoms[i].q, eprec);
+    rsqasymptotic[i] = 36.0*c*c;       //jacob added
+    rcut[i] = 1.0 / c;
+  }
+  core_pot.set_eprec(value);
 }
 
 void Molecule::set_rcut(double value) {
