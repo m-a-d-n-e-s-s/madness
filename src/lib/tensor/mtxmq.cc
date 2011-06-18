@@ -64,7 +64,7 @@ extern "C" void mTxm14(long dimi, long dimj, long dimk,
 
 extern "C" void mTxm12(long dimi, long dimj, long dimk,
                        double* c, const double* a, const double* b) ;
-#endif
+#endif // X86_64
 extern "C" void mTxm10(long dimi, long dimj, long dimk,
                        double* c, const double* a, const double* b) ;
 
@@ -105,7 +105,7 @@ extern "C" void TmTxm14(long dimi, long dimj, long dimk,
 
 extern "C" void TmTxm12(long dimi, long dimj, long dimk,
                         double* c, const double* a, const double* b) ;
-#endif
+#endif // X86_64
 extern "C" void TmTxm10(long dimi, long dimj, long dimk,
                         double* c, const double* a, const double* b) ;
 
@@ -206,7 +206,7 @@ namespace madness {
                 case 12:
                     TmTxm12(dimj, dimi, dimk, c, b, a) ;
                     break;
-#endif
+#endif // X86_64
 
                 case 10:
                     TmTxm10(dimj, dimi, dimk, c, b, a) ;
@@ -279,7 +279,7 @@ namespace madness {
                 case 12:
                     mTxm12(dimi, dimj, dimk, c, a, b) ;
                     break;
-#endif
+#endif // X86_64
 
                 case 10:
                     mTxm10(dimi, dimj, dimk, c, a, b) ;
@@ -313,7 +313,11 @@ namespace madness {
     }
 }
 
-#endif
+#endif // defined(X86_32) || defined(X86_64)
+
+
+/* all preprocessor ifdef-endif pairs are closed */
+
 
 #if defined(X86_64)  && !defined(DISABLE_SSE3)
 namespace madness {
@@ -1441,9 +1445,9 @@ namespace madness {
         }
       }
     }
-#endif
+#endif // __INTEL_COMPILER
 }
-#endif
+#endif // defined(X86_64)  && !defined(DISABLE_SSE3)
 
 
 
