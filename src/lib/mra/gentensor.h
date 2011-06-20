@@ -639,7 +639,12 @@ namespace madness {
 
 		/// returns the trace of <this|rhs>
 		T trace_conj(const GenTensor<T>& rhs) const {
-			return overlap(*_ptr,*rhs._ptr);
+			_ptr->undo_structure();
+			rhs._ptr->undo_structure();
+			double ovlp=overlap(*_ptr,*rhs._ptr);
+			_ptr->make_structure();
+			rhs._ptr->make_structure();
+			return ovlp;
 		}
 
 		/// overlap between two SepReps (Frobenius inner product)
@@ -650,6 +655,8 @@ namespace madness {
 
 			MADNESS_ASSERT(compatible(lhs,rhs));
 			MADNESS_ASSERT(lhs.tensor_type()==rhs.tensor_type());
+			lhs._ptr->undo_structure();
+			rhs._ptr->undo_structure();
 
 			const T ovlp=overlap(*lhs._ptr,*rhs._ptr);
 			return ovlp;

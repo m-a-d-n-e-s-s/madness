@@ -533,11 +533,11 @@ namespace madness {
     typedef Vector<double,3> coord_3d;
     typedef Vector<double,6> coord_6d;
 
-    static coord_3d line(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+    static coord_6d line(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
     	double length=hi-lo;
     	double stepsize=length/npt;
     	// along z
-    	coord_3d coord(0.0);
+    	coord_6d coord(0.0);
     	coord[2]=lo+ipt*stepsize;
     	return coord;
     }

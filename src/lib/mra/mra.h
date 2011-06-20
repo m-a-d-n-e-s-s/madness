@@ -1034,7 +1034,10 @@ namespace madness {
             TENSOR_RESULT_TYPE(T,R) local=0.0;
 //            if (g.is_on_demand()) local= impl->inner_local2(*(g.get_impl()));
             if (g.is_on_demand()) local= g.get_impl()->inner_local2(*impl);
-            else local = impl->inner_local(*(g.get_impl()));
+            else {
+//	    	print("in inner",is_compressed(),g.is_compressed());
+	    	local = impl->inner_local(*(g.get_impl()));
+	    }
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;
@@ -1301,7 +1304,8 @@ namespace madness {
 
     	FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
     			.k(left.k()).thresh(left.thresh());
-        print("incomplete FunctionFactory in Function::hartree_product");
+        if (left.get_impl()->world.rank()==0) 
+		print("incomplete FunctionFactory in Function::hartree_product");
 
         left.reconstruct();
         left.norm_tree();
@@ -1466,8 +1470,10 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
+	if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
        	result.set_impl(f, true);
-       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+//       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+        result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
 
         return result;
     }
@@ -1483,45 +1489,45 @@ namespace madness {
 
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
-
-    	// prepare the function on which the operator acts
-    	if (f.is_on_demand()) {
-
-    	    // make the nodes of ff given the tree of f
-    	    Function<R,NDIM> source;
-    	    source.set_impl(f);
-    	    source.get_impl()->set_functor(f.get_impl()->get_functor());
-    	    FunctionImpl<R,NDIM>* muster=f.get_impl()->get_functor()->get_muster().get();
-
-            long tree_size=muster->tree_size();
-    	    if (f.get_impl()->world.rank()==0) print("muster tree_size",tree_size);
-            source.get_impl()->fill_on_demand_tree(muster,true);
-            f.get_impl()->world.gop.fence();
-
-            tree_size=source.tree_size();
-            if (f.get_impl()->world.rank()==0) print("source tree_size",tree_size);
-            source.get_impl()->compress(true,false,true);
-
-    	    if (f.get_impl()->world.rank()==0) printf("compressed in apply at time   %.1fs\n", wall_time());
-
-	    LoadBalanceDeux<NDIM> lb(source.get_impl()->get_world());
-	    double ncoeff=std::pow(FunctionDefaults<NDIM>::get_k(),NDIM);
-	    lb.add_tree(source,LBCost2<NDIM>(1.0,ncoeff));
-	    FunctionDefaults<NDIM>::redistribute(f.get_impl()->get_world(), lb.load_balance(2.0,false));
-    	    if (f.get_impl()->world.rank()==0) printf("loadbal in apply at time   %.1fs\n", wall_time());
-
-    	    result.set_impl(source, true);
-    	    result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
-
-    	} else {
+//
+//    	// prepare the function on which the operator acts
+//    	if (f.is_on_demand()) {
+//
+//    	    // make the nodes of ff given the tree of f
+//    	    Function<R,NDIM> source;
+//    	    source.set_impl(f);
+//    	    source.get_impl()->set_functor(f.get_impl()->get_functor());
+//    	    FunctionImpl<R,NDIM>* muster=f.get_impl()->get_functor()->get_muster().get();
+//
+//            long tree_size=muster->tree_size();
+//    	    if (f.get_impl()->world.rank()==0) print("muster tree_size",tree_size);
+//            source.get_impl()->fill_on_demand_tree(muster,false);
+//            f.get_impl()->world.gop.fence();
+//
+//            tree_size=source.tree_size();
+//            if (f.get_impl()->world.rank()==0) print("source tree_size",tree_size);
+//            source.get_impl()->compress(true,false,true);
+//
+//    	    if (f.get_impl()->world.rank()==0) printf("compressed in apply at time   %.1fs\n", wall_time());
+//
+//            LoadBalanceDeux<NDIM> lb(source.get_impl()->get_world());
+//            double ncoeff=std::pow(FunctionDefaults<NDIM>::get_k(),NDIM);
+//            lb.add_tree(source,LBCost2<NDIM>(1.0,ncoeff));
+//            FunctionDefaults<NDIM>::redistribute(f.get_impl()->get_world(), lb.load_balance(2.0,false));
+//    	    if (f.get_impl()->world.rank()==0) printf("loadbal in apply at time   %.1fs\n", wall_time());
+//
+//    	    result.set_impl(source, true);
+//    	    result.get_impl()->apply_source_driven(op, *source.get_impl(), op.get_bc().is_periodic(), fence);
+//
+//    	} else {
     	    if (VERIFY_TREE) ff.verify_tree();
     	    ff.reconstruct();
     	    ff.nonstandard(op.doleaves, true);
     	    result = apply_only(op, ff, fence);
-    	}
+//    	}
 
 
-        if (not f.is_on_demand()) ff.standard();
+//        if (not f.is_on_demand()) ff.standard();
         result.reconstruct();
         return result;
     }

@@ -613,16 +613,18 @@ namespace madness {
 
         } else {
 
-            MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
+//            MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
             tensorT fval(cdata.vq,false); // this will be the returned result
-            tensorT work(cdata.vk,false); // initially evaluate the function in here
+//            tensorT work(cdata.vk,false); // initially evaluate the function in here
+            tensorT work(cdata.vq,false); // initially evaluate the function in here
             tensorT workq(cdata.vq,false); // initially evaluate the function in here
 
         	fcube(key,*functor,cdata.quad_x,work);
 
         	work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
             //return transform(work,cdata.quad_phiw);
-            return fast_transform(work,cdata.quad_phiw,fval,workq);
+//            return fast_transform(work,cdata.quad_phiw,fval,workq);
+            return transform(work,cdata.quad_phiw);
         }
 
     }
@@ -1051,6 +1053,9 @@ namespace madness {
 #if 1
     template <typename T, std::size_t NDIM>
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+        if (!coeffs.probe(key)) {
+	    print("missing node",key);
+	}
         MADNESS_ASSERT(coeffs.probe(key));
         // get fetches remote data (here actually local)
         nodeT& node = coeffs.find(key).get()->second;

@@ -55,6 +55,8 @@
 using namespace madness;
 
 static const double dcut=1.e-5;
+static const double r12cut=1.e-3;
+static const double rcut=1.e-3;
 static const double shift=0.0;
 
 //static const double L = 32.0;   // box size
@@ -149,28 +151,62 @@ static double V_1(const coord_6d& r) {
 
 }
 
+// Smoothed 1/r potential (c is the smoothing distance)
+static double u(double r, double c) {
+    r = r/c;
+    double r2 = r*r, pot;
+    if (r > 6.5){
+        pot = 1.0/r;
+    } else if (r > 1e-2) {
+        pot = erf(r)/r + exp(-r2)*0.56418958354775630;
+    } else{
+        pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
+    }
+    
+    return pot/c;
+}
 
-
-static double g12(const coord_6d& r) {
-
-	// separation for 2-way decomposition (SVD; r1 -- r2)
-	const double x1=r[0], x2=r[3];
-    const double y1=r[1], y2=r[4];
-    const double z1=r[2], z2=r[5];
-
+void distances(const coord_6d& r, double& r1, double& r2, double& r12) {
+    const double x1=r[0], y1=r[1], z1=r[2];
+    const double x2=r[3], y2=r[4], z2=r[5];
     const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+    r1 = sqrt(x1*x1 + y1*y1 + z1*z1);
+    r2 = sqrt(x2*x2 + y2*y2 + z2*z2);
+    r12 = sqrt(xx*xx + yy*yy + zz*zz);
+}
 
-    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
+static double V(const coord_6d& r) {
+    double r1, r2, r12;
+    distances(r, r1, r2, r12);
+    return -2.0*u(r1,rcut) - 2.0*u(r2,rcut) + 1.0*u(r12,r12cut);
+}
 
-    const double value=1.0/r12;
-    return value;
+
+static double coul(const coord_6d& r) {
+
+//	// separation for 2-way decomposition (SVD; r1 -- r2)
+//	const double x1=r[0], x2=r[3];
+//	const double y1=r[1], y2=r[4];
+//	const double z1=r[2], z2=r[5];
+//	
+//	const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
+//	
+////	const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
+////	const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
+//	const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut*1.e6);
+
+	double r1,r2,r12;
+	distances(r, r1, r2, r12);
+	const double value= 1.0*u(r12,r12cut);
+//	const double value= + 1.0/r12;
+	return value;
 }
 
 
 static double helium_pot(const coord_6d& r) {
 
-	// separation for 2-way decomposition (SVD; r1 -- r2)
-	const double x1=r[0], x2=r[3];
+    // separation for 2-way decomposition (SVD; r1 -- r2)
+    const double x1=r[0], x2=r[3];
     const double y1=r[1], y2=r[4];
     const double z1=r[2], z2=r[5];
 
@@ -181,6 +217,7 @@ static double helium_pot(const coord_6d& r) {
     const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
 
     const double value=-2.0/r1 - 2.0/r2 + 1.0/r12;
+//    const double value= + 1.0/r12;
     return value;
 }
 
@@ -259,46 +296,6 @@ static double he_orbitals(const coord_6d& r) {
 }
 
 
-
-static double f6d_svd(const coord_6d& r) {
-
-    // separation for 2-way decomposition (SVD; r1 -- r2)
-	const double x1=r[0], x2=r[3];
-    const double y1=r[1], y2=r[4];
-    const double z1=r[2], z2=r[5];
-
-    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
-
-//    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
-//    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
-//    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
-//    const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
-    const double r1 = (x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
-    const double r2 = (x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
-    const double r12= (xx*xx + yy*yy + zz*zz + dcut*dcut);
-    const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
-//    const double value=exp(-1.8*(r1 + r2));
-    return value;
-}
-
-static double f6d_sr(const coord_6d& r) {
-
-	// separation for 3-way decomposition (x12 -- y12 -- z12)
-	const double x1=r[0], x2=r[1];
-    const double y1=r[2], y2=r[3];
-    const double z1=r[4], z2=r[5];
-
-    const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
-
-	const double dcut=0.01;
-    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
-    const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
-    const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
-    const double value=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
-    return value;
-}
-
-
 static double hylleraas_3term(const coord_6d& r) {
 
     // E = -2.902432028988 E_h
@@ -324,6 +321,90 @@ static double hylleraas_3term(const coord_6d& r) {
 // Hylleraas 3-term minus He orbitals
 static double he_correlation(const coord_6d& r) {
 	return hylleraas_3term(r) - he_orbitals(r);
+}
+
+
+
+class YetAnotherWrapperClass {
+    const real_function_6d& f;
+    const real_function_3d f3;
+    const long k;
+    real_function_6d eri;
+    const Tensor<double>& qx6;
+    const Tensor<double>& qx3;
+    Tensor<double> identity;
+
+public:
+    YetAnotherWrapperClass(const real_function_6d& f)
+        : f(f)
+        , f3(real_factory_3d(f.get_impl()->world))
+        , k(f.k())
+        , eri()
+        , qx6(FunctionCommonData<double,6>::get(k).quad_x)
+        , qx3(FunctionCommonData<double,3>::get(k).quad_x)
+    {
+        identity=Tensor<double>(k,k,k);
+        identity=1.0;
+        eri=ERIFactory<double,6>(f.get_impl()->world).dcut(1.e-8);
+    }
+
+    void operator()(const Key<6>& key, Tensor<double>& t) const {
+
+#if 1
+        // break key into particles
+        const Vector<Translation, 6> l=key.translation();
+        const Vector<Translation, 3> l1=Vector<Translation,3> (vec(l[0],l[1],l[2]));
+        const Vector<Translation, 3> l2=Vector<Translation,3> (vec(l[3],l[4],l[5]));
+        const Key<3> key1(key.level(),l1);
+        const Key<3> key2(key.level(),l2);
+
+//        Tensor<double> g12=eri.coeff(key);
+        Tensor<double> g12=eri.get_impl()->coeffs2values(
+		key,eri.get_impl()->get_functor()->coeff(key).full_tensor());
+        Tensor<double> pot1(k,k,k), pot2(k,k,k);
+        f3.get_impl()->fcube(key1,Z2,qx3,pot1);
+        f3.get_impl()->fcube(key2,Z2,qx3,pot2);
+
+        // direct product: V(1) * E(2) + E(1) * V(2)
+//        g12+= outer(pot1,identity) + outer(identity,pot2);
+        t.emul(g12);
+#else
+	Tensor<double> v(k,k,k,k,k,k);
+//       	f.get_impl()->fcube(key, helium_pot, qx6, v);
+       	f.get_impl()->fcube(key, coul, qx6, v);
+        t.emul(v);
+
+#endif
+
+#if 0
+	// check rightness
+        Vector<Translation, 6> ll;
+//        ll[0]=3; ll[1]=2; ll[2]=2; ll[3]=3; ll[4]=2; ll[5]=2;      // k=5, rank=995
+//	Key<6> keyref(3,ll);
+        ll[0]=0; ll[1]=0; ll[2]=0; ll[3]=0; ll[4]=0; ll[5]=0;      // k=5, rank=995
+	Key<6> keyref(0,ll);
+	if (key==keyref) {
+        	Tensor<double> v(k,k,k,k,k,k);
+        	f.get_impl()->fcube(key, coul, qx6, v);
+		print("direct",v);
+		print("eri",g12);
+		v-=g12;
+		Tensor<double> vv=eri.get_impl()->values2coeffs(key,v);
+//		print("vv",vv);
+		print("difference",v);
+		print("qx6",qx6);
+		print("error fcube/g12",key,vv.normf());
+        	MADNESS_EXCEPTION("stop",0);
+	}
+#endif
+    }
+
+};
+
+real_function_6d multiply_by_V(const real_function_6d& psi) {
+    real_function_6d Vpsi = copy(psi);
+    Vpsi.unaryop(YetAnotherWrapperClass(Vpsi));
+    return Vpsi;
 }
 
 
@@ -382,30 +463,67 @@ struct true_op {
 };
 
 
+struct true_if_n_gt_op {
+    long _l;
+    true_if_n_gt_op() : _l(100) {}
+    true_if_n_gt_op(const int level) : _l(level) {}
+    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
+        return (key.level()>_l);
+    }
+
+    template <typename Archive> void serialize (Archive& ar) {}
+};
+
+/// Returns the box at level n that contains the given point in simulation coordinates
+     Key<6> simpt2key(const Vector<double,6>& pt, Level n) {
+         const std::size_t NDIM=6;
+         Vector<Translation,NDIM> l;
+         double twon = std::pow(2.0, double(n));
+         for (std::size_t i=0; i<NDIM; ++i) {
+             l[i] = Translation(twon*pt[i]);
+         }
+         return Key<NDIM>(n,l);
+     }
+
+struct true_if_close_to_nucleus {
+    typedef Vector<double,6> coordT;
+    coordT nuc;
+    true_if_close_to_nucleus() {}
+    true_if_close_to_nucleus(coordT& a) : nuc(a) {}
+    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
+        coordT simpt;
+        user_to_sim(nuc, simpt);
+        Key<6> specialkey = simpt2key(simpt, key.level());
+        return (specialkey.is_neighbor_of(key));
+    }
+
+    template <typename Archive> void serialize (Archive& ar) {
+        ar & nuc;
+    }
+
+};
+
 void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
+
+    LoadBalanceDeux<6> lb(world);
+    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
+    lb.add_tree(Vpsi,LBCost(1.0,ncoeff));
+    FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+    if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
 
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-
+    
+    long size=Vpsi.size();
+    if(world.rank() == 0) print("Vpsi.size() NS before truncation",size);
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
-//    long vpsi_size=Vpsi.size();
-//    world.gop.fence();
-//    if (world.rank()==0) print("Vpsi.size()", vpsi_size,double(vpsi_size)/1024/1024/128,"GByte");
-//    Vpsi.clear();
-//    world.gop.fence();
-
-    long size=tmp.size();
+    size=tmp.size();
     if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
 
     
-    LoadBalanceDeux<6> lb(world);
-    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
-    lb.add_tree(tmp,LBCost(1.0,ncoeff));
-    FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
-    if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
 
     tmp.scale(-2.0);
     size=tmp.size();
@@ -414,11 +532,14 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     size=tmp.size();
     if(world.rank() == 0) print("tmp.size() compressed before truncation ",size);
     tmp.truncate();
+    size=tmp.size();
+    if(world.rank() == 0) print("tmp.size() after truncation ",size);
     if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
     double norm = tmp.norm2();
     real_function_6d r = tmp-psi;
     double rnorm = inner(r,r);
+    Vpsi=multiply_by_V(psi);
     double eps_new = eps + inner(r,Vpsi)/(norm*norm);
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
@@ -507,7 +628,7 @@ void compute_energy(World& world, const real_function_3d& psi, const real_functi
 
 
 void compute_energy(World& world, const real_function_6d& pair,
-		const real_function_3d& pot1, const real_function_3d& pot2, double& ke, double& pe) {
+		real_function_3d& pot1, real_function_3d& pot2, double& ke, double& pe) {
 
 	// compute kinetic energy
 	ke=0.0;
@@ -532,12 +653,14 @@ void compute_energy(World& world, const real_function_6d& pair,
 		// two-electron interaction potential
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-8);
 
+
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
 				.ket(copy(pair).get_impl())
 				.g12(eri.get_impl())
 				.V_for_particle1(copy(pot1).get_impl())
 				.V_for_particle2(copy(pot2).get_impl())
 				;
+//		real_function_6d v11=multiply_by_V(pair);
 
 
 		double a=inner(pair,v11);
@@ -568,6 +691,16 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 	// one-electron potential
 	real_function_3d pot1=real_factory_3d(world).f(Z2);
 	real_function_3d pot2=real_factory_3d(world).f(Z2);
+
+//    // Coulomb potential
+//    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
+//    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+//    real_function_3d rho = square(orbital).truncate();
+//    real_function_3d coulpot = op(rho).truncate();
+//    pot1+=coulpot;
+//    pot2+=coulpot;
+
+
 	if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
 	for (long i=0; i<maxiter; i++) {
@@ -575,6 +708,13 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		// two-electron interaction potential
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
 
+		long tree_size1=pair.tree_size();
+//        pair.refine_general(true_if_n_gt_op(3));
+		Vector<double,6> a;
+//		pair.refine_general(true_if_close_to_nucleus(a));
+		pair.refine_general(true_op());
+	        long tree_size2=pair.tree_size();
+		if (world.rank()==0) print("refined pair",tree_size1,tree_size2);
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
 							.ket(copy(pair).get_impl())
 							.g12(eri.get_impl())
@@ -582,6 +722,13 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 							.V_for_particle2(copy(pot2).get_impl())
 							.muster(copy(pair).get_impl())
 							;
+		v11.get_impl()->fill_on_demand_tree(pair.get_impl().get(),false);
+		if (world.rank()==0) print("filled tree");
+		std::string name="v11_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
+		save_function(world,v11,energy,name);
+							
+
+//		real_function_6d v11=multiply_by_V(pair);
 
 		iterate(world,v11,pair,energy);
 		pair.reconstruct();
@@ -590,7 +737,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		long size=pair.size();
 		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
 		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
-		std::string name="restart_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
+		name="restart_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
 		save_function(world,pair,energy,name);
 
 
@@ -639,7 +786,7 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-    double L = 16;   // box size
+    double L = 32;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
 
@@ -789,7 +936,22 @@ int main(int argc, char** argv) {
         double ke,pe;
         real_function_3d pot1=real_factory_3d(world).f(Z2);
         real_function_3d pot2=real_factory_3d(world).f(Z2);
+
         compute_energy(world,pair,pot1,pot2,ke,pe);
+
+        return 0;
+    }
+
+    // plot the given function
+    if (0) {
+
+        MADNESS_ASSERT(restart);
+        real_function_6d pair;
+        double energy;
+        load_function(world,pair,energy,restart_name);
+        trajectory<6> traj(-L/2,L/2,201);
+        std::string filename=restart_name+"lineplot";
+        plot_along<6>(world,traj,pair,filename);
 
         return 0;
     }
@@ -872,6 +1034,15 @@ int main(int argc, char** argv) {
         double ke,pe;
         real_function_3d pot1=real_factory_3d(world).f(Z2);
         real_function_3d pot2=real_factory_3d(world).f(Z2);
+//        // Coulomb potential
+//        real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
+////        real_function_3d orbital2=real_factory_3d(world).f(he_orbital_McQuarrie);
+//        real_function_3d rho = 0.5*square(orbital).truncate();
+//        real_function_3d coulpot = op(rho).truncate();
+//        pot1+=coulpot;
+//        pot2+=coulpot;
+
+
         compute_energy(world,pair,pot1,pot2,ke,pe);
         energy=ke+pe;
         if (world.rank()==0) print("computed energy   ",energy);

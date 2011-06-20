@@ -369,8 +369,10 @@ namespace madness {
 		/// return sum coefficients for imagined node at key
 		coeffT coeff(const Key<NDIM>& key, const bool NS=false)  {
 			MADNESS_ASSERT(not NS);
-			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
-					FunctionDefaults<NDIM>::get_tensor_type());
+//			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
+//					FunctionDefaults<NDIM>::get_tensor_type());
+            return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
+                    TT_FULL);
 		}
 
 	};

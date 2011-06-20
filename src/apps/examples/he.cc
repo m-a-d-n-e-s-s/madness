@@ -6,14 +6,17 @@
 
 using namespace madness;
 
-static const double L = 10.0;   // box size
-static const long k = 8;        // wavelet order
-static const double thresh = 1e-6; // precision
+static const double L = 30.0;   // box size
+static const long k = 6;        // wavelet order
+static const double thresh = 1e-4; // precision
 
 static const double   rcut = 0.01; // Smoothing distance in 1e potential
 static const double r12cut = 0.01; // Smoothing distance in 2e potential
 static const double   dcut = 0.01; // Smoothing distance in wave function
 static const double d12cut = 0.01; // Smoothing distance in wave function
+
+static const long oi = 0;        // orbital (mcquarrie, hylleraas-3term)
+static const long vi = 1;        // potential (all, pot1/2, eri, Vpsi_eri)
 
 // Smoothed 1/r potential (c is the smoothing distance)
 static double u(double r, double c) {
@@ -39,10 +42,23 @@ void distances(const coord_6d& r, double& r1, double& r2, double& r12) {
     r12 = sqrt(xx*xx + yy*yy + zz*zz);
 }
 
+
+
 static double V(const coord_6d& r) {
     double r1, r2, r12;
     distances(r, r1, r2, r12);
-    return -2.0*u(r1,rcut) - 2.0*u(r2,rcut) + 1.0*u(r12,r12cut);
+    if (vi==0) {
+	return -2.0*u(r1,rcut) - 2.0*u(r2,rcut) + 1.0*u(r12,r12cut);
+    } else if (vi==1) {
+	return -2.0*u(r1,rcut) - 2.0*u(r2,rcut) ;
+    } else if (vi==2) {
+	return  1.0*u(r12,r12cut);
+    } else if (vi==3) {		// for Vpsi
+	return  1.0*u(r12,r12cut);
+    } else {
+    	MADNESS_EXCEPTION("unknown vi",0);
+	return 0.0;
+    }
 }
 
 
@@ -67,28 +83,14 @@ struct LBCost {
     }
 };
 
-class YetAnotherWrapperClass {
-    const real_function_6d& f;
-    const Tensor<double>& qx;
 
-public:
-    YetAnotherWrapperClass(const real_function_6d& f) 
-        : f(f)
-        , qx(FunctionCommonData<double,6>::get(k).quad_x)
-    {}
-
-    void operator()(const Key<6>& key, Tensor<double>& t) const {
-        Tensor<double> v(k,k,k,k,k,k);
-        f.get_impl()->fcube(key, V, qx, v);
-        t.emul(v);
+struct true_op {
+    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
+        return true;
     }
-};
 
-real_function_6d multiply_by_V(const real_function_6d& psi) {
-    real_function_6d Vpsi = copy(psi);
-    Vpsi.unaryop(YetAnotherWrapperClass(Vpsi));
-    return Vpsi;
-}
+    template <typename Archive> void serialize (Archive& ar) {}
+};
 
 static double f6d(const coord_6d& r) {
     double r1, r2, r12;
@@ -96,7 +98,62 @@ static double f6d(const coord_6d& r) {
     r1 = sqrt(r1*r1 + dcut*dcut); // Smooth cusps just a little
     r2 = sqrt(r2*r2 + dcut*dcut);
     r12 = sqrt(r12*r12 + d12cut*d12cut);
-    return exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
+    double val;
+    if (oi==0) {		// McQuarrie
+        val=exp(-(27.0/16.0)*(r1+r2));
+    } else if (oi==1) {		// Hylleraas-3-term
+	val=-exp(-1.81607*(r1 + r2)) * (
+	-1.33083943395992
+	-0.388320016632985 * r12
+	-0.174093511691879 *  ( r1*r1  + r2*r2  -2.0 * r1 * r2 )
+	);
+    } else if (oi==2) {		// Hylleraas-2-term
+        val=exp(-1.8*(r1 + r2))*(1.0 + 0.5*r12);
+    } else {
+    	MADNESS_EXCEPTION("unknown oi",0);
+    }
+    return val;
+
+}
+
+static double Vpsi(const coord_6d& r) {
+    return f6d(r) * V(r);
+
+}
+
+class YetAnotherWrapperClass {
+    const real_function_6d& f;
+    real_function_6d eri;
+    const Tensor<double>& qx;
+
+public:
+    YetAnotherWrapperClass(const real_function_6d& f) 
+        : f(f)
+        , eri(ERIFactory<double,6>(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh*0.1).k(k))
+        , qx(FunctionCommonData<double,6>::get(k).quad_x)
+    {
+//        eri=ERIFactory<double,6>(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh).k(k);
+    }
+
+    void operator()(const Key<6>& key, Tensor<double>& t) const {
+    	const long npt=k+3;
+        Tensor<double> v(npt,npt,npt,npt,npt,npt);
+
+        f.get_impl()->fcube(key, V, qx, v);
+//        v+=f.get_impl()->coeffs2values(
+//		key,eri.get_impl()->get_functor()->coeff(key).full_tensor());
+
+        t.emul(v);
+
+//        f.get_impl()->fcube(key, V, qx, v);
+//        t=v;
+    }
+};
+
+real_function_6d multiply_by_V(const real_function_6d& psi) {
+    real_function_6d Vpsi = copy(psi);
+    Vpsi.unaryop(YetAnotherWrapperClass(Vpsi));
+    return Vpsi;
 }
 
 double energy(World& world, const real_function_6d& psi) {
@@ -110,6 +167,8 @@ double energy(World& world, const real_function_6d& psi) {
     kinetic_energy *= 6.0; // Spherical symmetry
 
     potential_energy = inner(psi,multiply_by_V(psi));
+//    real_function_6d vpsi = real_factory_6d(world).f(Vpsi);
+//    potential_energy = inner(psi,vpsi);
 
     overlap = inner(psi,psi);
 
@@ -122,6 +181,9 @@ double energy(World& world, const real_function_6d& psi) {
         printf("   t-on-p %d\n", FunctionDefaults<6>::get_truncate_on_project());
         printf("   smooth %.1e %.1e %.1e %.1e\n", rcut, r12cut, dcut, d12cut);
         printf("        L %12.6f\n", L);
+        print ("   tensor ", FunctionDefaults<6>::get_tensor_type());
+        printf("       oi %d\n", oi);
+        printf("       vi %d\n", vi);
         printf("\n");
         printf("   #coeff %12.2e\n", size);
         printf("        S %12.6f\n", overlap);
@@ -146,9 +208,13 @@ int main(int argc, char** argv) {
     FunctionDefaults<6>::set_truncate_on_project(true);
     FunctionDefaults<6>::set_project_randomize(true);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+//    FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<6>::set_tensor_type(TT_FULL);
     
     if (world.rank() == 0) printf("compressing PSI at time %.1f\n", wall_time());
     real_function_6d psi = real_factory_6d(world).f(f6d);
+//    psi.refine_general(true_op());
     if (world.rank() == 0) printf("computing norm at time %.1f\n", wall_time());
     if (world.rank() == 0) printf("load balancing using psi at time %.1f\n", wall_time());
     LoadBalanceDeux<6> lb(world);

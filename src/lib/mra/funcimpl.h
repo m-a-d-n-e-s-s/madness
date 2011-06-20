@@ -965,9 +965,9 @@ namespace madness {
                 if (key.thisKeyContains(x_sim,dim0,dim1) and node.is_leaf() and (node.has_coeff())) {
 
                     // next: only key inside the given box
-                    for (size_t i=0; i<NDIM; i++) {
-                        if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
-                    }
+//                    for (size_t i=0; i<NDIM; i++) {
+//                        if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
+//                    }
 
                     Level n=key.level();
                     Vector<Translation,NDIM> l=key.translation();
@@ -1008,6 +1008,8 @@ namespace madness {
             // prepare file
             FILE * pFile;
             pFile = fopen(filename.c_str(), "w");
+	    Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
+
 
             fprintf(pFile,"\\psset{unit=10cm}\n");
             fprintf(pFile,"\\begin{pspicture}(0,0)(1,1)\n");
@@ -1213,7 +1215,7 @@ namespace madness {
         }
 
         template <typename Q>
-        __Tensor<Q> coeffs2values(const keyT& key, const __Tensor<Q>& coeff) const {
+        GenTensor<Q> coeffs2values(const keyT& key, const GenTensor<Q>& coeff) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(coeff,cdata.quad_phit).scale(scale);
@@ -1302,10 +1304,10 @@ namespace madness {
             typedef std::pair<keyT,coeffT> argT;
 	    if (coeffs.probe(parent)) {
         	const argT result= std::pair<keyT,coeffT>(parent,coeffs.find(parent).get()->second.coeff());
-		return woT::task(coeffs.owner(parent), &implT::fcube_for_mul2, child, result);
+		return woT::task(coeffs.owner(parent), &implT::fcube_for_mul2, child, result,TaskAttributes::hipri());
 	    } else {
                 const keyT grandparent = parent.parent();
-	        return woT::task(coeffs.owner(grandparent),&implT::fcube_for_mul3,child,grandparent);
+	        return woT::task(coeffs.owner(grandparent),&implT::fcube_for_mul3,child,grandparent,TaskAttributes::hipri());
 	    }
 
 	}
