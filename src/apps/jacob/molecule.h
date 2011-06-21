@@ -79,6 +79,7 @@ private:
     // If you add more fields don't forget to serialize them
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
+    std::vector<double> rsqasymptotic;// value od r*r beyond which the potential is assymptotic 1./r Jacob added
     double eprec;              // Error in energy/atom due to smoothing
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
@@ -94,13 +95,9 @@ private:
 
     bool test_for_inverse() const;
 
-    std::vector<double> rsqasymptotic;// value od r*r beyond which the potential is assymptotic 1./r Jacob added
-
 public:
     /// Makes a molecule with zero atoms
-    Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
-
-    Molecule(const std::string& filename);
+    Molecule() : atoms(), rcut(), rsqasymptotic(), eprec(1e-4), core_pot(), field(3L) {};
 
     void read_file(const std::string& filename);
 
@@ -202,7 +199,7 @@ public:
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & atoms & rcut & eprec & core_pot;
+        ar & atoms & rcut & rsqasymptotic & field & eprec & core_pot & atomic_radii;
     }
 };
 
