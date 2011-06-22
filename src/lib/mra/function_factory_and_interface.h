@@ -106,6 +106,10 @@ namespace madness {
 			return coeffT();
 		}
 
+		virtual coeffT eri_values(const keyT& key) {
+		    return coeffT();
+		}
+
 		/// does this functor directly provide sum coefficients? or only function values?
 		virtual bool provides_coeff() const {
 			return false;
@@ -149,6 +153,7 @@ namespace madness {
 
 		World& world;
 
+	public:
 		/// various MRA functions of NDIM dimensionality
 		std::shared_ptr< FunctionImpl<T,NDIM> > impl_ket;	///< supposedly the pair function
 		std::shared_ptr< FunctionImpl<T,NDIM> > impl_eri;	///< supposedly 1/r12
@@ -159,20 +164,8 @@ namespace madness {
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p1;	///< supposedly orbital 1
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p2;	///< supposedly orbital 2
 
-		/*
-		 * IF YOU ADD MORE FUNCTIONS, DON'T FORGET TO INCREASE THE NUMBER OF
-		 * ITERATORS IN COEFF()
-		 */
-
-		/// caching this
-//		std::shared_ptr< FunctionImpl<T,NDIM> > this_impl;
-
 		/// muster tree for the result
 		std::shared_ptr< FunctionImpl<T,NDIM> > muster_impl;
-
-		/// function of order 2k
-		std::shared_ptr< FunctionImpl<T,NDIM> > impl_nk;
-
 
 		/// common data
 		const FunctionCommonData<T,NDIM>& cdataN;
@@ -242,57 +235,66 @@ namespace madness {
 
 		/// @param[in]	key		compute sum coeffs for this Node
 		/// @param[in,out] impl	the FunctionImpl where the Node will be inserted
-		Void fill_coeff(FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key, const bool do_refine) const {
+		Void fill_coeff(FunctionImpl<T, NDIM>* impl, const Key<NDIM>& key,
+                const bool do_refine) const {
 
-			MADNESS_ASSERT(impl->get_coeffs().is_local(key));
-			// break key into particles
-			const Vector<Translation, NDIM> l=key.translation();
-			const Key<MDIM> key1(key.level(),vec(l[0],l[1],l[2]));
-			const Key<MDIM> key2(key.level(),vec(l[3],l[4],l[5]));
+            MADNESS_ASSERT(impl->get_coeffs().is_local(key));
+            // break key into particles
+            const Vector<Translation, NDIM> l = key.translation();
+            const Key<MDIM> key1(key.level(), vec(l[0], l[1], l[2]));
+            const Key<MDIM> key2(key.level(), vec(l[3], l[4], l[5]));
 
-			Future<coeffT> val_ket, val_eri, val_pot1, val_pot2;
+            Future<coeffT> val_ket, val_eri, val_pot1, val_pot2;
 
+            // ket
+            if (impl_ket) {
+                ProcessID owner = impl_ket->get_coeffs().owner(key);
+                val_ket = impl_ket->task(owner,
+                        &FunctionImpl<T, NDIM>::fcube_for_mul3, key, key);
+            } else {
+                //          		      val_ket=Future<coeffT>(coeffT());
+                val_ket.set(coeffT());
+            }
 
-            		// ket
-            		if (impl_ket) {
-            			ProcessID owner = impl_ket->get_coeffs().owner(key);
-            			val_ket=impl_ket->task(owner, &FunctionImpl<T,NDIM>::fcube_for_mul3,key,key);
-            		} else {
-//          		      val_ket=Future<coeffT>(coeffT());
-            			val_ket.set(coeffT());
-            		}
+            // eri (bypass its FunctionImpl)
+            //            		if (impl_eri) {
+            //            			coeffT eri_val=impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
+            ////          		    val_eri=Future<coeffT>(eri_val);
+            //            			val_eri.set(eri_val);
+            //            		} else {
+            val_eri.set(coeffT());
+            //            		}
 
-            		// eri (bypass its FunctionImpl)
-            		if (impl_eri) {
-            			coeffT eri_val=impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
-//          		    val_eri=Future<coeffT>(eri_val);
-            			val_eri.set(eri_val);
-            		} else {
-            			val_eri.set(coeffT());
-            		}
+            // v1
+            if (impl_m1) {
+                //          		  	val_pot1=impl_m1->fcube_for_mul3(key1);
+                ProcessID owner = impl_m1->get_coeffs().owner(key1);
+                val_pot1 = impl_m1->task(owner,
+                        &FunctionImpl<T, MDIM>::fcube_for_mul3, key1, key1);
+            } else {
+                val_pot1.set(coeffT());
+            }
 
-            		// v1
-            		if (impl_m1) {
-//          		  	val_pot1=impl_m1->fcube_for_mul3(key1);
-            			ProcessID owner = impl_m1->get_coeffs().owner(key1);
-            			val_pot1=impl_m1->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul3, key1,key1);
-            		} else {
-            			val_pot1.set(coeffT());
-            		}
+            // v2
+            if (impl_m2) {
+                //          		  	val_pot2=impl_m2->fcube_for_mul3(key2);
+                ProcessID owner = impl_m2->get_coeffs().owner(key2);
+                val_pot2 = impl_m2->task(owner,
+                        &FunctionImpl<T, MDIM>::fcube_for_mul3, key2, key2);
+            } else {
+                val_pot2.set(coeffT());
+            }
 
-            		// v2
-            		if (impl_m2) {
-//          		  	val_pot2=impl_m2->fcube_for_mul3(key2);
-            			ProcessID owner = impl_m2->get_coeffs().owner(key2);
-            			val_pot2=impl_m2->task(owner, &FunctionImpl<T,MDIM>::fcube_for_mul3, key2,key2);
-            		} else {
-            			val_pot2.set(coeffT());
-            		}
+            //            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
+            impl->task(world.rank(),
+                    &FunctionImpl<T, NDIM>:: template do_assemble_coeff<MDIM>,
+//                    do_refine, key, val_ket, val_eri, val_pot1, val_pot2);
+                    do_refine, key, val_ket, impl_eri.get(), val_pot1, val_pot2);
+            return None;
+        }
 
-//            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
-            		impl->task(world.rank(),&FunctionImpl<T,NDIM>:: template do_assemble_coeff<MDIM>,
-			              do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
-			return None;
+		coeffT eri_values(const Key<NDIM>& key) {
+		    return impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
 		}
 
 

@@ -294,6 +294,26 @@ namespace madness {
         	return contains;
         }
 
+        /// break key into two low-dimensional keys
+        template<std::size_t LDIM, std::size_t KDIM>
+        void break_apart(Key<LDIM>& key1, Key<KDIM>& key2) const {
+
+            MADNESS_ASSERT(NDIM==LDIM+KDIM);
+
+            // break key into particles
+            Vector<Translation, LDIM> l1;
+            Vector<Translation, KDIM> l2;
+            for (size_t i=0; i<LDIM; ++i) {
+                l1[i]=l[i];
+            }
+            for (size_t i=0; i<KDIM; ++i) {
+                l2[i]=l[LDIM+i];
+            }
+            key1=Key<LDIM>(n,l1);
+            key2=Key<KDIM>(n,l2);
+
+        }
+
         /// Recomputes hashval ... presently only done when reading from external storage
         void
         rehash() {

@@ -820,6 +820,11 @@ namespace madness {
         	return functor;
         }
 
+        std::shared_ptr<FunctionFunctorInterface<T,NDIM> > get_functor() const {
+            MADNESS_ASSERT(this->functor);
+            return functor;
+        }
+
         void unset_functor() {
         	this->on_demand=false;
         	functor.reset();
@@ -2218,12 +2223,14 @@ namespace madness {
         	MADNESS_ASSERT(NDIM==6);
         	MADNESS_ASSERT(LDIM==3);
 
-			// break key into particles (these are the child keys, with datum1/2 come the parent keys)
-			const Vector<Translation, NDIM>& l=key.translation();
-			const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
-			const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
-			const Key<LDIM> key1(key.level(),l1);
-			const Key<LDIM> key2(key.level(),l2);
+//			// break key into particles (these are the child keys, with datum1/2 come the parent keys)
+//			const Vector<Translation, NDIM>& l=key.translation();
+//			const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
+//			const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
+//			const Key<LDIM> key1(key.level(),l1);
+//			const Key<LDIM> key2(key.level(),l2);
+        	Key<LDIM> key1,key2;
+        	key.break_apart(key1,key2);
 
 			// iterators point to nodes in nonstandard representation: get the sum coeffs
 			const coeffT s1=datum1.second.coeff()(p1->cdata.s0);
@@ -2321,7 +2328,7 @@ namespace madness {
 					datum22.set(datum2);
 				}
 
-			woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
+				woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
                         datum11, datum22);
 			}
 
@@ -2463,6 +2470,198 @@ namespace madness {
         }
 
 
+        void make_Vphi(const bool fence=true) {
+
+            const size_t LDIM=3;
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+
+            CompositeFunctorInterface<T,NDIM,LDIM>* func=
+                    dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(&(*functor));
+            coeffs.clear();
+            const keyT& key0=cdata.key0;
+
+
+            const FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
+            const FunctionImpl<T,LDIM>* pot1=func->impl_m1.get();
+            const FunctionImpl<T,LDIM>* pot2=func->impl_m2.get();
+
+            if (world.rank() == coeffs.owner(key0)) {
+                Future<datumL> datum1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
+                        &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> datum2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
+                        &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri());
+                Future<datumT> datum_ket=ket->task(ket->get_coeffs().owner(key0),
+                        &implT::find_datum,key0,TaskAttributes::hipri());
+
+                woT::task(coeffs.owner(key0),&implT:: template make_Vphi_spawn<LDIM>,ket,
+                        pot1,pot2,datum1,datum2,datum_ket,key0);
+            }
+
+            this->compressed=false;
+            if (fence) world.gop.fence();
+
+        }
+
+        /// check for the autorefine criterion
+        template<size_t LDIM>
+        bool make_Vphi_op(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
+                const implT* ket, const keyT& key,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
+                const std::pair<keyT,nodeT>& datum_ket) {
+
+
+            // break key into particles (these are the child keys, with datum1/2 come the parent keys)
+            Key<LDIM> key1, key2;
+            key.break_apart(key1,key2);
+
+            // values for 1e-potentials
+            const coeffT val_pot1=p1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
+            const coeffT val_pot2=p2->fcube_for_mul(key2,datum2.first,datum2.second.coeff());
+
+            // values for ket
+            tensorT val_ket=fcube_for_mul(key,datum_ket.first,datum_ket.second.coeff()).full_tensor_copy();
+
+            // values for eri
+            const tensorT ceri=functor->eri_values(key).full_tensor();
+            const tensorT val_eri=coeffs2values(key,ceri);
+
+            // assemble all contributions
+            tensorT coeff_v(cdata.vk);      // 6D, all addends
+
+            // include the one-electron potential
+            if (val_pot1.has_data() and val_pot2.has_data()) {
+
+                FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
+                Tensor<T> identity=Tensor<double>(cdataL.vk,false);
+                identity=1.0;
+
+                // direct product: V(1) * E(2) + E(1) * V(2)
+                coeff_v = outer(val_pot1.full_tensor_copy(),identity)
+                                   + outer(identity,val_pot2.full_tensor_copy());
+            } else if (val_pot1.has_data()) {
+
+                MADNESS_ASSERT(LDIM==NDIM);
+                coeff_v = (val_pot1.full_tensor_copy());
+            }
+
+
+            // add 2-particle contribution
+            coeff_v+=val_eri;
+
+            // check for need of refinement
+            bool needs_refinement=false;
+            if (coeff_v.has_data()) {
+
+                double lo_ket, hi_ket, lo_pot, hi_pot;
+                tnorm(val_ket, &lo_ket, &hi_ket);
+                tnorm(coeff_v, &lo_pot, &hi_pot);
+                double test = lo_ket*hi_pot + lo_pot*hi_ket + hi_ket*hi_pot;
+                //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
+                needs_refinement= (test> truncate_tol(thresh, key));
+
+
+                if (key.level()<2) needs_refinement=true;
+                if (key.level()>4) needs_refinement=false;
+
+            }
+
+            if (not needs_refinement) {
+                // multiply potential with ket
+                if (val_eri.has_data() or val_pot1.has_data()) {
+                    tensorT tcube(cdata.vk,false);
+                    TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+                    val_ket=tcube;
+                }
+
+                coeffs.replace(key,nodeT(coeffT(values2coeffs(key,val_ket),targs)));  // leaf node
+            } else {
+                coeffs.replace(key,nodeT(coeffT(),true));   // empty internal node w/ children
+            }
+            return needs_refinement;
+        }
+
+
+
+        template<size_t LDIM>
+        Void make_Vphi_spawn(const implT* ket,
+                const FunctionImpl<T,LDIM>* pot1, const FunctionImpl<T,LDIM>* pot2,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
+                const std::pair<keyT,nodeT>& datum_ket,
+                const keyT& key) {
+
+            // for convenience
+            typedef FunctionNode<T,LDIM> nodeL;
+            typedef FunctionImpl<T,LDIM> implL;
+            typedef std::pair<Key<LDIM>,nodeL> datumL;
+            typedef std::pair<keyT,nodeT> datumT;
+
+            const nodeL& node1=datum1.second;
+            const nodeL& node2=datum2.second;
+            const nodeT& node_ket=datum_ket.second;
+
+            // assemble the coeffs
+            bool refine=make_Vphi_op(pot1,pot2,ket,key,datum1,datum2,datum_ket);
+
+            // recur down the tree if we need refinement
+            if (refine) {
+
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+
+                    // break key into particles
+                    const keyT child=kit.key();
+                    Key<LDIM> child1,child2;
+                    child.break_apart(child1,child2);
+
+                    // point to "outermost" leaf node
+                    Future<datumL> datum11, datum22;
+                    Future<datumT> datum_ket2;
+                    if (node1.has_children()) {
+                        datum11=pot1->task(pot1->coeffs.owner(child1), &implL::find_datum, child1,
+                                TaskAttributes::hipri());
+                    } else {
+                        datum11.set(datum1);
+                    }
+
+                    if (node2.has_children()) {
+                        datum22=pot2->task(pot2->coeffs.owner(child2), &implL::find_datum, child2,
+                                TaskAttributes::hipri());
+                    } else {
+                        datum22.set(datum2);
+                    }
+
+                    if (node_ket.has_children()) {
+                        datum_ket2=ket->task(ket->get_coeffs().owner(child), &implT::find_datum, child,
+                                TaskAttributes::hipri());
+                    } else {
+                        datum_ket2.set(datum_ket);
+                    }
+
+
+                    woT::task(world.rank(), &implT:: template make_Vphi_spawn2<LDIM>,
+                            ket,pot1,pot2,datum11,datum22,datum_ket2,child);
+                }
+
+            }
+            return None;
+        }
+
+        template<size_t LDIM>
+        Void make_Vphi_spawn2(const implT* ket,
+                const FunctionImpl<T,LDIM>* pot1, const FunctionImpl<T,LDIM>* pot2,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
+                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
+                const std::pair<keyT,nodeT>& datum_ket,
+                const keyT& key) {
+
+            ProcessID owner = coeffs.owner(key);
+            woT::task(owner, &implT:: template make_Vphi_spawn<LDIM>,
+                    ket,pot1,pot2,datum1,datum2,datum_ket,key);
+            return None;
+        }
+
 
         /// construct the FunctionNodes of this on-demand FunctionImpl
 
@@ -2482,7 +2681,7 @@ namespace madness {
         	coeffs.clear();
 
         	const keyT& key0=cdata.key0;
-		if (world.rank() == coeffs.owner(key0))
+        	if (world.rank() == coeffs.owner(key0))
 //           		fill_coeff_spawn(muster,key0,do_refine);
 			woT::task(coeffs.owner(key0),&implT::fill_coeff_spawn,muster,key0,
 	    			do_refine,TaskAttributes::hipri());
@@ -2511,7 +2710,7 @@ namespace madness {
                 // note that fill_coeff can also spawn more tasks on the children
                 // if we have to refine
 //                functor->fill_coeff(this,key,do_refine);
-		woT::task(coeffs.owner(key),&implT::fill_coeff_op,key,do_refine);
+                woT::task(coeffs.owner(key),&implT::fill_coeff_op,key,do_refine);
             } else {
 
                 // insert an empty internal node
@@ -2542,7 +2741,8 @@ namespace madness {
         /// check for the autorefine criterion, and if it is not met, refine by 1 scale
         template<size_t LDIM>
         Void do_assemble_coeff(const bool do_refine, const keyT& key,
-                const coeffT& val_ket, const coeffT& val_eri,
+//                const coeffT& val_ket, const coeffT& val_eri,
+                const coeffT& val_ket, const implT* impl_eri,
                 const coeffT& val_pot1, const coeffT& val_pot2) {
 
 
@@ -2570,7 +2770,9 @@ namespace madness {
 
 
             // add 2-particle contribution
-            if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
+//            if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
+            coeffT val_eri=impl_eri->get_functor()->coeff(key);
+            coeff_v+=coeffs2values(key,val_eri.full_tensor());
 
             // check for need of refinement
             bool needs_refinement=false;

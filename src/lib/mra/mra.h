@@ -1470,8 +1470,11 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-	if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
+        if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
        	result.set_impl(f, true);
+       	long tsize=f.tree_size();
+       	long size=f.size();
+       	if (f.get_impl()->world.rank()==0) print("in apply_only: source treesize, size",tsize,size);
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
 

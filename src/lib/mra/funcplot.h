@@ -526,21 +526,14 @@ namespace madness {
     // print a dot of hue color at (x,y) in file f
     static void print_psdot(FILE *f, double x, double y, double color) {
     	fprintf(f,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
-    	std::string line="\\psdot[linecolor=mycolor]("+stringify(x)+","+stringify(y)+")\n";
-    	fprintf(f,line.c_str());
+//    	std::string line="\\psdot[linecolor=mycolor]("+stringify(x)+","+stringify(y)+")\n";
+//    	fprintf(f,line.c_str());
+        fprintf(f,"\\psdot[linecolor=mycolor](%12.8f,%12.8f)\n",x,y);
     }
 
     typedef Vector<double,3> coord_3d;
     typedef Vector<double,6> coord_6d;
 
-    static coord_6d line(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
-    	double length=hi-lo;
-    	double stepsize=length/npt;
-    	// along z
-    	coord_6d coord(0.0);
-    	coord[2]=lo+ipt*stepsize;
-    	return coord;
-    }
     static coord_3d circle2(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
     	double stepsize=constants::pi * 2.0 / npt;
     	double phi=ipt*stepsize;
@@ -577,18 +570,22 @@ namespace madness {
     template<size_t NDIM>
     struct trajectory {
 
+        typedef Vector<double,NDIM> coordT;
+
     	double lo;
     	double hi;
     	double radius;
     	long npt;
+    	coordT start, end;
     	coord_3d el2;
-    	Vector<double,NDIM> (*curve)(double lo, double hi, double radius, coord_3d el2, long npt, long ipt);
+    	coordT (*curve)(const coordT lo, coordT hi, double radius, coord_3d el2, long npt, long ipt);
 
     //	typedef Vector<double,NDIM> (trajectory::circle_6d)(double lo, double hi, double radius, long npt, long ipt) const;
 
-    	// ctor for a straight line thru the origin
-    	trajectory(double lo, double hi, long npt) : lo(lo), hi(hi), npt(npt), curve(line) {
-    	}
+    	trajectory() {}
+//    	// ctor for a straight line thru the origin
+//    	trajectory(double lo, double hi, long npt) : lo(lo), hi(hi), npt(npt), curve(line) {
+//    	}
 
     	// ctor for circle
     	trajectory(double radius, long npt) : radius(radius), npt(npt), curve(circle2) {
@@ -598,15 +595,36 @@ namespace madness {
     	trajectory(double radius, coord_3d el2, long npt) : radius(radius), npt(npt), el2(el2), curve(circle_6d) {
     	}
 
-    	Vector<double,NDIM> operator()(int ipt) {
-    		return curve(lo,hi,radius,el2,npt,ipt);
-    	}
+
+        static Vector<double, NDIM> line_internal(const coordT lo, const coordT hi, double radius, coord_3d el2, long npt, long ipt) {
+            const coordT step=(hi-lo)*(1.0/npt);
+            coordT coord=lo+step*ipt;
+            return coord;
+        }
+
+
+        /// constructor for a line
+//        static trajectory line(const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, const long npt) {
+        static trajectory line2(const coordT start, const coordT end, const long npt) {
+            trajectory<NDIM> traj;
+            traj.start=start;
+            traj.end=end;
+            traj.npt=npt;
+            traj.curve=(trajectory::line_internal);
+            return traj;
+        }
+
+        Vector<double,NDIM> operator()(int ipt) {
+            return curve(start,end,radius,el2,npt,ipt);
+        }
 
     };
 
+
+
     // plot along a line
     template<size_t NDIM>
-    void plot_along(World& world, trajectory<NDIM>& traj, const Function<double,NDIM>& function, std::string filename) {
+    void plot_along(World& world, trajectory<NDIM> traj, const Function<double,NDIM>& function, std::string filename) {
     	 FILE *f=0;
     	 const int npt=traj.npt;
 
@@ -644,7 +662,7 @@ namespace madness {
 
     // plot along a line
     template<size_t NDIM>
-    void plot_along(World& world, trajectory<NDIM>& traj, double (*ff)(const Vector<double,NDIM>&), std::string filename) {
+    void plot_along(World& world, trajectory<NDIM> traj, double (*ff)(const Vector<double,NDIM>&), std::string filename) {
     	 FILE *f=0;
     	 const int npt=traj.npt;
 

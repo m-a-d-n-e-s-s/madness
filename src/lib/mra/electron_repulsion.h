@@ -124,44 +124,47 @@ namespace madness {
     	/// return the coefficients of the function in 6D (x1,y1,z1, x2,y2,z2)
     	Tensor<double> coeff(const Key<NDIM>& key) const {
 
-		typedef Tensor<double> tensorT;
+    	    typedef Tensor<double> tensorT;
 
-		MADNESS_ASSERT(NDIM==6);
-		
-		const Level n=key.level();
-		const Vector<Translation,NDIM> l=key.translation();
-		
-		// get the displacements for all 3 dimensions: x12, y12, z12
-		const Translation l0=(l[0]-l[3]);
-		const Translation l1=(l[1]-l[4]);
-		const Translation l2=(l[2]-l[5]);
-		
-		// the dimensions are a bit confused (x1,x2, y1,y2, z1,z2) -> (x1,y1,z1, x2,y2,z2)
-		std::vector<long> map(NDIM);
-		map[0]=0;
-		map[1]=3;
-		map[2]=1;
-		map[3]=4;
-		map[4]=2;
-		map[5]=5;
-		
-		tensorT scr1(rank,k*k), scr2(rank,k*k,k*k);
-		
-		// lump all the terms together
-		for (long mu=0; mu<rank; mu++) {
-			const Tensor<double> r0=(ops[mu].getop(0)->rnlij(n,l0)).reshape(k*k);
-			const Tensor<double> r1=(ops[mu].getop(1)->rnlij(n,l1)).reshape(k*k);
-			const Tensor<double> r2=(ops[mu].getop(2)->rnlij(n,l2)).reshape(k*k);
-		
-			// include weights in first vector
-			scr1(mu,Slice(_))=r0*ops[mu].getfac();
-			
-			// merge second and third vector to scr(r,k1,k2)
-			scr2(mu,Slice(_),Slice(_))=outer(r1,r2);
-		}
+    	    MADNESS_ASSERT(NDIM==6);
 
-		tensorT c=inner(scr1,scr2,0,0);
-		return copy(c.reshape(k,k,k,k,k,k).mapdim(map));
+    	    const Level n=key.level();
+    	    const Vector<Translation,NDIM> l=key.translation();
+
+    	    // get the displacements for all 3 dimensions: x12, y12, z12
+    	    const Translation l0=(l[0]-l[3]);
+    	    const Translation l1=(l[1]-l[4]);
+    	    const Translation l2=(l[2]-l[5]);
+
+    	    // the dimensions are a bit confused (x1,x2, y1,y2, z1,z2) -> (x1,y1,z1, x2,y2,z2)
+    	    std::vector<long> map(NDIM);
+    	    map[0]=0;
+    	    map[1]=3;
+    	    map[2]=1;
+    	    map[3]=4;
+    	    map[4]=2;
+    	    map[5]=5;
+
+    	    tensorT scr1(rank,k*k), scr2(rank,k*k,k*k);
+
+    	    // lump all the terms together
+    	    for (long mu=0; mu<rank; mu++) {
+    	        const Tensor<double> r0=(ops[mu].getop(0)->rnlij(n,l0)).reshape(k*k);
+    	        const Tensor<double> r1=(ops[mu].getop(1)->rnlij(n,l1)).reshape(k*k);
+    	        const Tensor<double> r2=(ops[mu].getop(2)->rnlij(n,l2)).reshape(k*k);
+//                Tensor<double> r1(k*k); r1[0]=1.0;
+//                Tensor<double> r2(k*k); r2[0]=1.0;
+
+
+    	        // include weights in first vector
+    	        scr1(mu,Slice(_))=r0*ops[mu].getfac();
+
+    	        // merge second and third vector to scr(r,k1,k2)
+    	        scr2(mu,Slice(_),Slice(_))=outer(r1,r2);
+    	    }
+
+    	    tensorT c=inner(scr1,scr2,0,0);
+    	    return copy(c.reshape(k,k,k,k,k,k).mapdim(map));
     	}
 
     };

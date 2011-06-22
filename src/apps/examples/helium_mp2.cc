@@ -52,6 +52,7 @@
 #include <iostream>
 
 
+
 using namespace madness;
 
 static const double dcut=1.e-5;
@@ -216,7 +217,7 @@ static double helium_pot(const coord_6d& r) {
     const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
     const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut);
 
-    const double value=-2.0/r1 - 2.0/r2 + 1.0/r12;
+    const double value=-2.0/r1 - 2.0/r2;// + 1.0/r12;
 //    const double value= + 1.0/r12;
     return value;
 }
@@ -350,7 +351,7 @@ public:
 
     void operator()(const Key<6>& key, Tensor<double>& t) const {
 
-#if 1
+#if 0
         // break key into particles
         const Vector<Translation, 6> l=key.translation();
         const Vector<Translation, 3> l1=Vector<Translation,3> (vec(l[0],l[1],l[2]));
@@ -370,9 +371,10 @@ public:
         t.emul(g12);
 #else
 	Tensor<double> v(k,k,k,k,k,k);
-//       	f.get_impl()->fcube(key, helium_pot, qx6, v);
-       	f.get_impl()->fcube(key, coul, qx6, v);
-        t.emul(v);
+       	f.get_impl()->fcube(key, helium_pot, qx6, v);
+//       	f.get_impl()->fcube(key, coul, qx6, v);
+//        t.emul(v);
+        t=v;
 
 #endif
 
@@ -514,13 +516,11 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
     
-    long size=Vpsi.size();
-    if(world.rank() == 0) print("Vpsi.size() NS before truncation",size);
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
-    size=tmp.size();
+    long size=tmp.size();
     if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
 
     
@@ -692,15 +692,6 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 	real_function_3d pot1=real_factory_3d(world).f(Z2);
 	real_function_3d pot2=real_factory_3d(world).f(Z2);
 
-//    // Coulomb potential
-//    real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
-//    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
-//    real_function_3d rho = square(orbital).truncate();
-//    real_function_3d coulpot = op(rho).truncate();
-//    pot1+=coulpot;
-//    pot2+=coulpot;
-
-
 	if(world.rank() == 0) printf("\nproject at time %.1fs\n\n", wall_time());
 
 	for (long i=0; i<maxiter; i++) {
@@ -708,29 +699,50 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		// two-electron interaction potential
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
 
-		long tree_size1=pair.tree_size();
-//        pair.refine_general(true_if_n_gt_op(3));
-		Vector<double,6> a;
-//		pair.refine_general(true_if_close_to_nucleus(a));
-		pair.refine_general(true_op());
-	        long tree_size2=pair.tree_size();
-		if (world.rank()==0) print("refined pair",tree_size1,tree_size2);
-		real_function_6d v11=CompositeFactory<double,6,3>(world)
+		real_function_6d vphi=CompositeFactory<double,6,3>(world)
 							.ket(copy(pair).get_impl())
 							.g12(eri.get_impl())
 							.V_for_particle1(copy(pot1).get_impl())
 							.V_for_particle2(copy(pot2).get_impl())
 							.muster(copy(pair).get_impl())
 							;
-		v11.get_impl()->fill_on_demand_tree(pair.get_impl().get(),false);
-		if (world.rank()==0) print("filled tree");
-		std::string name="v11_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
-		save_function(world,v11,energy,name);
-							
+		vphi.get_impl()->make_Vphi();
 
-//		real_function_6d v11=multiply_by_V(pair);
+		long tree_size1=pair.tree_size();
+        long tree_size2=vphi.tree_size();
+        long size2=vphi.size();
+        if (world.rank()==0) print("refined pair",tree_size1,tree_size2,size2);
 
-		iterate(world,v11,pair,energy);
+
+        // plot xy plane containing the origin
+        for (int ii=0; ii<20; ii++) {
+            coord_6d fix_coord(0.0);
+            // electron 2:
+            fix_coord[3]=0.0;
+            fix_coord[4]=0.1+0.1*ii;
+            fix_coord[5]=0.0;
+
+            Tensor<double> cell(6,2);
+            cell(Slice(_),0)=-2.0;
+            cell(Slice(_),1)= 2.0;
+            std::string filename="plot_plane_d"+stringify(fix_coord[4])+"_k"+stringify(k)+"_eps"+stringify(thresh);
+            vphi.get_impl()->print_plane(filename,"xy",fix_coord,cell);
+
+        }
+        std::string name="vphi_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
+		double L=FunctionDefaults<6>::get_cell_width()[0];
+		coord_6d lo(0.0), hi(0.0);
+		lo[0]=-L/2;
+		hi[0]=L/2;
+		for (int ii=-5; ii<6; ii++) {
+		    lo[3]=hi[3]=double(ii);
+		    trajectory<6> line=trajectory<6>::line2(lo,hi,601);
+		    plot_along<6>(world,line,vphi,(name+"lineplot"+stringify(ii)));
+            plot_along<6>(world,line,helium_pot,(name+"lineplot_coul"+stringify(ii)));
+		}
+
+
+		iterate(world,vphi,pair,energy);
 		pair.reconstruct();
 
 		long tree_size=pair.tree_size();
@@ -774,9 +786,6 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
   
 
 }
-
-
-
 
 
 int main(int argc, char** argv) {
@@ -949,9 +958,9 @@ int main(int argc, char** argv) {
         real_function_6d pair;
         double energy;
         load_function(world,pair,energy,restart_name);
-        trajectory<6> traj(-L/2,L/2,201);
+//        trajectory<6> traj(-L/2,L/2,601);
         std::string filename=restart_name+"lineplot";
-        plot_along<6>(world,traj,pair,filename);
+//        plot_along<6>(world,traj,pair,filename);
 
         return 0;
     }
@@ -1052,7 +1061,7 @@ int main(int argc, char** argv) {
     if (current_thresh>1.e-3) {
         FunctionDefaults<6>::set_thresh(1.e-3);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-3);
-    	solve(world,pair1,energy,4,1.e-8);
+    	solve(world,pair1,energy,4,1.e-4);
     	pair=pair1;
     	current_thresh=1.e-3;
     }	
@@ -1061,7 +1070,7 @@ int main(int argc, char** argv) {
     if ((current_thresh>1.e-4) and (max_thresh<9.e-4)) {
         FunctionDefaults<6>::set_thresh(1.e-4);
     	real_function_6d pair1=project(pair,FunctionDefaults<6>::get_k(),1.e-4);
-    	solve(world,pair1,energy,8,1.e-8);
+    	solve(world,pair1,energy,8,1.e-4);
     	pair=pair1;
     	current_thresh=1.e-4;
     }
