@@ -314,7 +314,8 @@ namespace madness {
         /// \note The return future will contain an incomplete reduction on all
         /// nodes other than the root.
         template <typename valueT, typename opT, typename initerT>
-        Future<valueT> reduce(std::size_t k, const valueT& value, opT op, initerT first, initerT last, ProcessID root = -1) {
+        Future<typename remove_fcvr<valueT>::type>
+        reduce(std::size_t k, const valueT& value, opT op, initerT first, initerT last, ProcessID root = -1) {
 
             // Make sure nodes in group are >= 0 and < w.size()
             MADNESS_ASSERT(std::find_if(first, last,

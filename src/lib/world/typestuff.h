@@ -657,6 +657,16 @@ namespace madness {
         typedef typename memfunc_traits<fnT>::result_type type;
     };
 
+    template <typename> class Future;
+    template <typename> struct remove_future;
+
+    // Remove Future, const, volatile, and reference qualifiers from the type
+    template <typename T>
+    struct remove_fcvr {
+        typedef typename remove_future<typename std::remove_cv<
+                typename std::remove_reference<T>::type>::type>::type type;
+    };
+
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
 
     /// Fundamental types, member function pointers, and function pointers
