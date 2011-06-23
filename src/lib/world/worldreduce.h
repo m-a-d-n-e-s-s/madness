@@ -162,53 +162,96 @@ namespace madness {
 
         }; // class ReductionInterface
 
+        /// Group reduction object
+
+        /// \tparam T The type of object that will be reduced
         template <typename T>
         class GroupReduction : public ReductionInterface {
         private:
-            Future<T> r0_;
-            Future<T> r1_;
-            Future<T> r2_;
-            Future<T> result_;
+            std::array<Future<T>, 3> r_;    ///< Futures to the reduction values
+            AtomicInt count_;               ///< Counts the number of reduction
+                                            ///< values that have been set
 
         public:
 
-            GroupReduction() { }
+            /// Default constructor
+            GroupReduction() {
+                count_ = 0;
+            }
 
+            /// Destructor
             virtual ~GroupReduction() { }
 
+            /// Set the reduction operation
+
+            /// This is the local construction step. Construction is done in a
+            /// two step process because child reductions may finish before
+            /// the local reduction has been performed. If this happens then
+            /// the child valuse are cached in futures until this function has
+            /// been called.
+            /// \tparam opT The reduction operation type
+            /// \param w The world that the reduction belongs to.
+            /// \param op The reduction operation
             template <typename opT>
             Future<T> set_op(World& w, const opT& op) {
+                // Check that this node is included in the reduction group
                 MADNESS_ASSERT(ReductionInterface::count() != 0);
 
-                TaskAttributes attr;
-                attr.set_highpriority(true);
+                Future<T> result;
                 switch(ReductionInterface::count()) {
                 case 3:
                     {
-                        Future<T> temp = w.taskq.add(op, r0_, r1_, attr);
-                        result_ = w.taskq.add(op, temp, r2_, attr);
+                        Future<T> temp = w.taskq.add(& reduce_op<opT>, r_[0], r_[1],
+                                op, TaskAttributes::hipri());
+                        result = w.taskq.add(& reduce_op<opT>, temp, r_[2], op,
+                                TaskAttributes::hipri());
                     }
                     break;
 
                 case 2:
-                    result_ = w.taskq.add(op, r0_, r1_, attr);
+                    result = w.taskq.add(& reduce_op<opT>, r_[0], r_[1], op,
+                            TaskAttributes::hipri());
                     break;
 
                 case 1:
-                    result_.set(r0_);
+                    result.set(r_[0]);
                     break;
                 }
 
-                return result_;
+                return result;
             }
 
         private:
 
+            /// Reduction operation function
+
+            /// This is a wrapper function around the reduction operation so
+            /// we can submit function objects to the task queue.
+            /// \tparam Op The reduction operation type
+            /// \param v1 The first value to reduce.
+            /// \param v1 The second value to reduce.
+            /// \param op The reduction operation object
+            /// \return The reduced value
+            template <typename Op>
+            static T reduce_op(const T& v1, const T& v2, const Op& op) {
+                return op(v1, v2);
+            }
+
+            /// Reduce a value
+
+            /// This will add the object pointed to by \c p local reduction.
+            /// \c p is cast to \c const \c T* .
+            /// \param p A void pointer to a non-future value type
             virtual void reduce_value(const void* p) {
                 const T* v = reinterpret_cast<const T*>(p);
                 set_future(*v);
             }
 
+            /// Reduce a value
+
+            /// This will add the object pointed to by \c p local reduction.
+            /// \c p is cast to \c const \c T* .
+            /// \param p A void pointer to a future value type
             virtual void reduce_future(const void * p) {
                 const Future<T>* f = reinterpret_cast<const Future<T>* >(p);
                 set_future(*f);
@@ -216,14 +259,10 @@ namespace madness {
 
             template <typename U>
             void set_future(const U& u) {
-                if(! r0_.probe())
-                    r0_.set(u);
-                else if(! r1_.probe())
-                    r1_.set(u);
-                else if(! r2_.probe())
-                    r2_.set(u);
-                else
-                    MADNESS_EXCEPTION("All reduction values have already been set.", false);
+                const int i = count_++;
+
+                MADNESS_ASSERT(! r_[i].probe());
+                r_[i].set(u);
             }
 
             virtual const std::type_info& type() const { return typeid(T); }
@@ -253,7 +292,11 @@ namespace madness {
 
         reduce_container reductions_;               ///< Stores reduction objects
 
+        /// Add a value to a reduction object to be reduce
 
+        /// \tparam valueT The value type that will be reduce by the object
+        /// \param k The key of the reduction object
+        /// \param value The value that will be reduced
         template <typename valueT>
         Void reduce_value(const key& k, const valueT& value) {
             typename reduce_container::accessor acc;
@@ -263,6 +306,10 @@ namespace madness {
             return None;
         }
 
+        /// Forward the results of the local reduction to the parent
+
+        /// \tparam valueT The value type that was reduced
+        /// \param parent The parent of the local reduction
         template <typename valueT>
         Void send_to_parent(ProcessID parent, const key& k, const valueT& value) {
             if(parent != -1)
@@ -273,6 +320,13 @@ namespace madness {
             return None;
         }
 
+        /// Insert a reduction object
+
+        /// This is called by the children and locally, and may be called in any
+        /// order by these. If the reduction object does not exist, it is added.
+        /// \tparam valueT The value type to be reduced
+        /// \param acc The reduction object accessor
+        /// \param k The key for the reduction
         template <typename valueT>
         void insert(typename reduce_container::accessor& acc, const key& k) {
             std::shared_ptr<detail::GroupReduction<valueT> > reduction;
@@ -316,6 +370,7 @@ namespace madness {
         template <typename valueT, typename opT, typename initerT>
         Future<typename remove_fcvr<valueT>::type>
         reduce(std::size_t k, const valueT& value, opT op, initerT first, initerT last, ProcessID root = -1) {
+            typedef typename remove_fcvr<valueT>::type value_type;
 
             // Make sure nodes in group are >= 0 and < w.size()
             MADNESS_ASSERT(std::find_if(first, last,
@@ -326,21 +381,21 @@ namespace madness {
 
             // Create/find the reduction object
             typename reduce_container::accessor acc;
-            insert<valueT>(acc, k);
+            insert<value_type>(acc, k);
 
             // Set the reduction group
             acc->second->set_group(WorldObject_::get_world().rank(), first, last, root);
 
             // Set the reduction operation
-            std::shared_ptr<detail::GroupReduction<valueT> > reduction =
-                std::static_pointer_cast<detail::GroupReduction<valueT> >(acc->second);
-            Future<valueT> result = reduction->set_op(WorldObject_::get_world(), op);
+            std::shared_ptr<detail::GroupReduction<value_type> > reduction =
+                std::static_pointer_cast<detail::GroupReduction<value_type> >(acc->second);
+            Future<value_type> result = reduction->set_op(WorldObject_::get_world(), op);
 
             // Forward the results of the local reductions to the parent
-            if(! acc->second->is_root())
-                WorldObject_::get_world().taskq.add(*this,
-                    & WorldReduce_::template send_to_parent<valueT>,
-                    acc->second->parent(), k, result);
+            // and erase the reduction object
+            WorldObject_::get_world().taskq.add(*this,
+                & WorldReduce_::template send_to_parent<value_type>,
+                acc->second->parent(), k, result);
 
             // Reduce the local value
             acc->second->reduce(value);
