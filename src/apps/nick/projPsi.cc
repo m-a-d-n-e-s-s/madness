@@ -87,7 +87,6 @@ struct LBCost {
     }
 };
 
-
 /******************************************************************************************
  * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
  * input
@@ -125,10 +124,11 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     std::pair<bool,complexd> psiVal;
     std::vector<Yl0> Y;
     for( int l=0; l<=lMAX; l++) {
-        Y.push_back(Yl0(L,l));
+        Y.push_back(Yl0(l));
     }
     psi.reconstruct(); //Transforms to scaling function basis 
     Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
+    PRINTLINE("HERE");
     for( int i=0; i<n; i++ ) {
         const double r = i*dr + 1e-10; //Allows for near zero evaluation
         Tensor<complexd> R(lMAX+1);
@@ -138,22 +138,23 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             // control for endpoint quadrature
             double ifEndPtj = 1.0;
             if (j==0 || j==(n-1)) ifEndPtj = 0.5;
-            // for( int k=0; k<n; k++ ) {
-            //     const double phi = k*dPHI;
-            //     const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
-            const vector3D rVec = vec(r*sinTH, r*sinTH, r*std::cos(th));
-            // parallelism introduced via eval_local_only
-            psiVal = psi.eval_local_only(rVec, maxLocalDepth);
-            if( psiVal.first ) { //boolean: true for local coeffs
-                // control for endpoint quadrature
-                // double ifEndPtk = 1.0;
-                // if (k==0 || k==(n-1)) ifEndPtk = 0.5;
-                for( int l=0; l<=lMAX; l++) {
-                    R(l) += psiVal.second * Y[l](rVec) * 2*PI* sinTH*dTH * ifEndPtj;
-                }         //psiVal.second returns psi(rVec)
-            }
+            //for( int k=0; k<n; k++ ) {
+            //    const double phi = k*dPHI;
+                //const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+                const vector3D rVec = vec(r*sinTH, 0.0, r*std::cos(th)); //azimuthal symmetry allows us to take a slice
+                // parallelism introduced via eval_local_only
+                psiVal = psi.eval_local_only(rVec, maxLocalDepth);
+                if( psiVal.first ) { //boolean: true for local coeffs
+                    // control for endpoint quadrature
+                    //double ifEndPtk = 1.0;
+                    //if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+                    for( int l=0; l<=lMAX; l++) {
+                        R(l) += psiVal.second * Y[l](rVec) * 2.0*3.14159 * sinTH*dTH * ifEndPtj; 
+                        //R(l) += psiVal.second * Y[l](rVec) * dPHI * sinTH*dTH * ifEndPtj*ifEndPtk; 
+                    }         //psiVal.second returns psi(rVec)
+                }
+            //}
         }
-    }
         for( int l=0; l<=lMAX; l++) {
             YlPsi(i,l) = R(l);
         }

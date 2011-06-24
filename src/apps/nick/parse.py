@@ -2,7 +2,6 @@
 # Write the name of the data file in the argument list
 # Known issues: multiple file arguments get included 
 # too many times
-#TEST LIN
 import sys, string, re, array, os
 try:
         sys.argv[1]
