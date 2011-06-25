@@ -462,11 +462,12 @@ struct CalculationParameters {
     bool solvent;               ///< if true add reaction potential to the total energy at convergence  jacob added
     double sigma;               ///< surface width    jacob added
     bool solventplot;            ///< to plot the solvation, free space and reaction potentials
+    double thresh;                ///<thresh value of the wavelet coefficient
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
-        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & solvent & sigma & solventplot;
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & solvent & sigma & solventplot & thresh;
         ar & core_type;
     }
 
@@ -504,8 +505,8 @@ struct CalculationParameters {
         , epsilon_2(epsilon_2)  //jacob added
         , solvent(false)        //jacob added
 	, sigma(0.1)            //Jacob added
-	,solventplot(false){}   //jacob added
-
+	,solventplot(false)   //jacob added
+	,thresh(1e-04){}
    void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
@@ -525,6 +526,9 @@ struct CalculationParameters {
             }
             else if (s == "dconv") {
                 f >> dconv;
+            }
+	    else if (s == "thresh") {
+	      f >> thresh;
             }
             else if (s == "L") {
                 f >> L;
@@ -662,11 +666,11 @@ struct CalculationParameters {
     }
 
     void print(World& world) const {
-        //time_t t = time((time_t *) 0);
-        //char *tmp = ctime(&t);
-        //tmp[strlen(tmp)-1] = 0; // lose the trailing newline
+        time_t t = time((time_t *) 0);
+        char *tmp = ctime(&t);
+        tmp[strlen(tmp)-1] = 0; // lose the trailing newline
         const char* calctype[2] = {"Hartree-Fock","LDA"};
-        //madness::print(" date of calculation ", tmp);
+        madness::print(" date of calculation ", tmp);
         madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
         madness::print("   no. of io servers ", nio);
@@ -688,8 +692,10 @@ struct CalculationParameters {
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);
         madness::print("        plot npoints ", npt_plot);
-	if (epsilon_2 > 1.0)
+	if (epsilon_2 > 1.0){
 	    madness::print("        dielectric ", epsilon_2); //jacob added
+	    madness::print("     surface width ", sigma);
+	}
         if (plot_cell.size() > 0)
             madness::print("        plot  volume ", plot_cell(0,0), plot_cell(0,1),
                            plot_cell(1,0), plot_cell(1,1), plot_cell(2,0), plot_cell(2,1));
@@ -704,19 +710,19 @@ struct CalculationParameters {
             madness::print("  canonical orbitals ");
     }
 };//end CalculationParameter
-/*
-//start SolvenPotential
-class SolventPotential {
+
+//start volumeSolvenPotential
+class VolumeSolventPotential {
 private:
   World& world;
+  double& sigma;
+  double& epsilon_1;
+  double& epsilon_2;
+  int& maxiter;
+  std::vector<double>& atomic_radii;
+  std::vector< madness::Vector<double,3> > atomic_coords;
   realfunc volume;
-  // realfunc rho;
-  double epsilon_1;
-  double epsilon_2;
-  realfunc gradx;
-  realfunc grady;
-  realfunc gradz;
-  int maxiter;    //maximum step before convergence of potential                                                                                           
+  vector_real_function_3d grad;
   template <typename T, int NDIM>
   struct Reciprocal {
     void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
@@ -740,38 +746,46 @@ private:
   realfunc MolecularPotential(const realfunc rho)const {
     return ((-1.0)*ReciprocalDielectric(epsilon_1,epsilon_2,volume)*rho);
   }
+  //compute the surface charge
+  realfunc make_surfcharge(const realfunc& u) const {
+    real_derivative_3d Dx = free_space_derivative<double,3>(u.world(), 0);
+    real_derivative_3d Dy = free_space_derivative<double,3>(u.world(), 1);
+    real_derivative_3d Dz = free_space_derivative<double,3>(u.world(), 2);
+    // Gradient of dielectric                                                                                                                              
+    realfunc di_gradx = (epsilon_1-epsilon_2)*grad[0];
+    realfunc di_grady = (epsilon_1-epsilon_2)*grad[1];
+    realfunc di_gradz = (epsilon_1-epsilon_2)*grad[2];
+    const double rfourpi = -1.0/(4.0*constants::pi);
+    return (rfourpi*ReciprocalDielectric(epsilon_1,epsilon_2,volume) \
+	    *(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate();
+  }
 public:
-
   //Compute the surface potential                                                                              
-                                            
-  realfunc ReactionPotential(World& world,int maxiter,const realfunc& gradx,const realfunc& \
-			    grady,const realfunc& gradz, const realfunc rhot)const {
+  realfunc VolumeReactionPotential(World& world,int maxiter,const realfunc rhot)const {
     const bool USE_SOLVER = true;
     double tol = std::max(1e-3,FunctionDefaults<3>::get_thresh());
     real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
-    //compute derivatives                                                                                                                                  
-    realderiv Dx = madness::free_space_derivative<double,3>(world, 0);
-    realderiv Dy = madness::free_space_derivative<double,3>(world, 1);
-    realderiv Dz = madness::free_space_derivative<double,3>(world, 2);
-    // Gradient of dielectric                                                                                                                              
-    realfunc di_gradx = (epsilon_1-epsilon_2)*gradx;
-    realfunc di_grady = (epsilon_1-epsilon_2)*grady;
-    realfunc di_gradz = (epsilon_1-epsilon_2)*gradz;
     realfunc U = GuessPotential(world, rhot);
     double unorm = U.norm2();
     if (USE_SOLVER) {
       madness::NonlinearSolver solver;
       // This section employs a non-linear equation solver from solvers.h                                                                                  
-      //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract                                                                                    
+      //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
+      if (world.rank() == 0){
+	print("\n\n");//for formating output
+	madness::print("    Computing the solute-solvent potential   ");
+	madness::print("           ______________________           \n ");
+	
+	madness::print("iteration ","    "," residue norm2\n");
+      }                                                                                    
       realfunc uvec, rvec;
       for (int iter=0; iter<maxiter; iter++) {
         uvec = U;
         realfunc W = MolecularPotential(rhot);
-        rvec = U + op(W +(-1.0/(4.0*constants::pi))*ReciprocalDielectric(epsilon_1,epsilon_2,volume) \
-                      *(di_gradx*Dx(U) + di_grady*Dy(U) + di_gradz*Dz(U))).truncate();
-      	realfunc U_new = solver.update(uvec,rvec);
+	realfunc Scharge = make_surfcharge(U);
+        rvec = U + op(W + Scharge);
+     	realfunc U_new = solver.update(uvec,rvec);
         double err = rvec.norm2();
-	madness::print("iter ", iter, " error ", err, "soln(2.4566)", U(coord_3d(2.4566)));
         if (err >0.3*unorm){ U = 0.5*U + 0.5*U_new;
         }
         else
@@ -782,29 +796,40 @@ public:
     //compute the reaction potential after total potential converges                                                                                      
     //U_ref is the total vacouo potential which is the reference potential
     //rho_total is the sum of the nuclear and electronic potentials
-    //  double fac3 = (-1.0*(epsilon_1 - epsilon_2))/(4.0*constants::pi);                                   
-    // return op(fac3*ReciprocalDielectric(epsilon_1,epsilon_2,volume)*	
-    //	       (di_gradx*Dx(U) + di_grady*Dy(U) + di_gradz*Dz(U)).truncate());                                
     realfunc U_ref = op(rhot);
     return U - U_ref;
   }
   //constructor                                                                                                                                           
-  SolventPotential(World& world,
-		   realfunc volume,
-                   double epsilon_1,
-                   double epsilon_2,
-		   realfunc gradx,
-                   realfunc grady,
-                   realfunc gradz,
-		   int maxiter):
-    world(world),volume(volume),
+  VolumeSolventPotential(World& world,
+			 double& sigma,
+			 double& epsilon_1,
+			 double& epsilon_2,
+			 int& maxiter,
+			 std::vector<double>& atomic_radii,
+			 std::vector< madness::Vector<double,3> > atomic_coords):
+    world(world),
+    sigma(sigma),
     epsilon_1(epsilon_1),
-    epsilon_2(epsilon_2),gradx(gradx),
-    grady(grady),gradz(gradz),
-    maxiter(maxiter) {}
-}; //end SolventPotential*/
+    epsilon_2(epsilon_2),
+    maxiter(maxiter),
+    atomic_radii(atomic_radii),
+    atomic_coords(atomic_coords), 
+    grad(3){
+    realfunct volume_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+    realfunct surface_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+    realfunct gradx_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 0));
+    realfunct grady_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 1));
+    realfunct gradz_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 2));
+    //make real functions
+    volume = real_factory_3d(world).functor(volume_functor).initial_level(4);
+    //realfunc surface = real_factory_3d(world).functor(surface_functor);
+    grad[0] = real_factory_3d(world).functor(gradx_functor);
+    grad[1] = real_factory_3d(world).functor(grady_functor);
+    grad[2] = real_factory_3d(world).functor(gradz_functor);
+  }
+}; //end VolumeSolventPotential
 
-class SolventPotential {
+class ScreenSolventPotential {
 private:
   World& world;
   double& sigma;
@@ -817,14 +842,14 @@ private:
   realfunc rdielectric;
 public:
   //constructor                                                                                                                                           
-  SolventPotential(World& world,
-		   double& sigma,
-		   double& epsilon_1,
-                   double& epsilon_2,
-		   int& maxiter,
-		   std::vector<double>& atomic_radii,
-		   std::vector< madness::Vector<double,3> > atomic_coords)
-    :world(world)
+ ScreenSolventPotential(World& world,
+			double& sigma,
+			double& epsilon_1,
+			double& epsilon_2,
+			int& maxiter,
+			std::vector<double>& atomic_radii,
+			std::vector< madness::Vector<double,3> > atomic_coords)
+   :world(world)
     ,sigma(sigma)
     ,epsilon_1(epsilon_1)
     ,epsilon_2(epsilon_2)
@@ -832,21 +857,21 @@ public:
     ,atomic_radii(atomic_radii)
     ,atomic_coords(atomic_coords)
     ,dlog(3) {
-    // Functors for mask related quantities                                                                                                             
-    realfunct rdielectric_functor(new MolecularVolumeExponentialSwitchReciprocal(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords));
-    realfunct gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,0));
-    realfunct grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,1));
-    realfunct gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,2));
-    // Make the actual functions                                                                                                                        
-    const double rfourpi = 1.0/(4.0*constants::pi);
-    rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
-    dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence();
-    dlog[1] = real_factory_3d(world).functor(grady_functor).nofence();
-    dlog[2] = real_factory_3d(world).functor(gradz_functor); // FENCE                                                                                   
-    scale(world, dlog, rfourpi);
-    rdielectric.truncate(false);
-    truncate(world, dlog);
-}
+   // Functors for mask related quantities                                                                                                             
+   realfunct rdielectric_functor(new MolecularVolumeExponentialSwitchReciprocal(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords));
+   realfunct gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,0));
+   realfunct grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,1));
+   realfunct gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,2));
+   // Make the actual functions                                                                                                                        
+   const double rfourpi = 1.0/(4.0*constants::pi);
+   rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
+   dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence();
+   dlog[1] = real_factory_3d(world).functor(grady_functor).nofence();
+   dlog[2] = real_factory_3d(world).functor(gradz_functor); // FENCE                                                                                   
+   scale(world, dlog, rfourpi);
+   rdielectric.truncate(false);
+   truncate(world, dlog);
+ }
   //make surface charge. life is good!!!uuh!
   /// Given the full Coulomb potential computes the surface charge                                                                                        
   realfunc make_surface_charge(const realfunc& u) const {
@@ -856,7 +881,7 @@ public:
     return (dlog[0]*Dx(u) + dlog[1]*Dy(u) + dlog[2]*Dz(u)).truncate();
   }
   //Compute the reaction potential                                                                              
-  realfunc ReactionPotential(World& world,int maxiter, const realfunc rhot, bool solventplot)const {
+  realfunc ScreenReactionPotential(World& world,int maxiter, const realfunc rhot, bool solventplot)const {
     const bool USE_SOLVER = true;
     double tol = std::max(1e-3,FunctionDefaults<3>::get_thresh());
     real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
@@ -872,6 +897,7 @@ public:
       realfunc uvec, rvec;
       if (world.rank() == 0){
 	print("\n\n");//for formating output
+	
 	madness::print("    Computing the solute-solvent potential   ");
 	madness::print("           ______________________           \n ");
 	
@@ -959,7 +985,7 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
-        set_protocol(world, 1e-4);
+        set_protocol(world, param.thresh);
     }
        
     void set_protocol(World & world, double thresh)
@@ -2496,45 +2522,11 @@ struct Calculation {
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;//get the maximum subspace
         param.maxsub = 2;
-	/*
-	//  Setting up the surface, volume and gradient functors for the solvent reaction energy Jacob added                                            
-	realfunct volume_functor(new MolecularVolumeMask(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec()));
-	realfunc volume = real_factory_3d(world).functor(volume_functor).initial_level(4);
-	//	print("VOLUME WHERE MADE", volume.trace());
-	//	realfunct surface_functor(new MolecularVolumeMask(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec()));
-	//	realfunc surface = real_factory_3d(world).functor(surface_functor);
-
-
-	//realfunct gradx_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 0));
-	//realfunc gradx = real_factory_3d(world).functor(gradx_functor);
-	//realfunct grady_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 1));
-	//realfunc grady = real_factory_3d(world).functor(grady_functor);
-	//realfunct gradz_functor(new MolecularVolumeMaskGrad(param.sigma, molecule.atomic_radii, molecule.get_all_coords_vec(), 2));
-	//realfunc gradz = real_factory_3d(world).functor(gradz_functor);*/
+	//Making nuclear charge potential
 	realfunct rhon_functor(new NuclearDensityFunctor(molecule));
-	//	print("SIGMA",param.sigma);
-	//	print("RADII", molecule.atomic_radii);
-	//	print("COORD", molecule.get_all_coords_vec());
-	
-	// {
-	//   for (int i=0; i<1001; i++) {
-	//     coord_3d r(0.0);
-	//     r[2] = -1.5 + 3.0*i/1000.0;
-	//     print (r[2],(*rhon_functor)(r));
-	//   }
-	//   throw "done";
-	// }
 	if (world.rank()==0)
 	  print("starting to project rhon");
-	
 	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
-	  //	finalize();
-	  
-	  //	exit(0);
-	//	if (world.rank()==0)
-	//  print("TRACE OF RHON", rhon.trace());
-	//	SolventPotential Solvent(world,volume, param.epsilon_1,param.epsilon_2,gradx,grady,gradz,param.maxiter); //jacob added                    
-	
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
@@ -2588,15 +2580,9 @@ struct Calculation {
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo);// make the alpha density while checking spin restriction
             functionT brho;
-	   
-	    // if(!param.spin_restricted && param.nbeta)
-	    //  brho = make_density(world, bocc, bmo);
-	    // else
-	    //  brho = arho; // wrong with 1-electron system
-	     
-            if (param.nbeta) {
-                if (param.spin_restricted) brho = arho;
-                else brho = make_density(world, bocc, bmo);
+	    if (param.nbeta) {
+	      if (param.spin_restricted) brho = arho;
+	      else brho = make_density(world, bocc, bmo);
             }
             else {
                 brho = functionT(world); // zero
@@ -2621,15 +2607,7 @@ struct Calculation {
             functionT rho = arho + brho;                  //compute electronic charge density
             rho.truncate();
 	    rhot = rhon - rho;
-	    //  if(param.solvent){
-	    // realfunc vsolvent = Solvent.ReactionPotential(world,param.maxiter,gradx,grady,gradz,rhot); //Jacob added
-	    //  efree = 0.5*rhot.inner(vsolvent);
-	    // ereaction = rhot.inner(vsolvent);
-	    //  print("SOLVENT POTENTIAL", vsolvent.trace());
-	    //  print("REACTION POTENTIAL", ereaction);
-	    //  print("TOTAL DENSITY",rhot.trace());
-	    // }	    
-            double enuclear = inner(rho, vnuc);       //nuclear potential energy
+	    double enuclear = inner(rho, vnuc);       //nuclear potential energy
             START_TIMER(world);                        //add solvent here 
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
@@ -2669,56 +2647,23 @@ struct Calculation {
             double enrep = molecule.nuclear_repulsion_energy();
             double ekinetic = ekina + ekinb;
             double exc = exca + excb;
-	    //double etot= ekinetic + enuclear + ecoulomb + exc + enrep;
-	    // if(param.solvent){
-	    //  etot = ekinetic + enuclear + ecoulomb + exc + enrep + ereaction;
-	    //  current_energy = etot;
-	    // }
-	    // else{
-	      etot = ekinetic + enuclear + ecoulomb + exc + enrep;
-	      current_energy = etot ;
-	      // }
-
-	      if(world.rank() == 0){
-		//	if(param.solvent){
-		//  printf(" total charge %16.8f\n",rhot.trace());      
-		//  printf("solvation free energy %16.8f\n",efree);
-		//  printf("reaction potential energy %16.8f\n",ereaction);
-		//	}
-		printf("\n              kinetic %16.8f\n", ekinetic);
-		printf("   nuclear attraction %16.8f\n", enuclear);
-		printf("              coulomb %16.8f\n", ecoulomb);
-		printf(" exchange-correlation %16.8f\n", exc);
-		printf("    nuclear-repulsion %16.8f\n", enrep);
-		printf("                total %16.8f\n\n", etot);
-		
-	      }
+	    etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+	    current_energy = etot ;
+	    if(world.rank() == 0){
+	      printf("\n              kinetic %16.8f\n", ekinetic);
+	      printf("   nuclear attraction %16.8f\n", enuclear);
+	      printf("              coulomb %16.8f\n", ecoulomb);
+	      printf(" exchange-correlation %16.8f\n", exc);
+	      printf("    nuclear-repulsion %16.8f\n", enrep);
+	      printf("                total %16.8f\n\n", etot);
+	    }
 
             if(iter > 0){
                 if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
-		 
-		  //  if(param.solvent){
-		  // if(world.rank()==0){
-		  // print("\n Entering Solvation Mode\n");
-		      //  }
-		      // SolventPotential Solvent(world,volume, param.epsilon_1,param.epsilon_2,gradx,grady,gradz,param.maxiter); //jacob added      
-		      //		    realfunc vsolvent = Solvent.ReactionPotential(world,param.maxiter,gradx,grady,gradz,rhot); //Jacob added
-		      // efree = 0.5*rhot.inner(vsolvent);
-		      // ereaction = rhot.inner(vsolvent);
-		      // }
-		    if(world.rank() == 0) {
-		      print("\nConverged!\n");
-		      //solution here
-		      //  print("NUCLEAR CHARGE", rhon.trace());
-		      // print("REACTION POTENTIAL", ereaction);
-		      // print("TOTAL DENSITY",rhot.trace());
-		      // print("TOTAL ENERGY",current_energy + ereaction);
-		    }	    
-		    // rhon.clear();
-		    
-		    //	}
-
-                    // Diagoanlize to get the eigenvalues and if desired the final eigenvectors
+		  if(world.rank() == 0) {
+		    print("\nConverged!\n");
+		  }	    
+		  // Diagoanlize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
                     sygv(focka, overlap, 1, U, aeps);
@@ -2774,9 +2719,17 @@ struct Calculation {
 
             analyze_vectors(world, bmo, bocc, beps);
         }
+	if(world.rank()==0){
+	  madness::print("RADII ",molecule.atomic_radii);
+	  madness::print("COORDS ",molecule.get_all_coords_vec());
+	}
 	if(param.solvent){
-	  SolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec()); //jacob added      
-	  realfunc vsolvent = Solvent.ReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	  // ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,\
+	  //molecule.get_all_coords_vec()); //jacob added      
+	  VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,\
+					 molecule.get_all_coords_vec());
+	  //realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	  realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
 	  efree = 0.5*rhot.inner(vsolvent);
 	  ereaction = rhot.inner(vsolvent);
 	}
