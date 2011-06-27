@@ -53,6 +53,7 @@ namespace madness {
             ProcessID parent_;      ///< This node's parent process for remote reduction
             ProcessID child0_;      ///< This node's children process for remote reduction
             ProcessID child1_;      ///< This node's children process for remote reduction
+            ProcessID size_;        ///< The number of nodes in the group
 
             // Not allowed
             ReductionInterface(const ReductionInterface&);
@@ -74,6 +75,7 @@ namespace madness {
             /// \param first An input iterator that points to a list of processes
             /// that are included in the group.
             /// \param last An input
+            /// \param root The root node of the reduction
             template <typename initerT>
             void set_group(const ProcessID world_rank, initerT first, initerT last, ProcessID root) {
                 // This function should only be called once so count will be 0.
@@ -89,13 +91,13 @@ namespace madness {
                 std::unique(group.begin(), group.end());
 
                 // Get the size of the group
-                const int size = group.size();
+                size_ = group.size();
 
                 // Get the group rank of this process
                 const ProcessID rank = std::distance(group.begin(),
                         std::find_if(group.begin(), group.end(),
                         std::bind1st(std::equal_to<ProcessID>(), world_rank)));
-                MADNESS_ASSERT(rank != size);
+                MADNESS_ASSERT(rank != size_);
 
                 // Get the root of the binary tree
                 if(root != -1)
@@ -103,23 +105,23 @@ namespace madness {
                         group.end(), std::bind1st(std::equal_to<ProcessID>(), root)));
                 else
                     root = group.front();
-                MADNESS_ASSERT(root != size);
+                MADNESS_ASSERT(root != size_);
 
                 // Renumber processes so root has me=0
-                int me = (rank + size-root)%size;
+                int me = (rank + size_-root)%size_;
 
                 // Parent in binary tree
                 if(me != 0) {
-                    parent_ = (((me - 1) >> 1) + root) % size;
+                    parent_ = (((me - 1) >> 1) + root) % size_;
                     parent_ = group[parent_];
                 } else
                     parent_ = -1;
 
                 // Left child
                 child0_ = (me << 1) + 1 + root;
-                if (child0_ >= size && child0_<(size+root))
-                    child0_ -= size;
-                if (child0_ < size) {
+                if (child0_ >= size_ && child0_<(size_+root))
+                    child0_ -= size_;
+                if (child0_ < size_) {
                     child0_ = group[child0_];
                     ++count_;
                 } else
@@ -127,27 +129,73 @@ namespace madness {
 
                 // Right child
                 child1_ = (me << 1) + 2 + root;
-                if (child1_ >= size && child1_<(size+root))
-                    child1_ -= size;
-                if (child1_ < size) {
+                if (child1_ >= size_ && child1_<(size_+root))
+                    child1_ -= size_;
+                if (child1_ < size_) {
                     child1_ = group[child1_];
                     ++count_;
                 } else
                     child1_ = -1;
             }
 
+            /// Parent accessor
+
+            /// \return The parent of the local node
             ProcessID parent() const { return parent_; }
+
+            /// Left child accessor
+
+            /// \return The left child of the local node
             ProcessID child0() const { return child0_; }
+
+            /// Right child accessor
+
+            /// \return The right child of the local node
             ProcessID child1() const { return child1_; }
+
+            /// Group size accessor
+
+            /// \return The number of nodes in the group.
+            ProcessID size() const { return size_; }
+
+            /// Test for root
+
+            /// \return \c true when this node is the root of the group
             bool is_root() const { return parent_ == -1; }
+
+            /// Node edge accessor
+
+            /// Gives the number of edges connecting to this node. \n
+            /// 1 = leaf node \n
+            /// 2 = 1 child \n
+            /// 3 = 2 children
+            /// \return The number of edges connecting to this node in the group
+            /// binary tree.
             unsigned int count() const { return count_; }
 
+            /// Reduce an object for the reduction group
+
+            /// This will set the future that is linked to a reduction task.
+            /// Therefore, it will not be evaluated immediately.
+            /// \tparam T The type that will be reduce.
+            /// \param value The value to be reduced.
+            /// \throw MadnessException If type \c T does not match the type
+            /// used to construct the group.
             template <typename T>
             void reduce(const T& value) {
                 MADNESS_ASSERT(this->type() == typeid(T));
                 this->reduce_value(reinterpret_cast<const void*>(&value));
             }
 
+            /// Reduce a future for the reduction group
+
+            /// This will set the future that is linked to a reduction task,
+            /// the provided future. Therefore, it will not be evaluated
+            /// immediately.
+            /// \tparam T The type that will be reduce.
+            /// \param fut The future to be reduced
+            /// \throw MadnessException If type \c T does not match the type
+            /// used to construct the group.
             template <typename T>
             void reduce(const Future<T>& fut) {
                 MADNESS_ASSERT(this->type() == typeid(T));
@@ -156,8 +204,22 @@ namespace madness {
 
         private:
 
+            /// Set reduce value
+
+            /// This function casts \c p to the group type.
+            /// \param p void pointer to the object that will be reduce.
             virtual void reduce_value(const void* p) = 0;
+
+            /// Set reduce future
+
+            /// This function casts \c p to a future of the group type.
+            /// \param p void pointer to the object that will be reduce.
             virtual void reduce_future(const void* p) = 0;
+
+            /// Get type info for the reduction group.
+
+            /// \return The type info of the reduction group
+            /// \throw nothing
             virtual const std::type_info& type() const = 0;
 
         }; // class ReductionInterface
@@ -169,14 +231,14 @@ namespace madness {
         class GroupReduction : public ReductionInterface {
         private:
             std::array<Future<T>, 3> r_;    ///< Futures to the reduction values
-            AtomicInt count_;               ///< Counts the number of reduction
+            AtomicInt icount_;              ///< Counts the number of reduction
                                             ///< values that have been set
 
         public:
 
             /// Default constructor
             GroupReduction() {
-                count_ = 0;
+                icount_ = 0;
             }
 
             /// Destructor
@@ -197,6 +259,7 @@ namespace madness {
                 // Check that this node is included in the reduction group
                 MADNESS_ASSERT(ReductionInterface::count() != 0);
 
+                // construct the reduction tasks for a given count
                 Future<T> result;
                 switch(ReductionInterface::count()) {
                 case 3:
@@ -257,14 +320,27 @@ namespace madness {
                 set_future(*f);
             }
 
+            /// Set the future
+
+            /// This function will set the future to the
+            /// \tparam U The type of the object to be set.
+            /// \param u The object to be reduced
+            /// \throw MadnessException If this function is called more than
+            /// \c count() times.
+            /// \throw MadnessException If the next future has already been set.
             template <typename U>
             void set_future(const U& u) {
-                const int i = count_++;
+                const int i = icount_++;
 
+                MADNESS_ASSERT(i <= this->count());
                 MADNESS_ASSERT(! r_[i].probe());
                 r_[i].set(u);
             }
 
+            /// Get type info for the reduction group.
+
+            /// \return The type info of the reduction group
+            /// \throw nothing
             virtual const std::type_info& type() const { return typeid(T); }
 
         }; // class GroupReduction
@@ -346,6 +422,7 @@ namespace madness {
             WorldObject_(world)
         { }
 
+        /// virtual destructor
         virtual ~WorldReduce() { }
 
         /// Create a group reduction.
