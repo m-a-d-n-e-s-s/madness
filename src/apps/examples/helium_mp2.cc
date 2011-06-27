@@ -133,6 +133,10 @@ static double Z2(const coord_3d& r) {
     return -2.0/(sqrt(x*x+y*y+z*z+dcut*dcut));
 }
 
+static double Z1(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    return -1.0/(sqrt(x*x+y*y+z*z+dcut*dcut));
+}
 
 
 static double V_1(const coord_6d& r) {
@@ -788,6 +792,47 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 }
 
 
+// test the modified NS form
+void test_modified(World& world) {
+
+    real_function_3d V=real_factory_3d(world).f(Z1);
+    real_function_3d psi=real_factory_3d(world).f(gauss_3d);
+    psi.scale(1.0/inner(psi,psi));
+
+    double energy=-0.5;
+
+    coord_3d lo, hi;
+    const double L=FunctionDefaults<3>::get_cell_width()[0];
+    lo[0]=-L/2; hi[0]=L/2;
+    trajectory<3> traj=trajectory<3>::line2(lo,hi,201);
+    plot_along(world,traj,psi,"name");
+
+
+    if(world.rank() == 0) printf("starting at time %.1fs\n\n", wall_time());
+    for (int i=0; i<10; i++) {
+
+        real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), 0.0001, 1e-6);
+        op.modified=true;
+        op.doleaves=true;
+        if(world.rank() == 0) print("modified",op.modified);
+
+        real_function_3d Vpsi = (V*psi);
+        Vpsi.scale(-2.0).truncate();
+        real_function_3d tmp=op(Vpsi);
+        psi=tmp;
+        psi.scale(1.0/inner(psi,psi));
+        plot_along(world,traj,psi,"name"+stringify(i));
+
+        Vpsi=(V*psi);
+        double vpot=inner(Vpsi,psi);
+        if (world.rank()==0) print("potential energy",vpot);
+    }
+    if(world.rank() == 0) printf("finished at time %.1fs\n\n", wall_time());
+
+
+}
+
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
@@ -795,7 +840,7 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-    double L = 32;   // box size
+    double L = 10;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
 
@@ -923,6 +968,11 @@ int main(int argc, char** argv) {
         print("world.size()       ", world.size());
         print("");
     }
+
+
+    test_modified(world);
+
+    return 0;
 
     if (0) {
         // compute the energy of Hylleraas

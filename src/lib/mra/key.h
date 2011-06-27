@@ -314,6 +314,15 @@ namespace madness {
 
         }
 
+        /// merge with other key (ie concatenate), use level of rhs, not of this
+        template<std::size_t LDIM>
+        Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
+            Vector<Translation,NDIM+LDIM> t;
+            for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
+            for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
+            return Key<NDIM+LDIM>(rhs.level(),t);
+        }
+
         /// Recomputes hashval ... presently only done when reading from external storage
         void
         rehash() {

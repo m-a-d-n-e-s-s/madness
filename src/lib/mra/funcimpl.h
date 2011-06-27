@@ -1013,7 +1013,7 @@ namespace madness {
             // prepare file
             FILE * pFile;
             pFile = fopen(filename.c_str(), "w");
-	    Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
+            Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
 
 
             fprintf(pFile,"\\psset{unit=10cm}\n");
@@ -1466,6 +1466,54 @@ namespace madness {
         }
 
 
+
+
+        struct do_stuff {
+            typedef Range<typename dcT::iterator> rangeT;
+            FunctionCommonData<T,NDIM> cdata;
+
+            // constructor takes target precision
+            do_stuff() :
+                cdata(FunctionCommonData<T,NDIM>::get(FunctionDefaults<NDIM>::get_k()))
+            {
+            }
+
+            bool operator()(typename rangeT::iterator& it) const {
+
+                nodeT& node = it->second;
+                const keyT& key = it->first;
+                if (node.coeff().rank()==0) {
+                    print("empty key in do_stuffq",key);
+                } else {
+                    TensorType tt=node.coeff().tensor_type();
+                    coeffT d(cdata.v2k,tt);
+                    d(cdata.s0)+=node.coeff();
+                    node.coeff()=d;
+                }
+                return true;
+            }
+            template <typename Archive> void serialize(const Archive& ar) {}
+        };
+
+
+
+        /// remove all coefficients of internal nodes
+        /// presumably to switch from redundant to reconstructed state
+        struct remove_internal_coeffs {
+             typedef Range<typename dcT::iterator> rangeT;
+
+             /// constructor need impl for cdata
+             remove_internal_coeffs() {}
+
+             bool operator()(typename rangeT::iterator& it) const {
+
+                 nodeT& node = it->second;
+                 if (node.has_children()) node.clear_coeff();
+                 return true;
+             }
+             template <typename Archive> void serialize(const Archive& ar) {}
+
+        };
 
 
         /// keep only the sum coefficients in each node
@@ -2563,7 +2611,7 @@ namespace madness {
 
 
                 if (key.level()<2) needs_refinement=true;
-                if (key.level()>4) needs_refinement=false;
+                if (key.level()>5) needs_refinement=false;
 
             }
 
@@ -2771,7 +2819,8 @@ namespace madness {
 
             // add 2-particle contribution
 //            if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
-            coeffT val_eri=impl_eri->get_functor()->coeff(key);
+//            coeffT val_eri=impl_eri->get_functor()->coeff(key);
+            coeffT val_eri=functor->eri_values(key);
             coeff_v+=coeffs2values(key,val_eri.full_tensor());
 
             // check for need of refinement
@@ -3086,6 +3135,15 @@ namespace madness {
     		if (fence) world.gop.fence();
         }
 
+        /// convert this from redundant to standard reconstructed form
+        void undo_redundant(const bool fence) {
+
+            if (!is_redundant()) return;
+            redundant = compressed = nonstandard = false;
+            flo_unary_op_node_inplace(remove_internal_coeffs(),fence);
+        }
+
+
         /// compute for each FunctionNode the norm of the function inside that node
         void norm_tree(bool fence) {
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -3330,7 +3388,7 @@ namespace madness {
                 keyT dest = neighbor(key, d, is_periodic);
 
                 if (dest.is_valid()) {
-                    double opnorm = op->norm(key.level(), d);
+                    double opnorm = op->norm(key.level(), d, key);
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
@@ -3376,6 +3434,12 @@ namespace madness {
             }
             if (fence)
                 world.gop.fence();
+
+            if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
+            this->compressed=true;
+            this->nonstandard=true;
+            this->redundant=false;
+
         }
 
 
@@ -3424,7 +3488,7 @@ namespace madness {
                 keyT dest = neighbor(key, d, is_periodic);
 
                 if (dest.is_valid()) {
-                    double opnorm = op->norm(key.level(), d);
+                    double opnorm = op->norm(key.level(), d, key);
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
 
@@ -3512,8 +3576,6 @@ namespace madness {
                          ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
 
                          woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
-//                     } else {
-//                         print("done with empty source node",key);
                      }
 //                 }
              }
@@ -3523,6 +3585,10 @@ namespace madness {
 
              // reduce the rank of the final nodes
              flo_unary_op_node_inplace(do_reduce_rank(targs),true);
+             if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
+             this->compressed=true;
+             this->nonstandard=true;
+             this->redundant=false;
 
              if (fence)
                  world.gop.fence();

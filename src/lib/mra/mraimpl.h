@@ -216,7 +216,6 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-//    Void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const tensorT& s) {
     Void FunctionImpl<T,NDIM>::reconstruct_op(const keyT& key, const coeffT& s) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
         // Note that after application of an integral operator not all
