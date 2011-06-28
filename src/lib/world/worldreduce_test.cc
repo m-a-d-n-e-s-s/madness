@@ -81,7 +81,7 @@ namespace {
 
         virtual ~WorldReduceTest() { }
 
-        ProcessID parent(const ProcessID node, const std::vector<ProcessID>& grp, const ProcessID root, int& count) {
+        ProcessID parent(const ProcessID node, const std::vector<ProcessID>& grp, const ProcessID root, unsigned int& count) {
             if(node == -1)
                 return -1;
 
@@ -89,7 +89,7 @@ namespace {
             GroupReduction<int> gr;
             gr.set_group(node, grp.begin(), grp.end(), root);
 
-            int gr_count = 1;
+            unsigned int gr_count = 1;
 
             // Check that the children know who their parents are.
             if(gr.child0() != -1) {
@@ -154,7 +154,7 @@ namespace {
 
             // Check for root at each node
             for(ProcessID root = 0; root < i; ++root) {
-                int count = 0;
+                unsigned int count = 0;
 
                 // Check that children know who their parents are.
                 EXPECT_EQ(-1, parent(root, grp, root, count));
@@ -177,7 +177,7 @@ namespace {
 
             // Check for root at each node
             for(ProcessID root = 0; root < i; root += 2) {
-                int count = 0;
+                unsigned int count = 0;
 
                 // Check that children know who their parents are.
                 EXPECT_EQ(-1, parent(root, grp, root, count));

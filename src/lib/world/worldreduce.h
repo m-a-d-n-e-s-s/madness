@@ -330,7 +330,7 @@ namespace madness {
             /// \throw MadnessException If the next future has already been set.
             template <typename U>
             void set_future(const U& u) {
-                const int i = icount_++;
+                const unsigned int i = icount_++;
 
                 MADNESS_ASSERT(i <= this->count());
                 MADNESS_ASSERT(! r_[i].probe());
