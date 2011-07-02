@@ -178,8 +178,6 @@ namespace {
 
     TEST_F(FunctionalTest, MemFnConstruct) {
 
-        Tester t;
-
         // Test member functions with a return type
 
         // Test constructor with just a member function pointer
@@ -194,32 +192,6 @@ namespace {
         EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int)> f(& Tester::f8));
         EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int)> f(& Tester::f9));
         EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(& Tester::f10));
-
-        // Test constructor with object reference and member function pointer
-        EXPECT_NO_THROW(MemFn<int(Tester::*)()> f(t, & Tester::f0));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int)> f(t, & Tester::f1));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int)> f(t, & Tester::f2));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int)> f(t, & Tester::f3));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int)> f(t, & Tester::f4));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int)> f(t, & Tester::f5));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int)> f(t, & Tester::f6));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int)> f(t, & Tester::f7));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int)> f(t, & Tester::f8));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int)> f(t, & Tester::f9));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(t, & Tester::f10));
-
-        // Test constructor with object reference and member function pointer
-        EXPECT_NO_THROW(MemFn<int(Tester::*)()> f(&t, & Tester::f0));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int)> f(&t, & Tester::f1));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int)> f(&t, & Tester::f2));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int)> f(&t, & Tester::f3));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int)> f(&t, & Tester::f4));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int)> f(&t, & Tester::f5));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int)> f(&t, & Tester::f6));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int)> f(&t, & Tester::f7));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int)> f(&t, & Tester::f8));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int)> f(&t, & Tester::f9));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(&t, & Tester::f10));
 
 
         // Test member functions with void return type
@@ -237,32 +209,6 @@ namespace {
         EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int)> f(& Tester::vf9));
         EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(& Tester::vf10));
 
-        // Test constructor with object reference and member function pointer
-        EXPECT_NO_THROW(MemFn<void(Tester::*)()> f(t, & Tester::vf0));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int)> f(t, & Tester::vf1));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int)> f(t, & Tester::vf2));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int)> f(t, & Tester::vf3));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int)> f(t, & Tester::vf4));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int)> f(t, & Tester::vf5));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int)> f(t, & Tester::vf6));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int)> f(t, & Tester::vf7));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int)> f(t, & Tester::vf8));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int)> f(t, & Tester::vf9));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(t, & Tester::vf10));
-
-        // Test constructor with object pointer and member function pointer
-        EXPECT_NO_THROW(MemFn<void(Tester::*)()> f(&t, & Tester::vf0));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int)> f(&t, & Tester::vf1));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int)> f(&t, & Tester::vf2));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int)> f(&t, & Tester::vf3));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int)> f(&t, & Tester::vf4));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int)> f(&t, & Tester::vf5));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int)> f(&t, & Tester::vf6));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int)> f(&t, & Tester::vf7));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int)> f(&t, & Tester::vf8));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int)> f(&t, & Tester::vf9));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int)> f(&t, & Tester::vf10));
-
 
         // Test const member functions with a return type
 
@@ -279,31 +225,6 @@ namespace {
         EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(& Tester::f9c));
         EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(& Tester::f10c));
 
-        // Test constructor with object reference and member function pointer
-        EXPECT_NO_THROW(MemFn<int(Tester::*)() const> f(t, & Tester::f0c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int) const> f(t, & Tester::f1c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int) const> f(t, & Tester::f2c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int) const> f(t, & Tester::f3c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int) const> f(t, & Tester::f4c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int) const> f(t, & Tester::f5c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int) const> f(t, & Tester::f6c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int) const> f(t, & Tester::f7c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int) const> f(t, & Tester::f8c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(t, & Tester::f9c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(t, & Tester::f10c));
-
-        // Test constructor with object pointer and member function pointer
-        EXPECT_NO_THROW(MemFn<int(Tester::*)() const> f(&t, & Tester::f0c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int) const> f(&t, & Tester::f1c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int) const> f(&t, & Tester::f2c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int) const> f(&t, & Tester::f3c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int) const> f(&t, & Tester::f4c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int) const> f(&t, & Tester::f5c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int) const> f(&t, & Tester::f6c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int) const> f(&t, & Tester::f7c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int) const> f(&t, & Tester::f8c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(&t, & Tester::f9c));
-        EXPECT_NO_THROW(MemFn<int(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(&t, & Tester::f10c));
 
         // Test const member functions with void return type
 
@@ -319,32 +240,6 @@ namespace {
         EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int) const> f(& Tester::vf8c));
         EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(& Tester::vf9c));
         EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(& Tester::vf10c));
-
-        // Test constructor with object reference and member function pointer
-        EXPECT_NO_THROW(MemFn<void(Tester::*)() const> f(t, & Tester::vf0c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int) const> f(t, & Tester::vf1c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int) const> f(t, & Tester::vf2c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int) const> f(t, & Tester::vf3c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int) const> f(t, & Tester::vf4c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int) const> f(t, & Tester::vf5c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int) const> f(t, & Tester::vf6c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int) const> f(t, & Tester::vf7c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int) const> f(t, & Tester::vf8c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(t, & Tester::vf9c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(t, & Tester::vf10c));
-
-        // Test constructor with object pointer and member function pointer
-        EXPECT_NO_THROW(MemFn<void(Tester::*)() const> f(&t, & Tester::vf0c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int) const> f(&t, & Tester::vf1c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int) const> f(&t, & Tester::vf2c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int) const> f(&t, & Tester::vf3c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int) const> f(&t, & Tester::vf4c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int) const> f(&t, & Tester::vf5c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int) const> f(&t, & Tester::vf6c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int) const> f(&t, & Tester::vf7c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int) const> f(&t, & Tester::vf8c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int) const> f(&t, & Tester::vf9c));
-        EXPECT_NO_THROW(MemFn<void(Tester::*)(int,int,int,int,int,int,int,int,int,int) const> f(&t, & Tester::vf10c));
     }
 
     TEST_F(FunctionalTest, MemFnCall) {
@@ -352,32 +247,6 @@ namespace {
         Tester t;
 
         // Test calls for member functions with a return type
-
-        // Test Call for objects constructed with an object reference
-        EXPECT_EQ(0, function(t, & Tester::f0)());
-        EXPECT_EQ(1, function(t, & Tester::f1)(1));
-        EXPECT_EQ(2, function(t, & Tester::f2)(1,1));
-        EXPECT_EQ(3, function(t, & Tester::f3)(1,1,1));
-        EXPECT_EQ(4, function(t, & Tester::f4)(1,1,1,1));
-        EXPECT_EQ(5, function(t, & Tester::f5)(1,1,1,1,1));
-        EXPECT_EQ(6, function(t, & Tester::f6)(1,1,1,1,1,1));
-        EXPECT_EQ(7, function(t, & Tester::f7)(1,1,1,1,1,1,1));
-        EXPECT_EQ(8, function(t, & Tester::f8)(1,1,1,1,1,1,1,1));
-        EXPECT_EQ(9, function(t, & Tester::f9)(1,1,1,1,1,1,1,1,1));
-        EXPECT_EQ(10, function(t, & Tester::f10)(1,1,1,1,1,1,1,1,1,1));
-
-        // Test Call for objects constructed with an object pointer
-        EXPECT_EQ(0, function(&t, & Tester::f0)());
-        EXPECT_EQ(1, function(&t, & Tester::f1)(1));
-        EXPECT_EQ(2, function(&t, & Tester::f2)(1,1));
-        EXPECT_EQ(3, function(&t, & Tester::f3)(1,1,1));
-        EXPECT_EQ(4, function(&t, & Tester::f4)(1,1,1,1));
-        EXPECT_EQ(5, function(&t, & Tester::f5)(1,1,1,1,1));
-        EXPECT_EQ(6, function(&t, & Tester::f6)(1,1,1,1,1,1));
-        EXPECT_EQ(7, function(&t, & Tester::f7)(1,1,1,1,1,1,1));
-        EXPECT_EQ(8, function(&t, & Tester::f8)(1,1,1,1,1,1,1,1));
-        EXPECT_EQ(9, function(&t, & Tester::f9)(1,1,1,1,1,1,1,1,1));
-        EXPECT_EQ(10, function(&t, & Tester::f10)(1,1,1,1,1,1,1,1,1,1));
 
         // Test calls for objects with an object reference
         EXPECT_EQ(0, function(& Tester::f0)(t));
@@ -410,32 +279,6 @@ namespace {
 
         Tester t;
         // Test calls for const member functions with a return type
-
-        // Test Call for objects constructed with an object reference
-        EXPECT_EQ(0, function(t, & Tester::f0c)());
-        EXPECT_EQ(1, function(t, & Tester::f1c)(1));
-        EXPECT_EQ(2, function(t, & Tester::f2c)(1,1));
-        EXPECT_EQ(3, function(t, & Tester::f3c)(1,1,1));
-        EXPECT_EQ(4, function(t, & Tester::f4c)(1,1,1,1));
-        EXPECT_EQ(5, function(t, & Tester::f5c)(1,1,1,1,1));
-        EXPECT_EQ(6, function(t, & Tester::f6c)(1,1,1,1,1,1));
-        EXPECT_EQ(7, function(t, & Tester::f7c)(1,1,1,1,1,1,1));
-        EXPECT_EQ(8, function(t, & Tester::f8c)(1,1,1,1,1,1,1,1));
-        EXPECT_EQ(9, function(t, & Tester::f9c)(1,1,1,1,1,1,1,1,1));
-        EXPECT_EQ(10, function(t, & Tester::f10c)(1,1,1,1,1,1,1,1,1,1));
-
-        // Test Call for objects constructed with an object pointer
-        EXPECT_EQ(0, function(&t, & Tester::f0c)());
-        EXPECT_EQ(1, function(&t, & Tester::f1c)(1));
-        EXPECT_EQ(2, function(&t, & Tester::f2c)(1,1));
-        EXPECT_EQ(3, function(&t, & Tester::f3c)(1,1,1));
-        EXPECT_EQ(4, function(&t, & Tester::f4c)(1,1,1,1));
-        EXPECT_EQ(5, function(&t, & Tester::f5c)(1,1,1,1,1));
-        EXPECT_EQ(6, function(&t, & Tester::f6c)(1,1,1,1,1,1));
-        EXPECT_EQ(7, function(&t, & Tester::f7c)(1,1,1,1,1,1,1));
-        EXPECT_EQ(8, function(&t, & Tester::f8c)(1,1,1,1,1,1,1,1));
-        EXPECT_EQ(9, function(&t, & Tester::f9c)(1,1,1,1,1,1,1,1,1));
-        EXPECT_EQ(10, function(&t, & Tester::f10c)(1,1,1,1,1,1,1,1,1,1));
 
         // Test calls for objects with an object reference
         EXPECT_EQ(0, function(& Tester::f0c)(t));
@@ -470,32 +313,6 @@ namespace {
 
         // Test calls for member functions with a void type
 
-        // Test Call for objects constructed with an object reference
-        EXPECT_NO_THROW(function(t, & Tester::vf0)());
-        EXPECT_NO_THROW(function(t, & Tester::vf1)(1));
-        EXPECT_NO_THROW(function(t, & Tester::vf2)(1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf3)(1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf4)(1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf5)(1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf6)(1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf7)(1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf8)(1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf9)(1,1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf10)(1,1,1,1,1,1,1,1,1,1));
-
-        // Test Call for objects constructed with an object pointer
-        EXPECT_NO_THROW(function(&t, & Tester::vf0)());
-        EXPECT_NO_THROW(function(&t, & Tester::vf1)(1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf2)(1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf3)(1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf4)(1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf5)(1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf6)(1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf7)(1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf8)(1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf9)(1,1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf10)(1,1,1,1,1,1,1,1,1,1));
-
         // Test calls for objects with an object reference
         EXPECT_NO_THROW(function(& Tester::vf0)(t));
         EXPECT_NO_THROW(function(& Tester::vf1)(t,1));
@@ -528,32 +345,6 @@ namespace {
         Tester t;
 
         // Test calls for const member functions with a void type
-
-        // Test Call for objects constructed with an object reference
-        EXPECT_NO_THROW(function(t, & Tester::vf0c)());
-        EXPECT_NO_THROW(function(t, & Tester::vf1c)(1));
-        EXPECT_NO_THROW(function(t, & Tester::vf2c)(1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf3c)(1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf4c)(1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf5c)(1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf6c)(1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf7c)(1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf8c)(1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf9c)(1,1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(t, & Tester::vf10c)(1,1,1,1,1,1,1,1,1,1));
-
-        // Test Call for objects constructed with an object pointer
-        EXPECT_NO_THROW(function(&t, & Tester::vf0c)());
-        EXPECT_NO_THROW(function(&t, & Tester::vf1c)(1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf2c)(1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf3c)(1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf4c)(1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf5c)(1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf6c)(1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf7c)(1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf8c)(1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf9c)(1,1,1,1,1,1,1,1,1));
-        EXPECT_NO_THROW(function(&t, & Tester::vf10c)(1,1,1,1,1,1,1,1,1,1));
 
         // Test calls for objects with an object reference
         EXPECT_NO_THROW(function(& Tester::vf0c)(t));

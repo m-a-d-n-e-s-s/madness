@@ -250,51 +250,25 @@ namespace madness {
         typedef resT(objT::*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST; \
                                                                                 \
     private:                                                                    \
-        object_type* obj_;                                                      \
         fn_type fn_;                                                            \
                                                                                 \
     public:                                                                     \
-        MemFn() : obj_(NULL), fn_(0) { }                                        \
-        MemFn(object_type& obj, fn_type fn) : obj_(&obj), fn_(fn) { }           \
-        MemFn(object_type* obj, fn_type fn) : obj_(obj), fn_(fn) { }            \
-        MemFn(fn_type fn) : obj_(NULL), fn_(fn) { }                             \
+        MemFn() : fn_(0) { }                                                    \
+        MemFn(fn_type fn) : fn_(fn) { }                                         \
                                                                                 \
         resT operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_FN_PARAM , ARITY ) ) const { \
-            MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
             return (obj.*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );        \
         }                                                                       \
                                                                                 \
         resT operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(obj);                                                \
-            MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
             return (obj->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );       \
         }                                                                       \
                                                                                 \
-        resT operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
-            MADNESS_ASSERT(obj_);                                               \
-            MADNESS_ASSERT(fn_);                                                \
-            return (obj_->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );      \
-        }                                                                       \
-                                                                                \
         template <typename Archive>                                             \
-        void serialize(Archive& ar) { serialize_<objT>(ar); }                   \
-                                                                                \
-    private:                                                                    \
-        template <typename T, typename Archive>                                 \
-        typename enable_if<std::is_base_of<WorldObject<T>, T> >::type           \
-        serialize_(Archive& ar) {                                               \
-            ar & static_cast<CONST WorldObject<T>* >(obj_)                      \
-                & archive::wrap_opaque(fn_);                                    \
-        }                                                                       \
-                                                                                \
-        template <typename T, typename Archive>                                 \
-        typename disable_if<std::is_base_of<WorldObject<T>, T> >::type          \
-        serialize_(Archive& ar) {                                               \
-            MADNESS_ASSERT(! obj_);                                             \
-            ar & archive::wrap_opaque(fn_);                                     \
-        }                                                                       \
+        void serialize(Archive& ar) { ar & archive::wrap_opaque(fn_); }         \
     };                                                                          \
                                                                                 \
     template < MADNESS_LIST_PREFIX( typename objT , MADNESS_FN_TPARAM , ARITY ) > \
@@ -308,51 +282,25 @@ namespace madness {
         typedef void(objT::*fn_type)( MADNESS_LIST( MADNESS_FN_TYPE , ARITY ) ) CONST; \
                                                                                 \
     private:                                                                    \
-        object_type* obj_;                                                      \
         fn_type fn_;                                                            \
                                                                                 \
     public:                                                                     \
-        MemFn() : obj_(NULL), fn_(0) { }                                        \
-        MemFn(object_type& obj, fn_type fn) : obj_(&obj), fn_(fn) { }           \
-        MemFn(object_type* obj, fn_type fn) : obj_(obj), fn_(fn) { }            \
-        MemFn(fn_type fn) : obj_(NULL), fn_(fn) { }                             \
+        MemFn() : fn_(0) { }                                                    \
+        MemFn(fn_type fn) : fn_(fn) { }                                         \
                                                                                 \
         void operator()(MADNESS_LIST_PREFIX(object_type& obj , MADNESS_FN_PARAM , ARITY ) ) const { \
-            MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
             (obj.*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );               \
         }                                                                       \
                                                                                 \
         void operator()(MADNESS_LIST_PREFIX(object_type* obj , MADNESS_FN_PARAM , ARITY ) ) const { \
             MADNESS_ASSERT(obj);                                                \
-            MADNESS_ASSERT(! obj_);                                             \
             MADNESS_ASSERT(fn_);                                                \
             (obj->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );              \
         }                                                                       \
                                                                                 \
-        void operator()( MADNESS_LIST( MADNESS_FN_PARAM , ARITY )  ) const {    \
-            MADNESS_ASSERT(obj_);                                               \
-            MADNESS_ASSERT(fn_);                                                \
-            (obj_->*fn_)( MADNESS_LIST( MADNESS_FN_ARG , ARITY ) );             \
-        }                                                                       \
-                                                                                \
         template <typename Archive>                                             \
-        void serialize(Archive& ar) { serialize_<objT>(ar); }                   \
-                                                                                \
-    private:                                                                    \
-        template <typename T, typename Archive>                                 \
-        typename enable_if<std::is_base_of<WorldObject<T>, T> >::type           \
-        serialize_(Archive& ar) {                                               \
-            ar & static_cast<CONST WorldObject<T>* >(obj_)                      \
-                    & archive::wrap_opaque(fn_);                                \
-        }                                                                       \
-                                                                                \
-        template <typename T, typename Archive>                                 \
-        typename disable_if<std::is_base_of<WorldObject<T>, T> >::type          \
-        serialize_(Archive& ar) {                                               \
-            MADNESS_ASSERT(! obj_);                                             \
-            ar & archive::wrap_opaque(fn_);                                     \
-        }                                                                       \
+        void serialize(Archive& ar) { ar & archive::wrap_opaque(fn_); }         \
     };
 
     // Generate MemFn object types for member functions that take 0 to 10
@@ -382,32 +330,6 @@ namespace madness {
     MADNESS_MEM_FN( 8 , MADNESS_FN_CONST )
     MADNESS_MEM_FN( 9 , MADNESS_FN_CONST )
     MADNESS_MEM_FN( 10 , MADNESS_FN_CONST )
-
-    /// Member function factory
-
-    /// Creates a function object from an object and a member function pointer
-    /// \tparam fnT The member function pointer type
-    /// \param obj The object
-    /// \param fn The member function pointer for the object
-    /// \return A functor object that acts like obj.*fn
-    template <typename fnT>
-    typename enable_if_c<MemFn<fnT>::value, MemFn<fnT> >::type
-    function(typename MemFn<fnT>::object_type& obj, fnT fn) {
-        return MemFn<fnT>(obj, fn);
-    }
-
-    /// Member function factory
-
-    /// Creates a function object from an object and a member function pointer
-    /// \tparam fnT The member function pointer type
-    /// \param obj The object
-    /// \param fn The member function pointer for the object
-    /// \return A functor object that acts like obj.*fn
-    template <typename fnT>
-    typename enable_if_c<MemFn<fnT>::value, MemFn<fnT> >::type
-    function(typename MemFn<fnT>::object_type* obj, fnT fn) {
-        return MemFn<fnT>(obj, fn);
-    }
 
     /// Member function factory
 

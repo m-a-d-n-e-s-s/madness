@@ -154,6 +154,7 @@ namespace madness {
 
     };
 
+#include <world/taskfn.h>
 
     /// Multi-threaded queue to manage and run tasks.
     class WorldTaskQueue : public CallbackInterface, private NO_DEFAULTS {
@@ -206,6 +207,18 @@ namespace madness {
                 t->register_submit_callback();
                 //t->dec();
             }
+        }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+            typename a4T, typename a5T, typename a6T, typename a7T, typename a8T,
+            typename a9T>
+        typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>::futureT
+        add(TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>* t) {
+
+            typename TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>::futureT
+                res(t->result());
+            add(static_cast<TaskInterface*>(t));
+            return res;
         }
 
         /// Reduce op(item) for all items in range using op(sum,op(item))
@@ -731,18 +744,67 @@ namespace madness {
     };
 
 
-    // Internal: Convenience for serializing
+    /// Serialization container for sending tasks to remote nodes
+
+    /// This is for internal use only. You should not use this class directly.
+    /// \tparam refT The remote reference type for task result future
+    /// \tparam functionT The task function type
     template <typename refT, typename functionT>
     struct TaskHandlerInfo {
-        refT ref;
-        functionT func;
-        TaskAttributes attr;
+        refT ref;               ///< Remote reference for a task result future
+        functionT func;         ///< A task function
+        TaskAttributes attr;    ///< Task attributes
+
+        /// Construct task info object
+
+        /// \param ref Remote reference to the result future
+        /// \param func The task function
+        /// \param attr The task attrubutes
         TaskHandlerInfo(const refT& ref, functionT func, const TaskAttributes& attr)
                 : ref(ref), func(func),attr(attr) {}
         TaskHandlerInfo() {}
+
+        /// Serialization of object
+
+        /// \tparam Archive The serialization archive type
+        /// \param ar The serialization archive
         template <typename Archive>
         void serialize(const Archive& ar) {
+            serialize_internal<functionT>(ar);
+        }
+
+    private:
+
+        /// Identify function and member function pointers
+
+        /// \tparam T The function to identify
+        template <typename fnT>
+        struct is_func_ptr {
+            static const bool value =
+                (std::is_function<typename std::remove_pointer<fnT>::type >::value
+                || std::is_member_function_pointer<fnT>::value);
+        };
+
+        /// Serialization for function pointers and member function pointers
+
+        /// \tparam fnT The function type
+        /// \tparam Archive The serialization archive type
+        /// \param ar The serialization archive
+        template <typename fnT, typename Archive>
+        typename enable_if<is_func_ptr<fnT> >::type
+        serialize_internal(const Archive& ar) {
             ar & ref & archive::wrap_opaque(func) & attr;
+        }
+
+        /// Serialization for non- function pointers and member function pointers.
+
+        /// \tparam fnT The function type
+        /// \tparam Archive The serialization archive type
+        /// \param ar The serialization archive
+        template <typename fnT, typename Archive>
+        typename disable_if<is_func_ptr<fnT> >::type
+        serialize_internal(const Archive& ar) {
+            ar & ref & func & attr;
         }
     };
 
