@@ -5,7 +5,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMIZATION], [
       default_optimization="3"
     ;;
     clang)
-      default_optimization="4"
+      default_optimization="3"
     ;;
     Pathscale)
       default_optimization="fast"
@@ -41,7 +41,14 @@ AC_DEFUN([ACX_ENABLE_OPTIMIZATION], [
         ;;
       esac
     ],
-    [acx_enable_optimization_flags="-O$default_optimization"]
+    [
+      if test "x$acx_enable_debugging" == xno; then
+        acx_enable_optimization_flags="-O$default_optimization"
+      else
+        acx_enable_optimization_flags="-O0"
+        AC_MSG_WARN([Optimizations is disabled, because debugging is enabled. Add --enable-optimization to overide this behavior.])
+      fi
+    ]
   )
   
   if test $acx_enable_optimization != no; then
