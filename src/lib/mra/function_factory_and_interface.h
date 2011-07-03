@@ -106,7 +106,8 @@ namespace madness {
 			return coeffT();
 		}
 
-		virtual coeffT eri_values(const keyT& key) {
+		virtual coeffT eri_values(const keyT& key) const {
+		    MADNESS_EXCEPTION("your functor hasn't implemented eri_values",1);
 		    return coeffT();
 		}
 
@@ -293,7 +294,7 @@ namespace madness {
             return None;
         }
 
-		coeffT eri_values(const Key<NDIM>& key) {
+		coeffT eri_values(const Key<NDIM>& key) const {
 		    return impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
 		}
 

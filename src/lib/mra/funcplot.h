@@ -628,30 +628,33 @@ namespace madness {
     	 FILE *f=0;
     	 const int npt=traj.npt;
 
+    	 const bool psdot=false;
 
     	 if(world.rank() == 0) {
     		 f = fopen(filename.c_str(), "w");
-    		 if(!f) MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+    		 if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
 
+    		 if (psdot) {
 
-             fprintf(f,"\\psset{xunit=0.1cm}\n");
-             fprintf(f,"\\psset{yunit=10cm}\n");
-             fprintf(f,"\\begin{pspicture}(0,-0.3)(100,1.0)\n");
-             fprintf(f,"\\pslinewidth=0.05pt\n");
-
+                 fprintf(f,"\\psset{xunit=0.1cm}\n");
+                 fprintf(f,"\\psset{yunit=10cm}\n");
+                 fprintf(f,"\\begin{pspicture}(0,-0.3)(100,1.0)\n");
+                 fprintf(f,"\\pslinewidth=0.05pt\n");
+    		 }
 
     		 // walk along the line
     		 for (int ipt=0; ipt<npt; ipt++) {
     			 Vector<double,NDIM> coord=traj(ipt);
-    			 long rank=function.evalR(coord);
-    //			 fprintf(f,"%4i %12.6f\n",ipt, function(coord));
-    			 print("ipt, rank", ipt,rank);
-    			 print_psdot(f,ipt,function(coord),hueCode(rank));
-
+    			 if (psdot) {
+    			     long rank=function.evalR(coord);
+    			     print_psdot(f,ipt,function(coord),hueCode(rank));
+    			 } else {
+    			     fprintf(f,"%4i %12.6f\n",ipt, function(coord));
+    			 }
     		 }
 
 
-             fprintf(f,"\\end{pspicture}\n");
+             if (psdot) fprintf(f,"\\end{pspicture}\n");
 
     		 fclose(f);
     	 }
@@ -666,30 +669,36 @@ namespace madness {
     	 FILE *f=0;
     	 const int npt=traj.npt;
 
+    	 const bool psdot=false;
 
     	 if(world.rank() == 0) {
     		 f = fopen(filename.c_str(), "w");
     		 if(!f) MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
 
-             fprintf(f,"\\psset{xunit=0.05cm}\n");
-             fprintf(f,"\\psset{yunit=100cm}\n");
-             fprintf(f,"\\begin{pspicture}(0,0.25)(100,0.3)\n");
-             fprintf(f,"\\pslinewidth=0.005pt\n");
-
+    		 if (psdot) {
+                 fprintf(f,"\\psset{xunit=0.05cm}\n");
+                 fprintf(f,"\\psset{yunit=100cm}\n");
+                 fprintf(f,"\\begin{pspicture}(0,0.25)(100,0.3)\n");
+                 fprintf(f,"\\pslinewidth=0.005pt\n");
+    		 }
 
 
     		 // walk along the line
     		 for (int ipt=0; ipt<npt; ipt++) {
-    			 Vector<double,NDIM> coord=traj(ipt);
-    //			 fprintf(f,"%12.6f %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",coord[0],coord[1],coord[2],coord[3],coord[4],coord[5], ff(coord));
-    //			 fprintf(f,"%4i %12.6f\n",ipt, ff(coord));
-    //			 long rank=ff.evalR(coord);
-    			 // no hue code here
-    			 print_psdot(f,ipt,ff(coord),hueCode(0));
+
+    		     Vector<double,NDIM> coord=traj(ipt);
+//    		     fprintf(f,"%12.6f %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",coord[0],coord[1],coord[2],coord[3],coord[4],coord[5], ff(coord));
+    			 if (psdot) {
+                     // no hue code here
+    			     //           long rank=ff.evalR(coord);
+                     print_psdot(f,ipt,ff(coord),hueCode(0));
+    			 } else {
+    			     fprintf(f,"%4i %12.6f\n",ipt, ff(coord));
+    			 }
 
 
     		 }
-             fprintf(f,"\\end{pspicture}\n");
+             if (psdot) fprintf(f,"\\end{pspicture}\n");
 
     		 fclose(f);
     	 }

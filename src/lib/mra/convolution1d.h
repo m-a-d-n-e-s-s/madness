@@ -327,6 +327,11 @@ namespace madness {
 
         /// Returns a pointer to the cached modified nonstandard form of the operator
 
+        /// make a whole (2,2) block of operator matrices at once
+        ///     0  -1  -2  -3       00 01   00 01
+        ///     1   0  -1  -2       10 11   10 11
+        ///     2   1   0  -1       00 01   00 01
+        ///     3   2   1   0       10 11   10 11
         /// @param[in]  op_key  holds the scale and the source and target translations
         /// @return     a pointer to the cached modified nonstandard form of the operator
         const ConvolutionData1D<Q>* mod_nonstandard(const Key<2>& op_key) const {
@@ -336,12 +341,12 @@ namespace madness {
             const Translation& tx=op_key.translation()[1];      // target translation
             const Translation  lx=tx-sx;                        // displacement
             const Translation  s_off=sx%2;
-            const Translation  t_off=tx%2;
+//            const Translation  t_off=tx%2;
 
             // we cache translation and source offset
             const Key<2> cache_key(n,Vector<Translation,2>(vec(lx,s_off)));
-//            const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
-//            if (p) return p;
+            const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
+            if (p) return p;
 
             // for paranoid me
             MADNESS_ASSERT(sx>=0 and tx>=0);
@@ -352,46 +357,68 @@ namespace madness {
 //                print("no issmall", lx, source, n);
 
                 const Translation lx_half = tx/2 - sx/2;
+                const Translation lx_even = lx_half*2;          // not the same as lx!
+
                 const Slice s0(0,k-1), s1(k,2*k-1);
 //                print("sx, tx",lx,lx_half,sx, tx,"off",s_off,t_off);
 
                 // this is the operator matrix in its actual level
-                R = rnlij(n,lx);
+                Tensor<Q> r0 = rnlij(n,lx_even);
+                Tensor<Q> rp = rnlij(n,lx_even+1);
+                Tensor<Q> rm = rnlij(n,lx_even-1);
 
                 // this is the upsampled operator matrix
                 Rm = Tensor<Q>(2*k,2*k);
+
                 if (n>0) Rm(s0,s0)=rnlij(n-1,lx_half);
                 {
                     PROFILE_BLOCK(Convolution1D_nstran);
                     Rm = transform(Rm,hg);
                 }
 
-                {
-                    PROFILE_BLOCK(Convolution1D_nscopy);
-                    T=Tensor<Q>(k,k);
-                    if (t_off==0 and s_off==0) T=copy(Rm(s0,s0));
-                    if (t_off==0 and s_off==1) T=copy(Rm(s0,s1));
-                    if (t_off==1 and s_off==0) T=copy(Rm(s1,s0));
-                    if (t_off==1 and s_off==1) T=copy(Rm(s1,s1));
-//                    if (t_off==0 and s_off==0) T=copy(Rm(s0,s0));
-//                    if (t_off==1 and s_off==0) T=copy(Rm(s0,s1));
-//                    if (t_off==0 and s_off==1) T=copy(Rm(s1,s0));
-//                    if (t_off==1 and s_off==1) T=copy(Rm(s1,s1));
-                }
 
                 {
                     PROFILE_BLOCK(Convolution1D_trans);
 
-                    Tensor<Q> RT(k,k), TT(k,k);
-                    fast_transpose(k,k,R.ptr(), RT.ptr());
-                    fast_transpose(k,k,T.ptr(), TT.ptr());
-                    R = RT;
+                    Tensor<Q> r0t(k,k), rpt(k,k), rmt(k,k), TT(2*k,2*k);
+                    fast_transpose(2*k,2*k,Rm.ptr(), TT.ptr());
                     T = TT;
+
+                    fast_transpose(k,k,r0.ptr(), r0t.ptr());
+                    r0 = r0t;
+                    fast_transpose(k,k,rp.ptr(), rpt.ptr());
+                    rp = rpt;
+                    fast_transpose(k,k,rm.ptr(), rmt.ptr());
+                    rm = rmt;
+                }
+
+                // s_off and t_off are confused now b/c of the transpose
+                Tensor<Q> r00, r01, r10, r11;
+                {
+                    PROFILE_BLOCK(Convolution1D_nscopy);
+//                    if (t_off==0 and s_off==0) T=copy(Rm(s0,s0));
+//                    if (t_off==1 and s_off==0) T=copy(Rm(s0,s1));
+//                    if (t_off==0 and s_off==1) T=copy(Rm(s1,s0));
+//                    if (t_off==1 and s_off==1) T=copy(Rm(s1,s1));
+                    r00=copy(T(s0,s0));
+                    r10=copy(T(s0,s1));
+                    r01=copy(T(s1,s0));
+                    r11=copy(T(s1,s1));
                 }
 
 //            }
 
-            mod_ns_cache.set(cache_key,ConvolutionData1D<Q>(R,T,true));
+            const Key<2> key00(n,Vector<Translation,2>(vec(lx_even,  Translation(0))));
+            const Key<2> key10(n,Vector<Translation,2>(vec(lx_even+1,Translation(0))));
+            const Key<2> key01(n,Vector<Translation,2>(vec(lx_even-1,Translation(1))));
+            const Key<2> key11(n,Vector<Translation,2>(vec(lx_even,  Translation(1))));
+
+            mod_ns_cache.set(key00,ConvolutionData1D<Q>(r0,r00,true));
+            mod_ns_cache.set(key01,ConvolutionData1D<Q>(rm,r01,true));
+            mod_ns_cache.set(key10,ConvolutionData1D<Q>(rp,r10,true));
+            mod_ns_cache.set(key11,ConvolutionData1D<Q>(r0,r11,true));
+
+
             return mod_ns_cache.getptr(cache_key);
         }
 

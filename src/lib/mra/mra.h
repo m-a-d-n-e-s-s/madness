@@ -1018,26 +1018,25 @@ namespace madness {
 
             // introduce special case if g==f: we don't need to compress
             if ((not (this==&g)) and (not g.is_on_demand())) {
-            	if (!is_compressed()) compress();
-            	if (!g.is_compressed()) g.compress();
+                if (!is_compressed()) compress();
+                if (!g.is_compressed()) g.compress();
             }
             MADNESS_ASSERT(not g.get_impl()->is_redundant());
             if (g.is_on_demand()) {
-	    	this->reconstruct();
-	    	g.get_impl()->fill_on_demand_tree(this->get_impl().get(),false);
-	    }
-            	
+                this->reconstruct();
+                g.get_impl()->fill_on_demand_tree(this->get_impl().get(),false);
+            }
+
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
             TENSOR_RESULT_TYPE(T,R) local=0.0;
-//            if (g.is_on_demand()) local= impl->inner_local2(*(g.get_impl()));
-            if (g.is_on_demand()) local= g.get_impl()->inner_local2(*impl);
-            else {
-//	    	print("in inner",is_compressed(),g.is_compressed());
-	    	local = impl->inner_local(*(g.get_impl()));
-	    }
+            if (g.is_on_demand()) {
+                local= g.get_impl()->inner_local2(*impl);
+            } else {
+                local = impl->inner_local(*(g.get_impl()));
+            }
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;

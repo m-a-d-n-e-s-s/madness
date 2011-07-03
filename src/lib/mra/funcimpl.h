@@ -2233,168 +2233,180 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+
+        /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
+        template<size_t LDIM>
+        struct hartree_op {
+
+            typedef hartree_op<LDIM> this_type;
+            typedef FunctionImpl<T,LDIM> implL;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+
+            FunctionImpl<T,NDIM>* result;       ///< where to construct the pair function
+            const implL* p1;                    ///< function of particle 1
+            const implL* p2;                    ///< function of particle 2
+            datumL datum1;                      ///< pointer to a valid key/node in p1
+            datumL datum2;                      ///< pointer to a valid key/node in p2
+
+            // ctor
+            hartree_op() {}
+            hartree_op(implT* result, const implL* p1, const implL* p2,
+                    const datumL& datum1, const datumL& datum2)
+                 : result(result)
+                 , p1(p1)
+                 , p2(p2)
+                 , datum1(datum1)
+                 , datum2(datum2)
+            {
+                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+            }
+
+            /// return true if this will be a leaf node
+            bool screen(const Key<NDIM>& key) const {
+
+                // for convenience
+                typedef FunctionNode<T,LDIM> nodeL;
+
+                const nodeL& node1=datum1.second;
+                const nodeL& node2=datum2.second;
+
+                // if the final norm is small, perform the hartree product and return
+                const coeffT s1=node1.coeff()(p1->cdata.s0);
+                const coeffT s2=node2.coeff()(p2->cdata.s0);
+                const double norm1=s1.normf();
+                const double norm2=s2.normf();
+                const double norm=norm1*norm2;  // computing the outer product
+                if (norm < result->truncate_tol(result->get_thresh(), key)) return true;
+
+                // get the error of both functions and of the pair function
+                const double error1=p1->compute_error(node1);
+                const double error2=p2->compute_error(node2);
+                const double error=sqrt(norm1*norm1*error2*error2 + error1*error1*norm2*norm2 + error1*error1*error2*error2);
+
+                // if the expected error is small, perform the hartree product and return
+                if (error < result->truncate_tol(result->get_thresh(),key)) return true;
+                return false;
+
+            }
+
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+                bool is_leaf=this->screen(key);
+                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+                // break key into particles (these are the child keys, with datum1/2 come the parent keys)
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+
+                // iterators point to nodes in nonstandard representation: get the sum coeffs
+                const coeffT s1=datum1.second.coeff()(p1->cdata.s0);
+                const coeffT s2=datum2.second.coeff()(p2->cdata.s0);
+
+                coeffT coeff1=p1->parent_to_child(s1,datum1.first,key1);
+                coeffT coeff2=p2->parent_to_child(s2,datum2.first,key2);
+
+                // new coeffs are simply the hartree/kronecker/outer product
+                tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
+
+                const coeffT coeff(tcube,result->get_tensor_args());
+                return std::pair<bool,coeffT>(is_leaf,coeff);
+            }
+
+            Future<hartree_op> make_child_op(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+
+                // point to "outermost" leaf node
+                Future<datumL> datum11=p1->outermost_child(key1,datum1);
+                Future<datumL> datum22=p2->outermost_child(key2,datum2);
+
+                return result->world.taskq.add(*const_cast<hartree_op *> (this), &hartree_op<LDIM>::make_op,
+                        result,p1,p2,datum11,datum22);
+            }
+
+            /// taskq-compatible constructor
+            this_type make_op(implT* result, const implL* p1, const implL* p2,
+                    const datumL& datum1, const datumL& datum2) {
+                return hartree_op(result,p1,p2,datum1,datum2);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & result & p1 & p2 & datum1 & datum2;
+            }
+        };
+
+
+
+        /// walk down the tree and perform an operation on each node
+        template<typename opT>
+        Void recursive_op(const opT& op, const keyT& key) {
+
+            // op returns <is_leaf, coeff>
+            std::pair<bool,coeffT> datum=op(key);
+            const bool is_leaf=datum.first;
+            const coeffT& coeff=datum.second;
+
+            // insert result into this' tree
+            const bool has_children=(not is_leaf);
+            coeffs.replace(key,nodeT(coeff,has_children));
+
+            // descend if needed
+            if (has_children) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    Future<opT> child_op=op.make_child_op(child);
+                    woT::task(world.rank(), &implT:: template forward_op<opT>, child_op, child);
+                }
+            }
+            return None;
+        }
+
+        /// walk down the tree and perform an operation on each node
+        template<typename opT>
+        Void forward_op(const opT& op, const keyT& key) {
+            woT::task(coeffs.owner(key), &implT:: template recursive_op<opT>, op, key);
+            return None;
+        }
+
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
         /// |Phi(1,2)> = |phi(1)> x |phi(2)>
         template<std::size_t LDIM>
         Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2, bool fence) {
-        	MADNESS_ASSERT(p1->is_nonstandard());
-        	MADNESS_ASSERT(p2->is_nonstandard());
+            MADNESS_ASSERT(p1->is_nonstandard());
+            MADNESS_ASSERT(p2->is_nonstandard());
 
-			typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
-			typedef FunctionImpl<T,LDIM> implL;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+            typedef FunctionImpl<T,LDIM> implL;
 
-            if (world.rank() == coeffs.owner(cdata.key0)) {
-            	Future<datumL> datum1=p1->task(p1->get_coeffs().owner(p1->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
-            	        p1->cdata.key0,TaskAttributes::hipri());
-            	Future<datumL> datum2=p2->task(p2->get_coeffs().owner(p2->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
-            	        p2->cdata.key0,TaskAttributes::hipri());
+            if (world.rank() == p1->get_coeffs().owner(p1->cdata.key0)) {
+                Future<datumL> dat1=p1->task(p1->get_coeffs().owner(p1->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
+                        p1->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> dat2=p2->task(p2->get_coeffs().owner(p2->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
+                        p2->cdata.key0,TaskAttributes::hipri());
 
-            	ProcessID owner = coeffs.owner(cdata.key0);
-            	woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, cdata.key0,
-            			datum1,datum2);
+                // have to wait for this, but should be local..
+                datumL datum1=dat1.get();
+                datumL datum2=dat2.get();
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+//                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, cdata.key0,
+//                      datum1,datum2);
+
+                print("using walker");
+                typedef hartree_op<LDIM> op_type;
+                op_type hartree_op(this,p1,p2,datum1,datum2);
+
+                woT::task(owner, &implT:: template recursive_op<op_type>, hartree_op, cdata.key0);
+
             }
 
-        	this->compressed=false;
-        	if (fence) world.gop.fence();
-        	return None;
-        }
-
-
-        /// given two Nodes, perform the Hartree product and insert the result
-        template<std::size_t LDIM>
-        Void hartree_product_op(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
-        		const keyT& key,
-        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
-
-        	MADNESS_ASSERT(NDIM==6);
-        	MADNESS_ASSERT(LDIM==3);
-
-//			// break key into particles (these are the child keys, with datum1/2 come the parent keys)
-//			const Vector<Translation, NDIM>& l=key.translation();
-//			const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
-//			const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
-//			const Key<LDIM> key1(key.level(),l1);
-//			const Key<LDIM> key2(key.level(),l2);
-        	Key<LDIM> key1,key2;
-        	key.break_apart(key1,key2);
-
-			// iterators point to nodes in nonstandard representation: get the sum coeffs
-			const coeffT s1=datum1.second.coeff()(p1->cdata.s0);
-			const coeffT s2=datum2.second.coeff()(p2->cdata.s0);
-
-	        coeffT coeff1=p1->parent_to_child(s1,datum1.first,key1);
-	        coeffT coeff2=p2->parent_to_child(s2,datum2.first,key2);
-
-	        // new coeffs are simply the hartree/kronecker/outer product
-	        tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
-
-	        coeffs.replace(key,nodeT(coeffT(tcube,targs),false));	// leaf node w/o children
-
-			return None;
-
-        }
-
-
-        /// Hartree product of two n-D functions to yield a 2n-D function
-
-        /// @param[in]	p1	function of particle 1
-        /// @param[in]	p2	function of particle 2
-        /// @param[in]	it1	pointer to a valid node in p1
-        /// @param[in]	it2	pointer to a valid node in p2
-        /// @return		this
-        template<std::size_t LDIM>
-        Void hartree_product_spawn(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
-        		const Key<NDIM>& key,
-        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-        		const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
-
-        	// for now
-        	MADNESS_ASSERT(LDIM==3);
-        	MADNESS_ASSERT(NDIM==6);
-
-        	// for convenience
-			typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
-        	typedef FunctionNode<T,LDIM> nodeL;
-        	typedef FunctionImpl<T,LDIM> implL;
-
-        	const nodeL& node1=datum1.second;
-        	const nodeL& node2=datum2.second;
-
-            // if the final norm is small, perform the hartree product and return
-        	const coeffT s1=node1.coeff()(p1->cdata.s0);
-        	const coeffT s2=node2.coeff()(p2->cdata.s0);
-            const double norm1=s1.normf();
-            const double norm2=s2.normf();
-            const double norm=norm1*norm2;	// computing the outer product
-            if (norm < truncate_tol(thresh, key)) {
-
-				ProcessID owner = coeffs.owner(key);
-				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, datum1, datum2);
-				return None;
-            }
-
-            // get the error of both functions and of the pair function
-            const double error1=p1->compute_error(node1);
-            const double error2=p2->compute_error(node2);
-            const double error=sqrt(norm1*norm1*error2*error2 + error1*error1*norm2*norm2 + error1*error1*error2*error2);
-
-            // if the expected error is small, perform the hartree product and return
-            if (error < truncate_tol(thresh,key)) {
-				// should be local anyways
-				ProcessID owner = coeffs.owner(key);
-				woT::task(owner, &implT:: template hartree_product_op<LDIM>, p1, p2, key, datum1, datum2);
-				return None;
-            }
-
-            // norm and error are large: keep recurring
-			for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-
-				const keyT& child = kit.key();
-
-				// break key into particles
-				const Vector<Translation, NDIM> l=child.translation();
-				const Vector<Translation, LDIM> l1=Vector<Translation,LDIM> (vec(l[0],l[1],l[2]));
-				const Vector<Translation, LDIM> l2=Vector<Translation,LDIM> (vec(l[3],l[4],l[5]));
-				const Key<LDIM> key1(child.level(),l1);
-				const Key<LDIM> key2(child.level(),l2);
-
-                // point to "outermost" leaf node
-				Future<datumL> datum11, datum22;
-				if (node1.has_children()) {
-					datum11=p1->task(p1->coeffs.owner(key1), &FunctionImpl<T,LDIM>::find_datum, key1,
-						TaskAttributes::hipri());
-				} else {
-					datum11.set(datum1);
-				}
-
-				if (node2.has_children()) {
-					datum22=p2->task(p2->coeffs.owner(key2), &FunctionImpl<T,LDIM>::find_datum, key2,
-						TaskAttributes::hipri());
-				} else {
-					datum22.set(datum2);
-				}
-
-				woT::task(world.rank(), &implT:: template hartree_product_spawn2<LDIM>, p1, p2, child,
-                        datum11, datum22);
-			}
-
-            coeffs.replace(key, nodeT(coeffT(),true));  // empty internal node w/ children
-			return None;
-
-        }
-
-        /// work-around for serializing the Future<datumL>
-        template<std::size_t LDIM>
-        Void hartree_product_spawn2(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
-                        const Key<NDIM>& key,
-                        const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-                        const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2) {
-                ProcessID owner = coeffs.owner(key);
-                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, key,
-                        datum1, datum2,TaskAttributes::hipri());
-                return None;
+            this->compressed=false;
+            if (fence) world.gop.fence();
+            return None;
         }
 
 
@@ -2517,7 +2529,165 @@ namespace madness {
         	return std::pair<Key<NDIM>,FunctionNode<T,NDIM> >(key,coeffs.find(key).get()->second);
         }
 
+        /// walk down the tree until a leaf node is hit
+        Future<std::pair<keyT,nodeT> > outermost_child(const keyT& key, const std::pair<keyT,nodeT>& in) const {
 
+            const nodeT& node=in.second;
+
+            Future<std::pair<keyT,nodeT> > out;
+            if (node.has_children()) {
+                out=woT::task(coeffs.owner(key), &implT::find_datum, key, TaskAttributes::hipri());
+            } else {
+                out.set(in);
+            }
+            return out;
+        }
+
+        /// given a ket and the 1- and 2-electron potentials, construct the function V phi
+        template<size_t LDIM>
+        struct Vphi_op {
+
+            typedef Vphi_op<LDIM> this_type;
+            typedef FunctionImpl<T,LDIM> implL;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+
+            implT* result;             ///< where to construct the V phi
+            const implT* ket;          ///< the ket
+            const implT* eri;          ///< holding the 2-electron potential generator
+            const implL* pot1;         ///< potential for particle 1
+            const implL* pot2;         ///< potential for particle 2
+            datumL datum1;             ///< pointer to a valid key/node in p1
+            datumL datum2;             ///< pointer to a valid key/node in p2
+            datumT datum_ket;          ///< pointer to a valid key/node in ket
+
+            // ctor
+            Vphi_op() {}
+            Vphi_op(implT* result, const implT* ket, const implT* eri,
+                    const implL* pot1, const implL* pot2,
+                    const datumL& datum1, const datumL& datum2, const datumT& datum_ket)
+            : result(result)
+            , ket(ket)
+            , eri(eri)
+            , pot1(pot1)
+            , pot2(pot2)
+            , datum1(datum1)
+            , datum2(datum2)
+            , datum_ket(datum_ket)
+            {
+                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+            }
+
+            /// assemble the coefficients
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+                // break key into particles (these are the child keys, with datum1/2 come the parent keys)
+                Key<LDIM> key1, key2;
+                key.break_apart(key1,key2);
+
+                // values for 1e-potentials
+                const coeffT val_pot1=pot1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
+                const coeffT val_pot2=pot2->fcube_for_mul(key2,datum2.first,datum2.second.coeff());
+
+                // values for ket
+                tensorT val_ket=ket->fcube_for_mul(key,datum_ket.first,datum_ket.second.coeff()).full_tensor_copy();
+
+                // values for eri
+                const tensorT val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
+
+                // assemble all contributions
+                tensorT coeff_v(ket->cdata.vk);      // 6D, all addends
+
+                // include the one-electron potential
+                if (val_pot1.has_data() and val_pot2.has_data()) {
+
+                    FunctionCommonData<T,LDIM> cdataL=pot1->cdata;
+                    Tensor<T> identity=Tensor<double>(cdataL.vk,false);
+                    identity=1.0;
+
+                    // direct product: V(1) * E(2) + E(1) * V(2)
+                    coeff_v = outer(val_pot1.full_tensor_copy(),identity)
+                                       + outer(identity,val_pot2.full_tensor_copy());
+                } else if (val_pot1.has_data()) {
+
+                    MADNESS_ASSERT(LDIM==NDIM);
+                    coeff_v = (val_pot1.full_tensor_copy());
+                }
+
+
+                // add 2-particle contribution
+                coeff_v+=val_eri;
+
+                // check for need of refinement
+                bool needs_refinement=false;
+                if (coeff_v.has_data()) {
+
+                    double lo_ket, hi_ket, lo_pot, hi_pot;
+                    result->tnorm(val_ket, &lo_ket, &hi_ket);
+                    result->tnorm(coeff_v, &lo_pot, &hi_pot);
+                    double test = lo_ket*hi_pot + lo_pot*hi_ket + hi_ket*hi_pot;
+                    //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
+                    needs_refinement= (test> result->truncate_tol(result->get_thresh(), key));
+
+                }
+
+                // multiply potential with ket
+                if (val_eri.has_data() or val_pot1.has_data()) {
+                    tensorT tcube(result->cdata.vk,false);
+                    TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+                    val_ket=tcube;
+                }
+
+                // return coeffs
+//              bool is_leaf=(not needs_refinement);
+                bool is_leaf=datum_ket.second.is_leaf();
+
+                const TensorArgs& targs=result->get_tensor_args();
+                const coeffT coeff_ket=coeffT(result->values2coeffs(key,val_ket),targs);
+
+                if (is_leaf) return std::pair<bool,coeffT> (is_leaf,coeff_ket);
+                else return std::pair<bool,coeffT> (is_leaf,coeffT());
+            }
+
+            /// given the current operator, construct the child operator, which means
+            /// to provide pointers to the appropriate nodes from which the new
+            /// result node will be constructed
+            Future<Vphi_op> make_child_op(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+
+                // point to "outermost" leaf node
+                Future<datumL> datum11=pot1->outermost_child(key1,datum1);
+                Future<datumL> datum22=pot2->outermost_child(key2,datum2);
+                Future<datumT> datumkk=ket->outermost_child(child,datum_ket);
+
+                // wait for the nodes to arrive, and construct a new operator
+                return result->world.taskq.add(*const_cast<Vphi_op *> (this), &this_type::make_op,
+                        result,ket,eri,pot1,pot2,datum11,datum22,datumkk);
+            }
+
+            /// taskq-compatible child constructor
+            this_type make_op(implT* result, const implT* ket, const implT* eri,
+                    const implL* pot1, const implL* pot2,
+                    const datumL& datum1, const datumL& datum2, const datumT& datum_ket) {
+                return Vphi_op(result,ket,eri,pot1,pot2,datum1,datum2,datum_ket);
+            }
+
+            /// serialize this (needed for use in recursive_op)
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & ket & result & eri & pot1 & pot2 & datum1 & datum2 & datum_ket;
+            }
+        };
+
+
+        /// assemble the function V*phi using V and phi given from the functor
+
+        /// this function must have been constructed using the CompositeFunctorInterface.
+        /// The interface provides one- and two-electron potentials, and the ket, which are
+        /// assembled to give V*phi. The MRA structure of the result is the same as the
+        /// MRA structure of ket as given by the functor.
         void make_Vphi(const bool fence=true) {
 
             const size_t LDIM=3;
@@ -2531,183 +2701,37 @@ namespace madness {
 
 
             const FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
+            const FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
             const FunctionImpl<T,LDIM>* pot1=func->impl_m1.get();
             const FunctionImpl<T,LDIM>* pot2=func->impl_m2.get();
 
             if (world.rank() == coeffs.owner(key0)) {
-                Future<datumL> datum1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
+                Future<datumL> dat1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
                         &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
-                Future<datumL> datum2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
+                Future<datumL> dat2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
                         &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri());
-                Future<datumT> datum_ket=ket->task(ket->get_coeffs().owner(key0),
+                Future<datumT> dat_ket=ket->task(ket->get_coeffs().owner(key0),
                         &implT::find_datum,key0,TaskAttributes::hipri());
 
-                woT::task(coeffs.owner(key0),&implT:: template make_Vphi_spawn<LDIM>,ket,
-                        pot1,pot2,datum1,datum2,datum_ket,key0);
+                print("using walker for make_Vphi");
+
+                // have to wait for this..
+                datumL datum1=dat1.get();
+                datumL datum2=dat2.get();
+                datumT datum_ket=dat_ket.get();
+
+                typedef Vphi_op<LDIM> op_type;
+                op_type op(this,ket,eri,pot1,pot2,datum1,datum2,datum_ket);
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+                woT::task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+
             }
 
             this->compressed=false;
+            this->on_demand=false;
             if (fence) world.gop.fence();
 
-        }
-
-        /// check for the autorefine criterion
-        template<size_t LDIM>
-        bool make_Vphi_op(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
-                const implT* ket, const keyT& key,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
-                const std::pair<keyT,nodeT>& datum_ket) {
-
-
-            // break key into particles (these are the child keys, with datum1/2 come the parent keys)
-            Key<LDIM> key1, key2;
-            key.break_apart(key1,key2);
-
-            // values for 1e-potentials
-            const coeffT val_pot1=p1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
-            const coeffT val_pot2=p2->fcube_for_mul(key2,datum2.first,datum2.second.coeff());
-
-            // values for ket
-            tensorT val_ket=fcube_for_mul(key,datum_ket.first,datum_ket.second.coeff()).full_tensor_copy();
-
-            // values for eri
-            const tensorT ceri=functor->eri_values(key).full_tensor();
-            const tensorT val_eri=coeffs2values(key,ceri);
-
-            // assemble all contributions
-            tensorT coeff_v(cdata.vk);      // 6D, all addends
-
-            // include the one-electron potential
-            if (val_pot1.has_data() and val_pot2.has_data()) {
-
-                FunctionCommonData<T,LDIM> cdataL=FunctionCommonData<T,LDIM>::get(k);
-                Tensor<T> identity=Tensor<double>(cdataL.vk,false);
-                identity=1.0;
-
-                // direct product: V(1) * E(2) + E(1) * V(2)
-                coeff_v = outer(val_pot1.full_tensor_copy(),identity)
-                                   + outer(identity,val_pot2.full_tensor_copy());
-            } else if (val_pot1.has_data()) {
-
-                MADNESS_ASSERT(LDIM==NDIM);
-                coeff_v = (val_pot1.full_tensor_copy());
-            }
-
-
-            // add 2-particle contribution
-            coeff_v+=val_eri;
-
-            // check for need of refinement
-            bool needs_refinement=false;
-            if (coeff_v.has_data()) {
-
-                double lo_ket, hi_ket, lo_pot, hi_pot;
-                tnorm(val_ket, &lo_ket, &hi_ket);
-                tnorm(coeff_v, &lo_pot, &hi_pot);
-                double test = lo_ket*hi_pot + lo_pot*hi_ket + hi_ket*hi_pot;
-                //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
-                needs_refinement= (test> truncate_tol(thresh, key));
-
-
-                if (key.level()<2) needs_refinement=true;
-                if (key.level()>5) needs_refinement=false;
-
-            }
-
-            if (not needs_refinement) {
-                // multiply potential with ket
-                if (val_eri.has_data() or val_pot1.has_data()) {
-                    tensorT tcube(cdata.vk,false);
-                    TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
-                    val_ket=tcube;
-                }
-
-                coeffs.replace(key,nodeT(coeffT(values2coeffs(key,val_ket),targs)));  // leaf node
-            } else {
-                coeffs.replace(key,nodeT(coeffT(),true));   // empty internal node w/ children
-            }
-            return needs_refinement;
-        }
-
-
-
-        template<size_t LDIM>
-        Void make_Vphi_spawn(const implT* ket,
-                const FunctionImpl<T,LDIM>* pot1, const FunctionImpl<T,LDIM>* pot2,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
-                const std::pair<keyT,nodeT>& datum_ket,
-                const keyT& key) {
-
-            // for convenience
-            typedef FunctionNode<T,LDIM> nodeL;
-            typedef FunctionImpl<T,LDIM> implL;
-            typedef std::pair<Key<LDIM>,nodeL> datumL;
-            typedef std::pair<keyT,nodeT> datumT;
-
-            const nodeL& node1=datum1.second;
-            const nodeL& node2=datum2.second;
-            const nodeT& node_ket=datum_ket.second;
-
-            // assemble the coeffs
-            bool refine=make_Vphi_op(pot1,pot2,ket,key,datum1,datum2,datum_ket);
-
-            // recur down the tree if we need refinement
-            if (refine) {
-
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-
-                    // break key into particles
-                    const keyT child=kit.key();
-                    Key<LDIM> child1,child2;
-                    child.break_apart(child1,child2);
-
-                    // point to "outermost" leaf node
-                    Future<datumL> datum11, datum22;
-                    Future<datumT> datum_ket2;
-                    if (node1.has_children()) {
-                        datum11=pot1->task(pot1->coeffs.owner(child1), &implL::find_datum, child1,
-                                TaskAttributes::hipri());
-                    } else {
-                        datum11.set(datum1);
-                    }
-
-                    if (node2.has_children()) {
-                        datum22=pot2->task(pot2->coeffs.owner(child2), &implL::find_datum, child2,
-                                TaskAttributes::hipri());
-                    } else {
-                        datum22.set(datum2);
-                    }
-
-                    if (node_ket.has_children()) {
-                        datum_ket2=ket->task(ket->get_coeffs().owner(child), &implT::find_datum, child,
-                                TaskAttributes::hipri());
-                    } else {
-                        datum_ket2.set(datum_ket);
-                    }
-
-
-                    woT::task(world.rank(), &implT:: template make_Vphi_spawn2<LDIM>,
-                            ket,pot1,pot2,datum11,datum22,datum_ket2,child);
-                }
-
-            }
-            return None;
-        }
-
-        template<size_t LDIM>
-        Void make_Vphi_spawn2(const implT* ket,
-                const FunctionImpl<T,LDIM>* pot1, const FunctionImpl<T,LDIM>* pot2,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum1,
-                const std::pair<Key<LDIM>, FunctionNode<T,LDIM> >& datum2,
-                const std::pair<keyT,nodeT>& datum_ket,
-                const keyT& key) {
-
-            ProcessID owner = coeffs.owner(key);
-            woT::task(owner, &implT:: template make_Vphi_spawn<LDIM>,
-                    ket,pot1,pot2,datum1,datum2,datum_ket,key);
-            return None;
         }
 
 
@@ -2820,12 +2844,13 @@ namespace madness {
             // add 2-particle contribution
 //            if (val_eri.has_data()) coeff_v+=val_eri.full_tensor_copy();
 //            coeffT val_eri=impl_eri->get_functor()->coeff(key);
-            coeffT val_eri=functor->eri_values(key);
-            coeff_v+=coeffs2values(key,val_eri.full_tensor());
+//            coeffT val_eri=functor->eri_values(key);
+//            coeff_v+=coeffs2values(key,val_eri.full_tensor());
+            coeff_v+=functor->eri_values(key).full_tensor();
 
             // check for need of refinement
             bool needs_refinement=false;
-            if (do_refine and (val_eri.has_data() or val_pot1.has_data())) {
+            if (do_refine and (coeff_v.has_data())) {
 
                 double lo_ket, hi_ket, lo_pot, hi_pot;
                 tnorm(ket, &lo_ket, &hi_ket);
@@ -2849,7 +2874,7 @@ namespace madness {
 
             } else {
                 // multiply potential with ket
-                if (val_eri.has_data() or val_pot1.has_data()) {
+                if (coeff_v.has_data()) {
 
                     tensorT tcube(cdata.vk,false);
 
@@ -3764,10 +3789,6 @@ namespace madness {
             MADNESS_ASSERT(not f.is_compressed());
             MADNESS_ASSERT(this->is_on_demand());
 
-        	// looks a little weird: first make sure all the gnodes are constructed,
-        	// afterwards use them to compute the inner product;
-//    		this->fill_on_demand_tree(&f,false);
-
             TENSOR_RESULT_TYPE(T,R) sum = 0.0;
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
@@ -3775,7 +3796,6 @@ namespace madness {
                 const nodeT& fnode = it->second;
                 if (fnode.has_coeff()) {
 
-//                   	coeffT gcoeff=this->functor->coeff(key);
                 	coeffT gcoeff=coeffs.find(key).get()->second.coeff();
 
                     // compute inner product

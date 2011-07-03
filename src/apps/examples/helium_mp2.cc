@@ -673,6 +673,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 	} else {
 		pe=-2.0*ke;
 	}
+	if (world.rank()==0) print("total energy",ke+pe);
 
 	if(world.rank() == 0) printf("\npotential at time %.1fs\n\n", wall_time());
 
@@ -813,7 +814,7 @@ void test_modified(World& world) {
 
         real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), 0.0001, 1e-6);
         op.modified=true;
-        op.doleaves=true;
+        op.doleaves=false;
         if(world.rank() == 0) print("modified",op.modified);
 
         real_function_3d Vpsi = (V*psi);
@@ -831,6 +832,45 @@ void test_modified(World& world) {
 
 
 }
+
+
+
+// test the modified NS form
+void test_recursive_application(World& world) {
+
+
+    // one orbital at a time
+    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+
+    double norm=inner(orbital,orbital);
+    orbital.scale(1.0/sqrt(norm));
+
+    real_function_6d pair=hartree_product(orbital,orbital);
+    double norm2=inner(pair,pair);
+    if (world.rank()==0) print("<phi | phi>",norm2);
+    double ke,pe;
+    real_function_3d pot1=real_factory_3d(world).f(Z2);
+    real_function_3d pot2=real_factory_3d(world).f(Z2);
+    compute_energy(world,pair,pot1,pot2,ke,pe);
+
+
+    // two-electron interaction potential
+    real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+
+    real_function_6d vphi=CompositeFactory<double,6,3>(world)
+                        .ket(copy(pair).get_impl())
+                        .g12(eri.get_impl())
+                        .V_for_particle1(copy(pot1).get_impl())
+                        .V_for_particle2(copy(pot2).get_impl())
+                        .muster(copy(pair).get_impl())
+                        ;
+    vphi.get_impl()->make_Vphi();
+
+    double v=inner(pair,vphi);
+    if (world.rank()==0) print("inner(pair,vphi",v);
+
+}
+
 
 
 int main(int argc, char** argv) {
@@ -970,7 +1010,9 @@ int main(int argc, char** argv) {
     }
 
 
-    test_modified(world);
+    if (0) test_modified(world);
+
+    test_recursive_application(world);
 
     return 0;
 

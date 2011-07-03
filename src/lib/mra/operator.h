@@ -408,20 +408,9 @@ namespace madness {
                         trans[d].VT = ops_1d[d]->TVT.ptr();
                     }
                     trans2[d]=ops_1d[d]->T;
-//                    print("result.norm",result.normf(),mufac);
-//                    print("transformation",d);
-//                    print(trans2[d]);
-
                 }
 //                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
-//                apply_transformation3(trans2, f0, -mufac, result0);
-
-                // -mufac for debug
-                if (modified) {
-                    apply_transformation3(trans2, f0, -mufac, result0);
-                } else {
-                    apply_transformation3(trans2, f0, -mufac, result0);
-                }
+                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
 
@@ -723,8 +712,8 @@ namespace madness {
             for (size_t i=0; i<NDIM; ++i) t[i]=t[i]%2;
             Key<2*NDIM> key=disp.merge_with(Key<NDIM>(source.level(),t));
 
-//            const SeparatedConvolutionData<Q,NDIM>* p = mod_data.getptr(n,key);
-//            if (p) return p;
+            const SeparatedConvolutionData<Q,NDIM>* p = mod_data.getptr(n,key);
+            if (p) return p;
 
             // get the data for each term
             // op.muops is of type SeparatedConvolutionInternal (1 term, all dim, 1 disp)
@@ -944,7 +933,7 @@ namespace madness {
                    r=Tensor<resultT>(vk);
                    work1=Tensor<resultT>(vk,false);
                    work2=Tensor<resultT>(vk,false);
-                   work5=Tensor<resultT>(k,k);
+                   work5=Tensor<Q>(k,k);
             }
 
             const Tensor<T> f0 = copy(coeff(s0));
