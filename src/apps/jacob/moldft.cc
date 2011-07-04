@@ -705,9 +705,9 @@ struct CalculationParameters {
         std::string loctype = "boys";
         if (localize_pm) loctype = "pm";
         if (localize)
-            madness::print("  localized orbitals ", loctype);
+	  madness::print("  localized orbitals ", loctype);
         else
-            madness::print("  canonical orbitals ");
+	  madness::print("  canonical orbitals ");
     }
 };//end CalculationParameter
 
@@ -786,11 +786,13 @@ public:
         rvec = U + op(W + Scharge);
      	realfunc U_new = solver.update(uvec,rvec);
         double err = rvec.norm2();
+	if (world.rank()==0)
+	  madness::print("  ", iter,"             " , err);
         if (err >0.3*unorm){ U = 0.5*U + 0.5*U_new;
         }
         else
           U = U_new;
-	if (err < 10.0*tol) break;
+	if(err < 10.0*tol) break;
       }
     }
     //compute the reaction potential after total potential converges                                                                                      
@@ -987,7 +989,6 @@ struct Calculation {
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, param.thresh);
     }
-       
     void set_protocol(World & world, double thresh)
     {
         int k;
@@ -1020,7 +1021,6 @@ struct Calculation {
             print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
-
    void save_mos(World& world) {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
         ar & param.spin_restricted;
@@ -1626,14 +1626,27 @@ struct Calculation {
         if (param.restart) {
             load_mos(world);
         }
-        else {
-            // Use the initial density and potential to generate a better process map
-            functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
-            END_TIMER(world, "guess density");
-            double nel = rho.trace();
-            if(world.rank() == 0)
-                print("guess dens trace", nel);
-
+	else {
+	  //Making nuclear charge potential
+	  realfunct rhon_functor(new NuclearDensityFunctor(molecule));
+	  if (world.rank()==0)
+	    print("starting to project rhon");
+	  rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
+	  if(world.rank()==0)
+	    print("TRACE OF RHON", rhon.trace());
+	  // Use the initial density and potential to generate a better process map
+	  functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
+	  END_TIMER(world, "guess density");
+	  double nel = rho.trace();
+	  if(world.rank() == 0)
+	    print("guess dens trace", nel);
+	  rhot = rhon - rho;
+	  if(param.solvent){
+	    ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+					   molecule.get_all_coords_vec());
+	    vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	   
+	  }
             if(world.size() > 1) {
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
@@ -1653,7 +1666,10 @@ struct Calculation {
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){    //atoms or molecule other than hydrogen
                 START_TIMER(world);
-                vlocal = vnuc + apply(*coulop, rho);
+		if (param.solvent)
+		  vlocal = vnuc + vsolvent + apply(*coulop, rho);
+		else
+		  vlocal = vnuc + apply(*coulop, rho);//AAAAAAAAAD
                 END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
@@ -1662,7 +1678,9 @@ struct Calculation {
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {//if hydrogenlike
-                vlocal = vnuc;
+	      vlocal = vnuc;
+	      if(param.solvent)
+		vnuc + vsolvent;   // AAAAAAAAAAAAADDD
             }
             rho.clear();
             vlocal.reconstruct();
@@ -1951,7 +1969,7 @@ struct Calculation {
         if(param.lda){
             START_TIMER(world);
             exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
-            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);  //insert solvent rxn pot here
             END_TIMER(world, "LDA potential");
         }
         START_TIMER(world);
@@ -2522,60 +2540,61 @@ struct Calculation {
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;//get the maximum subspace
         param.maxsub = 2;
-	//Making nuclear charge potential
+ 	//Making nuclear charge potential
 	realfunct rhon_functor(new NuclearDensityFunctor(molecule));
 	if (world.rank()==0)
 	  print("starting to project rhon");
 	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
+	if(world.rank()==0)
+	  print("TRACE OF RHON", rhon.trace());
+	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
-	  
 	  if (iter > 0 && update_residual < 0.1) {
 	    //do_this_iter = false;
 	    param.maxsub = maxsub_save;      
 	  }
-	  
 	  if(param.localize && do_this_iter) {
-                tensorT U;
-                if (param.localize_pm) {
-                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
-                }
-                else {
-                    U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
-                }
-                amo = transform(world, amo, U, trantol, true);
-                truncate(world, amo);
-                normalize(world, amo);
-                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if(!param.spin_restricted && param.nbeta){
-                    if (param.localize_pm) {
-                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
-                    }
-                    else {
-                        U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
-                    }
-                    bmo = transform(world, bmo, U, trantol, true);
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
-                }
-            }
-
-            if (diag_rho && param.core_type.substr(0,3) == "mcp") {
-                START_TIMER(world);
-                vecfuncT proj_core = core_projection(world, amo, false);
-                gaxpy(world, 1.0, amo, -1.0, proj_core);
-                proj_core.clear();
-                normalize(world, amo);
-                if (!param.spin_restricted && param.nbeta) {
-                    proj_core = core_projection(world, bmo, false);
-                    gaxpy(world, 1.0, bmo, -1.0, proj_core);
-                    proj_core.clear();
-                    normalize(world, bmo);
-                }
-                END_TIMER(world, "core projector");
-            }
+	    tensorT U;
+	    if (param.localize_pm) {
+	      U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+	    }
+	    else {
+	      U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
+	    }
+	    amo = transform(world, amo, U, trantol, true);
+	    truncate(world, amo);
+	    normalize(world, amo);
+	    rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+	    if(!param.spin_restricted && param.nbeta){
+	      if (param.localize_pm) {
+		U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+	      }
+	      else {
+		U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
+	      }
+	      bmo = transform(world, bmo, U, trantol, true);
+	      truncate(world, bmo);
+	      normalize(world, bmo);
+	      rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
+	    }
+	  }
+	  
+	  if (diag_rho && param.core_type.substr(0,3) == "mcp") {
+	    START_TIMER(world);
+	    vecfuncT proj_core = core_projection(world, amo, false);
+	    gaxpy(world, 1.0, amo, -1.0, proj_core);
+	    proj_core.clear();
+	    normalize(world, amo);
+	    if (!param.spin_restricted && param.nbeta) {
+	      proj_core = core_projection(world, bmo, false);
+	      gaxpy(world, 1.0, bmo, -1.0, proj_core);
+	      proj_core.clear();
+	      normalize(world, bmo);
+	    }
+	    END_TIMER(world, "core projector");
+	  }
 
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo);// make the alpha density while checking spin restriction
@@ -2608,12 +2627,23 @@ struct Calculation {
             rho.truncate();
 	    rhot = rhon - rho;
 	    double enuclear = inner(rho, vnuc);       //nuclear potential energy
-            START_TIMER(world);                        //add solvent here 
+            START_TIMER(world);                       
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
             rho.clear(false);
-            functionT vlocal = vcoul + vnuc;
+	    /* if(param.solvent){
+	      // ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,	\
+	      //molecule.get_all_coords_vec()); //jacob added      
+	      VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+					     molecule.get_all_coords_vec());
+	      //realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	      realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
+	      efree = 0.5*rhot.inner(vsolvent);
+	      ereaction = rhot.inner(vsolvent);
+	    }*/
+	
+            functionT vlocal = vcoul + vnuc + ereaction;  //ADD RXN POT HERE
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
@@ -2720,27 +2750,29 @@ struct Calculation {
             analyze_vectors(world, bmo, bocc, beps);
         }
 	if(world.rank()==0){
-	  madness::print("RADII ",molecule.atomic_radii);
-	  madness::print("COORDS ",molecule.get_all_coords_vec());
+	  //  madness::print("RADII ",molecule.atomic_radii);
+	  // madness::print("COORDS ",molecule.get_all_coords_vec());
 	}
 	if(param.solvent){
-	  // ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,\
-	  //molecule.get_all_coords_vec()); //jacob added      
-	  VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,\
-					 molecule.get_all_coords_vec());
-	  //realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
-	  realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
+	  ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+					 molecule.get_all_coords_vec()); //jacob added      
+	  // VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+	  //				 molecule.get_all_coords_vec());
+	  realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	  // realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
 	  efree = 0.5*rhot.inner(vsolvent);
 	  ereaction = rhot.inner(vsolvent);
+	  
+	  if(world.rank() == 0) {
+	    print("\n\n");
+	    print("                            MADNESS SVPE            ");
+	    print("                          _________________         ");
+	    print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
+	    print("                gas phase energy:     ",etot);
+	    print("           solution phase energy:     ",ereaction + etot,"\n\n");
+	    print("TOTAL DENSITY",rhot.trace());
+	  }
 	}
-	if(world.rank() == 0) {
-	  //solution here
-	  print("                            MADNESS SVPE            ");
-	  print("                          _________________         ");
-	  print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
-	  print("                gas phase energy:     ",etot);
-	  print("           solution phase energy:     ",ereaction + etot,"\n\n");
-	}	    
     }
 };//end Calculation
 
@@ -2775,7 +2807,7 @@ public:
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
-        calc.set_protocol(world,1e-4);
+        calc.set_protocol(world,calc.param.thresh);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
 
@@ -2799,7 +2831,7 @@ public:
         calc.solve(world);
         calc.save_mos(world);
 
-        calc.set_protocol(world,1e-6);
+        calc.set_protocol(world,calc.param.thresh);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
         calc.project(world);
@@ -2851,7 +2883,7 @@ int main(int argc, char** argv) {
 
         // Come up with an initial OK data map
         if (world.size() > 1) {
-            calc.set_protocol(world,1e-4);
+            calc.set_protocol(world,calc.param.thresh);
             calc.make_nuclear_potential(world);
             calc.initial_load_bal(world);
         }
