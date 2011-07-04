@@ -1666,11 +1666,12 @@ struct Calculation {
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){    //atoms or molecule other than hydrogen
                 START_TIMER(world);
-		if (param.solvent)
+		if (param.solvent){
 		  vlocal = vnuc + vsolvent + apply(*coulop, rho);
-		else
-		  vlocal = vnuc + apply(*coulop, rho);//AAAAAAAAAD
-                END_TIMER(world, "guess Coulomb potn");
+		} else {
+		  vlocal = vnuc + apply(*coulop, rho);
+		}
+		END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 rho.scale(0.5);
@@ -1678,9 +1679,11 @@ struct Calculation {
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {//if hydrogenlike
-	      vlocal = vnuc;
-	      if(param.solvent)
-		vnuc + vsolvent;   // AAAAAAAAAAAAADDD
+	      if(param.solvent){
+		vlocal = vnuc + vsolvent;
+	      } else {
+		vlocal = vnuc;
+	      }
             }
             rho.clear();
             vlocal.reconstruct();
@@ -2528,8 +2531,8 @@ struct Calculation {
     // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
-        functionT arho_old, brho_old;
-        functionT adelrhosq, bdelrhosq;
+        functionT arho_old, brho_old, vlocal;
+	functionT adelrhosq, bdelrhosq;
         const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
@@ -2632,18 +2635,14 @@ struct Calculation {
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
             rho.clear(false);
-	    /* if(param.solvent){
-	      // ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii,	\
-	      //molecule.get_all_coords_vec()); //jacob added      
-	      VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
-					     molecule.get_all_coords_vec());
-	      //realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
-	      realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
-	      efree = 0.5*rhot.inner(vsolvent);
-	      ereaction = rhot.inner(vsolvent);
-	    }*/
-	
-            functionT vlocal = vcoul + vnuc + ereaction;  //ADD RXN POT HERE
+	     if(param.solvent){
+	       ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+					      molecule.get_all_coords_vec()); //jacob added      
+	       vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
+	       vlocal = vcoul + vnuc + vsolvent;  //ADD RXN POT HERE
+	     } else {
+	       vlocal = vcoul + vnuc ;  //ADD RXN POT HERE
+	     }
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
