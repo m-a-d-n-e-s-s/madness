@@ -264,20 +264,20 @@ namespace madness {
                 switch(ReductionInterface::count()) {
                 case 3:
                     {
-                        Future<T> temp = w.taskq.add(& reduce_op<opT>, r_[0], r_[1],
-                                op, TaskAttributes::hipri());
-                        result = w.taskq.add(& reduce_op<opT>, temp, r_[2], op,
-                                TaskAttributes::hipri());
+                        Future<T> temp = w.taskq.add(& GroupReduction::template reduce_op<opT>,
+                                r_[0], r_[1], op, TaskAttributes::hipri());
+                        result = w.taskq.add(& GroupReduction::template reduce_op<opT>,
+                                temp, r_[2], op, TaskAttributes::hipri());
                     }
                     break;
 
                 case 2:
-                    result = w.taskq.add(& reduce_op<opT>, r_[0], r_[1], op,
-                            TaskAttributes::hipri());
+                    result = w.taskq.add(& GroupReduction::template reduce_op<opT>,
+                            r_[0], r_[1], op, TaskAttributes::hipri());
                     break;
 
                 case 1:
-                    result.set(r_[0]);
+                    result = r_[0];
                     break;
                 }
 
@@ -332,7 +332,6 @@ namespace madness {
             void set_future(const U& u) {
                 const unsigned int i = icount_++;
 
-                MADNESS_ASSERT(i <= this->count());
                 MADNESS_ASSERT(! r_[i].probe());
                 r_[i].set(u);
             }
@@ -470,9 +469,9 @@ namespace madness {
 
             // Forward the results of the local reductions to the parent
             // and erase the reduction object
-            WorldObject_::get_world().taskq.add(*this,
+            WorldObject_::task(WorldObject_::get_world().rank(),
                 & WorldReduce_::template send_to_parent<value_type>,
-                acc->second->parent(), k, result);
+                acc->second->parent(), k, result, TaskAttributes::hipri());
 
             // Reduce the local value
             acc->second->reduce(value);
