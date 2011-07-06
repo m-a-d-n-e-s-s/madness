@@ -88,21 +88,22 @@ namespace madness {
                 std::vector<ProcessID> group(first, last);
 
                 std::sort(group.begin(), group.end());
-                std::unique(group.begin(), group.end());
+                std::vector<ProcessID>::const_iterator end =
+                        std::unique(group.begin(), group.end());
 
                 // Get the size of the group
-                size_ = group.size();
+                size_ = end - group.begin();
 
                 // Get the group rank of this process
                 const ProcessID rank = std::distance(group.begin(),
-                        std::find_if(group.begin(), group.end(),
+                        std::find_if(group.begin(), end,
                         std::bind1st(std::equal_to<ProcessID>(), world_rank)));
                 MADNESS_ASSERT(rank != size_);
 
                 // Get the root of the binary tree
                 if(root != -1)
                     root = std::distance(group.begin(), std::find_if(group.begin(),
-                        group.end(), std::bind1st(std::equal_to<ProcessID>(), root)));
+                        end, std::bind1st(std::equal_to<ProcessID>(), root)));
                 else
                     root = group.front();
                 MADNESS_ASSERT(root != size_);
