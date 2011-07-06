@@ -727,7 +727,7 @@ void preloadbal(World& world,
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
     FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
     world.gop.fence();
-    if (world.rank() == 0) print("Verifying psi");
+    //if (world.rank() == 0) print("Verifying psi");
     world.gop.fence();
 }
 
@@ -745,15 +745,15 @@ void loadbal(World& world,
     lb.add_tree(psi, lbcost<double_complex,3>(1.0,1.0));
     FunctionDefaults<3>::redistribute(world,lb.load_balance(2.0, false));
     world.gop.fence();
-    if (world.rank() == 0) print("Verifying potn");
-    potn.verify_tree();
-    if (world.rank() == 0) print("Verifying psi");
-    psi.verify_tree();
+    //if (world.rank() == 0) print("Verifying potn");
+    //potn.verify_tree();
+    //if (world.rank() == 0) print("Verifying psi");
+    //psi.verify_tree();
     world.gop.fence();
     psi.truncate();
     world.gop.fence();
-    if (world.rank() == 0) print("Verifying psi (compressed and truncated)");
-    psi.verify_tree();
+    //if (world.rank() == 0) print("Verifying psi (compressed and truncated)");
+    //psi.verify_tree();
     world.gop.fence();
 }
 
@@ -784,11 +784,11 @@ void propagate(World& world, int step0) {
     int step = step0;  // The current step
     double t = step0 * time_step - zero_field_time;        // The current time
     complex_functionT psi = wave_function_load(world, step); // The wave function at time t
-    if (world.rank() == 0) print("verifying psi after load");
+    //    if (world.rank() == 0) print("verifying psi after load");
+    //world.gop.fence();
+    //psi.verify_tree();
     world.gop.fence();
-    psi.verify_tree();
-    world.gop.fence();
-    if (world.rank() == 0) print("finished verifying psi after load");
+    //if (world.rank() == 0) print("finished verifying psi after load");
 
     preloadbal(world, potn, psi);
 
