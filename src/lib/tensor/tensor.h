@@ -2092,9 +2092,11 @@ namespace madness {
                 if (i != iter.ndim) s << ",";
             }
             s << "*]";
-            s.setf(std::ios::scientific);
+//flo            s.setf(std::ios::scientific);
+            s.setf(std::ios::fixed);
             for (long j=0; j<dimj; ++j, p+=inc) {
-                s.precision(4);
+//flo                s.precision(4);
+                s.precision(8);
                 s.width(12);
                 s << *p;
             }

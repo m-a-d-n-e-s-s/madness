@@ -608,25 +608,21 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
 void compute_energy(World& world, const real_function_3d& psi, const real_function_3d& pot, double& ke, double& pe) {
 
 
-    print("working on the kinetic energy");
     double kinetic_energy = 0.0;
     for (int axis=0; axis<3; axis++) {
     	real_derivative_3d D = free_space_derivative<double,3>(world, axis);
     	real_function_3d dpsi = D(psi);
     	kinetic_energy += 0.5*inner(dpsi,dpsi);
-    	print("done with axis",axis);
     }
     ke=kinetic_energy;
-    if(world.rank() == 0) printf("\nkinetic at time %.1fs\n\n", wall_time());
 
     pe=inner(psi,pot*psi);
-    if(world.rank() == 0) printf("\ncompute V at time %.1fs\n\n", wall_time());
-
-    print("kinetic energy:  ", ke);
-    print("potential energy:", pe);
-    print("total energy:    ", pe+ke);
-
-
+    if(world.rank() == 0) {
+        printf("compute the energy at time   %.1fs\n", wall_time());
+        printf("kinetic energy      %12.8f\n", ke);
+        printf("potential energy    %12.8f\n", pe);
+        printf("total energy        %12.8f\n", pe+ke);
+    }
 }
 
 
@@ -801,6 +797,7 @@ void test_modified(World& world) {
     psi.scale(1.0/inner(psi,psi));
 
     double energy=-0.5;
+    double eps;
 
     coord_3d lo, hi;
     const double L=FunctionDefaults<3>::get_cell_width()[0];
@@ -810,23 +807,26 @@ void test_modified(World& world) {
 
 
     if(world.rank() == 0) printf("starting at time %.1fs\n\n", wall_time());
-    for (int i=0; i<10; i++) {
+    for (int i=0; i<20; i++) {
 
-        real_convolution_3d op = BSHOperator3D(world, sqrt(-2*energy), 0.0001, 1e-6);
+        eps=energy;
+        real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.0001, 1e-6);
+
         op.modified=true;
         op.doleaves=false;
-        if(world.rank() == 0) print("modified",op.modified);
+        print("operator modified",op.modified);
 
         real_function_3d Vpsi = (V*psi);
         Vpsi.scale(-2.0).truncate();
-        real_function_3d tmp=op(Vpsi);
+        real_function_3d tmp=op(Vpsi).truncate();
+
         psi=tmp;
-        psi.scale(1.0/inner(psi,psi));
+        psi.scale(1.0/psi.norm2());
         plot_along(world,traj,psi,"name"+stringify(i));
 
-        Vpsi=(V*psi);
-        double vpot=inner(Vpsi,psi);
-        if (world.rank()==0) print("potential energy",vpot);
+        double ke,pe;
+        compute_energy(world,psi,V,ke,pe);
+
     }
     if(world.rank() == 0) printf("finished at time %.1fs\n\n", wall_time());
 
@@ -852,6 +852,7 @@ void test_recursive_application(World& world) {
     real_function_3d pot1=real_factory_3d(world).f(Z2);
     real_function_3d pot2=real_factory_3d(world).f(Z2);
     compute_energy(world,pair,pot1,pot2,ke,pe);
+    double eps=ke+pe;
 
 
     // two-electron interaction potential
@@ -864,10 +865,15 @@ void test_recursive_application(World& world) {
                         .V_for_particle2(copy(pot2).get_impl())
                         .muster(copy(pair).get_impl())
                         ;
-    vphi.get_impl()->make_Vphi();
+    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+    op.modified=false;
 
-    double v=inner(pair,vphi);
-    if (world.rank()==0) print("inner(pair,vphi",v);
+    vphi.get_impl()->convolute<real_convolution_6d>(op);
+
+
+//    double v=inner(pair,vphi);
+//    if (world.rank()==0) print("inner(pair,vphi",v);
+
 
 }
 
@@ -880,7 +886,7 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-    double L = 10;   // box size
+    double L = 32;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
 
@@ -979,9 +985,6 @@ int main(int argc, char** argv) {
 
 #endif
 
-    // helium
-#if 1
-
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
@@ -1010,11 +1013,16 @@ int main(int argc, char** argv) {
     }
 
 
-    if (0) test_modified(world);
+    if (1) test_modified(world);
+    if (0) test_recursive_application(world);
 
-    test_recursive_application(world);
+    if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
+    world.gop.fence();
+    finalize();
 
     return 0;
+    // helium
+#if 1
 
     if (0) {
         // compute the energy of Hylleraas

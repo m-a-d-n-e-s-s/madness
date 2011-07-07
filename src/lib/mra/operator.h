@@ -116,7 +116,7 @@ namespace madness {
 
     ConvolutionND and SeparatedConvolutionInternal both point to the same data in ConvolutionData1D.
     Why we need SeparatedConvolutionInternal in the first place I have no idea. ConvolutionND has the global
-    factor, and SeparatedConvolutionInternal has a norm, ok.
+    factor, and SeparatedConvolutionInternal has a norm.
 
 
     */
@@ -131,6 +131,8 @@ namespace madness {
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations
                            ///< and may be non-zero at both ends of the unit cell
         bool modified;     ///< use modified NS form
+
+        mutable bool printnow;
 
     private:
 
@@ -188,6 +190,7 @@ namespace madness {
 
 
 
+        /// accumulate into result
         template <typename T, typename R>
         void apply_transformation(Level n, long dimk,
                                   const Transformation trans[NDIM],
@@ -245,7 +248,7 @@ namespace madness {
         }
 
 
-
+        /// accumulate into result
         template <typename T, typename R>
         void apply_transformation3(const Tensor<T> trans2[NDIM],
                                   const Tensor<T>& f,
@@ -262,7 +265,7 @@ namespace madness {
 
 
 
-
+        /// don't accumulate, since we want to do this at apply()
         template <typename T, typename R>
         void apply_transformation2(Level n, long dimk,  double tol,
                                   const Tensor<T> trans2[NDIM],
@@ -273,7 +276,6 @@ namespace madness {
                                   const Q mufac,
                                   GenTensor<R>& result) const {
 
-            MADNESS_EXCEPTION("debug in apply_transformation2",1);
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 
 #if 1
@@ -330,7 +332,6 @@ namespace madness {
 
 
         /// Apply one of the separated terms, accumulating into the result
-        /// what moron named ops? this is not the same as the member variable!
         template <typename T>
         void muopxv_fast(Level n,
                          const ConvolutionData1D<Q>* const ops_1d[NDIM],
@@ -349,17 +350,16 @@ namespace madness {
 
             double Rnorm = 1.0;
             for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops_1d[d]->Rnorm;
-            if (Rnorm == 0.0) return;
 
-            tol = tol/(Rnorm*NDIM);  // Errors are relative within here
-            long break_even;
+            if (Rnorm > 1.e-20) {
 
-//            if (modified) {
-            if (1) {
+                tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+
                 // Determine rank of SVD to use or if to use the full matrix
                 long twok = 2*k;
                 if (modified) twok=k;
 
+                long break_even;
                 if (NDIM==1) break_even = long(0.5*twok);
                 else if (NDIM==2) break_even = long(0.6*twok);
                 else if (NDIM==3) break_even=long(0.65*twok);
@@ -383,10 +383,15 @@ namespace madness {
                     trans2[d]=ops_1d[d]->R;
                 }
     //            apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+    //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
                 apply_transformation3(trans2, f, mufac, result);
             }
 
-            if (n > 0) {
+            double Tnorm = 1.0;
+            for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
+
+            if ((n > 0) and (Tnorm>0.0)) {
+                long break_even;
                 if (NDIM==1) break_even = long(0.5*k);
                 else if (NDIM==2) break_even = long(0.6*k);
                 else if (NDIM==3) break_even=long(0.65*k);
@@ -410,6 +415,7 @@ namespace madness {
                     trans2[d]=ops_1d[d]->T;
                 }
 //                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+//                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
                 apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
@@ -450,22 +456,21 @@ namespace madness {
             else if (NDIM==3) break_even=long(0.65*twok);
             else break_even=long(0.7*twok);
             for (std::size_t d=0; d<NDIM; ++d) {
-//                long r;
-//                for (r=0; r<twok; ++r) {
-//                    if (ops_1d[d]->Rs[r] < tol) break;
-//                }
-//                if (r >= break_even) {
+                long r;
+                for (r=0; r<twok; ++r) {
+                    if (ops_1d[d]->Rs[r] < tol) break;
+                }
+                if (r >= break_even) {
                     trans[d].r = twok;
                     trans[d].U = ops_1d[d]->R.ptr();
                     trans[d].VT = 0;
-//                    print("no svd");
-//                }
-//                else {
-//                    r += (r&1L);
-//                    trans[d].r = std::max(2L,r);
-//                    trans[d].U = ops_1d[d]->RU.ptr();
-//                    trans[d].VT = ops_1d[d]->RVT.ptr();
-//                }
+                }
+                else {
+                    r += (r&1L);
+                    trans[d].r = std::max(2L,r);
+                    trans[d].U = ops_1d[d]->RU.ptr();
+                    trans[d].VT = ops_1d[d]->RVT.ptr();
+                }
                 trans2[d]=ops_1d[d]->R;
             }
             apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
@@ -510,7 +515,7 @@ namespace madness {
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2_ns(Level n, const ConvolutionData1D<Q>* ops[]) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
-
+            
             double prodR=1.0, prodT=1.0;
             for (std::size_t d=0; d<NDIM; ++d) {
                 prodR *= ops[d]->Rnormf;
@@ -579,14 +584,14 @@ namespace madness {
 
             // finalize with the factorial
             double factorial=1.0;
-            for (size_t i=0; i<NDIM-1; ++i) factorial*=double(i);
+            for (size_t i=1; i<NDIM-1; ++i) factorial*=double(i);
             dff*=factorial;
             duu*=factorial;
 
             // Eq. (23) of Beylkin 2008, for one separated term WITHOUT the factor
             double norm=(dff + udf + duu) /(factorial * double(NDIM));
             return norm;
-
+            
         }
 
 
@@ -595,18 +600,10 @@ namespace madness {
         /// use ConvolutionND, which uses ConvolutionData1D to collect the transformation matrices
         const SeparatedConvolutionInternal<Q,NDIM> getmuop(int mu, Level n, const Key<NDIM>& disp) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
-
-            // op.ops is of type ConvolutionData1D (1 term, 1 dim, 1 disp)
-            // ops[mu] is of type ConvolutionND (1 term, all dim, 1 disp)
-            // nonstandard() caches/constructs the 1d transition matrices
-
-            /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (std::size_t d=0; d<NDIM; ++d) {
                 op.ops[d] = ops[mu].getop(d)->nonstandard(n, disp.translation()[d]);
             }
-
-            // works for both modified and not modified NS form
             op.norm = munorm2(n, op.ops)*std::abs(ops[mu].getfac());
 
 //             double newnorm = munorm2(n, op.ops);
@@ -653,7 +650,7 @@ namespace madness {
 
             // works for both modified and not modified NS form
             op.norm = munorm2(n, op.ops)*std::abs(ops[mu].getfac());
-            op.norm=1.0;
+//            op.norm=1.0;
             return op;
         }
 
@@ -881,7 +878,7 @@ namespace madness {
         /// return the operator norm for all terms, all dimensions and 1 displacement
         double norm(Level n, const Key<NDIM>& d, const Key<NDIM>& source_key) const {
             // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
-            return 1.0;
+//            return 1.0;
             return getop(n, d, source_key)->norm;
         }
 
@@ -935,26 +932,39 @@ namespace madness {
                    work2=Tensor<resultT>(vk,false);
                    work5=Tensor<Q>(k,k);
             }
+            printnow=false;
 
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; ++mu) {
                 // SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
-                //print("muop",source, shift, mu, muop.norm);
-//                if (muop.norm > tol) {
-                if (1) {
-//                print("no muop.norm>tol");
+                if (muop.norm > tol) {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
                     muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2, work5);
                 }
             }
-//            print("coeff, r, r0", source, shift);
-//            print(0.5*coeff);
-//            print(0.5*r);
-//            print(0.5*r0);
-//            MADNESS_EXCEPTION("debug",1);
+
+            if (printnow) {
+                print("r0,r");
+                print(r0);
+                print(r);
+            }
+//            Vector<Translation, NDIM> l(0);
+//            l[0]=1;
+//            keyT key1(0,l);
+//
+//            if (shift==key1) {
+//                print("coeff, r, r0", source, shift);
+//                print(0.5*coeff(_,_,0));
+//                print(0.5*r(_,_,0));
+//                print(0.5*r0(_,_,0));
+//                r(s0).gaxpy(1.0,r0,1.0);
+//                print(0.5*r(_,_,0));
+//                MADNESS_EXCEPTION("debug",1);
+//            }
+
             r(s0).gaxpy(1.0,r0,1.0);
             return r;
         }

@@ -33,6 +33,8 @@
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
+#include <constants.h>
+
 /*!
 
   \file mra/funcplot.h
@@ -518,7 +520,7 @@ namespace madness {
     static std::string stringify(T arg) {
     	std::ostringstream o;
     	if (!(o << arg))
-    		throw std::domain_error("stringify(double)");
+    		MADNESS_EXCEPTION("stringify<T> failed",1);
     	return o.str();
     }
 

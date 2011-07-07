@@ -68,40 +68,33 @@ namespace madness {
 #include <mra/twoscale.h>
 #include <mra/legendre.h>
 #include <mra/indexit.h>
-#include <mra/funcimpl.h>
-#include <mra/loadbal.h>
-#include <mra/lbdeux.h>
+#include <world/parar.h>
+#include <world/worlddc.h>
+#include <mra/funcdefaults.h>
+#include <mra/gentensor.h>
+
+// some forward declarations
+namespace madness {
+
+    template<typename T, std::size_t NDIM>
+    class FunctionImpl;
+
+    template<typename T, std::size_t NDIM>
+    class FunctionNode;
+
+    template<typename T, std::size_t NDIM>
+    class FunctionFactory;
+
+    template<typename T, std::size_t NDIM>
+    class FunctionFunctorInterface;
+
+}
+
+
 
 namespace madness {
 
-
-    template<size_t NDIM> 
-    struct LBCost2 {
-        double leaf_value;
-        double parent_value;
-        LBCost2(double leaf_value=1.0, double parent_value=1.0)
-            : leaf_value(leaf_value)
-            , parent_value(parent_value)
-        {}
-    
-        double operator()(const Key<NDIM>& key, const FunctionNode<double,NDIM>& node) const {
-    //        if (key.level() <= 1) {
-    //            return 100.0*(leaf_value+parent_value);
-    //        }
-    //        else if (node.is_leaf()) {
-            if (node.is_leaf()) {
-                return std::abs(node.coeff().rank());
-            } else {
-                return parent_value;
-            }
-        }
-    };
-
-
-
-
-
-	/// \ingroup mra
+    /// \ingroup mra
     /// \addtogroup function
 
     /// A multiresolution adaptive numerical function

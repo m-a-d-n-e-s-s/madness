@@ -125,6 +125,21 @@ namespace madness {
             rehash();
         }
 
+        /// easy constructor
+        Key(const int n, const int l0) : n(n) {
+            MADNESS_ASSERT(NDIM==1);
+            l=Vector<Translation, NDIM>(l0);
+            rehash();
+        }
+
+        /// easy constructor
+        Key(const int n, const int l0, const int l1, const int l2) : n(n) {
+            MADNESS_ASSERT(NDIM==3);
+            l=Vector<Translation, NDIM>(0);
+            l[0]=l0; l[1]=l1; l[2]=l2;
+            rehash();
+        }
+
         /// Returns an invalid key
         static Key<NDIM>
         invalid() {
@@ -339,6 +354,8 @@ namespace madness {
         s << "(" << key.level() << "," << key.translation() << ")";
         return s;
     }
+
+
 
     /// Iterates in lexical order thru all children of a key
 

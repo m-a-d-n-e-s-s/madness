@@ -45,9 +45,7 @@
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
-#include "mra/flonode.h"
 #include "mra/function_factory_and_interface.h"
-//#include "mra/sepreptensor.h"
 #include "mra/gentensor.h"
 #include <world/typestuff.h>
 
@@ -2371,6 +2369,102 @@ namespace madness {
             return None;
         }
 
+
+        /// perform an convolution on this node, and descend if the necessary
+        template<typename coeff_opT, typename apply_opT>
+        Void recursive_convolute(const coeff_opT& coeff_op, const apply_opT* apply_op, const keyT& key) {
+
+            typedef std::pair<bool,coeffT> argT;
+
+            // get the coefficients
+            const argT arg=coeff_op(key);
+            const coeffT& coeff=arg.second;
+            const double cnorm=coeff.normf();
+
+            // get the operator
+            const std::vector<keyT>& disp = apply_op->get_disp(key.level());
+            const keyT& d = *disp.begin();
+            const double opnorm = apply_op->norm(key.level(), d, key);
+
+            const double fac=100.0;
+            const double tol=truncate_tol(thresh,key);
+            bool descend=cnorm*opnorm> tol/fac;
+
+            print("cnorm, opnorm, cnorm*opnorm",key,cnorm,opnorm,opnorm*cnorm,descend);
+
+            if (key.level()<2) descend=true;
+            // descend if needed
+            if (descend) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    Future<coeff_opT> child_op=coeff_op.make_child_op(child);
+                    woT::task(world.rank(), &implT:: template forward2<coeff_opT,apply_opT>, child_op, apply_op, child);
+                }
+            }
+            return None;
+        }
+
+        /// walk down the tree and perform an operation on each node
+        template<typename coeff_opT, typename apply_opT>
+        Void forward2(const coeff_opT& coeff_op, const apply_opT* apply_op, const keyT& key) {
+            woT::task(coeffs.owner(key), &implT:: template recursive_convolute<coeff_opT,apply_opT>, coeff_op, apply_op, key);
+            return None;
+        }
+
+
+
+        /// assemble the function V*phi using V and phi given from the functor, and convolute
+
+        /// this function must have been constructed using the CompositeFunctorInterface.
+        /// The interface provides one- and two-electron potentials, and the ket, which are
+        /// assembled to give V*phi.
+        template<typename apply_opT>
+        void convolute(const apply_opT& apply_op, const bool fence=true) {
+
+            const size_t LDIM=3;
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+
+            CompositeFunctorInterface<T,NDIM,LDIM>* func=
+                    dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(&(*functor));
+            coeffs.clear();
+            const keyT& key0=cdata.key0;
+
+
+            const FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
+            const FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
+            const FunctionImpl<T,LDIM>* pot1=func->impl_m1.get();
+            const FunctionImpl<T,LDIM>* pot2=func->impl_m2.get();
+
+            if (world.rank() == coeffs.owner(key0)) {
+                Future<datumL> dat1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
+                        &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> dat2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
+                        &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri());
+                Future<datumT> dat_ket=ket->task(ket->get_coeffs().owner(key0),
+                        &implT::find_datum,key0,TaskAttributes::hipri());
+
+                print("using walker for convolute");
+
+                // have to wait for this..
+                datumL datum1=dat1.get();
+                datumL datum2=dat2.get();
+                datumT datum_ket=dat_ket.get();
+
+                typedef Vphi_op<LDIM> coeff_opT;
+                coeff_opT coeff_op(this,ket,eri,pot1,pot2,datum1,datum2,datum_ket);
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+                woT::task(owner, &implT:: template recursive_convolute<coeff_opT,apply_opT>, coeff_op, &apply_op, cdata.key0);
+
+            }
+
+            this->compressed=false;
+            this->on_demand=false;
+            if (fence) world.gop.fence();
+
+        }
+
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
         /// |Phi(1,2)> = |phi(1)> x |phi(2)>
@@ -3350,6 +3444,14 @@ namespace madness {
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
 
+            Vector<Translation, NDIM> l(1);
+            l[0]=2; l[1]=1; l[2]=3;
+            keyT key1(2,l);
+            if (args.dest==key1) {
+                print("in do_apply_kernel",args.key,"->",args.dest);
+                print(0.5*result(_,_,0));
+            }
+
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
             // Screen here to reduce communication cost of negligible data
@@ -3484,6 +3586,7 @@ namespace madness {
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             if (NDIM==6) fac=729; //100.0;
+            if (op->modified) fac*=100.0;
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
@@ -3506,6 +3609,8 @@ namespace madness {
             const std::vector<keyT>& disp = op->get_disp(key.level());
 
             static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            double opnorm_old=100.0;
+            double opnorm=100.0;
 
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
@@ -3513,7 +3618,10 @@ namespace madness {
                 keyT dest = neighbor(key, d, is_periodic);
 
                 if (dest.is_valid()) {
-                    double opnorm = op->norm(key.level(), d, key);
+                    opnorm_old=opnorm;
+                    opnorm = op->norm(key.level(), d, key);
+                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
+
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
 
@@ -3578,13 +3686,15 @@ namespace madness {
                  const std::vector<bool>& is_periodic, bool fence) {
              PROFILE_MEMBER_FUNC(FunctionImpl);
 
-//             Vector<Translation, NDIM> l;
+             Vector<Translation, NDIM> l(1);
+             l[0]=2; l[1]=1; l[2]=3;
 //             l[0]=4; l[1]=4; l[2]=4; l[3]=4; l[4]=4; l[5]=4;      // k=5, rank=995
 //             l[0]=1; l[1]=1; l[2]=1; l[3]=1; l[4]=1; l[5]=1;      // k=5, rank=507
 //             l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
 //             l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
 //             l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
-//             const keyT key1(3,l);
+             const keyT key1(2,2,1,1);
+//             print("key in question",key1);
 
 
              // looping through all the coefficients of the source f
