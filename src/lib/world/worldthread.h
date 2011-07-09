@@ -249,7 +249,14 @@ namespace madness {
 
         int id() const {return _id;}
 
-        bool barrier() const;
+        bool barrier() const {
+            if (_nthread == 1)
+                return true;
+            else {
+                MADNESS_ASSERT(_barrier);
+                return _barrier->enter(_id);
+            }
+        }
     };
 
 
@@ -265,7 +272,26 @@ namespace madness {
     	AtomicInt count;  //< Used to count threads as they start
 
     	/// Returns true for the one thread that should invoke the destructor
-    	bool run_multi_threaded();
+    	bool run_multi_threaded() {
+            // As a thread enters this routine it increments the shared counter
+            // to generate a unique id without needing any thread-local storage.
+            // A downside is this does not preserve any relationships between thread
+            // numbering and the architecture ... more work ahead.
+            int nthread = get_nthread();
+            if (nthread == 1) {
+                run(TaskThreadEnv(1,0,0));
+                return true;
+            }
+            else {
+                int id = count++;
+                volatile bool barrier_flag;
+                barrier->register_thread(id, &barrier_flag);
+                
+                run(TaskThreadEnv(nthread, id, barrier));
+                
+                return barrier->enter(id);
+            }
+        }
 
     public:
         PoolTaskInterface()
@@ -275,14 +301,28 @@ namespace madness {
             count = 0;
         }
 
-        explicit PoolTaskInterface(const TaskAttributes& attr);
+        explicit PoolTaskInterface(const TaskAttributes& attr)
+            : TaskAttributes(attr)
+            , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
+        {
+            count = 0;
+        }
 
         /// Call this to reset the number of threads before the task is submitted
 
         /// Once a task has been constructed /c TaskAttributes::set_nthread()
         /// is insufficient because a multithreaded task includes a
         /// barrier that needs to know the number of threads.
-        void set_nthread(int nthread);
+        void set_nthread(int nthread) {
+            if (nthread != get_nthread()) {
+                TaskAttributes::set_nthread(nthread);
+                delete barrier;
+                if (nthread > 1)
+                    barrier = new Barrier(nthread);
+                else
+                    barrier = 0;
+            }
+        }
 
         /// Override this method to implement a multi-threaded task
 
@@ -294,7 +334,9 @@ namespace madness {
         /// \c true for the last thread to enter the barrier (other threads get false)
         virtual void run(const TaskThreadEnv& info) = 0;
 
-        virtual ~PoolTaskInterface();
+        virtual ~PoolTaskInterface() {
+            delete barrier;
+        }
     };
 
     /// A no-op task used for various purposes
@@ -329,9 +371,30 @@ namespace madness {
         int default_nthread();
 
         /// Run next task ... returns true if one was run ... blocks if wait is true
-        bool run_task(bool wait);
+        bool run_task(bool wait) {
+            if (!wait && queue.empty()) return false;
+            std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
+            // Task pointer might be zero due to stealing
+            if (t.second && t.first) {
+                if (t.first->run_multi_threaded())         // What we are here to do
+                    delete t.first;
+            }
+            return t.second;
+        }
 
-        bool run_tasks(bool wait);
+        bool run_tasks(bool wait) {
+            static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
+            PoolTaskInterface* taskbuf[nmax];
+            int ntask = queue.pop_front(nmax, taskbuf, wait);
+            for (int i=0; i<ntask; ++i) {
+                if (taskbuf[i]) { // Task pointer might be zero due to stealing
+                    if (taskbuf[i]->run_multi_threaded()) {
+                        delete taskbuf[i];
+                    }
+                }
+            }
+            return (ntask>0);
+        }
 
         void thread_main(Thread* thread);
 
@@ -340,7 +403,10 @@ namespace madness {
 
 
         /// Return a pointer to the only instance constructing as necessary
-        static ThreadPool* instance(int nthread=-1);
+        static ThreadPool* instance(int nthread=-1) {
+            if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
+            return instance_ptr;
+        }
 
 
     public:
@@ -350,7 +416,18 @@ namespace madness {
         static void end();
 
         /// Add a new task to the pool
-        static void add(PoolTaskInterface* task);
+        static void add(PoolTaskInterface* task) {
+            if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
+            int nthread = task->get_nthread();
+            // Currently multithreaded tasks must be shoved on the end of the q
+            // to avoid a race condition as multithreaded task is starting up
+            if (task->is_high_priority() && nthread==1) {
+                instance()->queue.push_front(task);
+            }
+            else {
+                instance()->queue.push_back(task, nthread);
+            }
+        }
 
         template <typename opT>
         void scan(opT& op) {
@@ -359,18 +436,29 @@ namespace madness {
 
 
         /// Add a vector of tasks to the pool
-        static void add(const std::vector<PoolTaskInterface*>& tasks);
+        static void add(const std::vector<PoolTaskInterface*>& tasks) {
+            typedef std::vector<PoolTaskInterface*>::const_iterator iteratorT;
+            for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
+                add(*it);
+            }
+        }
 
         /// An otherwise idle thread can all this to run a task
 
         /// Returns true if one was run
-        static bool run_task();
+        static bool run_task() {
+            return instance()->run_tasks(false);
+        }
 
         /// Returns number of threads in the pool
-        static std::size_t size();
+        static std::size_t size() {
+            return instance()->nthreads;
+        }
 
         /// Returns number of tasks in the queue
-        static std::size_t queue_size();
+        static std::size_t queue_size() {
+            return instance()->queue.size();
+        }
 
         /// Returns queue statistics
         static const DQStats& get_stats();

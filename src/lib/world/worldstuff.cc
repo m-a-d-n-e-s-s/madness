@@ -93,7 +93,7 @@ namespace madness {
 
     void World::args(int argc, char** argv) {
         for (int arg=1; arg<argc; ++arg) {
-            if (strcmp(argv[arg],"-dx")==0) xterm_debug("world", 0);
+            if (strcmp(argv[arg],"-dx")==0) xterm_debug("objtest", 0);
 //             if (strcmp(argv[arg],"-dam")==0) am.set_debug(true);
 //            if (strcmp(argv[arg],"-dmpi")==0) mpi.set_debug(true);
 //             if (strcmp(argv[arg],"-dref")==0) mpi.set_debug(true);

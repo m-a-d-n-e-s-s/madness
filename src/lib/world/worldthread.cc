@@ -185,61 +185,6 @@ namespace madness {
 #endif
     }
 
-    bool TaskThreadEnv::barrier() const {
-        if (_nthread == 1)
-            return true;
-        else {
-            MADNESS_ASSERT(_barrier);
-            return _barrier->enter(_id);
-        }
-    }
-
-    /// Returns true for the one thread that should invoke the destructor
-    bool PoolTaskInterface::run_multi_threaded() {
-        // As a thread enters this routine it increments the shared counter
-        // to generate a unique id without needing any thread-local storage.
-        // A downside is this does not preserve any relationships between thread
-        // numbering and the architecture ... more work ahead.
-        int nthread = get_nthread();
-        if (nthread == 1) {
-            run(TaskThreadEnv(1,0,0));
-            return true;
-        }
-        else {
-            int id = count++;
-            volatile bool barrier_flag;
-            barrier->register_thread(id, &barrier_flag);
-
-            run(TaskThreadEnv(nthread, id, barrier));
-
-            return barrier->enter(id);
-        }
-    }
-
-    PoolTaskInterface::PoolTaskInterface(const TaskAttributes& attr)
-        : TaskAttributes(attr)
-        , barrier(attr.get_nthread()>1 ? new Barrier(attr.get_nthread()) : 0)
-
-    {
-        count = 0;
-    }
-
-    void PoolTaskInterface::set_nthread(int nthread) {
-        if (nthread != get_nthread()) {
-            TaskAttributes::set_nthread(nthread);
-            delete barrier;
-            if (nthread > 1)
-                barrier = new Barrier(nthread);
-            else
-                barrier = 0;
-
-        }
-    }
-
-    PoolTaskInterface::~PoolTaskInterface() {
-        delete barrier;
-    }
-
     /// The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) : nthreads(nthread), finish(false) {
         nfinished = 0;
@@ -288,34 +233,6 @@ namespace madness {
         return nthread;
     }
 
-    /// Run next task ... returns true if one was run ... blocks if wait is true
-    bool ThreadPool::run_task(bool wait) {
-        if (!wait && queue.empty()) return false;
-        std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
-        // Task pointer might be zero due to stealing
-        if (t.second && t.first) {
-            PROFILE_BLOCK(working);
-            if (t.first->run_multi_threaded())         // What we are here to do
-                delete t.first;
-        }
-        return t.second;
-    }
-
-    bool ThreadPool::run_tasks(bool wait) {
-        static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
-        PoolTaskInterface* taskbuf[nmax];
-        int ntask = queue.pop_front(nmax, taskbuf, wait);
-        for (int i=0; i<ntask; ++i) {
-            PROFILE_BLOCK(working);
-            if (taskbuf[i]) { // Task pointer might be zero due to stealing
-                if (taskbuf[i]->run_multi_threaded()) {
-                delete taskbuf[i];
-                }
-            }
-        }
-        return (ntask>0);
-    }
-
     void ThreadPool::thread_main(Thread* thread) {
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
@@ -339,13 +256,6 @@ namespace madness {
         return 0;
     }
 
-
-    /// Return a pointer to the only instance constructing as necessary
-    ThreadPool* ThreadPool::instance(int nthread) {
-        if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
-        return instance_ptr;
-    }
-
     void ThreadPool::begin(int nthread) {
         instance(nthread);
     }
@@ -357,44 +267,6 @@ namespace madness {
             add(new PoolTaskNull);
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);
-    }
-
-    /// Add a new task to the pool
-    void ThreadPool::add(PoolTaskInterface* task) {
-        if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
-        int nthread = task->get_nthread();
-        // Currently multithreaded tasks must be shoved on the end of the q
-        // to avoid a race condition as multithreaded task is starting up
-        if (task->is_high_priority() && nthread==1) {
-            instance()->queue.push_front(task);
-        }
-        else {
-            instance()->queue.push_back(task, nthread);
-        }
-    }
-
-    void ThreadPool::add(const std::vector<PoolTaskInterface*>& tasks) {
-        typedef std::vector<PoolTaskInterface*>::const_iterator iteratorT;
-        for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
-            add(*it);
-        }
-    }
-
-    /// An otherwise idle thread can all this to run a task
-
-    /// Returns true if one was run
-    bool ThreadPool::run_task() {
-        return instance()->run_tasks(false);
-    }
-
-    /// Returns number of threads in the pool
-    size_t ThreadPool::size() {
-        return instance()->nthreads;
-    }
-
-    /// Returns number of tasks in the queue
-    size_t ThreadPool::queue_size() {
-        return instance()->queue.size();
     }
 
     /// Returns queue statistics
