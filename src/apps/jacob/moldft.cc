@@ -1627,34 +1627,20 @@ struct Calculation {
             load_mos(world);
         }
 	else {
-	  //Making nuclear charge potential
-	  realfunct rhon_functor(new NuclearDensityFunctor(molecule));
-	  if (world.rank()==0)
-	    print("starting to project rhon");
-	  rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
-	  if(world.rank()==0)
-	    print("TRACE OF RHON", rhon.trace());
 	  // Use the initial density and potential to generate a better process map
 	  functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
 	  END_TIMER(world, "guess density");
 	  double nel = rho.trace();
 	  if(world.rank() == 0)
 	    print("guess dens trace", nel);
-	  rhot = rhon - rho;
-	  if(param.solvent){
-	    ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
-					   molecule.get_all_coords_vec());
-	    vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot); //Jacob added
-	   
-	  }
-            if(world.size() > 1) {
-                START_TIMER(world);
-                LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
-
-                FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
+	  if(world.size() > 1) {
+	    START_TIMER(world);
+	    LoadBalanceDeux<3> lb(world);
+	    lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
+	    lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
+	    
+	    FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
+	    
 //                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
 //                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -1666,11 +1652,7 @@ struct Calculation {
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){    //atoms or molecule other than hydrogen
                 START_TIMER(world);
-		if (param.solvent){
-		  vlocal = vnuc + vsolvent + apply(*coulop, rho);
-		} else {
-		  vlocal = vnuc + apply(*coulop, rho);
-		}
+		vlocal = vnuc + apply(*coulop, rho);
 		END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
@@ -1679,12 +1661,8 @@ struct Calculation {
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {//if hydrogenlike
-	      if(param.solvent){
-		vlocal = vnuc + vsolvent;
-	      } else {
-		vlocal = vnuc;
-	      }
-            }
+	      vlocal = vnuc;
+	    }
             rho.clear();
             vlocal.reconstruct();
             if(world.size() > 1){
@@ -2548,8 +2526,9 @@ struct Calculation {
 	if (world.rank()==0)
 	  print("starting to project rhon");
 	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
+	double total_rhon = rhon.trace();
 	if(world.rank()==0)
-	  print("TRACE OF RHON", rhon.trace());
+	  print("TRACE OF RHON", total_rhon);
 	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
@@ -2761,15 +2740,16 @@ struct Calculation {
 	  // realfunc vsolvent = Solvent.VolumeReactionPotential(world,param.maxiter,rhot); //Jacob added
 	  efree = 0.5*rhot.inner(vsolvent);
 	  ereaction = rhot.inner(vsolvent);
-	  
+	  double total_energy = ereaction + etot;
+	  double total_density = rhot.trace();
 	  if(world.rank() == 0) {
 	    print("\n\n");
 	    print("                            MADNESS SVPE            ");
 	    print("                          _________________         ");
 	    print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
 	    print("                gas phase energy:     ",etot);
-	    print("           solution phase energy:     ",ereaction + etot,"\n\n");
-	    print("TOTAL DENSITY",rhot.trace());
+	    print("           solution phase energy:     ",total_energy);
+	    print("TOTAL DENSITY:",total_density);
 	  }
 	}
     }
