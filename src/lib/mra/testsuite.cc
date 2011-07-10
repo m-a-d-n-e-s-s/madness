@@ -239,7 +239,7 @@ void test_basic(World& world) {
     CHECK(new_err, 3e-5, "new_err");
 
     world.gop.fence();
-    if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK\n\n");
+    if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK",ok,"\n\n");
 }
 
 template <typename T, std::size_t NDIM>
@@ -296,6 +296,17 @@ struct myunaryop_square {
             r[i] = r[i]*r[i];
         }
         return result;
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
+template <typename T, int NDIM>
+struct test_multiop {
+    Tensor<T> operator()(const Key<NDIM>& key, const std::vector< Tensor<T> >& c) const {
+        Tensor<T> r = copy(c[0]);
+        for (unsigned int i=1; i<c.size(); ++i) r += c[i];
+        return r;
     }
     template <typename Archive>
     void serialize(Archive& ar) {}
@@ -501,6 +512,15 @@ void test_math(World& world) {
             CHECK(err, 1e-8, "err");
             vres[i].verify_tree();
         }
+
+        if (world.rank() == 0) print("\nTest refining down to a common level");
+        vin[0].refine_to_common_level(vin);
+        if (world.rank() == 0) print("\nTest multioperation");
+        Function<T,NDIM> mop = multiop_values<T,test_multiop<T,NDIM>,NDIM> (test_multiop<T,NDIM>(), vin);
+        compress(world, vin);
+        for (int i=1; i<nvfunc; i++) vin[0] += vin[i];
+        double moperr = (vin[0] - mop).norm2();
+        if (world.rank() == 0) print("\nTest DONE multi", moperr);
     }
 
 
@@ -543,6 +563,8 @@ void test_math(World& world) {
         CHECK(err1,1e-8,"err1");
         CHECK(err2,1e-8,"err2");
     }
+
+    if (world.rank() == 0) print(ok);
 
     world.gop.fence();
 }
@@ -1088,7 +1110,7 @@ void test_plot(World& world) {
     plot_line("testline2", 101, coordT(-L), coordT(L), f, f*f);
     plot_line("testline3", 101, coordT(-L), coordT(L), f, f*f, 2.0*f);
 
-    if (world.rank() == 0) print("evaluation of cube/slice for plotting OK");
+    if (world.rank() == 0) print("evaluation of cube/slice for plotting OK", ok);
 }
 
 template <typename T, std::size_t NDIM>
