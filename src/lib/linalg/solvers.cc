@@ -274,7 +274,6 @@ namespace madness {
         }
 
         Tensor<double> gp, dx;
-        double fp;
         for (int iter=0; iter<maxiter; ++iter) {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
@@ -300,8 +299,6 @@ namespace madness {
             dx.scale(step);
             x += dx;
             gp = g;
-            fp = f;
-
         }
         print("final hessian");
         print(h);
