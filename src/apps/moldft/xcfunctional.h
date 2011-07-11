@@ -61,14 +61,21 @@ public:
     ~XCfunctional() 
     {}
 
-    /// return number of derivatives of the density required to evaluate the functional
-
-    /// 0=lda, 1=gga, 2=meta-gga
-    int nderivatives() const 
-    {
-        return nderiv;
+    /// returns true if the potential is lda
+    bool is_lda() const {
+        return (hf_coeff == 0.0);
     }
-
+        
+    /// returns true if the potential is gga (needs first derivatives)
+    bool is_gga() const {
+        return false;
+    }
+    
+    /// returns true if the potential is meta gga (needs second derivatives)
+    bool is_meta_gga() const {
+        return false;
+    }
+    
     /// returns true if the functional is spin_polarized
     bool is_spin_polarized() const 
     {

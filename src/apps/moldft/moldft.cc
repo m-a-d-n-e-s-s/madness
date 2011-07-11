@@ -1662,12 +1662,15 @@ struct Calculation {
     vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & vlocal, double & exc)
     {
         functionT vloc = vlocal;
+        exc = 0.0;
 
         START_TIMER(world);
-        exc = make_lda_energy(world, arho, brho);
-        vloc = vloc + make_lda_potential(world, arho, brho);
+        if (xc.is_lda()) {
+            exc = make_lda_energy(world, arho, brho);
+            vloc = vloc + make_lda_potential(world, arho, brho);
+        }
         END_TIMER(world, "LDA potential");
-
+        
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
@@ -1679,11 +1682,11 @@ struct Calculation {
             for(unsigned long i = 0;i < amo.size();++i){
                 exc -= 0.5 * excv[i] * occ[i];
             }
-            gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
+            gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
         }
-
+        
         if (param.core_type.substr(0,3) == "mcp") {
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
@@ -2510,6 +2513,16 @@ public:
         calc.solve(world);
         calc.save_mos(world);
 
+        if (calc.molecule.get_eprec() < 1e-5) {
+            calc.set_protocol(world,1e-8);
+            calc.make_nuclear_potential(world);
+            calc.project_ao_basis(world);
+            calc.project(world);
+            calc.solve(world);
+        }
+
+        calc.save_mos(world);
+
         //         calc.set_protocol(world,1e-8);
         //         calc.make_nuclear_potential(world);
         //         calc.project(world);
@@ -2566,10 +2579,11 @@ int main(int argc, char** argv) {
         E.value(calc.molecule.get_all_coords().flat()); // ugh!
         if (calc.param.derivatives) calc.derivatives(world);
         if (calc.param.dipole) calc.dipole(world);
+
         //        if (calc.param.twoint) {
-        Tensor<double> g = calc.twoint(world,calc.amo);
-            cout << g;
-            // }
+        //Tensor<double> g = calc.twoint(world,calc.amo);
+        //cout << g;
+        // }
 
         calc.do_plots(world);
 
