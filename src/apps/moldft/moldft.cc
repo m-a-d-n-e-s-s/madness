@@ -34,6 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
+/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -44,14 +45,11 @@
 #include <list>
 using namespace madness;
 
-extern int x_rks_s__(const double *rho, double *f, double *dfdra);
-extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
-// extern int x_uks_s__(const double *rho, double *f, double *dfdra);
-// extern int c_uks_vwn5__(const double *rho, double *f, double *dfdra);
 
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 #include <moldft/corepotential.h>
+#include <moldft/xcfunctional.h>
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
@@ -409,7 +407,6 @@ struct CalculationParameters {
     int maxiter;                ///< Maximum number of iterations
     int nio;                    ///< No. of io servers to use
     bool spin_restricted;       ///< True if spin restricted
-    bool lda;                   ///< True if LDA (HF if false)
     int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
@@ -430,13 +427,15 @@ struct CalculationParameters {
     int nmo_alpha;              ///< Number of alpha spin molecular orbitals
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
+    std::string xcdata;         ///< XC input line
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
+        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
+        ar & xcdata;
     }
 
     CalculationParameters()
@@ -452,7 +451,6 @@ struct CalculationParameters {
         , maxiter(20)
         , nio(1)
         , spin_restricted(true)
-        , lda(true)
         , plotlo(0)
         , plothi(-1)
         , plotdens(false)
@@ -471,12 +469,16 @@ struct CalculationParameters {
         , nbeta(0)
         , nmo_alpha(0)
         , nmo_beta(0)
-        , lo(1e-10) {}
+        , lo(1e-10) 
+        , xcdata("lda")
+    {}
+        
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
         std::string s;
+
         while (f >> s) {
             if (s == "end") {
                 break;
@@ -520,11 +522,10 @@ struct CalculationParameters {
             else if (s == "nio") {
                 f >> nio;
             }
-            else if (s == "lda") {
-                lda = true;
-            }
-            else if (s == "hf") {
-                lda = false;
+            else if (s == "xc") {
+                char buf[1024];
+                f.getline(buf,sizeof(buf));
+                xcdata = buf;
             }
             else if (s == "plotmos") {
                 f >> plotlo >> plothi;
@@ -629,7 +630,7 @@ struct CalculationParameters {
         //time_t t = time((time_t *) 0);
         //char *tmp = ctime(&t);
         //tmp[strlen(tmp)-1] = 0; // lose the trailing newline
-        const char* calctype[2] = {"Hartree-Fock","LDA"};
+
         //madness::print(" date of calculation ", tmp);
         madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
@@ -650,7 +651,7 @@ struct CalculationParameters {
             madness::print("           core type ", core_type);
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
-        madness::print("    calculation type ", calctype[int(lda)]);
+        madness::print("    calculation type ", xcdata);
         madness::print("     simulation cube ", -L, L);
         madness::print("        plot density ", plotdens);
         madness::print("        plot coulomb ", plotcoul);
@@ -678,6 +679,7 @@ struct CalculationParameters {
 struct Calculation {
     Molecule molecule;
     CalculationParameters param;
+    XCfunctional xc;
     AtomicBasisSet aobasis;
     functionT vnuc;
     functionT mask;
@@ -691,6 +693,7 @@ struct Calculation {
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+
     Calculation(World & world, const char *filename)
     {
         if(world.rank() == 0) {
@@ -709,6 +712,9 @@ struct Calculation {
         world.gop.broadcast_serializable(molecule, 0);
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
+
+        xc.initialize(param.xcdata, !param.spin_restricted);
+
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
     }
@@ -1016,7 +1022,6 @@ struct Calculation {
 
         double tol = 0.1;
         long ndone = 0;
-        bool converged = false;
         for(long iter = 0;iter < 100;++iter){
             double sum = 0.0;
             for(long i = 0;i < nmo;++i){
@@ -1087,7 +1092,6 @@ struct Calculation {
                 if(doprint)
                     print("PM localization converged in", ndone,"steps");
 
-                converged = true;
                 break;
             }
             tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
@@ -1637,32 +1641,12 @@ struct Calculation {
         return Kf;
     }
 
-    static double munge(double r)
-    {
-        if(r < 1e-12)
-            r = 1e-12;
-
-        return r;
-    }
-
-    template <typename T>
-    static void ldaop(const Key<3> & key, Tensor<T>& t)
-    {
-        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
-    }
-
-    template <typename T>
-    static void ldaeop(const Key<3> & key, Tensor<T>& t)
-    {
-        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
-    }
-
     functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
     {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
-        vlda.unaryop(&ldaop<double>);
+        vlda.unaryop(xc_lda_potential(xc));
         return vlda;
     }
 
@@ -1671,23 +1655,23 @@ struct Calculation {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
-        vlda.unaryop(&ldaeop<double>);
+        vlda.unaryop(xc_lda_functional(xc));
         return vlda.trace();
     }
 
     vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq, const functionT & vlocal, double & exc)
     {
         functionT vloc = vlocal;
-        if(param.lda){
-            START_TIMER(world);
-            exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
-            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
-            END_TIMER(world, "LDA potential");
-        }
+
+        START_TIMER(world);
+        exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
+        vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+        END_TIMER(world, "LDA potential");
+
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
-        if(!param.lda){
+        if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
@@ -1883,6 +1867,30 @@ struct Calculation {
         pe = tensorT();
         ke.gaxpy(0.5, transpose(ke), 0.5);
         return ke;
+    }
+
+    /// Compute the two-electron integrals over the provided set of orbitals
+
+    /// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
+    /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
+    Tensor<double> twoint(World& world, const vecfuncT& psi) {
+        double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
+        reconstruct(world, psi);
+        norm_tree(world, psi);
+        
+        // Efficient version would use mul_sparse vector interface
+        vecfuncT pairs;
+        for (unsigned int i=0; i<psi.size(); ++i) {
+            for (unsigned int j=0; j<=i; ++j) {
+                pairs.push_back(mul_sparse(psi[i], psi[j], tol, false));
+            }
+        }
+        
+        world.gop.fence();
+        truncate(world, pairs);
+        vecfuncT Vpairs = apply(world, *coulop, pairs);
+
+        return matrix_inner(world, pairs, Vpairs, true);
     }
 
     tensorT matrix_exponential(const tensorT& A) {
@@ -2336,8 +2344,8 @@ struct Calculation {
             double exca = 0.0, excb = 0.0;
             vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vecfuncT Vpsib;
-            if(param.spin_restricted){
-                if(!param.lda)  excb = exca;
+            if(param.spin_restricted && xc.hf_exchange_coefficient()==1.0) {
+                excb = exca;
             }
             else if(param.nbeta) {
                 Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
@@ -2559,6 +2567,11 @@ int main(int argc, char** argv) {
         E.value(calc.molecule.get_all_coords().flat()); // ugh!
         if (calc.param.derivatives) calc.derivatives(world);
         if (calc.param.dipole) calc.dipole(world);
+        //        if (calc.param.twoint) {
+        Tensor<double> g = calc.twoint(world,calc.amo);
+            cout << g;
+            // }
+
         calc.do_plots(world);
 
       }
