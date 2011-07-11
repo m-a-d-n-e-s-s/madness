@@ -176,6 +176,7 @@ struct xc_lda_functional {
     void operator()(const Key<3> & key, Tensor<double>& t) const 
     {
         xc->exc(t.ptr(), t.size(), t.ptr(), t.ptr());
+        t.scale(0.5);
     }
 };
 

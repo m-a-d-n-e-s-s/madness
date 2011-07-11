@@ -1408,7 +1408,7 @@ struct Calculation {
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 rho.scale(0.5);
-                vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
+                vlocal = vlocal + make_lda_potential(world, rho, rho);
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {
@@ -1641,7 +1641,7 @@ struct Calculation {
         return Kf;
     }
 
-    functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
+    functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho) 
     {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
@@ -1650,7 +1650,7 @@ struct Calculation {
         return vlda;
     }
 
-    double make_lda_energy(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
+    double make_lda_energy(World & world, const functionT & arho, const functionT & brho)
     {
         MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
@@ -1659,13 +1659,13 @@ struct Calculation {
         return vlda.trace();
     }
 
-    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq, const functionT & vlocal, double & exc)
+    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & vlocal, double & exc)
     {
         functionT vloc = vlocal;
 
         START_TIMER(world);
-        exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
-        vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+        exc = make_lda_energy(world, arho, brho);
+        vloc = vloc + make_lda_potential(world, arho, brho);
         END_TIMER(world, "LDA potential");
 
         START_TIMER(world);
@@ -2251,7 +2251,6 @@ struct Calculation {
     void solve(World & world)
     {
         functionT arho_old, brho_old;
-        functionT adelrhosq, bdelrhosq;
         const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
@@ -2342,13 +2341,13 @@ struct Calculation {
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, vlocal, exca);
             vecfuncT Vpsib;
-            if(param.spin_restricted && xc.hf_exchange_coefficient()==1.0) {
+            if(param.spin_restricted) {
                 excb = exca;
             }
             else if(param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
+                Vpsib = apply_potential(world, bocc, bmo, brho, arho, vlocal, excb);
             }
 
             double ekina = 0.0, ekinb = 0.0;
