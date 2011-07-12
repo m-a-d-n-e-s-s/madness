@@ -1316,10 +1316,11 @@ namespace madness {
             for (typename dcT::iterator it=v[0]->coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
                 if (it->second.has_coeff())
-                    woT::task(world.rank(), &implT:: template multiop_values_doit<opT>, key, op, v);
+                    world.taskq.add(*this, &implT:: template multiop_values_doit<opT>, key, op, v);
                 else
                     coeffs.replace(key, nodeT(tensorT(),true));
             }
+            world.gop.fence();
         }
 
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
@@ -1330,7 +1331,7 @@ namespace madness {
                         double tol,
                         bool fence) {
             for (unsigned int j=0; j<vright.size(); ++j) {
-                woT::task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
+                world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
             }
             if (fence)
                 world.gop.fence();
@@ -1946,13 +1947,12 @@ namespace madness {
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator fiterT;
             typedef FunctionNode<R,NDIM> fnodeT;
             fiterT end = f->coeffs.end();
-            ProcessID me = world.rank();
             for (fiterT it=f->coeffs.begin(); it!=end; ++it) {
                 const fnodeT& node = it->second;
                 if (node.has_coeff()) {
                     const keyT& key = it->first;
                     const Tensor<R>& c = node.coeff();
-                    woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
+                    world.taskq.add(*this, &implT:: template apply_1d_realspace_push_op<opT,R>, archive::archive_ptr<const opT>(&op), axis, key, c);
                 }
             }
             if (fence) world.gop.fence();
@@ -1979,7 +1979,7 @@ namespace madness {
                     Future<argT> left  = D->find_neighbor(f, key,-1);
                     argT center(key,node.coeff());
                     Future<argT> right = D->find_neighbor(f, key, 1);
-                    woT::task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                    world.taskq.add(*this, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
                 }
                 else {
                     coeffs.replace(key,nodeT(tensorT(),true)); // Empty internal node
@@ -2178,7 +2178,7 @@ namespace madness {
                             v[i++].set(false);
                         }
                     }
-                    woT::task(world.rank(), &implT::broaden_op, key, v);
+                    world.taskq.add(*this, &implT::broaden_op, key, v);
                 }
             }
             // Reset value of norm tree so that can repeat broadening
@@ -2193,7 +2193,7 @@ namespace madness {
             // Must set true here so that successive calls without fence do the right thing
             nonstandard = compressed = false;
             if (world.rank() == coeffs.owner(cdata.key0))
-                woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
+                world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
             if (fence)
                 world.gop.fence();
         }
@@ -2243,7 +2243,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                     v[i] = woT::task(coeffs.owner(kit.key()), &implT::norm_tree_spawn, kit.key());
                 }
-                return woT::task(world.rank(),&implT::norm_tree_op, key, v);
+                return world.taskq.add(*this,&implT::norm_tree_op, key, v);
             }
             else {
                 return Future<double>(node.coeff().normf());
