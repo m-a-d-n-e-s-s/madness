@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sstream>
 #include <tensor/tensor.h>
+#include <algorithm>
 
 extern int x_rks_s__(const double *rho, double *f, double *dfdra);
 
@@ -114,23 +115,34 @@ public:
     /// any hf exchange contribution must be separately computed.
     madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t) const 
     {
+        const double* arho = t[0].ptr();
+        madness::Tensor<double> result(3L, t[0].dims(), false);
+        double* f = result.ptr();
         if (spin_polarized) {
-            throw "not yet";
+            MADNESS_ASSERT(t.size() == 2);
+            const double* brho = t[1].ptr();
+            for (unsigned int i=0; i<result.size(); i++) {
+                double ra = munge_rho(arho[i]); 
+                double rb = munge_rho(brho[i]); 
+                double xf, cf, xdfdr[2], cdfdr[2];
+                
+                x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
+                c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
+                
+                f[i] = xf + cf;
+            }
         }
         else {
-            madness::Tensor<double> result(3L, t[0].dims(), false);
-            double* f = result.ptr();
-            const double* arho = t[0].ptr();
-
+            MADNESS_ASSERT(t.size() == 1);
             double q1, q2, dq;
             for (unsigned int i=0; i<result.size(); i++) {
                 double r = munge_rho(2.0 * arho[i]); 
                 x_rks_s__(&r, &q1, &dq);
                 c_rks_vwn5__(&r, &q2, &dq);
-                f[i] = q1 + q2;
-            }
-            return result;
+                f[i] = q1 + q2; 
+           }
         }
+        return result;
     }
     
     
@@ -140,14 +152,28 @@ public:
     /// lda-pol ---  t[0] = alpha density, t[1] = beta density
     ///
     /// any hf exchange contribution must be separately computed.
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, int ispin) const 
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin) const 
     {
+        const double* arho = t[0].ptr();
+        madness::Tensor<double> result(3L, t[0].dims(), false);
+        double* f = result.ptr();
+
         if (spin_polarized) {
-            throw "not yet";
+            MADNESS_ASSERT(t.size() == 2);
+            const double* brho = t[1].ptr();
+            for (unsigned int i=0; i<result.size(); i++) {
+                double ra = munge_rho(arho[i]); 
+                double rb = munge_rho(brho[i]); 
+                double xf, cf, xdfdr[2], cdfdr[2];
+                
+                x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
+                c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
+
+                f[i] = xdfdr[ispin] + cdfdr[ispin];
+            }
         }
         else {
-            madness::Tensor<double> result(3L, t[0].dims(), false);
-            double* f = result.ptr();
+            MADNESS_ASSERT(t.size() == 1);
             const double* arho = t[0].ptr();
             for (unsigned int i=0; i<result.size(); i++) {
                 double r = munge_rho(2.0 * arho[i]); 
@@ -156,8 +182,8 @@ public:
                 c_rks_vwn5__(&r, &q, &dq2); 
                 f[i] = dq1 + dq2;
             }
-            return result;
         }
+        return result;
     }
 };
 
@@ -178,11 +204,11 @@ struct xc_functional {
 struct xc_potential {
     const XCfunctional* xc;
     const int ispin;
-
+    
     xc_potential(const XCfunctional& xc, int ispin) 
         : xc(&xc), ispin(ispin)
     {}
-
+    
     madness::Tensor<double> operator()(const Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
         MADNESS_ASSERT(xc);
@@ -192,7 +218,22 @@ struct xc_potential {
     }
 };
 
-
+/// Compute the spin-restricted LDA potential using unaryop (only for the initial guess) 
+struct xc_lda_potential {
+    xc_lda_potential() {}
+    
+    void operator()(const Key<3> & key, Tensor<double>& t) const 
+    {
+        double* rho = t.ptr();
+        for (int i=0; i<t.size(); i++) {
+            double r = std::max(rho[i],1e-12); 
+            double q, dq1, dq2;
+            x_rks_s__(&r, &q, &dq1);
+            c_rks_vwn5__(&r, &q, &dq2); 
+            rho[i] = dq1 + dq2;
+        }
+    }
+};
 
 
 #endif

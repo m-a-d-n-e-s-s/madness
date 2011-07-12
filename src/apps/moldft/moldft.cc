@@ -1407,13 +1407,7 @@ struct Calculation {
                 END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
-                rho.scale(0.5);
-
-                rho.reconstruct(); // for multiop
-                vecfuncT vf;
-                vf.push_back(rho);
-
-                vlocal = vlocal + make_dft_potential(world, vf, 0);
+                vlocal = vlocal + make_lda_potential(world, rho);
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {
@@ -1645,6 +1639,16 @@ struct Calculation {
         truncate(world, Kf, tol);
         return Kf;
     }
+
+    // Used only for initial guess that is always spin-restricted LDA
+    functionT make_lda_potential(World & world, const functionT & arho) 
+    {
+        functionT vlda = copy(arho);
+        vlda.reconstruct();
+        vlda.unaryop(xc_lda_potential());
+        return vlda;
+    }
+
 
     functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin) 
     {
