@@ -304,8 +304,8 @@ struct myunaryop_square {
 template <typename T, int NDIM>
 struct test_multiop {
     Tensor<T> operator()(const Key<NDIM>& key, const std::vector< Tensor<T> >& c) const {
-        Tensor<T> r = copy(c[0]);
-        for (unsigned int i=1; i<c.size(); ++i) r += c[i];
+        Tensor<T> r = copy(c[0]).emul(c[0]);
+        for (unsigned int i=1; i<c.size(); ++i) r += copy(c[i]).emul(c[i]);
         return r;
     }
     template <typename Archive>
@@ -497,7 +497,7 @@ void test_math(World& world) {
         functorT f1(RandomGaussian<T,NDIM>(FunctionDefaults<NDIM>::get_cell(),1000.0));
         Function<T,NDIM> left = FunctionFactory<T,NDIM>(world).functor(f1);
 
-        const int nvfunc = 10;
+        const int nvfunc = 5;
         std::vector< Function<T,NDIM> > vin(nvfunc);
         std::vector<functorT> funcres(nvfunc);
         for (int i=0; i<nvfunc; ++i) {
@@ -518,12 +518,11 @@ void test_math(World& world) {
         if (world.rank() == 0) print("\nTest multioperation");
         Function<T,NDIM> mop = multiop_values<T,test_multiop<T,NDIM>,NDIM> (test_multiop<T,NDIM>(), vin);
         compress(world, vin);
-        for (int i=1; i<nvfunc; i++) vin[0] += vin[i];
-        double moperr = (vin[0] - mop).norm2();
+        Function<T,NDIM> r(world);
+        for (unsigned int i=0; i<vin.size(); i++) r += vin[i]*vin[i];
+        double moperr = (r - mop).norm2();
         if (world.rank() == 0) print("\nTest DONE multi", moperr);
     }
-
-
 
     if (world.rank() == 0) print("\nTest adding random functions out of place");
     for (int i=0; i<10; ++i) {
