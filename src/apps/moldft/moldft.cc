@@ -1408,7 +1408,12 @@ struct Calculation {
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 rho.scale(0.5);
-                vlocal = vlocal + make_lda_potential(world, rho, rho);
+
+                rho.reconstruct(); // for multiop
+                vecfuncT vf;
+                vf.push_back(rho);
+
+                vlocal = vlocal + make_dft_potential(world, vf, 0);
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {
@@ -1641,35 +1646,29 @@ struct Calculation {
         return Kf;
     }
 
-    functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin) 
     {
-        MADNESS_ASSERT(param.spin_restricted);
-        functionT vlda = copy(arho);
-        vlda.reconstruct();
-        vlda.unaryop(xc_lda_potential(xc));
-        return vlda;
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc,ispin), vf);
     }
 
-    double make_lda_energy(World & world, const functionT & arho, const functionT & brho)
+    double make_dft_energy(World & world, const vecfuncT& vf)
     {
-        MADNESS_ASSERT(param.spin_restricted);
-        functionT vlda = copy(arho);
-        vlda.reconstruct();
-        vlda.unaryop(xc_lda_functional(xc));
+        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
         return vlda.trace();
     }
 
-    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & vlocal, double & exc)
+    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
+                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
         exc = 0.0;
 
-        START_TIMER(world);
-        if (xc.is_lda()) {
-            exc = make_lda_energy(world, arho, brho);
-            vloc = vloc + make_lda_potential(world, arho, brho);
+        if (xc.is_dft()) {
+            START_TIMER(world);
+            if (ispin == 0) exc = make_dft_energy(world, vf);
+            vloc = vloc + make_dft_potential(world, vf, ispin);
+            END_TIMER(world, "DFT potential");
         }
-        END_TIMER(world, "LDA potential");
         
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
@@ -1682,6 +1681,7 @@ struct Calculation {
             for(unsigned long i = 0;i < amo.size();++i){
                 exc -= 0.5 * excv[i] * occ[i];
             }
+            if (!xc.is_spin_polarized()) exc *= 2.0;
             gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
@@ -2344,13 +2344,20 @@ struct Calculation {
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, vlocal, exca);
-            vecfuncT Vpsib;
-            if(param.spin_restricted) {
-                excb = exca;
+
+            vecfuncT vf;
+            if (xc.is_dft()) {
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho);
+                reconstruct(world, vf);
+                if (vf.size() > 1UL) 
+                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
             }
-            else if(param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, brho, arho, vlocal, excb);
+            
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, vlocal, exca, 0);
+            vecfuncT Vpsib;
+            if(!param.spin_restricted && param.nbeta) {
+                Vpsib = apply_potential(world, bocc, bmo, vf, vlocal, excb, 1);
             }
 
             double ekina = 0.0, ekinb = 0.0;

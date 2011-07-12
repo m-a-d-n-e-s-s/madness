@@ -7,6 +7,7 @@
 
 #include <iostream>
 #include <sstream>
+#include <tensor/tensor.h>
 
 extern int x_rks_s__(const double *rho, double *f, double *dfdra);
 
@@ -72,8 +73,13 @@ public:
     }
     
     /// returns true if the potential is meta gga (needs second derivatives)
-    bool is_meta_gga() const {
+    bool is_meta() const {
         return false;
+    }
+
+    /// returns true if there is a functional (false probably means Hatree-Fock exchange only)
+    bool is_dft() const {
+        return (is_lda() || is_gga() || is_meta());
     }
     
     /// returns true if the functional is spin_polarized
@@ -100,105 +106,92 @@ public:
         return hf_coeff;
     }
 
-    /// computes the energy functional at np points
+    /// computes the energy functional at given points
 
-    /// array arguments are only referenced if they are used, so when
-    /// evaluating an lda you need not provide derivatives, and for a
-    /// gga need not provide second derivatives.
+    /// lda     ---  t[0] = alpha density
+    /// lda-pol ---  t[0] = alpha density, t[1] = beta density
     ///
-    /// for non-polarized functionals pass the values for the alpha
-    /// spin component ... the beta values are not referenced.
-    /// 
     /// any hf exchange contribution must be separately computed.
-    void exc(double* f,
-             int np, 
-             const double* arho, const double* brho, 
-             const double* darho=0, const double* dbrho=0, 
-             const double* d2arho=0, const double* d2brho=0) const 
+    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t) const 
     {
-        if (hf_coeff == 1.0) {
-            for (int i=0; i<np; i++) {
-                f[i] = 0.0;
-            }
-        }
-        else if (spin_polarized) {
+        if (spin_polarized) {
             throw "not yet";
         }
         else {
+            madness::Tensor<double> result(3L, t[0].dims(), false);
+            double* f = result.ptr();
+            const double* arho = t[0].ptr();
+
             double q1, q2, dq;
-            for (int i=0; i<np; i++) {
+            for (unsigned int i=0; i<result.size(); i++) {
                 double r = munge_rho(2.0 * arho[i]); 
                 x_rks_s__(&r, &q1, &dq);
                 c_rks_vwn5__(&r, &q2, &dq);
                 f[i] = q1 + q2;
             }
+            return result;
         }
     }
     
-
+    
     /// computes the potential (derivative of the energy functional) at np points
 
-    /// array arguments are only referenced if they are used, so when
-    /// evaluating an lda you need not provide derivatives, and for a
-    /// gga need not provide second derivatives.
+    /// lda     ---  t[0] = alpha density
+    /// lda-pol ---  t[0] = alpha density, t[1] = beta density
     ///
-    /// for non-polarized functionals pass the values for the alpha
-    /// spin component ... the beta values are not referenced.
-    /// 
     /// any hf exchange contribution must be separately computed.
-    void vxc(double* f, 
-             int np, 
-             const double* arho, const double* brho, 
-             const double* darho=0, const double* dbrho=0, 
-             const double* d2arho=0, const double* d2brho=0) const 
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, int ispin) const 
     {
-        if (hf_coeff == 1.0) {
-            for (int i=0; i<np; i++) {
-                f[i] = 0.0;
-            }
-        }
-        else if (spin_polarized) {
+        if (spin_polarized) {
             throw "not yet";
         }
         else {
-            for (int i=0; i<np; i++) {
+            madness::Tensor<double> result(3L, t[0].dims(), false);
+            double* f = result.ptr();
+            const double* arho = t[0].ptr();
+            for (unsigned int i=0; i<result.size(); i++) {
                 double r = munge_rho(2.0 * arho[i]); 
                 double q, dq1, dq2;
                 x_rks_s__(&r, &q, &dq1);
                 c_rks_vwn5__(&r, &q, &dq2); 
                 f[i] = dq1 + dq2;
             }
+            return result;
         }
     }
 };
 
-
-struct xc_lda_functional {
+struct xc_functional {
     const XCfunctional* xc;
+
+    xc_functional(const XCfunctional& xc) 
+        : xc(&xc)
+    {}
     
-    xc_lda_functional(const XCfunctional& xc) 
-        : xc(&xc)
-    {}
-
-    void operator()(const Key<3> & key, Tensor<double>& t) const 
+    madness::Tensor<double> operator()(const Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
-        xc->exc(t.ptr(), t.size(), t.ptr(), t.ptr());
-        t.scale(0.5);
+        MADNESS_ASSERT(xc);
+        return xc->exc(t);
     }
 };
 
-struct xc_lda_potential {
+struct xc_potential {
     const XCfunctional* xc;
+    const int ispin;
 
-    xc_lda_potential(const XCfunctional& xc) 
-        : xc(&xc)
+    xc_potential(const XCfunctional& xc, int ispin) 
+        : xc(&xc), ispin(ispin)
     {}
 
-    void operator()(const Key<3> & key, Tensor<double>& t) const 
+    madness::Tensor<double> operator()(const Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
-        xc->vxc(t.ptr(), t.size(), t.ptr(), t.ptr());
+        MADNESS_ASSERT(xc);
+        madness::Tensor<double> r = xc->vxc(t, ispin);
+        //std::cout << key << " " << t[0].sumsq() << " " << r.sumsq() << std::endl;
+        return r;
     }
 };
+
 
 
 
