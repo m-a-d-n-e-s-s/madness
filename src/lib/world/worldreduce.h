@@ -88,7 +88,7 @@ namespace madness {
                 std::vector<ProcessID> group(first, last);
 
                 std::sort(group.begin(), group.end());
-                std::vector<ProcessID>::const_iterator end =
+                std::vector<ProcessID>::iterator end =
                         std::unique(group.begin(), group.end());
 
                 // Get the size of the group
