@@ -85,18 +85,20 @@ namespace MyNamespace {
 
 } // namespace MyNamespace
 \endcode
-You may also use the intrusive method and define a hash member function for your
-key.
+If your object is in the \c madness namespace, you may also use the intrusive
+method and define a hash member function for your key.
 \code
-class Key {
-public:
+namespace madness {
+    class Key {
+    public:
 
-    // ...
-
-    madness::hashT hash() const {
         // ...
-    }
-};
+
+        madness::hashT hash() const {
+            // ...
+        }
+    };
+}
 \endcode
 You can create a specialization of madness::Hash for your type directly.
 \code
@@ -302,7 +304,7 @@ namespace madness {
     template <class T>
     inline void hash_combine(hashT& seed, const T& v) {
         Hash<T> hasher;
-        return detail::combine_hash(seed, hasher(v));
+        detail::combine_hash(seed, hasher(v));
     }
 
     /// Combine the hash values of an iterator range
