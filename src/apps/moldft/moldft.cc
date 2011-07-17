@@ -478,6 +478,7 @@ struct CalculationParameters {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
         std::string s;
+        xcdata = "lda";
 
         while (f >> s) {
             if (s == "end") {
@@ -714,6 +715,7 @@ struct Calculation {
         world.gop.broadcast_serializable(aobasis, 0);
 
         xc.initialize(param.xcdata, !param.spin_restricted);
+        xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
