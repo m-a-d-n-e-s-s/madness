@@ -715,7 +715,7 @@ struct Calculation {
         world.gop.broadcast_serializable(aobasis, 0);
 
         xc.initialize(param.xcdata, !param.spin_restricted);
-        xc.plot();
+        //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);

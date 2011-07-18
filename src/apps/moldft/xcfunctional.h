@@ -1,7 +1,7 @@
 #ifndef MOLDFT_XCMOLDFT_H
 #define MOLDFT_XCMOLDFT_H
 
-// libxc is currently only working for spin-restricted LDA
+// Libxc now working for LDA and LSDA ... now working on GGA
 //#define HAVE_LIBXC 1
 
 /// \file moldft/xcfunctional.h
@@ -111,16 +111,20 @@ public:
     void plot() const {
         long npt = 1001;
         double lo=1e-6, hi=1e+1, s=std::pow(hi/lo, 1.0/(npt-1));
-        madness::Tensor<double> r(npt);
+
+        madness::Tensor<double> rho(npt);
         for (int i=0; i<npt; i++) {
-            r[i] = lo;
+            rho[i] = lo;
             lo *= s;
         }
         std::vector< madness::Tensor<double> > t;
-        t.push_back(r);
-        madness::Tensor<double> f = exc(t);
+        t.push_back(rho);
+        if (is_spin_polarized()) t.push_back(rho);
+        madness::Tensor<double> f  = exc(t);
+        madness::Tensor<double> va = vxc(t,0);
+        madness::Tensor<double> vb = vxc(t,1);
         for (long i=0; i<npt; i++) {
-            printf("%.3e %.3e\n", r[i], f[i]);
+            printf("%.3e %.3e %.3e %.3e\n", rho[i], f[i], va[i], vb[i]);
         }
     }
 };

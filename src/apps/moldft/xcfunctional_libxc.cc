@@ -253,6 +253,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
 XCfunctional::~XCfunctional() {
     for (unsigned int i=0; i<funcs.size(); i++) {
         xc_func_end(funcs[i].first);
+        delete funcs[i].first;
     }
     funcs.clear();
 }
@@ -287,12 +288,42 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
 {
     MADNESS_ASSERT(t.size() >= 1);
     const int np = t[0].size();
-    const double *arho = t[0].ptr();
     madness::Tensor<double> result(3L, t[0].dims());
     madness::Tensor<double> tmp(3L, t[0].dims(), false);
+    const double * restrict arho = t[0].ptr();
+    double * restrict work = tmp.ptr();
+    double * restrict res = result.ptr();
 
     if (spin_polarized) {
-        throw "not yet";
+        if (is_lda())
+            MADNESS_ASSERT(t.size() == 2);
+        else 
+            throw "not yet";
+
+        
+        madness::Tensor<double> rho(np*2);
+        double * restrict dens = rho.ptr();
+        const double * restrict brho = t[1].ptr();
+        for (long i=0; i<np; i++) {
+            dens[2*i  ] = munge_rho(arho[i]);
+            dens[2*i+1] = munge_rho(brho[i]);
+        }
+        
+        for (unsigned int i=0; i<funcs.size(); i++) {
+            switch(funcs[i].first->info->family) {
+            case XC_FAMILY_LDA:
+                xc_lda_exc(funcs[i].first, np, dens, work);
+                for (long j=0; j<np; j++) {
+                    res[j] += work[j]*(arho[j]+brho[j])*funcs[i].second;
+                }
+                break;
+            case XC_FAMILY_GGA:
+            case XC_FAMILY_HYB_GGA:
+                //xc_gga_exc(&func, np, arho, sigma, f);
+                throw "NOT YET";
+                break;
+            }
+        }
     }
     else {
         (const_cast<madness::Tensor<double>&>(t[0])).scale(2.0);
@@ -323,12 +354,42 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
 {
     MADNESS_ASSERT(t.size() >= 1);
     const int np = t[0].size();
-    const double *arho = t[0].ptr(); 
     madness::Tensor<double> result(3L, t[0].dims());
-    madness::Tensor<double> tmp(3L, t[0].dims(),false);
+    const double * restrict arho = t[0].ptr();
+    double * restrict res = result.ptr();
 
     if (spin_polarized) {
-        throw "not yet";
+        if (is_lda())
+            MADNESS_ASSERT(t.size() == 2);
+        else 
+            throw "not yet";
+
+        
+        madness::Tensor<double> rho(np*2);
+        madness::Tensor<double> tmp(np*2);
+        double * restrict work = tmp.ptr();
+        double * restrict dens = rho.ptr();
+        const double * restrict brho = t[1].ptr();
+        for (long i=0; i<np; i++) {
+            dens[2*i  ] = munge_rho(arho[i]);
+            dens[2*i+1] = munge_rho(brho[i]);
+        }
+        
+        for (unsigned int i=0; i<funcs.size(); i++) {
+            switch(funcs[i].first->info->family) {
+            case XC_FAMILY_LDA:
+                xc_lda_vxc(funcs[i].first, np, dens, work);
+                for (long j=0; j<np; j++) {
+                    res[j] += work[2*j+ispin]*funcs[i].second;
+                }
+                break;
+            case XC_FAMILY_GGA:
+            case XC_FAMILY_HYB_GGA:
+                //xc_gga_exc(&func, np, arho, sigma, f);
+                throw "NOT YET";
+                break;
+            }
+        }
     }
     else {
         (const_cast<madness::Tensor<double>&>(t[0])).scale(2.0);
@@ -336,6 +397,8 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             MADNESS_ASSERT(t.size() == 1);
         else 
             throw "not yet";
+
+        madness::Tensor<double> tmp(3L, t[0].dims(), false);
 
         for (unsigned int i=0; i<funcs.size(); i++) {
             switch(funcs[i].first->info->family) {
