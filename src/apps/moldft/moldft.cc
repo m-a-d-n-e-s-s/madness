@@ -636,24 +636,29 @@ struct CalculationParameters {
         madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
         madness::print("   no. of io servers ", nio);
+        madness::print("     simulation cube ", -L, L);
         madness::print("        total charge ", charge);
         madness::print("            smearing ", smear);
         madness::print(" number of electrons ", nalpha, nbeta);
         madness::print("  number of orbitals ", nmo_alpha, nmo_beta);
         madness::print("     spin restricted ", spin_restricted);
-        madness::print("  energy convergence ", econv);
-        madness::print(" density convergence ", dconv);
-        if (conv_only_dens)
-            madness::print(" Convergence criterion is only density delta.");
-        else
-            madness::print(" Convergence criteria are density delta & BSH residual.");
-        madness::print("    maximum rotation ", maxrotn);
+        madness::print("       xc functional ", xcdata);
+#ifdef MADNESS_HAS_LIBXC
+        madness::print("         xc libraray ", "libxc");
+#else
+        madness::print("         xc libraray ", "default (lda only)");
+#endif
         if (core_type != "")
             madness::print("           core type ", core_type);
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
-        madness::print("    calculation type ", xcdata);
-        madness::print("     simulation cube ", -L, L);
+        madness::print("  energy convergence ", econv);
+        madness::print(" density convergence ", dconv);
+        madness::print("    maximum rotation ", maxrotn);
+        if (conv_only_dens)
+            madness::print(" Convergence criterion is only density delta.");
+        else
+            madness::print(" Convergence criteria are density delta & BSH residual.");
         madness::print("        plot density ", plotdens);
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);

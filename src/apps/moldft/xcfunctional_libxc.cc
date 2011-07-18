@@ -1,7 +1,8 @@
+#include <madness_config.h>
+
+#ifdef MADNESS_HAS_LIBXC
+
 #include <moldft/xcfunctional.h>
-
-#ifdef HAVE_LIBXC
-
 #include <tensor/tensor.h>
 #include <iostream>
 #include <string>

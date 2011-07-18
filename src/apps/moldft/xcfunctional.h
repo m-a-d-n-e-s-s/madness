@@ -1,8 +1,7 @@
 #ifndef MOLDFT_XCMOLDFT_H
 #define MOLDFT_XCMOLDFT_H
 
-// Libxc now working for LDA and LSDA ... now working on GGA
-//#define HAVE_LIBXC 1
+#include <madness_config.h>
 
 /// \file moldft/xcfunctional.h
 /// \brief Defines interface for DFT XC functionals
@@ -14,7 +13,7 @@
 #include <utility>
 #include <mra/key.h>
 
-#ifdef HAVE_LIBXC
+#ifdef MADNESS_HAS_LIBXC
 #include <xc.h>
 #endif
 
@@ -43,7 +42,7 @@ protected:
     bool spin_polarized;
     double hf_coeff;
 
-#ifdef HAVE_LIBXC
+#ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
     int nderiv;
 #endif
