@@ -273,6 +273,7 @@ AC_CONFIG_FILES([
     src/Makefile
     src/lib/Makefile
        src/lib/world/Makefile
+          src/lib/world/tr1/Makefile
        src/lib/muParser/Makefile
        src/lib/misc/Makefile
        src/lib/tinyxml/Makefile
