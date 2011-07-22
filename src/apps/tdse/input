@@ -16,6 +16,6 @@ nloadbal 20
 nio 1
 ndump 10
 ncycle 2
-target_time 5
+target_time 20
 tScale 5.0
 
