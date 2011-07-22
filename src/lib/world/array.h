@@ -41,62 +41,7 @@
 #include <vector>
 #include <algorithm>
 #include <iostream>
-
-// Select header that contains array
-#if defined(MADNESS_USE_ARRAY)
-#include <array>
-#elif defined(MADNESS_USE_TR1_ARRAY)
-#include <tr1/array>
-#elif defined(MADNESS_USE_BOOST_TR1_ARRAY_HPP)
-#include <boost/tr1/array.hpp>
-#else
-#error No acceptable array include directive was found.
-#endif // ARRAY
-
-#ifndef MADNESS_BEGIN_NAMESPACE_TR1
-
-#if defined(BOOST_TR1_ARRAY_INCLUDED) || defined(BOOST_TR1_ARRAY_HPP_INCLUDED)
-
-// We are using boost
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
-#define MADNESS_END_NAMESPACE_TR1 } // namespace std
-
-#elif defined(MADNESS_HAS_STD_TR1_ARRAY)
-
-// We are using TR1
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
-#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
-
-#elif defined(MADNESS_HAS_STD_ARRAY)
-
-// We are using C++0x
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
-#define MADNESS_END_NAMESPACE_TR1 } // namespace std
-
-#else
-// We do not know.
-#error Unable to determine the correct namespace for TR1 fuctional.
-
-#endif
-
-#endif // MADNESS_BEGIN_NAMESPACE_TR1
-
-// Insert the tr1 array class into the std namespace.
-namespace std {
-
-#if defined(MADNESS_HAS_STD_TR1_ARRAY) && !defined(MADNESS_HAS_STD_ARRAY)
-#define MADNESS_HAS_STD_ARRAY 1
-
-    using ::std::tr1::array;
-    using ::std::tr1::swap;
-    using ::std::tr1::tuple_size;
-    using ::std::tr1::tuple_element;
-    using ::std::tr1::tuple_size;
-    using ::std::tr1::tuple_element;
-    using ::std::tr1::get;
-
-#endif
-} // namespace std
+#include <world/tr1/array.h>
 
 MADNESS_BEGIN_NAMESPACE_TR1
 

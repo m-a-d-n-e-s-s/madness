@@ -133,55 +133,7 @@ provide the appropriate template parameter to the hashing container.
 #include <stdint.h>
 #include <cstddef>
 #include <iterator>
-
-// Select header that contains hash
-#if defined(MADNESS_USE_FUNCTIONAL)
-#include <functional>
-
-#elif defined(MADNESS_USE_TR1_FUNCTIONAL)
-#include <tr1/functional>
-#elif defined(MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP)
-#include <boost/tr1/functional.hpp>
-#else
-#error No acceptable functional include directive was found.
-#endif // FUNCTIONAL
-
-#ifndef MADNESS_BEGIN_NAMESPACE_TR1
-
-#if defined(BOOST_TR1_FUNCTIONAL_INCLUDED) || defined(BOOST_TR1_FUNCTIONAL_HPP_INCLUDED)
-
-// We are using boost
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace boost {
-#define MADNESS_END_NAMESPACE_TR1 } // namespace std
-
-#elif defined(MADNESS_HAS_STD_TR1_HASH)
-
-// We are using TR1
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std { namespace tr1 {
-#define MADNESS_END_NAMESPACE_TR1 } } // namespace std namespace tr1
-
-#elif defined(MADNESS_HAS_STD_HASH)
-
-// We are using C++0x
-#define MADNESS_BEGIN_NAMESPACE_TR1 namespace std {
-#define MADNESS_END_NAMESPACE_TR1 } // namespace std
-
-#else
-// We do not know.
-#error Unable to determine the correct namespace for TR1 fuctional.
-
-#endif
-
-#endif // MADNESS_BEGIN_NAMESPACE_TR1
-
-
-#if defined(MADNESS_HAS_STD_TR1_HASH) && !defined(MADNESS_HAS_STD_HASH)
-#define MADNESS_HAS_STD_HASH 1
-// hash is in std::tr1 but we want it in std namespace
-namespace std {
-    using ::std::tr1::hash;
-}
-#endif
+#include <world/tr1/functional.h>
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {
