@@ -104,7 +104,26 @@ namespace madness {
     public:
         LBNodeDeux()
                 : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
-            for (int i=0; i<nchild; ++i) child_cost[i] = 0.0;
+            for (int i=0; i<nchild; ++i)
+                child_cost[i] = 0.0;
+        }
+
+        LBNodeDeux(const LBNodeDeux<NDIM>& other) :
+            my_cost(other.my_cost), total_cost(other.total_cost), gotkids(other.gotkids), nsummed(other.nsummed)
+        {
+            for (int i=0; i<nchild; ++i)
+                child_cost[i] = other.child_cost[i];
+        }
+
+        LBNodeDeux<NDIM>& operator=(const LBNodeDeux<NDIM>& other) {
+            for (int i=0; i<nchild; ++i)
+                child_cost[i] = other.child_cost[i];
+            my_cost = other.my_cost;
+            total_cost = other.total_cost;
+            gotkids = other.gotkids;
+            nsummed = other.nsummed;
+
+            return *this;
         }
 
         bool has_children() const {
