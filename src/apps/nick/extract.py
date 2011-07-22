@@ -21,20 +21,24 @@ for line in lines:
     exState = re.match( "^[1-9]", line)
     kState  = re.match( "^0", line)
     Yl      = re.match( "^Y(\d)0", line)
+    # If Y is matched, don't match EX or ION
+    if Yl:
+        writeY = True
+        break
+    # Can match EX and/or ION
     if exState:
         writeEX = True
     if kState:
         writeION = True
-    if Yl:
-        writeY = True
-        print "matchY"
-        break
 if writeEX:
     exFile = open("ex.dat", 'w')
+    print "matchEX"
 if writeION:
     ionFile = open("ion.dat", 'w')
+    print "matchION"
 if writeY:
     RlFile = open("Rl.dat", 'w')
+    print "matchY"
 while 1:
     if(lines):
         line = lines.pop(0)
@@ -105,10 +109,11 @@ if( writeY ):
         f = open("input", 'r')
         lines = f.readlines()
         for line in lines:
-            if line:
-                word = line.split()
-                if word[0] == 'L':
-                    L = float(word[1])
+            if len(line) == 1:
+                continue
+            word = line.split()
+            if word[0] == 'L':
+                L = float(word[1])
         f.close()
         if os.path.isfile(input2File):
             f = open("input2", 'r')

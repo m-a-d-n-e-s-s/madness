@@ -118,7 +118,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
     const double dTH = PI/(n-1);
-    const double dPHI = 2*PI/(n-1);
+//    const double dPHI = 2*PI/(n-1);
     const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
@@ -190,7 +190,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << P(l) );
+        PRINTLINE(std::setprecision(9) << std::scientific << P(l) );
     }
     if(world.rank()==0) after = wall_time();
     PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
@@ -429,6 +429,7 @@ void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf,
             }
             else if (tag == "nPhoton") {
                 f >> nPhoton;
+                PRINTLINE("nPhoton = " << nPhoton);
             }
         }
     }
@@ -504,6 +505,7 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     PRINTLINE("After initialize");
+    PRINTLINE("Version: $Rev$");
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
