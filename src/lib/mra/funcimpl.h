@@ -41,6 +41,7 @@
 #include <iostream>
 #include <world/world.h>
 #include <world/print.h>
+#include <world/scopedptr.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
@@ -1250,7 +1251,7 @@ namespace madness {
             if (key == cdata.key0 && coeffs.owner(key)!=world.rank()) return None;
 
             // First insert coefficients from above ... also get write accessors here
-            typename dcT::accessor acc[v.size()];            
+            ScopedArray<typename dcT::accessor> acc(new typename dcT::accessor[v.size()]);
             for (unsigned int i=0; i<c.size(); i++) {
                 MADNESS_ASSERT(v[i]->coeffs.get_pmap() == coeffs.get_pmap());
                 MADNESS_ASSERT(v[i]->coeffs.owner(key) == world.rank());
@@ -1263,7 +1264,7 @@ namespace madness {
                     MADNESS_ASSERT(exists);
                 }
             }
-            
+
             // If everyone has coefficients we are done
             bool done = true;
             for (unsigned int i=0; i<v.size(); i++) {
@@ -1282,7 +1283,7 @@ namespace madness {
                         acc[i]->second.set_has_children(true);
                     }
                 }
-                
+
                 // Loop thru children and pass down
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
