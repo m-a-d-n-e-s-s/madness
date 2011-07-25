@@ -1335,10 +1335,9 @@ namespace madness
         _eigsb = std::vector<double>(norbs, 0.0);
         _occsa = std::vector<double>(norbs, 0.0);
         _occsb = std::vector<double>(norbs, 0.0);
-        int kp = 0;
         if (_world.rank() == 0) print("Building kinetic energy matrix ...\n\n");
         // Need to do kinetic piece for every k-point
-        for (int ki = 0; ki < nkpts; ki++, kp += _params.nbands)
+        for (int ki = 0; ki < nkpts; ki++)
         {
           // These are our initial basis functions
           if (_world.rank() == 0) print("Projecting atomic orbitals ...\n\n");
@@ -1373,10 +1372,10 @@ namespace madness
           //}
 
           // Get k-point from list
-          KPoint& kpt = _kpoints[ki];
+          KPoint& kpoint = _kpoints[ki];
           // Build kinetic matrx
           //ctensorT kinetic = ::kinetic_energy_matrix_slow<T,NDIM>(_world, ao, _params.periodic, kpt);
-          ctensorT kinetic = ::kinetic_energy_matrix<T,NDIM>(_world, ao, _params.periodic, kpt);
+          ctensorT kinetic = ::kinetic_energy_matrix<T,NDIM>(_world, ao, _params.periodic, kpoint);
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
           ctensorT overlap = matrix_inner(_world, ao, ao, true);
@@ -1475,7 +1474,7 @@ namespace madness
 
           rtensorT tmp_eigs = e(Slice(0, _nao - 1));
 
-          if (_world.rank() == 0) printf("(%8.4f,%8.4f,%8.4f)\n",kpt.k[0], kpt.k[1], kpt.k[2]);
+          if (_world.rank() == 0) printf("(%8.4f,%8.4f,%8.4f)\n",kpoint.k[0], kpoint.k[1], kpoint.k[2]);
           if (_world.rank() == 0) print(tmp_eigs);
           if (_world.rank() == 0) print("\n");
 
@@ -1547,10 +1546,9 @@ namespace madness
           }
 
           // Fill in orbitals and eigenvalues
-          int kend = kp + _params.nbands;
-          kpt.begin = kp;
-          kpt.end = kend;
-          for (int oi = kp, ti = 0; oi < kend; oi++, ti++)
+          kpoint.begin = ki*_params.nbands;
+          kpoint.end = (ki+1)*_params.nbands;
+          for (unsigned int oi = kpoint.begin, ti = 0; oi < kpoint.end; oi++, ti++)
           {
             //if (_world.rank() == 0) print(oi, ti, kpt.begin, kpt.end);
             // normalize the orbitals
@@ -2267,11 +2265,12 @@ namespace madness
 
       // WSTHORNTON
       // multiply gamma-point WF by random phase
-      double_complex t1 = RandomValue<double_complex>();
-      double_complex t2 = exp(t1);
-      std::vector<double_complex> phase(_phisa.size(), t2);
-      scale(_world, _phisa, phase);
+//      double_complex t1 = RandomValue<double_complex>();
+//      double_complex t2 = exp(t1);
+//      std::vector<double_complex> phase(_phisa.size(), t2);
+//      scale(_world, _phisa, phase);
 
+      if (_world.rank() == 0) print("size of phisa is:  ", _phisa.size());
       // keep track of how many iterations have gone by without reprojecting
       int rit = 0;
       int rpthresh = 20;
@@ -2326,7 +2325,7 @@ namespace madness
         //END_TIMER(_world,"apply potential");
 
         // Do right hand side for all k-points
-        std::vector<double> alpha(_phisa.size(), 0.0);
+        std::vector<double> alpha(pfuncsa.size(), 0.0);
         do_rhs(_phisa, pfuncsa, _kpoints, alpha, _eigsa);
 
         // WSTHORNTON
@@ -2339,7 +2338,7 @@ namespace madness
           std::vector<double> k_alpha(alpha.begin() + kpoint.begin, alpha.begin() + kpoint.end);
           if (_world.rank() == 0)
             printf("alpha: (%6.4f,%6.4f,%6.4f)\n",kpoint.k[0],kpoint.k[1],kpoint.k[2]);
-          for (unsigned int ia = 0; ia < alpha.size(); ia++)
+          for (unsigned int ia = 0; ia < k_alpha.size(); ia++)
           {
             if (_world.rank() == 0) printf("%15.8f\n", k_alpha[ia]);
           }
