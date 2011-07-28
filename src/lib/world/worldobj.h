@@ -164,7 +164,7 @@ namespace madness {
     ///
     /// Note that world is exposed for convenience as a public data member.
     template <class Derived>
-    class WorldObject : public std::enable_shared_from_this<WorldObject<Derived> > {
+    class WorldObject {
         typedef WorldObject<Derived> objT;
         typedef std::list<detail::PendingMsg> pendingT;
     public:

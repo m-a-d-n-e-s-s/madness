@@ -1425,7 +1425,7 @@ namespace madness {
             WorldObject<implT>* ptr = NULL;
             ar & ptr;
             MADNESS_ASSERT(ptr);
-            p = std::static_pointer_cast<implT>(ptr->shared_from_this());
+            p.reset(static_cast<implT*>(ptr), & detail::no_delete<implT>);
         }
 
         /// Returns the associated unique id ... must be initialized
