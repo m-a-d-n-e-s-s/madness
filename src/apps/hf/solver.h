@@ -2374,6 +2374,31 @@ namespace madness
         {
           for (unsigned int i = 0; i < _eigsa.size(); i++) _eigsb[i] = _eigsa[i];
         }
+        
+        // WSTHORNTON (debug)
+        std::vector<functionT> pfuncsa2=
+                zero_functions<valueT,NDIM>(_world, _phisa.size());
+        std::vector<functionT> pfuncsb2=
+                zero_functions<valueT,NDIM>(_world, _phisa.size());
+
+        // Apply the potentials to the orbitals
+        if (_world.rank() == 0) _outputF << "applying potential2 ...\n" << endl;
+        apply_potential(pfuncsa2, pfuncsb2, tmpa, tmpb, _rhoa, _rhob, _rho);
+        for (unsigned int ik = 0; ik < _kpoints.size(); ik++)
+        {
+          KPoint kpoint = _kpoints[ik];
+          double k0 = kpoint.k[0];
+          double k1 = kpoint.k[1];
+          double k2 = kpoint.k[2];
+          if (_world.rank() == 0)
+            printf("(%6.5f, %6.5f, %6.5f)\n",k0,k1,k2);
+          std::vector<functionT> k_tmpa(tmpa.begin() + kpoint.begin, tmpa.begin() + kpoint.end);
+          std::vector<functionT> k_pfuncsa2(pfuncsa2.begin() + kpoint.begin, pfuncsa2.begin() + kpoint.end);
+          print_fock_matrix_eigs(k_tmpa, k_pfuncsa2, kpoint);
+        }
+        if (_world.rank() == 0) printf("\n\n\n\n");
+
+
 
         if (_world.rank() == 0) printf("\n\n\n\n");
 
@@ -2570,32 +2595,33 @@ namespace madness
         // Build fock matrix
         tensorT fock = build_fock_matrix(k_wf, k_vwf, kpoint);
         tensorT overlap = matrix_inner(_world, k_wf, k_wf, true);
-        // Do right hand side stuff for kpoint
-        bool isgamma = (is_equal(k0,0.0,1e-5) &&
-                        is_equal(k1,0.0,1e-5) &&
-                        is_equal(k2,0.0,1e-5));
-        if (_params.periodic && !isgamma) // Non-zero k-point
-        {
-          // Do the gradient term and k^2/2
-          vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
-          complex_derivative_3d Dx(_world,0);
-          complex_derivative_3d Dy(_world,1);
-          complex_derivative_3d Dz(_world,2);
-          for (unsigned int i = 0; i < k_wf.size(); i++)
-          {
-            // gradient
-            functionT dx_wf = Dx(k_wf[i]);
-            functionT dy_wf = Dy(k_wf[i]);
-            functionT dz_wf = Dz(k_wf[i]);
-            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
-                      std::complex<T>(0.0,k1)*dy_wf +
-                      std::complex<T>(0.0,k2)*dz_wf;
-            // k^/2
-            double ksq = k0*k0 + k1*k1 + k2*k2;
-            k_vwf[i] += 0.5 * ksq * k_wf[i];
-            k_vwf[i] -= d_wf[i];
-          }
-        }
+        
+//        // Do right hand side stuff for kpoint
+//        bool isgamma = (is_equal(k0,0.0,1e-5) &&
+//                        is_equal(k1,0.0,1e-5) &&
+//                        is_equal(k2,0.0,1e-5));
+//        if (_params.periodic && !isgamma) // Non-zero k-point
+//        {
+//          // Do the gradient term and k^2/2
+//          vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+//          complex_derivative_3d Dx(_world,0);
+//          complex_derivative_3d Dy(_world,1);
+//          complex_derivative_3d Dz(_world,2);
+//          for (unsigned int i = 0; i < k_wf.size(); i++)
+//          {
+//            // gradient
+//            functionT dx_wf = Dx(k_wf[i]);
+//            functionT dy_wf = Dy(k_wf[i]);
+//            functionT dz_wf = Dz(k_wf[i]);
+//            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
+//                      std::complex<T>(0.0,k1)*dy_wf +
+//                      std::complex<T>(0.0,k2)*dz_wf;
+//            // k^/2
+//            double ksq = k0*k0 + k1*k1 + k2*k2;
+//            k_vwf[i] += 0.5 * ksq * k_wf[i];
+//            k_vwf[i] -= d_wf[i];
+//          }
+//        }
 
         if (_params.canon) // canonical orbitals
         {
@@ -2684,6 +2710,7 @@ namespace madness
           // Debug output
           if (_params.print_matrices && _world.rank() == 0)
           {
+              printf("(%10.5f, %10.5f, %10.5f)\n", k0, k1, k2);
               print("Overlap matrix:");
               print(overlap);
 
@@ -2692,11 +2719,47 @@ namespace madness
 
               print("U matrix: (eigenvectors)");
               print(U);
+
+              print("Fock matrix eigenvalues:");
+              print(e); 
           }
 
+          // WSTHORNTON
+          //print_fock_matrix_eigs(k_wf, k_vwf, kpoint);
+
           // transform orbitals and V * (orbitals)
-          k_vwf = transform(_world, k_vwf, U, 1e-5 / std::min(30.0, double(k_wf.size())), false);
-          k_wf = transform(_world, k_wf, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(k_wf.size())), true);
+          //k_vwf = transform(_world, k_vwf, U, 1e-5 / std::min(30.0, double(k_wf.size())), false);
+          //k_wf = transform(_world, k_wf, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(k_wf.size())), true);
+
+          // WSTHORNTON
+          print_fock_matrix_eigs(k_wf, k_vwf, kpoint);
+
+          // Do right hand side stuff for kpoint
+          bool isgamma = (is_equal(k0,0.0,1e-5) &&
+                          is_equal(k1,0.0,1e-5) &&
+                          is_equal(k2,0.0,1e-5));
+          if (_params.periodic && !isgamma) // Non-zero k-point
+          {
+            // Do the gradient term and k^2/2
+            vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
+            complex_derivative_3d Dx(_world,0);
+            complex_derivative_3d Dy(_world,1);
+            complex_derivative_3d Dz(_world,2);
+            for (unsigned int i = 0; i < k_wf.size(); i++)
+            {
+              // gradient
+              functionT dx_wf = Dx(k_wf[i]);
+              functionT dy_wf = Dy(k_wf[i]);
+              functionT dz_wf = Dz(k_wf[i]);
+              d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
+                        std::complex<T>(0.0,k1)*dy_wf +
+                        std::complex<T>(0.0,k2)*dz_wf;
+              // k^/2
+              double ksq = k0*k0 + k1*k1 + k2*k2;
+              k_vwf[i] += 0.5 * ksq * k_wf[i];
+              k_vwf[i] -= d_wf[i];
+            }
+          }
 
           // WSTHORNTON (new code)
           unsigned int eimax = -1;
@@ -2720,24 +2783,6 @@ namespace madness
             alpha[ei] = e(fi,fi)-eshift;
             k_vwf[fi] += (alpha[ei]-eigs[ei])*k_wf[fi];
           }
-
-//          for (unsigned int ei = kpoint.begin, fi = 0; ei < kpoint.end;
-//            ei++, fi++)
-//          {
-//            // Save the latest eigenvalues
-//            eigs[ei] = real(e(fi,fi));
-////            valueT t1 = (_params.solver == 0) ? e(fi,fi) : fock(fi,fi);
-//            valueT t1 = e(fi,fi);
-//            if (real(t1) > -0.1)
-//            {
-//              alpha[ei] = -0.1;
-//              k_vwf[fi] += (alpha[ei]-real(t1))*k_wf[fi];
-//            }
-//            else
-//            {
-//              alpha[ei] = real(t1);
-//            }
-//          }
 
           if (_world.rank() == 0)
           {
