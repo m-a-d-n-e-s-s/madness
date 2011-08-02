@@ -586,6 +586,46 @@ namespace madness {
             return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7);
         }
 
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, arg3T arg3,
+				const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7);
+        }
+
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+				const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8);
+        }
+
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+				const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8, const arg9T& arg9) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9);
+        }
+
+        // Used to forward call to item member function
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T, typename arg10T>
+        MEMFUN_RETURNT(memfunT)
+        itemfun(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
+				const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8, const arg9T& arg9, const arg10T& arg10) {
+            accessor acc;
+            local.insert(acc, key);
+            return (acc->second.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,arg10);
+        }
+
         // First phase of redistributions changes pmap and makes list of stuff to move
         void redistribute_phase1(const std::shared_ptr< WorldDCPmapInterface<keyT> >& newpmap) {
             pmap = newpmap;
@@ -1151,6 +1191,14 @@ namespace madness {
             return p->task(owner(key), itemfun, key, memfun, attr);
         }
 
+        template <typename memfunT>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&) = &implT:: template itemfun<memfunT, keyT, containerT>;
+            return p->task(owner(key), itemfun, key, memfun, key, this, attr);
+        }
+
         /// Adds task "resultT memfun(arg1T)" in process owning item (non-blocking comm if remote)
 
         /// If item does not exist it is made with the default constructor.
@@ -1168,6 +1216,15 @@ namespace madness {
             typedef REMFUTURE(arg1T) a1T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const a1T&) = &implT:: template itemfun<memfunT,a1T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, attr);
+        }
+
+        template <typename memfunT, typename arg1T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, attr);
         }
 
         /// Adds task "resultT memfun(arg1T,arg2T)" in process owning item (non-blocking comm if remote)
@@ -1188,6 +1245,16 @@ namespace madness {
             typedef REMFUTURE(arg2T) a2T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&) = &implT:: template itemfun<memfunT,a1T,a2T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, attr);
+        }
+
+        template <typename memfunT, typename arg1T, typename arg2T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&, const a2T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T, a2T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, attr);
         }
 
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T)" in process owning item (non-blocking comm if remote)
@@ -1211,6 +1278,17 @@ namespace madness {
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, attr);
         }
 
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&, const a2T&, const a3T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T, a2T, a3T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, arg3, attr);
+        }
+
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T,arg4T)" in process owning item (non-blocking comm if remote)
 
         /// If item does not exist it is made with the default constructor.
@@ -1231,6 +1309,18 @@ namespace madness {
             typedef REMFUTURE(arg4T) a4T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&, const a4T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T,a4T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, attr);
+        }
+
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&,  const a1T&, const a2T&, const a3T&, const a4T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T, a2T, a3T, a4T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, arg3, arg4, attr);
         }
 
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T)" in process owning item (non-blocking comm if remote)
@@ -1256,6 +1346,32 @@ namespace madness {
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, arg5, attr);
         }
 
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            typedef REMFUTURE(arg5T) a5T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&, const a2T&, const a3T&, const a4T&, const a5T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T, a2T, a3T, a4T, a5T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, arg3, arg4, arg5, attr);
+        }
+
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update_ct(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            typedef REMFUTURE(arg5T) a5T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&, const a2T&, const a3T&, const a4T&, const a5T&) = &implT:: template itemfun<memfunT, keyT, containerT, arg1T, a2T, a3T, a4T, a5T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, arg3, arg4, arg5, attr);
+        }
+
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)" in process owning item (non-blocking comm if remote)
 
         /// If item does not exist it is made with the default constructor.
@@ -1278,6 +1394,20 @@ namespace madness {
             typedef REMFUTURE(arg6T) a6T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const a1T&, const a2T&, const a3T&, const a4T&, const a5T&, const a6T&) = &implT:: template itemfun<memfunT,a1T,a2T,a3T,a4T,a5T,a6T>;
             return p->task(owner(key), itemfun, key, memfun, arg1, arg2, arg3, arg4, arg5, arg6, attr);
+        }
+
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
+        Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
+        update(const keyT& key, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            typedef REMFUTURE(arg2T) a2T;
+            typedef REMFUTURE(arg3T) a3T;
+            typedef REMFUTURE(arg4T) a4T;
+            typedef REMFUTURE(arg5T) a5T;
+            typedef REMFUTURE(arg6T) a6T;
+            MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&, const a2T&, const a3T&, const a4T&, const a5T&, const a6T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T, a2T, a3T, a4T, a5T, a6T>;
+            return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, arg2, arg3, arg4, arg5, arg6, attr);
         }
 
         /// Adds task "resultT memfun(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)" in process owning item (non-blocking comm if remote)

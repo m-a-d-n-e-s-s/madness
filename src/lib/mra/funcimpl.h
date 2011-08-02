@@ -39,6 +39,7 @@
 /// \brief Provides FunctionCommonData, FunctionImpl and FunctionFactory
 
 #include <iostream>
+#include <map>
 #include <world/world.h>
 #include <world/print.h>
 #include <world/scopedptr.h>
@@ -47,6 +48,8 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 
+#include<math.h>
+
 namespace madness {
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
@@ -54,9 +57,15 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class FunctionImpl;
 
+    template <typename T, std::size_t NDIM>
+    class TensorNode;
+
     template<typename T, std::size_t NDIM>
     class Function;
-
+    /*
+    template<typename T, std::size_t NDIM>
+    class FunctionNode;
+    */
     template<int D>
     class LoadBalImpl;
 
@@ -365,6 +374,9 @@ namespace madness {
 
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
+        typedef Key<NDIM> keyT;
+        typedef Tensor<T> tensorT;
+        typedef WorldContainer<keyT, TensorNode<T,NDIM>> containerT;
         /// Default constructor makes node without coeff or children
         FunctionNode() :
                 _coeffs(), _norm_tree(1e300), _has_children(false) {
@@ -508,6 +520,85 @@ namespace madness {
             return _norm_tree;
         }
 
+        tensorT unfilter(const tensorT& s, const FunctionCommonData<T,NDIM>& cdata) const {
+            tensorT r(cdata.v2k,false);
+            tensorT w(cdata.v2k,false);
+            return fast_transform(s,cdata.hg,r,w);
+            //return transform(s, cdata.hg);
+        }
+
+        tensorT filter(const tensorT& s, const FunctionCommonData<T,NDIM>& cdata) const {
+            tensorT r(cdata.v2k,false);
+            tensorT w(cdata.v2k,false);
+            return fast_transform(s,cdata.hgT,r,w);
+            //return transform(s,cdata.hgT);
+        }
+
+        std::vector<Slice> child_patch(const keyT& child, FunctionCommonData<T,NDIM> cdata) const {
+            std::vector<Slice> s(NDIM);
+            const Vector<Translation,NDIM>& l = child.translation();
+            for (std::size_t i=0; i<NDIM; ++i)
+                s[i] = cdata.s[l[i]&1]; // Lowest bit of translation
+            return s;
+        }
+
+        Void reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k);
+
+
+        Void top_down(const keyT& key, dcT dc, containerT ct, bool nonstandard, bool keepleaves, const keyT& parent, int k){
+          keyT& parent_t = const_cast<keyT&>(parent);
+          ct.update(key, &TensorNode<T,NDIM>::compress_dc, dc, parent_t, nonstandard, k);
+
+          if (this->has_children()) {
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                dc.update(kit.key(), &FunctionNode<T,NDIM>::top_down, ct, nonstandard, keepleaves, key, k);
+            }
+          }
+          else {
+            tensorT result(this->coeff());
+            if (!keepleaves) this->clear_coeff();
+            //keyT& key_t = const_cast<keyT&>(key);
+            ct.update(parent_t, &TensorNode<T,NDIM>::update_map, dc, key, result, nonstandard, k);
+          }
+
+          return None;
+        }
+
+        Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
+            // Copy child scaling coeffs into contiguous block
+            FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
+            std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
+            tensorT d(cdata.v2k,false);
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                d(child_patch(kit.key(),cdata)) = tk[kit.key()];
+            }
+            d = filter(d,cdata);
+
+            if (this->has_coeff()) {
+                const tensorT& c = this->coeff();
+                if (c.dim(0) == k) {
+                    d(cdata.s0) += c;
+                }
+                else {
+                    d += c;
+                }
+            }
+
+            tensorT s = copy(d(cdata.s0));
+
+            if (key.level()> 0 && !nonstandard)
+                d(cdata.s0) = 0.0;
+
+            this->set_coeff(d); 
+
+            if (key.level() > 0){
+              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+            }
+
+            return None;
+        }
+
         /// General bi-linear operation --- this = this*alpha + other*beta
 
         /// This/other may not have coefficients.  Has_children will be
@@ -566,6 +657,78 @@ namespace madness {
     }
 
 
+    template <typename T, std::size_t NDIM>
+    class TensorNode{
+        public:
+          typedef Key<NDIM> keyT;
+          typedef Tensor<T> tensorT;
+          typedef FunctionNode<T,NDIM> nodeT; ///< Type of node
+          typedef WorldContainer<keyT, TensorNode> containerT;
+          typedef WorldContainer<keyT, nodeT> dcT;
+          typedef std::map<keyT, tensorT> mapT;
+ 
+          std::map<keyT, tensorT> tensor_keys;
+          std::size_t max;
+          bool set;
+          keyT parent;
+
+          Spinlock ready;
+
+          TensorNode() : set(false){
+            max = (std::size_t)pow(2, NDIM);
+          }
+
+          TensorNode(const keyT& p) : parent(p), set(false){
+            max = (std::size_t)pow(2, NDIM);
+          }
+
+          TensorNode(const TensorNode<T, NDIM>& other) {
+            *this = other;
+          }
+
+          TensorNode<T, NDIM>&
+          operator=(const TensorNode<T, NDIM>& other) {
+            if (this != &other) {
+              this->parent = other.parent;
+              this->set = other.set;
+              this->max = (std::size_t)pow(2, NDIM);
+              typename mapT::const_iterator it;
+              for (it = other.tensor_keys.begin(); it != other.tensor_keys.end(); it++){
+                tensor_keys.insert(std::pair<keyT, tensorT>(it->first,it->second));
+              }
+            }
+            return *this;
+          }
+
+          Void compress_dc(const keyT& key, containerT ct, dcT dc, const keyT& p, bool nonstandard, int k){
+            ready.lock();
+              this->parent = p;
+              this->set = true;
+              if (tensor_keys.size() == max){
+                dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
+              }
+            ready.unlock();
+
+            return None;
+          }
+
+          Void update_map(const keyT& key, containerT ct, dcT dc, keyT childKey, tensorT t, bool nonstandard, int k){
+            
+            ready.lock();
+            this->tensor_keys.insert(std::pair<keyT, tensorT>(childKey,t));
+            if (tensor_keys.size() == max && this->set){
+              dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
+            }
+            ready.unlock();
+
+            return None;
+          }
+
+          template <typename Archive>
+          void serialize(Archive& ar) {
+            ar & tensor_keys & parent & max;
+          }
+    };
     /// FunctionImpl holds all Function state to facilitate shallow copy semantics
 
     /// Since Function assignment and copy constructors are shallow it
@@ -2192,22 +2355,74 @@ namespace madness {
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
+            //world.gop.fence();
             nonstandard = compressed = false;
-            if (world.rank() == coeffs.owner(cdata.key0))
-                world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
+            if (world.rank() == coeffs.owner(cdata.key0)){
+                //world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
+                //world.taskq.add(*this, &implT::reconstruct_update, cdata.key0,tensorT());
+                print("rec_dc");
+                coeffs.update(cdata.key0, &FunctionNode<T,NDIM>::reconstruct_dc_task, tensorT(), cdata.k);
+            }
+                //reconstruct_update(cdata.key0,tensorT());
             if (fence)
                 world.gop.fence();
         }
 
         // Invoked on node where key is local
         Void reconstruct_op(const keyT& key, const tensorT& s);
+        Void reconstruct_update(const keyT& key, const tensorT& s);
+        Void reconstruct_access_data(const keyT& key, const tensorT& s);
+        Void reconstruct_prepare_work(const keyT& key, const tensorT& s);
+	
+        std::pair<nodeT, bool> reconstruct_do_work(const keyT& key, const typename dcT::iterator it, const tensorT& s){
+
+            nodeT node;
+
+	    if (it == coeffs.end()) {
+	        node = nodeT(tensorT(),false);
+            }
+            else node = it->second;
+
+	    // The integral operator will correctly connect interior nodes
+	    // to children but may leave interior nodes without coefficients
+	    // ... but they still need to sum down so just give them zeros
+	    if (node.has_children() && !node.has_coeff()) {
+		node.set_coeff(tensorT(cdata.v2k));
+	    }
+
+	    if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+		tensorT d = node.coeff();
+		if (d.size() == 0) d = tensorT(cdata.v2k);
+		if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+		d = unfilter(d);
+		node.clear_coeff();
+		node.set_has_children(true);
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+		    const keyT& child = kit.key();
+		    tensorT ss = copy(d(child_patch(child)));
+		    reconstruct_update(child, ss);
+		}
+	    }
+	    else {
+		if (key.level()) node.set_coeff(copy(s));
+		else node.set_coeff(s);
+	    }
+	    return std::pair<nodeT, bool>(node, true);
+	}
+
+        typedef WorldContainer<keyT, TensorNode<T, NDIM>> tensorContainerT;
 
         void compress(bool nonstandard, bool keepleaves, bool fence) {
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
-            if (world.rank() == coeffs.owner(cdata.key0))
-                compress_spawn(cdata.key0, nonstandard, keepleaves);
+            tensorContainerT tensorTree(world);
+            world.gop.fence();
+            if (world.rank() == coeffs.owner(cdata.key0)){
+                //compress_spawn(cdata.key0, nonstandard, keepleaves);
+                print("com_dc");
+                coeffs.update(cdata.key0, &nodeT::top_down, tensorTree, nonstandard, keepleaves, cdata.key0, cdata.k);
+            }
             if (fence)
                 world.gop.fence();
         }
