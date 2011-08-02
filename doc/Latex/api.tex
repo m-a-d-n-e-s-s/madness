@@ -1,0 +1,1261 @@
+% This file was converted to LaTeX by Writer2LaTeX ver. 1.1.7
+% see http://writer2latex.sourceforge.net for more info
+\documentclass[letterpaper]{article}
+\usepackage[ascii]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb,amsfonts,textcomp}
+\usepackage{color}
+\usepackage{array}
+\usepackage{hhline}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+% Outline numbering
+\setcounter{secnumdepth}{0}
+\renewcommand\thesubsection{\arabic{subsection}}
+\renewcommand\thesubsubsection{\arabic{subsection}.\arabic{subsubsection}}
+\renewcommand\theparagraph{\arabic{subsection}.\arabic{subsubsection}.\arabic{paragraph}}
+% List styles
+\newcommand\liststyleLi{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLiii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLiv{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLv{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLvi{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLvii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLviii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLix{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+% Page layout (geometry)
+\setlength\voffset{-1in}
+\setlength\hoffset{-1in}
+\setlength\topmargin{0.7874in}
+\setlength\oddsidemargin{0.7874in}
+\setlength\textheight{9.062033in}
+\setlength\textwidth{6.9251995in}
+\setlength\footskip{26.148pt}
+\setlength\headheight{0cm}
+\setlength\headsep{0cm}
+% Footnote rule
+\setlength{\skip\footins}{0.0469in}
+\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+% Pages styles
+\makeatletter
+\newcommand\ps@Standard{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{\hfill \thepage{}}
+  \renewcommand\@evenfoot{\@oddfoot}
+  \renewcommand\thepage{\arabic{page}}
+}
+\makeatother
+\pagestyle{Standard}
+\title{}
+\author{Robert Harrison}
+\date{2009-12-14}
+\begin{document}
+\section*{Summary of the MADNESS application programming interface}
+THIS IS SADLY OUT OF DATE ... probably best to ignore this document until it is updated.
+
+\subsection{Low-level sequential runtime}
+\subsubsection{Shared pointers (sharedptr.h)}
+Shared pointers in the spirit of Boost and the new C++ standard but with thread-safe reference counting and additional
+hooks to facilitate remote access, stealing, etc. Probably needs redesigning to sit on the new standard as appropriate,
+but basic functionality will remain the same.
+
+Basic rule of thumb is when you allocate memory to immediately wrap the pointer in a \texttt{SharedPointer} (or
+\texttt{SharedArray}) so that you do not have to remember to delete it and so you can freely give others the pointer
+without anyone worrying about premature or double freeing of the data. Fast, thread-safe reference counting is
+performed using the atomic operations.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ template {\textless}typename T{\textgreater} class SharedPtr \{}
+
+{\ttfamily
+\ \ \ \ /// Default constructor makes an null pointer}
+
+{\ttfamily
+\ \ \ \ SharedPtr(); }
+
+{\ttfamily
+\ \ \ \ /// Wrap a pointer with optional custom deleter}
+
+{\ttfamily
+\ \ \ \ explicit SharedPtr(T* ptr, void (*deleter)(T*)=0) ;}
+
+{\ttfamily
+\ \ \ \ /// Wrap a pointer with optional custom deleter \& ownership}
+
+{\ttfamily
+\ \ \ \ explicit SharedPtr(T* ptr, bool own, void (*deleter)(T*)=0);}
+
+{\ttfamily
+\ \ \ \ /// Copy constructor generates new reference to same pointer}
+
+{\ttfamily
+\ \ \ \ SharedPtr(const SharedPtr{\textless}T{\textgreater}\& s) ;}
+
+{\ttfamily
+\ \ \ \ /// Copy constructor with static type conversion}
+
+{\ttfamily
+\ \ \ \ template {\textless}typename Q{\textgreater} SharedPtr(const SharedPtr{\textless}Q{\textgreater}\& s);}
+
+{\ttfamily
+\ \ \ \ /// Destructor decrements ref. count freeing data if zero}
+
+{\ttfamily
+\ \ \ \ virtual \~{}SharedPtr();}
+
+{\ttfamily
+\ \ \ \ /// Assignment}
+
+{\ttfamily
+\ \ \ \ SharedPtr{\textless}T{\textgreater}\& operator=(const SharedPtr{\textless}T{\textgreater}\& s);}
+
+{\ttfamily
+\ \ \ \ /// Returns number of references}
+
+{\ttfamily
+\ \ \ \ int use\_count() const;}
+
+{\ttfamily
+\ \ \ \ /// Returns the value of the pointer}
+
+{\ttfamily
+\ \ \ \ T* get() const;}
+
+{\ttfamily
+\ \ \ \ /// Returns true if the SharedPtr owns the pointer}
+
+{\ttfamily
+\ \ \ \ bool owned() const; \ }
+
+{\ttfamily
+\ \ \ \ /// Cast of SharedPtr{\textless}T{\textgreater} to T* returns the value of the pointer}
+
+{\ttfamily
+\ \ \ \ operator T*() const;}
+
+{\ttfamily
+\ \ \  \ \ /// Return pointer+offset}
+
+{\ttfamily
+\ \ \ \ T* operator+(long offset) const;}
+
+{\ttfamily
+\ \ \ \ /// Return pointer-offset}
+
+{\ttfamily
+\ \ \ \ T* operator-(long offset) const;}
+
+{\ttfamily
+\ \ \ \ \ /// Dereferencing returns a reference to pointed value}
+
+{\ttfamily
+\ \ \ \ T\& operator*() const;}
+
+{\ttfamily
+\ \ \ \ \ \ /// Member access via pointer works as expected}
+
+{\ttfamily
+\ \ \ \ T* operator-{\textgreater}() const;}
+
+{\ttfamily
+\ \ \ \ /// Array indexing returns reference to indexed value}
+
+{\ttfamily
+\ \ \ \ T\& operator[](long index) const;}
+
+{\ttfamily
+\ \ \ \ /// Boolean value (test for null pointer)}
+
+{\ttfamily
+\ \ \ \ operator bool() const;}
+
+{\ttfamily
+\ \ \ \ /// Are two pointers equal?}
+
+{\ttfamily
+\ \ \ \ bool operator==(const SharedPtr{\textless}T{\textgreater}\& other) const;}
+
+{\ttfamily
+\ \ \ \ /// Are two pointers not equal?}
+
+{\ttfamily
+\ \ \ \ bool operator!=(const SharedPtr{\textless}T{\textgreater}\& other) const;}
+
+{\ttfamily
+\ \ \ \ /// Steal an un-owned reference to the pointer }
+
+{\ttfamily
+\ \ \ \ SharedPtr{\textless}T{\textgreater} steal() const;}
+
+{\ttfamily
+\ \ \};}
+
+{\ttfamily
+\ \ \ /// A SharedArray uses delete [] is used to free it}
+
+{\ttfamily
+\ \ \ template {\textless}class T{\textgreater} \ class SharedArray : public SharedPtr{\textless}T{\textgreater} \{}
+
+{\ttfamily
+\ \ \ public:}
+
+{\ttfamily
+\ \ \ \ SharedArray(T* ptr = 0);}
+
+{\ttfamily
+\ \ \ \ \ \ SharedArray(const SharedArray{\textless}T{\textgreater}\& s);}
+
+{\ttfamily
+\ \ \ \ \ /// Assignment}
+
+{\ttfamily
+\ \ \ \ SharedArray\& operator=(const SharedArray\& s);}
+
+{\ttfamily
+\ \ \};}
+
+{\ttfamily
+\}}
+
+\subsubsection{Serialization (archive.h, bufar.h, mpiar.h, binfsar.h, vecar.h, parar.h)}
+Central to MADNESS's ability to move data and computation freely around the machine is the ability to serialize all data
+types with full type safety. For fundamental data types and standard containers this is already provided in
+\texttt{archive.h} in which it is also described how to accomplish this for user types. See there for more info.
+Various archives (serialized streams) are provided including MPI p2p messaging, binary/text sequential files, vectors,
+in-memory buffers (special) and parallel archives.
+
+Issues
+
+\liststyleLi
+\begin{itemize}
+\item mpiar.h needs to be made independent of world so that it is more broadly useful and this discussion needs moving
+to the low-level parallel runtime level
+\item discussion of parar.h should be up at the world level
+\item discussion of serialization of World and WorldObjects into bufar should be at the world level
+\item need to implement type-safe serialization of ConcurrentHashMap to archive.h
+\item need to discuss special role and overloading of bufar (basically user should use vecar not bufar which is reserved
+for internal system use).
+\item thread safety of archives (there is none!)
+\end{itemize}
+\subsubsection{Exceptions and assertions (worldexc.h)}
+There is a poorly realized goal to have all exceptions generated by MADNESS be derived from \texttt{MadnessException}.
+The \texttt{MADNESS\_EXCEPTION} macro wraps throwing an exception and stores the line number, function name, and source
+file name in the object to aid in debugging. The \texttt{MADNESS\_ASSERTION} macro also captures the assertion code as
+a string.
+
+\subsubsection{Cpu time, wall time, processor frequency, cycle count (worldtime.h)}
+Fast and accurate timers. Still need to understand multi-threaded and multi-core behavior.
+
+\subsubsection{Profiling (worldprofile.h)}
+MADNESS is good at breaking many profilers due to extensive use of C++ templates, inlining, 1-sided communication, etc.
+For this reason we have a simple but lightweight profiling class derived from the open source SHINY project (see
+sourceforge).
+
+Issues:
+
+\liststyleLii
+\begin{itemize}
+\item Document the 3 or 4 useful macros
+\item Describe briefly how it works
+\item Make the darn thing thread safe
+\end{itemize}
+\subsubsection{Pseudo-random number generation (misc/ran.h)}
+A thread-safe pseudo-random number generator with single number and vector interfaces. It uses a lagged, Fibonacci
+sequence with parameters described in the header file. The quality should be very high, though there are even better
+generators now available and please note that although the implementation has been tested in various ways including
+using Marsaglia's die-hard test the generator has not yet been employed in applications especially sensitive to the
+quality of the numbers. You can have multiple independent instantiations of \texttt{Random} to obtain multiple
+independent streams. The \texttt{RandomValue} and \texttt{RandomVector} functions all map to one shared default
+instance.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ struct RandomState; /// Used to set/get state of the generator}
+
+{\ttfamily
+\ \ class Random \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ \ Random(unsigned int seed = 5461);}
+
+{\ttfamily
+\ \ \ \ \ \ virtual \~{}Random();}
+
+{\ttfamily
+\ \ \ \ \ double get() ; // Returns a value uniform in [0,1)}
+
+{\ttfamily
+\ \ \ \ /// Returns a vector uniform in [0,1)}
+
+{\ttfamily
+\ \ \ \ \ \ template {\textless}typename T{\textgreater} \ void getv(int n, T * restrict v); }
+
+{\ttfamily
+\ \ \ \ /// Returns vector of random bytes in [0,256)}
+
+{\ttfamily
+\ \ \ \ \ \ void getbytes(int n, unsigned char * restrict v); }
+
+{\ttfamily
+\ \ \ \ \ \ RandomState getstate() const; \ /// Returns state of generator}
+
+{\ttfamily
+\ \ \ \ \ \ void setstate(const RandomState \&s); /// Restores state}
+
+{\ttfamily
+\ \ \ \};}
+
+{\ttfamily
+\ \ /// Random value generator with specializations for float,}
+
+{\ttfamily
+\ \ /// double, complex{\textless}float{\textgreater}, complex{\textless}double{\textgreater}, int and long}
+
+{\ttfamily
+\ \ \ template {\textless}class T{\textgreater} \ \ T RandomValue();}
+
+{\ttfamily
+\ \ /// Random vector generator with specializations for float,}
+
+{\ttfamily
+\ \ /// double complex{\textless}float{\textgreater}, complex{\textless}double{\textgreater}, int and long}
+
+{\ttfamily
+\ \ \ template {\textless}class T{\textgreater} void RandomVector(int n, T* t);}
+
+{\ttfamily
+\}}
+
+\subsubsection{Miscellaneous (misc.h)}
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ unsigned long checksum\_file(const char* filename);}
+
+{\ttfamily
+\ \ std::istream\& position\_stream(std::istream\& f, }
+
+{\ttfamily
+\ \ \ \ \ \ \ \ const std::string\& tag);}
+
+{\ttfamily
+\ \ std::string lowercase(const std::string\& s);}
+
+{\ttfamily
+\}}
+
+\subsection{Low level parallel runtime}
+This provides remote method invocation, threads, mutex, thread-safe containers, and the thread pool. At this level there
+is no knowledge of the World nor perhaps even of MPI. User applications will almost certainly never need these
+interfaces, unless extending low-level MADNESS functionality. The interfaces relating to threading will evolve to be
+compatible with the Intel TBB (we are already adopting some of their design elements).
+
+\subsubsection{SafeMPI -- an optionally serialized MPI wrapper (safempi.h)}
+All MPI communication must go through this interface. Wraps an MPI communicator and provides all necessary MPI
+functionality (please extend as necessary) plus a few small extensions. If the configure script determines that the
+local MPI implementation does not safely support entry by multiple threads, all calls into all instances of
+\texttt{SafeMPI} are protected by a single mutex to ensure that only one thread is ever inside the MPI library. At some
+point it may be necessary to implement funneling of all calls to one thread.
+
+{\ttfamily
+namespace SafeMPI \{}
+
+{\ttfamily
+\ \ class Intracomm \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ ... standard MPI::Intracomm methods ...}
+
+{\ttfamily
+\ \ \ \ ... extensions to simplify p2p and tree-based communication}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class Request \{}
+
+{\ttfamily
+\ \ \ \ public:}
+
+{\ttfamily
+\ \ ... standard MPI::Request methods ...}
+
+{\ttfamily
+\ \ \};}
+
+{\ttfamily
+\}}
+
+Rather than repeat the entire MPI interface we refer the user to the MPI manual or \texttt{safempi.h}. 
+
+\subsubsection{RMI -- remote method invocation (worldrmi.h)}
+A single thread serves incoming active messages for all activities or Worlds on an SMP node. To be consistent with what
+they actually do, this class probably needs to be renamed to active message (\texttt{AM}) and \texttt{WorldAmInterface}
+renamed to \texttt{WorldRMI}. The multi-threaded processes are identified using their rank in
+\texttt{MPI::COMM\_WORLD}. You are responsible for translating ranks from within your communicator to that within
+\texttt{MPI::COMM\_WORLD} by getting the groups from both communicators using \texttt{Comm\_group} and then creating a
+map for the ranks using \texttt{Group\_translate\_ranks}. Instantiation of the singleton is not thread safe and must be
+done after initializing MPI but before it might be invoked by multiple threads. Before calling \texttt{MPI::Finalize}
+you must terminate the server so that it can clean up and terminate the server thread. Failure to do so will cause
+occasional SEGV upon program exit.
+
+Messages are a contiguous buffer of which the first \texttt{RMI::HEADER\_LEN} bytes are reserved for internal use. Upon
+receipt, the user payload (at \texttt{buf+HEADER\_LEN}) is guaranteed to be aligned at least on a 16-byte boundary.
+When sending and receiving a message the length parameter (\texttt{nbyte}) specifies the full length of the buffer
+including the header (i.e., the user data size is \texttt{nbyte-HEADER\_LEN}). The \texttt{RMI::Request} data structure
+is copyable and provides at least the \texttt{Test} and \texttt{Testsome} interfaces of MPI, but note that MPI may not
+be the underlying transport mechanism (on the Cray-XT we will soon be using a native Portals implementation).
+
+Unordered messages are processed in the order of receipt that due to multiple buffers and network routes may not
+correspond to the sending order. Ordered messages are processed in the order sent so that remote operations appear
+sequentially consistent to a single remote thread.
+
+Handlers should be lightweight operations and in particular should not block and to be fully safe should not send
+messages (though this does work in the current MPI implementation). Anything expensive should be put as a task into the
+thread pool (below). Note that there is just one server thread which is useful for simplifying maintenance of remote
+data structures, but means that if you abuse it communication can back up.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ typedef void (*rmi\_handlerT)(void* buf, size\_t nbyte);}
+
+{\ttfamily
+\ \ class RMI \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ \ \ typedef Request; // Type of structure returned by isend}
+
+{\ttfamily
+\ \ \ \ \ \ static const size\_t HEADER\_LEN;}
+
+{\ttfamily
+\ \ \ \ \ \ static const size\_t MAX\_MSG\_LEN;}
+
+{\ttfamily
+\ \ \ \ \ \ static const unsigned int ATTR\_UNORDERED;}
+
+{\ttfamily
+\ \ \ \ \ \ \ static const unsigned int ATTR\_ORDERED;}
+
+{\ttfamily
+\ \ \ \ \ \ static void begin(); // Instantiate the server}
+
+{\ttfamily
+\ \ \ \ \ \ static void end(); // Terminate the server}
+
+{\ttfamily
+\ \ \ \ \ \ static Request isend(const void* buf, size\_t nbyte, \newline
+\ \ \ \ \ \ \ \ ProcessID dest, rmi\_handlerT func, \newline
+\ \ \ \ \ \ \ \ unsigned int attr=ATTR\_UNORDERED); // Async. send}
+
+{\ttfamily
+\ \ \};}
+
+{\ttfamily
+\}}
+
+\subsubsection{Atomic operations on integers (madatomic.h)}
+This minimal API is likely to change to become more compatible with Intel TBB and also as we port to more machines that
+might force changes. Presently all functionality is provided via macros (since the original code is old and came from
+C). The argument \texttt{ptr} refers to a pointer to a \texttt{MADATOMIC\_INT}. All operations on an atomic integer
+must be through the API to ensure appropriate fencing of both memory and instructions. 
+
+{\ttfamily
+MADATOMIC\_FENCE // Presently null and unused}
+
+{\ttfamily
+MADATOMIC\_INT // Type of an atomic integer (platform dependent).}
+
+{\ttfamily
+MADATOMIC\_INT\_GET(ptr) // Read value of atomic integer}
+
+{\ttfamily
+MADATOMIC\_INT\_SET(ptr,value) // Write value to atomic integer}
+
+{\ttfamily
+MADATOMIC\_INT\_INC(ptr) // Atomic increment of atomic integer}
+
+{\ttfamily
+MADATOMIC\_INT\_DEC\_AND\_TEST(ptr) // Decrement and test atomic integer}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ \  \ \ // Returns true if result is zero}
+
+{\ttfamily
+MADATOMIC\_INITIALIZE(val) // For static initialization}
+
+
+\bigskip
+
+Static initialization of an integer (i.e., where it is declared) must be performed as follows
+
+{\ttfamily
+MADATOMIC\_INT atom = MADATOMIC\_INITIALIZE(value)}
+
+
+\bigskip
+
+\subsubsection{Mutex, MutexReaderWriter, ScopedMutex, MutexWaiter (worldthread.h)}
+Simple locking mechanisms based upon either atomic memory operations or Pthread mutexes. The locks are spin-locks with a
+rudimentary back-off algorithm implemented by \texttt{MutexWaiter}. Over subscribing processors might cause performance
+problems without care. \texttt{Mutex} provides a simple lock. \texttt{MutexReaderWriter} provides a non-exclusive read
+lock and an exclusive write lock. \texttt{ScopedMutex} wraps an existing \texttt{Mutex} to protect an entire scope
+following the rules of the lifetime of C++ objects. Mutexes of any kind cannot be copied or assigned. The locks are not
+recursive -- i.e., if a thread has a lock and attempts to lock it again the results are undefined (probably deadlock).
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class Mutex \{}
+
+{\ttfamily
+\ \ public:\newline
+\ \ \ \ Mutex();}
+
+{\ttfamily
+\ \ \ \ void lock() const;}
+
+{\ttfamily
+\ \ \ \ void unlock() const;}
+
+{\ttfamily
+\ \ \ \ bool try\_lock() const; // Returns true if acquired}
+
+{\ttfamily
+\ \ \ \ virtual \~{}Mutex();}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class MutexReaderWriter \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ \ static const int NOLOCK;}
+
+{\ttfamily
+\ \ \ \ static const int READLOCK;}
+
+{\ttfamily
+\ \ \ \ static const int WRITELOCK;}
+
+{\ttfamily
+\ \ \ \ bool try\_read\_lock() const;}
+
+{\ttfamily
+\ \ \ \ bool try\_write\_lock() const;}
+
+{\ttfamily
+\ \ \ \ bool try\_lock(int lockmode) const;}
+
+{\ttfamily
+\ \ \ \ bool try\_convert\_read\_lock\_to\_write\_lock() const;}
+
+{\ttfamily
+\ \ \ \ void read\_lock() const;}
+
+{\ttfamily
+\ \ \ \ void write\_lock() const;}
+
+{\ttfamily
+\ \ \ \ void lock(int lockmode) const;}
+
+{\ttfamily
+\ \ \ \ void read\_unlock() const;}
+
+{\ttfamily
+\ \ \ \ void write\_unlock() const;}
+
+{\ttfamily
+\ \ \ \ void unlock(int lockmode) const;}
+
+{\ttfamily
+\ \ \ \ void convert\_read\_lock\_to\_write\_lock() const;}
+
+{\ttfamily
+\ \ \ \ void convert\_write\_lock\_to\_read\_lock() const;}
+
+{\ttfamily
+\ \ \ \ virtual \~{}MutexReaderWriter();}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class ScopedMutex \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ ScopedMutex(Mutex\&); // Constructor acquires lock}
+
+{\ttfamily
+\ \ \ \ ScopedMutex(Mutex*); // Constructor acquires lock\newline
+\ \ \ \ virtual \~{}ScopedMutex(); // Destructor releases lock}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ /// Attempt to acquire two locks without blocking while \newline
+\ \ /// holding either one}
+
+{\ttfamily
+\ \ bool try\_two\_locks(const Mutex\& m1, const Mutex\& m2);}
+
+{\ttfamily
+\}}
+
+
+\bigskip
+
+\subsubsection{Threads (worldthread.h)}
+This provides simple wrappers around POSIX standard Pthread calls to simplify creation of detached system scheduled
+threads. It is probable that this interface will change either to match Intel TBB or the new C++ standard. The first
+wrapper provides a base class that enables object instances to be associated with threads. The second is probably not
+worth discussing. The derived class must call \texttt{ThreadBase::start()} to commence the thread which executes the
+virtual run method. To terminate the thread the run method can return or the thread can invoke
+\texttt{ThreadBase::exit()}. Another thread can cancel the thread by using \texttt{ThreadBase::cancel()};
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class ThreadBase \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ ThreadBase(); // Must invoke start() to start the thread.}
+
+{\ttfamily
+\ \ \ \ virtual void run() = 0; // Implement this to do work}
+
+{\ttfamily
+\ \ \ \ void start(); // Start the thread running}
+
+{\ttfamily
+\ \ \ \ static void exit(); // Call for premature exit from run()}
+
+{\ttfamily
+\ \ \ \ const pthread\_t\& get\_id(); // Get pthread id (if running)}
+
+{\ttfamily
+\ \ \ \ int get\_pool\_thread\_index() const; // Index in ThreadPool or -1}
+
+{\ttfamily
+\ \ \ \ int cancel() const; // Cancel this thread}
+
+{\ttfamily
+\ \ \ \ virtual \~{}ThreadBase();}
+
+{\ttfamily
+\ \ \ \ \};}
+
+{\ttfamily
+\}}
+
+
+\bigskip
+
+Mmm ... I see that the ThreadBase destructor does not cancel the thread if it is still running ... probably should? Seem
+to recall an issue here but it seems bad to delete the object and leave the thread running. 
+
+\subsubsection{Tasks, task attributes and the thread pool (worldthread.h)}
+The primary (only?) source of SMP concurrency inside MADNESS comes from inserting tasks into the task queue for
+execution by the pool of threads. The class is a singleton. The one pool of threads serves all activities and worlds
+within the SMP node so as to avoid oversubscribing the processors and to facilitate (eventually) switching between
+cache-aware and cache-oblivious computation. Presently we just have cache oblivious. A task is derived from
+\texttt{PoolTaskInterface} and is submitted to the queue by invoking \texttt{ThreadPool::add()} which takes ownership
+of the task and deletes it upon completion. Tasks have attributes that presently can specify high priority (task is
+inserted at the front of the queue instead of the rear), generation of additional parallelism, and stealable. The last
+two are presently ignored. As for the RMI class, instantiate the singleton with \texttt{ThreadPool::begin()} before
+adding tasks to avoid a race condition. The number of threads may be specified as an argument or via the environment
+variable \texttt{POOL\_NTHREAD} (probably to be renamed).
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class TaskAttributes \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ static const unsigned long GENERATOR;}
+
+{\ttfamily
+\ \ \ \ static const unsigned long STEALABLE;}
+
+{\ttfamily
+\ \ \ \ static const unsigned long HIGHPRIORITY;}
+
+{\ttfamily
+\ \ \ \ TaskAttributes(unsigned long flags = 0);}
+
+{\ttfamily
+\ \ \ \ bool is\_generator() const;}
+
+{\ttfamily
+\ \ \ \ bool is\_stealable() const;}
+
+{\ttfamily
+\ \ \ \ bool is\_high\_priority() const;}
+
+{\ttfamily
+\ \ \ \ void set\_generator (bool generator\_hint);}
+
+{\ttfamily
+\ \ \ \ void set\_stealable (bool stealable);}
+
+{\ttfamily
+\ \ \ \ void set\_highpriority (bool hipri);}
+
+{\ttfamily
+\ \ \ \ static TaskAttributes generator();}
+
+{\ttfamily
+\ \ \ \ static TaskAttributes hipri();}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class PoolTaskInterface : public TaskAttributes \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ PoolTaskInterface();}
+
+{\ttfamily
+\ \ \ \ explicit PoolTaskInterface(const TaskAttributes\& attr);}
+
+{\ttfamily
+\ \ \ \ virtual void run() = 0; // Implement to do work}
+
+{\ttfamily
+\ \ \ \ virtual \~{}PoolTaskInterface() \{\}}
+
+{\ttfamily
+\ \ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class ThreadPool \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ static void begin(nthread=0); // Instantiate the pool}
+
+{\ttfamily
+\ \ \ \ static void add(PoolTaskInterface*); // Add task to queue}
+
+{\ttfamily
+\ \ \ \ static void add(const std::vector{\textless}PoolTaskInterface*{\textgreater}\&);}
+
+{\ttfamily
+\ \ \ \ \~{}ThreadPool() \{\};}
+
+{\ttfamily
+\ \ \ \ \};}
+
+{\ttfamily
+\}}
+
+\subsubsection{Callbacks and tracking dependencies (worlddep.h)}
+MADNESS's internal execution is at least in part software data flow with dependencies between tasks being managed by
+counting dependencies. Callbacks are used to count dependencies and to perform the action(s) taken when all
+dependencies are satisfied. The present rudimentary interface is thread safe and may be extended to provide greater
+functionality.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class CallbackInterface \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ virtual void notify() = 0;}
+
+{\ttfamily
+\ \ \ \ virtual \~{}CallbackInterface()\{\};}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ class DependencyInterface : public CallbackInterface \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ DependencyInterface(int ndep = 0);}
+
+{\ttfamily
+\ \ \ \ int ndep() const; // Returns no. of unsatisfied dependencies}
+
+{\ttfamily
+\ \ \ \ bool probe() const; // Returns true if ndep() == 0}
+
+{\ttfamily
+\ \ \ \ void notify(); // Callback for dependency being satisfied}
+
+{\ttfamily
+\ \ \ \ void inc(); // Increment the number of dependencies}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ // Registers a callback for when ndepend=0.}
+
+{\ttfamily
+\ \ \ \ // If ndepend == 0, the callback is immediately invoked.}
+
+{\ttfamily
+\ \ \ \ // ADDING A CALL BACK IS NOT PRESENTLY THREAD SAFE.}
+
+{\ttfamily
+\ \ \ \ void register\_callback(CallbackInterface* callback);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ virtual \~{}DependencyInterface();}
+
+{\ttfamily
+\ \ \ \ \};}
+
+\}
+
+\subsubsection{Ranges -- specifying parallel iteration}
+Ranges automate the expression and decomposition of an index space for parallel iteration. Our present capability is
+extremely limited and crude when compared with the TBB, but hile our interface adopts some of the TBB conventions, we
+use futures both internally and externally to facilitate the generation of more parallelism in the user code.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ template {\textless}typename iteratorT{\textgreater} class Range \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ typedef iteratorT iterator;}
+
+{\ttfamily
+\ \ \ \ Range(const iterator\& start, const iterator\& finish, \newline
+\ \ \ \ \ \ \ \ int chunksize=-1);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ Range(const Range\& r);}
+
+{\ttfamily
+\ \ \ \ Range(Range\& r, const Split\& split);}
+
+{\ttfamily
+\ \ \ \ size\_t size() const;}
+
+{\ttfamily
+\ \ \ \ \ \ bool empty() const;}
+
+{\ttfamily
+\ \ \ \ const iterator\& begin() const;}
+
+{\ttfamily
+\ \ \ \ const iterator\& end() const;}
+
+{\ttfamily
+\ \ \};}
+
+{\ttfamily
+\}}
+
+\subsubsection[Futures {}-- managing latency and dependencies (worldfut.h and worldref.h)]{Futures -- managing latency
+and dependencies (worldfut.h and worldref.h)}
+The presently world level
+
+\liststyleLiii
+\begin{itemize}
+\item {\ttfamily
+Future}
+\item {\ttfamily
+RemoteReference}
+\end{itemize}
+classes should be stripped of references to world and pushed down here so that we have a complete parallel programming
+environment independent of the World stuff.
+
+\subsubsection{Concurrent hash map (worldhashmap.h)}
+A thread-safe hash map that is a drop in replacement for the GNU \texttt{hash\_map} and new C++
+\ \texttt{unordered\_map}, but has the additional features
+
+\liststyleLiv
+\begin{itemize}
+\item Concurrent deletions, insertions or modifications of entries do not invalidate iterators or pointers to entries
+(i.e., will not make them point to junk unless someone actually deletes the entry you are pointing at).
+\item Intel TBB-style accessor interfaces to provide full thread-safe access to entries with either read or write
+mutexes.
+\end{itemize}
+Issues:
+
+\liststyleLv
+\begin{itemize}
+\item Should be renamed concurhashmap.h
+\item Include class prototype here
+\end{itemize}
+
+\bigskip
+
+\subsection{World level runtime}
+The \texttt{World} class encapsulates the entire global runtime environment for either all or a sub-group of processes.
+It wraps a single MPI communicator. The main capabilities for the global runtime are
+
+\liststyleLvi
+\begin{itemize}
+\item One-sided active messaging including remote task creation
+\item Local and global fencing of AM and tasks (termination detection)
+\item Global names (id) for objects
+\item Globally addressable data structures including hash tables and arrays (still coming)
+\item Parallel serialization of data 
+\end{itemize}
+
+\bigskip
+
+\subsubsection{World (world.h)}
+????
+
+\subsubsection{World MPI interface (worldmpi.h)}
+This is really a convenience for you to avoid having to first get the safe MPI communicator and then use it and is also
+a hook for future instrumentation.
+
+\subsubsection[World active message interface (worldam.h)]{World active message interface (worldam.h)}
+This service sits on top of the global RMI described above (note that correct translation of ranks between communicators
+is not yet being performed ... i.e., only works for COMM\_WORLD). It adds to the RMI interface automatic send buffer
+management, eliminates user concern with the RMI header, throttles the number of outstanding send operations, and
+propagates state (the world, source process, message size) by encapsulatation in the class \texttt{AmArg} that also
+facilitates packing and unpacking of the message buffer using serialization.
+
+A World active message handler has this type
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ typedef void (*am\_handlerT)(const AmArg\&);}
+
+{\ttfamily
+\}}
+
+\paragraph{AmArg (worldam.h)}
+This class and its helper functions greatly simplify packing and unpacking data from message buffers.
+
+
+\bigskip
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class AmArg \{}
+
+{\ttfamily
+\ \ public:}
+
+{\ttfamily
+\ \ \ \ AmArg();}
+
+{\ttfamily
+\ \ \ \ unsigned char* buf() const; // Returns pointer to payload}
+
+{\ttfamily
+\ \ \ \ size\_t size() const; // Returns size of payload}
+
+{\ttfamily
+\ \ \ \ \ \ template {\textless}typename T{\textgreater} \ }
+
+{\ttfamily
+\ \ \ \  \ BufferInputArchive operator\&(T\& t) const; // Deserialize}
+
+{\ttfamily
+\ \ \ \ template {\textless}typename T{\textgreater}}
+
+{\ttfamily
+\ \ \ \  \ BufferOutputArchive operator\&(const T\& t) const; // Serialize}
+
+{\ttfamily
+\ \ \ \ ProcessID get\_src() const; // Source of incoming msg.}
+
+{\ttfamily
+\ \ \ \ World* get\_world() const; // World of incoming msg.}
+
+{\ttfamily
+\ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ // Allocates a new AmArg with nbytes of user data}
+
+{\ttfamily
+\ \ \ inline AmArg* alloc\_am\_arg(std::size\_t nbyte);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ // Duplicates an AmArg}
+
+{\ttfamily
+\ \ \ inline AmArg* copy\_am\_arg(const AmArg\& arg);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ // Frees an AmArg allocated with alloc\_am\_arg or copy\_am\_arg}
+
+{\ttfamily
+\ \ inline void free\_am\_arg(AmArg* arg);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ // Serialize one argument into a new AmArg}
+
+{\ttfamily
+\ \ template {\textless}typename A{\textgreater}}
+
+{\ttfamily
+\ \ inline AmArg* new\_am\_arg(const A\& a);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ // Serialize two arguments in a new AmArg}
+
+{\ttfamily
+\ \ template {\textless}typename A, typename B{\textgreater}}
+
+{\ttfamily
+\ \ inline AmArg* new\_am\_arg(const A\& a, const B\& b);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ // Ditto for up to 10 arguments}
+
+{\ttfamily
+\}}
+
+
+\bigskip
+
+\paragraph{WorldAmInterface (worldam.h)}
+This class is embedded inside World and you probably will not instantiate it separately.
+
+{\ttfamily
+namespace madness \{}
+
+{\ttfamily
+\ \ class WorldAmInterface \{}
+
+{\ttfamily
+\ \ \ \ WorldAmInterface(World\& world);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ // Ensures all local AM operations have completed}
+
+{\ttfamily
+\ \ \ \ \ \ inline void fence();}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ // Sends non-blocking message -- user responsible for managing\newline
+\ \ \ \ // completion and freeing buffer}
+
+{\ttfamily
+\ \ \ \ \ \ RMI::Request isend\_(ProcessID dest, am\_handlerT op, \newline
+\ \ \ \ \ \ \ \ const AmArg* arg, int attr=RMI::ATTR\_ORDERED);}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ // Sends manged non-blocking non-blocking active message.\newline
+\ \ \ \ // The buffer will be freed when the send is complete}
+
+{\ttfamily
+\ \ \ \ \ \ void send(ProcessID dest, am\_handlerT op, }
+
+{\ttfamily
+\ \ \ \ \ \ \ \ const AmArg* arg, int attr=RMI::ATTR\_ORDERED);}
+
+{\ttfamily
+\ \ \ \ \};}
+
+{\ttfamily
+\}}
+
+
+\bigskip
+
+The \texttt{fence()}method ensures local completion. After the call, all managed outgoing messages will have been sent
+(though not necessarily processed by the remote end) and all received incoming active messages will have been executed.
+
+\subsubsection{World global operations (worldgop.h)}
+Except for fence these were originally needed to avoid deadlock in the single threaded code. Are still useful if MPI is
+single-threaded (most common) or if we expose asynchronous global operations.
+
+\liststyleLvii
+\begin{itemize}
+\item Add discussion of what global fence means and its cost
+\end{itemize}
+
+\bigskip
+
+\subsubsection{World task interface (worldtask.h)}
+Provides submission of local and remote tasks using serialization to move arguments, and futures with callbacks to
+manage dependencies. Counts number of pending tasks to enable fencing.
+
+\subsubsection{World objects (worldobj.h)}
+Provides global names for single replicated objects so that can send messages to instance of the logically same object
+on a different processor without having to keep track of pointers etc.
+
+\subsubsection[World container (worlddc.h)]{World container (worlddc.h)}
+A globally addressable hash table with one-sided access. Can send messages to either the container (using inherited
+WorldObj methods) or to items in the container. The latter is a centrally important ability because
+
+\liststyleLviii
+\begin{itemize}
+\item it enables non-process-centric computing -- it eliminates reference to process number and hence \ virtualizes how
+and where computation occurs
+\item it automatically gives you a write lock on the item via a non-const accessor
+\end{itemize}
+Issues
+
+\liststyleLix
+\begin{itemize}
+\item Gotta be careful when acquiring other locks
+\item Need to modify send protocol to break call chains
+
+
+\bigskip
+\end{itemize}
+\end{document}

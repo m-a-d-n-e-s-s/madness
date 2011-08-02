@@ -1,0 +1,1020 @@
+% This file was converted to LaTeX by Writer2LaTeX ver. 1.1.7
+% see http://writer2latex.sourceforge.net for more info
+\documentclass[letterpaper]{article}
+\usepackage[ascii]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{amssymb,amsfonts,textcomp}
+\usepackage{color}
+\usepackage{array}
+\usepackage{hhline}
+\usepackage{hyperref}
+\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+% footnotes configuration
+\makeatletter
+\renewcommand\thefootnote{\arabic{footnote}}
+\makeatother
+% Outline numbering
+\setcounter{secnumdepth}{3}
+\renewcommand\thesection{\arabic{section}}
+\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+% List styles
+\newcommand\liststyleLi{%
+\renewcommand\theenumi{\arabic{enumi}}
+\renewcommand\theenumii{\arabic{enumii}}
+\renewcommand\theenumiii{\arabic{enumiii}}
+\renewcommand\theenumiv{\arabic{enumiv}}
+\renewcommand\labelenumi{\theenumi.}
+\renewcommand\labelenumii{\theenumii.}
+\renewcommand\labelenumiii{\theenumiii.}
+\renewcommand\labelenumiv{\theenumiv.}
+}
+\newcommand\liststyleLii{%
+\renewcommand\theenumi{\arabic{enumi}}
+\renewcommand\theenumii{\arabic{enumii}}
+\renewcommand\theenumiii{\arabic{enumiii}}
+\renewcommand\theenumiv{\arabic{enumiv}}
+\renewcommand\labelenumi{\theenumi.}
+\renewcommand\labelenumii{\theenumii.}
+\renewcommand\labelenumiii{\theenumiii.}
+\renewcommand\labelenumiv{\theenumiv.}
+}
+\newcommand\liststyleLiii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLiv{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLv{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLvi{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLvii{%
+\renewcommand\labelitemi{{}--}
+\renewcommand\labelitemii{{}--}
+\renewcommand\labelitemiii{{}--}
+\renewcommand\labelitemiv{{}--}
+}
+\newcommand\liststyleLviii{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLix{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+\newcommand\liststyleLx{%
+\renewcommand\labelitemi{${\bullet}$}
+\renewcommand\labelitemii{${\circ}$}
+\renewcommand\labelitemiii{${\blacksquare}$}
+\renewcommand\labelitemiv{${\bullet}$}
+}
+% Page layout (geometry)
+\setlength\voffset{-1in}
+\setlength\hoffset{-1in}
+\setlength\topmargin{0.7874in}
+\setlength\oddsidemargin{0.7874in}
+\setlength\textheight{8.825199in}
+\setlength\textwidth{6.9251995in}
+\setlength\footskip{0.6in}
+\setlength\headheight{0cm}
+\setlength\headsep{0cm}
+% Footnote rule
+\setlength{\skip\footins}{0.0469in}
+\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+% Pages styles
+\makeatletter
+\newcommand\ps@Standard{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{}
+  \renewcommand\@evenfoot{}
+  \renewcommand\thepage{\arabic{page}}
+}
+\newcommand\ps@LeftPage{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{\thepage{}}
+  \renewcommand\@evenfoot{\@oddfoot}
+  \renewcommand\thepage{\arabic{page}}
+}
+\newcommand\ps@Licensepage{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{}
+  \renewcommand\@evenfoot{}
+  \renewcommand\thepage{\arabic{page}}
+}
+\newcommand\ps@Firstrightnumberedpage{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{\thepage{}}
+  \renewcommand\@evenfoot{\@oddfoot}
+  \renewcommand\thepage{\arabic{page}}
+}
+\newcommand\ps@Titlepage{
+  \renewcommand\@oddhead{}
+  \renewcommand\@evenhead{}
+  \renewcommand\@oddfoot{}
+  \renewcommand\@evenfoot{}
+  \renewcommand\thepage{\arabic{page}}
+}
+\makeatother
+\pagestyle{Standard}
+\newcounter{Figure}
+\renewcommand\theFigure{\arabic{Figure}}
+\title{}
+\author{Robert Harrison}
+\date{2009-12-14}
+\begin{document}
+\clearpage\setcounter{page}{1}\pagestyle{Licensepage}
+\thispagestyle{Titlepage}
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+{\centering\bfseries
+MADNESS
+\par}
+
+\begin{center}
+\begin{minipage}{}
+\liststyleLi
+\begin{enumerate}
+\item {\ttfamily
+\#define WORLD\_INSTANTIATE\_STATIC\_TEMPLATES}
+\item {\ttfamily
+\#include {\textless}world/world.h{\textgreater}}
+\item 
+\bigskip
+\item {\ttfamily
+using namespace std;}
+\item {\ttfamily
+using namespace madness;}
+\item 
+\bigskip
+\item {\ttfamily
+class Array : public WorldObject{\textless}Array{\textgreater} \{}
+\item {\ttfamily
+\ \ \ \ vector{\textless}double{\textgreater} v;}
+\item {\ttfamily
+public:}
+\item {\ttfamily
+\ \ \ \ /// Make block distributed array with size elements}
+\item {\ttfamily
+\ \ \ \ Array(World\& world, size\_t size) }
+\item {\ttfamily
+\ \ \ \ \ \ \ \ : WorldObject{\textless}Array{\textgreater}(world), v((size-1)/world.size()+1)}
+\item {\ttfamily
+\ \ \ \ \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ process\_pending();}
+\item {\ttfamily
+\ \ \ \ \};}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ /// Return the process in which element i resides}
+\item {\ttfamily
+\ \ \ \ ProcessID owner(size\_t i) const \{return i/v.size();\};}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ Future{\textless}double{\textgreater} read(size\_t i) const \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ if (owner(i) == world.rank())}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ \ return Future{\textless}double{\textgreater}(v[i-world.rank()*v.size()]);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ else}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ \ return send(owner(i), \&Array::read, i);}
+\item {\ttfamily
+\ \ \ \ \};}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ Void write(size\_t i, double value) \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ if (owner(i) == world.rank())}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ \ v[i-world.rank()*v.size()] = value;}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ else}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ \ send(owner(i), \&Array::write, i, value);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ return None;}
+\item {\ttfamily
+\ \ \ \ \};}
+\item {\ttfamily
+\};}
+\item 
+\bigskip
+\item {\ttfamily
+int main(int argc, char** argv) \{}
+\item {\ttfamily
+\ \ \ \ initialize(argc, argv);}
+\item {\ttfamily
+\ \ \ \ madness::World world(MPI::COMM\_WORLD);}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ Array a(world, 10000), b(world, 10000);}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ // Without regard to locality, initialize a and b}
+\item {\ttfamily
+\ \ \ \ for (int i=world.rank(); i{\textless}10000; i+=world.size()) \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ a.write(i, 10.0*i);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ b.write(i, \ 7.0*i);}
+\item {\ttfamily
+\ \ \ \ \}}
+\item {\ttfamily
+\ \ \ \ world.gop.fence();}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ // All processes verify 100 random values from each array}
+\item {\ttfamily
+\ \ \ \ for (int j=0; j{\textless}100; j++) \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ size\_t i = world.rand()\%10000;}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ Future{\textless}double{\textgreater} vala = a.read(i);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ Future{\textless}double{\textgreater} valb = b.read(i);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ // Could do work here until results are available}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ MADNESS\_ASSERT(vala.get() == 10.0*i);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ MADNESS\_ASSERT(valb.get() == \ 7.0*i);}
+\item {\ttfamily
+\ \ \ \ \}}
+\item {\ttfamily
+\ \ \ \ world.gop.fence();}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ if (world.rank() == 0) print({\textquotedbl}OK!{\textquotedbl});}
+\item {\ttfamily
+\ \ \ \ finalize();}
+\item {\ttfamily
+\}}
+\end{enumerate}
+{\centering\itshape
+Figure {\refstepcounter{Figure}\theFigure\label{seq:refFigure0}}: Complete example program illustrating the
+implementation and use of a crude, block-distributed array upon the functionality of \texttt{WorldObject}.
+\par}
+\end{minipage}
+\end{center}
+\begin{center}
+\begin{minipage}{}
+\liststyleLii
+\begin{enumerate}
+\item {\ttfamily
+\#define WORLD\_INSTANTIATE\_STATIC\_TEMPLATES}
+\item {\ttfamily
+\#include {\textless}world/world.h{\textgreater}}
+\item {\ttfamily
+using namespace madness;}
+\item 
+\bigskip
+\item {\ttfamily
+class Foo : public WorldObject{\textless}Foo{\textgreater} \{}
+\item {\ttfamily
+\ \ \ \ const int bar;}
+\item {\ttfamily
+public:}
+\item {\ttfamily
+\ \ \ \ Foo(World\& world, int bar) : WorldObject{\textless}Foo{\textgreater}(world), bar(bar)}
+\item {\ttfamily
+\ \ \ \ \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ process\_pending();}
+\item {\ttfamily
+\ \ \ \ \};}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ int get() const \{return bar;\};}
+\item {\ttfamily
+\};}
+\item 
+\bigskip
+\item {\ttfamily
+int main(int argc, char** argv) \{}
+\item {\ttfamily
+\ \ \ \ initialize(argc, argv);}
+\item {\ttfamily
+\ \ \ \ madness::World world(MPI::COMM\_WORLD);}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ Foo a(world,world.rank()), b(world,world.rank()*10);}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ for (ProcessID p=0; p{\textless}world.size(); p++) \{}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ Future{\textless}int{\textgreater} futa = a.send(p,\&Foo::get);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ Future{\textless}int{\textgreater} futb = b.send(p,\&Foo::get);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ // Could work here until the results are available}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ MADNESS\_ASSERT(futa.get() == p);}
+\item {\ttfamily
+\ \ \ \ \ \ \ \ MADNESS\_ASSERT(futb.get() == p*10);}
+\item {\ttfamily
+\ \ \ \ \}}
+\item {\ttfamily
+\ \ \ \ world.gop.fence();}
+\item {\ttfamily
+\ \ \ \ if (world.rank() == 0) print({\textquotedbl}OK!{\textquotedbl});}
+\item 
+\bigskip
+\item {\ttfamily
+\ \ \ \ finalize();}
+\item {\ttfamily
+\}}
+\end{enumerate}
+{\centering\itshape
+Figure {\refstepcounter{Figure}\theFigure\label{seq:refFigure1}}: Simple client-server program implemented using
+\texttt{WorldObject}.
+\par}
+\end{minipage}
+\end{center}
+{\centering\bfseries
+Parallel Runtime
+\par}
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+{\centering
+Last modification: 12/14/09
+\par}
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+
+\bigskip
+
+This file is part of MADNESS.
+
+Copyright (C) 2007 Oak Ridge National Laboratory
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation; either version 2 of the License, or(at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+For more information please contact:
+
+Robert J. Harrison
+
+Oak Ridge National Laboratory
+
+One Bethel Valley Road
+
+P.O. Box 2008, MS-6367
+
+Oak Ridge, TN 37831
+
+
+\bigskip
+
+email: harrisonrj@ornl.gov 
+
+tel: \ \ 865-241-3937
+
+fax: \ \ 865-572-0680
+
+\setcounter{tocdepth}{10}
+\renewcommand\contentsname{Table of Contents}
+\tableofcontents
+
+\bigskip
+
+\clearpage
+\bigskip
+
+\clearpage\setcounter{page}{1}\pagestyle{LeftPage}
+\thispagestyle{Firstrightnumberedpage}
+
+This documents provides an introduction to programming with the MADNESS parallel runtime and describes some of the
+implementation details. The runtime is used for the actual implementation of the MADNESS numerical capabilities and at
+least some understanding of the runtime is required by applications using the numerical tools. Also, the runtime may be
+used independently of the rest of MADNESS and will be separately distributed at some point in the future.
+
+\section{Overview}
+The MADNESS parallel programming environment combines several successful elements from other models and aims to provide
+a rich and scalable framework for massively parallel computing while seamlessly integrating with legacy applications
+and libraries. In particular, it is completely compatible with existing MPI and Global Array applications. All code is
+standard C++ tested for portability with a variety of compilers including the IBM, GNU, Intel, Portland Group, and
+Pathscale compilers. It includes
+
+\liststyleLiii
+\begin{itemize}
+\item Distributed sparse containers with one-sided access to items, transparent remote method invocation, an
+owner-computes task model, and optional user control over placement/distribution.
+\item Distributed objects that can be globally addressed.
+\item Futures (results of unevaluated expressions) for composition of latency tolerant algorithms and expression of
+dependencies between tasks.
+\item Globally accessible task queues in each process which \ can be used individually or collectively to provide a
+single global task queue.
+\item Serialization framework to facilitate transparent interprocess communication.
+\item Work stealing for dynamic load balancing (coming v. soon).
+\item Facile management of computations on processor sub-groups.
+\item Integration with MPI
+\item Active messages to items in a container, distributed objects, and processes
+\item Kernel-space threading for use of multi-core processors.
+\end{itemize}
+\section{Motivations and attributions}
+There were several motivations for developing this environment.
+
+\liststyleLiv
+\begin{itemize}
+\item The rapid evolution of machines from hundreds (pre-2000), to millions (post-2008) of processors demonstrates the
+need to abandon process-centric models of computation and move to paradigms that virtualize, generalize or even
+eliminate the concept of process. \ 
+\item The success of applications using the Charm++ environment to scale rapidly to 30+K processes and the enormous
+effort required to scale most process-centric applications.
+\item The arrival of multi-core processes and the consequent requirement to express much more concurrency and to adopt
+techniques for latency hiding motivate the use of light weight work queues to capture much more concurrency and the use
+of futures for latency hiding.
+\item The complexity of composing irregular applications in partitioned, global-address space (PGAS) models using only
+MPI and/or one-sided memory access (GA, UPC, SHMEM, co-Array) motivates the use of an object-centric active-message or
+remote method invocation (RMI) model so that computation may be moved to the data with the same ease as which data can
+be moved. \ This greatly simplifies the task of maintaining and using distributed data structures.
+\item Interoperability with existing programming models to leverage existing functionality and to provide an
+evolutionary path forward.
+\item The main early influences for this work were
+
+\begin{itemize}
+\item Cilk (Kuszmaul, http://supertech.csail.mit.edu/cilk), 
+\item Charm++ (Kale, http://charm.cs.uiuc.edu),
+\item ACE (Schmidt, http://www.cs.wustl.edu/\~{}schmidt/ACE.html),
+\item STAPL (Rauchwerger and Amato, http://parasol.tamu.edu/groups/rwergergroup/research/stapl), and
+\item the HPCS language projects and the very talented teams and individuals developing these
+
+\begin{itemize}
+\item X10, http://domino.research.ibm.com/comm/research\_projects.nsf/pages/x10.index.html
+\item Chapel, http://chapel.cs.washington.edu
+\item Fortress, http://fortress.sunsource.net
+\end{itemize}
+\end{itemize}
+\end{itemize}
+\section{Programming environment and capabilities}
+The entire parallel environment is encapsulated in an instance of the class \texttt{World} that is instantiated by
+wrapping an MPI communicator. Multiple worlds may exist, overlap, and can be dynamically created and destroyed. Each
+world has a unique identity and the creation and destruction of a world are a collective operations involving all
+processes that participate in the world. To ensure full compatibility with existing MPI programs, the concept of
+place/location/process/rank is defined to be the same as MPI process.
+
+The \texttt{World} class is intended to provide one-stop shopping for the parallel programming environment and, in
+particular, a uniform and consistent state that is always available. A local pointer to a world object may be passed to
+another process that is a member of the same world. During (de-)serialization the pointer is automatically translated
+so that in the remote process it correctly points to the local copy of the object. The class has members
+
+\liststyleLv
+\begin{itemize}
+\item \texttt{mpi} - an instance of \texttt{WorldMPIInterface} that wraps standard MPI functionality to enable
+instrumentation, though you can obtain the wrapped MPI communicator and call the standard MPI interface directly.
+\item \texttt{am} - an instance of \texttt{WorldAMInterface} that provides low-level active message services. It is not
+intended for direct application use but rather as the framework upon which new parallel programming tools can be
+implemented.
+\item \texttt{taskq} - an instance of \texttt{WorldTaskQueue} that provides a light-weight task queue within each
+process that is accessible from all other processes in the world.
+\item \texttt{gop} -- an instance of WorldGopInterface that provides additional global operations including collective
+operations that are compatible with simultaneous processing of active messages and tasks.
+\end{itemize}
+Within a world, distributed objects and containers (currently associative arrays or hash tables, with dense arrays
+planned) may be constructed.
+
+\subsection{Distributed or world objects}
+A distributed object has a distinct instance in each process of a world, but all share a common unique identifier. Thus,
+just like for a pointer to the World instance, a local pointer or reference to a distributed object is automatically
+translated during (de)serialization when sent to another process. Messages (method invocation) and tasks may be sent
+directly to such objects from any other process in the world.
+
+Figure \ref{seq:refFigure1} contains the complete source for a program that creates two instances (\texttt{a} and
+\texttt{b} on line 20) of type \texttt{Foo} that serve distinct values from each MPI process. \ These are global
+objects but no synchronization is required before they may be used since messages to objects that are not yet locally
+constructed are automatically buffered. \ Lines 23 and 24 illustrate how messages (method invocation) can be sent to
+corresponding instances in any other process and how results are returned via a future that will hold the result when
+it finally becomes available. The sample program immediately attempts to read the values (lines 26 and 27) and will
+wait until the value becomes available. Incoming active messages and any queued tasks are processed while waiting. The
+fence at line 29 ensures all data motion is globally complete before terminating the program. The comment on line 25
+indicates the opportunity to do other work before forcing a future; indeed, this is their \textit{raison
+d'}\textit{\^e}\textit{tre}. \ They facilitate asynchronous communication/computation and the hiding of both hardware
+and algorithmic latency. Futures may be probed without blocking to determine status and below we will see how to
+register callbacks in a future to be invoked when it is assigned. 
+
+Examining the implementation of \texttt{Foo} in figure \ref{seq:refFigure1}, it inherits from
+\texttt{WorldObject{\textless}Foo{\textgreater}} using the curiously recurring template pattern. This is because the
+base class needs the name of the derived class to forward remote method invocations. The \texttt{Foo} constructor
+initializes the base class and after finishing its own initialization (minimal here) invokes
+\texttt{process\_pending()} to consume any messages that arrived before it was constructed. It is not possible to
+invoke this from the base class constructor since the derived class would not yet be fully constructed. Note that the
+\texttt{get()} method does not need to be modified from the natural sequential version -- the send() template inherited
+from \texttt{WorldObject{\textless}Foo{\textgreater}} takes care of wrapping the return value in a future. Appropriate
+reference counting is used behind the scenes to ensure that locally allocated memory persists until the remote
+operation completes (i.e., the result of a remote operation may be safely discarded). Finally, the first line of the
+program requests that code for static members of \texttt{WorldObject{\textless}Foo{\textgreater}} be instantiated in
+the corresponding object file. This is a consequence of staying within standard C++ and not invoking any preprocessor
+to automate this process. In more sophisticated use, the ownership of a dynamically allocated \texttt{WorldObject} can
+be passed to the world (using a Boost-like shared pointer) for deferred destruction. At each global synchronization the
+world examines the reference count of registered objects to determine if any can be freed. Thus, actual destruction of
+such an object is deferred until the next global synchronization. In turn, this enables multiple such objects to be
+safely created and destroyed without any otherwise unnecessary global synchronization. No such sophistication is
+necessary in this example since we are happy with the introduction of the single global fence.
+
+Figure \ref{seq:refFigure0} provides the complete implementation and example use of a crude, block-distributed array
+using the \texttt{WorldObject} functionality. First looking at the main program, on line 40 two distinct arrays are
+instantiated. \ Inside a parallel loop, the elements of the arrays are initialized without using locality at lines 44
+and 45. The fence at line 47 ensures all data motion is complete before attempting to read from the array. This is only
+necessary with multiple readers or writers since a single process is guaranteed a sequentially consistent view due to
+the world active-message layer guaranteeing in-order processing of messages. Reading an array element (lines 52 and 53)
+returns a \texttt{Future{\textless}double{\textgreater}} that will hold the result when it finally becomes available. 
+
+Turning to the implementation of the \texttt{Array} class in Figure \ref{seq:refFigure0}, reading and writing elements
+is immediate if the element is local (lines 22 and 29), otherwise
+\texttt{WorldObject{\textless}Array{\textgreater}.send() }is used to forward the request to the \texttt{Array} object
+in the owning process, passing arguments as necessary. Attentive readers will have noticed that the \texttt{write()}
+method returns \texttt{Void} rather than \texttt{void}. This is merely to simplify the current implementation that
+would otherwise require specialization of most templates to handle \texttt{void} results. Once the interface has
+stabilized this design choice will be reconsidered. Futures of type \texttt{void} and \texttt{Void} are minimal stubs
+and cause no communication.
+
+There are two main restrictions on methods that are invoked remotely. First, the arguments must be values or constant
+references and must be serializable (see below). Pointers to \texttt{World}, or pointers or references to
+\texttt{WorldObjects} are automatically translated to refer to the appropriate remote object, but any other pointers
+are the responsibility of the application (though their translation via serialization may also be automated). Second,
+the method itself must not block, e.g., by forcing another future. This restriction can be greatly relaxed, but is
+presently enforced to avoid potential stack overflow and other problems due to deeply-nested invocation of handlers.
+
+{}- - - - - - - - - - - STOPPED HERE ... lots more to do .....
+
+\subsection{Distributed or world containers}
+Distributed containers are distributed objects specialized to provide the services expected of a container and to pass
+messages directly to objects in the container. The latter enables non-process centric parallel computation in the sense
+that all messaging is between objects addressed with user-defined names and with transparent association of names to
+processes. BLAH BLAH ...
+
+The only currently provided containers are associative arrays or maps. \ The underlying sequential container on each
+process is either the GNU \texttt{hash\_map} or the TR1 \texttt{unordered\_map}. \ A map generalizes the concept of an
+array (that maps an integer index in a dense range to a value) by mapping an arbitrary key to a value. This is a very
+natural, general and efficient mechanism for storing sparse data structures. \ The distribution between processes of
+items in the container is based upon a function which maps the key to a process. \ The default mapping is a
+pseudo-random uniform mapping based upon a strong hash function, but the user can provide their own (possibly
+data-dependent) operator to control the distribution. \ 
+
+Although it presently the case that all processes agree on the mapping of a key to a process, this does not have to be
+the case. The implementation is designed to support forwarding of remote requests though this code is not yet enabled
+or tested. The point is that it may be effective to perform local redistributions of data in order to address load or
+memory problems rather than globally changing the map which must be deferred until a synchronization point.
+
+The keys and values associated with containers must be serializble by the MADNESS archive mechanism.
+
+Please refer to world/archive/archive.h and documentation therein for information about this. \ In addition, the keys
+must support
+
+\ {}- testing for equality, either by overloading {\textbackslash}c == or by \ specializing {\textbackslash}c
+std::equal\_to{\textless}key\_type{\textgreater}, and
+
+\ {}- computing a hash value by invoking {\textbackslash}c madness::hash(key), which can be done either by providing a
+member function with signature
+
+{\textbackslash}code
+
+\ \ \ hashT hash() const;
+
+{\textbackslash}endcode
+
+\ \ \ or by specializing {\textbackslash}c madness::Hash{\textless}key\_type{\textgreater}.
+
+hashT is presently an unsigned 32-bit integer. \ MADNESS provides hash operations for all fundamental types, and
+variable and fixed dimension arrays of the same. \ Since having a good hash is important, we are using Bob Jenkin's
+{\textquotedbl}lookup v3{\textquotedbl} hash\footnote{\ http://www.burtleburtle.net/bob/c/lookup3.c}.
+
+Here is an example of a key that might be used in an octtree.
+
+{\ttfamily
+\ \ \ struct Key \{}
+
+{\ttfamily
+\ \ \ \ \ \ \ typedef unsigned long ulong;}
+
+{\ttfamily
+\ \ \ \ \ \ \ ulong n, i, j, k;}
+
+{\ttfamily
+\ \ \ \ \ \ \ hashT hashval;}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ \ Key() \{\};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ \ // Precompute the hash function for speed}
+
+{\ttfamily
+\ \ \ \ \ \ \ Key(ulong n, ulong i, ulong j, ulong k)}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ : n(n), i(i), j(j), k(k), hashval(madness::hash(\&this-{\textgreater}n,4,0)) \{\};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ \ hashT hash() const \{}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ return hashval;}
+
+{\ttfamily
+\ \ \ \ \ \ \ \};}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ \ template {\textless}typename Archive{\textgreater}}
+
+{\ttfamily
+\ \ \ \ \ \ \ void serialize(const Archive\& ar) \{}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ ar \& n \& i \& j \& k \& hashval;}
+
+{\ttfamily
+\ \ \ \ \ \ \ \}}
+
+
+\bigskip
+
+{\ttfamily
+\ \ \ \ \ \ \ bool operator==(const Key\& b) const \{}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ // Different keys will probably have a different hash}
+
+{\ttfamily
+\ \ \ \ \ \ \ \ \ \ \ return hashval==b.hashval \&\& n==b.n \&\& i==b.i \&\& j==b.j \&\& k==b.k;}
+
+{\ttfamily
+\ \ \ \ \ \ \ \};}
+
+{\ttfamily
+\ \ \ \};}
+
+
+\bigskip
+
+To be added
+
+\liststyleLvi
+\begin{itemize}
+\item discussion of chaining hashes using initval optional argument
+\item discussion of overriding the distribution across processes
+\end{itemize}
+
+\bigskip
+
+\subsubsection{Tasks, task queues, futures, and dependencies}
+This is the heart of the matter ...
+
+\subsubsection{Serialization}
+Serialization ...BLAH BLAH ...
+
+\section{Recommended programming paradigms}
+BLAH BLAH ..
+
+The recommended approaches to develop scalable and latency tolerant parallel algorithms are either object- or
+task-centric decompositions rather than the process-centric approach usually forced upon MPI applications. \ The
+object-centric approach uses distributed containers (or distributed objects) to store application data. \ Computation
+is expressed by sending tasks or messages to objects, using the task queue to automatically manage dependencies
+expressed via futures. Placement of data and scheduling or placement of computation can be delegated to the container
+and task queue, unless there are specific performance concerns in which case the application can have full knowledge
+and control of these.
+
+Items in a container may be accessed largely as if in a standard STL container, but instead of returning an iterator,
+accessors instead return a Future{\textless}iterator{\textgreater}. A future is a container for the result of a
+possibly unevaluated expression. \ In the case of an accessor, if the requested item is local then the result is
+immediately available. However, if the item is remote, it may take some time before the data is made available locally.
+\ You could immediately try to use the future, which would work but with the downside of internally waiting for all of
+the communication to occur. \ Much better is to keep on working and only use the future when it is ready.
+
+Aside:
+
+\liststyleLvii
+\begin{itemize}
+\item To avoid a potentially unbounded nested invocation of tasks which could overflow the stack and also be the source
+of live/deadlocks, new tasks are not presently started while blocking for communication. This will be relaxed in the
+near future which will reduce the negative impact of blocking for an unready future as long as there is work to perform
+in the task queue.
+\item Once fibers or user-space threads are integrated, multiple tasks will always be scheduled and blocking will merely
+schedule the next fiber.
+\end{itemize}
+
+\bigskip
+
+By far the best way to compute with futures is to pass them as arguments to a new task. \ Once the futures are ready,
+the task will be automatically scheduled for execution. \ Tasks that produce a result also return it as a future, so
+this same mechanism may be used to express dependencies between tasks.
+
+Thus, a very natural expression of a parallel algorithm is as a sequence of dependent tasks. \ For example, in MADNESS
+many of the algorithms working on distributed, multidimension trees start with just a single task working on the root
+of the tree, with all other processes waiting for something to do. \ That one task starts recursively (depth or breadth
+first) traversing the tree and generating new tasks for each node. \ These in turn generate more tasks on their
+sub-trees.
+
+The execution model is sequentially consistent. \ That is, from the perspective of a single thread of execution,
+operations on the same local/remote object behave as if executed sequentially in the same order as programmed. \ \ This
+means that performing a read after a write/modify returns the modified value, as expected. Such behavior applies only
+to the view of a single thread -- the execution of multiple threads and active messages from different threads may be
+interleaved arbitrarily.
+
+\subsection{Abstraction overhead}
+Creating, executing, and reaping a local, null task with no arguments or results presently takes about 350ns (Centos 4,
+3GHz Core2, Pathscale 3.0 compiler, -Ofast). \ The time is dominated by \texttt{new} and and \texttt{delete} of the
+task structure, and as such is unlikely to get any faster except by caching and reusing the task structures.
+\ \ Creating and then executing a chain of dependent tasks with the result of one task fed as the argument of the next
+task (i.e., the input argument is an unevaluated future that will be assigned by the next task) requires about 1us per
+task (3 GHz Core2). \ 
+
+Creating a remote task adds the overhead of interprocess communication which is on the scale of 1-3us (Cray XT). \ Note
+that this is not the actual wall-time latency since everything is presently performed using asynchronous messaging and
+polling via MPI. \ The wall-time latency, which is largely irrelevant to the application if it has expressed enough
+parallelism, is mostly determined by the polling interval which is dynamically adjusted depending upon the amount of
+local work available to reduce the overhead from polling. \ We can improve the runtime software through better
+agregation of messages and use of deeper message queues to reduce the overhead of remote task creation to essentially
+that of a local task.
+
+Thus, circa 1us defines the granularity above which it is worth considering encapsulating work (c.f., Hockney's n1/2).
+\ However, this is just considering the balance between overhead incurred v.s. useful work performed. \ The automatic
+scheduling of tasks dependent upon future arguments confers additional benefits, including
+
+\liststyleLviii
+\begin{itemize}
+\item \ hiding the wall-time latency of remote data access,
+\item \ removing from the programmer the burden of correct scheduling of dependent tasks, 
+\item expressing all parallelism at all scales of the algorithm for facile scaling to heavily multi-core architectures
+and \ massively parallel computers, and
+\item virtualizing the system resources for maximum future portability and scalability.
+\end{itemize}
+Available memory limits the number of tasks that can be generated before any are consumed. \ In addition to application
+specific data, each task consumes circa 64 bytes on a 64-bit computer. \ Thus, a few hundred thousand outstanding tasks
+per processor are eminently feasible even on the IBM BG/L. \ Rather than making the application entirely responsible
+for throttling it's own task production (which it can), if the system exceeds more than a user-settable number of
+outstanding tasks, it starts to run ready tasks before accepting new tasks. \ The success of this strategy presupposes
+that there are ready tasks and that these tasks on average produce less than one new task with unsatisfied dependencies
+per task run. \ Ultimately, similar to the Cilk sequentially-consistent execution model, safe algorithms (in the same
+sense as safe MPI programs) must express tasks so that dependencies can be satisfied without unreasonable expectation
+of buffering.
+
+In a multiscale approach to parallelism, coarse gain tasks are first enqueued, and these generate finer-grain tasks,
+which in turn generate finer and finer grain work. \ \ [Expand this discussion and include examples along with work
+stealing discussion]
+
+Discussion points to add
+
+\liststyleLix
+\begin{itemize}
+\item Why arguments to tasks and AM via DC or taskQ are passed \ \ \ \ by value or by const-ref (for remote operations
+this should be clear; for local operations it is to enable tasks to be stealable). \ Is there a way to circumvent it?
+Pointers.
+\item Virtualization of other resources
+\item Task stealing
+\item Controlling distribution in containers
+\item Caching in containers
+\item Computing with continuations (user space fibers)
+\item Priority of hints for tasks
+\end{itemize}
+\section[C++ Gotchas]{C++ Gotchas}
+\subsection{Futures and STL vectors}
+A common misconception is that STL containers initialize their contents by invoking the default constructor of each item
+in the container since we are told that the items must be default constructible. \ But this is\textit{ incorrect}.
+\ The items are initialized by invoking the copy constructor for each element on a \textit{single }object made with the
+default constructor. \ \ For futures this is a very bad problem. \ For instance,
+
+\ \ \ \texttt{vector{\textless} Future{\textless}double{\textgreater} {\textgreater} v(3);}
+
+is equivalent to the following with an array of three elements
+
+\ \ \ \texttt{Future{\textless}double{\textgreater} junk;}
+
+{\ttfamily
+\ Future{\textless}double{\textgreater} v[3] = \{junk,junk,junk\};}
+
+Since the Future copy constructor is by necessity shallow, each element of \texttt{v} ends up referring to the future
+implementation that underlies \texttt{junk}. \ When you assign to an element of \texttt{v}, you'll also be assigning to
+\texttt{junk}. \ But since futures are single assignment variables, you can only do that once. \ Hence, when you assign
+a second element of \texttt{v} you'll get a runtime exception.
+
+The fix (other than using arrays) is to initialize STL vectors and other containers from the special element returned by
+\texttt{Future{\textless}T{\textgreater}::default\_initializer()} that if passed into the copy constructor will cause
+it to behave just like the default constructor. Thus, the following code is what you actually need to use an STL vector
+of futures
+
+\ \ \ \texttt{vector{\textless} Future{\textless}double{\textgreater} {\textgreater}
+v(3,Future{\textless}double{\textgreater}::default\_initializer());}
+
+which, put politely, is ugly. Thus, we provide the factory function
+
+\ \ \texttt{\ template {\textless}typename T{\textgreater}\newline
+ \ \ vector{\textless} Future{\textless}T{\textgreater} {\textgreater} future\_vector\_factory(std::size\_t n);}
+
+that enables one to write
+
+\ \ \ vector{\textless} Future{\textless}double{\textgreater} {\textgreater} v =
+future\_vector\_factory{\textless}double{\textgreater}(3);.
+
+\section{Multi-threading, the task queue, active messages and SMP parallelism}
+This design is in flux but the overall objectives are to provide a model and set of abstractions that are compact and
+well defined so that they may readily understood and reasoned about, yet rich enough to achieve compact and
+high-performance expression of most algorithms.
+
+Key design points:
+
+\liststyleLx
+\begin{itemize}
+\item MADNESS can be configured to build either with or without threads. If configured with threads the number of active
+threads can be adjusted at runtime.
+\item The only guaranteed source of SMP/multi-threaded concurrency is from the task queue.
+\item Active messages from a given source are executed sequentially in the order sent -- this is so that they may be
+used to maintain data structures with no additional logic necessary for the application to enforce sequential
+consistency.
+\item Active messages from distinct sources may be executed in any order or concurrently. Presently, one thread is
+devoted to handling all active messages so there is no concurrency at all within the active message queue, but this
+will change once the active message queue and task queues are unified.
+\item The main thread of execution may execute concurrently with the active message and task pool threads. Presently,
+the main thread also acts as the active message thread and in the absence of other work will execute tasks from the
+queue.
+\item All World interfaces are thread safe (are there any exceptions?). In particular, WorldContainers and the provided
+functionality of WorldObjects are thread safe as is the reference counting in SharedPtr.
+\item Parallel applications written using only MADNESS World constructs (tasks, containers, futures, and active
+messages) will not need additional mechanisms for SMP concurrency or synchronization. However, some applications will
+have additional shared data structures and provided are classes for facile use of threads, mutexes and locking
+pointers. At the lowest level are a portable (limited) set of atomic operations on integer data that are presently used
+to compose the SharedPtr and Mutex classes.
+\end{itemize}
+How to think about all this?
+
+Where possible compose your application in terms of tasks with dependencies via futures. This provides the maximum
+concurrency and as additional task attributes are introduced will enable the most efficient scheduling of work. The
+overhead of making, executing and reaping a task is about 1us, so a task's runtime should be bigger than circa 10us
+unless there is additional latency (algorithmic or communication) that will be hidden by making a task. If tasks are
+too long there may be load-balancing problems. Unless it is unduly cumbersome to split the problem into small tasks
+there is no reason to make tasks larger than circa 1ms (exception to this is pushing/stealing tasks that may have
+communication overhead).
+
+When to use active messages rather than a task? The main benefits of AM are sequential consistency (from the perspective
+of the sending process) and high priority for their execution. To keep the real AM latency to a minimum (which means
+you need less concurrency to hide the latency) AM handlers should be lightweight. Presently, MADNESS does no
+aggregation of messages but this is something that is clearly needed and would, for instance, reduce the overhead of
+creating many remote tasks to about that of local task creation.
+
+\section{Acknowledgments}
+
+\bigskip
+
+DOE NSF DARPA ORNL NCCS UT
+
+\section{References}
+
+\bigskip
+\end{document}
