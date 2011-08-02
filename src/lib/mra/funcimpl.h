@@ -179,6 +179,713 @@ namespace madness {
                          double>& quad_w, Tensor<double>& quad_phi,
                          Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
     };
+}
+
+
+namespace madness {
+    
+    /// A Join Operator that joins two containers with the same key type
+    /// by the keys of the first container
+    template <typename keyT, typename valueT>    
+    class IdJoin : public JoinOp<keyT, keyT, valueT>{
+      public:
+
+        /// IdJoin default constructor
+        IdJoin() : JoinOp<keyT, keyT, valueT>() {}       
+ 
+        /// @param[in] k key of entry in first container
+        /// @param[in] val value of entry in first container
+        /// @return the join key
+        virtual keyT join(const keyT& k, const valueT& val){
+          return k;
+        }
+
+        virtual ~IdJoin() {}
+    };
+
+    /// A Join Operator that joins a container with key type keyT
+    /// with a container with int keys -- used for testing MapUpdate
+    template <typename keyT, typename valueT>    
+    class IdJoin1 : public JoinOp<int, keyT, valueT>{
+      public:
+
+        /// IdJoin1 default constructor
+        IdJoin1() : JoinOp<int, keyT, valueT>() {}       
+ 
+        /// @param[in] k key of entry in first container
+        /// @param[in] val value of entry in first container
+        /// @return the join key
+        virtual int join(const keyT& k, const valueT& val){
+          return 1;
+        }
+
+        virtual ~IdJoin1() {}
+    };
+
+    /// A simple predicate for entries of type <keyI, std::pair<std::pair<keyT, valueT>, bool > >
+    /// used in reconstructBFS
+    template <typename keyT, typename keyI, typename valueT>
+    class SimplePred : public Pred<keyI, std::pair<std::pair<keyT, valueT>, bool > >{
+      public:
+
+        //SimplePred default container
+        SimplePred() : Pred<keyI, std::pair<std::pair<keyT, valueT>, bool > >() {}
+
+        /// @param[in] kI the container entry key
+        /// @param[in] val the container entry value
+        /// @return the bool contained in the entry value
+        virtual bool call(const keyI& kI, const std::pair<std::pair<keyT, valueT>, bool >& val){
+          return val.second;
+        }
+
+        virtual ~SimplePred() {}  
+    };
+
+    /// A MapFunctor that extracts (key, node) information from a more 
+    /// complex type -- used in reconstructBFS
+    template <typename keyT, typename nodeT>
+    class ExtractNode : public MapFunctor<keyT,keyT,std::pair<std::pair<keyT,nodeT>,std::pair<nodeT,bool>>,nodeT>{
+      public:
+
+        /// @param[in] kI the container entry key
+        /// @param[in] val the container entry value
+        /// return std::pair(kI, node in val)
+        virtual std::pair<keyT,nodeT> call(const keyT& k, 
+                                           const std::pair<std::pair<keyT,nodeT>,std::pair<nodeT,bool>>& val){
+          std::pair<nodeT,bool> sec = val.second;
+          std::pair<keyT,nodeT> fir = val.first;
+          if (sec.second){
+            return std::pair<keyT,nodeT>(k,sec.first);
+          }
+          else{
+            return std::pair<keyT,nodeT>(k,fir.second);
+          }
+        }
+   };
+
+    /// A MapFunctor that returns, for an existing entry, 
+    /// the processed contained information  and, for a 
+    /// non-existing entry, the processed new default information -- currentlu unused
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class SameENewNonE : public MapFunctor<keyT,keyT,std::pair<std::pair<keyT,tensorT>,std::pair<nodeT,bool>>,std::pair<nodeT,tensorT>>{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata; ///< reference to a FunctionCommonData object needed for processing     
+
+      public:
+     
+        /// SameENewNonE constructor assigns the cdata member 
+        SameENewNonE(const FunctionCommonData<T,NDIM>& cdata1)
+        : cdata(cdata1)
+        {
+        }
+
+        /// processes the entry and creates new default data for non-existing entries
+        virtual std::pair<keyT,std::pair<nodeT,tensorT>> call(const keyT& k, const std::pair<std::pair<keyT,tensorT>,std::pair<nodeT,bool>>& val){
+          std::pair<nodeT,bool> sec = val.second;
+          nodeT node;
+          if (sec.second){
+            node = sec.first;
+          }
+          else{
+            node = nodeT(tensorT(),false);
+          }
+
+          // The integral operator will correctly connect interior nodes
+          // to children but may leave interior nodes without coefficients
+          // ... but they still need to sum down so just give them zeros
+          if (node.has_children() && !node.has_coeff()) {
+            node.set_coeff(tensorT(cdata.v2k));
+          }          
+
+          std::pair<nodeT,tensorT> p;
+          p.first = node;
+          p.second =val.first.second;
+          return std::pair<keyT,std::pair<nodeT,tensorT>>(k, p);
+        }
+    };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class SameE : public MapFunctor<keyT,keyT,std::pair<std::pair<keyT,tensorT>,std::pair<nodeT,bool>>,std::pair<nodeT,tensorT>>{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;      
+
+      public:
+      
+        SameE(const FunctionCommonData<T,NDIM>& cdata1)
+        : cdata(cdata1)
+        {
+        }
+
+        virtual std::pair<keyT,std::pair<nodeT,tensorT>> call(const keyT& k, const std::pair<std::pair<keyT,tensorT>,std::pair<nodeT,bool>>& val){
+          std::pair<nodeT,bool> sec = val.second;
+          nodeT node;
+          MADNESS_ASSERT (sec.second);
+          node = sec.first;
+
+          // The integral operator will correctly connect interior nodes
+          // to children but may leave interior nodes without coefficients
+          // ... but they still need to sum down so just give them zeros
+          if (node.has_children() && !node.has_coeff()) {
+            node.set_coeff(tensorT(cdata.v2k));
+          }          
+
+          std::pair<nodeT,tensorT> p;
+          p.first = node;
+          p.second =val.first.second;
+          return std::pair<keyT,std::pair<nodeT,tensorT>>(k, p);
+        }
+    };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class NewNonE : public MapFunctor<keyT,keyT,std::pair<std::pair<keyT,tensorT>,bool>,std::pair<nodeT,tensorT>>{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;      
+
+      public:
+      
+        NewNonE(const FunctionCommonData<T,NDIM>& cdata1)
+        : cdata(cdata1)
+        {
+        }
+
+        virtual std::pair<keyT,std::pair<nodeT,tensorT>> call(const keyT& k, const std::pair<std::pair<keyT,tensorT>,bool>& val){
+          MADNESS_ASSERT (val.second == false);
+          nodeT node = nodeT(tensorT(),false);
+          
+
+          // The integral operator will correctly connect interior nodes
+          // to children but may leave interior nodes without coefficients
+          // ... but they still need to sum down so just give them zeros
+          if (node.has_children() && !node.has_coeff()) {
+            node.set_coeff(tensorT(cdata.v2k));
+          }          
+
+          std::pair<nodeT,tensorT> p;
+          p.first = node;
+          p.second =val.first.second;
+          return std::pair<keyT,std::pair<nodeT,tensorT>>(k, p);
+        }
+    };
+
+    template <typename keyT, typename tensorT>
+    class KeyTensor : public MapFunctor<keyT,keyT,std::pair<std::pair<keyT, tensorT>, bool>, tensorT >{
+      public:
+
+        std::pair<keyT,tensorT> call(const keyT& k, const std::pair<std::pair<keyT,tensorT>, bool>& val){
+          return std::pair<keyT,tensorT>(k, val.first.second);
+        }
+
+    };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class GetNextFrontier : public MapToManyFunctor<keyT,keyT,std::pair<nodeT,tensorT>,tensorT>{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;
+        const FunctionImpl<T,NDIM>& funcImpl;      
+
+      public:
+      
+         GetNextFrontier(const FunctionCommonData<T,NDIM>& cdata1, const FunctionImpl<T,NDIM>& funcImpl1) :
+          MapToManyFunctor<keyT,keyT,std::pair<nodeT,tensorT>,tensorT>(),
+          cdata(cdata1), funcImpl(funcImpl1) 
+        {
+        }
+
+        virtual std::vector<std::pair<keyT,tensorT>> call(const keyT& k, const std::pair<nodeT,tensorT>& p){
+           nodeT node = p.first;
+           tensorT s = p.second;
+           std::vector<std::pair<keyT,tensorT>> out;          
+
+           if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+            tensorT d = node.coeff();
+            if (d.size() == 0) d = tensorT(cdata.v2k);
+            if (k.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            d = funcImpl.unfilter(d);
+            for (KeyChildIterator<NDIM> kit(k); kit; ++kit) {
+                const keyT& child = kit.key();
+                tensorT ss = copy(d(funcImpl.child_patch(child)));
+                out.push_back(std::pair<keyT,tensorT>(child,ss));
+            }
+           }
+
+           return out;
+ 
+        }
+    };
+
+    template <typename keyT, typename nodeT, std::size_t NDIM>
+    class GetChildKeys : public MapToManyFunctor<keyT,
+                                                 keyT, 
+                                                 std::pair< std::pair<keyT, std::pair<std::size_t, keyT>>, std::pair<nodeT, bool> >, 
+                                                 std::pair<std::size_t, keyT> >{
+
+      public:
+
+        virtual std::vector<std::pair<keyT, std::pair<std::size_t, keyT>>> 
+                call(const keyT& k, 
+                     const std::pair<std::pair<keyT, std::pair<std::size_t, keyT>>, std::pair<nodeT, bool> >& p){
+           keyT key = p.first.first;
+           nodeT node = p.second.first;
+           MADNESS_ASSERT(p.second.second);
+           MADNESS_ASSERT(key == k);
+           std::vector<std::pair<keyT, std::pair<std::size_t, keyT> > > out;          
+
+           if (node.has_children()) { 
+            std::size_t i = 0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                out.push_back(std::pair<keyT, std::pair<std::size_t, keyT> >(std::pair<keyT, std::pair<std::size_t, keyT>>(child,
+                                                                                             std::pair<std::size_t, keyT>(i, key))));
+                i++;
+            }
+           }
+
+           return out;
+ 
+        }
+    };
+
+    template <typename keyT, typename nodeT, typename tensorT, std::size_t NDIM>
+    class GetTensorLevel : public MapFunctor<keyT,
+                                             keyT, 
+                                             std::pair< std::pair<keyT, std::pair<std::size_t, keyT>>, std::pair<nodeT, bool> >, 
+                                             std::pair<std::vector<std::pair<tensorT, keyT> >, 
+                                                       std::pair<std::pair<std::size_t, keyT>, bool> > >{
+
+      public:
+
+        virtual std::pair<keyT, 
+                          std::pair<std::vector<std::pair<tensorT, keyT> >, std::pair<std::pair<std::size_t, keyT>, bool> > > 
+                          call(const keyT& k, 
+                               const std::pair<std::pair<keyT, std::pair<std::size_t, keyT>> , std::pair<nodeT, bool> >& p){
+           keyT parent = p.first.second.second;
+           std::size_t childIndex = p.first.second.first;
+           nodeT node = p.second.first;
+
+           if (node.has_children()) {
+              std::size_t i = 0;
+              
+              for (KeyChildIterator<NDIM> kit(k); kit; ++kit) {
+                //const keyT& child = kit.key();
+                i++;
+               }
+
+               tensorT leaf(node.coeff());
+               //just to fill slots with an acceptable tensor
+               std::vector< std::pair<tensorT, keyT> > tensors(i, std::pair<tensorT,keyT>(leaf,parent));          
+             
+               std::pair<
+                  std::vector< std::pair<tensorT, keyT> >, 
+                  std::pair<std::pair<std::size_t, keyT>, bool> > p1(tensors, 
+                                                                     std::pair<
+                                                                         std::pair<std::size_t, keyT>, bool>
+                                                                              (std::pair<std::size_t, keyT>(childIndex, parent), true));
+           
+              return std::pair<keyT, 
+                              std::pair<
+                                   std::vector<std::pair<tensorT, keyT> >, 
+                                               std::pair<std::pair<std::size_t, keyT>, bool> > >(k, p1);
+           }
+           else{
+             tensorT leaf(node.coeff());
+             std::vector< std::pair<tensorT, keyT> > tensors(1,std::pair<tensorT,keyT>(leaf,parent));          
+             
+             std::pair<tensorT, keyT> p2(leaf, k);
+             tensors.push_back(p2);
+             std::pair<
+                  std::vector< std::pair<tensorT, keyT> >, 
+                  std::pair<std::pair<std::size_t, keyT>, bool> > p1(tensors, 
+                                             std::pair<std::pair<std::size_t, keyT>, bool>
+                                                            (std::pair<std::size_t, keyT>(childIndex, parent), false));
+             return std::pair<keyT, 
+                              std::pair<
+                                   std::vector<std::pair<tensorT, keyT> >, 
+                                               std::pair<std::pair<std::size_t, keyT>, bool> > >(k, p1);
+           }
+ 
+        }
+    };
+
+    template <typename keyT, typename nodeT, typename tensorT>
+    class ProcessNode : public MapFunctor<keyT,keyT,std::pair<nodeT,tensorT>,nodeT>{
+      public:
+
+        virtual std::pair<keyT,nodeT> call(const keyT& k, const std::pair<nodeT,tensorT>& p){
+
+          nodeT n = p.first;
+          tensorT s = p.second;          
+
+          if (n.has_children() || n.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+            n.clear_coeff();
+            n.set_has_children(true);
+          }
+          else {
+            if (k.level()) n.set_coeff(copy(s));
+            else n.set_coeff(s);
+          }
+
+          return std::pair<keyT,nodeT>(k,n);
+        }
+
+     };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class NodesUpdate : 
+      public UpdateOp<keyT, 
+                      std::pair< 
+                           std::pair<keyT, 
+                                std::pair<std::vector<std::pair<tensorT, keyT> >, 
+                                          std::pair<std::pair<std::size_t, keyT>, bool> >  
+                                    >, 
+                           std::pair<nodeT, bool> 
+                               >, 
+                      keyT, 
+                      nodeT > 
+{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;
+        const FunctionImpl<T,NDIM>& funcImpl;
+        const int& k;
+        const bool& keepleaves;       
+        const bool& nonstandard;       
+
+      public:
+      
+         NodesUpdate(const FunctionCommonData<T,NDIM>& cdata1, const FunctionImpl<T,NDIM>& funcImpl1, const int& k1, const bool& keepleaves1, const bool& nonstandard1) :            
+          UpdateOp<keyT,
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                 >, 
+                        std::pair<nodeT, bool> >, 
+                   keyT, 
+                   nodeT 
+                  >(),
+          cdata(cdata1), funcImpl(funcImpl1), k(k1), keepleaves(keepleaves1), nonstandard(nonstandard1) 
+        {
+        }
+
+        virtual nodeT call(const keyT& kI, 
+                 const std::pair< 
+                            std::pair<keyT, 
+                                 std::pair<
+                                      std::vector<std::pair<tensorT, keyT> >, 
+                                      std::pair<std::pair<std::size_t, keyT>, bool> 
+                                          > 
+                                     >, 
+                             std::pair<nodeT, bool> > & vI, 
+                 const keyT& kO, 
+                 const nodeT * vO, 
+                 const bool& present){
+
+          MADNESS_ASSERT(present);
+
+          bool leaf = !(vI.first.second.second.second);
+          std::vector<std::pair<tensorT, keyT> > v = vI.first.second.first;
+          keyT parent = vI.first.second.second.first.second;
+          nodeT node = vI.second.first;
+
+          nodeT nO = *vO;
+
+          MADNESS_ASSERT(vI.second.second);
+
+          if (!leaf){
+
+            // Copy child scaling coeffs into contiguous block
+            tensorT d(cdata.v2k,false);
+            for (std::size_t i = 0; i < v.size(); i++) {
+              d(funcImpl.child_patch(v[i].second)) = v[i].first;
+            }
+            d = funcImpl.filter(d);
+
+
+            if (node.has_coeff()) {
+              const tensorT& c = node.coeff();
+              if (c.dim(0) == k) {
+                d(cdata.s0) += c;
+              }
+              else {
+                d += c;
+              }
+            }
+
+
+            if (kI.level()> 0 && !nonstandard)
+                d(cdata.s0) = 0.0;
+
+            nO.set_coeff(d);
+
+            return nO;
+          }
+          else{
+            if (!keepleaves) nO.clear_coeff();
+            return nO;
+          }
+        }
+
+};
+
+   template <typename keyT, typename nodeT, typename  tensorT>
+   class ParentJoin :
+               public JoinOp<keyT,
+                             keyT,
+                             std::pair< 
+                                  std::pair<keyT, 
+                                       std::pair<
+                                            std::vector<std::pair<tensorT, keyT> >, 
+                                            std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                          >, 
+                                  std::pair<nodeT, bool> > >
+  {
+    public:
+
+      virtual keyT join(const keyT& kI, 
+                        const 
+                             std::pair< 
+                                  std::pair<keyT, 
+                                       std::pair<
+                                            std::vector<std::pair<tensorT, keyT> >, 
+                                            std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                          >, 
+                                  std::pair<nodeT, bool> >& vI){
+
+        return vI.first.second.second.first.second;         
+
+      }
+  };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class CompressUpdate : 
+                public UpdateOp<keyT, 
+                                std::pair< 
+                                     std::pair<keyT, 
+                                          std::pair<
+                                               std::vector<std::pair<tensorT, keyT> >, 
+                                               std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                              >, 
+                                std::pair<nodeT, bool> >, 
+                                keyT, 
+                                std::pair<
+                                     std::vector<std::pair<tensorT, keyT> >, 
+                                     std::pair<std::pair<std::size_t, keyT>, bool> > > 
+{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;
+        const FunctionImpl<T,NDIM>& funcImpl;
+        const int& k;      
+
+      public:
+      
+         CompressUpdate(const FunctionCommonData<T,NDIM>& cdata1, const FunctionImpl<T,NDIM>& funcImpl1, const int& k1) :
+          UpdateOp<keyT,
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >, 
+                        std::pair<nodeT, bool> >, 
+                   keyT, 
+                   std::pair<
+                        std::vector<std::pair<tensorT, keyT> >, 
+                        std::pair<std::pair<std::size_t, keyT>, bool> > 
+                  >(),
+          cdata(cdata1), funcImpl(funcImpl1), k(k1) 
+        {
+        }
+
+        virtual std::pair< std::vector<std::pair<tensorT, keyT> >, 
+                           std::pair<std::pair<std::size_t, keyT>, bool> > call(const keyT& kI, 
+                 const std::pair< 
+                            std::pair<keyT, 
+                                 std::pair<
+                                      std::vector<std::pair<tensorT, keyT> >,
+                                      std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                     >, 
+                            std::pair<nodeT, bool> > & vI, 
+                 const keyT& kO, 
+                 const std::pair<
+                            std::vector<std::pair<tensorT, keyT> >, 
+                            std::pair<std::pair<std::size_t, keyT>, bool> > * vO, 
+                 const bool& present){
+
+          MADNESS_ASSERT(present);
+
+          bool leaf = !(vI.first.second.second.second);
+          std::vector<std::pair<tensorT, keyT> > v = vI.first.second.first;
+          std::size_t childIndex = vI.first.second.second.first.first;
+          nodeT node = vI.second.first;
+
+          std::vector<std::pair<tensorT, keyT> > vOut = vO->first;
+
+          MADNESS_ASSERT(vI.second.second);
+
+          MADNESS_ASSERT(vO->second.second);
+
+          if (!leaf){
+
+            // Copy child scaling coeffs into contiguous block
+            tensorT d(cdata.v2k,false);
+            for (std::size_t i = 0; i < v.size(); i++) {
+              d(funcImpl.child_patch(v[i].second)) = v[i].first;
+            }
+            d = funcImpl.filter(d);
+
+
+            if (node.has_coeff()) {
+              const tensorT& c = node.coeff();
+              if (c.dim(0) == k) {
+                d(cdata.s0) += c;
+              }
+              else {
+                d += c;
+              }
+            }
+
+            tensorT s = copy(d(cdata.s0));
+
+            /*
+            vOut.push_back(std::pair<tensorT, keyT>(s,kI));
+            */
+            vOut[childIndex] = std::pair<tensorT, keyT>(s,kI);
+
+          }
+          else{
+            tensorT result(node.coeff());
+            /*
+            vOut.push_back(std::pair<tensorT, keyT>(result,kI));
+            */
+            vOut[childIndex] = std::pair<tensorT, keyT>(result,kI);
+          }
+          return std::pair<std::vector<std::pair<tensorT, keyT> >, 
+                           std::pair<std::pair<std::size_t, keyT>, bool> >(vOut, vO->second);
+        }
+     };
+
+    template <typename keyT, typename nodeT, typename tensorT, typename T, std::size_t NDIM>
+    class CompressFunctor : 
+                public MapFunctor<keyT, 
+                                keyT, 
+                                std::pair< 
+                                     std::pair<keyT, 
+                                          std::pair<
+                                               std::vector<std::pair<tensorT, keyT> >, 
+                                               std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                              >, 
+                                     std::pair<nodeT, bool> >, 
+                                std::pair< 
+                                     std::pair<keyT, 
+                                          std::pair<
+                                               std::vector<std::pair<tensorT, keyT> >, 
+                                               std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                              >, 
+                                     std::pair<nodeT, bool> >
+                                 >
+{
+      private:
+        const FunctionCommonData<T,NDIM>& cdata;
+        const FunctionImpl<T,NDIM>& funcImpl;
+        const int& k;      
+
+      public:
+      
+         CompressFunctor(const FunctionCommonData<T,NDIM>& cdata1, const FunctionImpl<T,NDIM>& funcImpl1, const int& k1) :
+          MapFunctor<keyT,
+                   keyT, 
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >, 
+                        std::pair<nodeT, bool> >, 
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >,
+                        std::pair<nodeT, bool> > 
+                  >(),
+          cdata(cdata1), funcImpl(funcImpl1), k(k1) 
+        {
+        }
+
+        virtual std::pair<keyT, 
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >, 
+                        std::pair<nodeT, bool> >
+                         > call(const keyT& kI, 
+                                      const std::pair< 
+                                           std::pair<keyT, 
+                                                std::pair<
+                                                     std::vector<std::pair<tensorT, keyT> >, 
+                                                     std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                                    >, 
+                                       std::pair<nodeT, bool> >& vI)
+          {
+
+
+          bool leaf = !(vI.first.second.second.second);
+          std::vector<std::pair<tensorT, keyT> > v = vI.first.second.first;
+          //std::size_t childIndex = vI.first.second.second.first.first;
+          nodeT node = vI.second.first;
+
+          MADNESS_ASSERT(vI.second.second);
+
+          if (!leaf){
+
+            // Copy child scaling coeffs into contiguous block
+            tensorT d(cdata.v2k,false);
+            for (std::size_t i = 0; i < v.size(); i++) {
+              d(funcImpl.child_patch(v[i].second)) = v[i].first;
+            }
+            d = funcImpl.filter(d);
+
+
+            if (node.has_coeff()) {
+              const tensorT& c = node.coeff();
+              if (c.dim(0) == k) {
+                d(cdata.s0) += c;
+              }
+              else {
+                d += c;
+              }
+            }
+
+            tensorT s = copy(d(cdata.s0));
+
+            return std::pair<keyT, 
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >, 
+                        std::pair<nodeT, bool> > >(kI, vI);
+          }
+          else{
+            tensorT result(node.coeff());
+            return std::pair<keyT, 
+                   std::pair< 
+                        std::pair<keyT, 
+                             std::pair<
+                                  std::vector<std::pair<tensorT, keyT> >, 
+                                  std::pair<std::pair<std::size_t, keyT>, bool> > 
+                                  >, 
+                        std::pair<nodeT, bool> > >(kI, vI);
+          }
+        }
+     };
+}
+
+namespace madness{
 
     /// Interface required for functors used as input to Functions
     template<typename T, std::size_t NDIM>
@@ -594,6 +1301,14 @@ namespace madness {
         typedef WorldContainer<keyT,nodeT> dcT; ///< Type of container holding the coefficients
         typedef std::pair<const keyT,nodeT> datumT; ///< Type of entry in container
         typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
+
+            typedef WorldContainer<keyT,tensorT> tensorContainerT;
+            typedef WorldContainer< keyT, std::pair< std::pair<keyT,tensorT> , std::pair<nodeT,bool> > > containerJoinT;
+            typedef WorldContainer< keyT, std::pair< std::pair<keyT,nodeT>, std::pair<nodeT,bool> > > dcJoinT;
+
+            typedef std::pair<
+                         std::vector<std::pair<tensorT, keyT> >, 
+                         std::pair<std::pair<std::size_t, keyT>, bool> > compressOpT;
 
         //template <typename Q, int D> friend class Function;
         template <typename Q, std::size_t D> friend class FunctionImpl;
@@ -2108,11 +2823,131 @@ namespace madness {
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
+            reconstructBFS(fence);
+            verify_tree();
+           
+            /* 
             nonstandard = compressed = false;
             if (world.rank() == coeffs.owner(cdata.key0))
                 woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,tensorT());
             if (fence)
                 world.gop.fence();
+            */
+            
+        }
+
+        WorldContainer<keyT, std::pair<nodeT, tensorT> >
+        joinNodes(WorldContainer<keyT, nodeT> nodes, WorldContainer<keyT,tensorT> tensors){
+              
+          IdJoin<keyT,tensorT> * id = new IdJoin<keyT,tensorT>;
+
+          WorldContainer<keyT,std::pair<std::pair<keyT,tensorT>,bool > > joinResult = tensors.join3(nodes, id);
+          joinResult.fence();
+
+          SimplePred<keyT, keyT, tensorT> * spred = new SimplePred<keyT, keyT, tensorT>();
+
+          std::pair<WorldContainer<keyT, std::pair<std::pair<keyT,tensorT>, bool> >, WorldContainer<keyT, std::pair<std::pair<keyT,tensorT>, bool> > > splitResult = joinResult.filterSplit(spred);
+          splitResult.first.fence();
+
+          KeyTensor<keyT,tensorT> * kt = new KeyTensor<keyT,tensorT>;
+
+          WorldContainer<keyT, tensorT> existingTensors = splitResult.first.map(kt, splitResult.first.get_pmap());
+          existingTensors.fence();
+
+          delete kt;
+
+          WorldContainer<keyT, std::pair<std::pair<keyT, tensorT>, std::pair<nodeT, bool> > > existingKeys =  existingTensors.join2(nodes, id);
+          existingKeys.fence();
+
+          SameE<keyT,nodeT,tensorT,T,NDIM> * se = new SameE<keyT,nodeT,tensorT,T,NDIM>(cdata);
+
+          NewNonE<keyT,nodeT,tensorT,T,NDIM> * sn = new NewNonE<keyT,nodeT,tensorT,T,NDIM>(cdata);
+  
+          WorldContainer<keyT,std::pair<nodeT,tensorT>> sameValue = existingKeys.map(se, existingKeys.get_pmap());
+          splitResult.second.fence();
+          WorldContainer<keyT,std::pair<nodeT,tensorT>> newValue = splitResult.second.map(sn, splitResult.second.get_pmap());
+
+         sameValue.fence();
+         newValue.fence();
+
+         delete spred;
+
+         delete id;
+         
+         delete se;
+
+         delete sn;
+
+         WorldContainer<keyT, std::pair<nodeT, tensorT> > allVals = sameValue.combine(newValue);
+         allVals.fence();
+
+         return allVals;
+ 
+        }	
+
+        void reconstructBFS(bool fence) {
+            // Must set true here so that successive calls without fence do the right thing
+            nonstandard = compressed = false;
+            print("BFS");
+            //sleep(40);
+
+            WorldContainer< keyT, tensorT > tasks(world);
+
+            if (world.rank() == coeffs.owner(cdata.key0)){
+              tasks.replace(cdata.key0,tensorT());
+            }
+            tasks.fence();
+
+            while (tasks.glo_size() > 0){
+              
+              // access siblings, passing the contents of the current task along
+
+              // process the nodes of the accessed siblings - for nodes that 
+              // did not exist, create them
+
+              WorldContainer<keyT,std::pair<nodeT,tensorT>> newCoeffs = joinNodes(coeffs, tasks);
+
+              // scan all the accessed nodes, pre-existing and new, to
+              // generate next BFS level of tasks
+              GetNextFrontier<keyT,nodeT,tensorT,T,NDIM> * g = new GetNextFrontier<keyT,nodeT,tensorT,T,NDIM>(cdata,*this);
+
+              tasks = newCoeffs.mapToMany(g, tasks.get_pmap());
+              tasks.fence();
+
+              delete g;
+ 
+              // scan all the accessed nodes, pre-existing and new, to
+              // process them and create a container of the processed vals
+              ProcessNode<keyT,nodeT,tensorT> * processNode = new ProcessNode<keyT,nodeT,tensorT>;
+
+              dcT tmpCoeffs = newCoeffs.map(processNode, newCoeffs.get_pmap());
+              tmpCoeffs.fence();
+
+              delete processNode;              
+
+              // three steps are necessary to create a new container
+              // made up of all the elements of coeffs, some of which
+              // have been updated, plus all the processed new elements
+              dcT allCoeffs = tmpCoeffs.combine(coeffs);
+              allCoeffs.fence();
+
+              IdJoin<keyT,nodeT> * id3 = new IdJoin<keyT,nodeT>;
+            
+              dcJoinT totalCoeffs = allCoeffs.join2(tmpCoeffs, id3);
+              totalCoeffs.fence();
+
+              delete id3;
+
+              ExtractNode<keyT,nodeT> * e = new ExtractNode<keyT,nodeT>;
+
+              coeffs = totalCoeffs.map(e, coeffs.get_pmap());
+              coeffs.fence();
+
+              delete e;
+            }
+
+           if (fence)
+               world.gop.fence();                  
         }
 
         // Invoked on node where key is local
@@ -2122,8 +2957,11 @@ namespace madness {
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
+            /*
             if (world.rank() == coeffs.owner(cdata.key0))
                 compress_spawn(cdata.key0, nonstandard, keepleaves);
+            */
+            compress_spawn_BFS(cdata.key0, nonstandard, keepleaves);
             if (fence)
                 world.gop.fence();
         }
@@ -2198,6 +3036,155 @@ namespace madness {
             acc->second.set_coeff(d);
 
             return s;
+        }
+
+        /// The breadth-first style compress kernel using MapReduce-style operations
+        void compress_spawn_BFS(const keyT& key, bool nonstandard, bool keepleaves){
+          print("spawnBFS");
+          //sleep(30);
+          
+          // (key, parent) pairs
+          // the "task"-based model compress_spawn tasks are now
+          // kept in the keys container; thw tasks tree is explored
+          // top-down, in BFS style
+          WorldContainer<keyT, std::pair<std::size_t, keyT>> keys(world);
+         
+          // we start with the root of the task tree 
+          if (world.rank() == coeffs.owner(cdata.key0)){
+            keys.replace(cdata.key0, std::pair<std::size_t, keyT>(0, cdata.key0));
+          }
+          // per-container fences are necessary to make sure
+          // all outstanding operations for that container were finished
+          keys.fence();
+
+          unsigned int level = 0; // The level of BFS graph exploration 
+
+          // The tensors tree is kept as a vector of levels.
+          // Each level is a WorldContainer that keeps,
+          // for each keyT, the child keyTs and their coresponding
+          // tensorTs, as well as the parent keyT and a bool
+          // representing whether this tree node has children or not
+          // If  this tree node is a leaf, instead of the child keyTs
+          // and tensors, the current keyT and its own tensorT
+          // are kept in a pair in this node's vector
+          std::vector< WorldContainer<keyT, compressOpT > > tensors;
+
+          // the task tree is explored as long as the next task level is not empty 
+          while (keys.glo_size() > 0){
+
+            IdJoin<keyT, std::pair<std::size_t, keyT>> * id = new IdJoin<keyT, std::pair<std::size_t, keyT>>;
+            // join current level tasks with coefficients;
+            // all keyTs that represent current level tasks
+            // are also keyTs in coeffs
+            WorldContainer<keyT, 
+                          std::pair< 
+                               std::pair<keyT, std::pair<std::size_t, keyT>>, 
+                               std::pair<nodeT, bool> > > keyNodes = keys.join2(coeffs, id);
+            keyNodes.fence();
+            delete id;
+
+            //print("join done");
+
+            // generate next level tasks, based on the information
+            // in keyNodes
+            GetChildKeys<keyT, nodeT, NDIM> * ck = new GetChildKeys<keyT, nodeT, NDIM>; 
+            WorldContainer<keyT, std::pair<std::size_t, keyT> > newkeys = keyNodes.mapToMany(ck, keys.get_pmap());
+            newkeys.fence();
+            delete ck;
+
+            //print("mapToMany done");
+
+            keys = newkeys;
+
+            // create the current level in the tensors tree
+            // the tensors tree will be scanned from the leaves up
+            // after the scan from the root down finishes
+            GetTensorLevel<keyT, nodeT, tensorT, NDIM> * tl = new GetTensorLevel<keyT, nodeT, tensorT, NDIM>;
+
+            tensors.push_back(keyNodes.map(tl, keyNodes.get_pmap()));
+            tensors[level].fence();             
+            delete tl;
+
+            //print("map done");
+
+            //print("Level ", level, tensors[level],"\n");
+
+            level++;
+          }
+
+          MADNESS_ASSERT(level > 0);
+          //start bottom-up scan for the purpose of aggregating
+          //top-down results by the compress operation (equivalent to
+          //compress_op)
+          level--;
+
+          while (1){
+            
+            IdJoin<keyT, compressOpT> * id = new IdJoin<keyT, compressOpT > ;
+            // need to aggregate tensors at the current level with the coeffs
+            // so that all information for updating the previous level
+            // in the tensor tree is in one place 
+            WorldContainer<keyT, 
+                            std::pair< 
+                               std::pair<keyT, compressOpT>, 
+                               std::pair<nodeT, bool>>> tensorNodes = tensors[level].join2(coeffs, id);
+            tensorNodes.fence();
+
+            //print("up join done");
+
+            IdJoin<keyT, 
+                   std::pair< 
+                        std::pair<keyT, compressOpT>, 
+                        std::pair<nodeT, bool>>> * id2 = new IdJoin<keyT, 
+                                                                    std::pair< 
+                                                                         std::pair<keyT, compressOpT>, 
+                                                                         std::pair<nodeT, bool>>> ; 
+
+            if (level > 0){
+              
+              ParentJoin<keyT, nodeT, tensorT > * pj = new ParentJoin<keyT, nodeT , tensorT >; 
+
+              CompressUpdate<keyT, nodeT, tensorT, T, NDIM> * cup = new CompressUpdate<keyT, nodeT, tensorT, T, NDIM>(cdata, *this, k);
+
+              // update the parent tensors of all current level tensors 
+              // with information from current level tensors and coeffs;
+              // before sending info to parents, current info must be
+              // processed by the equivalent of compress_op
+              WorldContainer<keyT, compressOpT> upTensors = tensorNodes.mapUpdate(tensors[level-1], pj, cup);
+              upTensors.fence();
+              delete cup; delete pj; 
+            
+              tensors[level-1] = upTensors;
+
+              //print("mapUpdate1 done, level:",level);
+            }
+            else{
+              CompressFunctor<keyT, nodeT, tensorT, T, NDIM> * cm = new CompressFunctor<keyT, nodeT, tensorT, T, NDIM>(cdata, *this, k);
+              // process root tensor by the equivalent of compress_op
+              WorldContainer<keyT, 
+                          std::pair< 
+                               std::pair<keyT, compressOpT>, 
+                               std::pair<nodeT, bool>>> tensortmp = tensorNodes.map(cm, tensorNodes.get_pmap());
+                tensortmp.fence(); delete cm;
+            }
+
+            NodesUpdate<keyT, nodeT, tensorT, T, NDIM> * nu = new NodesUpdate<keyT, nodeT, tensorT, T, NDIM>(cdata, *this, k, keepleaves, nonstandard );
+            // update current level coeffs with information from tensors
+            WorldContainer<keyT, nodeT> newCoeffs = tensorNodes.mapUpdate(coeffs, id2, nu);
+            newCoeffs.fence();
+            delete nu; delete id; delete id2;
+
+            //print("mapUpdate2 done");
+
+            coeffs = newCoeffs;
+            world.gop.fence();
+
+            if (level == 0) break;
+            level--;
+          }
+          tensors.clear();
+
+
         }
 
         /// Changes non-standard compressed form to standard compressed form

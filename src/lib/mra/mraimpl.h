@@ -881,7 +881,10 @@ namespace madness {
         // and it is the responsibility of the caller to worry about that
         // ... most likely the coefficients (s) are zero to reflect
         // zero B.C. so returning s makes handling this easy.
-        if (parent == child || parent.is_invalid() || child.is_invalid()) return s;
+        if (parent == child || parent.is_invalid() || child.is_invalid()){
+         //print("INVALID");
+         return s;
+        }
 
         tensorT result = fcube_for_mul<T>(child, parent, s);
         result.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*child.level()))));

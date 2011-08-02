@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
                gtest_example qtest worldprofile_test worldptr_test worldref_test \
-               worldreduce_test functional_test
+               worldreduce_test functional_test wfc_test
 
 lib_LIBRARIES = libMADworld.a
 
@@ -14,8 +14,9 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
-	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
-	deferred_deleter.h scopedptr.h worldreduce.h worldtaskqueue.h worldtaskbase.h
+	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h mapreduce.h worlddc.h \
+	deferred_deleter.h scopedptr.h worldreduce.h worldtaskqueue.h worldtaskbase.h 
+ 
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
@@ -73,6 +74,9 @@ testdc_LDADD = libMADworld.a
 
 testhashthreaded_SOURCES = testhashthreaded.cc
 testhashthreaded_LDADD = libMADworld.a
+
+wfc_test_SOURCES = wfc_test.cc
+wfc_test_LDADD = libMADworld.a
 
 qtest_SOURCES = qtest.cc
 qtest_LDADD = libMADworld.a

@@ -47,6 +47,7 @@
 #include <world/mpiar.h>
 #include <world/worldobj.h>
 #include <world/deferred_deleter.h>
+#include <world/mapreduce.h>
 #include <set>
 
 namespace madness {
@@ -327,6 +328,8 @@ namespace madness {
         internal_containerT local;               ///< Locally owned data
         std::vector<keyT>* move_list;            ///< Tempoary used to record data that needs redistributing
 
+        Spinlock mulock; //for mapUpdate
+
         /// Handles find request
         Void find_handler(ProcessID requestor, const keyT& key, const RemoteReference< FutureImpl<iterator> >& ref) {
             internal_iteratorT r = local.find(key);
@@ -362,6 +365,9 @@ namespace madness {
         }
 
     public:
+        
+        void * updateOpPtr;
+        void * reducePtr;
 
         WorldContainerImpl(World& world,
                            const std::shared_ptr< WorldDCPmapInterface<keyT> >& pm,
@@ -373,6 +379,8 @@ namespace madness {
                 , local(5011, hf) {
             pmap->register_callback(this);
             if (do_pending) this->process_pending();
+            updateOpPtr = 0;
+            reducePtr = 0;
         }
 
         virtual ~WorldContainerImpl() {
@@ -433,6 +441,175 @@ namespace madness {
             local.clear();
         }
 
+        Future<std::size_t> get_size() const {
+          return Future<std::size_t>(size());
+        }
+
+        /// Returns the number of total entries from all processes
+        std::size_t glo_size() {
+            std::size_t total = 0;
+            for (ProcessID i = 0; i < this->world.size(); i++){
+             Future<std::size_t> s = task(i, &implT::get_size);
+             total += s.get();
+            }
+            this->world.gop.fence();
+            return total;
+        }
+
+
+        Future<bool> __put1(keyT k, valueT val){
+          ProcessID dest = owner(k);
+          if (dest == me) {
+            insert(std::pair<keyT,valueT>(k, val));
+            //print(k," ", val);
+            return Future<bool>(true);
+          }
+          else {
+            return task(dest, &implT::__put1, k, val);
+          }
+        }
+
+        Future<std::pair<std::pair<keyT,valueT>,bool>> getJoin(keyT k, valueT val){
+          if (owner(k) == me){
+            Future<iterator> it = find(k);
+            iterator itg = it.get();
+            if (itg != end()){
+              valueT v = itg->second;
+              return Future<std::pair<std::pair<keyT,valueT>,bool>>(std::pair<keyT, valueT>(k, v),true);
+            }
+            else{
+              return Future<std::pair<std::pair<keyT,valueT>,bool>>(std::pair<keyT, valueT>(k, 0),false);
+            }
+          }
+         else{
+            return task(owner(k), &implT::getJoin, k);
+          }
+        }
+
+        template <typename keyI, typename valueI, typename hashfunO = Hash<keyT> >
+        Future<bool> setJoin(keyT k, keyI kI, valueI vI, WorldContainer<keyT,std::pair<std::pair<keyI,valueI>,std::pair<valueT,bool>>,hashfunO> dc){
+          if (owner(k) == me){ 
+            Future<iterator> it = find(k);
+            std::pair<std::pair<keyI,valueI>,std::pair<valueT,bool>> eP;
+            if (it.get() != end()){
+
+              std::pair<keyI,valueI> iP1;
+              iP1.first = kI;
+              iP1.second = vI;
+              
+              std::pair<valueT,bool> iP2;
+              iP2.first = (it.get())->second;
+              iP2.second = true;
+
+              eP.first = iP1;
+              eP.second = iP2;              
+            }
+            else{
+
+              std::pair<keyI,valueI> iP1;
+              iP1.first = kI;
+              iP1.second = vI;
+              
+              std::pair<valueT,bool> iP2;
+              valueT v;
+              iP2.first = v;
+              iP2.second = false;
+
+              eP.first = iP1;
+              eP.second = iP2;
+            } 
+
+            return dc.__put1(k, eP); 
+          
+          }
+          else{
+            return task/*send*/(owner(k), &implT::setJoin<keyI, valueI, hashfunO>, k, kI, vI, dc);
+          }
+        
+        }
+
+        template <typename keyI, typename valueI, typename hashfunO >
+        Future<bool> setJoin3(keyT k, keyI kI, valueI vI, WorldContainer<keyT,std::pair<std::pair<keyI,valueI>,bool>,hashfunO> dc){
+          //print("2nd owner(",k,")=",dc.owner(k));
+          //if (dc.owner(k) == me){ 
+          if (owner(k) == me){ 
+            //print("local Join3");
+            Future<iterator> it = find(k);
+            std::pair<std::pair<keyI,valueI>,bool> eP;
+            if (it.get() != end()){
+
+              std::pair<keyI,valueI> iP1;
+              iP1.first = kI;
+              iP1.second = vI;
+              
+              eP.first = iP1;
+              eP.second = true;              
+            }
+            else{
+
+              std::pair<keyI,valueI> iP1;
+              iP1.first = kI;
+              iP1.second = vI;
+              
+              eP.first = iP1;
+              eP.second = false;
+            } 
+
+            return dc.__put1(k, eP); 
+          
+          }
+          else{
+            //print("send Join3");
+            //return send(dc.owner(k), &implT::setJoin3<keyI, valueI, hashfunO>, k, kI, vI, dc);
+            return task(owner(k), &implT::setJoin3<keyI, valueI, hashfunO>, k, kI, vI, dc);
+          }
+        
+        }
+
+        template <typename keyI, typename valueI/*, typename hashfunO*/>
+        Future<bool> __update(keyI kI, valueI valI, keyT k/*, WorldContainer<keyT, valueT, hashfunO> dc*/){
+          if (owner(k) == me){
+           
+            mulock.lock();
+            //need mutex lock here, but even wrong with 1 thread per process 
+            Future<iterator> it = find(k);
+            iterator iter = it.get();
+            
+            bool present = (iter != end());
+            valueT * v1 = new valueT;
+            if (present){ 
+              *v1 = iter->second;
+            }
+            else{
+              v1 = 0;
+            }
+
+            UpdateOp<keyI, valueI, keyT, valueT> * uop = static_cast<UpdateOp<keyI, valueI, keyT, valueT> *>(updateOpPtr);
+
+            valueT v = uop->call(kI, valI, k, v1, present);
+            if (v1){
+              delete v1;
+            }
+
+            Future<bool> returnValue =this->__put1(k, v);
+            mulock.unlock();
+            return returnValue;
+          }
+          else{
+
+            return task(owner(k), &implT::__update<keyI,valueI>, kI, valI, k);            
+          }
+        }
+
+        template <typename reduceO>
+        Future<reduceO> getReduce(ProcessID pId){
+          if (pId == me){
+            return Future<reduceO>(*(static_cast<reduceO *>(reducePtr)));
+          }
+          else{
+            return task(pId, &implT::getReduce<reduceO>, pId);
+          }
+        }
 
         Void erase(const keyT& key) {
             ProcessID dest = owner(key);
@@ -648,12 +825,14 @@ namespace madness {
         typedef Future<const_iterator> const_futureT;
 
     private:
-        std::shared_ptr<implT> p;
+        std::shared_ptr<implT> p; 
 
         inline void check_initialized() const {
             MADNESS_ASSERT(p);
         }
     public:
+        std::shared_ptr<std::vector<Future<bool>>> remoteOps;
+        std::shared_ptr<std::vector<std::pair<keyT,Future<valueT>>>> remoteElts;
 
         /// Makes an uninitialized container (no communication)
 
@@ -676,7 +855,9 @@ namespace madness {
             : p(new implT(world,
                           std::shared_ptr< WorldDCPmapInterface<keyT> >(new WorldDCDefaultPmap<keyT, hashfunT>(world, hf)),
                           do_pending,
-                          hf), DeferredDeleter<implT>(world))
+                          hf), DeferredDeleter<implT>(world)),
+              remoteOps(new std::vector<Future<bool>>),
+              remoteElts(new std::vector<std::pair<keyT,Future<valueT>>>)
         {}
 
         /// Makes an initialized, empty container (no communication)
@@ -690,7 +871,9 @@ namespace madness {
                        const std::shared_ptr< WorldDCPmapInterface<keyT> >& pmap,
                        bool do_pending=true,
                        const hashfunT& hf = hashfunT())
-            : p(new implT(world, pmap, do_pending, hf), DeferredDeleter<implT>(world))
+            : p(new implT(world, pmap, do_pending, hf), DeferredDeleter<implT>(world)),
+              remoteOps(new std::vector<Future<bool>>),
+              remoteElts(new std::vector<std::pair<keyT,Future<valueT>>>)
         {}
 
 
@@ -699,9 +882,13 @@ namespace madness {
         /// The copy refers to exactly the same container as other
         /// which must be initialized.
         WorldContainer(const WorldContainer& other)
-            : p(other.p)
+            : p(other.p),
+              remoteOps(other.remoteOps),
+              remoteElts(other.remoteElts)
         {
             check_initialized();
+            remoteOps = other.remoteOps;
+            remoteElts = other.remoteElts;
         }
 
         /// Assignment is shallow (no communication)
@@ -712,6 +899,8 @@ namespace madness {
             if (this != &other) {
                 other.check_initialized();
                 p = other.p;
+                remoteOps = other.remoteOps;
+                remoteElts = other.remoteElts;
             }
             return *this;
         }
@@ -893,6 +1082,333 @@ namespace madness {
         hashfunT& get_hash() const {
             check_initialized();
             return p->get_hash();
+        }
+
+        friend std::ostream& operator<<(std::ostream &out, const containerT& dc){
+          for (typename containerT::const_iterator locIt = dc.begin();
+             locIt != dc.end();
+             locIt++){
+            keyT k = locIt->first;
+            valueT val = locIt->second;
+            out << "(" << k << "," << val << ")  ";
+          }
+          out << "\n";
+          return out;
+        }
+
+        std::size_t glo_size(){
+          return p->glo_size();
+        }
+
+        //can be called globally, but is inefficient
+        //should be called locally for efficiency 
+        Future<bool> __put(std::pair<keyT, valueT>& datum){
+          keyT k = datum.first;
+          valueT val = datum.second;
+          //print(k," ", val);
+          return p->__put1(k, val);
+        }
+        
+        //can be called globally, but is inefficient
+        //should be called locally for efficiency 
+        Future<bool> __put1(keyT& k, valueT& val){
+          return p->__put1(k, val);
+        }
+
+        Future<std::pair<std::pair<keyT,valueT>,bool>> getJoin(keyT k, valueT val){
+          if (owner(k) == p->world.rank()){
+            Future<iterator> it = find(k);
+            iterator itg = it.get();
+            if (itg != end()){
+              valueT v = itg->second;
+              return Future<std::pair<std::pair<keyT,valueT>,bool>>(std::pair<keyT, valueT>(k, v),true);
+            }
+            else{
+              valueT v;
+              return Future<std::pair<std::pair<keyT,valueT>,bool>>(std::pair<keyT, valueT>(k, v),false);
+            }
+          }
+         else{
+            return p->task(owner(k), &implT::getJoin, k);
+          }
+        }
+        
+        template <typename keyI, typename valueI>
+        Future<bool> setJoin(keyT k, keyI kI, valueI vI, WorldContainer<keyT,std::pair<std::pair<keyI,valueI>,std::pair<valueT,bool>>,hashfunT> dc){
+          return p->setJoin<keyI,valueI,hashfunT>(k, kI, vI, dc);
+
+        }
+
+        template <typename keyI, typename valueI, typename hashfunO>
+        Future<bool> setJoin3(keyT k, keyI kI, valueI vI, WorldContainer<keyT,std::pair<std::pair<keyI,valueI>,bool>,hashfunO> dc){
+          return p->setJoin3<keyI,valueI,hashfunO>(k, kI, vI, dc);
+
+        }
+
+        template <typename keyI, typename valueI>
+        Future<bool> __update(keyI kI, valueI valI, keyT k){
+          return p->__update<keyI, valueI>(kI, valI, k);
+        }
+
+        WorldContainer<keyT, valueT> filter(Pred<keyT, valueT> * predicate){
+
+          WorldContainer<keyT,valueT> result(p->world, this->get_pmap());       
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               if (predicate->call(k,val)){
+                 std::pair<keyT,valueT> out;
+                 out.first = k;
+                 out.second = val;
+                 result.remoteOps->push_back(result.__put(out));
+
+               }
+          }
+
+          return result;
+        
+        }
+
+        std::pair<WorldContainer<keyT, valueT>, WorldContainer<keyT, valueT> > filterSplit(Pred<keyT, valueT> * predicate){
+
+          WorldContainer<keyT,valueT> resultTrue(p->world, this->get_pmap());       
+          WorldContainer<keyT,valueT> resultFalse(p->world, this->get_pmap());       
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               std::pair<keyT,valueT> out;
+               out.first = k;
+               out.second = val;
+               if (predicate->call(k,val)){
+                 resultTrue.remoteOps->push_back(resultTrue.__put(out));
+               }
+               else{
+                 resultFalse.remoteOps->push_back(resultFalse.__put(out)); 
+               }
+          }
+
+          return std::pair<WorldContainer<keyT, valueT>, WorldContainer<keyT, valueT> >(resultTrue, resultFalse);
+        
+        }
+
+ 
+        template <typename keyO, typename valueO> WorldContainer<keyO,valueO> map(MapFunctor< keyT, keyO, valueT, valueO> *mapF,
+            const std::shared_ptr< WorldDCPmapInterface<keyO> >& pmap){
+
+          WorldContainer<keyO,valueO> result(p->world, pmap);       
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               //print(k," ", val);
+               std::pair<keyO,valueO> out = mapF->call(k,val);
+               //print(out);
+               result.remoteOps->push_back(result.__put(out));
+          }
+
+          return result;
+
+        }
+
+        template <typename keyO, typename valueO> WorldContainer<keyO,valueO> mapToMany(MapToManyFunctor< keyT, keyO, valueT, valueO> *mapF,
+            const std::shared_ptr< WorldDCPmapInterface<keyO> >& pmap){
+
+          WorldContainer<keyO,valueO> result(p->world, pmap);       
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               //print(k," ", val);
+               std::vector<std::pair<keyO,valueO>> out = mapF->call(k,val);
+               //print(out);
+               for (size_t i = 0; i < out.size(); i++){
+                 result.remoteOps->push_back(result.__put(out[i]));
+               }
+          }
+
+          return result;
+
+        }
+
+        containerT combine(containerT other){
+          containerT result(p->world, other.get_pmap());
+          p->world.gop.fence();
+          
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               result.remoteOps->push_back(result.__put1(k,val));
+          }
+         
+          for (iterator locIt = other.begin(); locIt != other.end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               result.remoteOps->push_back(result.__put1(k,val));
+          }
+
+          return result;
+        }
+
+        containerT replicate(){
+          containerT result(p->world, this->get_pmap());
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+               keyT k = locIt->first;
+               valueT val = locIt->second;
+               result.remoteOps->push_back(result.__put1(k,val));
+          }
+          
+          return result;
+        }
+
+        template <typename keyI, typename valueI>
+        void setUpdatePtr(UpdateOp<keyI, valueI, keyT, valueT> * uop){
+          p->updateOpPtr = uop;
+        }
+
+        template <typename reduceO> 
+        void setReducePtr(reduceO * redBuf){
+          p->reducePtr = redBuf;
+        } 
+
+        template <typename keyO, typename valueO>
+        WorldContainer<keyO, valueO> mapUpdate(WorldContainer<keyO, valueO> other, JoinOp<keyO, keyT, valueT> * jop, UpdateOp<keyT, valueT, keyO, valueO> * uop){
+          
+          WorldContainer<keyO, valueO> result = other.replicate();
+          result.fence(); 
+          result.setUpdatePtr<keyT, valueT>(uop);
+          p->world.gop.fence();
+
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+                keyT k = locIt->first;
+                valueT val = locIt->second;
+
+                keyO kO = jop->join(k, val);
+
+                result.remoteOps->push_back(result.__update<keyT, valueT>(k, val, kO));
+          }
+
+          return result;
+
+        }
+
+        template <typename reduceO>
+        Future<reduceO> getReduce(ProcessID pId){
+          return p->getReduce<reduceO>(pId);
+        }
+
+        template <typename reduceO>
+        void reduce(LocalReduce<keyT, valueT, reduceO> * lr, ParallelReduce<reduceO> * pr, reduceO * redBuf){
+          //sleep(30); 
+          setReducePtr<reduceO>(redBuf);
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+            keyT k = locIt->first;
+            valueT val = locIt->second;
+            lr->merge(k, val, redBuf);
+          }
+          print(*redBuf,", ",p->world.rank(),", ","\n");
+          p->world.gop.fence();
+          
+          std::size_t round = 1;
+          ProcessID me = p->world.rank(); 
+          while (round < (std::size_t)p->world.size()){
+            if (me % (2 * round) == 0){
+              if (me + round < (std::size_t)p->world.size()){
+               Future<reduceO> otherRed = getReduce<reduceO>(me + round);
+               reduceO otherBuf = otherRed.get();
+               pr->merge(&otherBuf, redBuf);
+              }
+            }
+            round *= 2;
+            p->world.gop.fence(); 
+          }
+
+         reduceO r0 = getReduce<reduceO>(0).get();
+          
+          if (p->world.rank() > 0) *redBuf = r0;
+          p->world.gop.fence();
+        }
+
+	template <typename keyO, typename valueO> 
+        WorldContainer<std::pair<keyT,valueT>,std::pair<std::pair<keyO,valueO>,bool> > 
+        join(WorldContainer<keyO,valueO> other, JoinOp<keyO,keyT,valueT> * joinOp){
+          WorldContainer<std::pair<keyT,valueT>,std::pair<std::pair<keyO,valueO>,bool> > result(p->world);
+
+          
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+              keyT k = locIt->first;
+              valueT val = locIt->second;
+              keyO ok = joinOp.join(k, val);
+              result.remoteElts->push_back(std::pair<std::pair<keyT,valueT>,Future<std::pair<std::pair<keyO,valueO>,bool> > >
+               (std::pair<keyT,valueT>(k,val),other.getJoin(ok)));
+          }
+
+          return result;           
+    
+        }	
+
+	template <typename keyO, typename valueO, typename hashfunO = Hash<keyO> > 
+        WorldContainer<keyO,std::pair<std::pair<keyT,valueT>,std::pair<valueO,bool> > > 
+        join2(WorldContainer<keyO,valueO> other, JoinOp<keyO,keyT,valueT> * joinOp){
+          //print("JOIN2");
+          WorldContainer<keyO,std::pair<std::pair<keyT,valueT>,std::pair<valueO,bool> >,hashfunO> result(p->world, other.get_pmap());
+          p->world.gop.fence();
+          
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+              keyT k = locIt->first;
+              valueT val = locIt->second;
+              keyO ok = joinOp->join(k, val);
+              result.remoteOps->push_back(other.setJoin<keyT,valueT>(ok, k ,val, result));
+          }           
+
+          return result;
+    
+        }	
+
+	template <typename keyO, typename valueO, typename hashfunO = Hash<keyO> > 
+        WorldContainer<keyO,std::pair<std::pair<keyT,valueT>,bool > > 
+        join3(WorldContainer<keyO,valueO> other, JoinOp<keyO,keyT,valueT> * joinOp){
+          //print("JOIN3");
+          WorldContainer<keyO,std::pair<std::pair<keyT,valueT>,bool >,hashfunO> result(p->world, other.get_pmap());
+          p->world.gop.fence();
+          
+          for (iterator locIt = begin(); locIt != end(); locIt++){
+              keyT k = locIt->first;
+              //print("1st owner(",k,")=",owner(k));
+              valueT val = locIt->second;
+              keyO ok = joinOp->join(k, val);
+              result.remoteOps->push_back(other.setJoin3<keyT,valueT,hashfunO>(ok, k ,val, result));
+          }
+          //print("end JOIN3");
+
+          return result;           
+    
+        }
+
+        void fence(){
+
+          for (size_t i = 0; i < remoteElts->size(); i++){
+            std::pair<keyT,valueT> elem(remoteElts->at(i).first,
+              remoteElts->at(i).second.get());
+            remoteOps->push_back(p->__put1(elem.first,elem.second));
+          }    
+
+          for (size_t i = 0; i < remoteOps->size(); i++){
+            MADNESS_ASSERT(remoteOps->at(i).get());
+          }
+
+          p->world.gop.fence();
+          //print("after dc FENCE");
+
+          remoteElts->erase(remoteElts->begin(), remoteElts->end());
+          remoteOps->erase(remoteOps->begin(), remoteOps->end());
         }
 
         /// Process pending messages

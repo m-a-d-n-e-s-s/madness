@@ -125,6 +125,29 @@ namespace madness {
             rehash();
         }
 
+        /****************************
+        Vlad: Added copy constructor and assignment constructor to class Key.
+              This is necessary for map-reduce style operations, where
+              keys might need to be copied by value, not just by reference.
+        ****************************/
+       
+        /* 
+        Key(const Key& k) :
+          n(k.level()), l(k.translation()) {
+            rehash();
+        }
+
+        Key& operator=(const Key& k){
+          if (this != &k) {
+            n = k.level();
+            l = k.translation();
+            rehash();
+          }
+
+          return *this;
+        }
+        */
+
         /// Returns an invalid key
         static Key<NDIM>
         invalid() {
@@ -194,6 +217,14 @@ namespace madness {
             return hashval;
         }
 
+        //Vlad: turned on serialization of keys (probably only works for plain data) 
+        /*
+        template<typename Archive>
+        inline void
+        serialize(Archive& ar) {
+           ar & archive::wrap((unsigned char*) this, sizeof(*this));
+        }
+        */
         // template<typename Archive>
         // inline void
         // serialize(Archive& ar) {
