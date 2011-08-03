@@ -1,11 +1,20 @@
+# This function is used to add performace or system specific compiler flags to
+# to CFLAGS and CXXFLAGS environment variables. Users are expected to specify 
+# their own optimization flags for unknown compilers, unknown systems, or
+# special use cases by adding appropriate values to CFLAGS and CXXFLAGS. It
+# should not be used for warning (e.g. -Wall), optimization (e.g. -O3), or debug
+# (e.g. -g) flags. Those handled in acx_enable_warn.m4, acx_enable_optimization.m4, 
+# and acx_enable_debugging.m4 respectively.
 AC_DEFUN([ACX_ENABLE_OPTIMAL], [
   acx_enable_optimal=""
   acx_enable_optimal_save_cxxflags="$CXXFLAGS"
   acx_enable_optimal_flags=""
   acx_enable_optimal_compiler="$CXXVENDOR"
+  
+  # Allow the user to enable or disable optimal flag
   AC_ARG_ENABLE([optimal],
     [AC_HELP_STRING([--enable-optimal@<:@=yes|no|GNU|clang|Pathscale|Portland|Intel|IBM@:>@],
-      [Auto detect optimal CXXFLAGS for compiler, or specify compiler vendor.@<:@default=yes@:>@])],
+      [Auto detect optimal CXXFLAGS for compiler and known systems.@<:@default=yes@:>@])],
     [
       case $enableval in
       yes)
@@ -21,7 +30,8 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
     ],
     [acx_enable_optimal="yes"]
   )
-    
+
+  # Set the flags for the specific compilers and systems
   if test $acx_enable_optimal != "no"; then
     AC_LANG_SAVE
     AC_LANG([C++])
@@ -34,8 +44,10 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         CXXMICRO=[`echo $CXXVERSION | sed -e 's/[0-9]*\.[0-9]*\.//'`]
         AC_MSG_NOTICE([Setting compiler flags for GNU C++ major=$CXXMAJOR minor=$CXXMINOR micro=$CXXMICRO])
 
+        # Flags for all GCC variants
         acx_enable_optimal_flags="$acx_enable_optimal_flags -ffast-math -std=c++0x"
 
+        # Add GCC system specific flags
         if test "x$HAVE_CRAYXT" = xyes; then
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=barcelona],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=barcelona"])
@@ -46,6 +58,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=native"])
         fi
 
+        # Add flags for Intel x86 architectures. 
         case $host_cpu in
           ??86*)
             acx_enable_optimal_flags="$acx_enable_optimal_flags -mfpmath=sse -msse -mpc64"
@@ -93,6 +106,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       ;;
     esac
 
+    # Test the flags and add them to flag variables if successful.
     ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [$acx_enable_optimal_flags],
       [CXXFLAGS="$CXXFLAGS $acx_enable_optimal_flags"],
       [AC_MSG_WARN([$CXX does not accept $acx_enable_optimal_flags, no optimal flags will be used.])])
