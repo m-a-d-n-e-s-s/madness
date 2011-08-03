@@ -1,274 +1,49 @@
-% This file was converted to LaTeX by Writer2LaTeX ver. 1.1.7
-% see http://writer2latex.sourceforge.net for more info
-\documentclass[letterpaper]{article}
-\usepackage[ascii]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[english]{babel}
-\usepackage{amsmath}
-\usepackage{amssymb,amsfonts,textcomp}
-\usepackage{color}
-\usepackage{array}
-\usepackage{supertabular}
-\usepackage{hhline}
+\documentclass[letterpaper]{book}
+%\documentclass[letterpaper]{article}
 \usepackage{hyperref}
-\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=, pdfsubject=, pdfkeywords=}
-% footnotes configuration
-\makeatletter
-\renewcommand\thefootnote{\arabic{footnote}}
-\makeatother
-% Outline numbering
-\setcounter{secnumdepth}{3}
-\renewcommand\thesection{\arabic{section}}
-\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
-\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
-\makeatletter
-\newcommand\arraybslash{\let\\\@arraycr}
-\makeatother
-% List styles
-\newcommand\liststyleLi{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-\newcommand\liststyleLii{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-\newcommand\liststyleLiii{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-\newcommand\liststyleLiv{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-\newcommand\liststyleLv{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-\newcommand\liststyleLvi{%
-\renewcommand\labelitemi{${\bullet}$}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{${\bullet}$}
-}
-% Page layout (geometry)
-\setlength\voffset{-1in}
-\setlength\hoffset{-1in}
-\setlength\topmargin{0.7874in}
-\setlength\oddsidemargin{0.7874in}
-\setlength\textheight{8.825199in}
-\setlength\textwidth{6.9251995in}
-\setlength\footskip{0.6in}
-\setlength\headheight{0cm}
-\setlength\headsep{0cm}
-% Footnote rule
-\setlength{\skip\footins}{0.0469in}
-\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
-% Pages styles
-\makeatletter
-\newcommand\ps@Standard{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@LeftPage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{\thepage{}}
-  \renewcommand\@evenfoot{\@oddfoot}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Licensepage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Blankleftpage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@RightPage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{\thepage{}}
-  \renewcommand\@evenfoot{\@oddfoot}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Firstrightnumberedpage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{\thepage{}}
-  \renewcommand\@evenfoot{\@oddfoot}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@TOCfirstpage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Titlepage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\makeatother
-\pagestyle{Standard}
-\setlength\tabcolsep{1mm}
-\renewcommand\arraystretch{1.3}
-% Non-floating captions
-\makeatletter
-\newcommand\captionof[1]{\def\@captype{#1}\caption}
-\makeatother
-\title{}
-\author{}
-\date{2010-01-18T22:18:15.19}
+\usepackage{amsmath}
+\usepackage{graphics}
+
+%%\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+%%% Outline numbering
+%%\setcounter{secnumdepth}{3}
+%%\renewcommand\thesection{\arabic{section}}
+%%\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+%%\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+%%% Page layout (geometry)
+%%\setlength\voffset{-1in}
+%%\setlength\hoffset{-1in}
+%%\setlength\topmargin{0.7874in}
+%%\setlength\oddsidemargin{0.7874in}
+%%\setlength\textheight{8.825199in}
+%%\setlength\textwidth{6.9251995in}
+%%\setlength\footskip{0.6in}
+%%\setlength\headheight{0cm}
+%%\setlength\headsep{0cm}
+%%% Footnote rule
+%%\setlength{\skip\footins}{0.0469in}
+%%\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+
+% Paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex plus 0.5ex minus 0.2ex}
+
 \begin{document}
-\clearpage\setcounter{page}{1}\pagestyle{Licensepage}
-\thispagestyle{Titlepage}
 
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-{\centering\bfseries
-MADNESS
-\par}
-
-{\centering\bfseries
-Implementation Notes
-\par}
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-{\centering
-Last modification: 12/14/09
-\par}
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
+% Title Page
+\title{MADNESS Implementation Notes}
+\date{Last Modification: 12/14/2009}
+\maketitle
+
+% Copyright Page
+\pagestyle{empty}
+\null\vfill
+\noindent
 This file is part of MADNESS.
 
-Copyright (C) 2007 Oak Ridge National Laboratory
+
+Copyright (C) 2007, 2010 Oak Ridge National Laboratory
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
 License as published by the Free Software Foundation; either version 2 of the License, or(at your option) any later
@@ -281,50 +56,35 @@ You should have received a copy of the GNU General Public License along with thi
 Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 For more information please contact:
+\begin{quote}							
+Robert J. Harrison 				\\
+Oak Ridge National Laboratory 	\\
+One Bethel Valley Road 			\\
+P.O. Box 2008, MS-6367			\\
+Oak Ridge, TN 37831				\\
+								\\
+email: harrisonrj@ornl.gov 		\\
+tel: 865-241-3937				\\
+fax: 865-572-0680	
+\end{quote}		
+\newpage
 
-Robert J. Harrison
 
-Oak Ridge National Laboratory
-
-One Bethel Valley Road
-
-P.O. Box 2008, MS-6367
-
-Oak Ridge, TN 37831
-
-
-\bigskip
-
-email: harrisonrj@ornl.gov 
-
-tel: 865-241-3937
-
-\ \ fax: 865-572-0680
-
-\clearpage\setcounter{page}{1}\pagestyle{Blankleftpage}
-\thispagestyle{TOCfirstpage}
-
-\bigskip
+% Table of Contents Pages
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
 
 \setcounter{tocdepth}{10}
 \renewcommand\contentsname{Table of Contents}
 \tableofcontents
 
-\bigskip
 
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{arabic}
 
-\bigskip
-
-
-\bigskip
-
-\clearpage\setcounter{page}{1}\pagestyle{RightPage}
-\thispagestyle{Blankleftpage}
-
-\bigskip
-
-\clearpage\clearpage\setcounter{page}{1}\pagestyle{LeftPage}
-\thispagestyle{Firstrightnumberedpage}
+\chapter{Implementation Notes}
 
 This document provides reference information concerning the mathematics, numerics, algorithms, and design of the
 multiresolution capabilities of MADNESS. The information herein will be useful to both users of MADNESS and
@@ -352,7 +112,6 @@ $l=0,\ldots ,2^{n}-1$ span the space  $V_{n}^{k}$ and are defined by
 These are orthonormal on  $[2^{-n}l,2^{-n}(l+1)]$. The scaling functions by construction satisfy the following
 properties:
 
-\liststyleLi
 \begin{itemize}
 \item In the limit of either large \textit{k }or large \textit{n }the closure of  $V_{n}^{k}$ is a complete basis for 
 $L_{2}[0,1]$.
@@ -400,14 +159,13 @@ papers/thesis.
 
 The wavelets have these properties
 
-\liststyleLii
 \begin{itemize}
 \item Decomposition of  $V_{n}^{k}$
 \end{itemize}
 \begin{equation}\label{seq:refText5}
 V_{n}^{k}=V_{0}^{k}\oplus W_{0}^{k}\oplus W_{1}^{k}\oplus \cdots \oplus W_{n-1}^{k}
 \end{equation}
-\liststyleLiii
+
 \begin{itemize}
 \item Translation and dilation  $\psi _{il}^{n}(x)=2^{n/2}\psi _{i}(2^{n}x-l)$
 \item Orthnormality within and between scales
@@ -455,238 +213,25 @@ _{l}^{n}(x)\hfill\null \end{matrix}\right)\hfill\null \end{matrix}
 In table \ref{seq:refTable0} are the filter coefficients for \textit{k=}4, the only point being that these are
 plain-old-numbers and not anything mysterious.
 
-
-
+\begin{table}[htdp]
+\caption{Multi-wavelet filter coefficients for Legendre polynomials, $k=4$.}
 \begin{center}
-\begin{minipage}{}
-
-\bigskip
-
-\begin{center}
-\tablefirsthead{}
-\tablehead{}
-\tabletail{}
-\tablelasttail{}
-\begin{supertabular}{m{0.6205598in}m{0.6205598in}m{0.6205598in}m{0.6205598in}|m{0.7268598in}m{0.6205598in}m{0.6205598in}m{0.6198598in}}
-\begin{equation*}
-H^{(0)}
-\end{equation*}
- &
-~
- &
-~
- &
-~
- &
-\begin{equation*}
-H^{(1)}
-\end{equation*}
- &
-~
- &
-~
- &
-~
-\\
-\centering 7.0711e-01 &
-\centering 0.0000e+00 &
-\centering 0.0000e+00 &
-\centering 0.0000e+00 &
-\centering 7.0711e-01 &
-\centering 0.0000e+00 &
-\centering 0.0000e+00 &
-\centering\arraybslash 0.0000e+00\\
-\centering {}-6.1237e-01 &
-\centering 3.5355e-01 &
-\centering 0.0000e+00 &
-\centering 0.0000e+00 &
-\centering 6.1237e-01 &
-\centering 3.5355e-01 &
-\centering 0.0000e+00 &
-\centering\arraybslash 0.0000e+00\\
-\centering 0.0000e+00 &
-\centering {}-6.8465e-01 &
-\centering 1.7678e-01 &
-\centering 0.0000e+00 &
-\centering 0.0000e+00 &
-\centering 6.8465e-01 &
-\centering 1.7678e-01 &
-\centering\arraybslash 0.0000e+00\\
-\centering 2.3385e-01 &
-\centering 4.0505e-01 &
-\centering {}-5.2291e-01 &
-\centering 8.8388e-02 &
-\centering {}-2.3385e-01 &
-\centering 4.0505e-01 &
-\centering 5.2291e-01 &
-\centering\arraybslash 8.8388e-02\\\hline
-\begin{equation*}
-G^{(0)}
-\end{equation*}
- &
-~
- &
-~
- &
-~
- &
-\begin{equation*}
-G^{(1)}
-\end{equation*}
- &
-~
- &
-~
- &
-~
-\\
-\centering 0.0000e+00 &
-\centering 1.5339e-01 &
-\centering 5.9409e-01 &
-\centering {}-3.5147e-01 &
-\centering 0.0000e+00 &
-\centering {}-1.5339e-01 &
-\centering 5.9409e-01 &
-\centering\arraybslash 3.5147e-01\\
-\centering 1.5430e-01 &
-\centering 2.6726e-01 &
-\centering 1.7252e-01 &
-\centering {}-6.1237e-01 &
-\centering {}-1.5430e-01 &
-\centering 2.6726e-01 &
-\centering {}-1.7252e-01 &
-\centering\arraybslash {}-6.1237e-01\\
-\centering 0.0000e+00 &
-\centering 8.7867e-02 &
-\centering 3.4031e-01 &
-\centering 6.1357e-01 &
-\centering 0.0000e+00 &
-\centering {}-8.7867e-02 &
-\centering 3.4031e-01 &
-\centering\arraybslash {}-6.1357e-01\\
-\centering 2.1565e-01 &
-\centering 3.7351e-01 &
-\centering 4.4362e-01 &
-\centering 3.4233e-01 &
-\centering {}-2.1565e-01 &
-\centering 3.7351e-01 &
-\centering {}-4.4362e-0 &
-\centering\arraybslash 3.4233e-01\\
-\end{supertabular}
+\begin{tabular}{c c c c|c c c c}
+\multicolumn{4}{c|}{$H^{(0)}$} & \multicolumn{4}{|c}{$H^{(1)}$} \\
+ 7.0711e-01 & 0.0000e+00 & 0.0000e+00 & 0.0000e+00 & 7.0711e-01 & 0.0000e+00 & 0.0000e+00 & 0.0000e+00 \\
+-6.1237e-01 & 3.5355e-01 & 0.0000e+00 & 0.0000e+00 & 6.1237e-01 & 3.5355e-01 & 0.0000e+00 & 0.0000e+00 \\
+ 0.0000e+00 &-6.8465e-01 & 1.7678e-01 & 0.0000e+00 & 0.0000e+00 & 6.8465e-01 & 1.7678e-01 & 0.0000e+00 \\
+ 2.3385e-01 & 4.0505e-01 &-5.2291e-01 & 8.8388e-02 &-2.3385e-01 & 4.0505e-01 & 5.2291e-01 & 8.8388e-02 \\
+ \hline
+\multicolumn{4}{c|}{$G^{(0)}$} & \multicolumn{4}{|c}{$G^{(1)}$} \\
+ 0.0000e+00 & 1.5339e-01 & 5.9409e-01 &-3.5147e-01 & 0.0000e+00 &-1.5339e-01 & 5.9409e-01 & 3.5147e-01 \\
+ 1.5430e-01 & 2.6726e-01 & 1.7252e-01 &-6.1237e-01 &-1.5430e-01 & 2.6726e-01 &-1.7252e-01 &-6.1237e-01 \\
+ 0.0000e+00 & 8.7867e-02 & 3.4031e-01 & 6.1357e-01 & 0.0000e+00 &-8.7867e-02 & 3.4031e-01 &-6.1357e-01 \\
+ 2.1565e-01 & 3.7351e-01 & 4.4362e-01 & 3.4233e-01 &-2.1565e-01 & 3.7351e-01 &-4.4362e-01 & 3.4233e-01 \\
+\end{tabular}
 \end{center}
-
-\bigskip
-
-\captionof{table}[Multi{}-wavelet filter coefficients for Legendre polynomials, k=4.]{Multi-wavelet filter coefficients
-for Legendre polynomials, \textit{k}=4.}
-\label{seq:refTable0}\end{minipage}
-\end{center}
-
-\bigskip
-
-\begin{center}
-\tablefirsthead{}
-\tablehead{}
-\tabletail{}
-\tablelasttail{}
-\begin{supertabular}{rrrr|rrrr}
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\\hline
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c|}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-} & \multicolumn{1}{c}{~
-}\\
-\end{supertabular}
-\end{center}
-
-\bigskip
-
-
-\bigskip
+\label{default}
+\end{table}%
 
 \subsection{Wavelet transform}
 The transformation in (10) expands polynomials on level \textit{n }in terms of polynomials and wavelets on level
@@ -945,7 +490,7 @@ from leaf nodes in the source tree trying to compute the corresponding node in t
 left and right in the direction of differentiation (and enforcing the boundary conditions). There are three
 possibilities
 
-\liststyleLiv
+
 \begin{itemize}
 \item Present without coefficients -- i.e., the neighbor is more deeply refined. In this instance we loop through
 children of the target (central) node and invoke the differentiation operation on them, passing any coefficients that
@@ -1188,7 +733,6 @@ exploiting smoothness, if a product must be formed it will be formed on the fine
 Thus, we will eventually have three algorithms for point-wise multiplication. Which ones to do first? \ \ We answer this
 question by asking, ``what products will the DFT and HF codes be performing?''
 
-\liststyleLv
 \begin{itemize}
 \item Square each orbital to make the density.
 \item Multiply the potential against each orbital.
@@ -1362,7 +906,6 @@ change the precedence or associativity of an operator\footnote{\ \textrm{http://
 
 Noting * is of higher precedence than + and both are left-to-right associative,
 
-\liststyleLvi
 \begin{itemize}
 \item \texttt{f*g+h} becomes \texttt{(f*g)+h} becomes \texttt{(f.mul(g)).add(h)} and thus the result has the same
 parameters as \texttt{f}.

@@ -1,257 +1,46 @@
-% This file was converted to LaTeX by Writer2LaTeX ver. 1.1.7
-% see http://writer2latex.sourceforge.net for more info
-\documentclass[letterpaper]{article}
-\usepackage[ascii]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage[english]{babel}
-\usepackage{amsmath}
-\usepackage{amssymb,amsfonts,textcomp}
-\usepackage{color}
-\usepackage{array}
-\usepackage{hhline}
+\documentclass[letterpaper]{book}
+%\documentclass[letterpaper]{article}
 \usepackage{hyperref}
-\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
-% Outline numbering
-\setcounter{secnumdepth}{3}
-\renewcommand\thesection{\arabic{section}}
-\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
-\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
-% List styles
-\newcommand\liststyleLi{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLii{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLiii{%
-\renewcommand\theenumi{\arabic{enumi}}
-\renewcommand\theenumii{\arabic{enumii}}
-\renewcommand\theenumiii{\arabic{enumiii}}
-\renewcommand\theenumiv{\arabic{enumiv}}
-\renewcommand\labelenumi{\theenumi.}
-\renewcommand\labelenumii{\theenumii.}
-\renewcommand\labelenumiii{\theenumiii.}
-\renewcommand\labelenumiv{\theenumiv.}
-}
-\newcommand\liststyleLiv{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLv{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLvi{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLvii{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-\newcommand\liststyleLviii{%
-\renewcommand\labelitemi{{\textbullet}}
-\renewcommand\labelitemii{${\circ}$}
-\renewcommand\labelitemiii{${\blacksquare}$}
-\renewcommand\labelitemiv{{\textbullet}}
-}
-% Page layout (geometry)
-\setlength\voffset{-1in}
-\setlength\hoffset{-1in}
-\setlength\topmargin{0.7874in}
-\setlength\oddsidemargin{0.7874in}
-\setlength\textheight{8.825199in}
-\setlength\textwidth{6.9251995in}
-\setlength\footskip{0.6in}
-\setlength\headheight{0cm}
-\setlength\headsep{0cm}
-% Footnote rule
-\setlength{\skip\footins}{0.0469in}
-\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
-% Pages styles
-\makeatletter
-\newcommand\ps@Standard{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Licensepage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Blankleftpage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@RightPage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{\thepage{}}
-  \renewcommand\@evenfoot{\@oddfoot}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@TOCfirstpage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\newcommand\ps@Titlepage{
-  \renewcommand\@oddhead{}
-  \renewcommand\@evenhead{}
-  \renewcommand\@oddfoot{}
-  \renewcommand\@evenfoot{}
-  \renewcommand\thepage{\arabic{page}}
-}
-\makeatother
-\pagestyle{Standard}
-\setlength\tabcolsep{1mm}
-\renewcommand\arraystretch{1.3}
-\title{}
-\author{Robert Harrison}
-\date{2010-07-17}
+\usepackage{amsmath}
+
+%%\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+%%% Outline numbering
+%%\setcounter{secnumdepth}{3}
+%%\renewcommand\thesection{\arabic{section}}
+%%\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+%%\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+%%% Page layout (geometry)
+%%\setlength\voffset{-1in}
+%%\setlength\hoffset{-1in}
+%%\setlength\topmargin{0.7874in}
+%%\setlength\oddsidemargin{0.7874in}
+%%\setlength\textheight{8.825199in}
+%%\setlength\textwidth{6.9251995in}
+%%\setlength\footskip{0.6in}
+%%\setlength\headheight{0cm}
+%%\setlength\headsep{0cm}
+%%% Footnote rule
+%%\setlength{\skip\footins}{0.0469in}
+%%\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+
+% Paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex plus 0.5ex minus 0.2ex}
+
 \begin{document}
-\clearpage\setcounter{page}{1}\pagestyle{Licensepage}
-\thispagestyle{Titlepage}
 
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-{\centering\bfseries
-Getting Started with
-\par}
-
-{\centering\bfseries
-\ Numerical Computation in
-\par}
-
-{\centering\bfseries
-MADNESS
-\par}
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-{\centering
-Last \ modification: 07/10/2010
-\par}
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
-
-\bigskip
-
+% Title Page
+\title{Getting Started with Numerical Computation in MADNESS}
+\date{Last Modification: 07/10/2010}
+\maketitle
+
+% Copyright Page
+\pagestyle{empty}
+\null\vfill
+\noindent
 This file is part of MADNESS.
+
 
 Copyright (C) 2007, 2010 Oak Ridge National Laboratory
 
@@ -266,47 +55,35 @@ You should have received a copy of the GNU General Public License along with thi
 Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 For more information please contact:
+\begin{quote}							
+Robert J. Harrison 				\\
+Oak Ridge National Laboratory 	\\
+One Bethel Valley Road 			\\
+P.O. Box 2008, MS-6367			\\
+Oak Ridge, TN 37831				\\
+								\\
+email: harrisonrj@ornl.gov 		\\
+tel: 865-241-3937				\\
+fax: 865-572-0680	
+\end{quote}		
+\newpage
 
-Robert J. Harrison
 
-Oak Ridge National Laboratory
-
-One Bethel Valley Road
-
-P.O. Box 2008, MS-6367
-
-Oak Ridge, TN 37831
-
-
-\bigskip
-
-email: harrisonrj@ornl.gov 
-
-tel: 865-241-3937
-
-\ \ fax: 865-572-0680
-
-\clearpage\setcounter{page}{1}\pagestyle{Blankleftpage}
-\thispagestyle{TOCfirstpage}
-
-\bigskip
+% Table of Contents Pages
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
 
 \setcounter{tocdepth}{10}
 \renewcommand\contentsname{Table of Contents}
 \tableofcontents
 
-\bigskip
 
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{arabic}
 
-\bigskip
-
-
-\bigskip
-
-\clearpage\setcounter{page}{1}\pagestyle{RightPage}
-\thispagestyle{Blankleftpage}
-
-\bigskip
+\chapter{Getting Started}
 
 This document aims to satisfy the needs of first-time users of the MADNESS numerical programming environment.
 Programmers interested in using the parallel-programming environment should refer to the parallel runtime document.
@@ -320,7 +97,6 @@ new functionality. We aren't just a community project, we are a community, and y
 MADNESS stands for multiresolution adaptive numerical environment for scientific simulation. It is trying to address the
 following issues
 
-\liststyleLi
 \begin{itemize}
 \item raising the level of composition of scientific applications, making it faster/easier to craft robust/correct
 solutions to new problems,
@@ -329,6 +105,7 @@ solutions to new problems,
 (and perhaps higher), and
 \item facilitating use of massively parallel computer resources by a wider audience.
 \end{itemize}
+
 In MADNESS, your code is written in terms of functions and operators, using the C++ language, and for this reason it can
 be thought of as a basis-free method. There is, of course, an underlying representation and approximation using bases
 and grids, and they adapt and refine automatically to satisfy the requested precision -- but you do not have to think
@@ -341,13 +118,12 @@ your equations. E.g., the code corresponding to
 \int \left(\frac{1}{2}\left(\frac{d\psi }{dx}\right)^{2}+V(x)\psi (x)^{2}\right)\mathit{dx}
 \end{equation}
 in three dimensions is just
-
-{\ttfamily
-real\_function\_3d dpsidx = Dx(psi);}
-
-{\ttfamily
-double result = 0.5*inner(dpsidx,dpsidx) + \ \ \ \ \ \ inner(V(x),psi*psi);}
-
+\begin{quote}
+\begin{verbatim}
+	real_function_3d dpsidx = Dx(psi);
+	double result = 0.5*inner(dpsidx,dpsidx) + inner(V(x),psi*psi);	
+\end{verbatim}
+\end{quote}
 where \texttt{psi} is a 3-D function and \texttt{Dx(psi)} takes the derivative of \texttt{psi} in the  $x$ direction
 (see below for how to make the derivative operator). The \texttt{inner} method computes the  $L_{2}$ inner product of
 the functions.
@@ -367,7 +143,6 @@ discuss topics that are central to effective use of MADNESS.
 \section{Basics}
 Documentation and instructions exists in several places
 
-\liststyleLii
 \begin{itemize}
 \item the \texttt{doc} directory,
 \item the \href{http://www.doxygen.org/}{\texttt{doxygen}} generated documentation, and
@@ -388,7 +163,6 @@ integral.
 The corresponding code is in \texttt{trunk/src/apps/examples/sininteg.cc}, and we will go through this first example in
 gory detail. The main steps will be
 
-\liststyleLiii
 \begin{enumerate}
 \item translating the function from math to C++ to be called by MADNESS
 \item initializing the MADNESS parallel runtime
@@ -415,15 +189,13 @@ function suffices whereas more complicated stuff might require a C++ class (see 
 
 For this example, we wish to evaluate the function  $\sin (x)$ where  $x$ is a 1-D coordinate. \ The example code looks
 like
-
-{\ttfamily
-double myf(const coord\_1d\& r) \{}
-
-{\ttfamily
-\ \ \ \ return std::sin(r[0]);}
-
-{\ttfamily
-\}}
+\begin{quote}
+	\begin{verbatim} 
+	double myf(const coord_1d& r) {
+		return std::sin(r[0]);
+	}
+	\end{verbatim}
+\end{quote}	
 
 If your function were in 3-D it would be passed a \texttt{coord\_3d} that would have 3 elements (0, 1, and 2) that you
 might interpret as  $(x,y,z)$ or  $(r,\theta ,\phi )$ or something else as defined by your problem. A very useful
@@ -450,41 +222,24 @@ MADNESS has its own parallel runtime environment that is fully compatible with t
 Just as for MPI, the MADNESS runtime must be initialized at the start and cleaned up at the end. Here is the simplest
 parallel program using MADNESS.
 
-{\ttfamily
-\#define WORLD\_INSTANTIATE\_STATIC\_TEMPLATES}
-
-{\ttfamily
-\#include {\textless}mra/mra.h{\textgreater}}
-
-{\ttfamily
-using namespace madness;}
-
-{\ttfamily
-int main(int argc, char** argv) \{}
-
-{\ttfamily
-\ \ \ \ initialize(argc, argv);}
-
-{\ttfamily
-\ \ \ \ World world(MPI::COMM\_WORLD);}
-
-{\ttfamily
-\ \ \ \ startup(world, argc, argv);}
-
-{\ttfamily
-\ \ \ \ // Do something useful here!}
-
-{\ttfamily
-\ \ \ \ finalize();}
-
-{\ttfamily
-\ \ \ \ return 0;}
-
-{\ttfamily
-\}}
-
-
-\bigskip
+\begin{quote}
+	\begin{verbatim} 
+	#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+	#include <mra/mra.h>
+	using namespace madness;
+	
+	int main(int argc, char** argv) {
+	    initialize(argc, argv);
+	    World world(MPI::COMM_WORLD);
+	    startup(world, argc, argv);
+		
+	    // Do something useful here!
+	    
+	    finalize();
+	    return 0;
+	}
+	\end{verbatim}
+\end{quote}	
 
 The \texttt{World} object in MADNESS is similar to an MPI communicator (each \texttt{World} is associated with a
 communicator) but contains all of the information necessary to provide the rich functionality of the MADNESS runtime.
@@ -501,14 +256,13 @@ We implemented the C++ function above and the domain is specified by the problem
 functions of a given dimension being used by a program are assumed to have the same, default domain. We will use the
 default precision (1e-6 in the L2-norm -- most errors in MADNESS use this norm).
 
-{\ttfamily
-FunctionDefaults{\textless}1{\textgreater}::set\_cubic\_cell(0,10);}
-
-{\ttfamily
-real\_function\_1d f = real\_factory\_1d(world).f(myf);}
-
-
-\bigskip
+\begin{quote}
+	\begin{verbatim} 
+	FunctionDefaults<1>::set_cubic_cell(0,10);
+	
+	real_function_1d f = real_factory_1d(world).f(myf);
+	\end{verbatim}
+\end{quote}	
 
 The first line sets the domain and the second makes a numerical representation of your function. The slightly unusual
 form of the constructor for a MADNESS function is called the ``named parameter idiom.'' The first version of MADNESS
@@ -518,9 +272,11 @@ can get to them is the above idiom. To make a \texttt{Function} what you are act
 \texttt{FunctionFactory} associated with a \texttt{World}, overriding defaults inside the factory, and then
 constructing a function from the factory. The default function is zero, so to make a zero 1D function we would just
 type
-
-{\ttfamily
-real\_function\_1d zero = real\_factory\_1d(world);}
+\begin{quote}
+	\begin{verbatim} 
+	real_function_1d zero = real_factory_1d(world);
+	\end{verbatim}
+\end{quote}	
 
 In the second line, to generate a MADNESS \texttt{Function} from your C++ function we override the default with the
 desired function pointer.
@@ -528,12 +284,11 @@ desired function pointer.
 \subsection[Step 5 {}-- computing the integral]{Step 5 -- computing the integral}
 \label{bkm:RefHeading39623517}The integral of a function over the whole domain is computed with the \texttt{trace()}
 function, c.f.,
-
-{\ttfamily
-double integral = f.trace();}
-
-
-\bigskip
+\begin{quote}
+	\begin{verbatim} 
+	double integral = f.trace();
+	\end{verbatim}
+\end{quote}	
 
 \textit{Important:} This is a collective parallel operation. If you are running in parallel, the numerical
 representation of your function is distributed across multiple processors, so adding up the result requires collective
@@ -545,11 +300,11 @@ If you only want to run sequentially, just print your data in any of the myriad 
 ever want to run in parallel across multiple nodes using MPI you should from the outset get in the habit of writing the
 following instead
 
-{\ttfamily
-if (world.rank() == 0) print({\textquotedbl}The result is{\textquotedbl}, integral);}
-
-
-\bigskip
+\begin{quote}
+	\begin{verbatim} 
+	if (world.rank() == 0) print("The result is ", integral);
+	\end{verbatim}
+\end{quote}
 
 The critical ingredient is the if-test that ensures only one process actually does the printing (in this case process
 zero, but that choice is arbitrary) . If you don't do this, your output will be unexpectedly verbose. The templated
@@ -564,59 +319,32 @@ to getting this wrong.
 \subsection{The complete program}
 Your complete program, \texttt{trunk}\texttt{/src/apps/sininteg.cc, }looks like this
 
-{\ttfamily
-\#define WORLD\_INSTANTIATE\_STATIC\_TEMPLATES \ }
-
-{\ttfamily
-\#include {\textless}mra/mra.h{\textgreater}}
-
-{\ttfamily
-using namespace madness;}
-
-{\ttfamily
-double myf(const coord\_1d\& r) \{}
-
-{\ttfamily
-\ \ \ \ return std::sin(r[0]);}
-
-{\ttfamily
-\}}
-
-{\ttfamily
-int main(int argc, char** argv) \{}
-
-{\ttfamily
-\ \ \ \ initialize(argc, argv);}
-
-{\ttfamily
-\ \ \ \ World world(MPI::COMM\_WORLD);}
-
-{\ttfamily
-\ \ \ \ startup(world,argc,argv);}
-
-{\ttfamily
-\ \ \ \ FunctionDefaults{\textless}1{\textgreater}::set\_cubic\_cell(0,10);}
-
-{\ttfamily
-\ \ \ \ real\_function\_1d f = real\_factory\_1d(world).f(myf);}
-
-{\ttfamily
-\ \ \ \ double integral = f.trace();}
-
-{\ttfamily
-\ \ \ \ if (world.rank() == 0) print({\textquotedbl}The result is{\textquotedbl}, integral);}
-
-{\ttfamily
-\ \ \ \ finalize();}
-
-{\ttfamily
-\ \ \ \ return 0;}
-
-{\ttfamily
-\}}
-
-
-\bigskip
+\begin{quote}
+	\begin{verbatim} 
+		#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+		#include <mra/mra.h>
+		using namespace madness;
+		
+		double myf(const coord_1d& r) {
+		    return std::sin(r[0]);
+		}
+		
+		int main(int argc, char** argv) {
+		    initialize(argc, argv);
+		    World world(MPI::COMM_WORLD);
+		    startup(world,argc,argv);
+		    FunctionDefaults<1>::set_cubic_cell(0,10);
+		    
+		    real_function_1d f = real_factory_1d(world).f(myf);
+		    
+		    doub	le integral = f.trace();
+		    
+		    if (world.rank() == 0) print("The result is", integral);
+		    finalize();
+		    return 0;
+		}
+	\end{verbatim}
+\end{quote}
 
 Yes, this is rather verbose for integrating  $\sin (x)$ in 1D, but you should already be able to see that most of it is
 boiler plate. You could be integrating a much more complicated function in 4-D with only little more personal effort
@@ -696,7 +424,6 @@ FunctionDefaults{\textless}1{\textgreater}::set\_cubic\_cell(0,10);}
 sets the user's simulation cell as  $[0,10]$. Presently, all functions of a given dimension must share the same cell.
 Two other common attributes are
 
-\liststyleLiv
 \begin{itemize}
 \item \texttt{k} -- the wavelet order. A practical rule of thumb is if the default truncation threshold is  $10^{-n}$
 that the order be chosen as  $k=n+2$. The default is 6.
@@ -708,7 +435,6 @@ In MADNESS, boundary conditions are associated with operators not functions and 
 the surface enclosing the entire simulation volume. I.e., they are exterior boundary conditions. For derivative
 operators the following conditions are understood, and can be imposed separately on each surface
 
-\liststyleLv
 \begin{itemize}
 \item \texttt{BC\_ZERO} -- Zero Dirichlet
 \item \texttt{BC\_PERIODIC} -- Periodic (both left and right surfaces must agree on this value)
@@ -751,17 +477,14 @@ after use.
 For example, to make the derivative operator in 3D with respect to the first variable using boundary conditions from
 \texttt{FunctionDefaults}, and to apply it to functions \texttt{f}, \texttt{g} and \texttt{h}.
 
-{\ttfamily
-real\_derivative\_3d Dx(world, 0);}
-
-{\ttfamily
-real\_function\_3d dfdx = Dx(f);}
-
-{\ttfamily
-real\_function\_3d dgdx = Dx(g);}
-
-{\ttfamily
-real\_function\_3d dhdx = Dx(h);}
+\begin{quote}
+\begin{verbatim}
+real_derivative_3d Dx(world, 0); 
+real_function_3d dfdx = Dx(f); 
+real_function_3d dgdx = Dx(g); 
+real_function_3d dhdx = Dx(h); 
+\end{verbatim}
+\end{quote}
 
 \subsection{Multiplication, addition, subtraction of functions}
 Most simple mathematical operations can be composed in MADNESS as they are normally written in standard notation. For
@@ -784,11 +507,10 @@ implementation notes for more detail.
 
 \subsection{Inner products}
 The inner product of two functions is defined as 
-
 \begin{equation}
-\left\langle f\left|g\right.\right\rangle =\int f(x)^{\text{*}}g(x)\mathit{dx}
+\left( f \left| g \right. \right) - \int f(x)^\textrm{*} g(x) dx
 \end{equation}
-where  $\text{*}$ indicates complex conjugation and the integral is taken over the entire simulation volume. The above
+where  $\textrm{*}$ indicates complex conjugation and the integral is taken over the entire simulation volume. The above
 is computed for two MADNESS functions \texttt{f} and \texttt{g} of the same type using
 
 {\ttfamily
@@ -798,10 +520,9 @@ If the input functions are real, the result is real; for complex functions the r
 
 \section{Integral operators -- e.g., solution of Laplace or Poisson's equations}
 The Poisson equation
-
-\begin{equation*}
+\begin{equation}
 \nabla ^{2}u=-4\pi \rho 
-\end{equation*}
+\end{equation}
 is ubiquitous in scientific and engineering simulations. \ For the sake of simplicity, we assume free-space boundary
 condition (zero at infinity, so the Green's function is just  $1/\left|r\right|$). \ \ If the right hand side of the
 Poisson equation is \texttt{rho} then the Poisson equation can be solved as
@@ -827,11 +548,10 @@ extensive use of the vector API (application programming interface) to solve eig
 
 Given a subspace defined by a vector of  $n$ functions  $f_{i}(x)\ i=0,\ldots ,n-1$ we can diagonalize the operator 
 $\hat{H}$ in the subspace by constructing the matrix representations of the operator ( $H$) and metric ( $S$)
-
-\begin{equation}
-\begin{matrix}h_{ij}&\text{=}&\left\langle f_{i}\left|\hat{H}\left|f_{j}\right.\right.\right\rangle
-\\s_{ij}&\text{=}&\left\langle f_{i}\left|f_{j}\right.\right\rangle \hfill\null \end{matrix}
-\end{equation}
+\begin{align*}
+h_{ij} & = \left< f_i \left| \hat{H} \right| f_j \right> \\
+s_{ij} & = \left< f_i \left|         \right. f_j \right>
+\end{align*}
 and then solving the generalized eigenvalue problem 
 
 \begin{equation}
@@ -849,20 +569,15 @@ u=fC\ \ \ \mathrm{\text{or}}\ \ \ u_{i}(x)=\sum _{j}f_{j}(x)c_{ji}
 Given an STL vector of 3D functions \texttt{f} and another \texttt{Hf} containing result of applying the operator 
 $\hat{H}$ to the vector, the above is compactly translated into MADNESS as
 
-{\ttfamily
-real\_tensor H = matrix\_inner(f,Hf);}
-
-{\ttfamily
-real\_tensor S = matrix\_inner(f,f);}
-
-{\ttfamily
-real\_tensor C,E;}
-
-{\ttfamily
-sygv(H,S,1,C,E);}
-
-{\ttfamily
-vector\_real\_function\_3d evec = transform(f,C);}
+\begin{quote}
+\begin{verbatim}
+real_tensor H = matrix_inner(f,Hf); 
+real_tensor S = matrix_inner(f,f); 
+real_tensor C,E; 
+sygv(H,S,1,C,E); 
+vector_real_function_3d evec = transform(f,C); 
+\end{verbatim}
+\end{quote}
 
 The \texttt{matrix\_inner()} routine computes the matrix of inner products (or matrix elements) of two vectors of
 functions, and the \texttt{sygv()} routine (in \texttt{linalg/tensor\_lapack.h}) is a wrapper around the LAPACK real
@@ -872,21 +587,14 @@ the basis to compute the eigenfunctions.
 \section{Moving functions to/from disk}
 It takes at most a couple of lines of code to move a function to/from disk. \ The example program \texttt{functionio.cc}
 shows how to do this, and the critical lines are
-
-{\ttfamily
-ParallelOutputArchive out(world, filename);}
-
-{\ttfamily
-out \& f \& g \& h;}
-
-{\ttfamily
-ParallelInputArchive in(world, filename);}
-
-{\ttfamily
-in \ \& f \& g \& h;}
-
-
-\bigskip
+\begin{quote}
+\begin{verbatim}
+ParallelOutputArchive out(world, filename); 
+out & f & g & h; 
+ParallelInputArchive in(world, filename); 
+in & f & g & h; 
+\end{verbatim}
+\end{quote}
 
 Here, \texttt{f}, \texttt{g}, and \texttt{h} are MADNESS functions of any type (they need not have the same type or
 dimension). 
@@ -942,30 +650,26 @@ With a single function call, up to three functions can be simultaneously evaluat
 values printed to a file suitable for use by any standard 2D graphics or spreadsheet software. E.g., to plot one 4D
 function (\texttt{f}) along a line between (0,0,0,1) and (0,1,0,2) with 101 points
 
-{\ttfamily
-coord\_3d lo,hi;}
-
-{\ttfamily
-lo[3]=1.0; hi[1]=1.0; hi[2]=2.0;}
-
-{\ttfamily
-plot\_line(``plot.txt'', 101, lo, hi, f);}
+\begin{quote}
+\begin{verbatim}
+coord_3d lo,hi; 
+lo[3]=1.0; hi[1]=1.0; hi[2]=2.0; 
+plot_line(‘‘plot.txt’’, 101, lo, hi, f); 
+\end{verbatim}
+\end{quote}
 
 To plot two functions (\texttt{f} and \texttt{g}) you would use instead
 
 {\ttfamily
 plot\_line(``plot.txt'', 101, lo, hi, f, g)}
 
-
-\bigskip
-
 With gnuplot, you can plot the data as follows
 
-{\ttfamily
-gnuplot -persist -e 'set style data lines; plot {\textquotedbl}plot.txt{\textquotedbl}'}
-
-
-\bigskip
+\begin{quote}
+\begin{verbatim}
+gnuplot -persist -e 'set style data lines; plot "plot.txt"'
+\end{verbatim}
+\end{quote}
 
 \subsection{VTK format and Paraview}
 MADNESS can export MADNESS functions to the serial vtkStructuredGrid (.vts) file format which can be ready by several
@@ -993,45 +697,24 @@ After the above four quantities have been defined, three functions must be calle
 An example of code for plotting two two-dimensional functions \textit{u} and \textit{v} is as follows in a
 [0,1]\textsuperscript{2} box with 101 points is as follows:
 
-{\ttfamily
-char filename[100];}
-
-{\ttfamily
-sprintf(filename, {\textquotedbl}output.vts{\textquotedbl}); \ // Defines the filename}
-
-{\ttfamily
-Vector{\textless}double, 2{\textgreater} plotlo, plothi; // Box dimensions}
-
-{\ttfamily
-Vector{\textless}long, 2{\textgreater} npts; \ \ \ \ \ \ \ \ \ \ \ \ // Num points in each dim \ \ \ \ \ for(int i = 0;
-i {\textless} 2; ++i) \{}
-
-{\ttfamily
-\ plotlo[i] = 0.0;}
-
-{\ttfamily
-\ plothi[i] = 1.0;}
-
-{\ttfamily
-\ npts[i] \ \ = 101;}
-
-{\ttfamily
-\}}
-
-{\ttfamily
-plotvtk\_begin(world, filename, plotlo, plothi, npts);}
-
-{\ttfamily
-plotvtk\_data(u, {\textquotedbl}u{\textquotedbl}, world, filename, plotlo, plothi, npts);}
-
-{\ttfamily
-plotvtk\_data(v, {\textquotedbl}v{\textquotedbl}, world, filename, plotlo, plothi, npts);}
-
-{\ttfamily
-plotvtk\_end{\textless}3{\textgreater}(world, filename);}
-
-
-\bigskip
+\begin{quote}
+\begin{verbatim}
+char filename[100]; 
+sprintf(filename, output.vts); // Defines the filename 
+Vector<double, 2> plotlo, plothi; // Box dimensions 
+Vector<long, 2> npts; // Num points in each dim for(int 
+i = 0; i < 2; ++i) 
+{ 
+	plotlo[i] = 0.0; 
+	plothi[i] = 1.0; 
+	npts[i] = 101; 
+} 
+plotvtk_begin(world, filename, plotlo, plothi, npts); 
+plotvtk_data(u, u, world, filename, plotlo, plothi, npts); 
+plotvtk_data(v, v, world, filename, plotlo, plothi, npts); 
+plotvtk_end<3>(world, filename); 
+\end{verbatim}
+\end{quote}
 
 \textit{Note: }An arbitrary number of MADNESS files may be written to a single file. \ Two are shown above for
 demonstrative purposes; however, plotvtk\_data may be called multiple times between plotvtk\_begin and plotvtk\_end
@@ -1057,13 +740,12 @@ Poor distribution of work (load imbalance) is the largest reason for inefficient
 one or more processes having too much data. \ Thus, we are interested in uniform distribution of both work and data. 
 
 Many operations in MADNESS are entirely data driven (i.e., computation occurs in the processor that
-{\textquotedbl}owns{\textquotedbl} the data) since there is insufficient work to justify moving data between processes
+"owns" the data) since there is insufficient work to justify moving data between processes
 \ (e.g., computing the inner product between functions). \ However, a few expensive operations can have work shipped to
 other processors. 
 
 There are presently three load balancing mechanisms within MADNESS 
 
-\liststyleLvi
 \begin{itemize}
 \item static and driven by the distribution of data, 
 \item dynamic via random assignment of work, and 
@@ -1072,7 +754,6 @@ There are presently three load balancing mechanisms within MADNESS
 Until the work stealing becomes production quality we must exploit the first two forms. \ The random work assignment is
 controlled by options in the FunctionDefaults class. 
 
-\liststyleLvii
 \begin{itemize}
 \item \texttt{FunctionDefaults::set\_apply\_randomize(bool) }controls the use of randomization in applying integral
 (convolution) operators. It is typically beneficial when computing to medium/high precision. 
@@ -1120,14 +801,12 @@ equation using the bound-state Helmholtz kernel, and the last example applies Du
 dependent differential equation with linear operator  $\hat{L}$ and a non-linear operator  $N$ as a semi-group
 equation.
 
-\begin{equation}\label{seq:refText8}
-\begin{matrix}\hfill \nabla ^{2}u=-4\pi \rho &\to &u=G\ast \rho
-\ \mathrm{\mathit{where}}\ G(r-r')=\frac{1}{|r-r'|}\\-{\frac{1}{2}}\nabla ^{2}\psi +V\psi =E\psi &\to &\psi =-2G\ast
-V\psi \ \mathrm{\mathit{where}}\ G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|}\\\hfill \hat{L}u+N(u,t)=\dot{u}&\to
-&u(t)=e^{\hat{L}t}u(0)+\int _{0}^{t}e^{\hat{L}(t-t')}N(u,t')\mathit{dt}'\end{matrix}
-\end{equation}
 
-\bigskip
+\begin{align*}\label{eqn:refText8}
+\nabla ^{2}u=-4\pi \rho                     & \to u=G\ast \rho    \ \ \    \textrm{where} G(r-r')=\frac{1}{|r-r'|} \\
+-{\frac{1}{2}}\nabla ^{2}\psi +V\psi =E\psi & \to \psi =-2G\ast V\psi \ \ \ \textrm{where} G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|}\\
+\hat{L}u+N(u,t)=\dot{u}                     & \to u(t)=e^{\hat{L}t}u(0) +\int _{0}^{t}e^{\hat{L}(t-t')}N(u,t')\mathit{dt}' &
+\end{align*}
 
 Most codes, including MADNESS, are bad at solving differential equations to high accuracy -- this is why there is so
 much emphasis placed on finding a good pre-conditioner. The problem arises from the spectrum of the differential
@@ -1242,7 +921,6 @@ TO BE COMPLETED.
 \section{Viewing and editing this document}
 All of our documents use the same styles and fonts -- consistency is important! Do not change the styles or fonts.
 
-\liststyleLviii
 \begin{itemize}
 \item Use OpenOffice 3.1 or later to edit this file.
 \item Under Linux ensure you have the Microsoft true-type fonts installed -- they are free. Under Ubuntu install package
