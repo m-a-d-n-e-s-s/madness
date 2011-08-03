@@ -39,7 +39,7 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         if test "x$HAVE_CRAYXT" = xyes; then
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=barcelona],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=barcelona"])
-        elif  test "x$HAVE_IBMBPG" = xyes; then
+        elif  test "x$HAVE_IBMBGP" = xyes; then
           acx_enable_optimal_flags=""
         else 
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=native],
