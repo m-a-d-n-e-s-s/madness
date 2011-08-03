@@ -39,7 +39,9 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         if test "x$HAVE_CRAYXT" = xyes; then
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=barcelona],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=barcelona"])
-        else
+        elif  test "x$HAVE_IBMBPG" = xyes; then
+          acx_enable_optimal_flags=""
+        else 
           ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [-march=native],
             [acx_enable_optimal_flags="$acx_enable_optimal_flags -march=native"])
         fi
@@ -80,6 +82,10 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
       
       IBM)
         acx_enable_optimal_flags="$acx_enable_optimal_flags"
+        if test "x$HAVE_IBMBGP" = xyes; then
+          ACX_CHECK_COMPILER_FLAG([C++], [CXXFLAGS], [ -qtune=450 -qarch=450d -qlanglvl=extended],
+            [acx_enable_optimal_flags="$acx_enable_optimal_flags -qtune=450 -qarch=450d -qlanglvl=extended "])
+        fi
       ;;
       
       *)

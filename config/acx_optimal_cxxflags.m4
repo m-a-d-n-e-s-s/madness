@@ -17,6 +17,10 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             if test "x$HAVE_CRAYXT" = xyes; then
                 echo "Setting target architecture for GNU compilers to barcelona for CRAYXT"
                 CXXFLAGS="$CXXFLAGS -march=barcelona"
+            elif test "x$HAVE_IBMBGP" = xyes; then
+                echo "Setting target architecture for GNU compilers for IBM BG/P"
+                CXXFLAGS="-ansi -O3 -ftemplate-depth-60 -Drestrict=__restrict__ -funroll-all-loops -finline-limit=1000"
+#CXXFLAGS="-g -Wall -Wno-strict-aliasing -Wno-deprecated -ansi -O3 -ftemplate-depth-60 -Drestrict=__restrict__ -funroll-all-loops -finline-limit=1000"
             else
                 CXXFLAGS_SAVE="$CXXFLAGS"
                 echo "TESTING NATIVE"
