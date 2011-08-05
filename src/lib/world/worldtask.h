@@ -1154,7 +1154,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6));
         }
     };
