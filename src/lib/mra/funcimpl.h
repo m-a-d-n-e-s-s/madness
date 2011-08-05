@@ -40,6 +40,7 @@
 
 #include <iostream>
 #include <map>
+#include <tr1/tuple>
 #include <world/world.h>
 #include <world/print.h>
 #include <world/scopedptr.h>
@@ -564,7 +565,89 @@ namespace madness {
           return None;
         }
 
+          std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> compressop_preprocess(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct, const bool& nonstandard, const int& k, const keyT& parent){
+            // Copy child scaling coeffs into contiguous block
+            FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
+            std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
+            tensorT d(cdata.v2k,false);
+            int i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+                d(child_patch(kit.key(),cdata)) = tk[kit.key()];
+            }
+
+            int k1 = k;
+            bool nonstandard1 = nonstandard;
+            keyT parent1 = parent;
+
+           std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> t1(d,k1,key,ct,nonstandard1,parent1,dc);
+           
+
+           return t1;
+        }
+
+        std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> compressop_compute(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+          //std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
+          tensorT d = std::tr1::get<0>(in);
+          int k = std::tr1::get<1>(in);
+          FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
+          keyT key = std::tr1::get<2>(in);
+          containerT ct = std::tr1::get<3>(in); 
+          bool nonstandard = std::tr1::get<4>(in); 
+          keyT parent = std::tr1::get<5>(in); 
+          dcT dc = std::tr1::get<6>(in); 
+          d = filter(d,cdata);
+          std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> t11(d,k,key,ct,nonstandard,parent,dc) ;
+          //Future< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > t1(t11) ;
+          return t11;
+
+          //dc.task(key, &FunctionNode<T,NDIM>::compressop_postprocess, t11);
+
+          //return None;
+        }
+        
+        Void compressop_postprocess(const keyT& key1, dcT dc1, std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+          //  std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
+          tensorT d = std::tr1::get<0>(in);
+          int k = std::tr1::get<1>(in);
+          FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
+          keyT key = std::tr1::get<2>(in); 
+          containerT ct = std::tr1::get<3>(in); 
+          bool nonstandard = std::tr1::get<4>(in);
+          keyT parent = std::tr1::get<5>(in);
+          dcT dc = std::tr1::get<6>(in); 
+ 
+          if (this->has_coeff()) {
+                const tensorT& c = this->coeff();
+                if (c.dim(0) == k) {
+                    d(cdata.s0) += c;
+                }
+                else {
+                    d += c;
+                }
+            }
+
+            tensorT s = copy(d(cdata.s0));
+
+            if (key.level()> 0 && !nonstandard)
+                d(cdata.s0) = 0.0;
+
+            this->set_coeff(d);
+
+            if (key.level() > 0){
+              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+            }
+
+            return None;
+        }
+
         Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
+
+            std::tr1::tuple<tensorT,int,keyT, containerT,bool,keyT,dcT> t1 = compressop_preprocess(key, dc, tensor_keys, ct , nonstandard, k, parent);
+            std::tr1::tuple<tensorT,int,keyT, containerT,bool,keyT,dcT > t2 = compressop_compute(t1);
+
+            //Future< std::tr1::tuple<tensorT,int,keyT, containerT,bool,keyT,dcT> > t2 = dc.task(key, &FunctionNode<T,NDIM>::compressop_compute, t1);  
+           dc.update(key, &FunctionNode<T,NDIM>::compressop_postprocess, t2);
+            /*
             // Copy child scaling coeffs into contiguous block
             FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
             std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
@@ -595,8 +678,10 @@ namespace madness {
             if (key.level() > 0){
               ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
             }
-
+            */
+            
             return None;
+
         }
 
         /// General bi-linear operation --- this = this*alpha + other*beta
