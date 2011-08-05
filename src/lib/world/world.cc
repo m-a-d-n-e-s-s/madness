@@ -100,7 +100,7 @@ typedef std::complex<double> double_complex;
 class TestTask : public TaskInterface {
 public:
 
-    virtual void run(World& world) {
+    void run(World& world) {
         print("Hi, I am running!");
     }
 };
@@ -247,7 +247,7 @@ public:
         print("Testing barrier with nthread", attr.get_nthread());
     }
 
-    virtual void run(World& world, const TaskThreadEnv& env) {
+    void run(World& world, const TaskThreadEnv& env) {
         // Using the barrier each thread takes turns to update
         // the shared counter.
 
@@ -278,7 +278,7 @@ public:
         print("Timing barrier with nthread", attr.get_nthread());
     }
 
-    virtual void run(World& world, const TaskThreadEnv& env) {
+    void run(World& world, const TaskThreadEnv& env) {
         // Barrier a zillion times
 
 		for (int i=0; i<1000000; ++i) {

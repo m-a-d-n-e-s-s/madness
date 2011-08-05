@@ -104,7 +104,7 @@ namespace madness {
         void register_submit_callback() { register_callback(&submit); }
 
     protected:
-        virtual void run(const TaskThreadEnv& env);
+        void run(const TaskThreadEnv& env);
 
     public:
         static bool debug;
@@ -135,13 +135,13 @@ namespace madness {
         /// Runs a single-threaded task ... derived classes must implement this.
 
         /// This interface may disappear so new code should use the multi-threaded interface.
-        virtual void run(World&) {
+        void run(World&) {
             //print("in virtual run(world) method");
             MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
         }
 
         /// Runs a multi-threaded task
-        virtual void run(World& world, const TaskThreadEnv& env) {
+        void run(World& world, const TaskThreadEnv& env) {
             //print("in virtual run(world,env) method", env.nthread(), env.id());
             if (env.nthread() != 1)
                 MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
@@ -853,7 +853,7 @@ namespace madness {
                 , result(result)
                 , func(func) {};
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func());
         }
 
@@ -894,7 +894,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1));
         }
     };
@@ -938,7 +938,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2));
         }
     };
@@ -984,7 +984,7 @@ namespace madness {
             check_dependency(arg3);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3));
         }
     };
@@ -1036,7 +1036,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4));
         }
     };
@@ -1093,7 +1093,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5));
         }
     };
@@ -1223,7 +1223,7 @@ namespace madness {
             check_dependency(arg7);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         }
     };
@@ -1295,7 +1295,7 @@ namespace madness {
 	    	check_dependency(arg8);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         }
     };
@@ -1371,7 +1371,7 @@ namespace madness {
 		    check_dependency(arg9);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set(func(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
         }
     };
@@ -1390,7 +1390,7 @@ namespace madness {
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {}
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)());
         };
     };
@@ -1413,7 +1413,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
         }
     };
@@ -1439,7 +1439,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2));
         }
     };
@@ -1502,7 +1502,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         }
     };
@@ -1538,7 +1538,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         }
     };
@@ -1578,7 +1578,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         }
     };
@@ -1621,7 +1621,7 @@ namespace madness {
             check_dependency(arg7);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         }
     };
@@ -1667,7 +1667,7 @@ namespace madness {
 		    check_dependency(arg8);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         }
     };
@@ -1716,7 +1716,7 @@ namespace madness {
 		    check_dependency(arg9);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9));
         }
     };
@@ -1739,7 +1739,7 @@ namespace madness {
         TaskMemfun(const futureT& result, objT& obj, memfunT memfun, const TaskAttributes& attr)
                 : TaskFunctionBase(attr), result(result), obj(obj), memfun(memfun) {};
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)());
         }
     };
@@ -1762,7 +1762,7 @@ namespace madness {
             check_dependency(arg1);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1));
         }
     };
@@ -1790,7 +1790,7 @@ namespace madness {
             check_dependency(arg2);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2));
         };
     };
@@ -1820,7 +1820,7 @@ namespace madness {
             check_dependency(arg3);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3));
         }
     };
@@ -1853,7 +1853,7 @@ namespace madness {
             check_dependency(arg4);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4));
         }
     };
@@ -1889,7 +1889,7 @@ namespace madness {
             check_dependency(arg5);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5));
         }
     };
@@ -1928,7 +1928,7 @@ namespace madness {
             check_dependency(arg6);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
             result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6));
         }
     };
@@ -1970,7 +1970,7 @@ namespace madness {
 		    check_dependency(arg7);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7));
         }
     };
@@ -2015,7 +2015,7 @@ namespace madness {
 		    check_dependency(arg8);
         }
 
-        virtual void run(World& /*world*/) {
+        void run(World& /*world*/) {
 		  result.set((obj.*memfun)(arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8));
         }
     };
