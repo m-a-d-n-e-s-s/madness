@@ -100,9 +100,7 @@ typedef std::complex<double> double_complex;
 class TestTask : public TaskInterface {
 public:
 
-    using PoolTaskInterface::run;
-
-    void run(World& world) {
+    virtual void run(World& world) {
         print("Hi, I am running!");
     }
 };
@@ -242,8 +240,6 @@ class TestBarrier : public TaskInterface {
     volatile int count;
 public:
 
-    using PoolTaskInterface::run;
-
     TestBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
         , count(0)
@@ -251,7 +247,7 @@ public:
         print("Testing barrier with nthread", attr.get_nthread());
     }
 
-    void run(World& world, const TaskThreadEnv& env) {
+    virtual void run(World& world, const TaskThreadEnv& env) {
         // Using the barrier each thread takes turns to update
         // the shared counter.
 
@@ -275,8 +271,6 @@ class TimeBarrier : public TaskInterface {
     volatile int count;
 public:
 
-    using PoolTaskInterface::run;
-
     TimeBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
         , count(0)
@@ -284,7 +278,7 @@ public:
         print("Timing barrier with nthread", attr.get_nthread());
     }
 
-    void run(World& world, const TaskThreadEnv& env) {
+    virtual void run(World& world, const TaskThreadEnv& env) {
         // Barrier a zillion times
 
 		for (int i=0; i<1000000; ++i) {
