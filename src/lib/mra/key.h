@@ -313,20 +313,18 @@ namespace madness {
         template<std::size_t LDIM, std::size_t KDIM>
         void break_apart(Key<LDIM>& key1, Key<KDIM>& key2) const {
 
-            MADNESS_ASSERT(NDIM==LDIM+KDIM);
-
-            // break key into particles
+            // if LDIM==NDIM the 2nd key will be constructed empty
+            MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
             Vector<Translation, LDIM> l1;
             Vector<Translation, KDIM> l2;
             for (size_t i=0; i<LDIM; ++i) {
                 l1[i]=l[i];
             }
-            for (size_t i=0; i<KDIM; ++i) {
-                l2[i]=l[LDIM+i];
+            for (size_t i=LDIM; i<NDIM; ++i) {
+                l2[i-LDIM]=l[i];
             }
             key1=Key<LDIM>(n,l1);
             key2=Key<KDIM>(n,l2);
-
         }
 
         /// merge with other key (ie concatenate), use level of rhs, not of this

@@ -208,15 +208,16 @@ namespace madness {
 //						(new FunctionImpl<T,NDIM>(this_factory.no_functor().k(nk*this_impl->get_k())));
 
 			// prepare base functions that make this function
-			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(true);
+			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
 			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(true);
+				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(false);
 			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(true);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(true);
+			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(false);
+			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(false);
 
-			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(true);
-			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(true);
+			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
+			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
+			world.gop.fence();
 
 		}
 

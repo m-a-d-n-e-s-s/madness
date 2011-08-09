@@ -451,6 +451,14 @@ namespace madness {
             return impl->tree_size();
         }
 
+        /// print some info about this
+        void print_info(const std::string name) {
+            size_t tsize=this->tree_size();
+            size_t size=this->size();
+            if (this->world().rank()==0) {
+                print(name,":",tsize, double(size)/(1024*1024*128),"GByte");
+            }
+        }
 
         /// Returns the maximum depth of the function tree ... collective global sum
         std::size_t max_depth() const {
@@ -1017,7 +1025,9 @@ namespace madness {
             MADNESS_ASSERT(not g.get_impl()->is_redundant());
             if (g.is_on_demand()) {
                 this->reconstruct();
+                MADNESS_EXCEPTION("no inner with g.is_on_demand()",0);
                 g.get_impl()->fill_on_demand_tree(this->get_impl().get(),false);
+//                g.get_impl()->convolute<real_convolution_6d>(op);
             }
 
 
@@ -1463,6 +1473,7 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
+        if (f.get_impl()->world.rank()==0) print("op.modified",op.modified);
        	result.set_impl(f, true);
        	long tsize=f.tree_size();
        	long size=f.size();

@@ -248,6 +248,11 @@ static double V_times_phi(const coord_6d& r) {
 }
 
 
+// according to McQuarrie
+static double h_orbital(const coord_3d& r) {
+    return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
+}
+
 // according to Ed
 static double he_orbital_3d(const coord_3d& r) {
 
@@ -413,18 +418,19 @@ real_function_6d multiply_by_V(const real_function_6d& psi) {
     return Vpsi;
 }
 
-
-void save_function(World& world, const real_function_6d& pair,
-                   const double& energy, const std::string name) {
+template<size_t NDIM>
+void save_function(World& world, const Function<double,NDIM>& pair, const std::string name) {
+    if (world.rank()==0) print("saving function",name);
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-    ar & pair;
+    ar & pair & FunctionDefaults<NDIM>::get_cell();
 }
 
-void load_function(World& world, real_function_6d& pair, 
-                   double& energy, const std::string name) {
+template<size_t NDIM>
+void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
     archive::ParallelInputArchive ar(world, name.c_str());
 //    archive::ParallelInputArchive ar(world, "restart");
-    ar & pair;
+    Tensor<double> cell;
+    ar & pair & cell;
 }
 
 
@@ -509,6 +515,11 @@ struct true_if_close_to_nucleus {
 
 };
 
+/// iterate the helium wavefunction
+/// @param[in]      world   world
+/// @param[in]      Vpsi    -2.0*V*pair
+/// @param[in/out]  psi     pair function
+/// @param[in/out]  eps     energy
 void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
     LoadBalanceDeux<6> lb(world);
@@ -519,32 +530,23 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
 
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+    op.modified=false;
     
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
-    long size=tmp.size();
-    if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
-
-    
-
-    tmp.scale(-2.0);
-    size=tmp.size();
-    if(world.rank() == 0) print("tmp.size() reconstruct before truncation",size);
+    tmp.print_info("tmp reconstructed before truncation");
     tmp.compress();
-    size=tmp.size();
-    if(world.rank() == 0) print("tmp.size() compressed before truncation ",size);
+    tmp.print_info("tmp compressed before truncation");
     tmp.truncate();
-    size=tmp.size();
-    if(world.rank() == 0) print("tmp.size() after truncation ",size);
+    tmp.print_info("tmp compressed after truncation");
     if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
     double norm = tmp.norm2();
     real_function_6d r = tmp-psi;
     double rnorm = inner(r,r);
-    Vpsi=multiply_by_V(psi);
-    double eps_new = eps + inner(r,Vpsi)/(norm*norm);
+    double eps_new = eps -0.5 * inner(r,Vpsi)/(norm*norm);
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
         print("eps_new",eps_new);
@@ -560,38 +562,36 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
 
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.0001, 1e-6);
     real_function_3d tmp;
-
-    // direct Vpsi
-    if (0) {
-    	// set the impl of arg to get the structure of the target tree
-    	real_function_3d arg=CompositeFactory<double,3,3>(world)
-    	        .ket(copy(Vpsi).get_impl())
-    			.muster(copy(Vpsi).get_impl());
-
-    	tmp = op(arg).truncate();
-    }
-
-    // composite Vpsi
-    else {
-//        psi.refine_general(true_op());
-        print("psi.size()",psi.size(),psi.tree_size());
-    	real_function_3d arg=CompositeFactory<double,3,3>(world)
-//    	        .V_for_particle1(copy(V).get_impl())
-    	        .ket(copy(Vpsi).get_impl())
-				.muster(copy(Vpsi).get_impl());
-
-    	tmp = op(arg);
-    	print("tmp.size()",tmp.size(),tmp.norm2());
-//    	tmp.scale(-2.0);
-    	tmp.truncate();
-        print("tmp.truncated.size()",tmp.size());
-
-    }
-
-//    // conventional
-//    else {
-//    	tmp=op(Vpsi).truncate();
+//
+//    // direct Vpsi
+//    if (0) {
+//    	// set the impl of arg to get the structure of the target tree
+//    	real_function_3d arg=CompositeFactory<double,3,3>(world)
+//    	        .ket(copy(Vpsi).get_impl())
+//    			.muster(copy(Vpsi).get_impl());
+//
+//    	tmp = op(arg).truncate();
 //    }
+//
+//    // composite Vpsi
+//    else {
+////        psi.refine_general(true_op());
+//        print("psi.size()",psi.size(),psi.tree_size());
+//    	real_function_3d arg=CompositeFactory<double,3,3>(world)
+////    	        .V_for_particle1(copy(V).get_impl())
+//    	        .ket(copy(Vpsi).get_impl())
+//				.muster(copy(Vpsi).get_impl());
+//
+//    	tmp = op(arg);
+//    	print("tmp.size()",tmp.size(),tmp.norm2());
+////    	tmp.scale(-2.0);
+//    	tmp.truncate();
+//        print("tmp.truncated.size()",tmp.size());
+//
+//    }
+
+    // conventional
+    tmp=op(Vpsi).truncate();
 
     double norm = tmp.norm2();
     real_function_3d r = tmp-psi;
@@ -628,7 +628,7 @@ void compute_energy(World& world, const real_function_3d& psi, const real_functi
 
 
 void compute_energy(World& world, const real_function_6d& pair,
-		real_function_3d& pot1, real_function_3d& pot2, double& ke, double& pe) {
+		const real_function_3d& pot1, const real_function_3d& pot2, double& ke, double& pe) {
 
 	// compute kinetic energy
 	ke=0.0;
@@ -656,12 +656,18 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
 				.ket(copy(pair).get_impl())
-				.g12(eri.get_impl())
+//				.g12(eri.get_impl())
 				.V_for_particle1(copy(pot1).get_impl())
 				.V_for_particle2(copy(pot2).get_impl())
 				;
 //		real_function_6d v11=multiply_by_V(pair);
-
+        // make the tree
+        {
+		    // this is a dummy convolution
+            real_convolution_6d op = BSHOperator<6>(world, -0.1, 0.00001, 1e-6);
+            op.modified=true;
+            v11.get_impl()->convolute<real_convolution_6d>(op);
+        }
 
 		double a=inner(pair,v11);
         if (world.rank()==0) print("<phi|V_tot|phi> ", a);
@@ -751,7 +757,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		if(world.rank() == 0) print("pair.tree_size() in iteration",i,":",tree_size);
 		if(world.rank() == 0) print("pair.size() in iteration",i,     ":",size);
 		name="restart_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
-		save_function(world,pair,energy,name);
+		save_function(world,pair,name);
 
 
 		if (i%3==0) {
@@ -809,6 +815,8 @@ void test_modified(World& world) {
     if(world.rank() == 0) printf("starting at time %.1fs\n\n", wall_time());
     for (int i=0; i<20; i++) {
 
+        print("");
+        print("entering iteration",i);
         eps=energy;
         real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.0001, 1e-6);
 
@@ -838,9 +846,11 @@ void test_modified(World& world) {
 // test the modified NS form
 void test_recursive_application(World& world) {
 
+    if (world.rank()==0) print("in test_recursive_application");
 
     // one orbital at a time
-    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+//    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    real_function_3d orbital=real_factory_3d(world).f(h_orbital);
 
     double norm=inner(orbital,orbital);
     orbital.scale(1.0/sqrt(norm));
@@ -848,28 +858,66 @@ void test_recursive_application(World& world) {
     real_function_6d pair=hartree_product(orbital,orbital);
     double norm2=inner(pair,pair);
     if (world.rank()==0) print("<phi | phi>",norm2);
-    double ke,pe;
-    real_function_3d pot1=real_factory_3d(world).f(Z2);
-    real_function_3d pot2=real_factory_3d(world).f(Z2);
-    compute_energy(world,pair,pot1,pot2,ke,pe);
-    double eps=ke+pe;
+    double ke,pe,eps;
+    const real_function_3d pot1=real_factory_3d(world).f(Z1);
+    const real_function_3d pot2=real_factory_3d(world).f(Z1);
 
 
-    // two-electron interaction potential
-    real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+    {
+        // 3d
+        compute_energy(world,orbital,pot1,ke,pe);
+        eps=-0.5;
 
-    real_function_6d vphi=CompositeFactory<double,6,3>(world)
-                        .ket(copy(pair).get_impl())
-                        .g12(eri.get_impl())
-                        .V_for_particle1(copy(pot1).get_impl())
-                        .V_for_particle2(copy(pot2).get_impl())
-                        .muster(copy(pair).get_impl())
-                        ;
-    real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-    op.modified=false;
+        if (1) {
+            real_function_3d vphi=-2.0*(orbital*pot1);
+            real_convolution_3d op2 = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            op2.modified=false;
+            real_function_3d tmp=op2(vphi);
+            tmp.scale(1.0/sqrt(tmp.norm2()));
+            double ke, pe;
+            compute_energy(world,tmp,pot1,ke,pe);
 
-    vphi.get_impl()->convolute<real_convolution_6d>(op);
+            coord_3d lo, hi;
+            const double L=FunctionDefaults<3>::get_cell_width()[0];
+            lo[0]=-L/2; hi[0]=L/2;
+            trajectory<3> traj=trajectory<3>::line2(lo,hi,201);
+            plot_along(world,traj,tmp,"name0");
 
+        }
+
+        {
+            real_function_3d two_phi=orbital.scale(-2.0);
+
+            real_function_3d phi2=CompositeFactory<double,3,3>(world)
+                                .ket(copy(two_phi).get_impl())
+                                .V_for_particle1(copy(pot1).get_impl())
+                                .muster(copy(two_phi).get_impl())
+                                ;
+            {
+                real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
+                op.modified=true;
+                phi2.get_impl()->convolute<real_convolution_3d>(op);
+            }
+
+            real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            op.modified=false;
+            phi2=op(phi2);
+            phi2.scale(1.0/sqrt(phi2.norm2()));
+
+            compute_energy(world,phi2,pot1,ke,pe);
+
+
+            coord_3d lo, hi;
+            const double L=FunctionDefaults<3>::get_cell_width()[0];
+            lo[0]=-L/2; hi[0]=L/2;
+            trajectory<3> traj=trajectory<3>::line2(lo,hi,201);
+            plot_along(world,traj,phi2,"name1");
+
+        }
+
+
+
+    }
 
 //    double v=inner(pair,vphi);
 //    if (world.rank()==0) print("inner(pair,vphi",v);
@@ -878,6 +926,93 @@ void test_recursive_application(World& world) {
 }
 
 
+void test_adaptive_tree(World& world) {
+
+    if (world.rank()==0) print("in test_adaptive_tree");
+
+    double thresh=FunctionDefaults<6>::get_thresh();
+//    const double L=FunctionDefaults<6>::get_cell_width()[0];
+    long k=FunctionDefaults<6>::get_k();
+
+    // one orbital at a time
+    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    orbital.scale(1.0/orbital.norm2());
+
+    const real_function_3d pot1=real_factory_3d(world).f(Z2);
+    const real_function_3d pot2=real_factory_3d(world).f(Z2);
+
+    // get he+ energy
+    for (int i=0; i<20; ++i) {
+        double ke,pe;
+        compute_energy(world,orbital,pot1,ke,pe);
+        double eps=ke+pe;
+        std::string name="orbital_it"+stringify(i);
+        save_function(world,orbital,name);
+        iterate(world,pot1,orbital,eps);
+    }
+//    orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+
+    double en1=inner(orbital,pot1*orbital);
+    if (world.rank()==0) printf("1e pot energy computed as < phi | V phi>: %12.8f\n",en1);
+
+    real_function_6d pair=hartree_product(orbital,orbital);
+    double norm2=inner(pair,pair);
+    if (world.rank()==0) print("<phi | phi>",norm2);
+    double ke,pe,eps;
+
+//    real_function_6d vpair=hartree_product(orbital*pot1,orbital);
+//    double en=inner(pair,vpair);
+//    if (world.rank()==0) printf("2e pot energy computed as < phi | V phi>: %12.8f\n",en);
+//
+//    long size,tsize;
+//    size=vpair.size();
+//    tsize=vpair.tree_size();
+//    if (world.rank()==0) print("done computing pot size",size,tsize);
+
+    for (int ii=0; ii<10; ++ii) {
+
+        {
+            const std::string appendix="_k"+stringify(k)+"_eps"+stringify(thresh)+"_it"+stringify(ii);
+            std::string filename="pair"+appendix;
+            save_function(world,pair,filename);
+        }
+
+        compute_energy(world,pair,pot1,pot2,ke,pe);
+        eps=ke+pe;
+
+        // two-electron interaction potential
+        real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+
+        real_function_6d vphi=CompositeFactory<double,6,3>(world)
+                                            .ket(copy(pair).get_impl())
+//                                            .g12(eri.get_impl())
+                                            .V_for_particle1(copy(pot1).get_impl())
+                                            .V_for_particle2(copy(pot2).get_impl())
+                                            .muster(copy(pair).get_impl())
+                                            ;
+
+        // make the tree
+        {
+            real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            op.modified=true;
+            vphi.get_impl()->convolute<real_convolution_6d>(op);
+            vphi.scale(-2.0);
+
+            vphi.print_info("vphi");
+
+        }
+
+        // convolute
+        {
+            iterate(world,vphi,pair,eps);
+        }
+
+        double norm=pair.norm2();
+        if (world.rank()==0) printf("norm(pair) : %12.8f",norm);
+        if(world.rank() == 0) printf("\nfinished iteration %d at time %.1fs\n\n", ii, wall_time());
+
+    }
+}
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -885,105 +1020,39 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-
-    double L = 32;   // box size
+    // defaults
+    double L = 16;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
 
-    if (world.rank()==0) {
-        print("number of arguments",argc);
-        for(int i = 0; i < argc; i++) {
-            print("argv[",i,"] = ",argv[i]);
+    // set the parameters
+    bool restart=false;
+    std::string restart_name;
+
+    for(int i = 1; i < argc; i++) {
+        const std::string arg=argv[i];
+
+        // break parameters into key and val
+        size_t pos=arg.find("=");
+        std::string key=arg.substr(0,pos);
+        std::string val=arg.substr(pos+1);
+
+        if (key=="size") L=atof(val.c_str());               // usage: size=10
+        if (key=="k") k=atoi(val.c_str());                  // usage: k=5
+        if (key=="thresh") thresh=atof(val.c_str());        // usage: thresh=1.e-3
+        if (key=="restart") {                               // usage: restart=path/to/mo_file
+            restart_name=stringify(val);
+            restart=true;
         }
     }
 
 
-    if (argc==3 or argc==4) {
-//		L = atof(argv[1]);   // box size
-		k = atoi(argv[1]) ;        // wavelet order
-		thresh = atof(argv[2]); // precision
-//		tt = TensorType(atoi(argv[4]));
-//		truncate_mode = atoi(argv[5]);
-    }
-
-    bool restart=false;
-    std::string restart_name;
-    if (argc==4) {
-        restart_name=stringify(argv[3]);
-        restart=true;
-    }
 
     if (world.rank()==0) {
-        print("restart mode",restart, restart_name);
+        print("restart mode",restart," restart_name=", restart_name);
         printf("\nstarting at time %.1fs\n\n", wall_time());
     }
 
-
-    // hydrogen
-#if 0
-
-    tt=TT_FULL;
-
-    FunctionDefaults<3>::set_tensor_type(tt);
-    FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_truncate_mode(truncate_mode);
-    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
-
-    print("polynomial order:  ", FunctionDefaults<3>::get_k());
-    print("threshold:         ", FunctionDefaults<3>::get_thresh());
-    print("cell size:         ", L);
-    print("truncation mode:   ", FunctionDefaults<3>::get_truncate_mode());
-    print("tensor type:       ", FunctionDefaults<3>::get_tensor_type());
-
-
-
-//    real_function_3d Vnuc = real_factory_3d(world).f(V).truncate_mode(0);
-//    print("helium potential ",Vnuc.tree_size());
-//    real_function_3d psi  = real_factory_3d(world).f(guess);
-    real_function_3d psi  = real_factory_3d(world).f(gauss_3d);
-    if(world.rank() == 0) printf("\nguess at time %.1fs\n\n", wall_time());
-    print("helium guess tree size    ", psi.tree_size());
-    print("helium guess number coeff ", psi.size());
-
-    print("normalizing");
-    double normsq=inner(psi,psi);
-    psi.scale(1.0/sqrt(normsq));
-    print("<psi | psi>", normsq);
-    if(world.rank() == 0) printf("\ninner at time %.1fs\n\n", wall_time());
-    real_function_3d pot = real_factory_3d(world).f(V);
-
-
-    double ke=0.0;
-    double pe=0.0;
-
-    compute_energy(world,psi,pot,ke,pe);
-    double te=ke+pe;
-
-	// compute the potential energy on the fly
-    if (1) {
-
-		real_function_3d Vpsi=CompositeFactory<double,3,3>(world)
-		                    .V_for_particle1(copy(pot).get_impl())
-							.ket(copy(psi).get_impl())
-							;
-		print("computing <psi | V | psi> on the fly");
-		pe=inner(psi,Vpsi);
-		print("potential energy, on the fly",pe);
-    }
-
-
-    for (int i=0; i<20; i++) {
-    	iterate(world,pot,psi,te);
-        compute_energy(world,psi,pot,ke,pe);
-        psi.reconstruct();
-//		trajectory<3> traj(-L/2,L/2,201);
-//		std::string filename="iteration"+stringify(i);
-//		plot_along<3>(world,traj,psi,filename);
-
-    }
-
-#endif
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -1013,8 +1082,9 @@ int main(int argc, char** argv) {
     }
 
 
-    if (1) test_modified(world);
+    if (0) test_modified(world);
     if (0) test_recursive_application(world);
+    if (1) test_adaptive_tree(world);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
@@ -1057,7 +1127,7 @@ int main(int argc, char** argv) {
         MADNESS_ASSERT(restart);
         real_function_6d pair;
         double energy;
-        load_function(world,pair,energy,restart_name);
+        load_function(world,pair,restart_name);
 //        trajectory<6> traj(-L/2,L/2,601);
         std::string filename=restart_name+"lineplot";
 //        plot_along<6>(world,traj,pair,filename);
@@ -1117,7 +1187,7 @@ int main(int argc, char** argv) {
         double norm=inner(pair,pair);
         pair.scale(1.0/sqrt(norm));
     } else {
-        load_function(world,pair,energy,restart_name);
+        load_function(world,pair,restart_name);
     	pair=project(pair,FunctionDefaults<6>::get_k(),pair.thresh());	// change to appropriate k
         if (world.rank()==0) {
             print("restart from file ",restart_name);

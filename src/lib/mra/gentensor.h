@@ -1010,11 +1010,13 @@ namespace madness {
 		/// transform the Legendre coefficients with the tensor
 		template<typename Q>
 		gentensorT general_transform(const Tensor<Q> c[]) const {
+		    this->_ptr->make_structure();
 			return gentensorT (this->config().general_transform(c));
 		}
 
 		/// inner product
 		gentensorT transform_dir(const Tensor<T>& c, const int& axis) const {
+            this->_ptr->make_structure();
 			return this->_ptr->transform_dir(c,axis);
 		}
 

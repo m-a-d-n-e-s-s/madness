@@ -1465,6 +1465,21 @@ namespace madness {
 
 
 
+        /// truncate tree at a certain level
+        Void erase(const Level& max_level) {
+            this->make_redundant(true);
+
+            typename dcT::iterator end = coeffs.end();
+            for (typename dcT::iterator it= coeffs.begin(); it!=end; ++it) {
+                keyT key=it->first;
+                nodeT& node=it->second;
+                if (key.level()>max_level) coeffs.erase(key);
+                if (key.level()==max_level) node.set_has_children(false);
+            }
+            this->undo_redundant(true);
+            return None;
+        };
+
 
         struct do_stuff {
             typedef Range<typename dcT::iterator> rangeT;
@@ -2238,6 +2253,7 @@ namespace madness {
 
             typedef hartree_op<LDIM> this_type;
             typedef FunctionImpl<T,LDIM> implL;
+            typedef FunctionNode<T,LDIM> nodeL;
             typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
             typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
 
@@ -2262,9 +2278,6 @@ namespace madness {
 
             /// return true if this will be a leaf node
             bool screen(const Key<NDIM>& key) const {
-
-                // for convenience
-                typedef FunctionNode<T,LDIM> nodeL;
 
                 const nodeL& node1=datum1.second;
                 const nodeL& node2=datum2.second;
@@ -2291,6 +2304,7 @@ namespace madness {
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
                 bool is_leaf=this->screen(key);
+                if (key.level()>5) is_leaf=true;
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
                 // break key into particles (these are the child keys, with datum1/2 come the parent keys)
@@ -2386,21 +2400,31 @@ namespace madness {
             const keyT& d = *disp.begin();
             const double opnorm = apply_op->norm(key.level(), d, key);
 
-            const double fac=100.0;
+            const double fac=1.0;
             const double tol=truncate_tol(thresh,key);
             bool descend=cnorm*opnorm> tol/fac;
-
-            print("cnorm, opnorm, cnorm*opnorm",key,cnorm,opnorm,opnorm*cnorm,descend);
-
             if (key.level()<2) descend=true;
+
+//            if (descend) print("cnorm, opnorm, cnorm*opnorm",key,cnorm,opnorm,opnorm*cnorm,descend);
+
             // descend if needed
             if (descend) {
+
+                // actually apply the operator (make it hipri to get data out of the way)
+//                ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+//                woT::task(p, &implT:: template do_apply_source_driven<apply_opT,T>, apply_op, key, coeff,TaskAttributes::hipri());
+
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     Future<coeff_opT> child_op=coeff_op.make_child_op(child);
                     woT::task(world.rank(), &implT:: template forward2<coeff_opT,apply_opT>, child_op, apply_op, child);
                 }
+                coeffs.replace(key,nodeT(coeffT(),true)); // Empty internal node
+            } else {
+                coeffs.replace(key,nodeT(coeff,false)); // leaf node
             }
+
+
             return None;
         }
 
@@ -2439,8 +2463,10 @@ namespace madness {
             if (world.rank() == coeffs.owner(key0)) {
                 Future<datumL> dat1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
                         &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
-                Future<datumL> dat2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
-                        &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> dat2 = (pot2)
+                        ? pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
+                                &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri())
+                        : Future<datumL>(datumL());
                 Future<datumT> dat_ket=ket->task(ket->get_coeffs().owner(key0),
                         &implT::find_datum,key0,TaskAttributes::hipri());
 
@@ -2459,8 +2485,28 @@ namespace madness {
 
             }
 
-            this->compressed=false;
-            this->on_demand=false;
+            world.gop.fence();
+
+            // finalize
+//            if (apply_op.modified) flo_unary_op_node_inplace(do_stuff(),true);
+//            this->compressed=true;
+//            this->nonstandard=true;
+//            this->redundant=false;
+//
+//            this->on_demand=false;
+//            this->unset_functor();
+//
+//            this->reconstruct(fence);
+
+            // for adaptive tree construction
+            {
+                this->compressed=false;
+                this->nonstandard=false;
+                this->redundant=false;
+
+                this->on_demand=false;
+                this->unset_functor();
+            }
             if (fence) world.gop.fence();
 
         }
@@ -2627,14 +2673,8 @@ namespace madness {
         Future<std::pair<keyT,nodeT> > outermost_child(const keyT& key, const std::pair<keyT,nodeT>& in) const {
 
             const nodeT& node=in.second;
-
-            Future<std::pair<keyT,nodeT> > out;
-            if (node.has_children()) {
-                out=woT::task(coeffs.owner(key), &implT::find_datum, key, TaskAttributes::hipri());
-            } else {
-                out.set(in);
-            }
-            return out;
+            if (not node.has_children()) return Future<std::pair<keyT,nodeT> >(in);
+            return woT::task(coeffs.owner(key), &implT::find_datum, key, TaskAttributes::hipri());
         }
 
         /// given a ket and the 1- and 2-electron potentials, construct the function V phi
@@ -2650,7 +2690,7 @@ namespace madness {
             const implT* ket;          ///< the ket
             const implT* eri;          ///< holding the 2-electron potential generator
             const implL* pot1;         ///< potential for particle 1
-            const implL* pot2;         ///< potential for particle 2
+            const implL* pot2;         ///< potential for particle 2 (possibly 0)
             datumL datum1;             ///< pointer to a valid key/node in p1
             datumL datum2;             ///< pointer to a valid key/node in p2
             datumT datum_ket;          ///< pointer to a valid key/node in ket
@@ -2669,7 +2709,8 @@ namespace madness {
             , datum2(datum2)
             , datum_ket(datum_ket)
             {
-                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+                if (pot2) MADNESS_ASSERT(LDIM+LDIM==NDIM);
+                if (!pot2) MADNESS_ASSERT(LDIM==NDIM);
             }
 
             /// assemble the coefficients
@@ -2679,15 +2720,19 @@ namespace madness {
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
 
-                // values for 1e-potentials
-                const coeffT val_pot1=pot1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
-                const coeffT val_pot2=pot2->fcube_for_mul(key2,datum2.first,datum2.second.coeff());
-
                 // values for ket
                 tensorT val_ket=ket->fcube_for_mul(key,datum_ket.first,datum_ket.second.coeff()).full_tensor_copy();
 
+                // values for 1e-potentials
+                const coeffT val_pot1=pot1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
+                const coeffT val_pot2= (pot2)
+                        ? pot2->fcube_for_mul(key2,datum2.first,datum2.second.coeff())
+                        : coeffT();
+
                 // values for eri
-                const tensorT val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
+                const tensorT val_eri= (eri)
+                        ? eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor()
+                        : tensorT();
 
                 // assemble all contributions
                 tensorT coeff_v(ket->cdata.vk);      // 6D, all addends
@@ -2710,7 +2755,7 @@ namespace madness {
 
 
                 // add 2-particle contribution
-                coeff_v+=val_eri;
+                if (val_eri.has_data()) coeff_v+=val_eri;
 
                 // check for need of refinement
                 bool needs_refinement=false;
@@ -2726,7 +2771,7 @@ namespace madness {
                 }
 
                 // multiply potential with ket
-                if (val_eri.has_data() or val_pot1.has_data()) {
+                if (coeff_v.has_data()) {
                     tensorT tcube(result->cdata.vk,false);
                     TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
                     val_ket=tcube;
@@ -2739,8 +2784,7 @@ namespace madness {
                 const TensorArgs& targs=result->get_tensor_args();
                 const coeffT coeff_ket=coeffT(result->values2coeffs(key,val_ket),targs);
 
-                if (is_leaf) return std::pair<bool,coeffT> (is_leaf,coeff_ket);
-                else return std::pair<bool,coeffT> (is_leaf,coeffT());
+                return std::pair<bool,coeffT> (is_leaf,coeff_ket);
             }
 
             /// given the current operator, construct the child operator, which means
@@ -2754,7 +2798,9 @@ namespace madness {
 
                 // point to "outermost" leaf node
                 Future<datumL> datum11=pot1->outermost_child(key1,datum1);
-                Future<datumL> datum22=pot2->outermost_child(key2,datum2);
+                Future<datumL> datum22 = (pot2)
+                        ? pot2->outermost_child(key2,datum2)
+                        : Future<datumL>(datumL());
                 Future<datumT> datumkk=ket->outermost_child(child,datum_ket);
 
                 // wait for the nodes to arrive, and construct a new operator
@@ -2896,7 +2942,7 @@ namespace madness {
         /// fill the children of this node with coefficients provided by its functor
         Void fill_coeff_op(const keyT& key, const bool do_refine) {
 
-	    MADNESS_ASSERT(coeffs.is_local(key));
+            MADNESS_ASSERT(coeffs.is_local(key));
             functor->fill_coeff(this,key,do_refine);    // no further refinement
             return None;
         }
@@ -3249,7 +3295,7 @@ namespace madness {
         	redundant=true;
         	compressed=false;
         	nonstandard=false;
-    		flo_unary_op_node_inplace(do_keep_sum_coeffs(this),true);
+    		flo_unary_op_node_inplace(do_keep_sum_coeffs(this),fence);
 
     		if (fence) world.gop.fence();
         }
@@ -3581,12 +3627,12 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
 
-            // fac is the number of contributing neighbors (approx)
+             // fac is the number of contributing neighbors (approx)
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             if (NDIM==6) fac=729; //100.0;
-            if (op->modified) fac*=100.0;
+            if (op->modified) fac*=10.0;
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
@@ -3620,7 +3666,7 @@ namespace madness {
                 if (dest.is_valid()) {
                     opnorm_old=opnorm;
                     opnorm = op->norm(key.level(), d, key);
-                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
+//                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
 
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
@@ -3644,7 +3690,7 @@ namespace madness {
 //            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
                                 do_op_args args(key, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
-                                        args,apply_targs);
+                                        args,apply_targs,TaskAttributes::hipri());
 
                             } else {
 
@@ -3693,7 +3739,7 @@ namespace madness {
 //             l[0]=2; l[1]=2; l[2]=2; l[3]=2; l[4]=2; l[5]=2;        // k=5, rank=507
 //             l[0]=2; l[1]=1; l[2]=2; l[3]=1; l[4]=2; l[5]=2;        // k=5, rank=58
 //             l[0]=1; l[1]=2; l[2]=2; l[3]=1; l[4]=3; l[5]=2;        // k=5, rank=5
-             const keyT key1(2,2,1,1);
+//             const keyT key1(2,2,1,1);
 //             print("key in question",key1);
 
 
@@ -3715,8 +3761,7 @@ namespace madness {
 //                 }
              }
 
-             if (fence)
-                 world.gop.fence();
+             world.gop.fence();
 
              // reduce the rank of the final nodes
              flo_unary_op_node_inplace(do_reduce_rank(targs),true);

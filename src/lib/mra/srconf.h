@@ -711,6 +711,8 @@ namespace madness {
 		/// orthonormalize this, normalize y and shift weights to x
 		void right_orthonormalize(const double& thresh) {
 
+		    MADNESS_EXCEPTION("no right_orthonormalize",0);
+
 			if (type()==TT_FULL) return;
 			if (has_no_data()) return;
 			if (rank()==1) {
@@ -955,6 +957,8 @@ namespace madness {
 
 		/// right-orthonormalize this
 		void rank_revealing_modified_gram_schmidt2(const double& thresh) {
+
+		    MADNESS_EXCEPTION("no RR/MGS2",0);
 
 			if (has_no_data()) return;
 			if (type()==TT_FULL or type()==TT_NONE) return;

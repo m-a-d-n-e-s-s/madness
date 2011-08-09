@@ -439,7 +439,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             Transformation trans[NDIM];
             Tensor<T> trans2[NDIM];
-            MADNESS_EXCEPTION("no muopxv_fast2",1);
+//            MADNESS_EXCEPTION("no muopxv_fast2",1);
 
             double Rnorm = 1.0;
             for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops_1d[d]->Rnorm;
@@ -548,7 +548,7 @@ namespace madness {
         double munorm2_modified(Level n, const ConvolutionData1D<Q>* ops_1d[]) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
 
-            // follows Eq. (21) ff of Beylkin 2008
+            // follows Eq. (21) ff of Beylkin 2008 (Beylkin Appl. Comput. Harmon. Anal. 24, pp 354)
 
             // we have all combinations of difference, upsampled, F terms (d, u, f),
             // with the constraint that d is in each term exactly once. In the mixed terms (udf)
@@ -590,6 +590,16 @@ namespace madness {
 
             // Eq. (23) of Beylkin 2008, for one separated term WITHOUT the factor
             double norm=(dff + udf + duu) /(factorial * double(NDIM));
+
+//            // double check
+//            if (NDIM==3) {
+//                Tensor<Q> R_full=outer(ops_1d[0]->R,outer(ops_1d[1]->R,ops_1d[2]->R));
+//                Tensor<Q> T_full=outer(ops_1d[0]->T,outer(ops_1d[1]->T,ops_1d[2]->T));
+//                double n2=(R_full-T_full).normf();
+////                print("norm estimate, norm",norm, n2, norm<n2);
+//                norm=n2;
+//            }
+
             return norm;
             
         }
@@ -699,7 +709,9 @@ namespace madness {
 
         /// remember that the operator in the modified NS form is not Toeplitz, so we need
         /// information about the displacement and the source key
-        /// @param[in]  key displacement and the modulus of the source translation
+        /// @param[in]  n       level (=scale) (actually redundant, since included in source)
+        /// @param[in]  disp    displacement key
+        /// @param[in]  source  source key
         /// @return pointer to cached operator
         const SeparatedConvolutionData<Q,NDIM>* getop_modified(Level n, const Key<NDIM>& disp, const Key<NDIM>& source) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
@@ -871,7 +883,7 @@ namespace madness {
 
         const BoundaryConditions<NDIM>& get_bc() const {return bc;}
 
-        const std::vector< Key<NDIM> > get_disp(Level n) const {
+        const std::vector< Key<NDIM> >& get_disp(Level n) const {
             return Displacements<NDIM>().get_disp(n, isperiodicsum);
         }
 
@@ -983,7 +995,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
-            MADNESS_EXCEPTION("no apply2",1);
+//            MADNESS_EXCEPTION("no apply2",1);
             const TensorType tt=coeff.tensor_type();
 
             const GenTensor<T>* input = &coeff;
