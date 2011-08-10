@@ -6,6 +6,7 @@
 #include <utility>
 #include <sstream>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
