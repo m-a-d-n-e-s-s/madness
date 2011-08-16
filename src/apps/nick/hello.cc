@@ -90,9 +90,9 @@ void doWork(World& world) {
   if(wave_function_exists(world,step)) {
     PRINTLINE("wave_function_exists = true");
     Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
-    PRINT("<data|100> =  ") << loadedFunc.inner(psi100) << endl;
-    PRINT("<data|200> =  ") << loadedFunc.inner(psi200) << endl;
-    PRINT("<data|210> =  ") << loadedFunc.inner(psi210) << endl;
+    PRINTLINE("<data|100> =  ") << loadedFunc.inner(psi100);
+    PRINTLINE("<data|200> =  ") << loadedFunc.inner(psi200) ;
+    PRINTLINE("<data|210> =  ") << loadedFunc.inner(psi210);
   } else PRINTLINE("LoadedFunc doesn't exist");
 }
 
