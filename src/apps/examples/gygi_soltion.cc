@@ -1,6 +1,54 @@
-//This program is an implementation of gygi's solvation model
-//model in THE JOURNAL OF CHEMICAL PHYSICS 124, 074103 (2006) 
-//We will test this for a hydrogen atom
+/*
+                                                                                                                                                        
+  This file is part of MADNESS.
+ 
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or 
+  (at your option) any later version.                                                                                      
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details. 
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:  
+  
+  Robert J. Harrison                                                                            
+  Oak Ridge National Laboratory       
+  One Bethel Valley Road    
+  P.O. Box 2008, MS-6367  
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680                                   
+$Id$
+*/
+
+/*!                                                                                                                                                        
+  \file examples/gygi_slution.cc       
+  \brief compute the dielectric cavity and the electrostatic potential of hydrogen atom in water
+  \defgroup examplegygi compute the dielectric cavity and the electrostatic potential of hydrogen atom in water
+  \ingroup examples                     
+                                                                                                                    
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/gygi_slution.cc>here</a>.  
+
+  \par Points of interest
+  - compute the dielectric functional (of density)
+  - compute the electrostatic potential by convolving the free space Green's function with the effective charge and the induced surface charge
+  - compute the derivatives of the dielectric functional and the electrosstatic potential with respect to the density
+  \par Background 
+  - This program is an implementation of the solvation model in THE JOURNAL OF CHEMICAL PHYSICS 124, 074103 (2006) 
+  - The DFT equation is not solved
+  - The test system isa hydrogen atom (1s orbital)
+*/
+ //We will test this for a hydrogen atom
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <constants.h>
@@ -84,7 +132,7 @@ private:
     }
     template <typename Archive>void serialize(Archive& ar) {}
   };
-  //density ration raised to the power 2beta
+  //density ratio raised to the power 2beta
   realfunc ratio_rho()const {
     double rerho_0 =-1.0/rho_0;   
     realfunc rr = rerho_0*rhot;

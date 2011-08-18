@@ -44,13 +44,13 @@
 using namespace madness;
 using namespace std;
 
-const int k = 6; // wavelet order
-const double thresh = 1e-4; // truncation threshold
-const double L = 10; // box is [-L,L]
-const double sigma = 0.3; // Surface width
+const int k = 8; // wavelet order
+const double thresh = 1e-6; // truncation threshold
+const double L = 20; // box is [-L,L]
+const double sigma = 0.5; // Surface width
 
 const double epsilon_0 = 1.0; // Interior dielectric
-const double epsilon_1 = 10.0; // Exterior dielectric
+const double epsilon_1 = 78.3600; // Exterior dielectric
 const double R = 2.456644; // Radius of cavity
 
 // Crude macro for timing
@@ -181,7 +181,7 @@ public:
             double change = (unew-u).norm2();
             if (printing) 
                 print("iter", iter, "change", change,
-                      "soln(3.0)", u(coord_3d(3.0)),
+                      "soln(10.0)", u(coord_3d(10.0)),
                       "surface charge", sigtot,"used",wall_time()-start);
             
             // Step restriction 
@@ -227,13 +227,17 @@ int main(int argc, char **argv) {
     real_function_3d u = solver.solve(charge);
     print("Solving again to verify that the initial guess works");
     u = solver.solve(charge,u);
-
+    real_function_3d Scharge = solver.make_surface_charge(u);
+    coord_3d lo(0.0), hi(0.0);
+    lo[0] = -20;
+    hi[0] = 20;
+    plot_line("Scharge.dat",401,lo,hi,Scharge);
     // For comparison with Chipman make the reaction potential
     real_convolution_3d op = CoulombOperator(world, min(1e-3,sigma*0.1), thresh);
     
     TIME("make ufree  ", real_function_3d ufree = op(charge).truncate());
     print("<rhotot|ureact>", 0.5*charge.inner((u-ufree)));
-
+    print("free energy(Kcal/mol)", 0.5*charge.inner((u-ufree))*527.5095);
     finalize();
     return 0;
 }

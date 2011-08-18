@@ -34,11 +34,11 @@ int main(int argc, char **argv) {
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
 
-    const int k = 6; // wavelet order
-    const double thresh = 1e-4; // truncation threshold
+    const int k = 8; // wavelet order
+    const double thresh = 1e-6; // truncation threshold
     const double L = 5; // box is [-L,L]
     const int natom = 2; // number of atoms
-    const double sigma = 0.1; // Surface width
+    const double sigma = 0.5; // Surface width
 
     // Function defaults
     FunctionDefaults<3>::set_k(k);
@@ -49,8 +49,8 @@ int main(int argc, char **argv) {
     // Set up atomic coordinates and radii
     vector<double> atomic_radii(natom);
     vector<coord_3d> atomic_coords(natom);
-    for (int i=0; i<natom; i++) {
-        atomic_radii[i] = 1.0 + i*0.5;
+     for (int i=0; i<natom; i++) {
+       atomic_radii[i] = 1.0 + i*0.5;
         atomic_coords[i][0] = 0.0;
         atomic_coords[i][1] = 0.0;
         atomic_coords[i][2] = i*1.5;
@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
     print("the area   is", surface.trace());
 
     if (natom == 2) {
-        double d = distance(atomic_coords[0],atomic_coords[1]);
+        double d = ::distance(atomic_coords[0],atomic_coords[1]);
         double r1 = atomic_radii[0];
         double r2 = atomic_radii[1];
         print("d",d,"r1",r1,"r2",r2,"r1+r2-d",r1+r2-d);
