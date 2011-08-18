@@ -71,7 +71,7 @@ namespace madness {
 #include <world/parar.h>
 #include <world/worlddc.h>
 #include <mra/funcdefaults.h>
-#include <mra/gentensor.h>
+#include <mra/derivative.h>
 
 // some forward declarations
 namespace madness {
@@ -452,12 +452,13 @@ namespace madness {
         }
 
         /// print some info about this
-        void print_info(const std::string name) {
+        void print_info(const std::string name) const {
             size_t tsize=this->tree_size();
             size_t size=this->size();
             if (this->world().rank()==0) {
-                print(name,":",tsize, double(size)/(1024*1024*128),"GByte");
+                printf("%s: treesize: %zu, size: %6.3f GByte\n",(name.c_str()),tsize,double(size)/(1024*1024*128));
             }
+            this->check_symmetry();
         }
 
         /// Returns the maximum depth of the function tree ... collective global sum
@@ -558,7 +559,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             if (!impl) return *this;
             verify();
-            if (!is_compressed()) compress();
+//            if (!is_compressed()) compress();
             impl->truncate(tol,fence);
             if (VERIFY_TREE) verify_tree();
             return *this;
@@ -1163,6 +1164,19 @@ namespace madness {
             impl->mapdim(*f.impl,map,fence);
             return *this;
         }
+
+        /// check symmetry of a function by computing the 2nd derivative
+        double check_symmetry() const {
+
+            if (VERIFY_TREE) verify_tree();
+            double local = impl->check_symmetry_local();
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            double asy=sqrt(local);
+            if (this->world().rank()==0) print("asymmetry wrt particle",asy);
+            return asy;
+        }
+
     };
 
 
@@ -1475,9 +1489,6 @@ namespace madness {
         if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
         if (f.get_impl()->world.rank()==0) print("op.modified",op.modified);
        	result.set_impl(f, true);
-       	long tsize=f.tree_size();
-       	long size=f.size();
-       	if (f.get_impl()->world.rank()==0) print("in apply_only: source treesize, size",tsize,size);
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
 
@@ -1496,8 +1507,10 @@ namespace madness {
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
+    	ff.print_info("ff in apply on entry");
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
+        ff.print_info("ff in apply after reconstruct");
 
     	if (op.modified) {
 
@@ -1508,11 +1521,16 @@ namespace madness {
     	} else {
 
             ff.nonstandard(op.doleaves, true);
-            result = apply_only(op, ff, fence);
-            ff.standard();
-    	}
+            ff.print_info("ff in apply after nonstandard");
 
+            result = apply_only(op, ff, fence);
+            result.print_info("result after apply");
+
+            ff.standard();
+
+    	}
     	result.reconstruct();
+        result.print_info("result after reconstruction");
         return result;
     }
 
@@ -1551,6 +1569,52 @@ namespace madness {
         Function<T,NDIM> result;
         return result.mapdim(f,map,fence);
     }
+
+    /// symmetrize a function
+
+    /// @param[in]  symmetry; possible are:
+    ///                 (anti-) symmetric particle permutation ("sy_particle", "antisy_particle")
+    ///                 symmetric mirror plane ("xy", "xz", "yz")
+    /// @return     a new function symmetrized according to the input parameter
+    template <typename T, std::size_t NDIM>
+    Function<T,NDIM>
+    symmetrize(const Function<T,NDIM>& f, const std::string symmetry, bool fence=true) {
+        Function<T,NDIM> result;
+
+        MADNESS_ASSERT(NDIM==6);            // works only for pair functions
+        std::vector<long> map(NDIM);
+
+        // symmetric particle permutation
+        if (symmetry=="sy_particle") {
+            map[0]=3; map[1]=4; map[2]=5;
+            map[3]=0; map[4]=1; map[5]=2;
+        } else if (symmetry=="cx") {
+            map[0]=0; map[1]=2; map[2]=1;
+            map[3]=3; map[4]=5; map[5]=4;
+
+        } else if (symmetry=="cy") {
+            map[0]=2; map[1]=1; map[2]=0;
+            map[3]=5; map[4]=4; map[5]=3;
+
+        } else if (symmetry=="cz") {
+            map[0]=1; map[1]=0; map[2]=2;
+            map[3]=4; map[4]=3; map[5]=5;
+
+        } else {
+            if (f.world().rank()==0) {
+                print("unknown parameter in symmetrize:",symmetry);
+            }
+            MADNESS_EXCEPTION("unknown parameter in symmetrize",1);
+        }
+
+        result.mapdim(f,map,true);  // need to fence here
+        result.get_impl()->average(*f.get_impl());
+
+        return result;
+    }
+
+
+
 
     template <typename T, std::size_t NDIM>
     Function<T,NDIM>

@@ -382,9 +382,9 @@ namespace madness {
                     }
                     trans2[d]=ops_1d[d]->R;
                 }
-    //            apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+                apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
     //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
-                apply_transformation3(trans2, f, mufac, result);
+//                apply_transformation3(trans2, f, mufac, result);
             }
 
             double Tnorm = 1.0;
@@ -414,9 +414,9 @@ namespace madness {
                     }
                     trans2[d]=ops_1d[d]->T;
                 }
-//                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
 //                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
-                apply_transformation3(trans2, f0, -mufac, result0);
+//                apply_transformation3(trans2, f0, -mufac, result0);
             }
         }
 

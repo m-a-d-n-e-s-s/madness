@@ -253,6 +253,12 @@ static double h_orbital(const coord_3d& r) {
     return exp(-sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
 }
 
+
+// according to McQuarrie
+static double he_plus_orbital(const coord_3d& r) {
+    return exp(-2.0*sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-6));
+}
+
 // according to Ed
 static double he_orbital_3d(const coord_3d& r) {
 
@@ -536,11 +542,9 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
-    tmp.print_info("tmp reconstructed before truncation");
-    tmp.compress();
-    tmp.print_info("tmp compressed before truncation");
+    tmp.print_info("tmp before truncation");
     tmp.truncate();
-    tmp.print_info("tmp compressed after truncation");
+    tmp.print_info("tmp after truncation");
     if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
     double norm = tmp.norm2();
@@ -935,30 +939,39 @@ void test_adaptive_tree(World& world) {
     long k=FunctionDefaults<6>::get_k();
 
     // one orbital at a time
-    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+//    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    real_function_3d orbital=real_factory_3d(world).f(he_plus_orbital);
     orbital.scale(1.0/orbital.norm2());
 
     const real_function_3d pot1=real_factory_3d(world).f(Z2);
     const real_function_3d pot2=real_factory_3d(world).f(Z2);
 
     // get he+ energy
-    for (int i=0; i<20; ++i) {
-        double ke,pe;
-        compute_energy(world,orbital,pot1,ke,pe);
-        double eps=ke+pe;
-        std::string name="orbital_it"+stringify(i);
-        save_function(world,orbital,name);
-        iterate(world,pot1,orbital,eps);
-    }
+//    for (int i=0; i<20; ++i) {
+//        double ke,pe;
+//        compute_energy(world,orbital,pot1,ke,pe);
+//        double eps=ke+pe;
+//        std::string name="orbital_it"+stringify(i);
+//        save_function(world,orbital,name);
+//        iterate(world,pot1,orbital,eps);
+//    }
 //    orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
 
     double en1=inner(orbital,pot1*orbital);
     if (world.rank()==0) printf("1e pot energy computed as < phi | V phi>: %12.8f\n",en1);
 
+    double ke,pe,eps;
+    compute_energy(world,orbital,pot1,ke,pe);
+
     real_function_6d pair=hartree_product(orbital,orbital);
     double norm2=inner(pair,pair);
     if (world.rank()==0) print("<phi | phi>",norm2);
-    double ke,pe,eps;
+
+    pair=pair=symmetrize(pair,"sy_particle");
+    pair.check_symmetry();
+
+    compute_energy(world,pair,pot1,pot2,ke,pe);
+    eps=ke+pe;
 
 //    real_function_6d vpair=hartree_product(orbital*pot1,orbital);
 //    double en=inner(pair,vpair);
@@ -975,10 +988,9 @@ void test_adaptive_tree(World& world) {
             const std::string appendix="_k"+stringify(k)+"_eps"+stringify(thresh)+"_it"+stringify(ii);
             std::string filename="pair"+appendix;
             save_function(world,pair,filename);
+            pair.print_info("pair");
         }
 
-        compute_energy(world,pair,pot1,pot2,ke,pe);
-        eps=ke+pe;
 
         // two-electron interaction potential
         real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
@@ -992,12 +1004,11 @@ void test_adaptive_tree(World& world) {
                                             ;
 
         // make the tree
-        {
+        if (1) {
             real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op.modified=true;
-            vphi.get_impl()->convolute<real_convolution_6d>(op);
+            vphi.get_impl()->convolute(op);
             vphi.scale(-2.0);
-
             vphi.print_info("vphi");
 
         }
@@ -1005,7 +1016,15 @@ void test_adaptive_tree(World& world) {
         // convolute
         {
             iterate(world,vphi,pair,eps);
+
+            real_function_6d tmp=copy(pair);
+            tmp.print_info("pair in full rank");
+            tmp.get_impl()->ftr2sr(TensorArgs(thresh,TT_2D));
+            tmp.print_info("pair in TT_2D");
         }
+
+        compute_energy(world,pair,pot1,pot2,ke,pe);
+        eps=ke+pe;
 
         double norm=pair.norm2();
         if (world.rank()==0) printf("norm(pair) : %12.8f",norm);
@@ -1013,6 +1032,85 @@ void test_adaptive_tree(World& world) {
 
     }
 }
+
+
+void test_truncation(World& world) {
+
+    const real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    const real_function_3d pot1=real_factory_3d(world).f(Z2);
+    const real_function_3d prod=orbital*pot1;
+    prod.print_info("prod");
+
+    real_function_3d a1,a2;
+    {
+        a1=copy(prod);
+        a1.reconstruct();
+        a1.truncate();
+        a1.reconstruct();
+        a1.print_info("a1");
+    }
+    {
+        a2=copy(prod);
+        a2.compress();
+        a2.truncate();
+        a2.reconstruct();
+        a2.print_info("a2");
+    }
+    real_function_3d a=a1-a2;
+    print("norm(a)",a.norm2());
+
+
+}
+
+
+void test_compress(World& world) {
+
+    const real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+    const real_function_3d pot1=real_factory_3d(world).f(Z2);
+    const real_function_3d prod=orbital*pot1;
+
+    real_function_6d pair=hartree_product(orbital,orbital);
+    real_function_6d vpair=hartree_product(prod,prod);
+    pair.print_info("pair");
+    double ke,pe;
+
+    real_function_6d a1,a2,a3;
+//    {
+//        a1=copy(pair);
+//        a1.compress();
+//        a1.reconstruct();
+//        a1.print_info("a1");
+//        a1.check_symmetry();
+//    }
+    {
+        a2=copy(vpair);
+        a2.print_info("a2");
+        a2.check_symmetry();
+    }
+    {
+        a3=copy(pair);
+        real_function_6d vphi=CompositeFactory<double,6,3>(world)
+                                            .ket(copy(a3).get_impl())
+//                                            .g12(eri.get_impl())
+                                            .V_for_particle1(copy(pot1).get_impl())
+                                            .V_for_particle2(copy(pot1).get_impl())
+                                            .muster(copy(a3).get_impl())
+                                            ;
+
+        // make the tree
+        real_convolution_6d op = BSHOperator<6>(world, sqrt(1.0), 0.00001, 1e-6);
+        op.modified=true;
+        vphi.get_impl()->convolute(op);
+        a3=vphi;
+        a3.print_info("a3");
+        a3.check_symmetry();
+    }
+    real_function_6d a=a3-a2;
+    print("norm(a)",a.norm2());
+
+
+}
+
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -1024,6 +1122,7 @@ int main(int argc, char** argv) {
     double L = 16;   // box size
     long k = 4 ;        // wavelet order
     double thresh = 1.e-2; // precision
+    TensorType tt=TT_2D;
 
     // set the parameters
     bool restart=false;
@@ -1040,6 +1139,16 @@ int main(int argc, char** argv) {
         if (key=="size") L=atof(val.c_str());               // usage: size=10
         if (key=="k") k=atoi(val.c_str());                  // usage: k=5
         if (key=="thresh") thresh=atof(val.c_str());        // usage: thresh=1.e-3
+        if (key=="TT") {
+            if (val=="TT_2D") tt=TT_2D;
+            else if (val=="TT_3D") tt=TT_3D;
+            else if (val=="TT_FULL") tt=TT_FULL;
+            else {
+                print("arg",arg, "key",key,"val",val);
+                MADNESS_EXCEPTION("confused tensor type",0);
+            }
+
+        }
         if (key=="restart") {                               // usage: restart=path/to/mo_file
             restart_name=stringify(val);
             restart=true;
@@ -1061,7 +1170,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<6>::set_k(k);
     FunctionDefaults<6>::set_thresh(thresh);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
-    FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_apply_randomize(true);
 
 
@@ -1081,7 +1190,15 @@ int main(int argc, char** argv) {
         print("");
     }
 
+    if (world.rank()==0) {
+        print("size consistency of the 6d green's function?");
+        print("computed energy");
+        print("green's function disp<24");
+        print("");
+    }
 
+    if (0) test_compress(world);
+    if (0) test_truncation(world);
     if (0) test_modified(world);
     if (0) test_recursive_application(world);
     if (1) test_adaptive_tree(world);
@@ -1091,8 +1208,10 @@ int main(int argc, char** argv) {
     finalize();
 
     return 0;
+
+
     // helium
-#if 1
+#if 0
 
     if (0) {
         // compute the energy of Hylleraas
@@ -1121,19 +1240,6 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    // plot the given function
-    if (0) {
-
-        MADNESS_ASSERT(restart);
-        real_function_6d pair;
-        double energy;
-        load_function(world,pair,restart_name);
-//        trajectory<6> traj(-L/2,L/2,601);
-        std::string filename=restart_name+"lineplot";
-//        plot_along<6>(world,traj,pair,filename);
-
-        return 0;
-    }
 
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
@@ -1433,29 +1539,11 @@ int main(int argc, char** argv) {
 #endif
 
 
-
-    // start the MP2 bit
-#if 0
-
-//    if (world.rank() == 0) {
-//        print("            Kinetic energy ", kinetic_energy);
-//        print(" Nuclear attraction energy ", nuclear_attraction_energy);
-//        print("       Two-electron energy ", two_electron_energy);
-//        print("              Total energy ", total_energy);
-//        print("                    Virial ", (nuclear_attraction_energy + two_electron_energy) / kinetic_energy);
-//    }
-
-#endif
-//     print("Hylleraas correlation part: 3-term minus Ed's HF");
-
      if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
      world.gop.fence();
 
-
      finalize();
      return 0;
-
-
 }
 
 

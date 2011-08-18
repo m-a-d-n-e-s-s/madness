@@ -996,7 +996,10 @@ namespace madness {
 			}
 			MADNESS_ASSERT(is_flat() and rhs.is_flat());
 
-			ortho4(ref_vector(0),ref_vector(1),weights_,
+			if (check_orthonormality) check_right_orthonormality();
+            if (check_orthonormality) rhs.check_right_orthonormality();
+
+            ortho4(ref_vector(0),ref_vector(1),weights_,
 					rhs.ref_vector(0),rhs.ref_vector(1),rhs.weights_,thresh);
 			rank_=weights_.size();
 			make_slices();

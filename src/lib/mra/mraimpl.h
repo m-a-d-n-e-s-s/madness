@@ -1031,24 +1031,6 @@ namespace madness {
     }
 
 
-    template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::mapdim(const implT& f, const std::vector<long>& map, bool fence) {
-        PROFILE_MEMBER_FUNC(FunctionImpl);
-        for (typename dcT::const_iterator it=f.coeffs.begin(); it!=f.coeffs.end(); ++it) {
-            const keyT& key = it->first;
-            const nodeT& node = it->second;
-
-            Vector<Translation,NDIM> l;
-            for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
-            tensorT c = node.full_tensor_copy();
-            if (c.size()) c = copy(c.mapdim(map));
-            coeffT cc(c,FunctionDefaults<NDIM>::get_thresh(),FunctionDefaults<NDIM>::get_tensor_type());
-
-            coeffs.replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
-        }
-        if (fence) world.gop.fence();
-    }
-
 #if 1
     template <typename T, std::size_t NDIM>
     Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {

@@ -310,8 +310,7 @@ namespace madness {
 		}
 
 		/// ctor with a regular Tensor and arguments, deep
-		GenTensor(const Tensor<T>& rhs, const TensorArgs& targs)
-			: _ptr(new configT(rhs.ndim(),rhs.dim(0),targs.tt)) {
+		GenTensor(const Tensor<T>& rhs, const TensorArgs& targs) {
 
 
 			// fast return if possible
@@ -322,9 +321,11 @@ namespace madness {
 
 			MADNESS_ASSERT(rhs.ndim()>0);
 			MADNESS_ASSERT(rhs.iscontiguous());
-	    		for (long idim=0; idim<rhs.ndim(); idim++) {
-	    			MADNESS_ASSERT(rhs.dim(0)==rhs.dim(idim));
-	    		}
+			for (long idim=0; idim<rhs.ndim(); idim++) {
+			    MADNESS_ASSERT(rhs.dim(0)==rhs.dim(idim));
+			}
+
+			_ptr=sr_ptr(new configT(rhs.ndim(),rhs.dim(0),targs.tt));
 
 			// adapt form of values
 			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
@@ -641,7 +642,7 @@ namespace madness {
 		T trace_conj(const GenTensor<T>& rhs) const {
 			_ptr->undo_structure();
 			rhs._ptr->undo_structure();
-			double ovlp=overlap(*_ptr,*rhs._ptr);
+			T ovlp=overlap(*_ptr,*rhs._ptr);
 			_ptr->make_structure();
 			rhs._ptr->make_structure();
 			return ovlp;
