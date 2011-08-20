@@ -1146,7 +1146,7 @@ namespace madness {
 			}
 		}
 
-		void make_structure(bool force=false) {
+		void make_structure(bool force=false) const {
 
 			// fast return if rank is zero
 			if ((not force) and this->has_no_data()) return;
@@ -1158,17 +1158,18 @@ namespace madness {
 			if (weights_.size()==0) rr=0;
 			const int k=this->get_k();
 
+			SRConf<T>* tmp=const_cast<SRConf<T>* > (this);
 			// reshape the vectors and adapt the Slices
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				if (dim_pv==2) vector_[idim]=vector_[idim].reshape(rr,k,k);
-				if (dim_pv==3) vector_[idim]=vector_[idim].reshape(rr,k,k,k);
+				if (dim_pv==2) tmp->vector_[idim]=vector_[idim].reshape(rr,k,k);
+				if (dim_pv==3) tmp->vector_[idim]=vector_[idim].reshape(rr,k,k,k);
 			}
 
-			make_slices();
+			tmp->make_slices();
 
 		}
 
-		void undo_structure(bool force=false) {
+		void undo_structure(bool force=false) const {
 
 			// fast return if rank is zero
 			if ((not force) and this->has_no_data()) return;
@@ -1180,11 +1181,13 @@ namespace madness {
 			if (weights_.size()==0) rr=0;
 			const int kvec=this->kVec();
 
+			SRConf<T>* tmp=const_cast<SRConf<T>* > (this);
+
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				vector_[idim]=vector_[idim].reshape(rr,kvec);
+				tmp->vector_[idim]=tmp->vector_[idim].reshape(rr,kvec);
 			}
 
-			make_slices();
+			tmp->make_slices();
 		}
 
 		/// return reference to one of the vectors F
@@ -1268,11 +1271,14 @@ namespace madness {
 			// fast return if possible
 			if (rank()==0) return true;
 
+			bool was_flat=is_flat();
 			MADNESS_ASSERT(type()==TT_2D);
-			MADNESS_ASSERT(is_flat());
+//			MADNESS_ASSERT(is_flat());
 
+			if (not was_flat) undo_structure();
 			tensorT S=inner(ref_vector(1)(c0()),ref_vector(1)(c0()),1,1);
 			for (int i=0; i<S.dim(0); i++) S(i,i)-=1.0;
+			if (was_flat) make_structure();
 
 			// error per matrix element
 			double norm=S.normf();

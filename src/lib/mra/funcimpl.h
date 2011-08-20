@@ -378,7 +378,10 @@ namespace madness {
         /// Transforms the coeffs to the SR
         FunctionNode<T, NDIM>&
         ftr2sr(const TensorArgs& targs) {
-        	MADNESS_ASSERT(targs.thresh>0.0);
+
+            // fast return if possible
+            if (coeff().tensor_type()==targs.tt) return *this;
+
         	_coeffs=coeffT(_coeffs.full_tensor_copy(),targs);
         	return *this;
         }
@@ -510,8 +513,20 @@ namespace madness {
         		const Key<NDIM>& key, const TensorArgs& args) {
 
             if (has_coeff()) {
-                coeff().add_SVD(t,args.thresh);
-//                coeff()+=t;
+
+                // make it tensor type depending on what we already have
+                if (coeff().tensor_type()==TT_FULL) {
+                    if (t.tensor_type()==TT_FULL)  coeff().full_tensor()+=t.full_tensor();
+                    else coeff().full_tensor()+=t.full_tensor_copy();
+                } else {
+                    if (t.tensor_type()==TT_FULL) {
+                        tensorT c=coeff().full_tensor_copy()+t.full_tensor();
+                        coeff()=coeffT(c,TensorArgs(0.0,TT_FULL));
+                    } else {
+                        coeff().add_SVD(t,args.thresh);
+                    }
+                }
+
             } else {
                 // No coeff and no children means the node is newly
                 // created for this operation and therefore we must
@@ -543,7 +558,7 @@ namespace madness {
         if (norm < 1e-12)
             norm = 0.0;
 //        norm=node.get_norm_tree();
-        s << norm << ")";
+        s << norm << ", rank="<< node.coeff().rank()<<")";
         return s;
     }
 
@@ -2590,8 +2605,10 @@ namespace madness {
             const FunctionImpl<T,LDIM>* pot2=func->impl_m2.get();
 
             if (world.rank() == coeffs.owner(key0)) {
-                Future<datumL> dat1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
-                        &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> dat1= (pot1)
+                        ? pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
+                                &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri())
+                        : Future<datumL>(datumL());
                 Future<datumL> dat2 = (pot2)
                         ? pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
                                 &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri())
@@ -2826,21 +2843,22 @@ namespace madness {
 
             // ctor
             Vphi_op()
-             : eri(0) {}
+                : eri(0)
+                , pot1(0)
+                , pot2() {}
+
             Vphi_op(implT* result, const implT* ket, const implT* eri,
                     const implL* pot1, const implL* pot2,
                     const datumL& datum1, const datumL& datum2, const datumT& datum_ket)
-            : result(result)
-            , ket(ket)
-            , eri(eri)
-            , pot1(pot1)
-            , pot2(pot2)
-            , datum1(datum1)
-            , datum2(datum2)
-            , datum_ket(datum_ket)
+                : result(result)
+                , ket(ket)
+                , eri(eri)
+                , pot1(pot1)
+                , pot2(pot2)
+                , datum1(datum1)
+                , datum2(datum2)
+                , datum_ket(datum_ket)
             {
-                if (pot2) MADNESS_ASSERT(LDIM+LDIM==NDIM);
-                if (!pot2) MADNESS_ASSERT(LDIM==NDIM);
             }
 
             /// assemble the coefficients
@@ -2854,7 +2872,9 @@ namespace madness {
                 tensorT val_ket=ket->fcube_for_mul(key,datum_ket.first,datum_ket.second.coeff()).full_tensor_copy();
 
                 // values for 1e-potentials
-                const coeffT val_pot1=pot1->fcube_for_mul(key1,datum1.first,datum1.second.coeff());
+                const coeffT val_pot1= (pot1)
+                        ? pot1->fcube_for_mul(key1,datum1.first,datum1.second.coeff())
+                        : coeffT();
                 const coeffT val_pot2= (pot2)
                         ? pot2->fcube_for_mul(key2,datum2.first,datum2.second.coeff())
                         : coeffT();
@@ -2927,7 +2947,9 @@ namespace madness {
                 child.break_apart(key1,key2);
 
                 // point to "outermost" leaf node
-                Future<datumL> datum11=pot1->outermost_child(key1,datum1);
+                Future<datumL> datum11= (pot1)
+                        ? pot1->outermost_child(key1,datum1)
+                        : Future<datumL>(datumL());
                 Future<datumL> datum22 = (pot2)
                         ? pot2->outermost_child(key2,datum2)
                         : Future<datumL>(datumL());
@@ -2981,10 +3003,14 @@ namespace madness {
             const FunctionImpl<T,LDIM>* pot2=func->impl_m2.get();
 
             if (world.rank() == coeffs.owner(key0)) {
-                Future<datumL> dat1=pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
-                        &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri());
-                Future<datumL> dat2=pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
-                        &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> dat1= (pot1)
+                        ? pot1->task(pot1->get_coeffs().owner(pot1->cdata.key0),
+                                &FunctionImpl<T,LDIM>::find_datum,pot1->cdata.key0,TaskAttributes::hipri())
+                        : Future<datumL>(datumL());
+                Future<datumL> dat2= (pot2)
+                        ? pot2->task(pot2->get_coeffs().owner(pot2->cdata.key0),
+                                &FunctionImpl<T,LDIM>::find_datum,pot2->cdata.key0,TaskAttributes::hipri())
+                        : Future<datumL>(datumL());
                 Future<datumT> dat_ket=ket->task(ket->get_coeffs().owner(key0),
                         &implT::find_datum,key0,TaskAttributes::hipri());
 
@@ -3693,26 +3719,43 @@ namespace madness {
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {
-            typename dcT::iterator end = coeffs.end();
-            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+
+            flo_unary_op_node_inplace(do_standard(this),fence);
+            nonstandard = false;
+        }
+
+        /// Changes non-standard compressed form to standard compressed form
+        struct do_standard {
+            typedef Range<typename dcT::iterator> rangeT;
+
+            // threshold for rank reduction / SVD truncation
+            implT* impl;
+
+            // constructor takes target precision
+            do_standard() {}
+            do_standard(implT* impl) : impl(impl) {}
+
+            //
+            bool operator()(typename rangeT::iterator& it) const {
+
                 const keyT& key = it->first;
                 nodeT& node = it->second;
                 if (key.level()> 0 && node.has_coeff()) {
                     if (node.has_children()) {
                         // Zero out scaling coeffs
-                    	node.coeff()(cdata.s0)=0.0;
-                    	node.reduceRank(thresh);
-                    }
-                    else {
+                        node.coeff()(impl->cdata.s0)=0.0;
+                        node.reduceRank(impl->targs.thresh);
+                    } else {
                         // Deleting both scaling and wavelet coeffs
                         node.clear_coeff();
                     }
                 }
+                return true;
             }
-            nonstandard = false;
-            if (fence)
-                world.gop.fence();
-        }
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_standard",1);
+            }
+        };
 
         struct do_op_args {
             keyT key, d, dest;
@@ -3757,8 +3800,10 @@ namespace madness {
         Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args& args,
                 const TensorArgs& apply_targs) {
 
+            const TensorArgs args_full(0.0,TT_FULL);
+
             tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            coeffT result=coeffT(result_full,apply_targs);
+            coeffT result=coeffT(result_full,args_full);
 
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
@@ -3887,11 +3932,7 @@ namespace madness {
 //            apply_targs.tt=TT_FULL;
 
             // for the kernel it may be more efficient to do the convolution in full rank
-            long break_even=100;       // what should this number be ?!
-            break_even=50;
             tensorT coeff_full;
-            if (coeff.rank()>break_even) coeff_full=coeff.full_tensor_copy();
-            if (coeff.tensor_type()==TT_FULL) coeff_full=coeff.full_tensor();
 
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
@@ -3927,8 +3968,9 @@ namespace madness {
                         if (cost_ratio>0.0) {
 
                             // Most expensive part is the kernel ... do it in a separate task -- full rank
-                            if (coeff_full.has_data() and (cost_ratio<1.0)) {
+                            if (cost_ratio<1.0) {
 
+                                if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
 
                                 // This introduces finer grain parallelism
                                 ProcessID here = world.rank();
@@ -3937,6 +3979,9 @@ namespace madness {
                                 do_op_args args(key, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
                                         args,apply_targs,TaskAttributes::hipri());
+
+//                                world.taskq.add(*this,&implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
+//                                        args,apply_targs,TaskAttributes::hipri());
 
                             } else {
 
@@ -3994,10 +4039,13 @@ namespace madness {
 
              world.gop.fence();
 
-             // reduce the rank of the final nodes
-
+             // reduce the rank of the final nodes, leave full tensors unchanged
              flo_unary_op_node_inplace(do_reduce_rank(targs.thresh*0.01),true);
              flo_unary_op_node_inplace(do_reduce_rank(targs),true);
+
+             // change TT_FULL to low rank
+             flo_unary_op_node_inplace(do_low_rank_inplace(targs),true);
+
              if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
              this->compressed=true;
              this->nonstandard=true;
@@ -4178,31 +4226,6 @@ namespace madness {
             return sum;
         }
 
-
-        /// Returns the inner product ASSUMING same distribution
-        /// note that if (g==f) both functions might be reconstructed
-        /// same as inner_local, but this is an on-demand function
-        /// (and therefore not const)
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) inner_local2(const FunctionImpl<R,NDIM>& f) {
-            MADNESS_ASSERT(not f.is_compressed());
-            MADNESS_ASSERT(this->is_on_demand());
-
-            TENSOR_RESULT_TYPE(T,R) sum = 0.0;
-            typename dcT::const_iterator end = f.coeffs.end();
-            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
-            	const keyT key=it->first;
-                const nodeT& fnode = it->second;
-                if (fnode.has_coeff()) {
-
-                	coeffT gcoeff=coeffs.find(key).get()->second.coeff();
-
-                    // compute inner product
-                    sum += fnode.coeff().trace_conj(gcoeff);
-                }
-            }
-            return sum;
-        }
 
         /// Returns the maximum local depth of the tree ... no communications.
         std::size_t max_local_depth() const {

@@ -587,7 +587,10 @@ namespace madness {
 		}
 
 		/// do we have data? note difference to SRConf::has_data() !
-		bool has_data() const {return (_ptr);}
+		bool has_data() const {
+		    if (_ptr) return true;
+		    return false;
+		}
 
 		/// do we have data?
 		bool has_no_data() const {return (!has_data());}
@@ -1590,9 +1593,10 @@ namespace madness {
 
 			// convert SVD output to our convention
 			if (i>=0) {
-				this->_ptr->weights_=s(Slice(0,i));
-				this->_ptr->vector_[0]=transpose(U(Slice(_),Slice(0,i)));
-				this->_ptr->vector_[1]=(VT(Slice(0,i),Slice(_)));
+			    // copy to have contiguous and tailored singular vectors
+                this->_ptr->weights_=copy(s(Slice(0,i)));
+                this->_ptr->vector_[0]=copy(transpose(U(Slice(_),Slice(0,i))));
+                this->_ptr->vector_[1]=copy((VT(Slice(0,i),Slice(_))));
 				this->_ptr->rank_=i+1;
 				MADNESS_ASSERT(this->_ptr->kVec()==this->_ptr->vector_[0].dim(1));
 				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
@@ -1600,7 +1604,7 @@ namespace madness {
 			} else {
 				_ptr=sr_ptr(new configT(dim(),get_k(),tensor_type()));
 			}
-			this->_ptr->make_structure();
+			this->config().make_structure();
 		}
 
 	};

@@ -1014,35 +1014,45 @@ namespace madness {
         /// Returns the inner product
 
         /// Not efficient for computing multiple inner products
+        /// @param[in]  g   Function, optionally on-demand
         template <typename R>
         TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
 
+            bool g_on_demand=g.is_on_demand();
+            FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
+
+            // it does work, but it might not give you the precision
+            // have to think more about this
+            if (g_on_demand) {
+                MADNESS_EXCEPTION("no on-demand function in inner for now",1);
+            }
+
             // introduce special case if g==f: we don't need to compress
-            if ((not (this==&g)) and (not g.is_on_demand())) {
+            if ((not (this==&g)) and (not g_on_demand)) {
                 if (!is_compressed()) compress();
                 if (!g.is_compressed()) g.compress();
             }
-            MADNESS_ASSERT(not g.get_impl()->is_redundant());
-            if (g.is_on_demand()) {
-                this->reconstruct();
-                MADNESS_EXCEPTION("no inner with g.is_on_demand()",0);
-                g.get_impl()->fill_on_demand_tree(this->get_impl().get(),false);
-//                g.get_impl()->convolute<real_convolution_6d>(op);
-            }
 
+            MADNESS_ASSERT(not g.get_impl()->is_redundant());
+            if (g_on_demand) {
+                this->reconstruct();
+                gimpl->make_Vphi(true);  // fence here
+            }
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
 
-            TENSOR_RESULT_TYPE(T,R) local=0.0;
-            if (g.is_on_demand()) {
-                local= g.get_impl()->inner_local2(*impl);
-            } else {
-                local = impl->inner_local(*(g.get_impl()));
-            }
+            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*gimpl);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
+
+            // restore g to on-demand
+            if (g_on_demand) {
+                MADNESS_ASSERT(gimpl->get_functor());
+                gimpl->get_coeffs().clear();
+            }
+
             return local;
         }
 
@@ -1522,7 +1532,6 @@ namespace madness {
 
             ff.nonstandard(op.doleaves, true);
             ff.print_info("ff in apply after nonstandard");
-
             result = apply_only(op, ff, fence);
             result.print_info("result after apply");
 
