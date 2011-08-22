@@ -36,21 +36,23 @@
 /// \file safempi.h
 /// \brief Serializes calls to MPI in case it does not support THREAD_MULTIPLE
 
-// #ifdef STUBOUTMPI
-// #include <world/stubmpi.h>
-// #else
+#include "madness_config.h"
+
+#ifndef HAVE_IBMBGP
+#define SERIALIZE_MPI
+#endif
+    
+#ifdef STUBOUTMPI
+#include <world/stubmpi.h>
+#else
 #include <mpi.h>
-// #endif
+#endif
 
 #include <world/worldmutex.h>
 #include <world/typestuff.h>
 #include <world/enable_if.h>
 
 namespace SafeMPI {
-    
-#ifndef HAVE_IBMBGP
-#define SERIALIZE_MPI
-#endif
     
 #ifdef SERIALIZE_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
