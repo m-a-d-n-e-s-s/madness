@@ -1,0 +1,937 @@
+\documentclass[letterpaper]{book}
+%\documentclass[letterpaper]{article}
+\usepackage{hyperref}
+\usepackage{amsmath}
+
+%%\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+%%% Outline numbering
+%%\setcounter{secnumdepth}{3}
+%%\renewcommand\thesection{\arabic{section}}
+%%\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+%%\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+%%% Page layout (geometry)
+%%\setlength\voffset{-1in}
+%%\setlength\hoffset{-1in}
+%%\setlength\topmargin{0.7874in}
+%%\setlength\oddsidemargin{0.7874in}
+%%\setlength\textheight{8.825199in}
+%%\setlength\textwidth{6.9251995in}
+%%\setlength\footskip{0.6in}
+%%\setlength\headheight{0cm}
+%%\setlength\headsep{0cm}
+%%% Footnote rule
+%%\setlength{\skip\footins}{0.0469in}
+%%\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+
+% Paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex plus 0.5ex minus 0.2ex}
+
+\begin{document}
+
+% Title Page
+\title{Getting Started with Numerical Computation in MADNESS}
+\date{Last Modification: 07/10/2010}
+\maketitle
+
+% Copyright Page
+\pagestyle{empty}
+\null\vfill
+\noindent
+This file is part of MADNESS.
+
+
+Copyright (C) 2007, 2010 Oak Ridge National Laboratory
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation; either version 2 of the License, or(at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+For more information please contact:
+\begin{quote}							
+Robert J. Harrison 				\\
+Oak Ridge National Laboratory 	\\
+One Bethel Valley Road 			\\
+P.O. Box 2008, MS-6367			\\
+Oak Ridge, TN 37831				\\
+								\\
+email: harrisonrj@ornl.gov 		\\
+tel: 865-241-3937				\\
+fax: 865-572-0680	
+\end{quote}		
+\newpage
+
+
+% Table of Contents Pages
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
+
+\setcounter{tocdepth}{10}
+\renewcommand\contentsname{Table of Contents}
+\tableofcontents
+
+
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+\chapter{Getting Started}
+
+This document aims to satisfy the needs of first-time users of the MADNESS numerical programming environment.
+Programmers interested in using the parallel-programming environment should refer to the parallel runtime document.
+
+This is the first official release of MADNESS and we know there are lots of things missing and that some things do not
+work as well as we might hope. However, things will improve faster if you get involved. \ Minimally, let us know of
+deficiencies, problems, and feature requests. The next step is to contribute documentation, examples, bug fixes or even
+new functionality. We aren't just a community project, we are a community, and you are welcome.
+
+\section{What is MADNESS and what can you do with it?}
+MADNESS stands for multiresolution adaptive numerical environment for scientific simulation. It is trying to address the
+following issues
+
+\begin{itemize}
+\item raising the level of composition of scientific applications, making it faster/easier to craft robust/correct
+solutions to new problems,
+\item computing using functions and operators instead of just numbers, vectors and matrices,
+\item providing fast and accurate solutions for a variety of differential and integral equations in 1 to 6 dimensions
+(and perhaps higher), and
+\item facilitating use of massively parallel computer resources by a wider audience.
+\end{itemize}
+
+In MADNESS, your code is written in terms of functions and operators, using the C++ language, and for this reason it can
+be thought of as a basis-free method. There is, of course, an underlying representation and approximation using bases
+and grids, and they adapt and refine automatically to satisfy the requested precision -- but you do not have to think
+about this until efficiency or memory use become concerns, if ever.
+
+The numerical operations can be regarded as a finite precision equivalent of the mathematical calculus used to express
+your equations. E.g., the code corresponding to 
+
+\begin{equation}
+\int \left(\frac{1}{2}\left(\frac{d\psi }{dx}\right)^{2}+V(x)\psi (x)^{2}\right)\mathit{dx}
+\end{equation}
+in three dimensions is just
+\begin{quote}
+\begin{verbatim}
+	real_function_3d dpsidx = Dx(psi);
+	double result = 0.5*inner(dpsidx,dpsidx) + inner(V(x),psi*psi);	
+\end{verbatim}
+\end{quote}
+where \texttt{psi} is a 3-D function and \texttt{Dx(psi)} takes the derivative of \texttt{psi} in the  $x$ direction
+(see below for how to make the derivative operator). The \texttt{inner} method computes the  $L_{2}$ inner product of
+the functions.
+
+Within MADNESS you can apply both differential operators and integral operators. Important and common convolution
+operators with physically relevant Green functions (e.g., Coulomb, bound-state Helmholtz, free-particle quantum
+propagator) are built in. Many physical problems can be restated in integral form with huge benefits in ease and
+accuracy of solution. Finally, MADNESS hopefully excels at obtaining high-accuracy solutions, efficient computation in
+many dimensions, and use of massively parallel computers.
+
+MADNESS is not good at everything. In particular, if you have complicated boundary conditions, highly oscillatory
+functions, or only need low precision, then other tools might be more appropriate.
+
+In the following, we introduce MADNESS using problems of increasing complexity to accomplish standard tasks and to
+discuss topics that are central to effective use of MADNESS.
+
+\section{Basics}
+Documentation and instructions exists in several places
+
+\begin{itemize}
+\item the \texttt{doc} directory,
+\item the \href{http://www.doxygen.org/}{\texttt{doxygen}} generated documentation, and
+\item the \href{http://code.google.com/p/m-a-d-n-e-s-s/}{project wiki}.
+\end{itemize}
+For basic computing with MADNESS functions, the only header file that you should need to include is
+\texttt{{\textless}mra/mra.h{\textgreater}}. Advanced programs may need a few others. You should include the directory
+in the include path to avoid possible conflicts with similarly named files from other packages. \ In the following
+documentation \texttt{trunk} will denote the top-level directory of the MADNESS distribution.
+
+\section{From math to C++ to numerical computation}
+This section shows you how to use MADNESS and evaluate a simple mathematical expression, notably this one dimensional
+integral.
+
+\begin{equation}
+\int _{0}^{10}\sin (x)\mathit{dx}=1-\cos (10)=1.8390715\ldots 
+\end{equation}
+The corresponding code is in \texttt{trunk/src/apps/examples/sininteg.cc}, and we will go through this first example in
+gory detail. The main steps will be
+
+\begin{enumerate}
+\item translating the function from math to C++ to be called by MADNESS
+\item initializing the MADNESS parallel runtime
+\item initializing the MADNESS numerical environment
+\item generating a numerical representation from the C++ function
+\item computing the integral
+\item printing the result
+\item terminating the MADNESS parallel runtime
+\item compiling your program
+\item running your program
+\end{enumerate}
+\subsection{Step 1 -- translating from Math to C++}
+MADNESS generates a numerical representation of a function ( $f(x)$) by projecting into its internal, orthonormal basis 
+$\{\phi _{li}^{n}(x)\}$, see the implementation notes for more detail. This involves computing many integrals of the
+form 
+
+\begin{equation}
+s_{li}^{n}=\int \phi _{li}^{n}(x)f(x)\mathit{dx}
+\end{equation}
+using adaptive numerical quadrature. Thus, MADNESS has to be able to evaluate your function at an arbitrary point, and
+so you must provide it with a C++ implementation of your function using a standard interface. MADNESS passes to your
+function the coordinates (an array of the appropriate dimension) and you return the value. For simple functions, a C++
+function suffices whereas more complicated stuff might require a C++ class (see a subsequent example).
+
+For this example, we wish to evaluate the function  $\sin (x)$ where  $x$ is a 1-D coordinate. \ The example code looks
+like
+\begin{quote}
+	\begin{verbatim} 
+	double myf(const coord_1d& r) {
+		return std::sin(r[0]);
+	}
+	\end{verbatim}
+\end{quote}	
+
+If your function were in 3-D it would be passed a \texttt{coord\_3d} that would have 3 elements (0, 1, and 2) that you
+might interpret as  $(x,y,z)$ or  $(r,\theta ,\phi )$ or something else as defined by your problem. A very useful
+capability of both Maple and Mathematica is to generate C from expressions or functions, though the resulting code
+often requires a little cleanup. 
+
+\textit{Important:}\textit{ }If your function contains discontinuities (in value or derivatives), noise, or
+singularities, special care is needed. This is discussed in more detail below, but the simple rule of thumb is your
+function should be accurate nearly to machine precision even if you only want to compute to much lower precision with
+MADNESS.
+
+\textit{Important:} MADNESS will call your function from multiple threads in order to use multi-core processors
+efficiently, so the code for your function should be thread safe. It should not modify static (Fortran keyword
+\texttt{save}) or global (Fortran common blocks or modules) data; reading from such locations is fine. Note that this
+constraint applies to all code invoked by your function, including math, BLAS, and linear algebra libraries and for
+some machines/compilers it requires special options be used (the MADNESS makefiles look after this). If you suspect a
+thread problem, try running with the environment variable \texttt{MAD\_NUM\_THREADS} set to one.
+
+\textit{Important: }If you are using the AMD math library ACML, do not set the environmental variable
+\texttt{OMP\_NUM\_THREADS} (or set it to one).
+
+\subsection{Steps 2, 3 and 7 -- initializing and finalizing the MADNESS environment}
+MADNESS has its own parallel runtime environment that is fully compatible with the Message Passing Interface (MPI) .
+Just as for MPI, the MADNESS runtime must be initialized at the start and cleaned up at the end. Here is the simplest
+parallel program using MADNESS.
+
+\begin{quote}
+	\begin{verbatim} 
+	#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+	#include <mra/mra.h>
+	using namespace madness;
+	
+	int main(int argc, char** argv) {
+	    initialize(argc, argv);
+	    World world(MPI::COMM_WORLD);
+	    startup(world, argc, argv);
+		
+	    // Do something useful here!
+	    
+	    finalize();
+	    return 0;
+	}
+	\end{verbatim}
+\end{quote}	
+
+The \texttt{World} object in MADNESS is similar to an MPI communicator (each \texttt{World} is associated with a
+communicator) but contains all of the information necessary to provide the rich functionality of the MADNESS runtime.
+Instead of calling \texttt{MPI::Init()} and \texttt{MPI::Finalize()}, a MADNESS program invokes
+\texttt{madness::initialize()} and \texttt{madness::finalize()}. The routine \texttt{madness::startup()} initializes
+the MADNESS numerical environment.
+
+The only bit of voodoo is a macro, on the first line, forcing MADNESS to instantiate the static data associated with the
+C++ templates used by your code. It typically only needs to appear in the main source file of your program, though
+complicated projects might need it in additional files. 
+
+\subsection{Step 4 -- generating a numerical representation}
+We implemented the C++ function above and the domain is specified by the problem as  $x\in [0,10]$. Presently, all
+functions of a given dimension being used by a program are assumed to have the same, default domain. We will use the
+default precision (1e-6 in the L2-norm -- most errors in MADNESS use this norm).
+
+\begin{quote}
+	\begin{verbatim} 
+	FunctionDefaults<1>::set_cubic_cell(0,10);
+	
+	real_function_1d f = real_factory_1d(world).f(myf);
+	\end{verbatim}
+\end{quote}	
+
+The first line sets the domain and the second makes a numerical representation of your function. The slightly unusual
+form of the constructor for a MADNESS function is called the ``named parameter idiom.'' The first version of MADNESS
+was written in the language Python that provides named parameters that can have default values. To override the default
+for some parameter only required specifying its name. However, C++ does not provide named parameters and the closest we
+can get to them is the above idiom. To make a \texttt{Function} what you are actually doing is making a
+\texttt{FunctionFactory} associated with a \texttt{World}, overriding defaults inside the factory, and then
+constructing a function from the factory. The default function is zero, so to make a zero 1D function we would just
+type
+\begin{quote}
+	\begin{verbatim} 
+	real_function_1d zero = real_factory_1d(world);
+	\end{verbatim}
+\end{quote}	
+
+In the second line, to generate a MADNESS \texttt{Function} from your C++ function we override the default with the
+desired function pointer.
+
+\subsection[Step 5 {}-- computing the integral]{Step 5 -- computing the integral}
+\label{bkm:RefHeading39623517}The integral of a function over the whole domain is computed with the \texttt{trace()}
+function, c.f.,
+\begin{quote}
+	\begin{verbatim} 
+	double integral = f.trace();
+	\end{verbatim}
+\end{quote}	
+
+\textit{Important:} This is a collective parallel operation. If you are running in parallel, the numerical
+representation of your function is distributed across multiple processors, so adding up the result requires collective
+communication (the equivalent of MPI's \texttt{All\_reduce()}). Therefore, every process associated with the
+\texttt{World} must execute this statement; otherwise your program will hang if it is running in parallel using MPI.
+
+\subsection[Step 6 {}-- printing the result]{Step 6 -- printing the result}
+If you only want to run sequentially, just print your data in any of the myriad ways possible using C++. However, if you
+ever want to run in parallel across multiple nodes using MPI you should from the outset get in the habit of writing the
+following instead
+
+\begin{quote}
+	\begin{verbatim} 
+	if (world.rank() == 0) print("The result is ", integral);
+	\end{verbatim}
+\end{quote}
+
+The critical ingredient is the if-test that ensures only one process actually does the printing (in this case process
+zero, but that choice is arbitrary) . If you don't do this, your output will be unexpectedly verbose. The templated
+routine \texttt{print()} is just a convenience wrapper around \texttt{cout {\textless}{\textless}} that automatically
+inserts spaces between elements and a newline at the end.
+
+\textit{Important:}\textbf{ }First, read the important point from section \ref{bkm:RefHeading39623517} above, and then
+answer the question ``why did we assign the result of \texttt{f.trace()} to a variable and then print its value,
+instead of just printing the result of \texttt{f.trace()} directly?'' At least 90\% of hanging parallel programs is due
+to getting this wrong.
+
+\subsection{The complete program}
+Your complete program, \texttt{trunk}\texttt{/src/apps/sininteg.cc, }looks like this
+
+\begin{quote}
+	\begin{verbatim} 
+		#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+		#include <mra/mra.h>
+		using namespace madness;
+		
+		double myf(const coord_1d& r) {
+		    return std::sin(r[0]);
+		}
+		
+		int main(int argc, char** argv) {
+		    initialize(argc, argv);
+		    World world(MPI::COMM_WORLD);
+		    startup(world,argc,argv);
+		    FunctionDefaults<1>::set_cubic_cell(0,10);
+		    
+		    real_function_1d f = real_factory_1d(world).f(myf);
+		    
+		    doub	le integral = f.trace();
+		    
+		    if (world.rank() == 0) print("The result is", integral);
+		    finalize();
+		    return 0;
+		}
+	\end{verbatim}
+\end{quote}
+
+Yes, this is rather verbose for integrating  $\sin (x)$ in 1D, but you should already be able to see that most of it is
+boiler plate. You could be integrating a much more complicated function in 4-D with only little more personal effort
+(the computer might have to work a lot harder though).
+
+\subsection{Step 8 -- compiling your program}
+Assuming your code is in saved in \texttt{fred.cc}, to make the program type
+
+{\ttfamily
+make -f trunk/config/Makefile.sample fred}
+
+The example makefile \texttt{Makefile.sample} must be copied and modified for projects with more than one source file
+(see the end of that file for an example).
+
+\subsection{Step 9 -- running your program}
+\subsubsection{On a single workstation or laptop}
+Just type the name of the executable in the directory where the binary is located,
+
+{\ttfamily
+./fred}
+
+
+\bigskip
+
+Hopefully it will print
+
+{\ttfamily
+The result is 1.839072e+00}
+
+
+\bigskip
+
+\textit{You are already running in parallel. }Behind the scenes, MADNESS inquired how many processors or cores were
+installed in your computer and launched that many threads to perform the work. If you wish to use fewer processors, set
+the environment variable \texttt{MAD\_NUM\_THREADS} to be the total number of processors or cores you wish to use (note
+that if using MPI an additional server thread is also employed for massage passing). E.g., to use just 3 processors, in
+the bash shell type
+
+{\ttfamily
+export MAD\_NUM\_THREADS=3}
+
+and in the C shell type
+
+{\ttfamily
+setenv MAD\_NUM\_THREADS 3}
+
+
+\bigskip
+
+\textit{Important: }Using more threads than processors can result in catastrophic slowdown since MADNESS uses spinlocks.
+If you need to oversubscribe the physical processors (or run inside a virtual machine), configure with the option
+\texttt{{}--enable-never-spin}.
+
+\subsubsection{On a parallel computer using MPI (distributed or shared memory)}
+This is going to vary from system to system. Generically, to run on \texttt{N} nodes with \texttt{T} applications
+threads per node (an extra server thread for message passing is also created if \texttt{N}{\textgreater}1) , you will
+type (in the bash shell) something like
+
+{\ttfamily
+MAD\_NUM\_THREADS=T mpirun -np N ./fred}
+
+
+\bigskip
+
+We want \texttt{mpirun} to start one process per node, and MADNESS will look after starting one thread per
+processor/core. But this is easier said than done and sadly changes with each revision of the vendors system software.
+Please refer to the MADNESS wiki for current examples for how to run on the Cray-XT5 and IBM BG/P.
+
+\section{Defaults for functions}
+Default values for all function and operator attributes are stored in the \ \texttt{FunctionDefaults} class. This is
+actually a template so that different values can be set for functions with different numbers of dimensions. We saw
+above that
+
+{\ttfamily
+FunctionDefaults{\textless}1{\textgreater}::set\_cubic\_cell(0,10);}
+
+sets the user's simulation cell as  $[0,10]$. Presently, all functions of a given dimension must share the same cell.
+Two other common attributes are
+
+\begin{itemize}
+\item \texttt{k} -- the wavelet order. A practical rule of thumb is if the default truncation threshold is  $10^{-n}$
+that the order be chosen as  $k=n+2$. The default is 6.
+\item \texttt{thresh} -- the truncation threshold. The default is 1e-4.
+\item \texttt{bc} -- the boundary conditions. See below for more details. The default is free.
+\end{itemize}
+\section{Boundary conditions}
+In MADNESS, boundary conditions are associated with operators not functions and the boundary conditions are imposed on
+the surface enclosing the entire simulation volume. I.e., they are exterior boundary conditions. For derivative
+operators the following conditions are understood, and can be imposed separately on each surface
+
+\begin{itemize}
+\item \texttt{BC\_ZERO} -- Zero Dirichlet
+\item \texttt{BC\_PERIODIC} -- Periodic (both left and right surfaces must agree on this value)
+\item \texttt{BC\_FREE }{}-- Free (default)
+\item \texttt{BC\_DIRICHLET} -- General Dirichlet (requires provision of one or more functions)
+\item \texttt{BC\_ZERONEUMANN }{}-- Zero Neumann
+\item \texttt{BC\_NEUMANN} -- General Neumann (requires provision of one or more functions)
+\end{itemize}
+For integral operators only periodic and free-space conditions are understood -- BC\_PERIODIC yields periodic and all
+other conditions yield free-space.
+
+Example: to make the default boundary conditions in 3D
+
+{\ttfamily
+BoundaryConditions{\textless}3{\textgreater} bc(BC\_FREE);}
+
+Example: to make boundary conditions in 3D with zero Dirichlet in x and y and periodic in z,
+
+{\ttfamily
+BoundaryConditions{\textless}3{\textgreater} bc(BC\_ZERO);}
+
+{\ttfamily
+bc(2,0) = bc(2,1) = BC\_PERIODIC}
+
+Example: to override the default boundary conditions with yours in a variable named \texttt{bc} in 3D
+
+{\ttfamily
+FunctionDefaults{\textless}3{\textgreater}::set\_bc(bc);}
+
+\section{Differentiation, multiplication, inner products -- e.g., energy of the hydrogen atom}
+In this section we examine operations such as differentiation, inner product and multiplication. A relevant simple
+example is \texttt{hatom\_energy.cc}.
+
+\subsection{Differentiation}
+Differentiation is performed by applying a differential operator to a function. The operator is constructed with desired
+the boundary conditions and direction for differentiation (directions are indexed starting from zero, so in 3D
+\texttt{x=0}, \texttt{y=1} and \texttt{z=2}). The operators can be kept for repeated application, or made and discarded
+after use.
+
+For example, to make the derivative operator in 3D with respect to the first variable using boundary conditions from
+\texttt{FunctionDefaults}, and to apply it to functions \texttt{f}, \texttt{g} and \texttt{h}.
+
+\begin{quote}
+\begin{verbatim}
+real_derivative_3d Dx(world, 0); 
+real_function_3d dfdx = Dx(f); 
+real_function_3d dgdx = Dx(g); 
+real_function_3d dhdx = Dx(h); 
+\end{verbatim}
+\end{quote}
+
+\subsection{Multiplication, addition, subtraction of functions}
+Most simple mathematical operations can be composed in MADNESS as they are normally written in standard notation. For
+instance, if \ \texttt{f}, \texttt{g} and \texttt{h} are functions the expression 
+
+\begin{equation}
+f(x)=2g(x)+3h(x)-7g(x)h(x)+99
+\end{equation}
+is transcribed as
+
+{\ttfamily
+f = 2*g + 3*h - 7*g*h + 99}
+
+where \texttt{*} indicates point-wise multiplication of functions.
+
+\textit{Important: }Addition and subtraction of functions are exact operations in the sense that the result can be
+exactly represented in MADNESS basis. Multiplication is \textit{inexact} since the product of two polynomials of order 
+$k$ is of order  $2k$. The auto-refinement algorithm within MADNESS is still under development -- please refer to the
+implementation notes for more detail.
+
+\subsection{Inner products}
+The inner product of two functions is defined as 
+\begin{equation}
+\left( f \left| g \right. \right) - \int f(x)^\textrm{*} g(x) dx
+\end{equation}
+where  $\textrm{*}$ indicates complex conjugation and the integral is taken over the entire simulation volume. The above
+is computed for two MADNESS functions \texttt{f} and \texttt{g} of the same type using
+
+{\ttfamily
+inner(f,g)}
+
+If the input functions are real, the result is real; for complex functions the result is complex.
+
+\section{Integral operators -- e.g., solution of Laplace or Poisson's equations}
+The Poisson equation
+\begin{equation}
+\nabla ^{2}u=-4\pi \rho 
+\end{equation}
+is ubiquitous in scientific and engineering simulations. \ For the sake of simplicity, we assume free-space boundary
+condition (zero at infinity, so the Green's function is just  $1/\left|r\right|$). \ \ If the right hand side of the
+Poisson equation is \texttt{rho} then the Poisson equation can be solved as
+
+{\ttfamily
+real\_convolution\_3d op=CoulombOperator(world, 0.001, 1e-6);}
+
+{\ttfamily
+real\_function\_3d result = op(rho);}
+
+This is employed in many example codes in the examples directory. The call to the Coulomb operator builds a
+low-separation rank approximation (see the implementation notes) of the Green function for the Poisson equation. \ The
+approximation is accurate to 1e-6 from a smallest length scale of 0.001 to the entire box size.
+
+If you have more complicated boundary conditions which require single or double layer terms please refer the examples in
+\texttt{interior\_dirichlet.cc} or \texttt{laplace\_sphere.cc} for more details.
+
+\section{Operations on vectors of functions -- e.g., calculating multiple eigenfunctions}
+The header file \texttt{vmra.h} defines operations on vectors of functions. These are convenient in eliminating
+error-prone loops over arrays/vectors of functions, and the vector operations are much more efficient since many
+operations can occur in parallel. The example code \texttt{vnucso.cc} and the molecular density function code make
+extensive use of the vector API (application programming interface) to solve eigen-problems.
+
+Given a subspace defined by a vector of  $n$ functions  $f_{i}(x)\ i=0,\ldots ,n-1$ we can diagonalize the operator 
+$\hat{H}$ in the subspace by constructing the matrix representations of the operator ( $H$) and metric ( $S$)
+\begin{align*}
+h_{ij} & = \left< f_i \left| \hat{H} \right| f_j \right> \\
+s_{ij} & = \left< f_i \left|         \right. f_j \right>
+\end{align*}
+and then solving the generalized eigenvalue problem 
+
+\begin{equation}
+HC=SCE
+\end{equation}
+to obtain the eigenvalues and coefficients in the subspace. The eigenfunctions  $u_{i}(x)$ are obtained by transforming
+the original basis 
+
+\begin{equation}
+u=fC\ \ \ \mathrm{\text{or}}\ \ \ u_{i}(x)=\sum _{j}f_{j}(x)c_{ji}
+\end{equation}
+
+\bigskip
+
+Given an STL vector of 3D functions \texttt{f} and another \texttt{Hf} containing result of applying the operator 
+$\hat{H}$ to the vector, the above is compactly translated into MADNESS as
+
+\begin{quote}
+\begin{verbatim}
+real_tensor H = matrix_inner(f,Hf); 
+real_tensor S = matrix_inner(f,f); 
+real_tensor C,E; 
+sygv(H,S,1,C,E); 
+vector_real_function_3d evec = transform(f,C); 
+\end{verbatim}
+\end{quote}
+
+The \texttt{matrix\_inner()} routine computes the matrix of inner products (or matrix elements) of two vectors of
+functions, and the \texttt{sygv()} routine (in \texttt{linalg/tensor\_lapack.h}) is a wrapper around the LAPACK real
+symmetric and complex Hermitian generalized eigenvalue routines. Finally, the \texttt{transform()} routine transforms
+the basis to compute the eigenfunctions.
+
+\section{Moving functions to/from disk}
+It takes at most a couple of lines of code to move a function to/from disk. \ The example program \texttt{functionio.cc}
+shows how to do this, and the critical lines are
+\begin{quote}
+\begin{verbatim}
+ParallelOutputArchive out(world, filename); 
+out & f & g & h; 
+ParallelInputArchive in(world, filename); 
+in & f & g & h; 
+\end{verbatim}
+\end{quote}
+
+Here, \texttt{f}, \texttt{g}, and \texttt{h} are MADNESS functions of any type (they need not have the same type or
+dimension). 
+
+MADNESS has a generic mechanism for (de)serializing objects from directional streams that it calls archives to avoid
+confusion with the STL stream concept. \ \ \ Anything can be written to and read from a stream, though user-defined
+types usually need a little additional code to enable this (see \texttt{world/archive.h} for documentation). Most
+archives are sequential objects accessible only to a single process and it makes little sense to write a potentially
+large function that is distributed across the entire parallel computer to such a stream. For that reason, functions
+must be written to/from a parallel archive that performs efficient parallel I/O.
+
+Large amounts of data (more than a few gigabytes) will benefit from increasing the number of processors actually doing
+disk I/O (refer to the relevant parallel archive class for more info).
+
+Note that the program \texttt{mraplot} can be used to generate plots from functions stored on disk.
+
+\section{Plotting}
+MADNESS can presently generate uniform grids in formats suitable for the visualization software OpenDX (in a
+``\texttt{.dx}{}'' file) and Paraview (in a VTK file), and line plots in a text format suitable for nearly any tool
+(e.g., \ gnuplot or xmgrace).
+
+Note that the program \texttt{mraplot} can be used to generate plots from functions stored on disk.
+
+\subsection{OpenDX}
+OpenDX is an Open Source visualization software based on IBM's Visualization Data Explorer
+(\href{http://www.opendx.org/}{www.opendx.org}). \ Please refere to the OpenDX manual on its use. \ \ An example
+configuration file (\texttt{vizit.cfg}) \ and a network file (\texttt{vizit.net}) can be found in the
+\texttt{trunk/src/apps/moldft} directory. \ Here are some details on creating your own DX files.
+
+Given any MADNESS function \texttt{f}, you can write to disk a uniform grid over the entire simulation volume as follows
+
+{\ttfamily
+plotdx(f, ``f.dx'');}
+
+
+\bigskip
+
+Additional arguments permit us to change the plot volume (default is the entire simulation volume), the number of points
+(default is 201) and binary/text format (default is binary). This is a collective operation.
+
+Visualizing this with OpenDX is straightforward, but depends on the number of dimensions. The easiest way is to start
+OpenDX, click ``Import Data ...'', enter your filename, click ``Visualize Data''. However, you will want to learn how
+to build your own networks. To display an iso-surface of 3D data, start the visual editor and connect
+
+{\ttfamily
+file-selector -{}-{\textgreater} import -{}-{\textgreater} isosurface -{}-{\textgreater} image}
+
+Enter your name in the file-selector, and you should be seeing a picture. You can adjust the isosurface value in the
+isosurface control or by connecting it to an interactor. Have fun!
+
+\subsection{Line plots}
+With a single function call, up to three functions can be simultaneously evaluated at points along a line with the
+values printed to a file suitable for use by any standard 2D graphics or spreadsheet software. E.g., to plot one 4D
+function (\texttt{f}) along a line between (0,0,0,1) and (0,1,0,2) with 101 points
+
+\begin{quote}
+\begin{verbatim}
+coord_3d lo,hi; 
+lo[3]=1.0; hi[1]=1.0; hi[2]=2.0; 
+plot_line(‘‘plot.txt’’, 101, lo, hi, f); 
+\end{verbatim}
+\end{quote}
+
+To plot two functions (\texttt{f} and \texttt{g}) you would use instead
+
+{\ttfamily
+plot\_line(``plot.txt'', 101, lo, hi, f, g)}
+
+With gnuplot, you can plot the data as follows
+
+\begin{quote}
+\begin{verbatim}
+gnuplot -persist -e 'set style data lines; plot "plot.txt"'
+\end{verbatim}
+\end{quote}
+
+\subsection{VTK format and Paraview}
+MADNESS can export MADNESS functions to the serial vtkStructuredGrid (.vts) file format which can be ready by several
+post-processing visualization packages such as Paraview. \ To write this data file, you must first define four
+quantities: a filename (\textit{filename)}, the lower (\textit{plotlo}) and upper (\textit{plothi}) bound of the
+Cartesian coordinates in each dimension to plot, and the number of points (\textit{npts)} in each dimension to
+evaluate.
+
+\textit{Note:}\textbf{ }At this time, MADNESS evaluates the functions at equally spaced points between \textit{plotlo
+}and \textit{plothi}. \ 
+
+After the above four quantities have been defined, three functions must be called:
+
+\ \ \texttt{plotvtk\_begin }: Writes the VTK boilerplate header information
+
+\ \ \texttt{plotvtk\_data} : Evaluates and writes the MADNESS function at \textit{npts}
+
+\ \ \texttt{plotvtk\_end }: Writes the VTK boilerplate footer information
+
+
+\bigskip
+
+\textit{Note:}\textbf{ }Currently, the function evaluation in plotvtk\_data is done in serial. \ 
+
+An example of code for plotting two two-dimensional functions \textit{u} and \textit{v} is as follows in a
+[0,1]\textsuperscript{2} box with 101 points is as follows:
+
+\begin{quote}
+\begin{verbatim}
+char filename[100]; 
+sprintf(filename, output.vts); // Defines the filename 
+Vector<double, 2> plotlo, plothi; // Box dimensions 
+Vector<long, 2> npts; // Num points in each dim for(int 
+i = 0; i < 2; ++i) 
+{ 
+	plotlo[i] = 0.0; 
+	plothi[i] = 1.0; 
+	npts[i] = 101; 
+} 
+plotvtk_begin(world, filename, plotlo, plothi, npts); 
+plotvtk_data(u, u, world, filename, plotlo, plothi, npts); 
+plotvtk_data(v, v, world, filename, plotlo, plothi, npts); 
+plotvtk_end<3>(world, filename); 
+\end{verbatim}
+\end{quote}
+
+\textit{Note: }An arbitrary number of MADNESS files may be written to a single file. \ Two are shown above for
+demonstrative purposes; however, plotvtk\_data may be called multiple times between plotvtk\_begin and plotvtk\_end
+function calls.
+
+{\bfseries
+\textmd{\textit{Note: }}\textmd{For time-dependent simulations, the above code can be included within the time step
+loop. \ The user should then consider appending the filename with the timestep number and create Ntimestep files, each
+containing one increment of time.}}
+
+To visualize your functions, Paraview has been extensively tested, although other external visualization packages may
+also be compatible with the vts file format. \ Paraview is an open-source visualization application that is freely
+downloadable. \ For information about how to download, install and use Paraview, please consult their webpage at
+http://www.paraview.org.
+
+\section{Load and memory balancing}
+Load and memory balancing is a critical issue on current generation of shared and distributed memory computers. \ On
+many terascale and petascale computer there is no virtual memory capabilities on the compute nodes so memory management
+is very important.
+
+Poor distribution of work (load imbalance) is the largest reason for inefficient parallel execution within MADNESS.
+\ Poor data distribution (data imbalance) contributes to load imbalance and also leads to out-of-memory problems due to
+one or more processes having too much data. \ Thus, we are interested in uniform distribution of both work and data. 
+
+Many operations in MADNESS are entirely data driven (i.e., computation occurs in the processor that
+"owns" the data) since there is insufficient work to justify moving data between processes
+\ (e.g., computing the inner product between functions). \ However, a few expensive operations can have work shipped to
+other processors. 
+
+There are presently three load balancing mechanisms within MADNESS 
+
+\begin{itemize}
+\item static and driven by the distribution of data, 
+\item dynamic via random assignment of work, and 
+\item dynamic via work stealing (currently only in prototype). 
+\end{itemize}
+Until the work stealing becomes production quality we must exploit the first two forms. \ The random work assignment is
+controlled by options in the FunctionDefaults class. 
+
+\begin{itemize}
+\item \texttt{FunctionDefaults::set\_apply\_randomize(bool) }controls the use of randomization in applying integral
+(convolution) operators. It is typically beneficial when computing to medium/high precision. 
+\item \texttt{FunctionDefaults::set\_project\_randomize(bool)} controls the use of randomization in projecting from an
+analytic form (i.e., C++) into the discontinuous spectral element basis. \ It is typically \ beneficial unless there is
+already a good static data distribution. \ Since these options are straightforward to enable, this example focuses on
+static data redistribution. 
+\end{itemize}
+The process map (an instance of \texttt{WorldDCPmapInterface}) controls mapping of data to processors and it is actually
+quite easy to write your own (e.g., see \texttt{WorldDCDefaultPmap }\texttt{or LevelPmap}) that ensure uniform data
+distribution. \ However, you also seek to incorporate estimates of the computational cost into the distribution. \ The
+class \texttt{LBDeuxPmap} (deux since it is the second such class) in \texttt{trunk/src/lib/mra/lbdeux.h} does this by
+examining the functions you request and using provided weights to estimate the computational cost. 
+
+Communication costs are proportional to the number of broken links in the tree. \ Since some operations work in the
+scaling function basis, some in the multiwavelet basis, and some in non-standard form, there is an element of
+empiricism in getting best performance from most algorithms. 
+
+The example code in \texttt{trunk/src/apps/examples/dataloadbal.cc} illustrates how the discussions in this section can
+be applied.
+
+\section{How to ``think'' MADNESS}
+MADNESS is based on multiresolution analysis (MRA) and low-separation rank (LSR) approximations of functions and
+operators. \ It can be considered an adaptive spectral elemen method using a discontinuous and singular multiresolution
+basis. \ The representations of differential operators in the wavelet bases are provably similar to adaptive finite
+difference discretizations. \ Thus, the process of solving the resulting linear systems will have similar behaviors as
+in other adaptive methods. \ For example, the derivative operator and the Laplacian operator are unbounded operators.
+\ Thus the condition number, which often constraints how accurately the linear system can be solved, goes to infinity
+as the bases or the nets are refined. \ In order to solve these equations in practice, one has to precondition the
+system. \ Effective preconditioners are problem dependent and the theory of their construction is an area of on-going
+research.
+
+The integral operator, which is the formal inverse associated to the differential operator, are usually bounded
+operator. \ MRA and LSR have been proven to be one of the techniques that can effectively apply some of the physically
+important operators and their kernel fast and with ease.
+
+Two of the most important operators that we illustrate in this manual are the Poisson operator (in section 5), and the
+\ Helmholtz operator. \ The heat equation is ...
+
+\subsection{Solve the integral equation}
+In many situations the integral operator associated to the differential operator have an analytic kernel. \ The simplest
+examples are the convolution operators. \ In equation (9) the free-space Poisson equation is converted to a convolution
+with the Poisson (or Coulomb) kernel, the Schrodinger equation with potential  $V$ is converted to a Lippman-Schwinger
+equation using the bound-state Helmholtz kernel, and the last example applies Duhamel's principle to write a time
+dependent differential equation with linear operator  $\hat{L}$ and a non-linear operator  $N$ as a semi-group
+equation.
+
+
+\begin{align*}\label{eqn:refText8}
+\nabla ^{2}u=-4\pi \rho                     & \to u=G\ast \rho    \ \ \    \textrm{where} G(r-r')=\frac{1}{|r-r'|} \\
+-{\frac{1}{2}}\nabla ^{2}\psi +V\psi =E\psi & \to \psi =-2G\ast V\psi \ \ \ \textrm{where} G(r-r')=\frac{e^{-\sqrt{-2E|r-r'|}}}{4\pi |r-r'|}\\
+\hat{L}u+N(u,t)=\dot{u}                     & \to u(t)=e^{\hat{L}t}u(0) +\int _{0}^{t}e^{\hat{L}(t-t')}N(u,t')\mathit{dt}' &
+\end{align*}
+
+Most codes, including MADNESS, are bad at solving differential equations to high accuracy -- this is why there is so
+much emphasis placed on finding a good pre-conditioner. The problem arises from the spectrum of the differential
+operator. Consider the Laplacian in 1D acting on a plane wave 
+
+\begin{equation}
+\frac{d^{2}}{\mathit{dx}^{2}}e^{i\omega x}=-\omega ^{2}e^{i\omega x}
+\end{equation}
+The effect of the Laplacian is to greatly amplify high frequencies  $\omega $ (where most of the numerical error lies)
+whereas physical applications are primarily interested in lower frequencies. The eigenvalues of the corresponding
+inverse or integral operator have the opposite effect -- high frequencies are suppressed and lower frequencies
+emphasized.
+
+The integral form is potentially better in many ways -- accuracy, speed, robustness, asymptotic behavior, etc.. If you
+really, really, want to solve the differential form, then instead of using the phrase ``integral form'' say ``perfectly
+preconditioned differential form'' so that you can do the right thing.
+
+\subsection{Carefully analyze discontinuities, noise, singularities, and asymptotic forms}
+Your function needs to be evaluated at close to machine precision. \ The higher the order of the basis ( $k$) the
+greater the necessary accuracy regardless of what threshold you are trying to compute to. \ The accuracy and
+convergence of the Gauss-Legendre quadrature rests on the function being smooth (well approximated by a polynomial) at
+some level of refinement. Discontinuities in the function value or derivatives, \ singularities, and numerical noise
+can all cause excessive refinement as MADNESS tries to deliver the requested precision-Gibbs effect in action.
+\textit{The usual symptoms of this problem are unexpectedly slow execution and excessive memory use.} Here are some
+tips to work with these effects.
+
+Discontinuities and singularities need to be consciously managed. Integrable point singularities might sometimes work
+unmodified (e.g.,  $1/r$ in 3-D) but can unpredictably fail, e.g., if a quadrature point lands very near the
+singularity by accident. If possible, arrange for such points/surfaces to coincide with dyadic points (i.e., an integer
+multiple of some power of two division of the domain) -- this will give the most accurate representation and exploits
+the discontinuous spectral basis. If you cannot ensure such placement, you must manually or analytically regularize the
+function and one would usually employ a parameter to control the length scale of any problem modification and to enable
+systematic demonstration of convergence. E.g., eliminate the cusp in an exponential with
+
+\begin{equation}
+\exp (-r)\to \exp (-\sqrt{r^{2}+\sigma ^{2}})
+\end{equation}
+or replace a step function with 
+
+\begin{equation}
+\theta (x)\to \theta (x,\lambda )=\frac{1}{2}(1+\tanh \frac{x}{\lambda })
+\end{equation}
+or the Coulomb potential in 3-D with 
+
+\begin{equation}
+\frac{1}{r}\to u(r,c)=\frac{1}{r}\operatorname{erf}\frac{r}{c}+\frac{1}{c\sqrt{\pi
+}}e^{-\left(\frac{r}{c}\right)^{2}}\ \ \ \ \ \ \ \ \ \ \ \ \ \ \int _{0}^{\infty
+}\left(u(r,c)-r^{-1}\right)r^{2}\mathit{dr}=0
+\end{equation}
+(the integral indicates that the mean error is zero independent of  $c$).
+
+Numerical noise can be a problem if your function is evaluated using interpolation or some other approximation scheme,
+or when switching between representations (e.g., between forms suitable for small or large arguments). If you are
+observing inefficient projection into the basis, ensure that your approximation is everywhere smooth to circa 1 part in
+ $10^{12}$ or better.
+
+MADNESS itself computes to a finite precision and when computing a point-wise function of a function (i.e.,  $g(f(x))$
+where  $f(x)$ is a MADNESS function and  $g(s)$ is a user-provided function) the user-provided function must tolerate
+that approximation within tolerance or noise. A classic example is computing the function
+
+\begin{equation}
+V(\rho (x))=\frac{C}{\rho ^{1/3}(x)}
+\end{equation}
+where in the original problem one knows that  $\rho (x)>0,\ \forall x$ but numerically this positivity not guaranteed.
+In this case an effective smoothing is 
+
+\begin{equation}
+\begin{gathered}V(\rho )\to V(S(\rho ))\\S(s)=\left\{\begin{matrix}s_{0}&s\le 0\\q(s,s_{0,}s_{1})&0<s\le
+s_{1}\\s&s>s_{1}\end{matrix}\right.\\q(s,s_{0},s_{1})=s_{0}-(-2s_{1}+3s_{0})\left(\frac{s}{s_{1}}\right)^{2}+(2s_{0}-s_{1})\left(\frac{s}{s_{1}}\right)^{3}\end{gathered}
+\end{equation}
+The function  $S(s)$ coincides with its argument for  $s>s_{1}$ and for smaller values smoothly switches to a minimum
+value of  $s_{0}$ with continuous value and derivative at both end points.
+
+Some computations are intrinsically expensive. For instance, the function  $\exp (i\omega r)$ is oscillatory everywhere
+and the number of required coefficients will increase linearly with the solution volume. \ In a 3-D box of width  $L$,
+the number of coefficients will be  $O\left(\left(Lk\omega \right)^{3}\right)$ (where  $k$ is the multiwaveler or
+polynomial order). For  $L=1000$,  $k=12$ and  $\omega =3$, a few hundred TB of data (i.e., too big!) will be
+generated. Thus, it is worth making a back of the envelope estimate about the expected cost of computation before
+getting started.
+
+\subsection[Robustly trade precision for speed]{Robustly trade precision for speed}
+TO BE COMPLETED.
+
+\subsection{Choice of polynomial order (k)}
+TO BE COMPLETED.
+
+\section{Environment variables}
+\texttt{MAD\_BIND} -- Specifies the binding of threads to physical processors. On both the Cray-XT and the IBM BG/P the
+default value should be used. On other machines there is sometimes a small performance gain to be had from forcing
+threads to use the same processor, thereby improving cache locality. The value is a character string containing three
+integers in the range. The first indicates the core to which the main thread should be bound, the second the core for
+the communication thread, and the third the core for first thread in the pool. Subsequent threads use successively
+higher cores. A value of -1 indicates do not bind. The default on the XT is ``\texttt{1 0 2}{}'' and on the BG/P
+``\texttt{{}-1 -1 -1}{}''.
+
+\texttt{MAD\_NUM\_THREADS} -- Specifies the total number of threads to be used by each MPI process. If running with just
+one MPI processes, there will be this many threads executing the application code so the minimum value is one. If
+running with more than one MPI processes, one thread is dedicated to communication so the minimum value is two. The
+default value is the number of processors detected (using this default is the only way presently to have different
+numbers of threads on different nodes).
+
+\texttt{MRA\_DATA\_DIR} -- Specifies the directory that contains the MADNESS data files (notably the autocorrelation
+coefficients, two-scale coefficients, and Gauss-Legendre points and weights). Sometimes the compiled-in default must be
+overridden. Only MPI process zero will use this.
+
+\texttt{POOL\_NTHREAD} (deprecated) -- Specifies the number of threads in the compute pool. New users should set
+\texttt{MAD\_NUM\_THREADS} instead.
+
+\section{Troubleshooting.}
+TO BE COMPLETED.
+
+\section{Viewing and editing this document}
+All of our documents use the same styles and fonts -- consistency is important! Do not change the styles or fonts.
+
+\begin{itemize}
+\item Use OpenOffice 3.1 or later to edit this file.
+\item Under Linux ensure you have the Microsoft true-type fonts installed -- they are free. Under Ubuntu install package
+\texttt{msttcorefonts}. Without these the default Linux fonts will cause pagination and other problems, at least with
+the title pages.
+\item All text except for foreign languages and symbols should be in Times New Roman.
+\item All in-line code, filenames, commands, etc., should be in Courier New.
+\item All multi-line code examples should be in Code style (note that it automatically indents).
+\item Emphasis should be done with italics -- bold should not be used.
+\item Use the default bullets, numbering, etc.
+\end{itemize}
+
+\bigskip
+\end{document}

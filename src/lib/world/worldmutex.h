@@ -57,7 +57,7 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 
 
 #include <world/nodefaults.h>
-//#include <world/worldtime.h>
+#include <world/worldtime.h>
 #include <world/atomicint.h>
 #include <world/worldexc.h>
 
@@ -72,7 +72,13 @@ namespace madness {
         unsigned int count;
 
         /// Yield for specified number of microseconds unless dedicated CPU
-        void yield(int us) { usleep(us); }
+        void yield(int us) { 
+#ifdef HAVE_IBMBGP
+	    cpu_relax();
+#else
+	    myusleep(us); 
+#endif
+	}
 
     public:
         MutexWaiter() : count(0) { }
@@ -239,42 +245,96 @@ namespace madness {
         static const int NOLOCK=0;
         static const int READLOCK=1;
         static const int WRITELOCK=2;
-
+        
         MutexReaderWriter() : nreader(0), writeflag(false) {}
-
-        bool try_read_lock() const;
-
-        bool try_write_lock() const;
-
-        bool try_lock(int lockmode) const;
-
-        bool try_convert_read_lock_to_write_lock() const;
-
-        void read_lock() const;
-
-        void write_lock() const;
-
-        void lock(int lockmode) const;
-
-        void read_unlock() const;
-
-        void write_unlock() const;
-
-        void unlock(int lockmode) const;
-
+        
+        bool try_read_lock() const {
+            ScopedMutex<Spinlock> protect(this);
+            bool gotit = !writeflag;
+            if (gotit) ++nreader;
+            return gotit;
+        }
+        
+        bool try_write_lock() const {
+            ScopedMutex<Spinlock> protect(this);
+            bool gotit = (!writeflag) && (nreader==0);
+            if (gotit) writeflag = true;
+            return gotit;
+        }
+        
+        bool try_lock(int lockmode) const {
+            if (lockmode == READLOCK) {
+                return try_read_lock();
+            }
+            else if (lockmode == WRITELOCK) {
+                return try_write_lock();
+            }
+            else if (lockmode == NOLOCK) {
+                return true;
+            }
+            else {
+                MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
+            }
+        }
+        
+        bool try_convert_read_lock_to_write_lock() const {
+            ScopedMutex<Spinlock> protect(this);
+            bool gotit = (!writeflag) && (nreader==1);
+            if (gotit) {
+                nreader = 0;
+                writeflag = true;
+            }
+            return gotit;
+        }
+        
+        void read_lock() const {
+            while (!try_read_lock()) cpu_relax();
+        }
+        
+        void write_lock() const {
+            while (!try_write_lock()) cpu_relax();
+        }
+        
+        void lock(int lockmode) const {
+            while (!try_lock(lockmode)) cpu_relax();
+        }
+        
+        void read_unlock() const {
+            ScopedMutex<Spinlock> protect(this);
+            nreader--;
+        }
+        
+        void write_unlock() const {
+            // Only a single thread should be setting writeflag but
+            // probably still need the mutex just to get memory fence?
+            ScopedMutex<Spinlock> protect(this);
+            writeflag = false;
+        }
+        
+        void unlock(int lockmode) const {
+            if (lockmode == READLOCK) read_unlock();
+            else if (lockmode == WRITELOCK) write_unlock();
+            else if (lockmode != NOLOCK) MADNESS_EXCEPTION("MutexReaderWriter: try_lock: invalid lock mode", lockmode);
+        }
+        
         /// Converts read to write lock without releasing the read lock
-
+        
         /// Note that deadlock is guaranteed if two+ threads wait to convert at the same time.
-        void convert_read_lock_to_write_lock() const;
-
+        void convert_read_lock_to_write_lock() const {
+            while (!try_convert_read_lock_to_write_lock()) cpu_relax();
+        }
+        
         /// Always succeeds immediately
-        void convert_write_lock_to_read_lock() const;
-
+        void convert_write_lock_to_read_lock() const {
+            ScopedMutex<Spinlock> protect(this);
+            ++nreader;
+            writeflag=false;
+        }
         virtual ~MutexReaderWriter() {}
-    }; // class MutexReaderWriter
-
+    }; 
+    
 #else
-
+    
     // This version uses AtomicInt and CAS
     class MutexReaderWriter : private NO_DEFAULTS {
         mutable AtomicInt nreader;
@@ -375,17 +435,46 @@ namespace madness {
         ConditionVariable() : back(0), front(0) { }
 
         /// You should acquire the mutex before waiting
-        void wait() const;
-
+        void wait() const {
+            // We put a pointer to a thread-local variable at the
+            // end of the queue and wait for that value to be set,
+            // thus generate no memory traffic while waiting.
+            volatile bool myturn = false;
+            int b = back;
+            q[b] = &myturn;
+            ++b;
+            if (b >= MAX_NTHREAD) back = 0;
+            else back = b;
+            
+            unlock(); // Release lock before blocking
+            while (!myturn) cpu_relax();
+            lock();
+        }
+        
         /// You should acquire the mutex before signalling
-        void signal() const;
-
-
+        void signal() const {
+            if (front != back) {
+                int f = front;
+                int ff = f + 1;
+                if (ff >= MAX_NTHREAD)
+                    front = 0;
+                else
+                    front = ff;
+                
+                *q[f] = true;
+            }
+        }
+        
         /// You should acquire the mutex before broadcasting
-        void broadcast() const;
-
+        void broadcast() const {
+            while (front != back)
+                signal();
+        }
+        
+        
         virtual ~ConditionVariable() {}
-    }; // class ConditionVariable
+    }; 
+
 
     /// A scalable and fair mutex (not recursive)
 
@@ -398,17 +487,54 @@ namespace madness {
         mutable volatile int n;
         mutable volatile int front;
         mutable volatile int back;
-
+        
     public:
         MutexFair() : n(0), front(0), back(0) {};
-
-        void lock() const;
-
-        void unlock() const;
-
-        bool try_lock() const;
-
-    }; // class MutexFair
+        
+        void lock() const {
+            volatile bool myturn = false;
+            Spinlock::lock();
+            ++n;
+            if (n == 1) {
+                myturn = true;
+            }
+            else {
+                int b = back + 1;
+                if (b >= MAX_NTHREAD) b = 0;
+                q[b] = &myturn;
+                back = b;
+            }
+            Spinlock::unlock();
+            
+            while (!myturn) cpu_relax();
+        }
+        
+        void unlock() const {
+            volatile bool* p = 0;
+            Spinlock::lock();
+            n--;
+            if (n > 0) {
+                int f = front + 1;
+                if (f >= MAX_NTHREAD) f = 0;
+                p = q[f];
+                front = f;
+            }
+            Spinlock::unlock();
+            if (p) *p = true;
+        }
+        
+        bool try_lock() const {
+            bool got_lock;
+            
+            Spinlock::lock();
+            int nn = n;
+            got_lock = (nn == 0);
+            if (got_lock) n = nn + 1;
+            Spinlock::unlock();
+            
+            return got_lock;
+        }
+    };
 
 
     /// Attempt to acquire two locks without blocking holding either one
@@ -501,14 +627,43 @@ namespace madness {
 
         /// id should be the thread id (0,..,nthread-1) and pflag a pointer to
         /// thread-local bool (probably in the thread's stack)
-        void register_thread(int id, volatile bool* pflag);
-
+        void register_thread(int id, volatile bool* pflag) {
+            if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+            pflags[id] = pflag;
+            *pflag=!sense;
+        }
+        
         /// Each thread calls this with its id (0,..,nthread-1) to enter the barrier
-
+        
         /// The thread last to enter the barrier returns true.  Others return false.
         ///
         /// All calls to the barrier must use the same value of nthread.
-        bool enter(const int id);
+        bool enter(const int id) {
+            if (nthread <= 1) {
+                return true;
+            }
+            else {
+                if (id > 63) MADNESS_EXCEPTION("Barrier : hard dimension failed", id);
+                bool lsense = sense; // Local copy of sense
+                bool result = nworking.dec_and_test();
+                if (result) {
+                    // Reset counter and sense for next entry
+                    nworking = nthread;
+                    sense = !sense;
+                    __asm__ __volatile__("" : : : "memory");
+
+                    // Notify everyone including me
+                    for (int i = 0; i < nthread; ++i)
+                        *(pflags[i]) = lsense;
+                } else {
+                    volatile bool* myflag = pflags[id]; // Local flag;
+                    while (*myflag != lsense) {
+                        cpu_relax();
+                    }
+                }
+                return result;
+            }
+        }
     }; // class Barrier
 }
 

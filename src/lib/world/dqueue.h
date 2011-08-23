@@ -244,7 +244,7 @@ namespace madness {
                 retval=1;
                 while (nmax--) {
                     T ptr = buf[f];
-                    if (ptr == *r) {
+                    if (ptr == *(r-1)) {
                         break;
                     }
                     else if (ptr) { // Null pointer indicates stolen task

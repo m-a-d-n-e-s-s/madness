@@ -11,12 +11,34 @@ if not os.path.isfile(inputFile):
     sys.exit()
 print inputFile
 #Parse projPsi's output 
-doRl = False
+writeEX  = False
+writeION = False
+writeY   = False
 f = open(inputFile, 'r')
-exFile = open("ex.dat", 'w')
-ionFile = open("ion.dat", 'w')
-RlFile = open("Rl.dat", 'w')
 lines = f.readlines()
+#only opening files for which we have data
+for line in lines:
+    exState = re.match( "^[1-9]", line)
+    kState  = re.match( "^0", line)
+    Yl      = re.match( "^Y(\d)0", line)
+    # If Y is matched, don't match EX or ION
+    if Yl:
+        writeY = True
+        break
+    # Can match EX and/or ION
+    if exState:
+        writeEX = True
+    if kState:
+        writeION = True
+if writeEX:
+    exFile = open("ex.dat", 'w')
+    print "matchEX"
+if writeION:
+    ionFile = open("ion.dat", 'w')
+    print "matchION"
+if writeY:
+    RlFile = open("Rl.dat", 'w')
+    print "matchY"
 while 1:
     if(lines):
         line = lines.pop(0)
@@ -35,17 +57,19 @@ while 1:
                 ionFile.write(word + "\t")
             ionFile.write("\n")
         if Yl:
-            doRl = True
-            words = line.split()
+            words  = line.split()
             l  =  Yl.group(1)
             Pl =  lines.pop(0)[0:-1]
             RlFile.write( l + "\t" + Pl + "\t" + " ".join(words[1:]) + "\n" )
     else:
         break
 f.close()
-exFile.close()
-ionFile.close()
-RlFile.close()
+if writeEX:
+    exFile.close()
+if writeION:
+    ionFile.close()
+if writeY:
+    RlFile.close()
 
 #Sort STEP, atomic time, and walltime
 f = open("time.dat", 'r')
@@ -77,7 +101,7 @@ if os.path.isfile('input'):
 if os.path.isfile('input2'):
     os.system("cp input2 input2.dat")
 #make dr.dat
-if( doRl ):
+if( writeY ):
     thisDIR = os.getcwd()
     inputFile = thisDIR  + '/input'
     input2File = thisDIR + '/input2'
@@ -85,10 +109,11 @@ if( doRl ):
         f = open("input", 'r')
         lines = f.readlines()
         for line in lines:
-            if line:
-                word = line.split()
-                if word[0] == 'L':
-                    L = float(word[1])
+            if len(line) == 1:
+                continue
+            word = line.split()
+            if word[0] == 'L':
+                L = float(word[1])
         f.close()
         if os.path.isfile(input2File):
             f = open("input2", 'r')

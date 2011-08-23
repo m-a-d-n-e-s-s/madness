@@ -871,8 +871,9 @@ namespace madness {
 
             for (int mu=0; mu<rank; ++mu) {
                 for (std::size_t d=0; d<NDIM; ++d) {
+                  Q c = pow(coeff[mu],1.0/NDIM);
                   std::shared_ptr<GaussianConvolution1D<Q> >
-                      gcptr(new GaussianConvolution1D<Q>(k, coeff[mu], expnt(mu)*width[d]*width[d],
+                      gcptr(new GaussianConvolution1D<Q>(k, c*width[d], expnt(mu)*width[d]*width[d],
                               0, isperiodicsum, args[d]));
                   ops[mu].setop(d,gcptr);
                 }
@@ -1151,6 +1152,8 @@ namespace madness {
         }
         coeff.scale(4.0*pi);
         return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k, false);
+//        return SeparatedConvolution<double_complex,3>(world, coeff, expnt, bc, k);
+
     }
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.

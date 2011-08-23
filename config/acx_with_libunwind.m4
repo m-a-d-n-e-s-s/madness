@@ -13,7 +13,7 @@ AC_DEFUN([ACX_WITH_LIBUNWIND], [
       ;;
       *)
         CPPFLAGS="$CPPFLAGS -I$with_libunwind/include"
-        LDFLAGS="$LDFLAGS -L$with_libunwind/lib"
+        LIBS="$LIBS -L$with_libunwind/lib"
         acx_with_libunwind="$withval"
       esac
     ],

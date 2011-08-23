@@ -533,12 +533,12 @@ which merely blows instead of sucking.
         }
 
         /// Same as get()
-        inline operator T() {
+        inline operator T&() {
             return get();
         }
 
         /// Same as get() const
-        inline operator const T() const {
+        inline operator const T&() const {
             return get();
         }
 

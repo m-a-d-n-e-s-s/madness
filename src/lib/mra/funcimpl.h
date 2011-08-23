@@ -41,6 +41,7 @@
 #include <iostream>
 #include <world/world.h>
 #include <world/print.h>
+#include <world/scopedptr.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
 #include <mra/key.h>
@@ -1820,6 +1821,91 @@ namespace madness {
             return None;
         }
 
+        /// Refine multiple functions down to the same finest level
+
+        /// @param[v] is the vector of functions we are refining.
+        /// @param[key] is the current node.
+        /// @param[c] is the vector of coefficients passed from above.
+        Void refine_to_common_level(const std::vector<FunctionImpl<T,NDIM>*>& v,
+                                    const std::vector<tensorT>& c,
+                                    const keyT key) {
+            if (key == cdata.key0 && coeffs.owner(key)!=world.rank()) return None;
+
+            // First insert coefficients from above ... also get write accessors here
+            ScopedArray<typename dcT::accessor> acc(new typename dcT::accessor[v.size()]);
+            for (unsigned int i=0; i<c.size(); i++) {
+                MADNESS_ASSERT(v[i]->coeffs.get_pmap() == coeffs.get_pmap());
+                MADNESS_ASSERT(v[i]->coeffs.owner(key) == world.rank());
+                bool exists = ! v[i]->coeffs.insert(acc[i],key);
+                if (c[i].size()) {
+                    MADNESS_ASSERT(!exists);
+                    acc[i]->second = nodeT(coeffT(c[i],targs),false);
+                }
+                else {
+                    MADNESS_ASSERT(exists);
+                }
+            }
+
+            // If everyone has coefficients we are done
+            bool done = true;
+            for (unsigned int i=0; i<v.size(); i++) {
+                done &= acc[i]->second.has_coeff();
+            }
+
+            if (!done) {
+                // Those functions with coefficients need to be refined down
+                std::vector<tensorT> d(v.size());
+                for (unsigned int i=0; i<v.size(); i++) {
+                    if (acc[i]->second.has_coeff()) {
+                        tensorT s(cdata.v2k);
+//                        s(cdata.s0) = acc[i]->second.coeff()(___);
+                        s(cdata.s0) = acc[i]->second.coeff().full_tensor_copy();
+                        acc[i]->second.clear_coeff();
+                        d[i] = unfilter(s);
+                        acc[i]->second.set_has_children(true);
+                    }
+                }
+
+                // Loop thru children and pass down
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    std::vector<Slice> cp = child_patch(child);
+                    std::vector<tensorT> childc(v.size());
+                    for (unsigned int i=0; i<v.size(); i++) {
+                        if (d[i].size()) childc[i] = copy(d[i](cp));
+                    }
+                    woT::task(coeffs.owner(child), &implT::refine_to_common_level, v, childc, child);
+                }
+            }
+
+            return None;
+        }
+
+        template <typename opT>
+        Void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
+            std::vector<tensorT> c(v.size());
+            for (unsigned int i=0; i<v.size(); i++) {
+                c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff()); // !!!!! gack
+            }
+            tensorT r = op(key, c);
+            coeffs.replace(key, nodeT(values2coeffs(key, r),false));
+            return None;
+        }
+
+        // assumes all functions have been refined down to the same level
+        template <typename opT>
+        void multiop_values(const opT& op, const std::vector<implT*>& v) {
+            typename dcT::iterator end = v[0]->coeffs.end();
+            for (typename dcT::iterator it=v[0]->coeffs.begin(); it!=end; ++it) {
+                const keyT& key = it->first;
+                if (it->second.has_coeff())
+                    world.taskq.add(*this, &implT:: template multiop_values_doit<opT>, key, op, v);
+                else
+                    coeffs.replace(key, nodeT(tensorT(),true));
+            }
+            world.gop.fence();
+        }
+
         /// Transforms a vector of functions left[i] = sum[j] right[j]*c[j,i] using sparsity
         template <typename Q, typename R>
         void vtransform(const std::vector< std::shared_ptr< FunctionImpl<R,NDIM> > >& vright,
@@ -1828,7 +1914,7 @@ namespace madness {
                         double tol,
                         bool fence) {
             for (unsigned int j=0; j<vright.size(); ++j) {
-                woT::task(world.rank(), &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
+                world.taskq.add(*this, &implT:: template vtransform_doit<Q,R>, vright[j], copy(c(j,_)), vleft, tol);
             }
             if (fence)
                 world.gop.fence();
@@ -2765,7 +2851,7 @@ namespace madness {
             typedef typename FunctionImpl<R,NDIM>::dcT::const_iterator fiterT;
             typedef FunctionNode<R,NDIM> fnodeT;
             fiterT end = f->coeffs.end();
-            ProcessID me = world.rank();
+         	ProcessID me = world.rank();
             for (fiterT it=f->coeffs.begin(); it!=end; ++it) {
                 const fnodeT& node = it->second;
                 if (node.has_coeff()) {
@@ -2799,7 +2885,7 @@ namespace madness {
                     Future<argT> left  = D->find_neighbor(f, key,-1);
                     argT center(key,node.coeff());
                     Future<argT> right = D->find_neighbor(f, key, 1);
-                    woT::task(world.rank(), &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
+                    world.taskq.add(*this, &implT::do_diff1, D, f, key, left, center, right, TaskAttributes::hipri());
                 }
                 else {
                     coeffs.replace(key,nodeT(coeffT(),true)); // Empty internal node
@@ -3424,7 +3510,7 @@ namespace madness {
                             v[i++].set(false);
                         }
                     }
-                    woT::task(world.rank(), &implT::broaden_op, key, v);
+                    world.taskq.add(*this, &implT::broaden_op, key, v);
                 }
             }
             // Reset value of norm tree so that can repeat broadening

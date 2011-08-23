@@ -1,7 +1,45 @@
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+
+#define MPI_COMM_WORLD (0x44000000)
+#define MPI_UNDEFINED      (-32766)
+
+static void MPI_Abort(int comm, int status) {
+    std::exit(1);
+};
 
 namespace MPI {
 
-    struct Status {};
+    const int THREAD_SERIALIZED = 12345;
+    const int ANY_SOURCE = -2;
+
+    enum Datatype {BYTE};
+    struct Op {};
+    struct Group {
+        static void Translate_ranks(const Group& v1, int v2, const int* v3, const Group& v4, int* v5) {
+          *v5=0;
+        }
+    };
+
+    class Exception {
+        
+    };
+
+    struct Status {
+        int Get_source() {
+            throw "not implemented";
+            return -1;
+        }
+        int Get_count(const Datatype &v2) {
+            throw "not implemented";
+            return -1;
+        }
+    };
+
+    static void Finalize() {};
+
+    static int Init_thread(int &argc, char **&argv, int required) {return 0;};
 
     struct Request {
         bool Test() {
@@ -55,11 +93,13 @@ namespace MPI {
         }
 
         void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
-            memcpy(recvbuf, sendbuf, count*sizeof the damn data type);
+            if (datatype != BYTE) throw "die scum!";
+            std::memcpy(recvbuf, sendbuf, count);
         }
 
         void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
-            memcpy(recvbuf, sendbuf, count*sizeof the damn data type);
+            if (datatype != BYTE) throw "die scum!";
+            std::memcpy(recvbuf, sendbuf, count);
         }
 
         void Get_attr(int key, void* value) const {
@@ -73,5 +113,17 @@ namespace MPI {
         void Barrier() const {
             return;
         }
+
+        Intracomm Create(const MPI::Group& group) const {
+            return Intracomm();
+        }
+
+        Group Get_group() const {
+            return Group();
+        }
+
+
     };
+
+   static Intracomm COMM_WORLD;
 }

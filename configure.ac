@@ -86,6 +86,7 @@ ACX_CHECK_TR1
 ACX_WITH_LIBUNWIND
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
+ACX_WITH_LIBXC
 
 # Check for basic build functionality
 AC_PROG_RANLIB
@@ -146,6 +147,9 @@ AC_FUNC_FORK
 #AC_FUNC_MALLOC
 AC_FUNC_ERROR_AT_LINE
 ACX_POSIX_MEMALIGN
+
+# Check for EIGEN3
+ACX_WITH_EIGEN3
 
 # Checks for Fortran linking conventions and BLAS+LAPACK at the same time
 ACX_FORTRAN_SYMBOLS
@@ -269,6 +273,7 @@ AC_CONFIG_FILES([
     src/Makefile
     src/lib/Makefile
        src/lib/world/Makefile
+          src/lib/world/tr1/Makefile
        src/lib/muParser/Makefile
        src/lib/misc/Makefile
        src/lib/tinyxml/Makefile
@@ -282,6 +287,7 @@ AC_CONFIG_FILES([
        src/apps/exciting/Makefile
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
+       src/apps/jacob/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

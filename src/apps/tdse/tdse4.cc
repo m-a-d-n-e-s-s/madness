@@ -433,7 +433,7 @@ void testbsh(World& world) {
 
 void converge(World& world, functionT& potn, functionT& pote, functionT& pot, functionT& psi, double& eps) {
     functionT zero = factoryT(world);
-    for (int iter=0; iter<55; iter++) {
+    for (int iter=0; iter<205; iter++) {
         if (world.rank() == 0) print("beginning iter", iter, wall_time());
 
         functionT Vpsi = pot*psi;// - 0.5*psi; // TRY SHIFTING POTENTIAL AND ENERGY DOWN

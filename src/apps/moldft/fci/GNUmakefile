@@ -21,7 +21,7 @@
        CC = gcc
    CFLAGS = -g -O
        FC = gfortran
-   FFLAGS = -O2 -malign-double -ffast-math -fno-second-underscore
+   FFLAGS = -O3 -malign-double -ffast-math -fno-second-underscore
 ## -funroll-loops ... introduces bugs in mfind_weight
 ##g -Wimplicit -Wunused 
      LIBS = -L.
@@ -60,7 +60,7 @@
          fci_make_eaj.o fci_prteop.o fci_hsort.o   fci_detwalk.o \
          fci_owalk_info.o fci_couple1.o fci_1pdm.o fci_output.o \
          fci_2pdm.o    fci_couple2.o  fci_3pdm.o fci_couple3.o \
-         fci_hami.o    fci_onepdm.o  fci_intchk.o \
+         fci_hami.o    fci_onepdm.o  fci_intchk.o fci_prvec.o \
          fci_hv.o      fci_axb.o fci_solve.o fci_davids.o rsg.o $(BLAS)
 
 fci:	fci.o libfci.a

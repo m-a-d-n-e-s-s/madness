@@ -1,0 +1,952 @@
+\documentclass[letterpaper]{book}
+%\documentclass[letterpaper]{article}
+\usepackage{hyperref}
+\usepackage{amsmath}
+\usepackage{graphics}
+
+%%\hypersetup{pdftex, colorlinks=true, linkcolor=blue, citecolor=blue, filecolor=blue, urlcolor=blue, pdftitle=, pdfauthor=Robert Harrison, pdfsubject=, pdfkeywords=}
+%%% Outline numbering
+%%\setcounter{secnumdepth}{3}
+%%\renewcommand\thesection{\arabic{section}}
+%%\renewcommand\thesubsection{\arabic{section}.\arabic{subsection}}
+%%\renewcommand\thesubsubsection{\arabic{section}.\arabic{subsection}.\arabic{subsubsection}}
+
+%%% Page layout (geometry)
+%%\setlength\voffset{-1in}
+%%\setlength\hoffset{-1in}
+%%\setlength\topmargin{0.7874in}
+%%\setlength\oddsidemargin{0.7874in}
+%%\setlength\textheight{8.825199in}
+%%\setlength\textwidth{6.9251995in}
+%%\setlength\footskip{0.6in}
+%%\setlength\headheight{0cm}
+%%\setlength\headsep{0cm}
+%%% Footnote rule
+%%\setlength{\skip\footins}{0.0469in}
+%%\renewcommand\footnoterule{\vspace*{-0.0071in}\setlength\leftskip{0pt}\setlength\rightskip{0pt plus 1fil}\noindent\textcolor{black}{\rule{0.25\columnwidth}{0.0071in}}\vspace*{0.0398in}}
+
+% Paragraph formatting
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2ex plus 0.5ex minus 0.2ex}
+
+\begin{document}
+
+% Title Page
+\title{MADNESS Implementation Notes}
+\date{Last Modification: 12/14/2009}
+\maketitle
+
+% Copyright Page
+\pagestyle{empty}
+\null\vfill
+\noindent
+This file is part of MADNESS.
+
+
+Copyright (C) 2007, 2010 Oak Ridge National Laboratory
+
+This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public
+License as published by the Free Software Foundation; either version 2 of the License, or(at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with this program; if not, write to the Free
+Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+For more information please contact:
+\begin{quote}							
+Robert J. Harrison 				\\
+Oak Ridge National Laboratory 	\\
+One Bethel Valley Road 			\\
+P.O. Box 2008, MS-6367			\\
+Oak Ridge, TN 37831				\\
+								\\
+email: harrisonrj@ornl.gov 		\\
+tel: 865-241-3937				\\
+fax: 865-572-0680	
+\end{quote}		
+\newpage
+
+
+% Table of Contents Pages
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{roman}
+
+\setcounter{tocdepth}{10}
+\renewcommand\contentsname{Table of Contents}
+\tableofcontents
+
+
+\clearpage
+\setcounter{page}{1}
+\pagenumbering{arabic}
+
+\chapter{Implementation Notes}
+
+This document provides reference information concerning the mathematics, numerics, algorithms, and design of the
+multiresolution capabilities of MADNESS. The information herein will be useful to both users of MADNESS and
+implementers of new capabilities within MADNESS.
+
+\section{ABGV}
+And references therein: that from which (nearly) all else follows.
+
+B. Alpert, G. Beylkin, D. Gines, L. Vozovoi, \href{http://math.nist.gov/~BAlpert/mwpde.pdf}{Adaptive Solution of Partial
+Differential Equations in Multiwavelet Bases,} \textit{Journal of Computational Physics }\textbf{182}, 149-190 (2002). 
+
+\section{Legendre scaling functions and multiwavelets}
+\subsection{Scaling functions}
+The mother Legendre scaling functions  $i=0,\ldots ,k-1$ in 1D are defined as
+
+\begin{equation}
+\phi (x)=\left\{\begin{matrix}\sqrt{2i+1}P(2x-1)&0\le x\le 1\\0&\mathrm{\mathit{otherwise}}\end{matrix}\right.
+\end{equation}
+These are orthonormal on  $[0,1]$. The scaling functions scaled to level  $n=0,1,\ldots $ and translated to box 
+$l=0,\ldots ,2^{n}-1$ span the space  $V_{n}^{k}$ and are defined by
+
+\begin{equation}\label{seq:refText1}
+\phi _{il}^{n}(x)=2^{n/2}\phi _{i}(2^{n}x-1)
+\end{equation}
+These are orthonormal on  $[2^{-n}l,2^{-n}(l+1)]$. The scaling functions by construction satisfy the following
+properties:
+
+\begin{itemize}
+\item In the limit of either large \textit{k }or large \textit{n }the closure of  $V_{n}^{k}$ is a complete basis for 
+$L_{2}[0,1]$.
+\item Containment forming a ladder of spaces  $V_{0}^{k}\subset V_{1}^{k}\subset V_{2}^{k}\subset \cdots $.
+\item Translation and dilation, c.f., (2).
+\item Orthonormality within a scale  $\int _{-\infty }^{\infty }{\phi _{il}^{n}(x)\phi _{jm}^{n}(x)\mathit{dx}}=\delta
+_{ij}\delta _{lm}$.
+\end{itemize}
+The two-scale relationship describes how to expand exactly a polynomial at level \textit{n }in terms of the polynomials
+at level \textit{n+1.}
+
+\begin{equation}\label{seq:refText2}
+\begin{matrix}\hfill \phi _{i}(x)&\text{=}&\sqrt{2}\sum _{j=0}^{k-1}\left(h_{ij}^{(0)}\phi _{j}(2x)+h_{ij}^{(1)}\phi
+_{j}(2x-1)\right)\\\phi _{il}^{n}(x)&\text{=}&\sum _{j=0}^{k-1}\left(h_{ij}^{(0)}\phi _{j2l}^{n+1}(x)+h_{ij}^{(1)}\phi
+_{j2l+1}^{n+1}(x)\right)\hfill\null \end{matrix}
+\end{equation}
+The coefficients  $H^{(0)}$ and  $H^{(1)}$ are straightforwardly computed by left projection of the first equation in
+(3) with the fine-scale polynomials.
+
+\subsection[Telescoping series]{Telescoping series}
+The main point of multiresolution analysis is to separate the behavior of functions and operators at different length
+scales. Central to this is the telescoping series which \textit{exactly }represents the basis at level \textit{n }(the
+finest scale) in terms of the basis at level zero (the coarsest scale) plus corrections at successively finer scales.
+
+\begin{equation}\label{seq:refText3}
+V_{n}^{k}=V_{0}^{k}+\left(V_{1}^{k}-V_{0}^{k}\right)+\cdots +\left(V_{n}^{k}-V_{n-1}^{k}\right)
+\end{equation}
+If function is sufficiently smooth in some region of space to be represented at the desired precision at some level,
+then the differences at finer scales will be negligibly small.
+
+\subsection{Multi-wavelets}
+The space of wavelets at level \textit{n } $W_{n}^{k}$ is defined as the orthogonal complement of the scaling functions
+(polynomials) at level \textit{n+1} to those at level \textit{n. \ }I.e., $V_{n+1}^{k}=V_{n}^{k}\oplus W_{n}^{k}$.
+Thus, by definition the functions in  $W_{n}^{k}$ are orthogonal to the functions in  $V_{n}^{k}$. \ The wavelets at
+level \textit{n }are constructed by expanding them in the polynomials at level \textit{n+1}
+
+\begin{equation}\label{seq:refText4}
+\begin{matrix}\psi _{i}(x)&\text{=}&\sqrt{2}\sum _{j=0}^{k-1}\left(g_{ij}^{(0)}\phi _{j}(2x)+g_{ij}^{(1)}\phi
+_{j}(2x-1)\right)\\\psi _{il}^{n}(x)&\text{=}&\sum _{j=0}^{k-1}\left(g_{ij}^{(0)}\phi _{j2l}^{n+1}(x)+g_{ij}^{(1)}\phi
+_{j2l+1}^{n+1}(x)\right)\hfill\null \end{matrix}
+\end{equation}
+The coefficients  $G^{(0)}$ and  $G^{(1)}$ are formed by orthogonalizing the wavelets to the polynomials at level n.
+\ This determines the wavelets to within a unitary transformation and we follow the additional choices in Alpert's
+papers/thesis.
+
+The wavelets have these properties
+
+\begin{itemize}
+\item Decomposition of  $V_{n}^{k}$
+\end{itemize}
+\begin{equation}\label{seq:refText5}
+V_{n}^{k}=V_{0}^{k}\oplus W_{0}^{k}\oplus W_{1}^{k}\oplus \cdots \oplus W_{n-1}^{k}
+\end{equation}
+
+\begin{itemize}
+\item Translation and dilation  $\psi _{il}^{n}(x)=2^{n/2}\psi _{i}(2^{n}x-l)$
+\item Orthnormality within and between scales
+\end{itemize}
+\begin{equation}
+\begin{matrix}\hfill \int _{-\infty }^{\infty }\psi _{il}^{n}(x)\psi _{i'l'}^{n'}(x)\mathit{dx}&\text{=}&\delta
+_{nn'}\delta _{ii'}\delta _{ll'}\\\hfill \int _{-\infty }^{\infty }\psi _{il}^{n}(x)\phi
+_{i'l'}^{n'}(x)\mathit{dx}&\text{=}&\delta _{ii'}\delta _{ll'}\hfill\null \end{matrix}
+\end{equation}
+\subsection[\ Function approximation in the scaling function basis]{\ Function approximation in the scaling function
+basis}
+A function \textit{f(x)} may be approximated by expansion in the orthonormal scaling function basis at level \textit{n
+}with the coefficients obtained by simple projection
+
+\begin{equation}\label{seq:refText7}
+\begin{matrix}\hfill f^{n}(x)&\text{=}&\sum _{l=0}^{2^{n}-1}\sum _{i=0}^{k=1}s_{il}^{n}\phi _{il}^{n}(x)\hfill\null
+\\\hfill s_{il}^{n}&\text{=}&\int _{-\infty }^{\infty }f(x)\phi _{il}^{n}(x)\mathit{dx}\hfill\null \end{matrix}
+\end{equation}
+
+\bigskip
+
+The two scale relationships embodied in (3) and (5) may be combined to write the following matrix equation that relates
+the scaling function basis at one scale with the scaling function and wavelet basis at the next coarsest scale.
+
+\begin{equation}
+\begin{matrix}\hfill \left(\begin{matrix}\hfill \phi (x)\\\hfill \psi
+(x)\end{matrix}\right)&\text{=}&\sqrt{2}\left(\begin{matrix}H^{(0)}\hfill\null &H^{(1)}\hfill\null \\G^{(0)}\hfill\null
+&G^{(1)}\hfill\null \end{matrix}\right)\left(\begin{matrix}\phi (2x)\hfill\null \\\phi (2x-1)\hfill\null
+\end{matrix}\right)\hfill\null \\\hfill \left(\begin{matrix}\hfill \phi _{l}^{n}(x)\\\hfill \psi
+_{l}^{n}(x)\end{matrix}\right)&\text{=}&\left(\begin{matrix}H^{(0)}\hfill\null &H^{(1)}\hfill\null \\G^{(0)}\hfill\null
+&G^{(1)}\hfill\null \end{matrix}\right)\left(\begin{matrix}\phi _{2l}^{n+1}(x)\hfill\null \\\phi
+_{2l+1}^{n+1}(x)\hfill\null \end{matrix}\right)\hfill\null \end{matrix}
+\end{equation}
+Since the transformation is unitary, we also have
+
+\begin{equation}\label{seq:refText9}
+\begin{matrix}\hfill \left(\begin{matrix}\hfill \phi (2x)\\\hfill \phi
+(2x-1)\end{matrix}\right)&\text{=}&\sqrt{2}\left(\begin{matrix}H^{(0)}\hfill\null &H^{(1)}\hfill\null
+\\G^{(0)}\hfill\null &G^{(1)}\hfill\null \end{matrix}\right)^{T}\left(\begin{matrix}\phi (x)\hfill\null \\\psi
+(x)\hfill\null \end{matrix}\right)\hfill\null \\\hfill \left(\begin{matrix}\hfill \phi _{2l}^{n+1}(x)\\\hfill \psi
+_{2l+1}^{n+1}(x)\end{matrix}\right)&\text{=}&\left(\begin{matrix}H^{(0)}\hfill\null &H^{(1)}\hfill\null
+\\G^{(0)}\hfill\null &G^{(1)}\hfill\null \end{matrix}\right)^{T}\left(\begin{matrix}\phi _{l}^{n}(x)\hfill\null \\\psi
+_{l}^{n}(x)\hfill\null \end{matrix}\right)\hfill\null \end{matrix}
+\end{equation}
+In table \ref{seq:refTable0} are the filter coefficients for \textit{k=}4, the only point being that these are
+plain-old-numbers and not anything mysterious.
+
+\begin{table}[htdp]
+\caption{Multi-wavelet filter coefficients for Legendre polynomials, $k=4$.}
+\begin{center}
+\begin{tabular}{c c c c|c c c c}
+\multicolumn{4}{c|}{$H^{(0)}$} & \multicolumn{4}{|c}{$H^{(1)}$} \\
+ 7.0711e-01 & 0.0000e+00 & 0.0000e+00 & 0.0000e+00 & 7.0711e-01 & 0.0000e+00 & 0.0000e+00 & 0.0000e+00 \\
+-6.1237e-01 & 3.5355e-01 & 0.0000e+00 & 0.0000e+00 & 6.1237e-01 & 3.5355e-01 & 0.0000e+00 & 0.0000e+00 \\
+ 0.0000e+00 &-6.8465e-01 & 1.7678e-01 & 0.0000e+00 & 0.0000e+00 & 6.8465e-01 & 1.7678e-01 & 0.0000e+00 \\
+ 2.3385e-01 & 4.0505e-01 &-5.2291e-01 & 8.8388e-02 &-2.3385e-01 & 4.0505e-01 & 5.2291e-01 & 8.8388e-02 \\
+ \hline
+\multicolumn{4}{c|}{$G^{(0)}$} & \multicolumn{4}{|c}{$G^{(1)}$} \\
+ 0.0000e+00 & 1.5339e-01 & 5.9409e-01 &-3.5147e-01 & 0.0000e+00 &-1.5339e-01 & 5.9409e-01 & 3.5147e-01 \\
+ 1.5430e-01 & 2.6726e-01 & 1.7252e-01 &-6.1237e-01 &-1.5430e-01 & 2.6726e-01 &-1.7252e-01 &-6.1237e-01 \\
+ 0.0000e+00 & 8.7867e-02 & 3.4031e-01 & 6.1357e-01 & 0.0000e+00 &-8.7867e-02 & 3.4031e-01 &-6.1357e-01 \\
+ 2.1565e-01 & 3.7351e-01 & 4.4362e-01 & 3.4233e-01 &-2.1565e-01 & 3.7351e-01 &-4.4362e-01 & 3.4233e-01 \\
+\end{tabular}
+\end{center}
+\label{default}
+\end{table}%
+
+\subsection{Wavelet transform}
+The transformation in (10) expands polynomials on level \textit{n }in terms of polynomials and wavelets on level
+\textit{n-1}. \ It may be inserted into the function approximation (8) that is in terms of polynomials at level
+\textit{n. \ }This yields an exactly equivalent approximation in terms of polynomials and wavelets on level
+\textit{n-1}. \ (I have omitted the multiwavelet index for clarity.).
+
+\begin{equation}
+\begin{matrix}f^{n}(x)&\text{=}&\sum _{l=0}^{2^{n}-1}{s_{l}^{n}\phi _{l}^{n}(x)}\hfill\null \\\text{}&\text{=}&\sum
+_{l=0}^{2^{n-1}-1}{\left(\begin{matrix}s_{2l}^{n}\hfill\null \\s_{2l+1}^{n}\hfill\null
+\end{matrix}\right)^{T}\left(\begin{matrix}\phi _{2l}^{n}(x)\hfill\null \\\phi _{2l+1}^{n}(x)\hfill\null
+\end{matrix}\right)}\hfill\null \\\text{}&\text{=}&\sum _{l=0}^{2^{n-1}-1}{\left(\left(\begin{matrix}H^{(0)}\hfill\null
+&H^{(1)}\hfill\null \\G^{(0)}\hfill\null &G^{(1)}\hfill\null
+\end{matrix}\right)\left(\begin{matrix}s_{2l}^{n}\hfill\null \\s_{2l+1}^{n}\hfill\null
+\end{matrix}\right)\right)^{T}\left(\begin{matrix}\phi _{l}^{n-1}(x)\hfill\null \\\psi _{l}^{n-1}(x)\hfill\null
+\end{matrix}\right)}\hfill\null \\\text{}&\text{=}&\sum
+_{l=0}^{2^{n-1}-1}{\left(\begin{matrix}s_{l}^{n-1}(x)\hfill\null \\d_{l}^{n-1}\hfill\null
+\end{matrix}\right)^{T}\left(\begin{matrix}\phi _{l}^{n-1}(x)\hfill\null \\\psi _{l}^{n-1}(x)\hfill\null
+\end{matrix}\right)}\hfill\null \end{matrix}
+\end{equation}
+The sum and difference (scaling function and wavelet) coefficients at level \textit{n-1} are therefore given by this
+transformation
+
+\begin{equation}
+\left(\begin{matrix}s_{l}^{n-1}(x)\\d_{l}^{n-1}(x)\end{matrix}\right)=\left(\begin{matrix}H^{(0)}&H^{(1)}\\G^{(0)}&G^{(1)}\end{matrix}\right)\left(\begin{matrix}s_{2l}^{n}\\s_{2l+1}^{n}\end{matrix}\right)
+\end{equation}
+The transformation may be recursively applied to obtain the following representation of a function in the wavelet basis
+c.f. (6) with direct analogy to the telescoping series (4).
+
+\begin{equation}\label{seq:refText12}
+f^{n}(x)=\sum _{i=0}^{k-1}s_{i0}^{0}\phi _{i0}^{0}(x)+\sum _{n=0,\ldots }\sum _{l=0}^{2^{n}-1}\sum
+_{i}^{k-1}d_{il}^{n}\psi _{il}^{n}(x)
+\end{equation}
+The wavelet transformation (13) is unitary and is therefore a very stable numerical operation.
+
+\subsection{Properties of the scaling functions}
+\subsubsection{Symmetry}
+\begin{equation}
+\phi _{i}(x)=(-1)^{i}\phi _{i}(1-x)
+\end{equation}
+\subsubsection{Derivatives}
+\begin{equation}
+\frac{1}{2\sqrt{2i+1}}\frac{d}{\mathit{dx}}\phi _{i}(x)=\sqrt{2i-1}\phi
+_{i-1}(x)+\frac{1}{2\sqrt{2i-5}}\frac{d}{\mathit{dx}}\phi _{i-2}(x)
+\end{equation}
+\subsubsection[Values at end points]{Values at end points}
+
+\bigskip
+
+\begin{equation}
+\begin{matrix}\hfill \phi _{i}(0)&\text{=}&(-1)^{i}\sqrt{2i+1}\hfill\null \\\hfill \phi
+_{i}(1)&\text{=}&\sqrt{2i+1}\hfill\null \\\hfill \frac{d\phi
+_{i}}{\mathit{dx}}(0)&\text{=}&(-1)^{i}i(i+1)\sqrt{2i+1}\hfill\null \\\hfill \frac{d\phi
+_{i}}{\mathit{dx}}(1)&\text{=}&i(i+1)\sqrt{2i+1}\hfill\null \end{matrix}
+\end{equation}
+\section{User and simulation coordinates}
+Internal to the MADNESS implementation, all computations occur in the unit volume in \textit{d }dimensions  $[0,1]^{d}$.
+\ The unit cube is referred to as simulation coordinates. \ However, the user operates in coordinates that in each
+dimension  $q=0,\ldots ,d-1$ may have different upper and lower bounds 
+$[\mathrm{{\mathit{lo}}}_{q},\mathrm{{\mathit{hi}}}_{q}]$ that represents a diagonal linear transformation between the
+user and simulation coordinates.
+
+
+\bigskip
+
+\begin{equation}
+\begin{matrix}\hfill
+x_{q}^{\mathrm{{\mathit{user}}}}(x_{q}^{\mathrm{{sim}}})&\text{=}&\left(\mathrm{{\mathit{hi}}}_{q}-\mathrm{{\mathit{lo}}}_{q}\right)x_{q}^{\mathrm{{sim}}}+\mathrm{{\mathit{lo}}}_{q}\hfill\null
+\\\hfill
+x_{q}^{\mathrm{{sim}}}(x_{q}^{\mathrm{{\mathit{user}}}})&\text{=}&\frac{x_{q}^{\mathrm{{\mathit{user}}}}-\mathrm{{\mathit{lo}}}_{q}}{\mathrm{{\mathit{hi}}}_{q}-\mathrm{{\mathit{lo}}}_{q}}\hfill\null
+\end{matrix}
+\end{equation}
+
+\bigskip
+
+This is a convenience motivated by the number of errors due to users neglecting the factors arising from mapping the
+user space volume onto the unit cube. \ More general linear and non-linear transformations must presently be handled by
+the user.
+
+To clarify further the expected behavior and how/when this mapping of coordinates is performed: All coordinates, values,
+norms, thresholds, integrals, operators, etc., provided by/to the user are in user coordinates. \ The advantage of this
+is that the user does not have to worry about mapping the physical simulation space. \ E.g., if a user computes the
+norm of a function what is returned is precisely the value
+
+\begin{equation}
+\left|f\right|_{2}^{2}=\int
+_{\mathrm{{\mathit{lo}}}}^{\mathrm{{\mathit{hi}}}}\left|f(x^{\mathrm{{\mathit{user}}}})\right|^{2}\mathit{dx}^{\mathrm{{\mathit{user}}}}
+\end{equation}
+Similarly, when a user truncates a function with a norm-wise error  $\epsilon $ this should be the error in the above
+norm, and coefficients should be discarded so as to maintain this accuracy independent of the user volume. All sum and
+difference coefficients, quadrature points and weights, operators, etc. are internally maintained in simulation
+coordinates. \ The advantage of this is that the operators can all be consistently formulated just once and we only
+have to worry about conversions at the \ user/application interface.
+
+\subsection[Normalization of scaling functions in the user coordinates]{Normalization of scaling functions in the user
+coordinates}
+The scaling functions as written in equation (2) are normalized in simulation coordinates. \ \ Normalizing the functions
+in user coordinates requires an additional factor of  $V^{-1/2}$ where \textit{V }is the user volume (which is just
+hi-lo in 1D).
+
+\begin{equation}
+\begin{matrix}\int _{\mathrm{{\mathit{lo}}}}^{\mathrm{{\mathit{hi}}}}\left(V^{-1/2}\phi
+_{il}^{n}(x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}}))\right)^{2}dx^{\mathrm{{\mathit{user}}}}&\text{=}&V^{-1}\int
+_{\mathrm{{\mathit{lo}}}}^{\mathrm{{\mathit{hi}}}}\phi
+_{il}^{n}(x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}}))^{2}dx^{\mathrm{{\mathit{user}}}}=1\end{matrix}
+\end{equation}
+\section{Function approximation}
+The function is approximated as follows 
+
+\begin{equation}\label{seq:refText19}
+f^{n}(x^{\mathrm{{\mathit{user}}}})=V^{-1/2}\sum _{il}s_{il}^{n}\phi
+_{il}^{n}(x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}}))
+\end{equation}
+Note that we have expanded the function in terms of basis functions normalized in the user coordinates. \ This has
+several benefits, and in particular eliminates most logic about coordinate conversion factors in truncation thresholds,
+norms, etc.
+
+\subsection{Evaluation}
+Evaluation proceeds by mapping the user coordinates into simulation coordinates, recurring down the tree to find the
+appropriate box of coefficients, evaluating the polynomials, contracting with the coefficients, and scaling by 
+$V^{-1/2}$.
+
+\subsection{Projection into the scaling function basis}
+The user provides a function/functor that given a point in user coordinates returns the value. \ Gauss-Legendre
+quadrature of the same or higher order as the polynomial is used to evaluate the integral 
+
+\begin{equation}
+\begin{matrix}s_{il}^{n}&\text{=}&V^{-1/2}\int
+_{\mathrm{{\mathit{lo}}}}^{\mathrm{{\mathit{hi}}}}{f(x^{\mathrm{{\mathit{user}}}})\phi
+_{il}^{n}(x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}}))\mathit{dx}^{\mathrm{{\mathit{user}}}}}\hfill\null
+\\&\text{=}&V^{1/2}\int _{0}^{1}{f(x^{\mathrm{{\mathit{user}}}}(x^{\mathrm{{sim}}}))\phi
+_{il}^{n}(x^{\mathrm{{sim}}})\mathit{dx}^{\mathrm{{\mathit{sim}}}}}\hfill\null \\&\text{=}&2^{dn/2}V^{1/2}\int
+_{l2^{-n}}^{(l+1)2^{-n}}{f(x^{\mathrm{{\mathit{user}}}}(x^{\mathrm{{sim}}}))\phi
+_{i}(2^{n}x^{\mathrm{{sim}}}-l)\mathit{dx}^{\mathrm{{\mathit{sim}}}}}\hfill\null \\&\text{=}&2^{-dn/2}V^{1/2}\int
+_{0}^{1}{f(x^{\mathrm{{\mathit{user}}}}(2^{-n}(x+l)))\phi _{i}(x)\mathit{dx}}\hfill\null \\&\simeq
+&2^{-dn/2}V^{1/2}\sum _{\mu =0}^{n_{\mathrm{{\mathit{pt}}}}}{\omega _{\mu }f(x^{\mathrm{{\mathit{user}}}}(2^{-n}(x_{\mu
+}+l)))\phi _{i}(x_{\mu })}\hfill\null \end{matrix}
+\end{equation}
+ $x_{\mu }$ and  $\omega _{\mu }$ are the points and weights for the Gauss-Legendre rule of order 
+$n_{\mathrm{{\mathit{pt}}}}$ over \textit{[0, 1]}.
+
+The above can be regarded as an invertible linear transformation between the scaling function coefficients and the
+approximate function values at the quadrature points ( $\mu =0,\ldots ,n_{\mathrm{{\mathit{pt}}}}$). 
+
+\begin{equation}\label{seq:refText21}
+\begin{matrix}s_{il}^{n}&\text{=}&2^{-dn/2}V^{1/2}\sum _{\mu }f_{\mu }{\bar{\phi }}_{\mu i}\\f_{\mu
+}&\text{=}&2^{dn/2}V^{-1/2}\sum _{i}\phi _{\mu i}s_{il}^{n}\end{matrix}
+\end{equation}
+where 
+
+\begin{equation}
+\begin{matrix}\hfill f_{\mu }&\text{=}&f(x^{\mathrm{{\mathit{user}}}}(2^{-n}(x_{\mu }+l)))\hfill\null \\\hfill \phi
+_{\mu i}&\text{=}&\phi _{i}(x_{\mu })\hfill\null \\\hfill {\bar{\phi }}_{\mu i}&\text{=}&\phi _{i}(x_{\mu })\omega
+_{\mu }\hfill\null \\\hfill \sum _{\mu }\phi _{\mu i}{\bar{\phi }}_{\mu i}&\text{=}&\delta _{ij}\hfill\null
+\end{matrix}
+\end{equation}
+The last line merely restates the orthonormality of the scaling function basis that in the discrete Gauss-Legendre
+quadrature is exact for the scaling function basis with the choice of the quadrature order 
+$n_{\mathrm{{\mathit{pt}}}}\ge k$.
+
+\subsection{Truncation criteria}
+\label{ref:sectruncmodes}Discarding small difference coefficients while maintaining precision is central to speed and
+drives the adaptive refinement. \ Different truncation criteria are useful in different contexts.
+
+\subsubsection[Mode 0 {}- the default]{\rmfamily Mode 0 - the default}
+This truncation is appropriate for most calculations and in particular those that have functions with deep levels of
+refinement (such as around nuclei in all-electron electronic structure calculations). \ Difference coefficients of leaf
+nodes are neglected according to 
+
+\begin{equation}\label{seq:refText23}
+\left\|d_{l}^{n}\right\|_{2}=\sqrt{\sum _{i}\left|d_{il}^{n}\right|^{2}}\le \epsilon 
+\end{equation}
+\subsubsection{Mode 1}
+This mode is appropriate when seeking to maintain an accurate representation of both the function and its derivative.
+\ Difference coefficients of leaf nodes are neglected according to 
+
+\begin{equation}\label{seq:refText24}
+\left\|d_{l}^{n}\right\|_{2}\le \epsilon \operatorname{min}(1,L2^{-n})
+\end{equation}
+where L is the minimum width of any dimension of the user coordinate volume.
+
+The form for the threshold is motivated by re-expressing the expansion (20) in terms of the mother scaling function and
+then differentiating (crudely, neglecting continuity with neighboring cells). 
+
+\begin{equation}
+\begin{matrix}\hfill f^{n}(x^{\mathrm{{\mathit{user}}}})&\text{=}&V^{-1/2}2^{n/2}\sum _{il}s_{il}^{n}\phi
+_{i}(2^{n}x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}})-l)\hfill\null \\\hfill
+\frac{d}{dx^{\mathrm{{\mathit{user}}}}}f^{n}(x^{\mathrm{{\mathit{user}}}})&\simeq
+&V^{-1/2}2^{3n/2}(\mathrm{{\mathit{hi}}}-\mathrm{{\mathit{lo}}})^{-1}\sum _{il}s_{il}^{n}\phi
+'_{i}(2^{n}x^{\mathrm{{sim}}}(x^{\mathrm{{\mathit{user}}}})-l)\hfill\null \end{matrix}
+\end{equation}
+Thus, we see that the scale dependent part of the derivative is an extra factor of  $2^{n}$ arising from differentiating
+the scaling function. \ We must include the factor hi-lo in order to make the threshold volume independent. \ Finally,
+we use the minimum to ensure that the threshold (25) is everywhere at least as tight as (24).
+
+\subsubsection{Mode 2}
+This is appropriate only for smooth functions with a nearly uniform level of refinement in the entire volume.
+\ Difference coefficients are neglected according to 
+
+\begin{equation}
+\left\|d_{l}^{n}\right\|_{2}\le \epsilon 2^{-nd/2}
+\end{equation}
+This is the truncation scheme described in ABGV. \ If this truncation mode discards all difference coefficients at level
+\textit{n} it preserves a strong bound on the error between the representations at levels \textit{n} and \textit{n --
+1}. 
+
+\begin{equation}
+\left\|f^{n}-f^{n-1}\right\|_{2}^{2}=\sum _{l=0}^{2^{n}-1}\left\|d_{l}^{n}\right\|_{2}^{2}\le \sum
+_{l=0}^{2^{n}-1}\epsilon ^{2}2^{-nd}=\epsilon ^{2}
+\end{equation}
+However, for non-smooth functions beyond two dimensions this conservative threshold can lead to excessive (even
+uncontrolled) refinement and is usually not recommended.
+
+\subsection{Adaptive refinement}
+After projection has been performed in boxes \textit{2l} and \textit{2l+1} at level \textit{n}, the scaling function
+coefficients may be filtered using \ to produce the wavelet coefficients in box \textit{l} at level \textit{n-1}. \ If
+the desired truncation criterion (section \ref{ref:sectruncmodes}) is not satisfied, the process is repeated in the
+child boxes \textit{4l}, \textit{4l+1}, \textit{4l+2}, \textit{4l+3} at level \textit{n+1}. \ Otherwise, the computed
+coefficients are inserted at level \textit{n}.
+
+\section[Unary operations]{\rmfamily Unary operations}
+\subsection[Function norm]{\rmfamily Function norm}
+Due to the chosen normalization of the scaling function coefficients in (20) both the scaling function and wavelet bases
+are orthonormal in user-space coordinates, thus 
+
+\begin{equation}
+\begin{matrix}\hfill \left\|f^{n}\right\|_{2}^{2}&\text{=}&\left\|s_{0}^{0}\right\|_{2}^{2}+\sum _{m=0}^{n-1}\sum
+_{l=0}^{2^{m}-1}\left\|d_{l}^{m}\right\|_{2}^{2}\hfill\null \\&\text{=}&\sum
+_{l=0}^{2^{n}-1}\left\|s_{l}^{n}\right\|_{2}^{2}\hfill\null \end{matrix}
+\end{equation}
+\subsection[Squaring]{\rmfamily Squaring}
+This is a special case of multiplication; please look below.
+
+\subsection[General unary operation]{\rmfamily General unary operation}
+In-place, point-wise application of a user-provided function (q) to a MRA function (f), i.e., q (f (x)). After optional
+auto-refinement, the function f (x) is transformed to the quadrature mesh and the function q (f (x)) computed at each
+point. \ \ The values are then transformed back to the scaling function basis. \ \ The criterion for auto-refinement is
+presently the same as used for squaring, but it would be straightforward to make this user-defined.
+
+Need to add discussion of error analysis that can ultimately be used to drive rigorous auto-refinement.
+
+\subsection{Differentiation}
+ABGV provides a detailed description of the weak formulation of the differentiation operator with inclusion of boundary
+conditions. There is also a Maple worksheet that works this out in gory detail. We presently only provide a central
+difference with either periodic or zero-value Dirichlet boundary conditions though we can very easily add more general
+forms. With a constant level of refinement differentiation takes this block-tri-diagonal form 
+
+\begin{equation}
+t_{il}=L\sum _{j}{r_{ij}^{(\text{+})}s_{jl-1}+r_{ij}^{(0)}s_{jl}+r_{ij}^{(\text{{}-})}s_{jl+1}}
+\end{equation}
+where \textit{L} is the size of the dimension being differentiated. The diagonal block of the operator is full rank
+whereas the off-diagonal blocks are rank one.
+
+The problems arise from adaptive refinement. We need all three blocks at the lowest common level. The algorithm starts
+from leaf nodes in the source tree trying to compute the corresponding node in the output. We probe for nodes to the
+left and right in the direction of differentiation (and enforcing the boundary conditions). There are three
+possibilities
+
+
+\begin{itemize}
+\item Present without coefficients -- i.e., the neighbor is more deeply refined. In this instance we loop through
+children of the target (central) node and invoke the differentiation operation on them, passing any coefficients that
+we have already found (which must include the central node and the other neighbor due to the nature of the adaptive
+refinement).
+\item Present with coefficients -- be happy.
+\item Not present -- i.e., the neighbor is less deeply refined. The search for the neighbor recurs up the tree to find
+the parent that does have coefficients.
+\end{itemize}
+Once all three sets of coefficients have been located we will be at the level corresponding to the most deeply refined
+block. For the other blocks we may have coefficients corresponding to parents in the tree. Thus, we need to project
+scaling coefficients directly from node  $n,l$ to a child node  $n',l'$ with  $n'\ge n$ and  $2^{n'-n}l\le
+l'<2^{n'-n}(l+1)$. Equation (44) tells us how to compute the function value at the quadrature points on the lowest
+level and we can project onto the lower level basis using (22). Together, these yield
+
+\begin{equation}
+s_{il'}^{n'}=2^{d(n-n')/2}\sum _{\mu }{{\bar{\phi }}_{\mu i}\sum _{j}{\phi _{\mu j}^{n-n',l,l'}s_{\mathit{jl}}^{n}}}
+\end{equation}
+which is most efficiently executed with the summations performed in the order written.
+
+Recurring down is also a little tricky. We always have at least the coefficients for the central box with translation
+\textit{l}. This yields children \textit{2l} and \textit{2l+1} which are automatically left/right neighbors of each
+other.
+
+\subsection{Band-limited, free-particle propagator}
+The unfiltered real-space kernel of the free-particle propagator for the Schr\"odinger equation is 
+
+\begin{equation}
+G_{0}(x,t)=\frac{1}{\sqrt{2\pi it}}e^{-{\frac{x^{2}}{2it}}}
+\end{equation}
+For large  $x$ this becomes highly oscillatory and impractical to apply exactly. However, when applied to a function
+that is known to be band limited we can neglect components in  $G_{0}$ outside the band limit which causes it to decay.
+Furthermore, combining application of the propagator with application of a filter enables us to knowingly control
+high-frequency numerical noise introduced by truncation of the basis (essential for fast computation) and the
+high-frequencies inherent in the multiwavelet basis (due both to their polynomial form and discontinuous support).
+
+Explicitly, consider the representation of the propagator in Fourier space 
+
+\begin{equation}
+{\hat{G}}_{0}(k,t)=e^{-i\frac{k^{2}t}{2}}
+\end{equation}
+We multiply this by a filter  $F(k/c)$ that smoothly switches near  $k=c$ from unity to zero. The best form of this
+filter is still under investigation, but we presently use a 30\textsuperscript{th}{}-order Butterworth filter. 
+
+\begin{equation}
+F(k)=\left(1+k^{30}\right)^{-1}
+\end{equation}
+For  $k\ll 1$ this deviates from unity by about  $-k^{30}$. This implies that if frequencies up to a band limit 
+$c_{\mathit{target}}$ are desired to be accurate to a precision  $\epsilon $ after  $N$ applications of the operator,
+then we should choose the actual band limit in the filter such that \  $N(c_{\mathit{target}}/c)^{30}\le \epsilon $ or 
+$c\ge c_{\mathit{target}}(N/\epsilon )^{1/30}$. For a precision of 10\textsuperscript{{}-3} in the highest frequency
+(lower frequencies will much more accurate) after 10\textsuperscript{5} steps we would choose  $c\ge
+1.85c_{\mathit{target}}$. Similarly, for  $k\gg 1$ the filter  $F(k)$ differs from zero by circa  $k^{-30}$ and
+therefore we must include in the internal numerical approximation of the operator frequencies about 2x greater than 
+$c$ (more precisely, 2.15x for a precision 1e-10 and 2.5x for a precision of 1e-12).
+
+Specifically, we compute the filtered real-space propagator by numerical quadrature of the Fourier expansion of the
+filtered kernel. The quadrature is performed over  $[-c_{\mathit{top}},c_{\mathit{top}}]$ where 
+$c_{\mathit{top}}=2.15\ast c$. The wave length associated with a frequency  $k$ is  $\lambda =2\pi /k$ and therefore
+limiting to frequencies less than  $c$ implies a smallest grid of  $h=\pi /c$. This is oversampled by circa 10x to
+permit subsequent valuation using cubic interpolation. Finally, the real space kernel is computed by inverse discrete
+Fourier transform and then cubic interpolation.
+
+Fast and accurate application of this operator is still being investigated. We can apply it either in real space
+directly to the scaling function coefficients or in wavelet space using non-standard form. Presently, the real-space
+form is both faster and more accurate.
+
+\subsection{Integral convolutions}
+This is described in gory detail in ABGV and the first multi-resolution qchem paper but eventually all of that should be
+reproduced here. For now, we simply take care of the mapping from the user to simulation coordinates and other stuff
+differing from the initial approach.
+
+We start from a separated representation of the kernel  $K(x)$ in user coordinates that is valid over the volume for 
+$x_{\mathit{lo}}^{\mathit{user}}\le |x^{\mathit{user}}|\le L\sqrt{(d)}$ to a \ relative precision  $\epsilon
+^{\mathit{user}}$ (except where the value is exponentially small) 
+
+\begin{equation}
+K(x^{\mathit{user}})=\sum _{\mu =1}^{M}{\prod _{i=1}^{d}{T_{i}^{(\mu )}(x_{i}^{\mathit{user}})}}+O(\epsilon
+^{\mathit{user}})
+\end{equation}
+Since the error in the approximate is relative it is the same in both user and simulation coordinates.
+
+The most common case is that the kernel is isotropic ( $K(x)=K(|x|)$) and therefore the separated terms do not depend
+upon direction, i.e.,  $T_{i}^{(\mu )}=T^{(\mu )}$ (if it is desired to keep the terms real it may be necessary to
+treat a negative sign separately). In a cubic box the transformation to simulation coordinates is the same in each
+dimension and therefore we only need to compute and store each operator once for each dimension. However, in non-cubic
+boxes the transformation to simulation coordinates is different in each direction making it necessary to compute and
+store each operator in each direction. Doing this will permit us to treat non-isotropic operators in the same
+framework, the extreme example of which is a convolution that acts only in one dimension. Presently, this is not
+supported but it is a straightforward modification.
+
+Focusing now on just one term and direction, the central quantity is the transition matrix element that is needed in
+user coordinates but must be computed in simulation coordinates 
+
+\begin{equation}
+\begin{matrix}\left[r_{ll'}^{n}\right]_{ii'}&=&L^{-1}\int {\int
+{T^{\mathit{user}}(x^{\mathit{user}}-y^{\mathit{user}})\phi _{il}^{n}(x^{sim}(x^{\mathit{user}}))\phi
+_{i'l'}^{n}(y^{sim}(y^{\mathit{user}}))\mathit{dx}^{\mathit{user}}}\mathit{dy}^{\mathit{user}}}\\&=&L\int {\int
+{T^{\mathit{user}}(L(x^{sim}-y^{sim}))\phi _{il}^{n}(x^{sim})\phi
+_{i'l'}^{n}(y^{sim})\mathit{dx}^{\mathit{sim}}}\mathit{dy}^{\mathit{sim}}}\hfill\null \end{matrix}
+\end{equation}
+where  $L$ is the width of the dimension. This enables the identification 
+
+\begin{equation}
+T^{sim}(x^{sim})=LT^{\mathit{user}}(Lx^{sim})
+\end{equation}
+Internally, the code computes transition matrix elements for  $T^{sim}$ in simulation coordinates. If the operator is
+represented as a sum of Gaussian functions  $c^{\mathit{user}}\exp (-\alpha ^{\mathit{user}}(x^{\mathit{user}})^{2})$
+then the corresponding form in simulation coordinates will be  $c^{sim}=Lc^{\mathit{user}}$ and  $\alpha
+^{\mathit{sim}}=L^{2}\alpha ^{\mathit{user}}$.
+
+\subsection{Application of the non-standard form}
+Two things complicate the application of the NS-form operator. The first is specific to the separated representation --
+we only have this for the actual operator ( $T$) not for the NS-form which is  $T^{n+1}-T^{n}$. Thus at each level we
+actually apply to the sum and difference coefficients  $T^{n+1}$ and subtract off the result of applying  $T^{n}$ to
+just the sum coefficients. Note that screening must be performed using the norm of  $T^{n}-T^{n-1}$ since it is sparse.
+Beyond 1D this approach is a negligible computational overhead and the only real concern is possible loss of precision
+since we are subtracting two large numbers to obtain a small difference. My current opinion is that there is no
+effective loss of precision since reconstructing the result will produce values of similar magnitude. This is I think a
+correct argument for the leaf nodes, but the interior nodes might have larger values and hence we could lose relevant
+digits.
+
+The second issue is what to do about scaling function coefficients at the leaf nodes. Regarding the operator as a matrix
+being applied to a vector of scaling function coefficients, then the operator is exactly applied by operation upon the
+sum and difference coefficients at the next level, therefore there is no need to apply the operator to the leaf nodes
+(this was my initial thinking). However, as pointed out by Beylkin, the operator itself can introduce finer-scale
+detail which means that we must consider application at the lowest level where the difference coefficients are zero
+since the operator can introduce difference coefficients at that level.
+
+\subsection{Screening}
+To screen effectively we need to estimate the norm of the blocks of the non-standard operator and also each term in its
+separated expansion. We could estimate the largest eigenvalue by using a power method and this is implemented in the
+code for verification, however, it is too expensive to use routinely, especially for each term in a large separated
+representation (we would spend more time computing the operator than applying it). Thus, we need a more efficient
+scheme.
+
+Each term in the separated expansion is applied as 
+
+\begin{equation}\label{seq:refText37}
+R_{x}R_{y}\cdots -T_{x}T_{y}\cdots 
+\end{equation}
+where \textit{R} is the full non-standard form of the operator in a given direction which takes on the form 
+
+\begin{equation}
+R=\left(\begin{matrix}T&B\\C&A\end{matrix}\right)
+\end{equation}
+and \textit{T} is the block of\textit{ R }that connects sum-coefficients with sum-coefficients. We could compute the
+Frobenius norm of the operator in (38) simply as  $\sqrt{\|R_{x}\|_{F}^{2}\|R_{y}\|_{F}^{2}\cdots
+-\|T_{x}\|_{F}^{2}\|T_{y}\|_{F}^{2}\cdots }$ but unfortunately this loses too much precision. Instead, an excellent
+estimate is provided by 
+
+\begin{equation}
+\sqrt{\left(\prod _{i=1}^{d}{\|R_{i}\|_{F}^{2}}\right)\left(\sum
+_{i=1}^{d}{\frac{\|R_{i}-T_{i}\|_{F}^{2}}{\|R_{i}\|_{F}^{2}}}\right)}
+\end{equation}
+which seems in practice to be an effective upper bound that is made tight (within a factor less than two at least for
+the Coulomb kernel) by replacing the sum with the maximum term in the sum.
+
+\subsection[Automatic refinement (aka widening the support)]{Automatic refinement (aka widening the support)}
+Same as for multiplication ... need explain why this is good.
+
+\section[Binary operations]{\rmfamily Binary operations}
+\subsection[Inner product of two functions]{\rmfamily Inner product of two functions}
+This is conceptually similar to the norm, but since the two functions may have different levels of refinement we can
+only compute the inner product in the wavelet basis. \ 
+
+\begin{equation}
+\int f(x)^{\text{*}}g(x)dx=\left.s_{f0}^{0}\right.^{dagger}.s_{g0}^{0}+\sum _{m=0}^{n-1}\sum
+_{l=0}^{2^{m}-1}\left.d_{fl}^{m}\right.^{dagger}.d_{gl}^{m}
+\end{equation}
+\subsection[Function addition and subtraction]{\rmfamily Function addition and subtraction}
+The most general form is the bilinear operation GAXPY (generalized form of SAXPY)  $h(x)=\alpha f(x)+\beta g(x)$ that is
+implemented in both in-place (\textit{h} the same as \textit{f}) and out-of-place versions. The operation is
+implemented in the wavelet basis in which the operation can be applied directly to the coefficients regardless of
+different levels of adaptive refinement (missing coefficients are treated as zero).
+
+\textit{Need a discussion on screening} -- basically if the functions have the same processor map and this operation is
+followed by a truncation before doing anything expensive, explicit screening does not seem too critical. \ \ The need
+for truncation could be reduced by testing on the size of one of the products (e.g., in a Gramm-Schmidt we know that
+one of the terms is usually small).
+
+\subsection{Point-wise multiplication}
+This is performed starting from the scaling function basis. \ \ Superficially, we transform each function to values at
+the quadrature points, multiply the values, and transform back. \ \ However, there are three complicating issues. \ 
+
+First, the product cannot be exactly represented in the polynomial basis. \ The product of two polynomials of order
+\textit{k-1} produces a polynomial of order \textit{2k-2}. \ \ Beylkin makes a nice analogy to the product of two
+functions sampled on a grid -- the product can be exactly formed on a grid with double the resolution. \ \ While this
+is not exact for polynomials it does reduce the error by a factor of  $2^{-k}$, where \textit{k} is the order of the
+wavelet. \ \ Therefore, we provide the option to automatically refine and form the product at a lower level. \ \ This
+is done by estimating the norm of the part of the product that cannot be exactly represented as follows 
+
+\begin{equation}
+\begin{matrix}p_{l}^{n}&\text{=}&\sqrt{\sum _{i=0}^{\left\lfloor
+(k-1)/2\right\rfloor}\left\|s_{il}^{n}\right\|^{2}}\hfill\null \\q_{l}^{n}&\text{=}&\sqrt{\sum _{i=\left\lfloor
+(k-1)/2\right\rfloor+1}^{k-1}\left\|s_{il}^{n}\right\|^{2}}\hfill\null \\\epsilon (\mathit{fg})_{l}^{n}&\simeq
+&p(f)_{l}^{n}q(g)_{l}^{n}+q(f)_{l}^{n}p(g)_{l}^{n}+q(f)_{l}^{n}q(g)_{l}^{n}\end{matrix}
+\end{equation}
+
+\bigskip
+
+Second, the functions may have different levels of adaptive refinement. The two options are to compute the function with
+coefficients at a coarser-scale directly on the grid required for the finer-scale function, or to refine the function
+down to same level, which is what we previously choose to do. \ However, this will leave the tree with scaling function
+coefficients at multiple levels that must be cleaned up after the operation. \ \ Since it essential (for efficient
+parallel computation) to perform multiple operations at a time on a function, having it in an inconsistent state makes
+things complicated. \ \ If all we wanted to do were perform other multiplication operations, there would be no problem;
+however this seems to be an unnecessary restriction on the user. \ \ It is also faster (2-fold?) to perform the direct
+evaluation so this is what we choose to do. \ 
+
+Third, the above does not use sparsity or smoothness in the functions and does not compute the result to a finite
+precision. \ \ For instance, if two functions do not overlap their product is zero but the above algorithm will compute
+at the finest level of the two functions doing a lot of work to evaluate small numbers that will be discarded upon
+truncation. \ \ Eliminating this overhead is crucial for reduced scaling in electronic structure calculations. \ \ At
+some scale we can write each function (\textit{f} and \textit{g}) in a volume in terms of its usual scaling function
+approximation at that level (\textit{s}) and the correction/differences (\textit{d}) from \textit{all }finer scales.
+\ \ The error in the product of two such functions is then 
+
+\begin{equation}\label{seq:refText42}
+\epsilon (\mathit{fg})\simeq
+\left\|s_{f}\right\|.\left\|d_{g}\right\|+\left\|d_{f}\right\|.\left\|\mathrm{{s}}_{f}\right\|+\left\|d_{f}\right\|.\left\|d_{g}\right\|
+\end{equation}
+with a hopefully obvious abuse of notation. Note again that while the scaling function coefficients are as used
+everywhere else in this document, the difference function (\textit{d}) in (43) is the sum of corrections at \textit{all
+}finer scales. \ \ Thus, by computing the scaling function coefficients at all levels of the tree and summing the norm
+of the differences up the tree we can compute with controlled precision at coarser levels of the tree. \ \ The sum of
+the norm of differences can also be computed by summing the norm of the scaling function coefficients from the finest
+level and subtracting the local value.
+
+If many products are being formed, the overheads (compute and memory) of forming the non-standard form are acceptable,
+but it is desirable to have a less expensive approach when computing just a few products. \ \ The above exploits both
+locality and smoothness in each function. The main reduction in cost in the electronic structure algorithms will come
+from locality (finite domain for each orbital with exponential decay outside) and with that in mind we can bound the
+entire product in some volume using  $\left\|\mathit{fg}\right\|\le \left\|f\right\|.\left\|g\right\|$. \ \ We can
+compute the norm of each function in each volume by summing the norm of the scaling function coefficients up the tree,
+which is inexpensive but does require some communication and an implied global synchronization. \ \ If in some box the
+product is predicted to be negligible we can immediately set it to zero, otherwise we must recur down. Since we are not
+exploiting smoothness, if a product must be formed it will be formed on the finest level.
+
+Thus, we will eventually have three algorithms for point-wise multiplication. Which ones to do first? \ \ We answer this
+question by asking, ``what products will the DFT and HF codes be performing?''
+
+\begin{itemize}
+\item Square each orbital to make the density.
+\item Multiply the potential against each orbital.
+\item HF exchange needs each orbital times every other orbital.
+\end{itemize}
+The first critical one is potential times orbital. \ \ The potential has global extent but the orbitals are localized
+and we want the cost of each product to be \textit{O(1)} not \textit{O(V)} (\textit{V}, the volume). \ \ Similarly, we
+must reduce the cost of the  $O(N^{2})$ products in HF exchange to \textit{O(N)}. \ \ Therefore, we first did the exact
+algorithm and will very shortly do one that exploits locality.
+
+\subsubsection[Evaluating the function at the quadrature points]{\rmfamily Evaluating the function at the quadrature
+points}
+In (22) is described how to transform between function values and scaling coefficients on the same level. \ \ However,
+for multiplication we will need to evaluate the polynomials at a higher level in a box at a finer level. \ This is not
+mathematically challenging but there are enough indices involved that care is necessary. \ \ Let  $(n,l)$ \ be the
+parent box and  $(n',l')$ be one of its children, and let  $x_{\mu }$ be a Gauss-Legendre quadrature point in [0,1].
+\ \ We want to evaluate 
+
+\begin{equation}\label{seq:refText43}
+\begin{matrix}f_{\mu }&\text{=}&V^{-1/2}\sum _{i}{s_{\mathit{il}}^{n}\phi _{\mathit{il}}^{n}\left(2^{-n'}\left(x_{\mu
+}+l'\right)\right)}\hfill\null \\&\text{=}&V^{-1/2}2^{\mathit{dn}/2}\sum _{i}{s_{\mathit{il}}^{n}\phi
+_{i}\left(2^{n-n'}\left(x_{\mu }+l'\right)-l\right)}\hfill\null \\&\text{=}&V^{-1/2}2^{\mathit{dn}/2}\sum
+_{i}{s_{\mathit{il}}^{n}\phi _{\mu i}^{n-n',l,l'}}\hfill\null \end{matrix}
+\end{equation}
+that has the same form as before but now we must use a different transformation for each dimension due to the dependence
+on the child box coordinates.
+
+\section{Error estimation}
+To estimate the error in the numerical representation relative to some known analytic form, i.e., 
+
+\begin{equation}
+\epsilon =\left\|f-f^{n}\right\|
+\end{equation}
+we first ensure we are in the scaling function basis and then in each box with coefficients compute the contribution to 
+$\epsilon $ using a quadrature rule with one more point than that used in the initial function projection. \ \ The
+reason for this is that if  $f^{n}$ \ resulted from the initial projection then it is exactly represented at the
+quadrature points and will appear, incorrectly, to have zero error if sampled there. \ \ One more point permits the
+next two powers in the local polynomial expansion to be sampled and also ensures that all of the new sampling points
+interleave the original points near the center of the box. \ 
+
+\section[Data structures]{Data structures}
+The d-dimension function is represented as a 2\textsuperscript{d}{}-tree. \ \ Nodes in the tree are labeled by an
+instance of \texttt{Key{\textless}d{\textgreater}} that wraps the tuple \textit{(n,l)} where \textit{n} is the level
+and \textit{l} is a \textit{d}{}-vector representing the translation. \ \ Nodes are represented by instances of
+\texttt{FunctionNode{\textless}T,d{\textgreater}} that presently contains the coefficients and an indicator if this
+node has children. \ \ Nodes without children are sometimes referred to as leaves. \ \ Nodes, indexed by keys, are
+stored in a distributed hash table that is an instance of
+\texttt{WorldContainer{\textless}Key{\textless}d{\textgreater},FunctionNode{\textless}T,d{\textgreater}{\textgreater}}.
+\ \ This container uses a two-level hash to first map a key to the processes (referred to as the owner) in which the
+data resides, and then into a local instance of either a GNU \texttt{hash \_map} or a TR1 \texttt{unordered\_map}.
+\ \ Since it is always possible to compute the key of a parent, child, or neighbor we never actually store (global)
+pointers to parents or children. \ \ Indeed, a major point of the MADNESS runtime environment is to replace the
+cumbersome partitioned global address space (global pointer = process id + local pointer) with multiple global name
+spaces. \ \ Each new container provides a new name space. \ \ Using names rather than pointers permits the application
+to be written using domain-specific concepts rather a rigid linear model of memory. Folks familiar with Python will
+immediately appreciate the value of name spaces.
+
+Data common to all instances of a function of a given dimension (\textit{d}) and data type (\texttt{T,} e.g., float,
+double, float \_complex, double \_complex) are gathered together into
+\texttt{FunctionCommonData{\textless}T,d{\textgreater}} of which one instance is generated per wavelet order
+(\textit{k}). \ \ An instance of the common data is shared read-only between all instances of functions of that data
+type, dimension and wavelet order. \ \ Presently there are some mutable scratch arrays in the common data but these
+will be eliminated when we introduce multi-threading. \ \ In addition to reducing the memory footprint of the code,
+sharing the common data greatly speeds the instantiation of new functions which is replicated on every processor.
+
+In order to facilitate shallow copy/assignment semantics and to make empty functions inexpensive to instantiate, a
+multi-resolution function, which is an instance of \texttt{Function{\textless}T,d{\textgreater}} contains only a shared
+pointer to the actual implementation which is an instance of \texttt{FunctionImpl{\textless}T,d{\textgreater}}.
+\ \ Un-initialized functions (obtained from the default constructor) contain a zero pointer. \ Only a non-default
+constructor or assignment actually instantiate the implementation. The main function class forwards nearly all methods
+to the underlying implementation. \ \ The implementation primarily contains a reference to the common data, the
+distributed container storing the tree, little bits of other state (e.g., a flag indicating the compression status) and
+a bunch of methods.
+
+Default values for all functions of a given dimension are stored in an instance of
+FunctionDefaults{\textless}d{\textgreater}. \ \ These may be modified to change the default values for subsequently
+created functions. \ \ Functions have many options and parameters and thus we need an easy way to specify options and
+selectively override defaults. \ \ Since C++ does not provide named arguments (i.e., arguments with defaults that may
+be specified in any order rather than relying on position to identify an argument) we adopt the named-parameter idiom.
+The main constructor for \texttt{Function{\textless}T,d{\textgreater}} takes an instance of
+\texttt{FunctionFactory{\textless}T,d{\textgreater} }as its sole argument. \ \ The methods of
+\texttt{FunctionFactory{\textless}T,d{\textgreater}} enable setting of options and parameters and each returns a
+reference to the object to permit chaining of methods. \ \ A current problem with \texttt{FunctionDefaults} is that it
+is static data shared between all parallel worlds (MPI sub-communicators). At some point we may need to tie this to the
+world instance.
+
+Pretty much all memory is reference counted using Boost-like shared pointers. An instance of
+\texttt{SharedPointer{\textless}T{\textgreater}}, which wraps a pointer of type \texttt{T*}, is (almost) always used to
+wrap memory obtained from the C++ new operator. \ \ The exceptions are where management of the memory is immediately
+given to a low-level interface. \ \ Shared-pointers may be safely copied and used with no fear of using a stale
+pointer. \ \ When the last copy of a shared pointer is destroyed the underlying pointer is freed. \ \ With this mode of
+memory management there is never any need to use the C++ delete operator and most classes do not even need a
+destructor.
+
+Tensors ...
+
+STOPPED MOST CLEANUP AND WRITING HERE ... more to follow ... sigh
+
+\subsection{Maintaining consistent state of the 2d-tree}
+The function implementation provides a method \texttt{verify\_tree()} that attempts to check connectivity and
+consistency of the compression state, presence of coefficients, child flags, etc, as described below.
+
+A node in the tree is labeled by the key/tuple \textit{(n,l)} and presently stores the coefficients, if any, and a flag
+indicating if the node has children. \ \ In 1D, the keys of children are readily computed as \textit{(n+1,2l)} and
+\textit{(n+1,2l+1). }In many dimensions it is most convenient to use the \texttt{KeyChildIterator} class. \ \ The
+presence of coefficients is presently determined by looking at the size of the tensor storing the coefficients; size
+zero means no coefficients.
+
+In the reconstructed form (scaling function basis), a tree has coefficients (a \textit{k}\textit{\textsuperscript{d}}
+tensor) only at the lowest level. \ \ All interior nodes will have no coefficients and will have children. \ \ All leaf
+nodes will have coefficients and will not have children.
+
+In the compressed form (wavelet basis), a tree has coefficients (a (\textit{2k)}\textit{\textsuperscript{d}} tensor) at
+all levels. \ \ The scaling function block of the coefficients is zero except at level zero. \ \ Logically, this tree
+is one level shallower than the reconstructed tree since the scaling function coefficients at the leaves are
+represented by the difference coefficients on the next coarsest level. \ However, to simplify the logic in compress and
+reconstruct and to maintain consistency with the non-standard compressed form (see below), we do not delete the leaf
+nodes from the reconstructed tree. \ \ Thus, the compressed tree has the same set of nodes as the reconstructed tree
+with all interior nodes having coefficients and children, and all leaf nodes having no coefficients and no children. \ 
+
+In the non-standard compressed form (redundant basis), we keep the scaling function coefficients at all levels and the
+wavelet coefficients for all interior nodes. \ \ Thus, the compressed tree has the same set of nodes as for the other
+two forms but with all nodes having coefficients (a (\textit{2k)}\textit{\textsuperscript{d}} tensor for interior nodes
+and a \textit{k}\textit{\textsuperscript{d}} tensor for leaf nodes) and with only leaf nodes having no children.
+
+To keep complexity to a minimum we don't want to introduce special states of the tree or of nodes, thus all operations
+must by their completion restore the tree to a standard state.
+
+Truncation is applied to a tree in compressed form and discards small coefficients that are logically leaf nodes.
+\ \ Logically, because in the stored tree we still have the empty nodes that used to hold the scaling coefficients.
+\ For a node to be eligible for truncation it must have only empty children. \ Thus, truncation proceeds as follows.
+\ \ We initially recur down the tree and for each node spawn a task that takes as arguments futures indicating if each
+of its children have coefficients. Leaf nodes, by definition, have no children and no coefficients and immediately
+return their status. Once a task has all information about the children it can execute. \ \ If any children have
+coefficients a node cannot truncate and can immediately return its status. \ \ Otherwise, it must test the size of its
+own coefficients. \ \ If it decides to truncate, it must clear its own coefficients, delete all of its children, and
+set its \texttt{has \_children} flag to false. \ \ Finally, it can return its own status.
+
+Adding (subtracting) two functions is performed in the wavelet basis. \ \ If the trees have the same support (level of
+refinement) we only have to add the coefficients. \ \ If the trees differ, then in addition to adding the coefficients
+we must also maintain the has \_children flag of the new tree to produce the union of the two input trees. \ \ To
+permit functions with different processor maps to be added efficiently, we loop over local data in one function and
+send them to nodes of the other for addition. \ \ Sending a message to a non-existent node causes it to be created.
+
+\section[Returning new functions {}-- selection of default parameters]{Returning new functions -- selection of default
+parameters}
+When returning a new function there is the question of what parameters (thresholds, distribution, etc.) should be used.
+\ \ There needs to a convention that is consistent with users' intuition as well as mechanisms for forcing different
+outcomes. \ We choose to not use \texttt{FunctionDefaults}. \ \ I.e., \texttt{FunctionDefaults} is only used when the
+user invokes the \texttt{Function} constructor to fill unspecified elements of \texttt{FunctionFactory}.
+
+\subsection{Unary operations (e.g., scaling, squaring, copying, type conversion)}
+The result copies all appropriate state from the input.
+
+\subsection{Binary operations (e.g., addition, multiplication)}
+Writing the binary operation \ \ as a C++ method invocation f.op(g) there is a natural asymmetry that for consistency
+with a unary operation leads to our choice to copy all appropriate state from the leftmost function, i.e., that which
+method is being invoked.
+
+\subsection{Ternary and higher operations}
+There are no C++ operators of this form and therefore these will always be of the form \texttt{f.op(g,h)}and we make the
+same choice as made for binary operations.
+
+\subsection{C++ operator overloading and order of evaluation}
+The main issue with the above convention is clarifying how C++ maps statements with overloaded
+operators\footnote{\ \textrm{http://www.difranco.net/cop2334/Outlines/ch18.htm}} into method/function invocations which
+includes understanding the order of
+evaluation\footnote{\ \textrm{http://msdn2.microsoft.com/en-us/library/yck2zaey(vs.80).aspx}}. \ \ Overloading does not
+change the precedence or associativity of an operator\footnote{\ \textrm{http://www.difranco.net/cop2334/cpp \_op
+\_prec.htm}}. \ \ \ 
+
+Noting * is of higher precedence than + and both are left-to-right associative,
+
+\begin{itemize}
+\item \texttt{f*g+h} becomes \texttt{(f*g)+h} becomes \texttt{(f.mul(g)).add(h)} and thus the result has the same
+parameters as \texttt{f}.
+\item \texttt{h+f*g} becomes \texttt{h+(f*g)} becomes \texttt{h.add(f.mul(g))} and thus the result has the same
+parameters as \texttt{h}.
+\item \texttt{f*g*h} has undefined order of evaluation since the two operators have equal precedence, but the compiler
+is not free to assume that multiplication is commutative and hence the result is either \texttt{f.mul(g.mul(h))} or
+\texttt{f.mul(g).mul(h)} which will both inherit the parameters of \texttt{f}.
+\end{itemize}
+In summary, the result always has the parameters of the leftmost function in any expression. For greatest clarity,
+introduce parentheses or invoke the actual methods/functions rather than relying upon operator overloading.
+
+\subsection{Overriding above behaviors}
+Operations that produce results dependent upon thresholds, etc., must provide additional interfaces that permit
+specification of all controlling parameters which will be used in the operation and preserved in the result. \ \ For
+all other operations, it suffices to make thresholds, etc., settable after the completion of an operation.
+
+\section{External storage}
+I/O remains a huge problem on massively parallel computers and should almost never be used except for
+checkpoint/restart. Several constraints must be borne in mind. First, we must avoid creating many files since parallel
+file systems are easily over-whelmed if a few thousand processes simultaneously try to create a few tens of files each.
+Second, I/O should be performed in large transactions with a tunable number of readers/writers in order to obtain the
+best bandwidth. Third, we need random access to data so purely serial solutions are not acceptable. Finally, the
+external data representation should ideally be open and readily accessed by other codes.
+
+For the purposes of I/O, we distinguish two types of objects. First, objects that will be written by a single process
+with no involvement from other processes. Typically this would be just by the master process and the objects would be
+small enough to fit into the memory of a single processor. Second, large objects that will be transferred to/from disk
+in a collective manner with all processes in the world logically participating. Random read and write access must be
+feasible for both types of objects.
+
+\section[Viewing and editing this document]{Viewing and editing this document}
+Under Linux ensure you have the Microsoft true-type fonts installed -- they are free. Under Ubuntu install package
+\texttt{msttcorefonts}. Without these the default Linux fonts will cause pagination and other problems, at least with
+the title pages.
+
+Other than resorting to Latex it does not seem possible to put documents under version control and have the changes
+merged automatically. Subversion recognizes OpenOffice files as being of mime-type octet-stream and thus treats them as
+binary, meaning that it does not attempt to merge changing. You must use the OpenOffice compare-and-merge facility to
+manually merge changes yourself.
+
+
+\bigskip
+\end{document}

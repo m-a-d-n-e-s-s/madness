@@ -253,22 +253,32 @@ namespace madness {
 
             /// \param key The key of the \c RemoteReference object to be unregistered.
             /// \throw MadnessException If \c key is not found in the pointer map.
-            static void unregister_ptr_(void* key);
+            static void unregister_ptr_(void* key) {
+                std::size_t ereased = pimpl_map_.erase(key);
+                MADNESS_ASSERT(ereased > 0);
+            }
 
-            RemoteCounter(const WorldPtr<implT>& p);
+            RemoteCounter(const WorldPtr<implT>& p) :
+                pimpl_(p)
+            { }
 
         public:
 
-            RemoteCounter();
+            RemoteCounter() : pimpl_() { }
 
-            RemoteCounter(const RemoteCounter& other);
+            RemoteCounter(const RemoteCounter& other) :
+                pimpl_(other.pimpl_)
+            {
+                if(pimpl_ && pimpl_.is_local())
+                    pimpl_->add_ref();
+            }
 
             template <typename T>
             explicit RemoteCounter(World& w, const std::shared_ptr<T>& p) :
                 pimpl_(register_ptr_(w, p))
             { }
 
-            ~RemoteCounter();
+            ~RemoteCounter() { destroy(); }
 
             RemoteCounter& operator=(const RemoteCounter& other);
 
@@ -276,17 +286,20 @@ namespace madness {
 
             /// \return The number of local and remote references
             /// \throw none
-            long use_count() const;
-            bool unique() const;
-            bool empty() const;
+            long use_count() const { return (pimpl_.is_local() ? pimpl_->use_count() : 0); }
+            bool unique() const { return use_count() == 1; }
+            bool empty() const { return ! pimpl_; }
 
-            bool is_local() const;
-            bool has_owner() const;
-            ProcessID owner() const;
+            bool is_local() const { return pimpl_.is_local(); }
+            bool has_owner() const { return pimpl_.has_owner(); }
+            ProcessID owner() const { return pimpl_.owner(); }
 
-            World& get_world() const;
-            WorldPtr<implT>::worldidT get_worldid() const;
-            void swap(RemoteCounter& other);
+            WorldPtr<implT>::worldidT
+            get_worldid() const { return pimpl_.get_worldid(); }
+            World& get_world() const { return pimpl_.get_world(); }
+            void swap(RemoteCounter& other) {
+                madness::detail::swap(pimpl_, other.pimpl_);
+            }
 
         private:
 
@@ -325,7 +338,7 @@ namespace madness {
 
         }; // class RemoteCounter
 
-        void swap(RemoteCounter& l, RemoteCounter& r);
+        inline void swap(RemoteCounter& l, RemoteCounter& r) { l.swap(r); }
 
         std::ostream& operator<<(std::ostream& out, const RemoteCounter& counter);
 
@@ -440,7 +453,7 @@ namespace madness {
         /// \return true when the reference is initialized to a non zero value
         /// or uninitialized, otherwise false
         operator bool() const {
-            return pointer_;
+            return ! counter_.empty();
         }
 
         /// Reference pointer accessor

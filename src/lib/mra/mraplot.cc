@@ -62,10 +62,6 @@ std::string help = "\n\
       If only one plot is being generated, the plot keyword may \n\
       be omitted (plot is triggered by hitting EOF). \n\
  \n\
-      !! If the parallel archive holding the function was generated \n\
-      !! with multiple writers you presently must run mraplot in parallel \n\
-      !! with at least as many MPI processes. \n\
- \n\
       REQUIRED KEYWORDS \n\
       .   input <string filename> // Input file name ... no default for this! \n\
  \n\
@@ -107,6 +103,15 @@ std::string help = "\n\
       .   output psi22.dat \n\
       .   line \n\
       .   plot \n\
+ \n\
+      DEBUG TIPS\n\
+      !! If the parallel archive holding the function was generated \n\
+      !! with multiple writers you presently must run mraplot in parallel \n\
+      !! with at least as many MPI processes. \n\
+      \n\
+      input data-00000.00000 may produce the following error\n\
+      MadnessException : msg=BinaryFstreamInputArchive: ... function=open \n\
+      input data-00000 fixes the problem\n\
       ";
 
 class Plotter {
@@ -398,7 +403,9 @@ public:
         if      (ndim == 1) doplot1<T,1>();
         else if (ndim == 2) doplot1<T,2>();
         else if (ndim == 3) doplot1<T,3>();
+#ifdef FUNCTION_INSTANTIATE_4
         else if (ndim == 4) doplot1<T,4>();
+#endif
 //         else if (ndim == 5) doplot1<T,5>();
 //         else if (ndim == 6) doplot1<T,6>();
         else                MADNESS_EXCEPTION("invalid ndim", ndim);

@@ -195,10 +195,8 @@ private:
 
 class Yl0 : public madness::FunctionFunctorInterface<double,NDIM> {
 public:
-    Yl0(const double L, const int l);
+    Yl0(const int l);
     double operator()(const vector3D& r) const;
     int l_;
-private:
-    double norm;
 };
 #endif

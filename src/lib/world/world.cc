@@ -100,8 +100,6 @@ typedef std::complex<double> double_complex;
 class TestTask : public TaskInterface {
 public:
 
-    using PoolTaskInterface::run;
-
     void run(World& world) {
         print("Hi, I am running!");
     }
@@ -242,8 +240,6 @@ class TestBarrier : public TaskInterface {
     volatile int count;
 public:
 
-    using PoolTaskInterface::run;
-
     TestBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
         , count(0)
@@ -274,8 +270,6 @@ public:
 class TimeBarrier : public TaskInterface {
     volatile int count;
 public:
-
-    using PoolTaskInterface::run;
 
     TimeBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
@@ -1085,52 +1079,52 @@ void work_even(World& world) {
     world.gop.fence();
 }
 
-void test_multi_world(World& world) {
-    if (world.size() < 2) return;
-
-    // Make two more worlds: odd processes, even processes
-
-    // a) make list of ranks of processes in the subgroups
-    //
-    // Only process belonging to the subgroups participate
-    // in the next steps
-    //
-    // b) make MPI group and hence new MPI sub-communcator
-    //
-    // c) make new worlds and do work
-
-    std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
-
-    std::vector<int> odd, even;
-    for (int i=0; i<world.size(); ++i) {
-        if (is_odd(i))
-            odd.push_back(i);
-        else
-            even.push_back(i);
-    }
-
-    if (world.rank() & 0x1) {   // Odd processes
-        MPI::Group g_odd = world.mpi.comm().Get_group().Incl(odd.size(), &odd[0]);
-        MPI::Intracomm comm_odd = world.mpi.comm().Create(g_odd);
-        {
-            World world_odd(comm_odd);
-            work_odd(world_odd);
-        }
-        comm_odd.Free();
-
-    }
-    else {                      // Even processes
-        MPI::Group g_even = world.mpi.comm().Get_group().Incl(even.size(),&even[0]);
-        MPI::Intracomm comm_even = world.mpi.comm().Create(g_even);
-        {
-            World world_even(comm_even);
-            work_even(world_even);
-        }
-        comm_even.Free();
-    }
-
-    world.gop.fence();
-}
+//void test_multi_world(World& world) {
+//    if (world.size() < 2) return;
+//
+//    // Make two more worlds: odd processes, even processes
+//
+//    // a) make list of ranks of processes in the subgroups
+//    //
+//    // Only process belonging to the subgroups participate
+//    // in the next steps
+//    //
+//    // b) make MPI group and hence new MPI sub-communcator
+//    //
+//    // c) make new worlds and do work
+//
+//    std::cout << "\n\nREPEATING TESTS IN MULTI-WORLD\n\n" << std::endl;
+//
+//    std::vector<int> odd, even;
+//    for (int i=0; i<world.size(); ++i) {
+//        if (is_odd(i))
+//            odd.push_back(i);
+//        else
+//            even.push_back(i);
+//    }
+//
+//    if (world.rank() & 0x1) {   // Odd processes
+//        MPI::Group g_odd = world.mpi.comm().Get_group().Incl(odd.size(), &odd[0]);
+//        MPI::Intracomm comm_odd = world.mpi.comm().Create(g_odd);
+//        {
+//            World world_odd(comm_odd);
+//            work_odd(world_odd);
+//        }
+//        comm_odd.Free();
+//
+//    }
+//    else {                      // Even processes
+//        MPI::Group g_even = world.mpi.comm().Get_group().Incl(even.size(),&even[0]);
+//        MPI::Intracomm comm_even = world.mpi.comm().Create(g_even);
+//        {
+//            World world_even(comm_even);
+//            work_even(world_even);
+//        }
+//        comm_even.Free();
+//    }
+//
+//    world.gop.fence();
+//}
 
 
 int main(int argc, char** argv) {
@@ -1165,7 +1159,7 @@ int main(int argc, char** argv) {
         test8(world);
         test9(world);
         test10(world);
-        test11(world);
+        //test11(world);
         test12(world);
         test13(world);
 

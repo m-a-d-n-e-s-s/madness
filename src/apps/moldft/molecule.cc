@@ -89,6 +89,7 @@ Molecule::Molecule(const std::string& filename) {
 void Molecule::read_file(const std::string& filename) {
     atoms.clear();
     rcut.clear();
+    eprec = 1e-4;
     std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
@@ -174,10 +175,9 @@ madness::Tensor<double> Molecule::get_all_coords() const {
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
     for (int i=0; i<natom(); ++i) {
-        Atom atom = get_atom(i);
-        atom.x = c(i,0);
-        atom.y = c(i,1);
-        atom.z = c(i,2);
+        atoms[i].x = c(i,0);
+        atoms[i].y = c(i,1);
+        atoms[i].z = c(i,2);
     }
 }
 

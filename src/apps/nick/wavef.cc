@@ -335,9 +335,7 @@ complexd Gaussian::operator()(const vector3D& rVec) const {
 }
 
 
-Yl0::Yl0( double L=10.0, int l=0 ) : l_(l)  {
-    norm = std::sqrt(3.0/L/L/L);
-}
+Yl0::Yl0( int l=0 ) : l_(l)  { }
 
 double Yl0::operator()(const vector3D& r) const {
     double cosTH = r[2]/std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);

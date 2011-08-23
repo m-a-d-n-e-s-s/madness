@@ -62,6 +62,38 @@ double u(const double x, const double expnt) {
     return exp(-fac*fac/expnt) * cos(nwave*constants::pi*x/L);
 }
 
+// reciprocal lattice vectors (just the integers)
+int G0 = 1;
+int G1 = 2;
+int G2 = 2;
+// k-point in lattice coordinates
+double k0 = 1.0;
+double k1 = 1.0;
+double k2 = 0.0;
+double mu;
+
+// BSH equation
+// [-\nabla^2 + mu^2] * lhs = rhs
+double_complex pw_lhs(const coord_3d& r)
+{
+  double_complex I_TWO_PI_DIV_L = double_complex(0.0,2.0*constants::pi/L);
+  double val = (G0+k0)*r[0]+(G1+k1)*r[1]+(G2+k2)*r[2];
+  return exp(I_TWO_PI_DIV_L*val);
+}
+
+double_complex pw_rhs(const coord_3d& r)
+{
+  double TWO_PI = 2.0*constants::pi;
+  double_complex I_TWO_PI_DIV_L = double_complex(0.0,TWO_PI/L);
+  double TWO_PI_DIV_L2 = TWO_PI*TWO_PI/L/L;
+  double coeff = TWO_PI_DIV_L2*(G0+k0)*(G0+k0) + TWO_PI_DIV_L2*(G1+k1)*(G1+k1)
+                 + TWO_PI_DIV_L2*(G2+k2)*(G2+k2) + mu*mu;
+  double val = (G0+k0)*r[0]+(G1+k1)*r[1]+(G2+k2)*r[2];
+  return coeff*exp(I_TWO_PI_DIV_L*val);
+}
+
+
+
 // The electrostatic potential due to cos(n*pi*x/L)*(ditto z)*(ditto y)
 // is ((4*L*L)/(3*n*n*pi))*cos(n*pi*x/L)
 double potential(const coordT& r) {
@@ -212,6 +244,40 @@ void test_periodic2(World& world) {
 
 }
 
+void test_periodic_bsh(World& world)
+{
+  const long k = 10;
+  const double thresh = 1e-8;
+  FunctionDefaults<3>::set_k(k);
+  FunctionDefaults<3>::set_cubic_cell(0,L);
+  FunctionDefaults<3>::set_thresh(thresh);
+
+  ::mu = -15.3;
+
+  Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
+  f.truncate();
+
+  Vector<double,3> args = vec(0.0,0.0,0.0);
+  SeparatedConvolution<double,3> op = BSHOperator3D(world, mu, 1e-6, thresh);
+  std::cout.precision(10);
+
+  Function<double_complex,3> opf = apply(op,f);
+  opf.reconstruct();
+
+  print("i,value,exact,relerr");
+  for (int i=0; i<101; ++i) {
+      coordT r = coordT(i*L/100.0);
+      double_complex value = opf(r);
+      double_complex exact = pw_lhs(r);
+      double_complex exerr = value-exact;
+      double relerr = std::abs((value-exact)/exact);
+//      print(i,value,exact,exerr);
+      print(i,value,exact,relerr,status[relerr<3e-7]);
+  }
+
+  world.gop.fence();
+}
+
 
 
 int main(int argc, char**argv) {
@@ -224,12 +290,14 @@ int main(int argc, char**argv) {
 
     try {
 
-        print("1D gaussians");
-        test_periodic1(world);
-        print("\n3D gaussians");
-        test_periodic(world);
-        print("\n3D coulomb");
-        test_periodic2(world);
+//        print("1D gaussians");
+//        test_periodic1(world);
+//        print("\n3D gaussians");
+//        test_periodic(world);
+//        print("\n3D coulomb");
+//        test_periodic2(world);
+        print("\n3D bsh");
+        test_periodic_bsh(world);
 
     }
     catch (const MPI::Exception& e) {

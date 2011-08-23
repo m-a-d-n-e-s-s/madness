@@ -1,5 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
+SUBDIRS = tr1
+
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
                gtest_example qtest worldprofile_test worldptr_test worldref_test \
@@ -15,7 +17,8 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
-	deferred_deleter.h scopedptr.h worldreduce.h worldtaskqueue.h worldtaskbase.h
+	deferred_deleter.h scopedptr.h worldreduce.h worldtask.h taskfn.h make_task.h \
+	functional.h 
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
@@ -86,7 +89,7 @@ worldprofile_test_LDADD = libMADworld.a
 
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
-	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtaskqueue.cc \
+	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
 	worldgop.cc deferred_cleanup.cc worlddep.cc worldmutex.cc binfsar.cc \
 	worldmem.cc textfsar.cc \
 	$(thisinclude_HEADERS)

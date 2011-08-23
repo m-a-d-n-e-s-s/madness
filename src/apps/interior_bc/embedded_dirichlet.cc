@@ -188,7 +188,7 @@ int main(int argc, char **argv) {
         dim = 3;
         break;
     case 6:
-        functor3 = SharedPtr<EmbeddedDirichlet<3> >(new InhomoConstantSphere(k,
+        functor3.reset(new InhomoConstantSphere(k,
                        thresh, eps, std::string(argv[5]), penalty_prefact,
                        radius, mask));
         dim = 3;
@@ -312,6 +312,7 @@ int main(int argc, char **argv) {
     // note that this is really -G...
     real_convolution_2d G2 = BSHOperator<2>(world, 0.0, eps*0.1, thresh);
     real_convolution_3d G3 = BSHOperator<3>(world, 0.0, eps*0.1, thresh);
+    //G3.broaden();
 
     // project the r.h.s. function (phi*f - penalty*S*g)
     // and then convolute with G
@@ -337,6 +338,21 @@ int main(int argc, char **argv) {
         rhs3.truncate();
         usol3.clear();
         break;
+    }
+
+    // load balance using the domain mask, the surface function, and the rhs
+    if(dim == 3) {
+        if(world.rank() == 0){ 
+            printf("Load Balancing again...\n");
+            fflush(stdout);
+        }
+
+        LoadBalanceDeux<3> lb(world);
+        lb.add_tree(phi3, DirichletLBCost<3>(1.0, 1.0));
+        lb.add_tree(surf3, DirichletLBCost<3>(1.0, 1.0));
+        lb.add_tree(rhs3, DirichletLBCost<3>(1.0, 1.0));
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,
+            false));
     }
 
     // make an initial guess:
@@ -465,9 +481,12 @@ int main(int argc, char **argv) {
     if(dim == 3) {
         if(world.rank() == 0)
             printf("\n\n");
-        double zmin = 0.0;
+        /*double zmin = 0.0;
         double zmax = 2.0;
-        int nz = 201;
+        int nz = 201;*/
+        double zmin = 1.0 - 10.0*eps;
+        double zmax = 1.0 + 10.0*eps;
+        int nz = 51;
         coord_3d pt;
         pt[0] = pt[1] = 0.0;
         double dz = (zmax - zmin) / (nz - 1);

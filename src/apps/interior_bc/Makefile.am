@@ -1,3 +1,5 @@
+SUBDIRS = nanophoto
+
 include $(top_srcdir)/config/MakeGlobal.am
 
 bin_PROGRAMS = depth embedded_dirichlet

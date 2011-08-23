@@ -34,6 +34,7 @@
 
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
+/// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
@@ -44,14 +45,11 @@
 #include <list>
 using namespace madness;
 
-extern int x_rks_s__(const double *rho, double *f, double *dfdra);
-extern int c_rks_vwn5__(const double *rho, double *f, double *dfdra);
-// extern int x_uks_s__(const double *rho, double *f, double *dfdra);
-// extern int c_uks_vwn5__(const double *rho, double *f, double *dfdra);
 
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 #include <moldft/corepotential.h>
+#include <moldft/xcfunctional.h>
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
@@ -410,7 +408,6 @@ struct CalculationParameters {
     int maxiter;                ///< Maximum number of iterations
     int nio;                    ///< No. of io servers to use
     bool spin_restricted;       ///< True if spin restricted
-    bool lda;                   ///< True if LDA (HF if false)
     int plotlo,plothi;          ///< Range of MOs to print (for both spins if polarized)
     bool plotdens;              ///< If true print the density at convergence
     bool plotcoul;              ///< If true plot the total coulomb potential at convergence
@@ -431,6 +428,7 @@ struct CalculationParameters {
     int nmo_alpha;              ///< Number of alpha spin molecular orbitals
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
+    std::string xcdata;         ///< XC input line
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -438,6 +436,7 @@ struct CalculationParameters {
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
+        ar & xcdata;
     }
 
     CalculationParameters()
@@ -454,7 +453,6 @@ struct CalculationParameters {
         , maxiter(20)
         , nio(1)
         , spin_restricted(true)
-        , lda(true)
         , plotlo(0)
         , plothi(-1)
         , plotdens(false)
@@ -473,12 +471,17 @@ struct CalculationParameters {
         , nbeta(0)
         , nmo_alpha(0)
         , nmo_beta(0)
-        , lo(1e-10) {}
+        , lo(1e-10) 
+        , xcdata("lda")
+    {}
+        
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
         std::string s;
+        xcdata = "lda";
+
         while (f >> s) {
             if (s == "end") {
                 break;
@@ -525,11 +528,10 @@ struct CalculationParameters {
             else if (s == "nio") {
                 f >> nio;
             }
-            else if (s == "lda") {
-                lda = true;
-            }
-            else if (s == "hf") {
-                lda = false;
+            else if (s == "xc") {
+                char buf[1024];
+                f.getline(buf,sizeof(buf));
+                xcdata = buf;
             }
             else if (s == "plotmos") {
                 f >> plotlo >> plothi;
@@ -634,16 +636,27 @@ struct CalculationParameters {
         //time_t t = time((time_t *) 0);
         //char *tmp = ctime(&t);
         //tmp[strlen(tmp)-1] = 0; // lose the trailing newline
-        const char* calctype[2] = {"Hartree-Fock","LDA"};
+
         //madness::print(" date of calculation ", tmp);
         madness::print("             restart ", restart);
         madness::print(" number of processes ", world.size());
         madness::print("   no. of io servers ", nio);
+        madness::print("     simulation cube ", -L, L);
         madness::print("        total charge ", charge);
         madness::print("            smearing ", smear);
         madness::print(" number of electrons ", nalpha, nbeta);
         madness::print("  number of orbitals ", nmo_alpha, nmo_beta);
         madness::print("     spin restricted ", spin_restricted);
+        madness::print("       xc functional ", xcdata);
+#ifdef MADNESS_HAS_LIBXC
+        madness::print("         xc libraray ", "libxc");
+#else
+        madness::print("         xc libraray ", "default (lda only)");
+#endif
+        if (core_type != "")
+            madness::print("           core type ", core_type);
+        madness::print(" initial guess basis ", aobasis);
+        madness::print(" max krylov subspace ", maxsub);
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    polynomial order ", k);
@@ -651,13 +664,6 @@ struct CalculationParameters {
             madness::print(" Convergence criterion is only density delta.");
         else
             madness::print(" Convergence criteria are density delta & BSH residual.");
-        madness::print("    maximum rotation ", maxrotn);
-        if (core_type != "")
-            madness::print("           core type ", core_type);
-        madness::print(" initial guess basis ", aobasis);
-        madness::print(" max krylov subspace ", maxsub);
-        madness::print("    calculation type ", calctype[int(lda)]);
-        madness::print("     simulation cube ", -L, L);
         madness::print("        plot density ", plotdens);
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);
@@ -684,6 +690,7 @@ struct CalculationParameters {
 struct Calculation {
     Molecule molecule;
     CalculationParameters param;
+    XCfunctional xc;
     AtomicBasisSet aobasis;
     functionT vnuc;
     functionT mask;
@@ -715,6 +722,10 @@ struct Calculation {
         world.gop.broadcast_serializable(molecule, 0);
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
+
+        xc.initialize(param.xcdata, !param.spin_restricted);
+        //xc.plot();
+
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
     }
@@ -1030,7 +1041,6 @@ struct Calculation {
 
         double tol = 0.1;
         long ndone = 0;
-        bool converged = false;
         for(long iter = 0;iter < 100;++iter){
             double sum = 0.0;
             for(long i = 0;i < nmo;++i){
@@ -1101,7 +1111,6 @@ struct Calculation {
                 if(doprint)
                     print("PM localization converged in", ndone,"steps");
 
-                converged = true;
                 break;
             }
             tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
@@ -1417,8 +1426,7 @@ struct Calculation {
                 END_TIMER(world, "guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
-                rho.scale(0.5);
-                vlocal = vlocal + make_lda_potential(world, rho, rho, functionT(), functionT());
+                vlocal = vlocal + make_lda_potential(world, rho);
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {
@@ -1651,57 +1659,44 @@ struct Calculation {
         return Kf;
     }
 
-    static double munge(double r)
+    // Used only for initial guess that is always spin-restricted LDA
+    functionT make_lda_potential(World & world, const functionT & arho) 
     {
-        if(r < 1e-12)
-            r = 1e-12;
-
-        return r;
-    }
-
-    template <typename T>
-    static void ldaop(const Key<3> & key, Tensor<T>& t)
-    {
-        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q; double dq1; double dq2;x_rks_s__(&r, &q, &dq1);c_rks_vwn5__(&r, &q, &dq2); *_p0 = dq1+dq2);
-    }
-
-    template <typename T>
-    static void ldaeop(const Key<3> & key, Tensor<T>& t)
-    {
-        UNARY_OPTIMIZED_ITERATOR(T, t, double r=munge(2.0* *_p0); double q1; double q2; double dq;x_rks_s__(&r, &q1, &dq);c_rks_vwn5__(&r, &q2, &dq); *_p0 = q1+q2);
-    }
-
-    functionT make_lda_potential(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
-    {
-        MADNESS_ASSERT(param.spin_restricted);
         functionT vlda = copy(arho);
         vlda.reconstruct();
-        vlda.unaryop(&ldaop<double>);
+        vlda.unaryop(xc_lda_potential());
         return vlda;
     }
 
-    double make_lda_energy(World & world, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq)
+
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin) 
     {
-        MADNESS_ASSERT(param.spin_restricted);
-        functionT vlda = copy(arho);
-        vlda.reconstruct();
-        vlda.unaryop(&ldaeop<double>);
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc,ispin), vf);
+    }
+
+    double make_dft_energy(World & world, const vecfuncT& vf)
+    {
+        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
         return vlda.trace();
     }
 
-    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, const functionT & arho, const functionT & brho, const functionT & adelrhosq, const functionT & bdelrhosq, const functionT & vlocal, double & exc)
+    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
+                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
-        if(param.lda){
+        exc = 0.0;
+
+        if (xc.is_dft()) {
             START_TIMER(world);
-            exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
-            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
-            END_TIMER(world, "LDA potential");
+            if (ispin == 0) exc = make_dft_energy(world, vf);
+            vloc = vloc + make_dft_potential(world, vf, ispin);
+            END_TIMER(world, "DFT potential");
         }
+        
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
-        if(!param.lda){
+        if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
@@ -1709,11 +1704,12 @@ struct Calculation {
             for(unsigned long i = 0;i < amo.size();++i){
                 exc -= 0.5 * excv[i] * occ[i];
             }
-            gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
+            if (!xc.is_spin_polarized()) exc *= 2.0;
+            gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
         }
-
+        
         if (param.core_type.substr(0,3) == "mcp") {
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
@@ -1897,6 +1893,30 @@ struct Calculation {
         pe = tensorT();
         ke.gaxpy(0.5, transpose(ke), 0.5);
         return ke;
+    }
+
+    /// Compute the two-electron integrals over the provided set of orbitals
+
+    /// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
+    /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
+    Tensor<double> twoint(World& world, const vecfuncT& psi) {
+        double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
+        reconstruct(world, psi);
+        norm_tree(world, psi);
+        
+        // Efficient version would use mul_sparse vector interface
+        vecfuncT pairs;
+        for (unsigned int i=0; i<psi.size(); ++i) {
+            for (unsigned int j=0; j<=i; ++j) {
+                pairs.push_back(mul_sparse(psi[i], psi[j], tol, false));
+            }
+        }
+        
+        world.gop.fence();
+        truncate(world, pairs);
+        vecfuncT Vpairs = apply(world, *coulop, pairs);
+
+        return matrix_inner(world, pairs, Vpairs, true);
     }
 
     tensorT matrix_exponential(const tensorT& A) {
@@ -2257,7 +2277,6 @@ struct Calculation {
     void solve(World & world)
     {
         functionT arho_old, brho_old;
-        functionT adelrhosq, bdelrhosq;
         const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
@@ -2348,13 +2367,20 @@ struct Calculation {
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
-            vecfuncT Vpsib;
-            if(param.spin_restricted){
-                if(!param.lda)  excb = exca;
+
+            vecfuncT vf;
+            if (xc.is_dft()) {
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho);
+                reconstruct(world, vf);
+                if (vf.size() > 1UL) 
+                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
             }
-            else if(param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, brho, arho, bdelrhosq, adelrhosq, vlocal, excb);
+            
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, vlocal, exca, 0);
+            vecfuncT Vpsib;
+            if(!param.spin_restricted && param.nbeta) {
+                Vpsib = apply_potential(world, bocc, bmo, vf, vlocal, excb, 1);
             }
 
             double ekina = 0.0, ekinb = 0.0;
@@ -2518,14 +2544,15 @@ public:
         calc.solve(world);
         calc.save_mos(world);
 
-        if (calc.param.econv<1.e-6) {
-            calc.set_protocol(world,calc.param.econv);
+        if (calc.molecule.get_eprec() < 1e-5) {
+            calc.set_protocol(world,1e-8);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
             calc.project(world);
             calc.solve(world);
-            calc.save_mos(world);
         }
+
+        calc.save_mos(world);
 
         return calc.current_energy;
     }
@@ -2577,6 +2604,12 @@ int main(int argc, char** argv) {
         E.value(calc.molecule.get_all_coords().flat()); // ugh!
         if (calc.param.derivatives) calc.derivatives(world);
         if (calc.param.dipole) calc.dipole(world);
+
+        //        if (calc.param.twoint) {
+        //Tensor<double> g = calc.twoint(world,calc.amo);
+        //cout << g;
+        // }
+
         calc.do_plots(world);
 
       }

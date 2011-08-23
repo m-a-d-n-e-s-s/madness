@@ -73,7 +73,7 @@ namespace madness {
     }
 
     template <int D> class LBNode;
-    template <int D> struct TreeCoords;
+    template <int D> class TreeCoords;
     template <int D> class MyPmap;
     template <int D> class LBTree;
     class NodeData;

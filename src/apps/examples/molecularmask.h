@@ -153,7 +153,7 @@ public:
 ///  V_(r,\sigma) = \exp \left( \log V_{int} C(r,\sigma) + \log V_{ext} (1 - C(r,\sigma)  \right)
 ///  = V_{ext} \exp \left( \log \frac{V_{int}}{V_{ext}} C(r,\sigma) \right)
 ///  = V_{int} \exp \left( \log \frac{V_{ext}}{V_{int}} \overline{C}(r,\sigma) \right)
-/// /f]
+/// \f]
 /// where \f$ C(r,\sigma) \f$ is the regular volume mask provided by MolecularVolumeMask,
 /// and \f$ \overline{C} \f$ is its complement.
 /// Its log-derivative is precisely located in the surface with value

@@ -53,7 +53,6 @@ static inline double pow(const double* a, const double* b) {
 
 static double c_b2 = .333333333333333333333333333333333;
 static double c_b7 = .333333333333333333333333333333;
-static double c_b8 = .5;
 static double c_b14 = 1.333333333333333333333333333333;
 
 
@@ -143,8 +142,8 @@ int x_uks_s__(double *ra, double *rb, double *f,
 int c_rks_vwn5__(const double *r__, double *f, double *
                  dfdra) {
     /* Local variables */
-    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, t5, t6,
-    t7, iv, alpha_rho13__, iv2, pp1, pp2, inv, srho, srho13;
+    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, 
+        iv, iv2, pp1, pp2, inv, srho, srho13;
 
 
     /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
@@ -180,15 +179,6 @@ int c_rks_vwn5__(const double *r__, double *f, double *
     /* t4 = (1/(4/3)*pi)**(1/3) */
     t4 = .620350490899399531;
 
-    /* t5 = 0.5/(2**(1/3)-1) */
-    t5 = 1.92366105093153617;
-
-    /* t6 = 2/(3*(2**(1/3)-1)) */
-    t6 = 2.56488140124204822;
-
-    /* t7 = 2.25*(2**(1/3)-1) */
-    t7 = .584822362263464735;
-
     /* Paramagnetic interpolation constants */
 
     p1 = 6.1519908197590798;
@@ -199,7 +189,6 @@ int c_rks_vwn5__(const double *r__, double *f, double *
     /* closed shell case */
     srho = *r__;
     srho13 = pow(&srho, &c_b7);
-    alpha_rho13__ = pow(&c_b8, &c_b7) * srho;
     iv2 = t4 / srho13;
     iv = sqrt(iv2);
 
@@ -226,9 +215,9 @@ int c_uks_vwn5__(double *ra, double *rb, double *
     double d__1, d__2;
 
     /* Local variables */
-    double v, beta_rho13__, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
+    double v, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
     c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7,
-    s3, s4, p4, f4, i1, i2, i3, iv, alpha_rho13__, ff1, ff2, iv2, pp1,
+    s3, s4, p4, f4, i1, i2, i3, iv, ff1, ff2, iv2, pp1,
     pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3,
     zeta4, srho13, inter1, inter2;
 
@@ -322,8 +311,6 @@ int c_uks_vwn5__(double *ra, double *rb, double *
     inter2 = -.99999999989999999;
 
     /* open shell case */
-    alpha_rho13__ = pow(ra, &c_b7);
-    beta_rho13__ = pow(rb, &c_b7);
     srho = *ra + *rb;
     srho13 = pow(&srho, &c_b7);
     iv2 = t4 / srho13;

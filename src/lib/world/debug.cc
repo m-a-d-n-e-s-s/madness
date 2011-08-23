@@ -33,7 +33,7 @@
 */
 
 #include <madness_config.h>
-#include <mpi.h>
+#include <world/safempi.h>
 
 #include <stdio.h>
 #include <stdlib.h>

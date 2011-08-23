@@ -87,7 +87,6 @@ struct LBCost {
     }
 };
 
-
 /******************************************************************************************
  * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
  * input
@@ -119,16 +118,17 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     const double dr = 0.999*rMIN/(n-1); // 0.999 allows for the dr 1e-10 discrepancy
     const double PI = M_PI;
     const double dTH = PI/(n-1);
-    const double dPHI = 2*PI/(n-1);
+//    const double dPHI = 2*PI/(n-1);
     const bool printR = true;
     const std::size_t maxLocalDepth = psi.max_local_depth();
     std::pair<bool,complexd> psiVal;
     std::vector<Yl0> Y;
     for( int l=0; l<=lMAX; l++) {
-        Y.push_back(Yl0(L,l));
+        Y.push_back(Yl0(l));
     }
     psi.reconstruct(); //Transforms to scaling function basis 
     Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
+    PRINTLINE("HERE");
     for( int i=0; i<n; i++ ) {
         const double r = i*dr + 1e-10; //Allows for near zero evaluation
         Tensor<complexd> R(lMAX+1);
@@ -138,20 +138,22 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             // control for endpoint quadrature
             double ifEndPtj = 1.0;
             if (j==0 || j==(n-1)) ifEndPtj = 0.5;
-            for( int k=0; k<n; k++ ) {
-                const double phi = k*dPHI;
-                const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+            //for( int k=0; k<n; k++ ) {
+            //    const double phi = k*dPHI;
+                //const vector3D rVec = vec(r*sinTH*std::cos(phi), r*sinTH*std::sin(phi), r*std::cos(th));
+                const vector3D rVec = vec(r*sinTH, 0.0, r*std::cos(th)); //azimuthal symmetry allows us to take a slice
                 // parallelism introduced via eval_local_only
                 psiVal = psi.eval_local_only(rVec, maxLocalDepth);
                 if( psiVal.first ) { //boolean: true for local coeffs
                     // control for endpoint quadrature
-                    double ifEndPtk = 1.0;
-                    if (k==0 || k==(n-1)) ifEndPtk = 0.5;
+                    //double ifEndPtk = 1.0;
+                    //if (k==0 || k==(n-1)) ifEndPtk = 0.5;
                     for( int l=0; l<=lMAX; l++) {
-                        R(l) += psiVal.second * Y[l](rVec) * sinTH*dTH*dPHI * ifEndPtj * ifEndPtk;
+                        R(l) += psiVal.second * Y[l](rVec) * 2.0*3.14159 * sinTH*dTH * ifEndPtj; 
+                        //R(l) += psiVal.second * Y[l](rVec) * dPHI * sinTH*dTH * ifEndPtj*ifEndPtk; 
                     }         //psiVal.second returns psi(rVec)
                 }
-            }
+            //}
         }
         for( int l=0; l<=lMAX; l++) {
             YlPsi(i,l) = R(l);
@@ -188,7 +190,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
             if(printR) PRINT( real(YlPsir) << "\t");
         }
         PRINTLINE("");
-        PRINTLINE(std::setprecision(6) << std::scientific << P(l) );
+        PRINTLINE(std::setprecision(9) << std::scientific << P(l) );
     }
     if(world.rank()==0) after = wall_time();
     PRINTLINE(std::fixed << " took " << (after - before) << " seconds ");
@@ -427,6 +429,7 @@ void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf,
             }
             else if (tag == "nPhoton") {
                 f >> nPhoton;
+                PRINTLINE("nPhoton = " << nPhoton);
             }
         }
     }
@@ -502,9 +505,12 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     PRINTLINE("After initialize");
+    PRINTLINE("Version: $Rev$");
     // Load info for MADNESS numerical routines
     startup(world,argc,argv);
     PRINTLINE("world.size() = " << world.size());
+    PRINTLINE("the x and y cutoff is 1/8 that of the z cutoff");
+    PRINTLINE("set_project_randomize(true)");
     // Setup defaults for numerical functions
     int    kMAD      = 8;
     double L         = 10.0;
@@ -530,13 +536,14 @@ int main(int argc, char**argv) {
     FunctionDefaults<NDIM>::set_truncate_mode(0);
     FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
+    FunctionDefaults<NDIM>::set_project_randomize(true);
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        loadList(world, boundList, unboundList);
-        projectPsi(world, boundList, unboundList, Z, cutoff);
-        //projectL(world, L, wf, nGrid, lMAX, cutoff);
-        //zSlice(world, n1, L, th, phi, wf);
+        //loadList(world, boundList, unboundList);
+        //projectPsi(world, boundList, unboundList, Z, cutoff);
+        projectL(world, L, wf, nGrid, lMAX, cutoff);
+        //zSlice(world, nGrid, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);
         //compareGroundState(world, Z);
