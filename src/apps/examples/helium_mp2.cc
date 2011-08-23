@@ -393,27 +393,6 @@ public:
 
 #endif
 
-#if 0
-	// check rightness
-        Vector<Translation, 6> ll;
-//        ll[0]=3; ll[1]=2; ll[2]=2; ll[3]=3; ll[4]=2; ll[5]=2;      // k=5, rank=995
-//	Key<6> keyref(3,ll);
-        ll[0]=0; ll[1]=0; ll[2]=0; ll[3]=0; ll[4]=0; ll[5]=0;      // k=5, rank=995
-	Key<6> keyref(0,ll);
-	if (key==keyref) {
-        	Tensor<double> v(k,k,k,k,k,k);
-        	f.get_impl()->fcube(key, coul, qx6, v);
-		print("direct",v);
-		print("eri",g12);
-		v-=g12;
-		Tensor<double> vv=eri.get_impl()->values2coeffs(key,v);
-//		print("vv",vv);
-		print("difference",v);
-		print("qx6",qx6);
-		print("error fcube/g12",key,vv.normf());
-        	MADNESS_EXCEPTION("stop",0);
-	}
-#endif
     }
 
 };
@@ -542,14 +521,14 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
 
-    tmp.print_info("tmp before truncation");
+    tmp.print_size("tmp before truncation");
     tmp.truncate();
-    tmp.print_info("tmp after truncation");
+    tmp.print_size("tmp after truncation");
     if(world.rank() == 0) printf("truncated at time   %.1fs\n", wall_time());
 
     double norm = tmp.norm2();
     real_function_6d r = tmp-psi;
-    double rnorm = inner(r,r);
+    double rnorm=r.norm2();
     double eps_new = eps -0.5 * inner(r,Vpsi)/(norm*norm);
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
@@ -595,7 +574,7 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
 //    }
 
     // conventional
-    tmp=op(Vpsi).truncate();
+//    tmp=op(Vpsi).truncate();
 
     double norm = tmp.norm2();
     real_function_3d r = tmp-psi;
@@ -640,7 +619,9 @@ void compute_energy(World& world, const real_function_6d& pair,
 		for (int axis=0; axis<6; axis++) {
 			real_derivative_6d D = free_space_derivative<double,6>(world, axis);
 			real_function_6d dpsi = D(pair);
-			double a=0.5*inner(dpsi,dpsi);
+//            double a=0.5*inner(dpsi,dpsi);
+			double aa=dpsi.norm2();
+			double a=0.5*aa*aa;
 			ke += a;
 			if (world.rank()==0) print("done with axis",axis, a);
 		}
@@ -660,13 +641,13 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
 				.ket(copy(pair).get_impl())
-//				.g12(eri.get_impl())
+				.g12(eri.get_impl())
 				.V_for_particle1(copy(pot1).get_impl())
 				.V_for_particle2(copy(pot2).get_impl())
 				;
-//		real_function_6d v11=multiply_by_V(pair);
-        // make the tree
-        {
+
+		// make the tree (optional!)
+        if (1) {
 		    // this is a dummy convolution
             real_convolution_6d op = BSHOperator<6>(world, -0.1, 0.00001, 1e-6);
             op.modified=true;
@@ -830,8 +811,9 @@ void test_modified(World& world) {
 
         real_function_3d Vpsi = (V*psi);
         Vpsi.scale(-2.0).truncate();
-        real_function_3d tmp=op(Vpsi).truncate();
-
+//        real_function_3d tmp=op(Vpsi).truncate();
+        real_function_3d tmp;
+        MADNESS_EXCEPTION("op() only with NDIM==6",1);
         psi=tmp;
         psi.scale(1.0/psi.norm2());
         plot_along(world,traj,psi,"name"+stringify(i));
@@ -876,7 +858,8 @@ void test_recursive_application(World& world) {
             real_function_3d vphi=-2.0*(orbital*pot1);
             real_convolution_3d op2 = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op2.modified=false;
-            real_function_3d tmp=op2(vphi);
+            real_function_3d tmp;//=op2(vphi);
+            MADNESS_EXCEPTION("op() only with NDIM==6",1);
             tmp.scale(1.0/sqrt(tmp.norm2()));
             double ke, pe;
             compute_energy(world,tmp,pot1,ke,pe);
@@ -905,7 +888,7 @@ void test_recursive_application(World& world) {
 
             real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op.modified=false;
-            phi2=op(phi2);
+//            phi2=op(phi2);
             phi2.scale(1.0/sqrt(phi2.norm2()));
 
             compute_energy(world,phi2,pot1,ke,pe);
@@ -930,7 +913,7 @@ void test_recursive_application(World& world) {
 }
 
 
-void test_adaptive_tree(World& world) {
+void test_adaptive_tree(World& world, const bool restart, const std::string restartname) {
 
     if (world.rank()==0) print("in test_adaptive_tree");
 
@@ -939,8 +922,8 @@ void test_adaptive_tree(World& world) {
     long k=FunctionDefaults<6>::get_k();
 
     // one orbital at a time
-//    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
-    real_function_3d orbital=real_factory_3d(world).f(he_plus_orbital);
+    real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
+//    real_function_3d orbital=real_factory_3d(world).f(he_plus_orbital);
     orbital.scale(1.0/orbital.norm2());
 
     const real_function_3d pot1=real_factory_3d(world).f(Z2);
@@ -963,7 +946,12 @@ void test_adaptive_tree(World& world) {
     double ke,pe,eps;
     compute_energy(world,orbital,pot1,ke,pe);
 
-    real_function_6d pair=hartree_product(orbital,orbital);
+    real_function_6d pair;
+    if (restart) {
+        load_function(world,pair,restartname);
+    } else {
+        pair=hartree_product(orbital,orbital);
+    }
     double norm2=inner(pair,pair);
     if (world.rank()==0) print("<phi | phi>",norm2);
 
@@ -984,12 +972,6 @@ void test_adaptive_tree(World& world) {
 
     for (int ii=0; ii<10; ++ii) {
 
-        {
-            const std::string appendix="_k"+stringify(k)+"_eps"+stringify(thresh)+"_it"+stringify(ii);
-            std::string filename="pair"+appendix;
-            save_function(world,pair,filename);
-            pair.print_info("pair");
-        }
 
 
         // two-electron interaction potential
@@ -997,7 +979,7 @@ void test_adaptive_tree(World& world) {
 
         real_function_6d vphi=CompositeFactory<double,6,3>(world)
                                             .ket(copy(pair).get_impl())
-//                                            .g12(eri.get_impl())
+                                            .g12(eri.get_impl())
                                             .V_for_particle1(copy(pot1).get_impl())
                                             .V_for_particle2(copy(pot2).get_impl())
                                             .muster(copy(pair).get_impl())
@@ -1009,7 +991,7 @@ void test_adaptive_tree(World& world) {
             op.modified=true;
             vphi.get_impl()->convolute(op);
             vphi.scale(-2.0);
-            vphi.print_info("vphi");
+            vphi.print_size("vphi");
 
         }
 
@@ -1017,14 +999,18 @@ void test_adaptive_tree(World& world) {
         {
             iterate(world,vphi,pair,eps);
 
-            real_function_6d tmp=copy(pair);
-            tmp.print_info("pair in full rank");
-            tmp.get_impl()->ftr2sr(TensorArgs(thresh,TT_2D));
-            tmp.print_info("pair in TT_2D");
+        }
+
+        {
+            const std::string appendix="_k"+stringify(k)+"_eps"+stringify(thresh)+"_it"+stringify(ii);
+            std::string filename="pair"+appendix;
+            save_function(world,pair,filename);
+            pair.print_size("pair");
         }
 
         compute_energy(world,pair,pot1,pot2,ke,pe);
-        eps=ke+pe;
+//        eps=ke+pe;
+
 
         double norm=pair.norm2();
         if (world.rank()==0) printf("norm(pair) : %12.8f",norm);
@@ -1039,7 +1025,7 @@ void test_truncation(World& world) {
     const real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
     const real_function_3d pot1=real_factory_3d(world).f(Z2);
     const real_function_3d prod=orbital*pot1;
-    prod.print_info("prod");
+    prod.print_size("prod");
 
     real_function_3d a1,a2;
     {
@@ -1047,14 +1033,14 @@ void test_truncation(World& world) {
         a1.reconstruct();
         a1.truncate();
         a1.reconstruct();
-        a1.print_info("a1");
+        a1.print_size("a1");
     }
     {
         a2=copy(prod);
         a2.compress();
         a2.truncate();
         a2.reconstruct();
-        a2.print_info("a2");
+        a2.print_size("a2");
     }
     real_function_3d a=a1-a2;
     print("norm(a)",a.norm2());
@@ -1071,7 +1057,7 @@ void test_compress(World& world) {
 
     real_function_6d pair=hartree_product(orbital,orbital);
     real_function_6d vpair=hartree_product(prod,prod);
-    pair.print_info("pair");
+    pair.print_size("pair");
     double ke,pe;
 
     real_function_6d a1,a2,a3;
@@ -1079,12 +1065,12 @@ void test_compress(World& world) {
 //        a1=copy(pair);
 //        a1.compress();
 //        a1.reconstruct();
-//        a1.print_info("a1");
+//        a1.print_size("a1");
 //        a1.check_symmetry();
 //    }
     {
         a2=copy(vpair);
-        a2.print_info("a2");
+        a2.print_size("a2");
         a2.check_symmetry();
     }
     {
@@ -1102,7 +1088,7 @@ void test_compress(World& world) {
         op.modified=true;
         vphi.get_impl()->convolute(op);
         a3=vphi;
-        a3.print_info("a3");
+        a3.print_size("a3");
         a3.check_symmetry();
     }
     real_function_6d a=a3-a2;
@@ -1192,8 +1178,6 @@ int main(int argc, char** argv) {
 
     if (world.rank()==0) {
         print("size consistency of the 6d green's function?");
-        print("computed energy");
-        print("green's function disp<24");
         print("");
     }
 
@@ -1201,7 +1185,7 @@ int main(int argc, char** argv) {
     if (0) test_truncation(world);
     if (0) test_modified(world);
     if (0) test_recursive_application(world);
-    if (1) test_adaptive_tree(world);
+    if (1) test_adaptive_tree(world,restart,restart_name);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

@@ -452,13 +452,9 @@ namespace madness {
         }
 
         /// print some info about this
-        void print_info(const std::string name) const {
-            size_t tsize=this->tree_size();
-            size_t size=this->size();
-            if (this->world().rank()==0) {
-                printf("%s: treesize: %zu, size: %6.3f GByte\n",(name.c_str()),tsize,double(size)/(1024*1024*128));
-            }
-            this->check_symmetry();
+        void print_size(const std::string name) const {
+            if (!impl) print("function",name,"not assigned yet");
+            impl->print_size(name);
         }
 
         /// Returns the maximum depth of the function tree ... collective global sum
@@ -1517,10 +1513,10 @@ namespace madness {
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-    	ff.print_info("ff in apply on entry");
+    	ff.print_size("ff in apply on entry");
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
-        ff.print_info("ff in apply after reconstruct");
+        ff.print_size("ff in apply after reconstruct");
 
     	if (op.modified) {
 
@@ -1531,15 +1527,15 @@ namespace madness {
     	} else {
 
             ff.nonstandard(op.doleaves, true);
-            ff.print_info("ff in apply after nonstandard");
+            ff.print_size("ff in apply after nonstandard");
             result = apply_only(op, ff, fence);
-            result.print_info("result after apply");
+            result.print_size("result after apply");
 
             ff.standard();
 
     	}
     	result.reconstruct();
-        result.print_info("result after reconstruction");
+        result.print_size("result after reconstruction");
         return result;
     }
 

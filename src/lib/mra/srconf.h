@@ -80,7 +80,7 @@ namespace madness {
 	/// given a matrix A in SVD form, truncate the singular values such that the
 	/// accuracy threshold is still met.
 	/// @param[in]	thresh	the threshold eps: || A(svd) - A(truncated) || < eps
-	/// @param[in] 	rank	the number of singular vectors in w
+	/// @param[in] 	rank	the number of singular values in w
 	/// @paran[in]	w		the weights/singular values of A(svd)
 	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
 	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {

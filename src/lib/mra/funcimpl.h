@@ -514,6 +514,12 @@ namespace madness {
 
             if (has_coeff()) {
 
+#if 1
+                // always do low rank
+                coeff().add_SVD(t,args.thresh);
+
+
+#else
                 // make it tensor type depending on what we already have
                 if (coeff().tensor_type()==TT_FULL) {
                     if (t.tensor_type()==TT_FULL)  coeff().full_tensor()+=t.full_tensor();
@@ -526,6 +532,7 @@ namespace madness {
                         coeff().add_SVD(t,args.thresh);
                     }
                 }
+#endif
 
             } else {
                 // No coeff and no children means the node is newly
@@ -1619,6 +1626,8 @@ namespace madness {
 
                 const keyT& key = it->first;
                 const nodeT& fnode = it->second;
+
+                if (f->world.size()>1) return 0.0;
 
                 // exchange particles
                 std::vector<long> map(NDIM);
@@ -3803,7 +3812,8 @@ namespace madness {
             const TensorArgs args_full(0.0,TT_FULL);
 
             tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            coeffT result=coeffT(result_full,args_full);
+//            coeffT result=coeffT(result_full,args_full);
+            coeffT result=coeffT(result_full,apply_targs);
 
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
@@ -3928,7 +3938,7 @@ namespace madness {
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.001;
+            apply_targs.thresh=tol/fac*0.1;
 //            apply_targs.tt=TT_FULL;
 
             // for the kernel it may be more efficient to do the convolution in full rank
@@ -4301,6 +4311,14 @@ namespace madness {
             return sum;
         }
 
+        /// print tree size and size
+        void print_size(const std::string name) const {
+            const size_t tsize=this->tree_size();
+            const size_t size=this->size();
+            if (this->world.rank()==0) {
+                printf("%s: treesize: %zu, size: %6.3f GByte\n",(name.c_str()),tsize,double(size)/(1024*1024*128));
+            }
+        }
 
         /// print the number of configurations per node
         void print_stats() const {
@@ -4309,13 +4327,18 @@ namespace madness {
             int k0=k;
             if (is_compressed()) k0=2*k;
             Tensor<long> n(int(std::pow(k0,dim)+1));
+            long n_full=0;
+            long n_large=0;
+
             if (world.rank()==0) print("n.size(),k0,dim",n.size(),k0,dim);
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
                 if (node.has_coeff()) {
                     if (node.coeff().rank()>long(n.size())) {
-                        print("large rank",node.coeff().rank());
+                        ++n_large;
+                    } else if (node.coeff().rank()==-1) {
+                        ++n_full;
                     } else if (node.coeff().rank()<0) {
                         print("small rank",node.coeff().rank());
                     } else {
@@ -4328,10 +4351,12 @@ namespace madness {
 
             if (world.rank()==0) {
                 print("configurations     number of nodes");
+                if (world.rank()==0) print("        full rank    ",n_full);
                 for (unsigned int i=0; i<n.size(); i++) {
                     long m=n[i];
                     if (world.rank()==0) print("           ",i,"    ",m);
                 }
+                if (world.rank()==0) print("       large rank    ",n_large);
             }
         }
 

@@ -637,61 +637,33 @@ int main(int argc, char**argv) {
     srand(time(NULL));
 
     // the parameters
-    long k=6;
+    long k=5;
     const unsigned int dim=6;
     double eps=1.e-3;
     print("k    ",k);
     print("eps  ",eps);
 
     // some test
-#if 0
-    SepRep<double> s1(TT_2D,k,dim);
-    s1.fillrandom(12);
-    SRConf<double> sr1=s1.config();
-    sr1.weights_[7]*=3.3e1;
-    sr1.ref_vector(0).scale(1.2);
-    sr1.ref_vector(0)(3,Slice(_)).scale(5.0);
-    sr1.ref_vector(0)(6,Slice(_)).scale(5.e3);
-    sr1.ref_vector(1)(5,Slice(_)).scale(500.0);
-	sr1.right_orthonormalize();
-	s1=sr1;
+#if 1
 
-    SepRep<double> s2(TT_2D,k,dim);
-	SRConf<double> tmp=copy(sr1);
-	tmp.rank_=2;
-//	tmp.weights_=Tensor<double>(2);
-	tmp.weights_=tmp.weights_(Slice(0,1));
-	tmp.vector_[0]=tmp.vector_[0](Slice(0,1),Slice(_));
-	tmp.vector_[1]=tmp.vector_[1](Slice(0,1),Slice(_));
-	tmp.vector_[0]=tmp.vector_[0].reshape(2,tmp.kVec());
-	tmp.vector_[1]=tmp.vector_[1].reshape(2,tmp.kVec());
-	tmp.make_slices();
-
-    s2.fillrandom(8);
-//	s2=copy(tmp);
-    SRConf<double> sr2=s2.config();
-   	print("norm(s2)",s2.reconstructTensor().normf());
-
-
+	int nloop=3*30;
+	print("nloop",nloop);
+	long k3=2*k*2*k*2*k;
+	Tensor<double> s(k3,k3);
+	Tensor<double> v, e;
+	Tensor<double> ss(2*k,k3*2*k*2*k);
+	Tensor<double> t(2*k,2*k);
+	s.fillrandom();
+	s=inner(s,s,1,1);
     double cpu0, cpu1;
-	cpu0=wall_time();
+    cpu0=wall_time();
 
-	Tensor<double> t1=(s1.reconstructTensor())+2.0*s2.reconstructTensor();
-//	print(sr1.weights_);
-
-
-    for (int i=0; i<2; i++) {
-    	sr2.right_orthonormalize();
-//    	sr1.low_rank_add(sr2);
-    	sr1.low_rank_add_sequential(sr2);
+    for (int i=0; i<nloop; i++) {
+//        syev(s,v,e);
+//        cholesky(s);
+//        v=inner(s,s,1,1);
+        v=inner(t,ss);
     }
-
-   	SepRep<double> s11(sr1);
-   	SepRep<double> s22(sr2);
-
-   	print("norm(s2)",s22.reconstructTensor().normf());
-   	Tensor<double> t2=(s11.reconstructTensor());//+s22.reconstructTensor());
-   	print("difference norm",(t2-t1).normf());
 
 	cpu1=wall_time();
 	if(world.rank() == 0) print("chunk Brand at time ", cpu1-cpu0);
