@@ -5,7 +5,7 @@ bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester i
 
 prog_only = helium_mp2_prog
 
-plot_SOURCES = plot.cc
+# plot_SOURCES = plot.cc
 
 helium_mp2_SOURCES = helium_mp2.cc
 
