@@ -39,11 +39,10 @@
 #include <fstream>
 using std::ofstream;
 #include <nick/wavef.h>
+#include "mpreal.h"
 
 using namespace madness;
 
-const int nIOProcessors =1;
-const std::string prefix = "data";
 typedef std::complex<double> complexd;
 typedef Function<complexd,NDIM> complex_functionT;
 
@@ -90,9 +89,9 @@ void doWork(World& world) {
   if(wave_function_exists(world,step)) {
     PRINTLINE("wave_function_exists = true");
     Function<complexd, NDIM> loadedFunc = wave_function_load(world, step);
-    PRINTLINE("<data|100> =  ") << loadedFunc.inner(psi100);
-    PRINTLINE("<data|200> =  ") << loadedFunc.inner(psi200) ;
-    PRINTLINE("<data|210> =  ") << loadedFunc.inner(psi210);
+    PRINTLINE("<data|100> =  " << loadedFunc.inner(psi100));
+    PRINTLINE("<data|200> =  " << loadedFunc.inner(psi200));
+    PRINTLINE("<data|210> =  " << loadedFunc.inner(psi210));
   } else PRINTLINE("LoadedFunc doesn't exist");
 }
 

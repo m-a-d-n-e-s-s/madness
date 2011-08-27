@@ -338,7 +338,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                 //loop through time steps
                 for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                     //|PSI(t)> = |Psi(t)> - <phi_k|Psi(0)>|Psi(0)>
-                    //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl||Psi(0)> <Psi(0)|Psi(t)>
+                    //<phi_nl|PSI(t)> = <phi_nl|Psi(t)> - <phi_nl|Psi(0)> <Psi(0)|Psi(t)>
                     output =  inner(phi_nlm, psiIT->func) - n_overlap_0  * inner(psi0,psiIT->func);
                     PRINT(std::scientific <<"\t" << real(conj(output)*output) );
                 }
@@ -541,8 +541,8 @@ int main(int argc, char**argv) {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
         //loadList(world, boundList, unboundList);
-        //projectPsi(world, boundList, unboundList, Z, cutoff);
-        projectL(world, L, wf, nGrid, lMAX, cutoff);
+        projectPsi(world, boundList, unboundList, Z, cutoff);
+        //projectL(world, L, wf, nGrid, lMAX, cutoff);
         //zSlice(world, nGrid, L, th, phi, wf);
         //testIntegral(world, L, Z, kMomentum);
         //debugSlice(world, n, L, Z, kMomentum);

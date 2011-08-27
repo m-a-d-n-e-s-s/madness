@@ -51,7 +51,7 @@ complexd conhyp(const complexd& a_arg,
     int nbits_save = extended_real::get_default_prec();
     if (nbits_save < 128) extended_real::set_default_prec(128);
 
-    for (int attempts=0; attempts<3; attempts++) {
+    for (int attempts=0; attempts<5; attempts++) {
         // Convert input arguments to extended precision representation
         extended_complex a(a_arg);
         extended_complex b(b_arg);

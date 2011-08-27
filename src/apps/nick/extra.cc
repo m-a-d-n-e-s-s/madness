@@ -219,7 +219,7 @@ void compare1F1(World& world, double cutoff) {
     complexd I(0.0,1.0);
     std::cout << std::fixed;
     for(double r=rMIN; r<rMAX; r+=dr) {
-        complexd ZZ(0.0,-r);
+        complexd ZZ(0.0,-r);                      // ZZ = -Ir
         std::cout.precision(2);
         PRINT(r                         << "\t");
         std::cout.precision(8);
