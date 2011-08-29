@@ -1,11 +1,13 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric helium_mp2
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric helium_mp2 tiny mp2
 #bin_PROGRAMS = helium_mp2
 
 prog_only = helium_mp2_prog
 
-# plot_SOURCES = plot.cc
+mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/xcfunctional_libxc.cc
+
+tiny_SOURCES = tiny.cc
 
 helium_mp2_SOURCES = helium_mp2.cc
 

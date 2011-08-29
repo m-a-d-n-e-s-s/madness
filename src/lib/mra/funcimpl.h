@@ -1885,10 +1885,10 @@ namespace madness {
         Void multiop_values_doit(const keyT& key, const opT& op, const std::vector<implT*>& v) {
             std::vector<tensorT> c(v.size());
             for (unsigned int i=0; i<v.size(); i++) {
-                c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff()); // !!!!! gack
+                c[i] = coeffs2values(key, v[i]->coeffs.find(key).get()->second.coeff().full_tensor_copy()); // !!!!! gack
             }
             tensorT r = op(key, c);
-            coeffs.replace(key, nodeT(values2coeffs(key, r),false));
+            coeffs.replace(key, nodeT(coeffT(values2coeffs(key, r),targs),false));
             return None;
         }
 
@@ -1901,7 +1901,7 @@ namespace madness {
                 if (it->second.has_coeff())
                     world.taskq.add(*this, &implT:: template multiop_values_doit<opT>, key, op, v);
                 else
-                    coeffs.replace(key, nodeT(tensorT(),true));
+                    coeffs.replace(key, nodeT(coeffT(),true));
             }
             world.gop.fence();
         }
@@ -3864,19 +3864,16 @@ namespace madness {
             }
         };
 
-        template <typename opT, typename R>
+        /// for fine-grain parallelism: call the apply method of an operator in a separate task
+
+        /// @param[in]  op      the operator working on our function
+        /// @param[in]  c       full rank tensor holding the NS coefficients
+        /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
+        /// @return     nothing, but accumulate the result tensor into the destination node
+       template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-
-            Vector<Translation, NDIM> l(1);
-            l[0]=2; l[1]=1; l[2]=3;
-            keyT key1(2,l);
-            if (args.dest==key1) {
-                print("in do_apply_kernel",args.key,"->",args.dest);
-                print(0.5*result(_,_,0));
-            }
-
-            //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
@@ -3890,7 +3887,13 @@ namespace madness {
         }
 
 
-        /// same as do_apply_kernel, but use low rank tensors
+        /// same as do_apply_kernel, but use full rank tensors as input and low rank tensors as output
+
+        /// @param[in]  op      the operator working on our function
+        /// @param[in]  c       full rank tensor holding the NS coefficients
+        /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
+        /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
+        /// @return     nothing, but accumulate the result tensor into the destination node
         template <typename opT, typename R>
         Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args& args,
                 const TensorArgs& apply_targs) {
@@ -3915,6 +3918,36 @@ namespace madness {
                         TaskAttributes::hipri());
             }
             return None;
+        }
+
+
+        /// same as do_apply_kernel2, but use low rank tensors as input and low rank tensors as output
+
+        /// @param[in]  op      the operator working on our function
+        /// @param[in]  c       full rank tensor holding the NS coefficients
+        /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
+        /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
+        /// @return     nothing, but accumulate the result tensor into the destination node
+        template <typename opT, typename R>
+        Void do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args& args,
+                const TensorArgs& apply_targs) {
+
+
+            // apply2 returns result in SVD form
+            coeffT result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            double result_norm=-1.0;
+            if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
+            if (result.tensor_type()==TT_FULL) result_norm=result.normf();
+            MADNESS_ASSERT(result_norm>-0.5);
+
+            if (result_norm> 0.3*args.tol/args.fac) {
+
+                // accumulate also expects result in SVD form
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
+                        TaskAttributes::hipri());
+            }
+            return None;
+
         }
 
         /// apply an operator on the coeffs c (at node key)
@@ -4063,38 +4096,22 @@ namespace madness {
 
                         if (cost_ratio>0.0) {
 
-                            // Most expensive part is the kernel ... do it in a separate task -- full rank
+                            ProcessID here = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            // This introduces finer grain parallelism
+
                             if (cost_ratio<1.0) {
 
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
 
-                                // This introduces finer grain parallelism
-                                ProcessID here = world.rank();
-//                                ProcessID there =  world.random_proc();
-//            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
-                                do_op_args args(key, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
                                         args,apply_targs,TaskAttributes::hipri());
-
 //                                world.taskq.add(*this,&implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
 //                                        args,apply_targs,TaskAttributes::hipri());
 
                             } else {
-
-                                // apply2 returns result in SVD form
-                                coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
-                                double result_norm=-1.0;
-                                if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
-                                if (result.tensor_type()==TT_FULL) result_norm=result.normf();
-                                MADNESS_ASSERT(result_norm>-0.5);
-                                if (result_norm> 0.3*tol/fac) {
-
-                                    generated_terms+=result.rank();
-
-                                    // accumulate also expects result in SVD form
-                                    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
-                                            TaskAttributes::hipri());
-                                }
+                                woT::task(here, &implT:: template do_apply_kernel3<opT,R>, op, coeff,
+                                        args,apply_targs,TaskAttributes::hipri());
                             }
                         }
                     } else if (d.distsq() >= 12) {

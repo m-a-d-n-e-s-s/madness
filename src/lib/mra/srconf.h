@@ -334,7 +334,7 @@ namespace madness {
               	int i=int(tensortype_);
               	ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
               	tensortype_=TensorType(i);
-		make_slices();
+              	make_slices();
         }
 
 

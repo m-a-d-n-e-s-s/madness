@@ -74,6 +74,7 @@ namespace madness {
 #include <world/worlddc.h>
 #include <mra/funcdefaults.h>
 #include <mra/derivative.h>
+#include <mra/lbdeux.h>
 
 // some forward declarations
 namespace madness {
@@ -93,6 +94,23 @@ namespace madness {
 }
 
 
+
+namespace madness {
+    template<size_t NDIM>
+    struct LBCost2 {
+        double leaf_value;
+        double parent_value;
+        LBCost2(double leaf_value=1.0, double parent_value=1.0)
+            : leaf_value(leaf_value)
+            , parent_value(parent_value)
+        {}
+
+        double operator()(const Key<NDIM>& key, const FunctionNode<double,NDIM>& node) const {
+            const long rank=std::abs(node.coeff().rank());
+            return rank*rank;
+        }
+    };
+}
 
 namespace madness {
 
@@ -1021,7 +1039,7 @@ namespace madness {
             // it does work, but it might not give you the precision
             // have to think more about this
             if (g_on_demand) {
-                MADNESS_EXCEPTION("no on-demand function in inner for now",1);
+//                MADNESS_EXCEPTION("no on-demand function in inner for now",1);
             }
 
             // introduce special case if g==f: we don't need to compress
@@ -1355,7 +1373,7 @@ namespace madness {
     /// Performs a Hartree product on the two given low-dimensional functions
     template<typename T, std::size_t KDIM, std::size_t LDIM>
     Function<T,KDIM+LDIM>
-    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2, const bool fence=true) {
 
         // we need both sum and difference coeffs for error estimation
     	Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
@@ -1366,11 +1384,12 @@ namespace madness {
     			.k(left.k()).thresh(left.thresh());
         if (left.get_impl()->world.rank()==0) 
 		print("incomplete FunctionFactory in Function::hartree_product");
+        bool same=(left2.get_impl()==right2.get_impl());
 
         left.reconstruct();
         left.norm_tree();
         left.nonstandard(true,true);
-        if (&left!=&right) {
+        if (not same) {
 			right.reconstruct();
 			right.norm_tree();
 			right.nonstandard(true,true);
@@ -1380,7 +1399,8 @@ namespace madness {
         result.get_impl()->hartree_product(left.get_impl().get(),right.get_impl().get(),true);
 
         left.standard(false);
-        if (&left!=&right) right.standard(true);
+        if (not same) right.standard(true);
+        if (fence) left2.world().gop.fence();
 
         return result;
     }
@@ -1530,9 +1550,18 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
+
+        // this is important: redo load balancing AFTER compressing to NS form
+        LoadBalanceDeux<NDIM> lb(f.world());
+        lb.add_tree(f,LBCost2<NDIM>(1.0,1.0));
+        FunctionDefaults<NDIM>::redistribute(f.world(), lb.load_balance(2.0,false));
+
+
         if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
         if (f.get_impl()->world.rank()==0) print("op.modified",op.modified);
        	result.set_impl(f, true);
+
+
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
 
