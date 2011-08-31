@@ -218,24 +218,34 @@ private:
 public:
   //make epsilon
   realfunc make_epsilon() const {
-    return copy(rhot).unaryop(Epsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
+    realfunc value = copy(rhot);
+    value.unaryop(Epsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
+    return value;
   }
   //make normalization constant
   realfunc make_normconst() const {
-    return copy(rhot).unaryop(normconst<double,3>(rho_0, beta, epsilon,cutrho));
+    realfunc value = copy(rhot);
+    value.unaryop(normconst<double,3>(rho_0, beta, epsilon,cutrho));
+    return value; 
   }
   //make reciprocal of epsilon
   realfunc make_repsilon() const {
-    return copy(rhot).unaryop(repsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
+    realfunc value = copy(rhot);
+    value.unaryop(repsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
+    return value;
   }
   
   //make derivative of epsilon
   realfunc make_depsilon_drho() const {
-    return copy(rhot).unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
+    realfunc value = copy(rhot);
+    value.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
+    return value;
   }
   //make ratio of the derivative of epsilon w.r.t rho by epsilon
   realfunc make_ratioepsilon() const {
-    return copy(rhot).unaryop(ratioepsilon<double,3>(rho_0, beta,epsilon,cutrho));
+    realfunc value = copy(rhot);
+    value.unaryop(ratioepsilon<double,3>(rho_0, beta,epsilon,cutrho));
+    return value; 
   }
   //cavitation energy
   double cavitation_energy() const {
@@ -275,16 +285,6 @@ public:
   realfunc MolecularPotential()const {
     return op(rhot);
   }
-  //compute the gradient of epsilon[rho] 
-  realfunc depsilon_dr() const {
-    real_derivative_3d Dx = free_space_derivative<double,3>(rhot.world(), 0);
-    real_derivative_3d Dy = free_space_derivative<double,3>(rhot.world(), 1);
-    real_derivative_3d Dz = free_space_derivative<double,3>(rhot.world(), 2);
-    realfunc grad = (Dx(rhot) + Dy(rhot) + Dz(rhot));
-    realfunc depdrho = copy(rhot).unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
-    //    return make_depsilon_drho()*grad_of(rhot);
-    return grad*depdrho;
-  }
   //compute the surface charge                                                                                                                            
   realfunc make_surfcharge(const realfunc& u) const {
     real_derivative_3d Dx = free_space_derivative<double,3>(rhot.world(), 0);
@@ -310,18 +310,18 @@ public:
     realfunc U0 = op(tcharge);
     realfunc Ur = U - Uvac; 
     double unorm = Ur.norm2();
-    print("U.norm2: ", unorm);
+    //    print("U.norm2: ", unorm);
     //start plots
     coord_3d lo(0.0), hi(0.0);
     lo[0] = -20.0;
     hi[0] = 20.0;
     plot_line("epsilon.dat", 401, hi, lo,make_epsilon());
     plot_line("ratioepsilon.dat", 401, hi, lo,make_ratioepsilon());
-    plot_line("repsilon.dat", 401, hi, lo,make_repsilon());
-    plot_line("depsilondrho.dat", 401, hi, lo,make_depsilon_drho());
-    plot_line("depsilondr.dat", 401, hi, lo,depsilon_dr());
-    plot_line("guesspot.dat", 401, hi, lo,U0);
-    plot_line("surfacecharge.dat", 401, hi, lo,make_surfcharge(U));
+    // plot_line("repsilon.dat", 401, hi, lo,make_repsilon());
+    // plot_line("depsilondrho.dat", 401, hi, lo,make_depsilon_drho());
+    // plot_line("depsilondr.dat", 401, hi, lo,depsilon_dr());
+    // plot_line("guesspot.dat", 401, hi, lo,U0);
+    // plot_line("surfacecharge.dat", 401, hi, lo,make_surfcharge(U));
     //end plots
     if (USE_SOLVER) {
       madness::NonlinearSolver solver;
