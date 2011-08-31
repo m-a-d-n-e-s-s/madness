@@ -38,6 +38,7 @@
 /// \file key.h
 /// \brief Multidimension Key for MRA tree and associated iterators
 
+#include <vector>
 #include <mra/power.h>
 #include <world/array.h>
 #include <world/binfsar.h>
@@ -264,11 +265,16 @@ namespace madness {
 
         /// Assumes key and this are at the same level
         bool
-        is_neighbor_of(const Key& key) const {
-        	for (std::size_t i=0; i<NDIM; ++i) {
-        		if (std::abs(l[i]-key.l[i]) > 1) return false;
+        is_neighbor_of(const Key& key, const std::vector<bool>& bperiodic) const {
+          Translation dist = 0;
+          Translation TWON1 = (Translation(1)<<n) - 1;
+        	for (std::size_t i=0; i<NDIM; ++i)
+        	{
+        	  Translation ll = std::abs(l[i] - key.l[i]);
+        	  if (bperiodic[i] && ll==TWON1) ll=1;
+        	  dist = std::max(dist, ll);
         	}
-			return true;
+        	return (dist <= 1);
         }
 
         /// Recomputes hashval ... presently only done when reading from external storage

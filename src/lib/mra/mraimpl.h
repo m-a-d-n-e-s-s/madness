@@ -373,12 +373,14 @@ namespace madness {
 
             // Restrict special points to this box
             std::vector<Vector<double,NDIM> > newspecialpts;
-            if (key.level() < functor->special_level()) {
+            if (key.level() < functor->special_level() && specialpts.size() > 0) {
+                BoundaryConditions<NDIM> bc = FunctionDefaults<NDIM>::get_bc();
+                std::vector<bool> bperiodic = bc.is_periodic();
                 for (unsigned int i = 0; i < specialpts.size(); ++i) {
                     coordT simpt;
                     user_to_sim(specialpts[i], simpt);
                     Key<NDIM> specialkey = simpt2key(simpt, key.level());
-                    if (specialkey.is_neighbor_of(key)) {
+                    if (specialkey.is_neighbor_of(key,bperiodic)) {
                         newspecialpts.push_back(specialpts[i]);
                     }
                 }
@@ -388,7 +390,8 @@ namespace madness {
             // norm of difference coefficients
             tensorT r, s0;
             double dnorm = 0.0;
-            if (newspecialpts.size() == 0) {
+            //////////////////////////if (newspecialpts.size() == 0)
+            {
                 // Make in r child scaling function coeffs at level n+1
                 r = tensorT(cdata.v2k);
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
