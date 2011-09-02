@@ -1482,23 +1482,6 @@ namespace madness
           truncate(_world, tmp_orbitals);
           normalize(_world, tmp_orbitals);
 
-          // WSTHORNTON
-          // if at k-point == (0.0,0.0,0.0) basis function should be real
-//          if ((abs(kpt.k[0]) < 1e-12) && (abs(kpt.k[1]) < 1e-12) &&
-//              (abs(kpt.k[2]) < 1e-12))
-//          {
-//            if (_world.rank() == 0) printf("checking gamma point orbitals \n\n");
-//            for (unsigned int io = 0; io < tmp_orbitals.size(); io++)
-//            {
-//              if (!is_real<T,NDIM>(tmp_orbitals[io]))
-//              {
-//                double t1 = (imag(tmp_orbitals[io])).norm2();
-//                if (_world.rank() == 0)
-//                  printf("ERROR: mo function imaginary: %5.3d     %15.8f\n\n", io, t1);
-//              }
-//            }
-//          }
-
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
           ctensorT overlap2 = matrix_inner(_world, tmp_orbitals, tmp_orbitals, true);
@@ -1885,15 +1868,8 @@ namespace madness
               }
               eps = -0.1;
           }
-          if (_params.periodic)
-          {
-            Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
-            bops.push_back(poperatorT(BSHOperatorPtr3D(_world, sqrt(-2.0*eps), _params.lo, tol * 0.1)));
-          }
-          else
-          {
-            bops.push_back(poperatorT(BSHOperatorPtr3D(_world, sqrt(-2.0*eps), _params.lo, tol * 0.1)));
-          }
+
+          bops.push_back(poperatorT(BSHOperatorPtr3D(_world, sqrt(-2.0*eps), _params.lo, tol * 0.1)));
       }
       return bops;
     }
@@ -2307,13 +2283,6 @@ namespace madness
     void solve()
     {
 
-      // WSTHORNTON
-      // multiply gamma-point WF by m phase
-//      double_complex t1 = RandomValue<double_complex>();
-//      double_complex t2 = exp(t1);
-//      std::vector<double_complex> phase(_phisa.size(), t2);
-//      scale(_world, _phisa, phase);
-
       if (_world.rank() == 0) print("size of phisa is:  ", _phisa.size());
       // keep track of how many iterations have gone by without reprojecting
       int rit = 0;
@@ -2372,11 +2341,6 @@ namespace madness
         // Do right hand side for all k-points
         std::vector<double> alpha(pfuncsa.size(), 0.0);
         do_rhs_simple(_phisa, pfuncsa, _kpoints, alpha, _eigsa);
-
-//        for (unsigned int i = 0; i < pfuncsa.size(); i++)
-//        {
-//          test_periodicity(pfuncsa[i]);
-//        }
 
         if (_params.plotorbs)
         {
@@ -3043,53 +3007,93 @@ namespace madness
             print(e);
         }
 
+
+        // this is all of the B.S. for the solver
+        if (true)
+        {
+          unsigned int nmo = k_wf.size();
+          // Fix phases.
+          long imax;
+          for (long j = 0; j < nmo; j++)
+          {
+              // Get index of largest value in column
+              U(_,j).absmax(&imax);
+              T ang = arg(U(imax,j));
+              std::complex<T> phase = exp(std::complex<T>(0.0,-ang));
+              // Loop through the rest of the column and divide by the phase
+              for (long i = 0; i < nmo; i++)
+              {
+                U(i,j) *= phase;
+              }
+          }
+
+          // Within blocks with the same occupation number attempt to
+          // keep orbitals in the same order (to avoid confusing the
+          // non-linear solver).  Have to run the reordering multiple
+          // times to handle multiple degeneracies.
+          int maxpass = 5;
+          for (int pass = 0; pass < maxpass; pass++)
+          {
+              long j;
+              for (long i = 0; i < nmo; i++)
+              {
+                U(_, i).absmax(&j);
+                if (i != j)
+                {
+                  tensorT tmp = copy(U(_, i));
+                  U(_, i) = U(_, j);
+                  U(_, j) = tmp;
+                  //swap(e[i], e[j]);
+                  T ti = e[i];
+                  T tj = e[j];
+                  e[i] = tj; e[j] = ti;
+                }
+              }
+          }
+
+          // Rotations between effectively degenerate states confound
+          // the non-linear equation solver ... undo these rotations
+          long ilo = 0; // first element of cluster
+          while (ilo < nmo-1) {
+              long ihi = ilo;
+              while (fabs(real(e[ilo]-e[ihi+1])) < thresh*10.0*max(fabs(real(e[ilo])),1.0)) {
+                  ihi++;
+                  if (ihi == nmo-1) break;
+              }
+              long nclus = ihi - ilo + 1;
+              if (nclus > 1) {
+                  if (_world.rank() == 0) print("   found cluster", ilo, ihi);
+                  tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+                  //print(q);
+                  // Special code just for nclus=2
+                  // double c = 0.5*(q(0,0) + q(1,1));
+                  // double s = 0.5*(q(0,1) - q(1,0));
+                  // double r = sqrt(c*c + s*s);
+                  // c /= r;
+                  // s /= r;
+                  // q(0,0) = q(1,1) = c;
+                  // q(0,1) = -s;
+                  // q(1,0) = s;
+
+                  // Iteratively construct unitary rotation by
+                  // exponentiating the antisymmetric part of the matrix
+                  // ... is quadratically convergent so just do 3
+                  // iterations
+                  ctensorT rot = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(q,rot);
+                  ctensorT rot2 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(q,rot2);
+                  ctensorT rot3 = matrix_exponential(-0.5*(q - conj_transpose(q)));
+                  q = inner(rot,inner(rot2,rot3));
+                  U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+              }
+              ilo = ihi+1;
+          }
+        }
+
         // transform orbitals and V * (orbitals)
         k_vwf = transform(_world, k_vwf, U, 1e-5 / std::min(30.0, double(k_wf.size())), false);
         k_wf = transform(_world, k_wf, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(k_wf.size())), true);
-
-        if (_world.rank() == 0) printf("do_rhs_simple: (1.5) ...\n\n");
-        print_fock_matrix_eigs(k_wf, k_vwf, kpoint_gamma);
-
-        // WSTHORNTON
-//        for (unsigned int ikt = 0; ikt < k_vwf.size(); ikt++)
-//        {
-//          if (_world.rank() == 0) printf("(%8.5f,%8.5f,%8.5f)     orbital %d\n",k0,k1,k2,ikt);
-//          for (int i=0; i<101; ++i)
-//          {
-//              double rval = -_params.L/2 + i*_params.L/100.0;
-//              coordT r = coordT(rval);
-//              double_complex fval = k_vwf[ikt](r);
-//              if (_world.rank() == 0) printf("%22.8f    %22.8f    %22.8f\n",rval,real(fval), imag(fval));
-//          }
-//          if (_world.rank() == 0) printf("\n");
-//        }
-
-        // Do right hand side stuff for kpoint
-//        bool isgamma = (is_equal(k0,0.0,1e-5) &&
-//                        is_equal(k1,0.0,1e-5) &&
-//                        is_equal(k2,0.0,1e-5));
-//        if (_params.periodic && !isgamma) // Non-zero k-point
-//        {
-//          // Do the gradient term and k^2/2
-//          vecfuncT d_wf = zero_functions<valueT,NDIM>(_world, k_wf.size());
-//          complex_derivative_3d Dx(_world,0);
-//          complex_derivative_3d Dy(_world,1);
-//          complex_derivative_3d Dz(_world,2);
-//          for (unsigned int i = 0; i < k_wf.size(); i++)
-//          {
-//            // gradient
-//            functionT dx_wf = Dx(k_wf[i]);
-//            functionT dy_wf = Dy(k_wf[i]);
-//            functionT dz_wf = Dz(k_wf[i]);
-//            d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
-//                      std::complex<T>(0.0,k1)*dy_wf +
-//                      std::complex<T>(0.0,k2)*dz_wf;
-//            // k^/2
-//            double ksq = k0*k0 + k1*k1 + k2*k2;
-//            k_vwf[i] += 0.5 * ksq * k_wf[i];
-//            k_vwf[i] -= d_wf[i];
-//          }
-//        }
 
         if (_world.rank() == 0) printf("do_rhs_simple: (2) ...\n\n");
         print_fock_matrix_eigs(k_wf, k_vwf, kpoint_gamma);
@@ -3138,21 +3142,6 @@ namespace madness
           wf[wi] = k_wf[fi];
           vwf[wi] = k_vwf[fi];
         }
-
-        // WSTHORNTON
-//        if (_world.rank() == 0) printf("printing k_vwf:\n");
-//        for (unsigned int ikt = 0; ikt < k_vwf.size(); ikt++)
-//        {
-//          if (_world.rank() == 0) printf("(%8.5f,%8.5f,%8.5f)     orbital %d\n",k0,k1,k2,ikt);
-//          for (int i=0; i<101; ++i)
-//          {
-//              double rval = -_params.L/2 + i*_params.L/100.0;
-//              coordT r = coordT(rval);
-//              double_complex fval = k_vwf[ikt](r);
-//              if (_world.rank() == 0) printf("%22.8f    %22.8f    %22.8f\n",rval,real(fval), imag(fval));
-//          }
-//          if (_world.rank() == 0) printf("\n");
-//        }
       }
     }
     //*************************************************************************
