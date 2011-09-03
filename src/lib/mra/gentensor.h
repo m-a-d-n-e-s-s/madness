@@ -1732,23 +1732,23 @@ namespace madness {
     	return t.transform_dir(c,axis);
     }
 
-		template<typename T>
-		static inline
-		std::ostream& operator<<(std::ostream& s, const GenTensor<T>& g) {
-			std::string str="GenTensor has no data";
-			if (g.has_no_data()) {
-				std::string str="GenTensor has no data";
-				s << str.c_str() ;
-			} else {
-				str="GenTensor has data";
-				s << str.c_str() << g.config();
-			}
-			return s;
-		}
+    template<typename T>
+    static inline
+    std::ostream& operator<<(std::ostream& s, const GenTensor<T>& g) {
+        std::string str="GenTensor has no data";
+        if (g.has_no_data()) {
+            std::string str="GenTensor has no data";
+            s << str.c_str() ;
+        } else {
+            str="GenTensor has data";
+            s << str.c_str() << g.config();
+        }
+        return s;
+    }
 
     namespace archive {
-		/// Serialize a tensor
-		template <class Archive, typename T>
+        /// Serialize a tensor
+        template <class Archive, typename T>
 		struct ArchiveStoreImpl< Archive, GenTensor<T> > {
 
 			friend class GenTensor<T>;
@@ -1783,48 +1783,32 @@ namespace madness {
 		};
     };
 
-
-
     #endif /* HAVE_GENTENSOR */
 
+    /// change representation to targ.tt
+    template<typename T>
+    void change_tensor_type(GenTensor<T>& t, const TensorArgs& targs) {
 
-    /// transform the argument SepRepTensor to FullTensor form
-    template <typename T>
-    void to_full_rank(GenTensor<T>& arg) {
+        // fast return if possible
+        const TensorType current_type=t.tensor_type();
+        if (current_type==targs.tt) return;
+        if (t.has_no_data()) return;
 
-    	if (arg.has_data()) {
-        	if (arg.tensor_type()==TT_FULL) {
-        		;
-        	} else if (arg.tensor_type()==TT_3D or arg.tensor_type()==TT_2D) {
-        		Tensor<T> t=arg.reconstruct_tensor();
-            	arg=GenTensor<T>(t,0.0,TT_FULL);
-        	} else {
-        		throw std::runtime_error("unknown TensorType in to_full_tensor");
-        	}
-    	}
+        // for now
+        MADNESS_ASSERT(targs.tt==TT_FULL or targs.tt==TT_2D);
+        MADNESS_ASSERT(current_type==TT_FULL or current_type==TT_2D);
+
+        GenTensor<T> result;
+        if (targs.tt==TT_FULL) {
+            result=GenTensor<T>(t.full_tensor_copy(),targs);
+        } else if (targs.tt==TT_2D) {
+            MADNESS_ASSERT(current_type==TT_FULL);
+            result=GenTensor<T>(t.full_tensor(),targs);
+        }
+
+        t=result;
+
     }
-
-    /// transform the argument SepRepTensor to LowRankTensor form
-    template <typename T>
-    void to_low_rank(GenTensor<T>& arg, const double& eps, const TensorType& target_type) {
-
-    	if (arg.has_data()) {
-        	if (arg.tensor_type()==TT_FULL) {
-				const Tensor<T> t1=arg.reconstruct_tensor();
-				arg=(GenTensor<T>(t1,eps,target_type));
-	     	} else if (arg.tensor_type()==TT_2D or arg.tensor_type()==TT_NONE) {
-         		;
-         	} else {
-         		throw std::runtime_error("unknown TensorType in to_full_tensor");
-         	}
-    	}
-    }
-
-
-
-
-
-
 
 }
 

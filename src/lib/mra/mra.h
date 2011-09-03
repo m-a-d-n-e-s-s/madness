@@ -96,24 +96,6 @@ namespace madness {
 
 
 namespace madness {
-    template<size_t NDIM>
-    struct LBCost2 {
-        double leaf_value;
-        double parent_value;
-        LBCost2(double leaf_value=1.0, double parent_value=1.0)
-            : leaf_value(leaf_value)
-            , parent_value(parent_value)
-        {}
-
-        double operator()(const Key<NDIM>& key, const FunctionNode<double,NDIM>& node) const {
-            const long rank=std::abs(node.coeff().rank());
-            return rank*rank;
-        }
-    };
-}
-
-namespace madness {
-
     /// \ingroup mra
     /// \addtogroup function
 
@@ -682,7 +664,7 @@ namespace madness {
             if (!impl || is_compressed()) return *this;
             if (VERIFY_TREE) verify_tree();
             impl->world.gop.fence();
-            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, fence);
+            const_cast<Function<T,NDIM>*>(this)->impl->compress(false, false, false, fence);
             return *this;
         }
 
@@ -695,13 +677,13 @@ namespace madness {
         /// for other purposes.
         ///
         /// Noop if already compressed or if not initialized.
-        void nonstandard(bool keepleaves, bool fence) {
+        void nonstandard(bool keepleaves, bool fence=true) {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             if (impl->is_nonstandard()) return;
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
-            impl->compress(true, keepleaves, fence);
+            impl->compress(true, keepleaves, false, fence);
         }
 
         /// Converts the function from nonstandard form to standard form.  Possible non-blocking comm.
@@ -1021,9 +1003,29 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             MADNESS_ASSERT(is_compressed());
             MADNESS_ASSERT(g.is_compressed());
+            if (VERIFY_TREE) verify_tree();
+            if (VERIFY_TREE) g.verify_tree();
             return impl->inner_local(*(g.get_impl()));
         }
 
+
+        /// returns true if the function has a leaf node at key (works only locally)
+        struct leaf_op {
+            const implT* f;
+
+            leaf_op() {}
+            leaf_op(const implT* f) : f(f) {}
+
+            bool operator()(const Key<NDIM>& key) const {
+                MADNESS_ASSERT(f->get_coeffs().is_local(key));
+                return (not f->get_coeffs().find(key).get()->second.has_children());
+            }
+            template <typename Archive> void serialize (Archive& ar) {
+                ar & f;
+            }
+
+
+        };
 
         /// Returns the inner product
 
@@ -1051,7 +1053,10 @@ namespace madness {
             MADNESS_ASSERT(not g.get_impl()->is_redundant());
             if (g_on_demand) {
                 this->reconstruct();
-                gimpl->make_Vphi(true);  // fence here
+                leaf_op fnode_is_leaf(this->get_impl().get());
+                gimpl->make_Vphi(fnode_is_leaf,true);  // fence here
+                gimpl->print_size("gimpl");
+                this->print_size("f");
             }
 
             if (VERIFY_TREE) verify_tree();
@@ -1065,6 +1070,7 @@ namespace madness {
             if (g_on_demand) {
                 MADNESS_ASSERT(gimpl->get_functor());
                 gimpl->get_coeffs().clear();
+                gimpl->is_on_demand()=true;
             }
 
             return local;
@@ -1105,6 +1111,14 @@ namespace madness {
             ar & long(7776768) & long(TensorTypeData<T>::id) & long(NDIM) & long(k());
 
             impl->store(ar);
+        }
+
+        /// change the tensor type of the coefficients in the FunctionNode
+
+        /// @param[in]  targs   target tensor arguments (threshold and full/low rank)
+        void change_tensor_type(const TensorArgs& targs, bool fence=true) {
+            if (not impl) return;
+            impl->change_tensor_type1(targs,fence);
         }
 
 
@@ -1550,18 +1564,9 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-
-        // this is important: redo load balancing AFTER compressing to NS form
-        LoadBalanceDeux<NDIM> lb(f.world());
-        lb.add_tree(f,LBCost2<NDIM>(1.0,1.0));
-        FunctionDefaults<NDIM>::redistribute(f.world(), lb.load_balance(2.0,false));
-
-
         if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
         if (f.get_impl()->world.rank()==0) print("op.modified",op.modified);
        	result.set_impl(f, true);
-
-
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
 

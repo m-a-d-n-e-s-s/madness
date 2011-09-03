@@ -451,15 +451,19 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::add_scalar_inplace(T t, bool fence) {
         std::vector<long> v0(NDIM,0L);
+        const TensorArgs full_args(-1.0,TT_FULL);
         if (is_compressed()) {
             if (world.rank() == coeffs.owner(cdata.key0)) {
                 typename dcT::iterator it = coeffs.find(cdata.key0).get();
                 MADNESS_ASSERT(it != coeffs.end());
                 nodeT& node = it->second;
                 MADNESS_ASSERT(node.has_coeff());
-                node.node_to_full_rank();
-                node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-                node.node_to_low_rank();
+//                node.node_to_full_rank();
+//                node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+//                node.node_to_low_rank();
+                change_tensor_type(node.coeff(),full_args);
+                node.coeff().full_tensor()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+                change_tensor_type(node.coeff(),targs);
             }
         }
         else {
@@ -467,9 +471,12 @@ namespace madness {
                 Level n = it->first.level();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                	node.node_to_full_rank();
-                    node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
-                    node.node_to_low_rank();
+//                	node.node_to_full_rank();
+//                    node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+//                    node.node_to_low_rank();
+                    change_tensor_type(node.coeff(),full_args);
+                    node.coeff().full_tensor()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+                    change_tensor_type(node.coeff(),targs);
                 }
             }
         }
@@ -1033,7 +1040,8 @@ namespace madness {
 
 #if 1
     template <typename T, std::size_t NDIM>
-    Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key, bool nonstandard, bool keepleaves) {
+    Future< GenTensor<T> > FunctionImpl<T,NDIM>::compress_spawn(const Key<NDIM>& key,
+            bool nonstandard, bool keepleaves, bool redundant) {
         if (!coeffs.probe(key)) {
 	    print("missing node",key);
 	}
@@ -1046,9 +1054,10 @@ namespace madness {
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
                 PROFILE_BLOCK(compress_send);
                 // readily available
-                v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(), nonstandard, keepleaves, TaskAttributes::hipri());
+                v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(),
+                        nonstandard, keepleaves, redundant, TaskAttributes::hipri());
             }
-            return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard);
+            return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard, redundant);
         }
         else {
             Future<coeffT > result(node.coeff());

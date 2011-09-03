@@ -698,7 +698,8 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 							.V_for_particle2(copy(pot2).get_impl())
 							.muster(copy(pair).get_impl())
 							;
-		vphi.get_impl()->make_Vphi();
+//		vphi.get_impl()->make_Vphi();
+		MADNESS_EXCEPTION("fix solve in helium_mp2",1);
 
 		long tree_size1=pair.tree_size();
         long tree_size2=vphi.tree_size();

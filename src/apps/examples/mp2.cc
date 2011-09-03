@@ -54,21 +54,21 @@
 
 static const bool is_helium=true;
 
-
-// according to McQuarrie
-static double he_orbital_McQuarrie(const coord_3d& r) {
-
-    // separation for 2-way decomposition (SVD; r1 -- r2)
-    const double x1=r[0];
-    const double y1=r[1];
-    const double z1=r[2];
-
-    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + 0.001*0.001);
-
-    const double val=exp(-(27.0/16.0)*r1);
-
-    return val;
-}
+//
+//// according to McQuarrie
+//static double he_orbital_McQuarrie(const coord_3d& r) {
+//
+//    // separation for 2-way decomposition (SVD; r1 -- r2)
+//    const double x1=r[0];
+//    const double y1=r[1];
+//    const double z1=r[2];
+//
+//    const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + 0.001*0.001);
+//
+//    const double val=exp(-(27.0/16.0)*r1);
+//
+//    return val;
+//}
 
 
 namespace madness {
@@ -254,6 +254,22 @@ namespace madness {
             return solved;
         }
 
+
+        /// plot a pair function along a line
+        void plot_along(const pairfunctionT& pair, const std::string name) const {
+
+            double L=FunctionDefaults<6>::get_cell_width()[0];
+            coord_6d lo(0.0), hi(0.0);
+            lo[0]=-L/2;
+            hi[0]=L/2;
+//            for (int ii=-5; ii<6; ii++) {
+//                lo[3]=hi[3]=double(ii);
+                trajectory<6> line=trajectory<6>::line2(lo,hi,601);
+                madness::plot_along<6>(world,line,pair,(name+"lineplot"));
+//            }
+        }
+
+
         /// return the 0th order energy of pair ij (= sum of orbital energies)
         double zeroth_order_energy(const int i, const int j) const {
             return hf.orbital_energy(i)+hf.orbital_energy(j);
@@ -358,7 +374,7 @@ namespace madness {
         }
 
         /// given 0th and 1st order pair function, compute the pair energy using the Hylleraas functional
-        double compute_second_order_correction_with_Hylleraas(const int i, const int j, const pairfunctionT& fo_function) const {
+        double compute_second_order_correction_with_Hylleraas(const int i, const int j, pairfunctionT& fo_function) const {
 
             // the Hylleraas functional is given by
             //  E^2 = -2 * <phi^1 | V^1 | phi^0>  + <phi^1 | H^0 | phi^1>
@@ -366,23 +382,22 @@ namespace madness {
             // the B term
             double B=0.0;
             {
-                const pairfunctionT zo_function=zeroth_order_function(i,j);
-
                 // V_nuc, J, and K
                 MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
-                functionT coulomb=hf.get_coulomb_potential().scale(-0.5);
+                functionT coulomb=0.5*hf.get_coulomb_potential();
                 functionT v_nuc=hf.get_nuclear_potential();
                 functionT v_total=v_nuc+coulomb;
 
                 real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-8);
                 real_function_6d v11=CompositeFactory<double,6,3>(world)
-                                         .ket(copy(zo_function).get_impl())
-                                         .g12(eri.get_impl())
+                                         .ket(copy(fo_function).get_impl())
+//                                         .g12(eri.get_impl())
                                          .V_for_particle1(copy(v_total).get_impl())
                                          .V_for_particle2(copy(v_total).get_impl())
                                          ;
 
-                const double pe=inner(zo_function,v11);
+                const double pe=inner(fo_function,v11);
+                print("pe in Hylleraas",pe);
 
                 // kinetic energy expectation value
                 double ke=0.0;
@@ -395,19 +410,168 @@ namespace madness {
                     if (world.rank()==0) print("done with axis",axis, a);
                 }
 
-                B=ke+pe;
+                // overlap <phi^1 | e1+e2 | phi^1>
+                const double overlap=fo_function.norm2();
+                print("fo_function.norm2",overlap);
+                const double e_contrib=overlap*overlap*this->zeroth_order_energy(i,j);
+
+                B=ke+pe-e_contrib;
             }
 
             // the V term
             const double V=compute_second_order_correction(i,j,fo_function);
+            const double e=2.0*V+B;
+            const double x=-V/B;
+            const double e_opt=2.0*V*x+B*x*x;
 
-            printf("Hylleraas functional (energy, and terms V and B) of pair (%2d %2d)  : %12.8f %12.8f %12.8f \n",i,j,2*V+B,V,B);
+            printf("V and B  %12.8f %12.8f \n",V,B);
+            printf("Hylleraas, direct/optimized of pair (%2d %2d) : %12.8f %12.8f \n",i,j,e,e_opt);
+            fo_function.scale(V/B);
             return 2*V+B;
         }
 
 
+        void test2(const int i, const int j) {
+
+            ElectronPair result;
+            const double thresh=FunctionDefaults<6>::get_thresh()*0.01;
+
+            //  -2.0 G = (T - e_i - e_j) ^ -1
+            const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+
+            // for estimating the MRA structure of V*phi
+            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            op_mod.modified=true;
+
+
+            pairfunctionT zo_function=this->zeroth_order_function(i,j);
+            plot_along(zo_function,"zo_function");
+            // nuclear, Coulomb and exchange potential
+            functionT coulomb=0.5*hf.get_coulomb_potential();
+            functionT v_total=hf.get_nuclear_potential()+coulomb;
+
+            pairfunctionT vphi=CompositeFactory<double,6,3>(world)
+                                                   .ket(copy(zo_function).get_impl())
+                                                   .V_for_particle1(copy(v_total).get_impl())
+                                                   .V_for_particle2(copy(v_total).get_impl());
+
+            // make the tree
+            vphi.get_impl()->convolute(op_mod);
+            vphi.scale(-2.0);
+            vphi.print_size("vphi of the first order pair function with 1-electron potentials");
+
+            /// apply the convolution
+            pairfunctionT tmp=green(vphi).truncate(thresh);
+            tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+            plot_along(tmp,"green_on_zo_function");
+
+            result.function=tmp;
+
+            compute_second_order_correction_with_Hylleraas(i,j,result.function);
+            orthogonalize(result.function,zo_function);
+            compute_second_order_correction_with_Hylleraas(i,j,result.function);
+
+
+        }
+
+
+        void test(const int i, const int j) {
+
+            pairfunctionT zo_function=zeroth_order_function(i,j);
+            zo_function.print_size("zo_function untr");
+            zo_function.truncate();
+            zo_function.print_size("zo_function truncated");
+            pairfunctionT tmp;
+
+
+
+            {
+                // the Green's function depends on the zeroth order energy, which is the sum
+                // of the orbital energies of orbitals i and j
+                //  -2.0 G = (T - e_i - e_j) ^ -1
+                const double eps=zeroth_order_energy(i,j);
+                real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+
+                // for estimating the MRA structure of V*phi
+                real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+                op_mod.modified=true;
+
+
+                // nuclear, Coulomb and exchange potential
+                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
+                functionT v_total=hf.get_nuclear_potential()+coulomb;
+
+                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
+                                                 .ket(copy(zo_function).get_impl())
+                                                 .V_for_particle1(copy(v_total).get_impl())
+                                                 .V_for_particle2(copy(v_total).get_impl());
+
+                // make the tree
+                vphi.get_impl()->convolute(op_mod);
+                vphi.scale(-2.0);
+                vphi.print_size("vphi of the first order pair function with 1-electron potentials");
+
+                // apply the convolution
+                tmp=green(vphi);
+                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+                tmp.compress();
+                tmp.truncate(1.e-4);
+                tmp.print_size("truncated 1.e-4");
+                tmp.truncate(1.e-3);
+                tmp.print_size("truncated 1.e-3");
+                tmp.truncate();
+                tmp.print_size("truncated default");
+            }
+
+            // tmp should be equal |phi^0>
+            double norm=inner(tmp,zo_function);
+            print("norm(tmp,zo_function)",norm);
+
+            // zeroth-order energy
+            {
+                // nuclear, Coulomb and exchange potential
+                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
+                functionT v_total=hf.get_nuclear_potential()+coulomb;
+
+                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
+                                                 .ket(copy(zo_function).get_impl())
+                                                 .V_for_particle1(copy(v_total).get_impl())
+                                                 .V_for_particle2(copy(v_total).get_impl());
+
+                double e00=inner(zo_function,vphi);
+                double e0=inner(tmp,vphi);
+                printf("e0(zo_function)  %12.8f\n",e00);
+                printf("e0(tmp)          %12.8f\n",e0);
+
+            }
+
+            // first-order energy
+            {
+                // nuclear, Coulomb and exchange potential
+                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
+                pairfunctionT eri=ERIFactory<double,6>(world).dcut(dcut);
+
+                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
+                                                          .ket(copy(zo_function).get_impl())
+                                                          .g12(eri.get_impl())
+                                                          .V_for_particle1(copy(coulomb).get_impl())
+                                                          .V_for_particle2(copy(coulomb).get_impl());
+
+                double e1=inner(tmp,vphi);
+                double e11=inner(zo_function,vphi);
+                printf("e1(zo_function)  %12.8f\n",e11);
+                printf("e1(tmp)          %12.8f\n",e1);
+
+            }
+
+        }
+
         /// solve the residual equations for orbitals i and j
         ElectronPair solve_residual_equation(const int i, const int j) const {
+
+            // tightened threshold
+            const double thresh=FunctionDefaults<6>::get_thresh()*0.01;
 
             // the result
             ElectronPair result;
@@ -429,15 +593,15 @@ namespace madness {
 
 
             // apply the first order Hamiltonian on the zeroth order wave function: J, K, and 1/r12 part
-            {
+            if (1) {
                 // two-electron interaction potential
                 pairfunctionT eri=ERIFactory<double,6>(world).dcut(dcut);
 
                 // Coulomb and exchange potential
                 MADNESS_ASSERT(is_helium);
-                functionT coulomb=hf.get_coulomb_potential();
-                coulomb.scale(-0.5);
+                functionT coulomb=hf.get_coulomb_potential().scale(-0.5);
 
+//                print("no 1/r12 in H1 phi0");
                 pairfunctionT vphi=CompositeFactory<double,6,3>(world)
                                                     .ket(copy(zo_function).get_impl())
                                                     .g12(eri.get_impl())
@@ -450,17 +614,18 @@ namespace madness {
                 vphi.print_size("vphi of the zeroth order pair function with 1-electron potentials");
 
                 /// apply the convolution
-                constant_term=green(vphi).truncate();
+                constant_term=green(vphi).truncate(thresh);
                 constant_term.print_size("result of applying 1st order Hamiltonian on 0th order wave function");
 
 
             }
 
+
             // scale the zeroth order wave function with the first order energy
             {
-                pairfunctionT phi=zo_function;
+                pairfunctionT phi=copy(zo_function);
                 phi.scale(-2.0);
-                pairfunctionT tmp=green(phi).truncate();
+                pairfunctionT tmp=green(phi).truncate(thresh);
                 constant_term+=tmp.scale(-result.first_order_correction);
             }
 
@@ -469,18 +634,12 @@ namespace madness {
             result.function=constant_term;
 
             // orthogonalize the first order wave function against the reference
-            double ovlp=inner(result.function,zo_function);
-            printf("overlap of 1st order and 0th order wave functions: %12.8f\n",ovlp);
-            pairfunctionT tmp2=-ovlp*zo_function;
-            result.function+=tmp2;
-            ovlp=inner(result.function,zo_function);
-            printf("overlap of 1st order and 0th order wave functions after orthogonalization: %12.8f\n",ovlp);
+            orthogonalize(result.function,zo_function);
 
-
-            for (int ii=0; ii<10; ++ii) {
+            for (int ii=0; ii<20; ++ii) {
 
                 // nuclear, Coulomb and exchange potential
-                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
+                functionT coulomb=0.5*hf.get_coulomb_potential();
                 functionT v_total=hf.get_nuclear_potential()+coulomb;
 
                 pairfunctionT vphi=CompositeFactory<double,6,3>(world)
@@ -494,14 +653,14 @@ namespace madness {
                 vphi.print_size("vphi of the first order pair function with 1-electron potentials");
 
                 /// apply the convolution
-                pairfunctionT tmp=green(vphi).truncate();
+                pairfunctionT tmp=green(vphi).truncate(thresh);
                 tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
 
                 result.function=constant_term+tmp;
 
-
-                result.second_order_correction=compute_second_order_correction(i,j,result.function);
-//                compute_second_order_correction_with_Hylleraas(i,j,result.function);
+                orthogonalize(result.function,zo_function);
+//                result.second_order_correction=compute_second_order_correction(i,j,result.function);
+                compute_second_order_correction_with_Hylleraas(i,j,result.function);
                 if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
 
             }
@@ -526,6 +685,25 @@ namespace madness {
             print("i,j,ij",i,j,ij);
             return ij;
         }
+
+        /// orthogonalize f against function g: |f> <= |f> - |g><g|f>
+        void orthogonalize(real_function_6d& f, const real_function_6d& g) const {
+
+            const double thresh=FunctionDefaults<6>::get_thresh()*0.01;
+
+            // orthogonalize the first order wave function against the reference
+            double ovlp=inner(f,g);
+            printf("overlap of 1st order and 0th order wave functions: %12.8f\n",ovlp);
+            pairfunctionT tmp2=-ovlp*g;
+            double ovlp2=inner(tmp2,g);
+            printf("overlap tmp2 and zo_function: %12.8f\n",ovlp2);
+            f+=tmp2;
+            f.truncate(thresh);
+            ovlp=inner(f,g);
+            printf("overlap of 1st order and 0th order wave functions after orthogonalization: %12.8f\n",ovlp);
+
+        }
+
     };
 }
 
@@ -621,6 +799,8 @@ int main(int argc, char** argv) {
     MP2 mp2(world,hf);
 //    mp2.compute_first_order_correction(0,0);
     mp2.solve_residual_equation(0,0);
+//    mp2.test(0,0);
+//    mp2.test2(0,0);
 
 //    mp2.value(calc.molecule.get_all_coords());
 
