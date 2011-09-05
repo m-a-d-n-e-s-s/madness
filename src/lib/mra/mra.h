@@ -1691,6 +1691,38 @@ namespace madness {
     }
 
 
+    /// multiply a high-dimensional function with a low-dimensional function
+
+    /// @param[in]  f   NDIM function of 2 particles: f=f(1,2)
+    /// @param[in]  g   LDIM function of 1 particle: g=g(1) or g=g(2)
+    /// @param[in]  particle    if g=g(1) or g=g(2)
+    /// @return     h(1,2) = f(1,2) * g(p)
+    template<typename T, std::size_t NDIM, std::size_t LDIM>
+    Function<T,NDIM> multiply(const Function<T,NDIM> f, const Function<T,LDIM> g, const int particle, const bool fence=true) {
+
+        MADNESS_ASSERT(LDIM+LDIM==NDIM);
+        MADNESS_ASSERT(particle==1 or particle==2);
+
+        Function<T,NDIM> result;
+        result.set_impl(f, true);
+
+        Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
+        Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
+
+        FunctionImpl<T,NDIM>* fimpl=ff.get_impl().get();
+        FunctionImpl<T,LDIM>* gimpl=gg.get_impl().get();
+        fimpl->make_redundant(false);
+        gimpl->make_redundant(true);
+
+        result.get_impl()->multiply(fimpl,gimpl,particle);
+        result.world().gop.fence();
+
+        fimpl->undo_redundant(false);
+        gimpl->undo_redundant(fence);
+        result.print_size("finished multiplication f(1,2)*g(1)");
+
+        return result;
+    }
 
 
     template <typename T, std::size_t NDIM>

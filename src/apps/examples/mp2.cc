@@ -478,92 +478,22 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-            pairfunctionT zo_function=zeroth_order_function(i,j);
-            zo_function.print_size("zo_function untr");
-            zo_function.truncate();
-            zo_function.print_size("zo_function truncated");
-            pairfunctionT tmp;
+            real_function_6d pair=zeroth_order_function(i,j);
+
+            real_function_3d phi_i=hf.orbital(i);
+            real_function_3d phi_j=hf.orbital(j);
 
 
+            real_function_3d phisq=phi_i*phi_i;
+            real_function_6d iij=hartree_product(phisq,phi_j);
+            double n=iij.norm2();
+            if (world.rank()==0) print("iij.norm2()",n);
 
-            {
-                // the Green's function depends on the zeroth order energy, which is the sum
-                // of the orbital energies of orbitals i and j
-                //  -2.0 G = (T - e_i - e_j) ^ -1
-                const double eps=zeroth_order_energy(i,j);
-                real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            real_function_6d iij2=multiply(pair,phi_i,1);
+            real_function_6d diff=iij-iij2;
+            double norm=diff.norm2();
+            if (world.rank()==0) print("diff norm",norm);
 
-                // for estimating the MRA structure of V*phi
-                real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-                op_mod.modified=true;
-
-
-                // nuclear, Coulomb and exchange potential
-                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
-                functionT v_total=hf.get_nuclear_potential()+coulomb;
-
-                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
-                                                 .ket(copy(zo_function).get_impl())
-                                                 .V_for_particle1(copy(v_total).get_impl())
-                                                 .V_for_particle2(copy(v_total).get_impl());
-
-                // make the tree
-                vphi.get_impl()->convolute(op_mod);
-                vphi.scale(-2.0);
-                vphi.print_size("vphi of the first order pair function with 1-electron potentials");
-
-                // apply the convolution
-                tmp=green(vphi);
-                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-                tmp.compress();
-                tmp.truncate(1.e-4);
-                tmp.print_size("truncated 1.e-4");
-                tmp.truncate(1.e-3);
-                tmp.print_size("truncated 1.e-3");
-                tmp.truncate();
-                tmp.print_size("truncated default");
-            }
-
-            // tmp should be equal |phi^0>
-            double norm=inner(tmp,zo_function);
-            print("norm(tmp,zo_function)",norm);
-
-            // zeroth-order energy
-            {
-                // nuclear, Coulomb and exchange potential
-                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
-                functionT v_total=hf.get_nuclear_potential()+coulomb;
-
-                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
-                                                 .ket(copy(zo_function).get_impl())
-                                                 .V_for_particle1(copy(v_total).get_impl())
-                                                 .V_for_particle2(copy(v_total).get_impl());
-
-                double e00=inner(zo_function,vphi);
-                double e0=inner(tmp,vphi);
-                printf("e0(zo_function)  %12.8f\n",e00);
-                printf("e0(tmp)          %12.8f\n",e0);
-
-            }
-
-            // first-order energy
-            {
-                // nuclear, Coulomb and exchange potential
-                functionT coulomb=hf.get_coulomb_potential().scale(0.5);
-                pairfunctionT eri=ERIFactory<double,6>(world).dcut(dcut);
-
-                pairfunctionT vphi=CompositeFactory<double,6,3>(world)
-                                                          .ket(copy(zo_function).get_impl())
-                                                          .g12(eri.get_impl())
-                                                          .V_for_particle1(copy(coulomb).get_impl())
-                                                          .V_for_particle2(copy(coulomb).get_impl());
-
-                double e1=inner(tmp,vphi);
-                double e11=inner(zo_function,vphi);
-                printf("e1(zo_function)  %12.8f\n",e11);
-                printf("e1(tmp)          %12.8f\n",e1);
-
-            }
 
         }
 
@@ -631,7 +561,7 @@ namespace madness {
 
 
             // start iterations on the first order wave function
-            result.function=constant_term;
+            result.function=copy(constant_term);
 
             // orthogonalize the first order wave function against the reference
             orthogonalize(result.function,zo_function);
@@ -639,7 +569,7 @@ namespace madness {
             for (int ii=0; ii<20; ++ii) {
 
                 // nuclear, Coulomb and exchange potential
-                functionT coulomb=0.5*hf.get_coulomb_potential();
+                functionT coulomb=hf.get_coulomb_potential();
                 functionT v_total=hf.get_nuclear_potential()+coulomb;
 
                 pairfunctionT vphi=CompositeFactory<double,6,3>(world)
@@ -703,6 +633,18 @@ namespace madness {
             printf("overlap of 1st order and 0th order wave functions after orthogonalization: %12.8f\n",ovlp);
 
         }
+
+        /// apply the exchange operator on f
+        real_function_6d apply_exchange(const real_function_6d& f) {
+
+            const int i=0;
+
+            real_function_3d orbital=hf.orbital(i);
+            real_function_6d x=multiply(f,orbital,1);
+
+            return x;
+        }
+
 
     };
 }
@@ -798,8 +740,8 @@ int main(int argc, char** argv) {
     hf.value();
     MP2 mp2(world,hf);
 //    mp2.compute_first_order_correction(0,0);
-    mp2.solve_residual_equation(0,0);
-//    mp2.test(0,0);
+//    mp2.solve_residual_equation(0,0);
+    mp2.test(0,0);
 //    mp2.test2(0,0);
 
 //    mp2.value(calc.molecule.get_all_coords());

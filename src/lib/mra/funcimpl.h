@@ -1213,9 +1213,7 @@ namespace madness {
         }
 
         template <typename Q>
-//        Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
-        coeffT values2coeffs(const keyT& key, const coeffT& values) const {
-//        __Tensor<Q> values2coeffs(const keyT& key, const __Tensor<Q>& values) const {
+        GenTensor<Q> values2coeffs(const keyT& key, const GenTensor<Q>& values) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
@@ -2457,6 +2455,155 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        /// perform this multiplication: h(1,2) = f(1,2) * g(1)
+        template<size_t LDIM>
+        struct multiply_op {
+
+            typedef FunctionImpl<T,LDIM> implL;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+
+            implT* h;     ///< the result function h(1,2) = f(1,2) * g(1)
+            const implT* f;     ///< the function f(1,2) that will be multiplied with g(1)
+            const implL* g;     ///< the function g(1) or g(2) will be multiplied with f(1,2)
+            datumT fdatum;      ///< pointing to the most-leaf node of f
+            datumL gdatum;      ///< pointing to the most-leaf node of g
+            int particle;       ///< if g is g(1) or g(2)
+
+            multiply_op()
+                : particle(1) {
+            };
+
+            multiply_op(implT* h, const implT* f, const implL* g, const datumT& fdatum, const datumL& gdatum, const int particle)
+                : h(h)
+                , f(f)
+                , g(g)
+                , fdatum(fdatum)
+                , gdatum(gdatum)
+                , particle(particle) {
+                MADNESS_ASSERT(gdatum.second.coeff().has_data());
+            };
+
+            /// apply this on a FunctionNode of f and g of Key key
+
+            /// @param[in]  key key for FunctionNode in f and g, (g: broken into particles)
+            /// @return <this node is a leaf, coefficients of this node>
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+                bool is_leaf=(not fdatum.second.has_children());
+                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+                // break key into particles (these are the child keys, with f/gdatum come the parent keys)
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
+
+                // get coefficients of this FunctionNode, or of a parent (if applicable)
+                // iterators point to nodes in redundant representation
+                const coeffT& fcoeff=fdatum.second.coeff();
+                const coeffT& gcoeff=gdatum.second.coeff();
+
+                // get coefficients of the actual FunctionNode
+                const coeffT coeff1=f->parent_to_child(fcoeff,fdatum.first,key);
+                const coeffT coeff2=g->parent_to_child(gcoeff,gdatum.first,gkey);
+
+                // convert coefficients to values
+                coeffT hvalues=f->coeffs2values(key,coeff1);
+                coeffT gvalues=g->coeffs2values(gkey,coeff2);
+
+                // multiply one of the two vectors of f with g
+                // note shallow copy of Tensor<T>
+                MADNESS_ASSERT(hvalues.tensor_type()==TT_2D);
+                MADNESS_ASSERT(gvalues.tensor_type()==TT_FULL);
+                const long rank=hvalues.rank();
+                const long maxk=h->get_k();
+                MADNESS_ASSERT(maxk==coeff1.dim(0));
+                tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
+                for (long i=0; i<rank; ++i) {
+                    tensorT c=vec(Slice(i,i),_,_,_);
+                    c.emul(gvalues.full_tensor());
+                }
+
+
+                // convert values back to coefficients
+                coeffT hcoeff=h->values2coeffs(key,hvalues);
+
+                return std::pair<bool,coeffT> (is_leaf,hcoeff);
+            }
+
+
+
+
+            ///
+            Future<multiply_op> make_child_op(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
+
+                // point to "outermost" leaf node
+                Future<datumT> datum11=f->outermost_child(child,fdatum);
+                Future<datumL> datum22=g->outermost_child(gkey,gdatum);
+
+                return h->world.taskq.add(*const_cast<multiply_op *> (this), &multiply_op<LDIM>::make_op,
+                        h,f,g,datum11,datum22,particle);
+            }
+
+            /// taskq-compatible constructor
+            multiply_op make_op(implT* h, const implT* f, const implL* g,
+                    const datumT& fdatum, const datumL& gdatum, const int particle) {
+                return multiply_op(h,f,g,fdatum,gdatum,particle);
+            }
+
+            /// serialization
+            template <typename Archive> void serialize(const Archive& ar) {
+                 ar & h & f & g & fdatum & gdatum & particle;
+            }
+
+        };
+
+
+
+        /// multiply f (a pair function of NDIM) with an orbital g (LDIM=NDIM/2)
+
+        /// as in (with h(1,2)=*this) : h(1,2) = g(1) * f(1,2)
+        /// use tnorm as a measure to determine if f (=*this) must be refined
+        /// @param[in]  f           the LDIM function g(1) (or g(2))
+        /// @param[in]  g           the LDIM function g(1) (or g(2))
+        /// @param[in]  particle    1 or 2, as in g(1) or g(2)
+        /// @return     this        the NDIM function h(1,2)
+        template<size_t LDIM>
+        Void multiply(const implT* f, const FunctionImpl<T,LDIM>* g, const int particle) {
+
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+            typedef std::pair<Key<LDIM>, FunctionNode<T,LDIM> > datumL;
+            typedef FunctionImpl<T,LDIM> implL;
+
+            if (world.rank() == g->get_coeffs().owner(g->cdata.key0)) {
+                Future<datumT> datf=f->task(f->get_coeffs().owner(f->cdata.key0), &implT::find_datum,
+                        f->cdata.key0,TaskAttributes::hipri());
+                Future<datumL> datg=g->task(g->get_coeffs().owner(g->cdata.key0), &implL::find_datum,
+                        g->cdata.key0,TaskAttributes::hipri());
+
+                // have to wait for this, but should be local..
+                datumT fdatum=datf.get();
+                datumL gdatum=datg.get();
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+
+                typedef multiply_op<LDIM> op_type;
+                op_type multiply_op(this,f,g,fdatum,gdatum,particle);
+
+                woT::task(owner, &implT:: template recursive_op<op_type>, multiply_op, cdata.key0);
+
+            }
+
+            this->compressed=false;
+            return None;
+
+        }
+
 
         /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
         template<size_t LDIM>
@@ -2532,11 +2679,8 @@ namespace madness {
                 coeffT coeff1=p1->parent_to_child(s1,datum1.first,key1);
                 coeffT coeff2=p2->parent_to_child(s2,datum2.first,key2);
 
-                // new coeffs are simply the hartree/kronecker/outer product
-//                tensorT tcube=outer(coeff1.full_tensor_copy(),coeff2.full_tensor_copy());
-//                const coeffT coeff(tcube,result->get_tensor_args());
-
-                // directly construct the new 6D SVD tensors
+                // new coeffs are simply the hartree/kronecker/outer product --
+                // construct the new 6D SVD tensors directly
                 const unsigned int dim=6;
                 const unsigned int maxk=result->get_k();
                 MADNESS_ASSERT(maxk==coeff1.dim(0));
