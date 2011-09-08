@@ -21,6 +21,7 @@ ACX_CRAYXT
 ACX_MAC
 ACX_IBMBGP
 #AC_AIX
+ACX_WITH_STUBMPI
 
 # Set default thread processor-affinity
 BIND=${BIND-"-1 -1 -1"}
