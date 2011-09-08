@@ -1,0 +1,232 @@
+/*
+  This file is part of MADNESS.
+
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+
+
+  $Id$
+*/
+
+/// \file test6.cc
+/// \brief test various functionality for 6d functions
+
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include "mra/mra.h"
+
+using namespace madness;
+
+bool is_small(const double& val, const double& eps) {
+	return (val<eps);
+}
+
+std::string ok(const bool b) {if (b) return "ok   "; return "fail ";};
+
+bool is_large(const double& val, const double& eps) {
+	return (val>eps);
+}
+
+
+
+static double gauss_3d(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    const double r2= x*x + y*y + z*z;
+    const double norm=0.712705695388313;
+    return norm*exp(-r2);
+}
+
+static double gauss_6d(const coord_6d& r) {
+    coord_3d r1, r2;
+    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+    return gauss_3d(r1)*gauss_3d(r2);
+}
+
+
+static double r2r(const coord_6d& r) {
+    coord_3d r1, r2;
+    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+    double g1=gauss_3d(r1);
+    return g1*g1*gauss_3d(r2);
+}
+
+static double add_test(const coord_6d& r) {
+    coord_3d r1, r2;
+    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+    double g1=gauss_3d(r1);
+    double g2=gauss_3d(r2);
+
+    return g1*g2 + g1*g1*g2;
+}
+
+
+
+/// test f(1,2) = g(1) h(2)
+int test_hartree_product(World& world, const long& k, const double thresh) {
+
+	print("entering hartree_product");
+	int nerror=0;
+	bool good;
+
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+
+    real_function_6d ij=hartree_product(phi,phi);
+    double err=ij.err(gauss_6d);
+    good=is_small(err,thresh);
+    print(ok(good), "hartree_product error:",err);
+    if (not good) nerror++;
+
+	print("all done\n");
+	return nerror;
+}
+
+
+/// test f(1,2)*g(1)
+int test_multiply(World& world, const long& k, const double thresh) {
+
+    print("entering multiply f(1,2)*g(1)");
+    int nerror=0;
+    bool good;
+
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+//    real_function_3d phisq=phi*phi;
+
+    real_function_6d ij=hartree_product(phi,phi);
+    real_function_6d iij2=multiply(ij,phi,1);
+
+    double err=iij2.err(r2r);
+    good=is_small(err,thresh);
+    print(ok(good), "multiply f(1,2)*g(1) error:",err);
+    if (not good) nerror++;
+
+    print("all done\n");
+    return nerror;
+}
+
+/// test f(1,2) + g(1,2) for both f and g reconstructed
+int test_add(World& world, const long& k, const double thresh) {
+
+    print("entering multiply f(1,2)*g(1)");
+    int nerror=0;
+    bool good;
+
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    real_function_3d phisq=phi*phi;
+
+    real_function_6d f=hartree_product(phi,phi);
+    real_function_6d g=hartree_product(phisq,phi);
+
+    // this is in reconstructed form
+    real_function_6d h1=f+g;
+    double err1=h1.err(add_test);
+    good=is_small(err1,thresh);
+    print(ok(good), "add error1:",err1);
+    if (not good) nerror++;
+
+    // more explicitly;
+    real_function_6d h2=gaxpy_oop_reconstructed(1.0,f,1.0,g,true);
+    double err2=h2.err(add_test);
+    good=is_small(err2,thresh);
+    print(ok(good), "add error2:",err2);
+    if (not good) nerror++;
+
+
+    print("all done\n");
+    return nerror;
+}
+
+int main(int argc, char**argv) {
+
+    initialize(argc,argv);
+    World world(MPI::COMM_WORLD);
+    srand(time(NULL));
+    startup(world,argc,argv);
+
+    // the parameters
+    long k=6;
+    double thresh=1.e-3;
+    double L=16;
+    TensorType tt=TT_2D;
+
+    // override the default parameters
+    for(int i = 1; i < argc; i++) {
+        const std::string arg=argv[i];
+
+        // break parameters into key and val
+        size_t pos=arg.find("=");
+        std::string key=arg.substr(0,pos);
+        std::string val=arg.substr(pos+1);
+
+        if (key=="size") L=atof(val.c_str());               // usage: size=10
+        if (key=="k") k=atoi(val.c_str());                  // usage: k=5
+        if (key=="thresh") thresh=atof(val.c_str());        // usage: thresh=1.e-3
+        if (key=="TT") {
+            if (val=="TT_2D") tt=TT_2D;
+            else if (val=="TT_3D") tt=TT_3D;
+            else if (val=="TT_FULL") tt=TT_FULL;
+            else {
+                print("arg",arg, "key",key,"val",val);
+                MADNESS_EXCEPTION("confused tensor type",0);
+            }
+
+        }
+    }
+
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_k(k);
+    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_thresh(thresh);
+    FunctionDefaults<6>::set_k(k);
+    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_tensor_type(tt);
+
+    print("entering testsuite for 6-dimensional functions\n");
+    print("k            ",k);
+    print("thresh       ",thresh);
+    print("boxsize      ",L);
+    print("tensor type: ", FunctionDefaults<6>::get_tensor_type());
+    print("");
+
+
+    int error=0;
+
+    error+=test_hartree_product(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
+    error+=test_add(world,k,thresh);
+
+
+    print(ok(error==0),error,"finished test suite\n");
+
+    world.gop.fence();
+    finalize();
+
+    return 0;
+}
+
+

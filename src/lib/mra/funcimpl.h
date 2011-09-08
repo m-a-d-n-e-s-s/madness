@@ -485,7 +485,8 @@ namespace madness {
 
 #if 1
                 // always do low rank
-                coeff().add_SVD(t,args.thresh);
+//                coeff().add_SVD(t,args.thresh);
+                coeff()+=t;
 
 
 #else
@@ -717,6 +718,45 @@ namespace madness {
             if (fence)
                 world.gop.fence();
         }
+
+        /// perform: this= alpha*f + beta*g, invoked by result
+
+        /// f and g are reconstructed, so we can save on the compress operation,
+        /// just walk down the joint tree, and add leaf coefficients
+        /// @param[in]  alpha   prefactor for f
+        /// @param[in]  f       first addend
+        /// @param[in]  beta    prefactor for g
+        /// @param[in]  g       second addend
+        /// @return     nothing, but leaves this's tree reconstructed and as sum of f and g
+        void gaxpy_oop_reconstructed(const double alpha, const implT& f,
+                const double beta, const implT& g, const bool fence) {
+
+            MADNESS_ASSERT(not f.is_compressed());
+            MADNESS_ASSERT(not g.is_compressed());
+
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+            typedef FunctionImpl<T,NDIM> implL;
+
+            ProcessID owner = coeffs.owner(cdata.key0);
+            if (world.rank() == owner) {
+
+                Future<datumT> dat1=f.task(owner, &implT::find_datum,f.cdata.key0,TaskAttributes::hipri());
+                Future<datumT> dat2=g.task(owner, &implT::find_datum,g.cdata.key0,TaskAttributes::hipri());
+
+                // have to wait for this, but should be local..
+                datumT fdatum=dat1.get();
+                datumT gdatum=dat2.get();
+
+                add_op op(&f,&g,fdatum,gdatum,alpha,beta);
+                woT::task(owner, &implT:: template recursive_op<add_op>, op, cdata.key0);
+
+            }
+
+            this->compressed=false;
+            if (fence) world.gop.fence();
+            this->print_size("finished add_op");
+        }
+
 
 
         template <typename Q, typename R>
@@ -2564,12 +2604,70 @@ namespace madness {
         };
 
 
+        /// add two functions f and g: result=alpha * f  +  beta * g
+        struct add_op {
+
+            typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
+
+            const implT* f;     ///< first addend
+            const implT* g;     ///< second addend
+            datumT fdatum;      ///< pointing to the outermost node of f
+            datumT gdatum;      ///< pointing to the outermost node of g
+            double alpha, beta; ///< prefactor for f, g
+
+            add_op() {};
+            add_op(const implT* f, const implT* g, const datumT& fdatum, const datumT& gdatum,
+                    const double alpha, const double beta)
+                : f(f)
+                , g(g)
+                , fdatum(fdatum)
+                , gdatum(gdatum)
+                , alpha(alpha)
+                , beta(beta) {
+            }
+
+            /// if we are at the bottom of the trees, return the sum of the coeffs
+            std::pair<bool,coeffT> operator()(const keyT& key) const {
+
+                bool is_leaf=(fdatum.second.is_leaf() and gdatum.second.is_leaf());
+                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+                coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
+                coeffT gcoeff=g->parent_to_child(gdatum.second.coeff(),gdatum.first,key);
+                fcoeff.gaxpy(alpha,gcoeff,beta);
+                return std::pair<bool,coeffT> (is_leaf,fcoeff);
+            }
+
+            Future<add_op> make_child_op(const keyT& child) const {
+
+                // point to "outermost" leaf node
+                Future<datumT> ffdatum=f->outermost_child(child,fdatum);
+                Future<datumT> ggdatum=g->outermost_child(child,gdatum);
+
+                return f->world.taskq.add(*const_cast<add_op *> (this), &add_op::make_op,
+                        f,g,ffdatum,ggdatum,alpha,beta);
+            }
+
+            /// taskq-compatible constructor
+            add_op make_op(const implT* f,const implT* g,const datumT& datum1,const datumT& datum2,
+                    const double alpha, const double beta) {
+                return add_op(f,g,datum1,datum2,alpha,beta);
+            }
+
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & f & g & fdatum & gdatum & alpha & beta;
+            }
+
+
+        };
+
 
         /// multiply f (a pair function of NDIM) with an orbital g (LDIM=NDIM/2)
 
         /// as in (with h(1,2)=*this) : h(1,2) = g(1) * f(1,2)
-        /// use tnorm as a measure to determine if f (=*this) must be refined
-        /// @param[in]  f           the LDIM function g(1) (or g(2))
+        /// TODO: use tnorm as a measure to determine if f (=*this) must be refined (not yet implemented!)
+        /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the LDIM function g(1) (or g(2))
         /// @param[in]  particle    1 or 2, as in g(1) or g(2)
         /// @return     this        the NDIM function h(1,2)
@@ -2643,20 +2741,26 @@ namespace madness {
                 const nodeL& node2=datum2.second;
 
                 const double thresh=result->truncate_tol(result->get_thresh(), key);
-                // if the final norm is small, perform the hartree product and return
+                // include the wavelets in the norm, makes it much more accurate
+                const double norm1=node1.coeff().normf();
+                const double norm2=node2.coeff().normf();
+
+                // norm of the scaling function coefficients
                 const coeffT s1=node1.coeff()(p1->cdata.s0);
                 const coeffT s2=node2.coeff()(p2->cdata.s0);
-                const double norm1=s1.normf();
-                const double norm2=s2.normf();
-                const double norm=norm1*norm2;  // computing the outer product
+                const double snorm1=s1.normf();
+                const double snorm2=s2.normf();
+
+                // if the final norm is small, perform the hartree product and return
+                const double norm=snorm1*snorm2;  // computing the outer product
                 if (norm < thresh*safety) return true;
 
                 // get the error of both functions and of the pair function
-                const double error1=p1->compute_error(node1);
-                const double error2=p2->compute_error(node2);
-                const double error=sqrt(norm1*norm1*error2*error2 + error1*error1*norm2*norm2 + error1*error1*error2*error2);
+                const double error1=sqrt(norm1*norm1-snorm1*snorm1);
+                const double error2=sqrt(norm2*norm2-snorm2*snorm2);
 
                 // if the expected error is small, perform the hartree product and return
+                const double error=norm1*error2 + error1*norm2 + error1*error2;
                 if (error < thresh*safety) return true;
                 return false;
 
@@ -3522,11 +3626,10 @@ namespace madness {
             //return transform(s, cdata.hg);
         }
 
-#if HAVE_GENTENSOR
         coeffT unfilter(const coeffT& s) const {
             return transform(s,cdata.hg);
         }
-#endif
+
         /// Projects old function into new basis (only in reconstructed form)
         void project(const implT& old, bool fence) {
             long kmin = std::min(cdata.k,old.cdata.k);
@@ -3738,6 +3841,7 @@ namespace madness {
             } else {
         		if (is_compressed()) reconstruct(true);
         		compress(false,true,true,fence);
+        		compressed=false;
         	}
 
         }
@@ -4400,7 +4504,7 @@ namespace madness {
             // Subtract to get the error ... the original coeffs are in the order k
             // basis but we just computed the coeffs in the order npt(=k+1) basis
             // so we can either use slices or an iterator macro.
-            const tensorT& coeff = node.full_tensor_copy();
+            const tensorT coeff = node.coeff().full_tensor_copy();
             ITERATOR(coeff,fval(IND)-=coeff(IND););
             // flo note: we do want to keep a full tensor here!
 

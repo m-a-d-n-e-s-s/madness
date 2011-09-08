@@ -1438,6 +1438,20 @@ namespace madness {
     }
 
 
+    /// Returns new function alpha*left + beta*right optional fence, having both addends reconstructed
+    template<typename T, std::size_t NDIM>
+    Function<T,NDIM> gaxpy_oop_reconstructed(const double alpha, const Function<T,NDIM>& left,
+            const double beta, const Function<T,NDIM>& right, const bool fence=true) {
+        Function<T,NDIM> result;
+        result.set_impl(right,false);
+
+        MADNESS_ASSERT(not left.is_compressed());
+        MADNESS_ASSERT(not right.is_compressed());
+        result.get_impl()->gaxpy_oop_reconstructed(alpha,*left.get_impl(),beta,*right.get_impl(),fence);
+        return result;
+
+    }
+
     /// Adds two functions with the new result being of type TensorResultType<L,R>
 
     /// Using operator notation forces a global fence after each operation
@@ -1446,9 +1460,17 @@ namespace madness {
     operator+(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
         if (VERIFY_TREE) left.verify_tree();
         if (VERIFY_TREE) right.verify_tree();
-        if (!left.is_compressed())  left.compress();
-        if (!right.is_compressed()) right.compress();
-        return add(left,right,true);
+
+        // no compression for high-dimensional functions
+        if (NDIM==6) {
+            left.reconstruct();
+            right.reconstruct();
+            return gaxpy_oop_reconstructed(1.0,left,1.0,right,true);
+        } else {
+            if (!left.is_compressed())  left.compress();
+            if (!right.is_compressed()) right.compress();
+            return add(left,right,true);
+        }
     }
 
     /// Same as \c operator- but with optional fence and no automatic compression
@@ -1467,9 +1489,16 @@ namespace madness {
     Function<TENSOR_RESULT_TYPE(L,R), NDIM>
     operator-(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
         PROFILE_FUNC;
-        if (!left.is_compressed())  left.compress();
-        if (!right.is_compressed()) right.compress();
-        return sub(left,right,true);
+        // no compression for high-dimensional functions
+        if (NDIM==6) {
+            left.reconstruct();
+            right.reconstruct();
+            return gaxpy_oop_reconstructed(1.0,left,-1.0,right,true);
+        } else {
+            if (!left.is_compressed())  left.compress();
+            if (!right.is_compressed()) right.compress();
+            return sub(left,right,true);
+        }
     }
 
 
