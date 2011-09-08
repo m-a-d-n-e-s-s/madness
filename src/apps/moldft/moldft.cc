@@ -1674,7 +1674,7 @@ struct Calculation {
         functionT vloc = vlocal;
         exc = 0.0;
 
-        if (xc.is_dft()) {
+        if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf);
             vloc = vloc + make_dft_potential(world, vf, ispin);
