@@ -1230,16 +1230,17 @@ namespace madness {
 
 	        // for convenience
 	        const unsigned int rank=this->rank();
-	        MADNESS_ASSERT(this->is_flat());
+	        std::vector<Slice> s(dim_per_vector()+1,_);
+
 	        // we calculate the norm sum_i < F^r_i | F^r_i > for each dimension for each r
 
 	        // loop over all configurations
 	        for (unsigned int r=0; r<rank; r++) {
-
+	            s[0]=Slice(r,r);
 	        	// loop over all dimensions
 	        	for (unsigned int idim=0; idim<dim_eff(); idim++) {
 
-	        		Tensor<T> config=this->ref_vector(idim)(r,Slice(_));
+	        		Tensor<T> config=this->ref_vector(idim)(s);
 
 	        		const double norm=config.normf();
 	        		const double fac=norm;

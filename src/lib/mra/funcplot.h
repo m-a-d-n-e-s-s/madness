@@ -616,6 +616,15 @@ namespace madness {
             return traj;
         }
 
+        /// EZ ctor for a line a direction xyz={0,1,2,..,NDIM-1} thru the origin
+        static trajectory line_xyz(const int xyz, const long npt) {
+            double L=FunctionDefaults<NDIM>::get_cell_width()[0];
+            coordT lo(0.0), hi(0.0);
+            lo[xyz]=-L/2;
+            hi[xyz]=L/2;
+            return trajectory<NDIM>::line2(lo,hi,npt);
+        }
+
         Vector<double,NDIM> operator()(int ipt) {
             return curve(start,end,radius,el2,npt,ipt);
         }

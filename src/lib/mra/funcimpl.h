@@ -174,7 +174,7 @@ namespace madness {
         Tensor<double> quad_phit; ///< transpose of quad_phi
         Tensor<double> quad_phiw; ///< quad_phiw(i,j) = at x[i] value of w[i]*phi[j]
 
-        Tensor<double> h0, h1, g0, g1; ///< The separate blocks of twoscale coefficients
+        Tensor<double> h0T, h1T, g0T, g1T; ///< The separate blocks of twoscale coefficients
         Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
         Tensor<double> hgsonly; ///< hg[0:k,:]
 
@@ -2524,14 +2524,40 @@ namespace madness {
                 MADNESS_ASSERT(gdatum.second.coeff().has_data());
             };
 
+            /// return true if this will be a leaf node
+
+            /// use generalization of tnorm for a GenTensor
+            bool screen(coeffT& fcoeff, const coeffT& gcoeff) const {
+                double glo, ghi, flo, fhi;
+                MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
+                g->tnorm(gcoeff.full_tensor(), &glo, &ghi);
+
+                // this assumes intimate knowledge of how a GenTensor is organized!
+                MADNESS_ASSERT(fcoeff.tensor_type()==TT_2D);
+                const long rank=fcoeff.rank();
+                const long maxk=fcoeff.dim(0);
+                tensorT vec=fcoeff.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
+                for (long i=0; i<rank; ++i) {
+                    double lo,hi;
+                    tensorT c=vec(Slice(i,i),_,_,_).reshape(maxk,maxk,maxk);
+                    g->tnorm(c, &lo, &hi);        // note we use g instead of h, since g is 3D
+                    flo+=lo*fcoeff.config().weights(i);
+                    fhi+=hi*fcoeff.config().weights(i);
+                }
+                double total_hi=glo*fhi + ghi*flo + fhi*ghi;
+                return (total_hi<(h->get_thresh()));
+
+            }
+
+
             /// apply this on a FunctionNode of f and g of Key key
 
             /// @param[in]  key key for FunctionNode in f and g, (g: broken into particles)
             /// @return <this node is a leaf, coefficients of this node>
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-                bool is_leaf=(not fdatum.second.has_children());
-                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+//                bool is_leaf=(not fdatum.second.has_children());
+//                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
                 // break key into particles (these are the child keys, with f/gdatum come the parent keys)
                 Key<LDIM> key1,key2;
@@ -2544,35 +2570,38 @@ namespace madness {
                 const coeffT& gcoeff=gdatum.second.coeff();
 
                 // get coefficients of the actual FunctionNode
-                const coeffT coeff1=f->parent_to_child(fcoeff,fdatum.first,key);
+                coeffT coeff1=f->parent_to_child(fcoeff,fdatum.first,key);
+                coeff1.normalize();
                 const coeffT coeff2=g->parent_to_child(gcoeff,gdatum.first,gkey);
 
-                // convert coefficients to values
-                coeffT hvalues=f->coeffs2values(key,coeff1);
-                coeffT gvalues=g->coeffs2values(gkey,coeff2);
+                coeffT hcoeff;
 
-                // multiply one of the two vectors of f with g
-                // note shallow copy of Tensor<T>
-                MADNESS_ASSERT(hvalues.tensor_type()==TT_2D);
-                MADNESS_ASSERT(gvalues.tensor_type()==TT_FULL);
-                const long rank=hvalues.rank();
-                const long maxk=h->get_k();
-                MADNESS_ASSERT(maxk==coeff1.dim(0));
-                tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
-                for (long i=0; i<rank; ++i) {
-                    tensorT c=vec(Slice(i,i),_,_,_);
-                    c.emul(gvalues.full_tensor());
+                bool is_leaf=screen(coeff1,coeff2);
+                if (is_leaf) {
+
+                    // convert coefficients to values
+                    coeffT hvalues=f->coeffs2values(key,coeff1);
+                    coeffT gvalues=g->coeffs2values(gkey,coeff2);
+
+                    // multiply one of the two vectors of f with g
+                    // note shallow copy of Tensor<T>
+                    MADNESS_ASSERT(hvalues.tensor_type()==TT_2D);
+                    MADNESS_ASSERT(gvalues.tensor_type()==TT_FULL);
+                    const long rank=hvalues.rank();
+                    const long maxk=h->get_k();
+                    MADNESS_ASSERT(maxk==coeff1.dim(0));
+                    tensorT vec=hvalues.config().ref_vector(particle-1).reshape(rank,maxk,maxk,maxk);
+                    for (long i=0; i<rank; ++i) {
+                        tensorT c=vec(Slice(i,i),_,_,_);
+                        c.emul(gvalues.full_tensor());
+                    }
+
+                    // convert values back to coefficients
+                    hcoeff=h->values2coeffs(key,hvalues);
                 }
-
-
-                // convert values back to coefficients
-                coeffT hcoeff=h->values2coeffs(key,hvalues);
 
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
-
-
-
 
             ///
             Future<multiply_op> make_child_op(const keyT& child) const {
@@ -2666,7 +2695,7 @@ namespace madness {
         /// multiply f (a pair function of NDIM) with an orbital g (LDIM=NDIM/2)
 
         /// as in (with h(1,2)=*this) : h(1,2) = g(1) * f(1,2)
-        /// TODO: use tnorm as a measure to determine if f (=*this) must be refined (not yet implemented!)
+        /// use tnorm as a measure to determine if f (=*this) must be refined
         /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the LDIM function g(1) (or g(2))
         /// @param[in]  particle    1 or 2, as in g(1) or g(2)
@@ -2742,8 +2771,10 @@ namespace madness {
 
                 const double thresh=result->truncate_tol(result->get_thresh(), key);
                 // include the wavelets in the norm, makes it much more accurate
-                const double norm1=node1.coeff().normf();
-                const double norm2=node2.coeff().normf();
+//                const double norm1=node1.coeff().normf();
+//                const double norm2=node2.coeff().normf();
+                const double norm1=node1.get_norm_tree();
+                const double norm2=node2.get_norm_tree();
 
                 // norm of the scaling function coefficients
                 const coeffT s1=node1.coeff()(p1->cdata.s0);
@@ -2752,7 +2783,7 @@ namespace madness {
                 const double snorm2=s2.normf();
 
                 // if the final norm is small, perform the hartree product and return
-                const double norm=snorm1*snorm2;  // computing the outer product
+                const double norm=norm1*norm2;  // computing the outer product
                 if (norm < thresh*safety) return true;
 
                 // get the error of both functions and of the pair function
@@ -3002,6 +3033,7 @@ namespace madness {
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
         /// |Phi(1,2)> = |phi(1)> x |phi(2)>
+        /// TODO: there is still an unknown source of error!!
         template<std::size_t LDIM>
         Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2, bool fence) {
             MADNESS_ASSERT(p1->is_nonstandard());
@@ -3597,12 +3629,10 @@ namespace madness {
             //return transform(s,cdata.hgT);
         }
 
-#if HAVE_GENTENSOR
         coeffT filter(const coeffT& s) const {
             coeffT result=transform(s,cdata.hgT);
         	return result;
         }
-#endif
 
         ///  Transform sums+differences at level n to sum coefficients at level n+1
 
@@ -3628,6 +3658,35 @@ namespace madness {
 
         coeffT unfilter(const coeffT& s) const {
             return transform(s,cdata.hg);
+        }
+
+        /// downsample the sum coefficients of level n+1 to sum coeffs on level n
+
+        /// specialization of the filter method, will yield only the sum coefficients
+        /// @param[in]  key key of level n
+        /// @param[in]  v   vector of sum coefficients of level n+1
+        /// @param[in]  args    TensorArguments for possible low rank approximations
+        /// @return     sum coefficients on level n in full tensor format
+        tensorT downsample(const keyT& key, const std::vector< Future<coeffT > >& v) const {
+
+            tensorT result(cdata.vk);
+
+            // the twoscale coefficients: for downsampling use h0/h1; see Alpert Eq (3.34a)
+            const tensorT h[2] = {cdata.h0T, cdata.h1T};
+            tensorT matrices[NDIM];
+
+            // loop over all child nodes, transform and accumulate
+            long i=0;
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+
+                // get the appropriate twoscale coefficients for each dimension
+                for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=h[kit.key().translation()[ii]%2];
+
+                // transform and accumulate on the result
+                result+=general_transform(v[i].get(),matrices).full_tensor_copy();
+
+            }
+            return result;
         }
 
         /// Projects old function into new basis (only in reconstructed form)
@@ -3928,14 +3987,27 @@ namespace madness {
 
             // the sum coefficients might be empty, which means they come from an internal node
             // and we must not truncate; so just return empty coeffs again
-            for (size_t i=0; i<v.size(); ++i) {
-                if (v[i].get().has_no_data()) return coeffT();
-            }
-
+            for (size_t i=0; i<v.size(); ++i) if (v[i].get().has_no_data()) return coeffT();
 
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc, key));
 
+#if 1
+            // the sum coefficients on this level, and their norm
+            const tensorT s=downsample(key,v);
+            const double snorm=s.normf();
+
+            // get the norm of all child coefficients
+            double dnorm=0.0;
+            for (size_t i=0; i<v.size(); ++i) {
+                const double d=v[i].get().normf();
+                dnorm+=d*d;
+            }
+
+            // the error; equivalent to the norm of the wavelet coefficients
+            const double error=sqrt(dnorm-snorm*snorm);
+
+#else
             // compute the difference coefficients
 
             // Copy child scaling coeffs into contiguous block
@@ -3952,10 +4024,12 @@ namespace madness {
 
             // compute the error and truncate if error is small
             d(cdata.s0) = 0.0;
-            double dnorm=d.normf();
+            double error=d.normf();
+#endif
+
             nodeT& node = coeffs.find(key).get()->second;
 
-            if (dnorm < truncate_tol(tol,key)) {
+            if (error < truncate_tol(tol,key)) {
                 node.set_has_children(false);
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     coeffs.erase(kit.key());
@@ -3969,7 +4043,6 @@ namespace madness {
             }
         }
 
-#if 1
         /// calculate the wavelet coefficients using the sum coefficients of all child nodes
 
         /// @param[in] key 	this's key
@@ -4027,56 +4100,27 @@ namespace madness {
             // return sum coefficients
             return ss;
         }
-#else
 
-        /// calculate the wavelet coefficients using the sum coefficients of all child nodes
+        /// similar to compress_op, but insert only the sum coefficients in the tree
 
         /// @param[in] key  this's key
         /// @param[in] v    sum coefficients of the child nodes
         /// @return         the sum coefficients
-        tensorT compress_op(const keyT& key, const std::vector< Future<tensorT> >& v, bool nonstandard) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+        coeffT make_redundant_op(const keyT& key, const std::vector< Future<coeffT > >& v) {
 
-            // Copy child scaling coeffs into contiguous block
-//            coeffT d(cdata.v2k,targs);
-            tensorT d(cdata.v2k);
-            int i=0;
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                d(child_patch(kit.key())) += v[i].get();
-            }
+            // get the sum coefficients of this level given the sum coefficients of level n+1
+            TensorArgs targs2=targs;
+            targs2.thresh*=0.1;
+            coeffT s(this->downsample(key,v),targs2);
 
-            d = filter(d);
-
+            // insert sum coefficients into tree
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc, key));
-
-            if (acc->second.has_coeff()) {
-                print(" stuff in compress_op");
-                const tensorT& c = acc->second.coeff().full_tensor_copy();
-                if (c.dim(0) == k) {
-                    d(cdata.s0) += c;
-                }
-                else {
-                    d += c;
-                }
-            }
-
-            // this is deep copy
-//            coeffT s= copy(d(cdata.s0));
-            tensorT s=copy(d(cdata.s0));
-
-            if (key.level()> 0 && !nonstandard)
-                d(cdata.s0) = 0.0;
-
-//            d.reduceRank(thresh);
-            coeffT dd=coeffT(d,targs);
-            acc->second.set_coeff(dd);
-//            s.reduceRank(thresh);
-            coeffT ss=coeffT(s,targs);
+            MADNESS_ASSERT(not (acc->second.has_coeff()));
+            acc->second.set_coeff(s);
 
             return s;
         }
-#endif
 
         /// Changes non-standard compressed form to standard compressed form
         void standard(bool fence) {

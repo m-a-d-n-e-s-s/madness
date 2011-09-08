@@ -727,9 +727,10 @@ struct Calculation {
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
-        set_protocol(world, 1e-4);
+        set_protocol<3>(world, 1e-4);
     }
 
+    template<std::size_t NDIM>
     void set_protocol(World & world, double thresh)
     {
         int k;
@@ -746,28 +747,29 @@ struct Calculation {
 
         // k defaults to make sense with thresh, override by providing k in input file
         if (param.k == -1) {
-        	FunctionDefaults<3>::set_k(k);
+        	FunctionDefaults<NDIM>::set_k(k);
 //        	param.k=k;
         } else {
-        	FunctionDefaults<3>::set_k(param.k);
+        	FunctionDefaults<NDIM>::set_k(param.k);
         }
         // don't forget to adapt the molecular smoothing parameter!!
         molecule.set_eprec(thresh);
-        FunctionDefaults<3>::set_thresh(thresh);
-        FunctionDefaults<3>::set_refine(true);
-        FunctionDefaults<3>::set_initial_level(2);
-        FunctionDefaults<3>::set_truncate_mode(1);
-        FunctionDefaults<3>::set_autorefine(false);
-        FunctionDefaults<3>::set_apply_randomize(false);
-        FunctionDefaults<3>::set_project_randomize(false);
+        FunctionDefaults<NDIM>::set_thresh(thresh);
+        FunctionDefaults<NDIM>::set_refine(true);
+        FunctionDefaults<NDIM>::set_initial_level(2);
+        FunctionDefaults<NDIM>::set_truncate_mode(1);
+        FunctionDefaults<NDIM>::set_autorefine(false);
+        FunctionDefaults<NDIM>::set_apply_randomize(false);
+        FunctionDefaults<NDIM>::set_project_randomize(false);
+        FunctionDefaults<NDIM>::set_cubic_cell(-param.L, param.L);
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
-        vtol = FunctionDefaults<3>::get_thresh() * safety;
+        vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
         coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
         gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
+            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
 
@@ -2518,7 +2520,7 @@ public:
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
-        calc.set_protocol(world,1e-4);
+        calc.set_protocol<3>(world,1e-4);
         calc.make_nuclear_potential(world);
         calc.project_ao_basis(world);
 
@@ -2544,7 +2546,7 @@ public:
 
         // successively tighten threshold
         if (calc.param.econv<1.1e-6) {
-            calc.set_protocol(world,1e-6);
+            calc.set_protocol<3>(world,1e-6);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
             calc.project(world);

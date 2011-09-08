@@ -53,8 +53,15 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionCommonData<T,NDIM>::_init_twoscale() {
         if (! two_scale_hg(k, &hg)) throw "failed to get twoscale coefficients";
-        hgT = transpose(hg);
+        hgT = copy(transpose(hg));
+
+        Slice sk(0,k-1), sk2(k,-1);
         hgsonly = copy(hg(Slice(0,k-1),_));
+        h0T = copy(transpose(hg(sk,sk)));
+        h1T = copy(transpose(hg(sk,sk2)));
+        g0T = copy(transpose(hg(sk2,sk)));
+        g1T = copy(transpose(hg(sk2,sk2)));
+
     }
 
     template <typename T, std::size_t NDIM>
@@ -1057,6 +1064,7 @@ namespace madness {
                 v[i] = woT::task(coeffs.owner(kit.key()), &implT::compress_spawn, kit.key(),
                         nonstandard, keepleaves, redundant, TaskAttributes::hipri());
             }
+            if (redundant) return woT::task(world.rank(),&implT::make_redundant_op, key, v);
             return woT::task(world.rank(),&implT::compress_op, key, v, nonstandard, redundant);
         }
         else {

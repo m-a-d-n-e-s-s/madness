@@ -54,6 +54,30 @@
 
 static const bool is_helium=true;
 
+
+static double gauss_3d(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    const double r2= x*x + y*y + z*z;
+    const double norm=0.712705695388313;
+    return norm*exp(-r2);
+}
+
+static double gauss_6d(const coord_6d& r) {
+    coord_3d r1, r2;
+    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+    return gauss_3d(r1)*gauss_3d(r2);
+}
+
+
+static double r2r(const coord_6d& r) {
+    coord_3d r1, r2;
+    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
+    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
+    double g1=gauss_3d(r1);
+    return g1*g1*gauss_3d(r2);
+}
+
 //
 //// according to McQuarrie
 //static double he_orbital_McQuarrie(const coord_3d& r) {
@@ -88,7 +112,8 @@ namespace madness {
             : world(world)
             , calc(calc)
             , coords_sum(-1.0)
-        {}
+        {
+        }
 
         bool provides_gradient() const {return true;}
 
@@ -107,7 +132,6 @@ namespace madness {
             // The below is missing convergence test logic, etc.
 
             // Make the nuclear potential, initial orbitals, etc.
-            calc.set_protocol(world,1e-4);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
 
@@ -133,7 +157,7 @@ namespace madness {
 
             // successively tighten threshold
             if (calc.param.econv<1.1e-6) {
-                calc.set_protocol(world,1e-6);
+                calc.set_protocol<3>(world,1e-6);
                 calc.make_nuclear_potential(world);
                 calc.project_ao_basis(world);
                 calc.project(world);
@@ -478,21 +502,49 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-            real_function_6d pair=zeroth_order_function(i,j);
 
             real_function_3d phi_i=hf.orbital(i);
             real_function_3d phi_j=hf.orbital(j);
-
+            phi_i.print_size("phi");
+//            real_function_3d phi_i=real_factory_3d(world).f(gauss_3d);
+//            real_function_3d phi_j=real_factory_3d(world).f(gauss_3d);
 
             real_function_3d phisq=phi_i*phi_i;
-            real_function_6d iij=hartree_product(phisq,phi_j);
-            double n=iij.norm2();
-            if (world.rank()==0) print("iij.norm2()",n);
 
-            real_function_6d iij2=multiply(pair,phi_i,1);
-            real_function_6d diff=iij-iij2;
-            double norm=diff.norm2();
-            if (world.rank()==0) print("diff norm",norm);
+            // this is 2*pair(1,2) * phi(1)
+            real_function_6d iij=hartree_product(phi_i,phi_j);
+            real_function_6d iij2=iij+iij;
+            real_function_6d iij3=multiply(iij2,phi_i,1).truncate();
+            iij3.print_size("iij3");
+            double n3=iij3.norm2();
+            print("n3",n3);
+
+            real_function_6d iij4=2.0*iij;
+            real_function_6d iij5=multiply(iij4,phi_i,1);
+            iij5.print_size("iij5");
+            double n5=iij5.norm2();
+            print("n5",n5);
+
+            real_function_6d iij6=2.0*hartree_product(phisq,phi_j);
+            iij6.print_size("iij6");
+            double n6=iij6.norm2();
+            print("n6",n6);
+
+            real_function_6d diff2=iij3-iij6;
+            double norm2=diff2.norm2();
+            if (world.rank()==0) print("diff3-6 norm",norm2);
+
+            diff2=iij5-iij6;
+            norm2=diff2.norm2();
+            if (world.rank()==0) print("diff5-6 norm",norm2);
+
+            diff2=iij5-iij3;
+            norm2=diff2.norm2();
+            if (world.rank()==0) print("diff5-3 norm",norm2);
+
+
+            print("k     ",phi_i.k(),iij.k());
+            print("thresh",phi_i.thresh(),iij.thresh());
 
 
         }
@@ -655,16 +707,12 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-    // defaults
-    double L = 16;   // box size
-    long k = 4 ;        // wavelet order
-    double thresh = 1.e-2; // precision
+
+    // get parameters form input file
+    Calculation calc(world,"input");
     TensorType tt=TT_2D;
 
-    // set the parameters
-    bool restart=false;
-    std::string restart_name;
-
+    // get command line parameters (overrides input file)
     for(int i = 1; i < argc; i++) {
         const std::string arg=argv[i];
 
@@ -673,9 +721,9 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="size") L=atof(val.c_str());               // usage: size=10
-        if (key=="k") k=atoi(val.c_str());                  // usage: k=5
-        if (key=="thresh") thresh=atof(val.c_str());        // usage: thresh=1.e-3
+        if (key=="size") calc.param.L=atof(val.c_str());               // usage: size=10
+        if (key=="k") calc.param.k=atoi(val.c_str());                  // usage: k=5
+        if (key=="thresh") calc.param.econv=atof(val.c_str());        // usage: thresh=1.e-3
         if (key=="TT") {
             if (val=="TT_2D") tt=TT_2D;
             else if (val=="TT_3D") tt=TT_3D;
@@ -684,40 +732,20 @@ int main(int argc, char** argv) {
                 print("arg",arg, "key",key,"val",val);
                 MADNESS_EXCEPTION("confused tensor type",0);
             }
-
-        }
-        if (key=="restart") {                               // usage: restart=path/to/mo_file
-            restart_name=stringify(val);
-            restart=true;
         }
     }
 
-
-
-    if (world.rank()==0) {
-        print("restart mode",restart," restart_name=", restart_name);
-        printf("\nstarting at time %.1fs\n\n", wall_time());
-    }
-
-
-    FunctionDefaults<3>::set_k(k);
-    FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
-//    FunctionDefaults<3>::set_cubic_cell(-L,L);
-
-    FunctionDefaults<6>::set_k(k);
-    FunctionDefaults<6>::set_thresh(thresh);
-    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
-//    FunctionDefaults<6>::set_cubic_cell(-L,L);
+    // actually set the FunctionDefaults
+    calc.set_protocol<3>(world,calc.param.econv);
+    calc.set_protocol<6>(world,calc.param.econv);
+    calc.molecule.set_eprec(calc.param.econv);
     FunctionDefaults<6>::set_tensor_type(tt);
-    FunctionDefaults<6>::set_apply_randomize(true);
-
 
 
     if (world.rank()==0) {
         print("polynomial order:  ", FunctionDefaults<6>::get_k());
         print("threshold:         ", FunctionDefaults<6>::get_thresh());
-        print("cell size:         ", L);
+        print("cell size:         ", FunctionDefaults<6>::get_cell_width()[0]);
         print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
         print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
         print("");
@@ -729,15 +757,20 @@ int main(int argc, char** argv) {
         print("");
     }
 
+    calc.param.print(world);
+
+
     if (world.rank()==0) {
         print("size consistency of the 6d green's function?");
         print("");
     }
 
-    Calculation calc(world,"input");
-    calc.param.print(world);
     HartreeFock hf(world,calc);
     hf.value();
+
+
+
+
     MP2 mp2(world,hf);
 //    mp2.compute_first_order_correction(0,0);
 //    mp2.solve_residual_equation(0,0);

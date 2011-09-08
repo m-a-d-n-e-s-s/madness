@@ -50,11 +50,9 @@ bool is_large(const double& val, const double& eps) {
 	return (val>eps);
 }
 
-
-
 static double gauss_3d(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
-    const double r2= x*x + y*y + z*z;
+    const double r2= sqrt(x*x + y*y + z*z);
     const double norm=0.712705695388313;
     return norm*exp(-r2);
 }
@@ -65,7 +63,6 @@ static double gauss_6d(const coord_6d& r) {
     r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
     return gauss_3d(r1)*gauss_3d(r2);
 }
-
 
 static double r2r(const coord_6d& r) {
     coord_3d r1, r2;
@@ -85,8 +82,6 @@ static double add_test(const coord_6d& r) {
     return g1*g2 + g1*g1*g2;
 }
 
-
-
 /// test f(1,2) = g(1) h(2)
 int test_hartree_product(World& world, const long& k, const double thresh) {
 
@@ -95,17 +90,33 @@ int test_hartree_product(World& world, const long& k, const double thresh) {
 	bool good;
 
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    real_function_3d phisq=phi*phi;
 
-    real_function_6d ij=hartree_product(phi,phi);
-    double err=ij.err(gauss_6d);
-    good=is_small(err,thresh);
-    print(ok(good), "hartree_product error:",err);
-    if (not good) nerror++;
+    {
+        real_function_6d ij=hartree_product(phi,phi);
+        ij.truncate();
+
+        double norm=ij.norm2();
+        print("norm(ij)",norm);
+
+        double err=ij.err(gauss_6d);
+        good=is_small(err,thresh);
+        print(ok(good), "hartree_product(phi,phi) error:",err);
+        if (not good) nerror++;
+
+    }
+
+    {
+        real_function_6d ij=hartree_product(phisq,phi);
+        double err=ij.err(r2r);
+        good=is_small(err,thresh);
+        print(ok(good), "hartree_product(phi^2,phi) error:",err);
+        if (not good) nerror++;
+    }
 
 	print("all done\n");
 	return nerror;
 }
-
 
 /// test f(1,2)*g(1)
 int test_multiply(World& world, const long& k, const double thresh) {
@@ -115,7 +126,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     bool good;
 
     real_function_3d phi=real_factory_3d(world).f(gauss_3d);
-//    real_function_3d phisq=phi*phi;
+    real_function_3d phisq=phi*phi;
 
     real_function_6d ij=hartree_product(phi,phi);
     real_function_6d iij2=multiply(ij,phi,1);
@@ -132,7 +143,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
 /// test f(1,2) + g(1,2) for both f and g reconstructed
 int test_add(World& world, const long& k, const double thresh) {
 
-    print("entering multiply f(1,2)*g(1)");
+    print("entering add f(1,2)*g(1)");
     int nerror=0;
     bool good;
 
