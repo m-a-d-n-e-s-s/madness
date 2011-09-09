@@ -1292,6 +1292,13 @@ struct Calculation {
         }
         return r.scale(0.5);
     }
+  //gradient of density
+    functionT grad_of_dens(World & world, const functionT & arho){
+        Derivative<double,3> drx = free_space_derivative<double,3>(arho.world(), 0);
+        Derivative<double,3> dry = free_space_derivative<double,3>(arho.world(), 1);
+        Derivative<double,3> drz = free_space_derivative<double,3>(arho.world(), 2);
+        return drx(arho)+dry(arho)+drz(arho);
+      }
 
     struct GuessDensity : public FunctionFunctorInterface<double,3>
     {
@@ -2356,10 +2363,26 @@ struct Calculation {
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
 
+            functionT garho;
+            functionT gbrho;
+            if (xc.is_gga()) {
+                garho=grad_of_dens(world,arho);
+                garho.truncate();
+                if (!param.spin_restricted && param.nbeta) {
+                    gbrho=grad_of_dens(world,brho);
+                    gbrho.truncate();
+                }
+            }
+
             vecfuncT vf;
             if (xc.is_dft()) {
                 vf.push_back(arho);
                 if (xc.is_spin_polarized()) vf.push_back(brho);
+                if (xc.is_gga()){
+                    vf.push_back(garho);
+                    if (xc.is_spin_polarized()) vf.push_back(gbrho);
+                }
+
                 reconstruct(world, vf);
                 if (vf.size() > 1UL) 
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
