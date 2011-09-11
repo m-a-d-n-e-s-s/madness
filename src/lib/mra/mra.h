@@ -1594,7 +1594,7 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
-        if (f.get_impl()->world.rank()==0) print("op.modified",op.modified);
+        if (f.get_impl()->world.rank()==0) print("op.modified",op.modified());
        	result.set_impl(f, true);
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
@@ -1619,7 +1619,7 @@ namespace madness {
     	ff.reconstruct();
         ff.print_size("ff in apply after reconstruct");
 
-    	if (op.modified) {
+    	if (op.modified()) {
 
     	    ff.get_impl()->make_redundant(true);
             result = apply_only(op, ff, fence);

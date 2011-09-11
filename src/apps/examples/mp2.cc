@@ -235,13 +235,16 @@ namespace madness {
         std::vector<ElectronPair> pairs;        ///< pair functions and energies
         bool solved;                            ///< flag if the residual equations are already solved
 
+        real_convolution_3d poisson;
+
         static const double dcut=1.e-6;
 
     public:
         MP2(World& world, const HartreeFock& hf)
             : world(world)
             , hf(hf)
-            , solved(false) {
+            , solved(false)
+            , poisson(CoulombOperator(world,0.0001,hf.get_calc().param.econv)) {
 
             // number of pairs:
             const int nocc=hf.nocc();
@@ -349,7 +352,7 @@ namespace madness {
 
             // J and K
             MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
-            functionT J=hf.get_coulomb_potential().scale(-0.5);
+            functionT J=-0.5*hf.get_coulomb_potential();
 
             real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-8);
             real_function_6d v11=CompositeFactory<double,6,3>(world)
@@ -363,7 +366,7 @@ namespace madness {
             const double zo_energy=zeroth_order_energy(i,j);
             const double energy=fo_energy+zo_energy;
 
-            printf("first order energy contribution and total energy of pair (%2d %2d)  : %12.8f %12.8f \n",i,j,fo_energy, energy);
+            printf("1st order energy contribution and total energy of pair (%2d %2d)  : %12.8f %12.8f \n",i,j,fo_energy,energy);
             return fo_energy;
         }
 
@@ -466,7 +469,7 @@ namespace madness {
 
             // for estimating the MRA structure of V*phi
             real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op_mod.modified=true;
+            op_mod.modified()=true;
 
 
             pairfunctionT zo_function=this->zeroth_order_function(i,j);
@@ -502,49 +505,34 @@ namespace madness {
 
         void test(const int i, const int j) {
 
+            double norm;
+            real_function_6d f=zeroth_order_function(i,j);
+            real_function_6d f2=multiply(f,hf.orbital(i),1);
+            f2.print_size("f2 after apply");
+            norm=f2.norm2();
+            if (world.rank()==0) print("f2 norm",norm);
+//            real_function_6d x=apply_exchange(f2);
+            real_function_6d x=2.0*poisson(f2);
 
-            real_function_3d phi_i=hf.orbital(i);
-            real_function_3d phi_j=hf.orbital(j);
-            phi_i.print_size("phi");
-//            real_function_3d phi_i=real_factory_3d(world).f(gauss_3d);
-//            real_function_3d phi_j=real_factory_3d(world).f(gauss_3d);
-
-            real_function_3d phisq=phi_i*phi_i;
-
-            // this is 2*pair(1,2) * phi(1)
-            real_function_6d iij=hartree_product(phi_i,phi_j);
-            real_function_6d iij2=iij+iij;
-            real_function_6d iij3=multiply(iij2,phi_i,1).truncate();
-            iij3.print_size("iij3");
-            double n3=iij3.norm2();
-            print("n3",n3);
-
-            real_function_6d iij4=2.0*iij;
-            real_function_6d iij5=multiply(iij4,phi_i,1);
-            iij5.print_size("iij5");
-            double n5=iij5.norm2();
-            print("n5",n5);
-
-            real_function_6d iij6=2.0*hartree_product(phisq,phi_j);
-            iij6.print_size("iij6");
-            double n6=iij6.norm2();
-            print("n6",n6);
-
-            real_function_6d diff2=iij3-iij6;
-            double norm2=diff2.norm2();
-            if (world.rank()==0) print("diff3-6 norm",norm2);
-
-            diff2=iij5-iij6;
-            norm2=diff2.norm2();
-            if (world.rank()==0) print("diff5-6 norm",norm2);
-
-            diff2=iij5-iij3;
-            norm2=diff2.norm2();
-            if (world.rank()==0) print("diff5-3 norm",norm2);
+            x.print_size("x after apply");
+            norm=x.norm2();
+            if (world.rank()==0) print("x norm",norm);
+            x=multiply(x,hf.orbital(i),1);
+            x.print_size("x after multiply");
+            norm=x.norm2();
+            if (world.rank()==0) print("x norm",norm);
 
 
-            print("k     ",phi_i.k(),iij.k());
-            print("thresh",phi_i.thresh(),iij.thresh());
+            real_function_6d tmp=multiply(f,hf.get_coulomb_potential(),1);
+            tmp.print_size("tmp after multiply");
+            norm=tmp.norm2();
+            if (world.rank()==0) print("tmp norm",norm);
+
+            real_function_6d diff=tmp-x;
+            diff.print_size("diff");
+            norm=diff.norm2();
+            if (world.rank()==0) print("diff norm",norm);
+
 
 
         }
@@ -571,7 +559,7 @@ namespace madness {
 
             // for estimating the MRA structure of V*phi
             real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op_mod.modified=true;
+            op_mod.modified()=true;
 
 
             // apply the first order Hamiltonian on the zeroth order wave function: J, K, and 1/r12 part
@@ -693,8 +681,9 @@ namespace madness {
 
             real_function_3d orbital=hf.orbital(i);
             real_function_6d x=multiply(f,orbital,1);
+            real_function_6d result=poisson(x);
 
-            return x;
+            return result;
         }
 
 

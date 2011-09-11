@@ -40,7 +40,6 @@
 
 //extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
 
-#include <mra/mra.h>
 #include <limits.h>
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
@@ -130,13 +129,15 @@ namespace madness {
         bool doleaves;  ///< If should be applied to leaf coefficients ... false by default
         bool isperiodicsum;///< If true the operator 1D kernels have been summed over lattice translations
                            ///< and may be non-zero at both ends of the unit cell
-        bool modified;     ///< use modified NS form
+        bool modified_;     ///< use modified NS form
+        int particle_;
 
         mutable bool printnow;
+        typedef Key<NDIM> keyT;
+        const static size_t opdim=NDIM;
 
     private:
 
-        typedef Key<NDIM> keyT;
 
         mutable std::vector< ConvolutionND<Q,NDIM> > ops;   ///< ConvolutionND keeps data for 1 term, all dimensions, 1 displacement
         const BoundaryConditions<NDIM> bc;
@@ -149,6 +150,16 @@ namespace madness {
         // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data; ///< cache for all terms, dims and displacements
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, 2*NDIM > mod_data; ///< cache for all terms, dims and displacements
+
+    public:
+
+        bool& modified() {return modified_;}
+        const bool& modified() const {return modified_;}
+
+        int& particle() {return particle_;}
+        const int& particle() const {return particle_;}
+    private:
+
 
         /// too lazy for extended calling lists
         struct Transformation {
@@ -357,7 +368,7 @@ namespace madness {
 
                 // Determine rank of SVD to use or if to use the full matrix
                 long twok = 2*k;
-                if (modified) twok=k;
+                if (modified()) twok=k;
 
                 long break_even;
                 if (NDIM==1) break_even = long(0.5*twok);
@@ -449,7 +460,7 @@ namespace madness {
 
             // Determine rank of SVD to use or if to use the full matrix
             long twok = 2*k;
-            if (modified) twok=k;
+            if (modified()) twok=k;
             long break_even;
             if (NDIM==1) break_even = long(0.5*twok);
             else if (NDIM==2) break_even = long(0.6*twok);
@@ -506,7 +517,7 @@ namespace madness {
         /// Computes the Frobenius norm of one of the separated terms ... WITHOUT FACTOR INCLUDED
         /// compute for 1 term, all dim, 1 disp, essentially for SeparatedConvolutionInternal
         double munorm2(Level n, const ConvolutionData1D<Q>* ops[]) const {
-            if (modified) return munorm2_modified(n,ops);
+            if (modified()) return munorm2_modified(n,ops);
             return munorm2_ns(n,ops);
         }
 
@@ -668,7 +679,7 @@ namespace madness {
         const SeparatedConvolutionData<Q,NDIM>* getop(Level n, const Key<NDIM>& d, const Key<NDIM>& source) const {
 
             // in the NS form the operator depends only on the displacement
-            if (not modified) return getop_ns(n,d);
+            if (not modified()) return getop_ns(n,d);
             return getop_modified(n, d, source);
         }
 
@@ -762,7 +773,8 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , modified(false)
+                , modified_(false)
+                , particle_(1)
                 , bc(bc)
                 , k(k)
                 , rank(argops.size())
@@ -792,7 +804,8 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , modified(false)
+                , modified_(false)
+                , particle_(1)
                 , ops(argops)
                 , bc(bc)
                 , k(k)
@@ -817,7 +830,8 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , modified(false)
+                , modified_(false)
+                , particle_(1)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -857,7 +871,8 @@ namespace madness {
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
-                , modified(false)
+                , modified_(false)
+                , particle_(1)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -899,12 +914,26 @@ namespace madness {
             return getop(n, d, source_key)->norm;
         }
 
-        template <typename T>
-        Function<TENSOR_RESULT_TYPE(T,Q),NDIM> operator()(const Function<T,NDIM>& f) const {
+        /// apply this operator on a function f
+
+        /// the operator does not need to have the same dimension as the function, e,g,
+        /// the Poisson kernel for the exchange operator acts only on 1 electron of a
+        /// given (pair) function.
+        /// @param[in]  f   a function of same or different dimension as this operator
+        /// @return     the result function of the same dimensionality as the input function f
+        template <typename T, size_t FDIM>
+        Function<TENSOR_RESULT_TYPE(T,Q),FDIM> operator()(const Function<T,FDIM>& f) const {
             return madness::apply(*this, f);
         }
 
 
+        /// apply this operator on coefficients in full rank form
+
+        /// @param[in]  coeff   source coeffs in full rank
+        /// @param[in]  source  the source key
+        /// @param[in]  shift   the displacement, where the source coeffs come from
+        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @return     a tensor of full rank with the result op(coeff)
         template <typename T>
         Tensor<TENSOR_RESULT_TYPE(T,Q)> apply(const Key<NDIM>& source,
                                               const Key<NDIM>& shift,
@@ -915,7 +944,7 @@ namespace madness {
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
 
-            if (not modified) {
+            if (not modified()) {
                 if (coeff.dim(0) == k) {
                     // This processes leaf nodes with only scaling
                     // coefficients ... FuncImpl::apply by default does not
@@ -943,7 +972,7 @@ namespace madness {
             Tensor<resultT> work1(v2k,false), work2(v2k,false);
             Tensor<Q> work5(2*k,2*k);
 
-            if (modified) {
+            if (modified()) {
                    r=Tensor<resultT>(vk);
                    work1=Tensor<resultT>(vk,false);
                    work2=Tensor<resultT>(vk,false);
@@ -987,6 +1016,98 @@ namespace madness {
         }
 
 
+        /// apply this operator on only 1 particle of the coefficients in low rank form
+
+        /// note the unfortunate mess with NDIM: here NDIM is the operator dimension, and FDIM is the
+        /// function's dimension, whereas in the function we have OPDIM for the operator and NDIM for
+        /// the function
+        /// @tparam FDIM        the dimension of the function this operator is applied on
+        /// @param[in]  coeff   source coeffs in SVD (=optimal!) form, in high dimensionality (FDIM)
+        /// @param[in]  source  the source key in low dimensionality (NDIM)
+        /// @param[in]  shift   the displacement in low dimensionality (NDIM)
+        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol2    thresh/#neigh
+        /// @return     coeff result
+        template<typename T>
+        GenTensor<TENSOR_RESULT_TYPE(T,Q)> apply2_lowdim(const Key<NDIM>& source,
+                const Key<NDIM>& shift, const GenTensor<T>& coeff, double tol, double tol2) const {
+
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+            // some checks
+            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);           // for now
+            MADNESS_ASSERT(not modified());
+            MADNESS_ASSERT(not doleaves);
+            MADNESS_ASSERT(coeff.dim(0)==2*k);
+            MADNESS_ASSERT(2*NDIM==coeff.ndim());
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
+
+            // prepare access to the singular vectors
+            std::vector<Slice> s(coeff.config().dim_per_vector()+1,_);
+            // can't use predefined slices and vectors -- they have the wrong dimension
+            const std::vector<Slice> s00(coeff.ndim(),Slice(0,k-1));
+
+            // some workspace
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
+
+            // sliced input and final result
+            const GenTensor<T> f0 = copy(coeff(s00));
+            GenTensor<resultT> final=copy(coeff);
+            GenTensor<resultT> final0=copy(f0);
+
+            tol = tol/rank; // Error is per separated term
+            tol2= tol2/rank;
+
+            for (int r=0; r<coeff.rank(); ++r) {
+
+                // get the appropriate singular vector (left or right depends on particle)
+                // and apply the full tensor muopxv_fast on it, term by term
+                s[0]=Slice(r,r);
+                const Tensor<T> chunk=coeff.config().ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
+                const Tensor<T> chunk0=f0.config().ref_vector(particle()-1)(s).reshape(k,k,k);
+                const double weight=coeff.config().weights(r);
+
+                // accumulate all terms of the operator for a specific term of the function
+                Tensor<resultT> result(v2k), result0(vk);
+
+                // this loop will return on result and result0 the terms [(P+Q) G (P+Q)]_1,
+                // and [P Q P]_1, respectively
+                for (int mu=0; mu<rank; ++mu) {
+                    const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+
+                    if (muop.norm > tol*weight) {
+
+                        Q fac = ops[mu].getfac();
+                        muopxv_fast(source.level(), muop.ops, chunk, chunk0, result, result0,
+                                tol/std::abs(fac), fac, work1, work2, work5);
+
+                    }
+                }
+
+
+                // reinsert the transformed terms into result, leaving the other particle unchanged
+                if (final.config().is_flat()) result=result.reshape(8*k*k*k);
+                final.config().ref_vector(particle()-1)(s)=result;
+
+                if (source.level()>0) {
+                    if (final0.config().is_flat()) result0=result0.reshape(k*k*k);
+                    final0.config().ref_vector(particle()-1)(s)=result0;
+                } else {
+                    final0.config().ref_vector(0)(s)=0.0;
+                    final0.config().ref_vector(1)(s)=0.0;
+                }
+
+            }
+
+            final(s00)+=final0;
+            final.reduceRank(tol2);
+
+            return final;
+        }
+
+
         /// apply this operator on coefficients in low rank form
 
         /// @param[in]	coeff	source coeffs in SVD (=optimal!) form
@@ -1006,7 +1127,7 @@ namespace madness {
             const GenTensor<T>* input = &coeff;
             GenTensor<T> dummy;
 
-            if (not modified) {
+            if (not modified()) {
                 if (coeff.dim(0) == k) {
                     // This processes leaf nodes with only scaling
                     // coefficients ... FuncImpl::apply by default does not
@@ -1032,7 +1153,7 @@ namespace madness {
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
             GenTensor<Q> work5(v2k,tt);
 
-            if (modified) {
+            if (modified()) {
                 r=GenTensor<resultT>(vk,tt);
                 work1=GenTensor<resultT>(vk,tt);
                 work2=GenTensor<resultT>(vk,tt);

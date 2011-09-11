@@ -4162,11 +4162,15 @@ namespace madness {
             }
         };
 
+
+        /// laziness
+        template<size_t OPDIM>
         struct do_op_args {
-            keyT key, d, dest;
+            Key<OPDIM> key,d;
+            keyT dest;
             double tol, fac, cnorm;
             do_op_args() {}
-            do_op_args(const keyT& key, const keyT& d, const keyT& dest, double tol, double fac, double cnorm)
+            do_op_args(const Key<OPDIM>& key, const Key<OPDIM>& d, const keyT& dest, double tol, double fac, double cnorm)
                     : key(key), d(d), dest(dest), tol(tol), fac(fac), cnorm(cnorm) {}
             template <class Archive>
             void serialize(Archive& ar) {
@@ -4180,8 +4184,8 @@ namespace madness {
         /// @param[in]  c       full rank tensor holding the NS coefficients
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
         /// @return     nothing, but accumulate the result tensor into the destination node
-       template <typename opT, typename R>
-        Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+       template <typename opT, typename R, size_t OPDIM>
+        Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args) {
 
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
 
@@ -4204,8 +4208,8 @@ namespace madness {
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
         /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
         /// @return     nothing, but accumulate the result tensor into the destination node
-        template <typename opT, typename R>
-        Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args& args,
+        template <typename opT, typename R, size_t OPDIM>
+        Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
             const TensorArgs args_full(0.0,TT_FULL);
@@ -4238,8 +4242,8 @@ namespace madness {
         /// @param[in]  args    laziness holding norm of the coefficients, displacement, destination, ..
         /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
         /// @return     nothing, but accumulate the result tensor into the destination node
-        template <typename opT, typename R>
-        Void do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args& args,
+        template <typename opT, typename R, size_t OPDIM>
+        Void do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
 
@@ -4270,6 +4274,10 @@ namespace madness {
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            typedef typename opT::keyT opkeyT;
+            static const size_t opdim=opT::opdim;
+
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
@@ -4298,7 +4306,7 @@ namespace madness {
                         if (d.distsq()==0) {
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
-                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            do_op_args<opdim> args(key, d, dest, tol, fac, cnorm);
                             woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
                         } else {
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
@@ -4344,19 +4352,29 @@ namespace madness {
 
         /// the result is accumulated inplace to this's tree at various FunctionNodes
         /// @param[in] op     the operator to act on the source function
-        /// @param[in] key    key of the source FunctionNode of f which is processed
+        /// @param[in] key    key of the source FunctionNode of f which is processed (see "source")
         /// @param[in] coeff  coeffs of FunctionNode being processed
         template <typename opT, typename R>
         Void do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
 
+            typedef typename opT::keyT opkeyT;
+            static const size_t opdim=opT::opdim;
+            Key<NDIM-opdim> nullkey(key.level());
+
+            // source is that part of key that corresponds to those dimensions being processed
+            opkeyT source;
+            Key<NDIM-opdim> dummykey;
+            if (op->particle()==1) key.break_apart(source,dummykey);
+            if (op->particle()==2) key.break_apart(dummykey,source);
+
              // fac is the number of contributing neighbors (approx)
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             if (NDIM==6) fac=729; //100.0;
-            if (op->modified) fac*=10.0;
+            if (op->modified()) fac*=10.0;
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
@@ -4374,20 +4392,24 @@ namespace madness {
             tensorT coeff_full;
 
 
-            const std::vector<keyT>& disp = op->get_disp(key.level());
+            const std::vector<opkeyT>& disp = op->get_disp(key.level());
 
             static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
             double opnorm_old=100.0;
             double opnorm=100.0;
 
-            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const keyT& d = *it;
+            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+                const opkeyT& d = *it;
 
-                keyT dest = neighbor(key, d, is_periodic);
+                keyT disp1;
+                if (op->particle()==1) disp1=it->merge_with(nullkey);
+                if (op->particle()==2) disp1=nullkey.merge_with(*it);
+
+                keyT dest = neighbor(key, disp1, is_periodic);
 
                 if (dest.is_valid()) {
                     opnorm_old=opnorm;
-                    opnorm = op->norm(key.level(), d, key);
+                    opnorm = op->norm(key.level(), d, source);
 //                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
 
                     // working assumption here is that the operator is isotropic and
@@ -4400,7 +4422,7 @@ namespace madness {
 //                        double wall00=wall_time();
                         neighbors++;
 
-                        double cost_ratio=op->estimate_costs(key, d, coeff, tol/fac/cnorm, tol/fac);
+                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
 //                        cost_ratio=1.5;     // force low rank
 //                        cost_ratio=0.5;     // force full rank
 
@@ -4415,8 +4437,8 @@ namespace madness {
                                 ProcessID here = world.rank();
 //                                ProcessID there =  world.random_proc();
 //            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
-                                do_op_args args(key, d, dest, tol, fac, cnorm);
-                                woT::task(here, &implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
+                                do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
+                                woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
                                         args,apply_targs,TaskAttributes::hipri());
 
 //                                world.taskq.add(*this,&implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
@@ -4425,7 +4447,9 @@ namespace madness {
                             } else {
 
                                 // apply2 returns result in SVD form
-                                coeffT result = op->apply2(key, d, coeff, tol/fac/cnorm, tol/fac);
+                                coeffT result;
+                                if (NDIM==opdim) result= op->apply2(source, d, coeff, tol/fac/cnorm, tol/fac);
+                                if (NDIM==2*opdim) result= op->apply2_lowdim(source, d, coeff, tol/fac/cnorm, tol/fac);
                                 double result_norm=-1.0;
                                 if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
                                 if (result.tensor_type()==TT_FULL) result_norm=result.normf();
@@ -4485,7 +4509,7 @@ namespace madness {
              // change TT_FULL to low rank
              flo_unary_op_node_inplace(do_change_tensor_type(targs),true);
 
-             if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
+             if (op.modified()) flo_unary_op_node_inplace(do_stuff(),true);
              this->compressed=true;
              this->nonstandard=true;
              this->redundant=false;
