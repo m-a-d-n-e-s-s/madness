@@ -52,7 +52,6 @@ bool XCfunctional::has_fxc() const
     return false;
 }
 
-/// returns true if the third derivative of the functional is available
 bool XCfunctional::has_kxc() const
 {
     return false;
@@ -90,8 +89,9 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin) const 
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const 
 {
+    //MADNESS_ASSERT(what == 0);
     const double* arho = t[0].ptr();
     madness::Tensor<double> result(3L, t[0].dims(), false);
     double* f = result.ptr();
@@ -107,7 +107,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
             c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
-            f[i] = xdfdr[ispin] + cdfdr[ispin];
+            f[i] = xdfdr[what] + cdfdr[what];
         }
     }
     else {

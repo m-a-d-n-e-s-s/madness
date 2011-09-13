@@ -2319,22 +2319,21 @@ struct Calculation {
             }
 
             START_TIMER(world);
-            functionT arho = make_density(world, aocc, amo);
-            functionT brho;
-            //if(!param.spin_restricted && param.nbeta)
-            //    brho = make_density(world, bocc, bmo);
-            //else
-            //    brho = arho; // wrong with 1-electron system
+            functionT arho = make_density(world, aocc, amo), brho;
+
             if (param.nbeta) {
-                if (param.spin_restricted) brho = arho;
-                else brho = make_density(world, bocc, bmo);
+                if (param.spin_restricted) {
+                    brho = arho;
+                }
+                else {
+                    brho = make_density(world, bocc, bmo);                    
+                }
             }
             else {
                 brho = functionT(world); // zero
             }
-
-
             END_TIMER(world, "Make densities");
+
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
@@ -2348,14 +2347,17 @@ struct Calculation {
                     print("delta rho", da, db, "residuals", bsh_residual, update_residual);
 
             }
+
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
             rho.truncate();
             double enuclear = inner(rho, vnuc);
+
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
             END_TIMER(world, "Coulomb");
+
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             functionT vlocal = vcoul + vnuc;
@@ -2376,14 +2378,17 @@ struct Calculation {
 
             vecfuncT vf;
             if (xc.is_dft()) {
-                vf.push_back(arho);
-                if (xc.is_spin_polarized()) vf.push_back(brho);
-                if (xc.is_gga()){
-                    vf.push_back(garho);
-                    if (xc.is_spin_polarized()) vf.push_back(gbrho);
-                }
+                arho.reconstruct();
+                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
 
-                reconstruct(world, vf);
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho); // What to do for no beta electrons and spin polarized?
+                if (xc.is_gga()) {
+                    for(int axis=0; axis<3; ++axis) vf.push_back((*gradop[axis])(arho,false));
+                    if (param.nbeta && xc.is_spin_polarized()) 
+                        for(int axis=0; axis<3; ++axis) vf.push_back((*gradop[axis])(brho,false));
+                    world.gop.fence();
+                }
                 if (vf.size() > 1UL) 
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
             }

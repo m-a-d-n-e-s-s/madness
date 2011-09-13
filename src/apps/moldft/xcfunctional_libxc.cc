@@ -298,7 +298,9 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     if (spin_polarized) {
         if (is_lda())
             MADNESS_ASSERT(t.size() == 2);
-        else 
+        else //if (is_gga()) 
+        //     MADNESS_ASSERT(t.size() == 8);
+        // else 
             throw "not yet";
 
         
@@ -327,31 +329,55 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         }
     }
     else {
-        (const_cast<madness::Tensor<double>&>(t[0])).scale(2.0);
         if (is_lda())
             MADNESS_ASSERT(t.size() == 1);
-        else 
+        else (is_gga()) 
+            MADNESS_ASSERT(t.size() == 4);
+        else
             throw "not yet";
+
+        madness::Tensor<double> rho(np), sig;
+        double * restrict dens = rho.ptr();
+        double * restrict s;
+        
+        if (is_lda()) {
+            for (long i=0; i<np; i++) dens[i] = munge_rho(2.0*arho[i]);
+        }
+        else {
+            sig = madness::Tensor<double>(np);
+            s = sig.ptr();
+            const double * restrict dx = t[1].ptr();
+            const double * restrict dy = t[2].ptr();
+            const double * restrict dz = t[3].ptr();
+            for (long i=0; i<np; i++) {
+                dens[i] = 2.0*arho[i];
+                s[i] = 4.0*(dx[i]*dx[i] + dy[i]*dy[i] + dz[i]*dz[i]);
+                munge_rho_sig(dens[i], s[i]);
+            }
+        }
 
         for (unsigned int i=0; i<funcs.size(); i++) {
             switch(funcs[i].first->info->family) {
             case XC_FAMILY_LDA:
-                xc_lda_exc(funcs[i].first, np, arho, tmp.ptr());
-                result.gaxpy(1.0,tmp.emul(t[0]),funcs[i].second);
+                xc_lda_exc(funcs[i].first, np, dens, tmp.ptr());
+                result.gaxpy(1.0,tmp.emul(rho),funcs[i].second);
                 break;
             case XC_FAMILY_GGA:
+                xc_gga_exc(funcs[i].first, np, dens, s, tmp.ptr());
+                result.gaxpy(1.0,tmp.emul(rho),funcs[i].second);
             case XC_FAMILY_HYB_GGA:
                 //xc_gga_exc(&func, np, arho, sigma, f);
                 throw "NOT YET";
                 break;
+
+                ????????????????????????????????
             }
         }
-        (const_cast<madness::Tensor<double>&>(t[0])).scale(0.5);
     }
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin) const 
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const 
 {
     MADNESS_ASSERT(t.size() >= 1);
     const int np = t[0].size();
@@ -381,7 +407,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             case XC_FAMILY_LDA:
                 xc_lda_vxc(funcs[i].first, np, dens, work);
                 for (long j=0; j<np; j++) {
-                    res[j] += work[2*j+ispin]*funcs[i].second;
+                    res[j] += work[2*j+what]*funcs[i].second;
                 }
                 break;
             case XC_FAMILY_GGA:
@@ -393,18 +419,20 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
         }
     }
     else {
-        (const_cast<madness::Tensor<double>&>(t[0])).scale(2.0);
         if (is_lda())
             MADNESS_ASSERT(t.size() == 1);
         else 
             throw "not yet";
 
         madness::Tensor<double> tmp(3L, t[0].dims(), false);
-
+        madness::Tensor<double> rho(np);
+        double * restrict dens = rho.ptr();
+        for (long i=0; i<np; i++) dens[i] = munge_rho(2.0*arho[i]);
+        
         for (unsigned int i=0; i<funcs.size(); i++) {
             switch(funcs[i].first->info->family) {
             case XC_FAMILY_LDA:
-                xc_lda_vxc(funcs[i].first, np, arho, tmp.ptr());
+                xc_lda_vxc(funcs[i].first, np, dens, tmp.ptr());
                 result.gaxpy(1.0,tmp,funcs[i].second);
                 break;
             case XC_FAMILY_GGA:
@@ -414,7 +442,6 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 break;
             }
         }
-        (const_cast<madness::Tensor<double>&>(t[0])).scale(0.5);
     }
     return result;
 }
