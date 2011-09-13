@@ -410,8 +410,8 @@ namespace madness {
             double B=0.0;
             {
                 // V_nuc, J, and K
-                MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
-                functionT coulomb=0.5*hf.get_coulomb_potential();
+                MADNESS_ASSERT(is_helium);
+                functionT coulomb=hf.get_coulomb_potential();
                 functionT v_nuc=hf.get_nuclear_potential();
                 functionT v_total=v_nuc+coulomb;
 
@@ -424,7 +424,13 @@ namespace madness {
                                          ;
 
                 const double pe=inner(fo_function,v11);
-                print("pe in Hylleraas",pe);
+                if (world.rank()==0) printf("pe in Hylleraas  %12.8f\n" ,pe);
+
+                // exchange energy
+                real_function_6d Kphi=apply_exchange(fo_function,hf.orbital(i),1);
+                Kphi+=apply_exchange(fo_function,hf.orbital(j),2);
+                const double x=inner(fo_function,Kphi);
+                if (world.rank()==0) printf("ex in Hylleraas  %12.8f\n" ,x);
 
                 // kinetic energy expectation value
                 double ke=0.0;
@@ -439,10 +445,10 @@ namespace madness {
 
                 // overlap <phi^1 | e1+e2 | phi^1>
                 const double overlap=fo_function.norm2();
-                print("fo_function.norm2",overlap);
+                if (world.rank()==0) printf("fo_function.norm2  %12.8f\n",overlap);
                 const double e_contrib=overlap*overlap*this->zeroth_order_energy(i,j);
 
-                B=ke+pe-e_contrib;
+                B=ke+pe-e_contrib - x;
             }
 
             // the V term
@@ -504,36 +510,6 @@ namespace madness {
 
 
         void test(const int i, const int j) {
-
-            double norm;
-            real_function_6d f=zeroth_order_function(i,j);
-            real_function_6d f2=multiply(f,hf.orbital(i),1);
-            f2.print_size("f2 after apply");
-            norm=f2.norm2();
-            if (world.rank()==0) print("f2 norm",norm);
-//            real_function_6d x=apply_exchange(f2);
-            real_function_6d x=2.0*poisson(f2);
-
-            x.print_size("x after apply");
-            norm=x.norm2();
-            if (world.rank()==0) print("x norm",norm);
-            x=multiply(x,hf.orbital(i),1);
-            x.print_size("x after multiply");
-            norm=x.norm2();
-            if (world.rank()==0) print("x norm",norm);
-
-
-            real_function_6d tmp=multiply(f,hf.get_coulomb_potential(),1);
-            tmp.print_size("tmp after multiply");
-            norm=tmp.norm2();
-            if (world.rank()==0) print("tmp norm",norm);
-
-            real_function_6d diff=tmp-x;
-            diff.print_size("diff");
-            norm=diff.norm2();
-            if (world.rank()==0) print("diff norm",norm);
-
-
 
         }
 
@@ -626,6 +602,8 @@ namespace madness {
                 pairfunctionT tmp=green(vphi).truncate(thresh);
                 tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
 
+                tmp+=apply_exchange(result.function,hf.orbital(i),1);
+                tmp+=apply_exchange(result.function,hf.orbital(j),2);
                 result.function=constant_term+tmp;
 
                 orthogonalize(result.function,zo_function);
@@ -675,15 +653,17 @@ namespace madness {
         }
 
         /// apply the exchange operator on f
-        real_function_6d apply_exchange(const real_function_6d& f) {
 
-            const int i=0;
+        /// @param[in]  f   the pair function
+        /// @param[in]  orbital the orbital
+        /// @return     the pair function, on which the exchange operator has been applied
+        real_function_6d apply_exchange(const real_function_6d& f, const real_function_3d& orbital, const int particle) const {
 
-            real_function_3d orbital=hf.orbital(i);
-            real_function_6d x=multiply(f,orbital,1);
-            real_function_6d result=poisson(x);
+            real_function_6d x=multiply(f,orbital,particle);
+            x=poisson(x);
+            x=multiply(x,orbital,particle);
 
-            return result;
+            return x;
         }
 
 
@@ -763,10 +743,10 @@ int main(int argc, char** argv) {
     MP2 mp2(world,hf);
 //    mp2.compute_first_order_correction(0,0);
 //    mp2.solve_residual_equation(0,0);
-    mp2.test(0,0);
+//    mp2.test(0,0);
 //    mp2.test2(0,0);
 
-//    mp2.value(calc.molecule.get_all_coords());
+    mp2.value(calc.molecule.get_all_coords());
 
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

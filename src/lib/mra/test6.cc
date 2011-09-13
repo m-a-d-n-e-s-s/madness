@@ -172,6 +172,104 @@ int test_add(World& world, const long& k, const double thresh) {
     return nerror;
 }
 
+
+/// test f(1,2) + g(1,2) for both f and g reconstructed
+int test_exchange(World& world, const long& k, const double thresh) {
+
+    print("entering exchange f(1,2)*g(1)");
+    int nerror=0;
+    bool good;
+
+    double norm;
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+
+
+    real_convolution_3d poisson = CoulombOperator(world,0.0001,thresh);
+
+    real_function_3d rho = 2.0*phi*phi;
+    real_function_3d coulombpot=poisson(rho);
+
+
+    real_function_6d f=2.0*hartree_product(phi,phi);
+    real_function_6d f2=multiply(f,phi,1);
+    f2.print_size("f2 after apply");
+    norm=f2.norm2();
+    if (world.rank()==0) print("f2 norm",norm);
+    real_function_6d x=poisson(f2);
+
+    x.print_size("x after apply");
+    norm=x.norm2();
+    if (world.rank()==0) print("x norm",norm);
+    x=multiply(x,phi,1);
+    x.print_size("x after multiply");
+    norm=x.norm2();
+    if (world.rank()==0) print("x norm",norm);
+
+
+    real_function_6d tmp=0.5*multiply(f,coulombpot,1);
+    tmp.print_size("tmp after multiply");
+    norm=tmp.norm2();
+    if (world.rank()==0) print("tmp norm",norm);
+
+    real_function_6d diff=tmp-x;
+    diff.print_size("diff");
+    norm=diff.norm2();
+    if (world.rank()==0) print("diff norm",norm);
+    good=is_small(norm,thresh);
+    print(ok(good), "exchange error:",norm);
+    if (not good) nerror++;
+
+    // do only orbital
+    real_function_3d tmp2=phi*coulombpot;
+    tmp2.print_size("J phi after multiply");
+    norm=tmp2.norm2()*phi.norm2();
+    if (world.rank()==0) print("J phi norm",norm);
+
+
+
+    print("all done\n");
+    return nerror;
+}
+
+int test(World& world, const long& k, const double thresh) {
+
+    print("entering exchange f(1,2)*g(1)");
+    int nerror=0;
+    bool good;
+
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    real_function_6d f=hartree_product(phi,phi);
+
+    real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-5);
+
+    real_function_6d g=CompositeFactory<double,6,3>(world)
+            .g12(eri.get_impl())
+            .ket(copy(f).get_impl());
+
+    Function<double,6>::leaf_op fnode_is_leaf(f.get_impl().get());
+    g.get_impl()->make_Vphi(fnode_is_leaf,true);
+
+
+    print("stats of reconstructed");
+    g.get_impl()->print_stats();
+    print("done with stats of reconstructed");
+
+    print("following stats of redundant");
+    g.get_impl()->make_redundant(true);
+    g.get_impl()->print_stats();
+    g.get_impl()->undo_redundant(true);
+    print("done with stats of redundant");
+
+    print("following stats of compressed");
+    g.compress();
+    g.get_impl()->print_stats();
+    print("done with stats of compressed");
+
+    print("all done\n");
+    return nerror;
+}
+
+
 int main(int argc, char**argv) {
 
     initialize(argc,argv);
@@ -227,9 +325,19 @@ int main(int argc, char**argv) {
 
     int error=0;
 
-    error+=test_hartree_product(world,k,thresh);
-    error+=test_multiply(world,k,thresh);
-    error+=test_add(world,k,thresh);
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    double norm=phi.norm2();
+    if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
+
+    real_function_3d phi2=phi*phi;
+    norm=phi2.norm2();
+    if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
+
+    test(world,k,thresh);
+//    error+=test_hartree_product(world,k,thresh);
+//    error+=test_multiply(world,k,thresh);
+//    error+=test_add(world,k,thresh);
+//    error+=test_exchange(world,k,thresh);
 
 
     print(ok(error==0),error,"finished test suite\n");

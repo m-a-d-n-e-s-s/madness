@@ -1035,38 +1035,44 @@ namespace madness {
         TENSOR_RESULT_TYPE(T,R) inner(const Function<R,NDIM>& g) const {
             PROFILE_MEMBER_FUNC(Function);
 
-            bool g_on_demand=g.is_on_demand();
+            // fast return if possible
+            if (not this->is_initialized()) return 0.0;
+            if (not g.is_initialized()) return 0.0;
+
+            // if this and g are the same, use norm2()
+            if (this->get_impl()==g.get_impl()) {
+                double norm=this->norm2();
+                return norm*norm;
+            }
+
             FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
 
-            // it does work, but it might not give you the precision
-            // have to think more about this
+            bool g_on_demand=g.is_on_demand();
             if (g_on_demand) {
-//                MADNESS_EXCEPTION("no on-demand function in inner for now",1);
-            }
 
-            // introduce special case if g==f: we don't need to compress
-            if ((not (this==&g)) and (not g_on_demand)) {
-                if (!is_compressed()) compress();
-                if (!g.is_compressed()) g.compress();
-            }
+                // it does work, but it might not give you the precision
+                // have to think more about this
 
-            MADNESS_ASSERT(not g.get_impl()->is_redundant());
-            if (g_on_demand) {
+                MADNESS_ASSERT(not gimpl->is_redundant());
                 this->reconstruct();
                 leaf_op fnode_is_leaf(this->get_impl().get());
                 gimpl->make_Vphi(fnode_is_leaf,true);  // fence here
                 gimpl->print_size("gimpl");
                 this->print_size("f");
+
+            } else {
+
+                if (!is_compressed()) compress();
+                if (!g.is_compressed()) g.compress();
             }
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
-
             TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*gimpl);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            // restore g to on-demand
+            // bring g to original state
             if (g_on_demand) {
                 MADNESS_ASSERT(gimpl->get_functor());
                 gimpl->get_coeffs().clear();
@@ -1412,8 +1418,9 @@ namespace madness {
         Function<T,KDIM+LDIM> result=factory.empty();
         result.get_impl()->hartree_product(left.get_impl().get(),right.get_impl().get(),true);
 
+        result.truncate(0.0,false);
         left.standard(false);
-        if (not same) right.standard(true);
+        if (not same) right.standard(false);
         if (fence) left2.world().gop.fence();
 
         return result;
@@ -1593,8 +1600,8 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-        if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
-        if (f.get_impl()->world.rank()==0) print("op.modified",op.modified());
+//        if (f.get_impl()->world.rank()==0) printf("in apply_only at time   %.1fs\n", wall_time());
+//        if (f.get_impl()->world.rank()==0) print("op.modified",op.modified());
        	result.set_impl(f, true);
 //       	result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);

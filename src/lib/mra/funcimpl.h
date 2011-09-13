@@ -485,8 +485,7 @@ namespace madness {
 
 #if 1
                 // always do low rank
-//                coeff().add_SVD(t,args.thresh);
-                coeff()+=t;
+                coeff().add_SVD(t,args.thresh);
 
 
 #else
@@ -523,7 +522,7 @@ namespace madness {
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & double(_norm_tree);
+            ar & coeff() & _has_children & _norm_tree;
         }
 
     };
@@ -936,16 +935,40 @@ namespace madness {
 
         void do_print_tree(const keyT& key, Level maxlevel) const;
 
+        /// convert a number [0,limit] to a hue color code [blue,red],
+        /// or, if log is set, a number [1.e-10,limit]
+        struct do_convert_to_color {
+            double limit;
+            bool log;
+            static const double lower=1.e-10;
+            do_convert_to_color() {};
+            do_convert_to_color(const double limit, const bool log) : limit(limit), log(log) {}
+            double operator()(double val) const {
+                double color=0.0;
+
+                if (log) {
+                    double val2=log10(val) - log10(lower);        // will yield >0.0
+                    double upper=log10(limit) -log10(lower);;
+                    val2=0.7-(0.7/upper)*val2;
+                    color= std::max(0.0,val2);
+                    color= std::min(0.7,color);
+                } else {
+                    double hue=0.7-(0.7/limit)*(val);
+                    color= std::max(0.0,hue);
+                }
+                return color;
+            }
+        };
+
 
         /// Print a plane ("xy", "xz", or "yz") containing the point x to file
 
         /// works for all dimensions; we walk through the tree, and if a leaf node
         /// inside the sub-cell touches the plane we print it in pstricks format
-        void print_plane(const std::string filename, const std::string plane, const coordT& x_user,
-        		const Tensor<double>& cell_user) {
+        void print_plane(const std::string filename, const std::string plane, const coordT& x_user) {
 
             // get the local information
-            Tensor<double> localinfo=print_plane_local(plane,x_user,cell_user);
+            Tensor<double> localinfo=print_plane_local(plane,x_user);
 
             // lump all the local information together, and gather on node0
             std::vector<Tensor<double> > localinfo_vec(1,localinfo);
@@ -959,8 +982,7 @@ namespace madness {
 
 
         /// collect the data for a plot of the MRA structure locally on each node
-        Tensor<double> print_plane_local(const std::string plane, const coordT& x_user,
-                const Tensor<double>& cell_user) {
+        Tensor<double> print_plane_local(const std::string plane, const coordT& x_user) {
 
             // translate verbose plane to something computer-readable
             int dim0, dim1;
@@ -987,18 +1009,13 @@ namespace madness {
             long counter=0;
 
             // loop over local boxes, if the fit, add the info to the output tensor
-            typename dcT::iterator end = coeffs.end();
-            for (typename dcT::iterator it=coeffs.begin(); it!=end; ++it) {
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const keyT& key = it->first;
-                nodeT& node = it->second;
+                const nodeT& node = it->second;
 
                 // thisKeyContains ignores dim0 and dim1
                 if (key.thisKeyContains(x_sim,dim0,dim1) and node.is_leaf() and (node.has_coeff())) {
-
-                    // next: only key inside the given box
-//                    for (size_t i=0; i<NDIM; i++) {
-//                        if (x_user[i]<cell_user(i,0) or x_user[i]>cell_user(i,1)) continue;
-//                    }
 
                     Level n=key.level();
                     Vector<Translation,NDIM> l=key.translation();
@@ -1009,11 +1026,26 @@ namespace madness {
                     double xhiright = scale*(l[dim0]+1);
                     double yhiright = scale*(l[dim1]+1);
 
-                    // color
-                    const int rank=node.coeff().rank();
-                    const double maxrank=40.0;
-                    double hue=0.7-(0.7/maxrank)*(rank);
-                    double color= std::max(0.0,hue);
+                    // do rank or do error
+                    double color=0.0;
+                    if (1) {
+
+                        const double maxrank=40;
+                        do_convert_to_color hue(maxrank,false);
+                        color=hue(node.coeff().rank());
+                    } else {
+
+                        // Make quadrature rule of higher order
+                        const int npt = cdata.npt + 1;
+                        Tensor<double> qx, qw, quad_phi, quad_phiw, quad_phit;
+                        FunctionCommonData<T,NDIM>::_init_quadrature(k+1, npt, qx, qw, quad_phi, quad_phiw, quad_phit);
+                        do_err_box< FunctionFunctorInterface<T,NDIM> > op(this, this->get_functor().get(), npt, qx, quad_phit, quad_phiw);
+
+                        do_convert_to_color hue(1000.0,true);
+                        double error=op(it);
+                        error=sqrt(error);//*pow(2,key.level()*6);
+                        color=hue(error);
+                    }
 
                     plotinfo(counter,0)=color;
                     plotinfo(counter,1)=xloleft;
@@ -1075,7 +1107,17 @@ namespace madness {
         tensorT project(const keyT& key) const;
 
         /// Returns the truncation threshold according to truncate_method
+
+        /// here is our handwaving argument:
+        /// this threshold will give each FunctionNode an error of less than tol. The
+        /// total error can then be as high as sqrt(#nodes) * tol. Therefore in order
+        /// to account for higher dimensions: divide tol by about the root of number
+        /// of siblings (2^NDIM) that have a large error when we refine along a deep
+        /// branch of the tree.
         double truncate_tol(double tol, const keyT& key) const {
+            const static double fac=1.0/std::pow(2,NDIM*0.5);
+            tol*=fac;
+
             if (truncate_mode == 0) {
                 return tol;
             }
@@ -3240,6 +3282,11 @@ namespace madness {
             /// assemble the coefficients
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
+                // fast return if possible
+                bool is_leaf=leaf_op(key);
+                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+
                 // break key into particles (these are the child keys, with datum1/2 come the parent keys)
                 Key<LDIM> key1, key2;
                 key.break_apart(key1,key2);
@@ -3306,7 +3353,7 @@ namespace madness {
                 // return coeffs
 //              bool is_leaf=(not needs_refinement);
 //                bool is_leaf=datum_ket.second.is_leaf();
-                bool is_leaf=leaf_op(key);
+//                bool is_leaf=leaf_op(key);
 
                 const TensorArgs& targs=result->get_tensor_args();
                 const coeffT coeff_ket=coeffT(result->values2coeffs(key,val_ket),targs);
@@ -3347,11 +3394,7 @@ namespace madness {
             /// serialize this (needed for use in recursive_op)
             template <typename Archive> void serialize(const Archive& ar) {
 //                ar & ket & result & eri & pot1 & pot2 & datum1 & datum2 & datum_ket;
-                bool eri_exists=false;
-                if (eri) eri_exists=true;
-                ar & eri_exists;    // dump if output, overwrite if input archive
-                ar & ket & result & leaf_op & pot1 & pot2 & datum1 & datum2 & datum_ket;
-                if (eri_exists) ar & eri;
+                ar & ket & eri & result & leaf_op & pot1 & pot2 & datum1 & datum2 & datum_ket;
             }
         };
 
@@ -3842,6 +3885,7 @@ namespace madness {
 
         void reconstruct(bool fence) {
             // Must set true here so that successive calls without fence do the right thing
+            MADNESS_ASSERT(not is_redundant());
             nonstandard = compressed = redundant = false;
             if (world.rank() == coeffs.owner(cdata.key0))
                 woT::task(world.rank(), &implT::reconstruct_op, cdata.key0,coeffT());
@@ -3861,6 +3905,7 @@ namespace madness {
         /// @param[in] keepleaves	keep sum coeffs (but no diff coeffs) at leaves
         /// @param[in] redundant    keep only sum coeffs at all levels, discard difference coeffs
         void compress(bool nonstandard, bool keepleaves, bool redundant, bool fence) {
+            MADNESS_ASSERT(not is_redundant());
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
@@ -4848,40 +4893,57 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const FunctionImpl<T,NDIM>*> {
             static void load(const Archive& ar, const FunctionImpl<T,NDIM>*& ptr) {
-                uniqueidT id;
-                ar & id;
-                World* world = World::world_from_id(id.get_world_id());
-                MADNESS_ASSERT(world);
-                ptr = static_cast< const FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
-                if (!ptr)
-                    MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                bool exists;
+                ar & exists;
+                if (exists) {
+                    uniqueidT id;
+                    ar & id;
+                    World* world = World::world_from_id(id.get_world_id());
+                    MADNESS_ASSERT(world);
+                    ptr = static_cast< const FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    if (!ptr)
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                } else {
+                    ptr=NULL;
+                }
             }
         };
 
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveStoreImpl<Archive,const FunctionImpl<T,NDIM>*> {
             static void store(const Archive& ar, const FunctionImpl<T,NDIM>*const& ptr) {
-                ar & ptr->id();
+                bool exists=(ptr) ? true : false;
+                ar & exists;
+                if (exists) ar & ptr->id();
             }
         };
 
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*> {
             static void load(const Archive& ar, FunctionImpl<T,NDIM>*& ptr) {
-                uniqueidT id;
-                ar & id;
-                World* world = World::world_from_id(id.get_world_id());
-                MADNESS_ASSERT(world);
-                ptr = static_cast< FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
-                if (!ptr)
-                    MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                bool exists;
+                ar & exists;
+                if (exists) {
+                    uniqueidT id;
+                    ar & id;
+                    World* world = World::world_from_id(id.get_world_id());
+                    MADNESS_ASSERT(world);
+                    ptr = static_cast< FunctionImpl<T,NDIM>*>(world->ptr_from_id< WorldObject< FunctionImpl<T,NDIM> > >(id));
+                    if (!ptr)
+                        MADNESS_EXCEPTION("FunctionImpl: remote operation attempting to use a locally uninitialized object",0);
+                } else {
+                    ptr=NULL;
+                }
             }
         };
 
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveStoreImpl<Archive, FunctionImpl<T,NDIM>*> {
             static void store(const Archive& ar, FunctionImpl<T,NDIM>*const& ptr) {
-                ar & ptr->id();
+                bool exists=(ptr) ? true : false;
+                ar & exists;
+                if (exists) ar & ptr->id();
+//                ar & ptr->id();
             }
         };
 

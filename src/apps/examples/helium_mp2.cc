@@ -515,7 +515,7 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
 
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-    op.modified=false;
+    op.modified()=false;
     
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
@@ -650,7 +650,7 @@ void compute_energy(World& world, const real_function_6d& pair,
         if (1) {
 		    // this is a dummy convolution
             real_convolution_6d op = BSHOperator<6>(world, -0.1, 0.00001, 1e-6);
-            op.modified=true;
+            op.modified()=true;
             v11.get_impl()->convolute<real_convolution_6d>(op);
         }
 
@@ -806,9 +806,9 @@ void test_modified(World& world) {
         eps=energy;
         real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.0001, 1e-6);
 
-        op.modified=true;
+        op.modified()=true;
         op.doleaves=false;
-        print("operator modified",op.modified);
+        print("operator modified",op.modified());
 
         real_function_3d Vpsi = (V*psi);
         Vpsi.scale(-2.0).truncate();
@@ -858,7 +858,7 @@ void test_recursive_application(World& world) {
         if (1) {
             real_function_3d vphi=-2.0*(orbital*pot1);
             real_convolution_3d op2 = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op2.modified=false;
+            op2.modified()=false;
             real_function_3d tmp;//=op2(vphi);
             MADNESS_EXCEPTION("op() only with NDIM==6",1);
             tmp.scale(1.0/sqrt(tmp.norm2()));
@@ -883,12 +883,12 @@ void test_recursive_application(World& world) {
                                 ;
             {
                 real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
-                op.modified=true;
+                op.modified()=true;
                 phi2.get_impl()->convolute<real_convolution_3d>(op);
             }
 
             real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op.modified=false;
+            op.modified()=false;
 //            phi2=op(phi2);
             phi2.scale(1.0/sqrt(phi2.norm2()));
 
@@ -989,7 +989,7 @@ void test_adaptive_tree(World& world, const bool restart, const std::string rest
         // make the tree
         if (1) {
             real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op.modified=true;
+            op.modified()=true;
             vphi.get_impl()->convolute(op);
             vphi.scale(-2.0);
             vphi.print_size("vphi");
@@ -1086,7 +1086,7 @@ void test_compress(World& world) {
 
         // make the tree
         real_convolution_6d op = BSHOperator<6>(world, sqrt(1.0), 0.00001, 1e-6);
-        op.modified=true;
+        op.modified()=true;
         vphi.get_impl()->convolute(op);
         a3=vphi;
         a3.print_size("a3");
