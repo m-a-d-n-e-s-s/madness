@@ -191,6 +191,11 @@ public:
     ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
     /// \f$
     ///
+    /// Integrating the above by parts and assuming free-space or periodic boundary conditions
+    /// we obtain that the local multiplicative form of the GGA potential is
+    /// \f$
+    ///    V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}} - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
+    /// \f$
     /// 
     /// Until we get a madness::Function operation that can produce
     /// multiple results we need to compute components of the
