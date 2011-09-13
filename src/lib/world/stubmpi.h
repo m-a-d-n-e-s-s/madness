@@ -1,3 +1,6 @@
+#ifndef MADNESS_STUBMPI_H
+#define MADNESS_STUBMPI_H
+
 #include <cstddef>
 #include <cstdlib>
 #include <cstring>
@@ -37,9 +40,9 @@ namespace MPI {
         }
     };
 
-    static void Finalize() {};
+    void Finalize();
 
-    static int Init_thread(int &argc, char **&argv, int required) {return 0;};
+    int Init_thread(int &argc, char **&argv, int required);
 
     struct Request {
         bool Test() {
@@ -127,3 +130,5 @@ namespace MPI {
 
    static Intracomm COMM_WORLD;
 }
+
+#endif
