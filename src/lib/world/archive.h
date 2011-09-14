@@ -425,6 +425,8 @@
 #include <world/enable_if.h>
 #include <world/worldexc.h>
 
+#include <tr1/tuple>
+
 #define ARCHIVE_COOKIE "archive"
 #define ARCHIVE_MAJOR_VERSION 0
 #define ARCHIVE_MINOR_VERSION 1
@@ -443,7 +445,6 @@ namespace madness {
 
     // Forward declarations
     template <typename T> class Tensor;
-
     namespace archive {
 
         // Forward declarations
@@ -997,6 +998,15 @@ namespace madness {
             static inline void serialize(const Archive& ar, std::pair<T,Q>& t) {
                 MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize STL pair" << std::endl);
                 ar & t.first & t.second;
+            }
+        };
+
+        /// (de)Serialize an tr1 tuple.
+        template <class Archive, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6, typename T7>
+        struct ArchiveSerializeImpl< Archive, std::tr1::tuple<T1,T2,T3,T4,T5,T6,T7> > {
+            static inline void serialize(const Archive& ar, std::tr1::tuple<T1,T2,T3,T4,T5,T6,T7>& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize tr1::tuple" << std::endl);
+                ar & std::tr1::get<0>(t) & std::tr1::get<1>(t) & std::tr1::get<2>(t) & std::tr1::get<3>(t) & std::tr1::get<4>(t) & std::tr1::get<5>(t) & std::tr1::get<6>(t);
             }
         };
 
