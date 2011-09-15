@@ -159,12 +159,13 @@ public:
     /// Items in the vector argument \c t are interpreted as follows
     ///  - Spin un-polarized
     ///    - \c t[0] = \f$ \rho_{\alpha} \f$
-    ///    - \c t[1/2/3] = \f$ \nabla \rho_{\alpha} \f$ (GGA only)
+    ///    - \c t[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
     ///  - Spin polarized
     ///    - \c t[0] = \f$ \rho_{\alpha} \f$
     ///    - \c t[1] = \f$ \rho_{\beta} \f$
-    ///    - \c t[2/3/4] = \f$ \nabla \rho_{\alpha} \f$ (GGA only)
-    ///    - \c t[5/6/7] = \f$ \nabla \rho_{\beta} \f$  (GGA only)
+    ///    - \c t[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+    ///    - \c t[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
+    ///    - \c t[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
     ///
     /// @param t The input densities and derivatives as required by the functional
     /// @return The exchange-correlation energy functional

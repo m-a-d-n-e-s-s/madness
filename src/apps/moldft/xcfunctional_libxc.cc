@@ -291,89 +291,103 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     const int np = t[0].size();
     madness::Tensor<double> result(3L, t[0].dims());
     madness::Tensor<double> tmp(3L, t[0].dims(), false);
-    const double * restrict arho = t[0].ptr();
+    madness::Tensor<double> rho, sigma;
+    double * restrict dens, sig;
     double * restrict work = tmp.ptr();
     double * restrict res = result.ptr();
 
+    const double * restrict rhoa, rhob, sigaa, sigab, sigbb;
+    
     if (spin_polarized) {
-        if (is_lda())
+        if (is_lda()) {
             MADNESS_ASSERT(t.size() == 2);
-        else //if (is_gga()) 
-        //     MADNESS_ASSERT(t.size() == 8);
-        // else 
-            throw "not yet";
-
-        
-        madness::Tensor<double> rho(np*2);
-        double * restrict dens = rho.ptr();
-        const double * restrict brho = t[1].ptr();
-        for (long i=0; i<np; i++) {
-            dens[2*i  ] = munge_rho(arho[i]);
-            dens[2*i+1] = munge_rho(brho[i]);
-        }
-        
-        for (unsigned int i=0; i<funcs.size(); i++) {
-            switch(funcs[i].first->info->family) {
-            case XC_FAMILY_LDA:
-                xc_lda_exc(funcs[i].first, np, dens, work);
-                for (long j=0; j<np; j++) {
-                    res[j] += work[j]*(arho[j]+brho[j])*funcs[i].second;
-                }
-                break;
-            case XC_FAMILY_GGA:
-            case XC_FAMILY_HYB_GGA:
-                //xc_gga_exc(&func, np, arho, sigma, f);
-                throw "NOT YET";
-                break;
+            const double * restrict rhoa = t[0].ptr();
+            const double * restrict rhoa = t[1].ptr();
+            rho  = madness::Tensor<double>(np*2L);
+            dens = rho.ptr();
+            for (long i=0; i<np; i++) {
+                dens[2*i  ] = munge_rho(rhoa[i]);
+                dens[2*i+1] = munge_rho(rhoa[i]);
             }
+        }
+        else if (is_gga()) {
+            MADNESS_ASSERT(t.size() == 5);
+            const double * restrict rhoa  = t[0].ptr();
+            const double * restrict rhob  = t[1].ptr();
+            const double * restrict sigaa = t[2].ptr();
+            const double * restrict sigab = t[3].ptr();
+            const double * restrict sigbb = t[4].ptr();
+            rho   = madness::Tensor<double>(np*2L);
+            sigma = madness::Tensor<double>(np*3L);
+            dens = rho.ptr();
+            sig  = sigma.ptr();
+            for (long i=0; i<np; i++) {
+                double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
+                munge5(rhoa, rhob, saa, sab, sbb);
+                dens[2*i  ] = ra;
+                dens[2*i+1] = rb;
+                sig[3*i  ] = saa;
+                sig[3*i+1] = sab;
+                sig[3*i+2] = sbb;
+            }
+        }
+        else {
+            throw "not yet";
         }
     }
     else {
-        if (is_lda())
-            MADNESS_ASSERT(t.size() == 1);
-        else (is_gga()) 
-            MADNESS_ASSERT(t.size() == 4);
-        else
-            throw "not yet";
-
-        madness::Tensor<double> rho(np), sig;
-        double * restrict dens = rho.ptr();
-        double * restrict s;
-        
         if (is_lda()) {
-            for (long i=0; i<np; i++) dens[i] = munge_rho(2.0*arho[i]);
-        }
-        else {
-            sig = madness::Tensor<double>(np);
-            s = sig.ptr();
-            const double * restrict dx = t[1].ptr();
-            const double * restrict dy = t[2].ptr();
-            const double * restrict dz = t[3].ptr();
+            MADNESS_ASSERT(t.size() == 1);
+            const double * restrict rho  = madness::Tensor<double>(np);
+            const double * restrict rhoa = t[0].ptr();
+            dens = rho.ptr();
             for (long i=0; i<np; i++) {
-                dens[i] = 2.0*arho[i];
-                s[i] = 4.0*(dx[i]*dx[i] + dy[i]*dy[i] + dz[i]*dz[i]);
-                munge_rho_sig(dens[i], s[i]);
+                dens[i] = munge_rho(2.0*rhoa[i]);
             }
         }
+        else if (is_gga()) {
+            MADNESS_ASSERT(t.size() == 2);
+            const double * restrict rhoa = t[0].ptr();
+            rho  = madness::Tensor<double>(np);
+            sigma  = madness::Tensor<double>(np);
+            dens = rho.ptr();
+            sig = sigma.ptr();
+            for (long i=0; i<np; i++) {
+                double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
+                munge2(ra, saa);
+                dens[i] = ra;
+                sig[i] = saa;
+            }
+        }
+        else {
+            throw "not yet";
+        }
+    }
 
-        for (unsigned int i=0; i<funcs.size(); i++) {
-            switch(funcs[i].first->info->family) {
-            case XC_FAMILY_LDA:
-                xc_lda_exc(funcs[i].first, np, dens, tmp.ptr());
-                result.gaxpy(1.0,tmp.emul(rho),funcs[i].second);
-                break;
-            case XC_FAMILY_GGA:
-                xc_gga_exc(funcs[i].first, np, dens, s, tmp.ptr());
-                result.gaxpy(1.0,tmp.emul(rho),funcs[i].second);
-            case XC_FAMILY_HYB_GGA:
-                //xc_gga_exc(&func, np, arho, sigma, f);
-                throw "NOT YET";
-                break;
-
-                ????????????????????????????????
+    for (unsigned int i=0; i<funcs.size(); i++) {
+        switch(funcs[i].first->info->family) {
+        case XC_FAMILY_LDA:
+            xc_lda_exc(funcs[i].first, np, dens, work);
+            break;
+        case XC_FAMILY_GGA:
+        case XC_FAMILY_HYB_GGA:
+            xc_gga_exc(funcs[i].first, np, dens, sig, work)
+            break;
+        default:
+            throw "HOW DID WE GET HERE?";
+        }
+        if (spin_polarized) {
+            for (long j=0; j<np; j++) {
+                res[j] += work[j]*(dens[2*j]+dens[2*j+1])*funcs[i].second;
+            }
+        }
+        else {
+            for (long j=0; j<np; j++) {
+                res[j] += work[j]*dens[j]*funcs[i].second;
             }
         }
     }
+
     return result;
 }
 
