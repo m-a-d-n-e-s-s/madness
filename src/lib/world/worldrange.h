@@ -76,7 +76,7 @@ namespace madness {
         {}
 
         /// Splits range between new and old (r) objects ... cost is O(1)
-        Range(Range& left, const Split& split)
+        Range(Range& left, const Split& /*split*/)
                 : n(0)
                 , start(left.finish)
                 , finish(left.finish)
