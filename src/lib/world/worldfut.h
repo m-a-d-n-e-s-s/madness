@@ -709,7 +709,7 @@ which merely blows instead of sucking.
 
     /// \ingroup futures
     template <typename T>
-    DISABLE_IF(is_future<T>,bool) future_probe(const T& t) {
+    DISABLE_IF(is_future<T>,bool) future_probe(const T&) {
         return true;
     }
 
