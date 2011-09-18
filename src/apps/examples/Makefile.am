@@ -1,12 +1,14 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric hehf 3dharmonic
 
 dataloadbal_SOURCES = dataloadbal.cc
 
 laplace_sphere_SOURCES = laplace_sphere.cc
 
 sininteg_SOURCES = sininteg.cc
+
+3dharmonic_SOURCES = 3dharmonic.cc
 
 functionio_SOURCES = functionio.cc
 
@@ -25,6 +27,8 @@ hatom_energy_SOURCES = hatom_energy.cc
 h2_SOURCES = h2.cc
 
 he_SOURCES = he.cc
+
+hehf_SOURCES = hehf.cc
 
 tdse_SOURCES = tdse.cc
 

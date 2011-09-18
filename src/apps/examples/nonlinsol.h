@@ -47,6 +47,8 @@
   \endverbatim
  */
 
+#include <linalg/solvers.h>
+
 namespace madness {
     /// A simple Krylov-subspace nonlinear equation solver 
 
