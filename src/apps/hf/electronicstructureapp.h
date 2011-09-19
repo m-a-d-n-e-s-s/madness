@@ -209,9 +209,9 @@ public:
                                 double kx1 = kpt.k[1] * x[1];
                                 double kx2 = kpt.k[2] * x[2];
                                 std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
-                                value += t1 * t2 * ao;
+//                                value += t1 * t2 * ao;
 //                                value += t1 * ao;
-//                                value += ao;
+                                value += ao;
                             }
                         }
                     }

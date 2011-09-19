@@ -116,6 +116,19 @@ namespace madness
   };
   //***************************************************************************
 
+  /// A MADNESS functor to compute either x, y, or z
+  //***************************************************************************
+  class DipoleFunctor : public FunctionFunctorInterface<double,3> {
+  private:
+      const int axis;
+  public:
+      DipoleFunctor(int axis) : axis(axis) {}
+      double operator()(const coordT& x) const {
+          return x[axis];
+      }
+      virtual ~DipoleFunctor() {}
+  };
+  //***************************************************************************
 
   /*!
    \ingroup periodic_solver
@@ -1113,7 +1126,7 @@ namespace madness
       double delta = _params.L/(npts-1);
       double begin = -_params.L/2;
       double end = _params.L/2;
-      double tol = 1e-4;
+      double tol = 1e-6;
       // x-axis
       printf("periodicity along x-axis:  \n");
       printf("-------------------------------------------------------------\n\n");
@@ -1378,10 +1391,10 @@ namespace madness
 
 
           // WSTHORNTON
-          ctensorT S = matrix_inner(_world,ao,ao,true);
-          print(S);
-          ctensorT U = csqrt(S);
-          ao = transform(_world, ao, U, _params.thresh, true);
+//          ctensorT S = matrix_inner(_world,ao,ao,true);
+//          print(S);
+//          ctensorT U = csqrt(S);
+//          ao = transform(_world, ao, U, _params.thresh, true);
 
 
 
@@ -2283,6 +2296,17 @@ namespace madness
     void solve()
     {
 
+      // WSTHORNTON (debug) Test periodicity
+      if (_world.rank() == 0) printf("initial orbitals (periodicity) ...\n\n");
+//      for (unsigned int i = 0; i < _phisa.size(); i++)
+//      {
+//        if (_world.rank() == 0) printf("orbital %d\n",i);
+//        test_periodicity(_phisa[i]);
+//        if (_world.rank() == 0) printf("\n\n");
+//      }
+//      if (_world.rank() == 0) printf("\n\n\n\n");
+
+
       if (_world.rank() == 0) print("size of phisa is:  ", _phisa.size());
       // keep track of how many iterations have gone by without reprojecting
       int rit = 0;
@@ -2305,6 +2329,8 @@ namespace madness
         // Compute density
         rfunctionT rhoa = compute_rho(_phisa, _kpoints, _occsa);
         rfunctionT rhob = (_params.spinpol) ? compute_rho(_phisb, _kpoints, _occsb) : rhoa;
+//        rfunctionT rhoa = _rhoa;
+//        rfunctionT rhob = _rhob;
         double drhoa = (_rhoa-rhoa).trace();
         double drhob = (_rhob-rhob).trace();
         if (_world.rank() == 0)
@@ -2376,7 +2402,7 @@ namespace madness
         if (_world.rank() == 0) printf("\n\n\n\n");
 
         // WSTHORNTON (debug)
-        if (_world.rank() == 0) _outputF << "before BSH application ...\n" << endl;
+        if (_world.rank() == 0) printf("before BSH application ...\n\n");
         for (unsigned int ik = 0; ik < _kpoints.size(); ik++)
         {
           KPoint kpoint = _kpoints[ik];
@@ -2389,8 +2415,31 @@ namespace madness
           std::vector<functionT> k_pfuncsa(pfuncsa.begin() + kpoint.begin, pfuncsa.begin() + kpoint.end);
           KPoint kpoint_gamma;
           print_fock_matrix_eigs(k_phisa, k_pfuncsa, kpoint_gamma);
+
+          // diagonalize overlap
+          tensorT overlap = matrix_inner(_world,k_pfuncsa,k_pfuncsa,true);
+          ctensorT co; rtensorT eo;
+          syev(overlap, co, eo);
+
+          if (_world.rank() == 0) printf("Overlap eigenvalues: \n");
+          if (_world.rank() == 0) print(overlap);
+          for (unsigned int ie = 0; ie < eo.dim(0); ie++)
+          {
+            if (_world.rank() == 0) printf("%d    %15.8e\n", ie, eo(ie,ie));
+          }
+
         }
         if (_world.rank() == 0) printf("\n\n\n\n");
+
+        // WSTHORNTON (debug) Test periodicity
+//        if (_world.rank() == 0) printf("before BSH application (periodicity) ...\n\n");
+//        for (unsigned int i = 0; i < _phisa.size(); i++)
+//        {
+//          if (_world.rank() == 0) printf("orbital %d\n",i);
+//          test_periodicity(_phisa[i]);
+//          if (_world.rank() == 0) printf("\n\n");
+//        }
+//        if (_world.rank() == 0) printf("\n\n\n\n");
 
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(alpha);
@@ -2452,6 +2501,19 @@ namespace madness
           std::vector<functionT> k_tmpa(tmpa.begin() + kpoint.begin, tmpa.begin() + kpoint.end);
           std::vector<functionT> k_pfuncsa2(pfuncsa2.begin() + kpoint.begin, pfuncsa2.begin() + kpoint.end);
           print_fock_matrix_eigs(k_tmpa, k_pfuncsa2, kpoint);
+
+
+          // diagonalize overlap
+          tensorT overlap = matrix_inner(_world,k_tmpa,k_tmpa,true);
+          if (_world.rank() == 0) print(overlap);
+          ctensorT co; rtensorT eo;
+          syev(overlap, co, eo);
+
+          if (_world.rank() == 0) printf("Overlap eigenvalues: \n");
+          for (unsigned int ie = 0; ie < eo.dim(0); ie++)
+          {
+            if (_world.rank() == 0) printf("%d    %15.8e\n", ie, eo(ie,ie));
+          }
         }
         if (_world.rank() == 0) printf("\n\n\n\n");
 
@@ -2968,6 +3030,116 @@ namespace madness
             functionT dx_wf = Dx(k_wf[i]);
             functionT dy_wf = Dy(k_wf[i]);
             functionT dz_wf = Dz(k_wf[i]);
+
+            // WSTHORNTON
+            std::vector<long> npt(3,101);
+            char fnamedx[50];
+            sprintf(fnamedx, "xorb%2.2d__.dx",i);
+            plotdx(k_wf[i], fnamedx, FunctionDefaults<3>::get_cell(), npt);
+
+            char fnamedx_dx[50];
+            sprintf(fnamedx_dx, "xorb%2.2d__dx.dx",i);
+            plotdx(dx_wf, fnamedx_dx, FunctionDefaults<3>::get_cell(), npt);
+            char fnamedx_dy[50];
+            sprintf(fnamedx_dy, "xorb%2.2d__dy.dx",i);
+            plotdx(dy_wf, fnamedx_dy, FunctionDefaults<3>::get_cell(), npt);
+            char fnamedx_dz[50];
+            sprintf(fnamedx_dz, "xorb%2.2d__dz.dx",i);
+            plotdx(dz_wf, fnamedx_dz, FunctionDefaults<3>::get_cell(), npt);
+
+            rfunctionT xfunc = rfactoryT(_world).functor(
+              rfunctorT(new DipoleFunctor(0))).
+                thresh(_params.thresh).truncate_on_project();
+            rfunctionT yfunc = rfactoryT(_world).functor(
+              rfunctorT(new DipoleFunctor(1))).
+                thresh(_params.thresh).truncate_on_project();
+            rfunctionT zfunc = rfactoryT(_world).functor(
+              rfunctorT(new DipoleFunctor(2))).
+                thresh(_params.thresh).truncate_on_project();
+
+            double xdip = std::abs(inner(k_wf[i],xfunc*k_wf[i]));
+            double ydip = std::abs(inner(k_wf[i],yfunc*k_wf[i]));
+            double zdip = std::abs(inner(k_wf[i],zfunc*k_wf[i]));
+
+            if (_world.rank() == 0)
+              printf("orb: %1d     dipole moment: (%7.5e,%7.5e,%7.5e)\n",i,xdip,ydip,zdip);
+
+            double xdip1 = std::real(inner(k_wf[i],xfunc*k_wf[i]));
+            double ydip1 = std::real(inner(k_wf[i],yfunc*k_wf[i]));
+            double zdip1 = std::real(inner(k_wf[i],zfunc*k_wf[i]));
+
+            if (_world.rank() == 0)
+              printf("orb: %1d     dipole moment: (%7.5e,%7.5e,%7.5e)\n",i,xdip1,ydip1,zdip1);
+
+            double xdip2 = std::imag(inner(k_wf[i],xfunc*k_wf[i]));
+            double ydip2 = std::imag(inner(k_wf[i],yfunc*k_wf[i]));
+            double zdip2 = std::imag(inner(k_wf[i],zfunc*k_wf[i]));
+
+            if (_world.rank() == 0)
+              printf("orb: %1d     dipole moment: (%7.5e,%7.5e,%7.5e)\n\n\n",i,xdip2,ydip2,zdip2);
+
+            // WSTHORNTON
+            char fname_x[50];
+            char fname_y[50];
+            char fname_z[50];
+
+            char fnamex_x[50];
+            char fnamex_y[50];
+            char fnamex_z[50];
+
+            char fnamey_x[50];
+            char fnamey_y[50];
+            char fnamey_z[50];
+
+            char fnamez_x[50];
+            char fnamez_y[50];
+            char fnamez_z[50];
+
+            sprintf(fname_x, "orb%2.2d__x.dat",i);
+            sprintf(fname_y, "orb%2.2d__y.dat",i);
+            sprintf(fname_z, "orb%2.2d__z.dat",i);
+
+            sprintf(fnamex_x, "orb%2.2d_dx_x.dat",i);
+            sprintf(fnamex_y, "orb%2.2d_dx_y.dat",i);
+            sprintf(fnamex_z, "orb%2.2d_dx_z.dat",i);
+
+            sprintf(fnamey_x, "orb%2.2d_dy_x.dat",i);
+            sprintf(fnamey_y, "orb%2.2d_dy_y.dat",i);
+            sprintf(fnamey_z, "orb%2.2d_dy_z.dat",i);
+
+            sprintf(fnamez_x, "orb%2.2d_dz_x.dat",i);
+            sprintf(fnamez_y, "orb%2.2d_dz_y.dat",i);
+            sprintf(fnamez_z, "orb%2.2d_dz_z.dat",i);
+
+            coord_3d pt1x = vec(-_params.L/2,0.0,0.0);
+            coord_3d pt2x = vec( _params.L/2,0.0,0.0);
+
+            coord_3d pt1y = vec(0.0,-_params.L/2,0.0);
+            coord_3d pt2y = vec(0.0, _params.L/2,0.0);
+
+            coord_3d pt1z = vec(0.0,0.0,-_params.L/2);
+            coord_3d pt2z = vec(0.0,0.0, _params.L/2);
+
+            plot_line(fname_x,30000,pt1x,pt2x,k_wf[i]);
+            plot_line(fname_y,30000,pt1y,pt2y,k_wf[i]);
+            plot_line(fname_z,30000,pt1z,pt2z,k_wf[i]);
+
+            plot_line(fnamex_x,30000,pt1x,pt2x,dx_wf);
+            plot_line(fnamex_y,30000,pt1y,pt2y,dx_wf);
+            plot_line(fnamex_z,30000,pt1z,pt2z,dx_wf);
+
+            plot_line(fnamey_x,30000,pt1x,pt2x,dy_wf);
+            plot_line(fnamey_y,30000,pt1y,pt2y,dy_wf);
+            plot_line(fnamey_z,30000,pt1z,pt2z,dy_wf);
+
+            plot_line(fnamez_x,30000,pt1x,pt2x,dz_wf);
+            plot_line(fnamez_y,30000,pt1y,pt2y,dz_wf);
+            plot_line(fnamez_z,30000,pt1z,pt2z,dz_wf);
+
+
+
+
+
             d_wf[i] = std::complex<T>(0.0,k0)*dx_wf +
                       std::complex<T>(0.0,k1)*dy_wf +
                       std::complex<T>(0.0,k2)*dz_wf;
