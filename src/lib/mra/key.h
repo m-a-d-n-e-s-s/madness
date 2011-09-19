@@ -286,6 +286,16 @@ namespace madness {
 			return true;
         }
 
+        /// given a displacement, generate a neighbor key; ignore boundary conditions and disp's level
+
+        /// @param[in]  disp    the displacement
+        /// @return     a new key
+        Key neighbor(const Key<NDIM>& disp) const {
+            Vector<Translation,NDIM> l = this->translation()+disp.translation();
+            return Key(this->level(),l);
+        }
+
+
         /// check if this MultiIndex contains point x, disregarding these two dimensions
         bool thisKeyContains(const Vector<double,NDIM>& x, const unsigned int& dim0,
         		const unsigned int& dim1) const {
@@ -351,6 +361,18 @@ namespace madness {
     operator<<(std::ostream& s, const Key<NDIM>& key) {
         s << "(" << key.level() << "," << key.translation() << ")";
         return s;
+    }
+
+    /// given a source and a target, return the displacement in translation
+
+    /// @param[in]  source  the source key
+    /// @param[in]  target  the target key
+    /// @return     disp    such that target = source + disp
+    template<size_t NDIM>
+    Key<NDIM> displacement(const Key<NDIM>& source, const Key<NDIM>& target) {
+        MADNESS_ASSERT(source.level()==target.level());
+        const Vector<Translation,NDIM> l = target.translation()-source.translation();
+        return Key<NDIM>(source.level(),l);
     }
 
 

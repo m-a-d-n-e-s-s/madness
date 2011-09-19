@@ -177,11 +177,13 @@ namespace madness {
 				for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,this->kVec());
 			}
 			make_structure();
+			MADNESS_ASSERT(has_structure());
 		}
 
 		/// copy ctor (tested); shallow copy
 		SRConf(const SRConf& rhs)  {
 			*this=rhs;
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// ctor with provided weights and effective vectors; shallow copy
@@ -208,6 +210,7 @@ namespace madness {
 				vector_[idim]=vectors[idim];
 			}
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// explicit ctor with one vector (aka full representation), shallow
@@ -221,6 +224,7 @@ namespace madness {
 
 			vector_.resize(1);
 			vector_[0]=vector1;
+			MADNESS_ASSERT(has_structure());
 		}
 
 		/// explicit ctor with two vectors (aka SVD), shallow
@@ -241,8 +245,9 @@ namespace madness {
 			vector_[1]=vector2;
 			weights_=weights;
 			rank_=weights.dim(0);
+			make_structure();
 			make_slices();
-
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// assignment operator (tested), shallow copy of vectors
@@ -290,7 +295,7 @@ namespace madness {
 					MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
 				}
 			}
-
+            MADNESS_ASSERT(has_structure());
 			return *this;
 		}
 
@@ -308,16 +313,17 @@ namespace madness {
 
 			// slice vectors
 			if (dim_pv_eff==1) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,Slice(_));
+				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_);
 			} else if (dim_pv_eff==2) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,Slice(_),Slice(_));
+				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_,_);
 			} else if (dim_pv_eff==3) {
-				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,Slice(_),Slice(_),Slice(_));
+				for (long i=0; i<nvec; i++) v[i]=ref_vector(i)(s,_,_,_);
 			} else {
 				MADNESS_EXCEPTION("faulty dim_pv in SRConf::get_configs",0);
 			}
 
 			SRConf<T> result(weights_(s),v,dim(),get_k(),type());
+            MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
 
@@ -335,6 +341,7 @@ namespace madness {
               	ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
               	tensortype_=TensorType(i);
               	make_slices();
+                MADNESS_ASSERT(has_structure());
         }
 
 
@@ -384,6 +391,7 @@ namespace madness {
 			}
 			MADNESS_ASSERT(weights_.dim(0)==vector_[0].dim(0));
 			if (had_structure) this->make_structure(true);
+            MADNESS_ASSERT(has_structure());
 
 		}
 
@@ -494,6 +502,7 @@ namespace madness {
 				weights_=Sp(Slice(0,rank-1));
 
 			}
+            MADNESS_ASSERT(has_structure());
 
 		}
 
@@ -513,6 +522,8 @@ namespace madness {
 				const tensorT b=(rhs.ref_vector(1)(r,Slice(_)));
 				this->rank1_update_slow(a,b,rhs.weights(r));
 			}
+            MADNESS_ASSERT(has_structure());
+
 		}
 
 
@@ -588,6 +599,7 @@ namespace madness {
 				weights_=Sp(Slice(0,rank-1));
 
 			}															// 0.3 s
+            MADNESS_ASSERT(has_structure());
 		}
 
 
@@ -632,6 +644,7 @@ namespace madness {
 				// U'
 				subspace_vec_[idim]=inner(subspace_vec_[idim],C);
 			}
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// initialize accumulation
@@ -647,6 +660,7 @@ namespace madness {
 			}
 			undo_structure();
 			updating_=true;
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// finalize accumulation: incorporate V', U' into vector_
@@ -658,6 +672,7 @@ namespace madness {
 			vector_[0]=inner(subspace_vec_[0],vector_[0](c0()),0,0);
 			vector_[1]=inner(subspace_vec_[1],vector_[1](c0()),0,0);
 			subspace_vec_.clear();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// reduce the rank using a divide-and-conquer approach
@@ -698,13 +713,7 @@ namespace madness {
 					MADNESS_EXCEPTION("confused ortho method in SRConf::divide_and_conquer_reduce",0);
 				}
 			}
-		}
-
-		/// add rhs to this, where both SRConfs are biorthonormal
-		void optimal_low_rank_add(const SRConf<T>& rhs) {
-
-
-
+            MADNESS_ASSERT(has_structure());
 		}
 
 
@@ -745,28 +754,30 @@ namespace madness {
 //			}
 			rank_=weights_.size();
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// orthonormalize this
 		void orthonormalize(const double& thresh) {
 
-//			MADNESS_EXCEPTION("no orthonormalize()",0);
 			if (type()==TT_FULL) return;
 			if (has_no_data()) return;
 			if (rank()==1) {
 				normalize();
 				return;
 			}
-			MADNESS_ASSERT(is_flat());
 			vector_[0]=vector_[0](c0());
 			vector_[1]=vector_[1](c0());
 			weights_=weights_(Slice(0,rank()-1));
+            normalize();
 
-			normalize();
+            this->undo_structure();
 			ortho3(vector_[0],vector_[1],weights_,thresh);
 			rank_=weights_.size();
 			MADNESS_ASSERT(rank_>=0);
+			this->make_structure();
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 
 		}
 
@@ -792,6 +803,7 @@ namespace madness {
 			inner_result(U,x2,0,0,x1);
 			U.scale(-1.0);
 			inner_result(U,y1,1,0,y2);
+            MADNESS_ASSERT(has_structure());
 
 		}
 
@@ -840,8 +852,6 @@ namespace madness {
 				return;
 			}
 
-			MADNESS_ASSERT(this->is_flat() and rhs.is_flat());
-
 			const long newRank=this->rank()+rhs.rank();
 			const long lhsRank=this->rank();
 			const long rhsRank=rhs.rank();
@@ -849,14 +859,18 @@ namespace madness {
 
 			// assign weights
 			this->weights_(Slice(lhsRank,newRank-1))=rhs.weights_(Slice(0,rhsRank-1))*fac;
+			std::vector<Slice> s(dim_per_vector()+1,_);
+			s[0]=Slice(lhsRank,newRank-1);
 
 			// assign vectors
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				vector_[idim](Slice(lhsRank,newRank-1),Slice(_))=rhs.vector_[idim](rhs.c0());
+//              vector_[idim](Slice(lhsRank,newRank-1),_)=rhs.vector_[idim](rhs.c0());
+				vector_[idim](s)=rhs.vector_[idim](rhs.c0());
 			}
 
 			rank_=newRank;
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 
 		}
 
@@ -879,6 +893,8 @@ namespace madness {
 			this->project_and_orthogonalize(rhs);
 			rhs.right_orthonormalize(thresh);
 			this->append(rhs);
+            MADNESS_ASSERT(has_structure());
+
 		}
 
 		/// add rhs to this
@@ -917,6 +933,7 @@ namespace madness {
 					this->append(one_term);
 				}
 			}
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// right-orthonormalize this using low_rank_add_sequential
@@ -953,6 +970,7 @@ namespace madness {
 					this->append(one_term);
 				}
 			}
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// right-orthonormalize this
@@ -981,6 +999,7 @@ namespace madness {
 				rank_=weights_.dim(0);
 				normalize();
 			}
+            MADNESS_ASSERT(has_structure());
 
 //			print(weights_);
 
@@ -994,15 +1013,17 @@ namespace madness {
 				*this=rhs;
 				return;
 			}
-			MADNESS_ASSERT(is_flat() and rhs.is_flat());
 
 			if (check_orthonormality) check_right_orthonormality();
             if (check_orthonormality) rhs.check_right_orthonormality();
 
+            this->undo_structure();
             ortho4(ref_vector(0),ref_vector(1),weights_,
-					rhs.ref_vector(0),rhs.ref_vector(1),rhs.weights_,thresh);
+					rhs.flat_vector(0),rhs.flat_vector(1),rhs.weights_,thresh);
 			rank_=weights_.size();
+			make_structure();
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
@@ -1083,6 +1104,7 @@ namespace madness {
 
 			lhs.rank_=newRank;
 			lhs.make_slices();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// deep copy of rhs, shrink
@@ -1125,6 +1147,7 @@ namespace madness {
 	        for (unsigned int idim=0; idim<dim_eff(); idim++) {
                 MADNESS_ASSERT(weights_.dim(0)==vector_[idim].dim(0));
 	        }
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// redo the Slices for getting direct access to the configurations
@@ -1146,7 +1169,8 @@ namespace madness {
 			}
 		}
 
-		void make_structure(bool force=false) const {
+
+		void make_structure(bool force=false) {
 
 			// fast return if rank is zero
 			if ((not force) and this->has_no_data()) return;
@@ -1158,18 +1182,17 @@ namespace madness {
 			if (weights_.size()==0) rr=0;
 			const int k=this->get_k();
 
-			SRConf<T>* tmp=const_cast<SRConf<T>* > (this);
 			// reshape the vectors and adapt the Slices
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				if (dim_pv==2) tmp->vector_[idim]=vector_[idim].reshape(rr,k,k);
-				if (dim_pv==3) tmp->vector_[idim]=vector_[idim].reshape(rr,k,k,k);
+				if (dim_pv==2) this->vector_[idim]=vector_[idim].reshape(rr,k,k);
+				if (dim_pv==3) this->vector_[idim]=vector_[idim].reshape(rr,k,k,k);
 			}
 
-			tmp->make_slices();
+			this->make_slices();
 
 		}
 
-		void undo_structure(bool force=false) const {
+		void undo_structure(bool force=false) {
 
 			// fast return if rank is zero
 			if ((not force) and this->has_no_data()) return;
@@ -1181,13 +1204,11 @@ namespace madness {
 			if (weights_.size()==0) rr=0;
 			const int kvec=this->kVec();
 
-			SRConf<T>* tmp=const_cast<SRConf<T>* > (this);
-
 			for (unsigned int idim=0; idim<this->dim_eff(); idim++) {
-				tmp->vector_[idim]=tmp->vector_[idim].reshape(rr,kvec);
+				this->vector_[idim]=this->vector_[idim].reshape(rr,kvec);
 			}
 
-			tmp->make_slices();
+			this->make_slices();
 		}
 
 		/// return reference to one of the vectors F
@@ -1199,6 +1220,13 @@ namespace madness {
 		const Tensor<T>& ref_vector(const unsigned int& idim) const {
 			return vector_[idim];
 		}
+
+		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
+		const Tensor<T> flat_vector(const unsigned int& idim) const {
+		    MADNESS_ASSERT(rank()>0);
+		    return vector_[idim](c0()).reshape(rank(),kVec());
+		}
+
 
 		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const unsigned int& rank=1) {
@@ -1220,6 +1248,7 @@ namespace madness {
 			}
 			weights_(Slice(0,this->rank()-1)).fillrandom().scale(10.0);
 			make_slices();
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// normalize the vectors (tested)
@@ -1227,6 +1256,7 @@ namespace madness {
 
 			if (type()==TT_FULL) return;
 			if (rank()==0) return;
+            MADNESS_ASSERT(has_structure());
 
 	        // for convenience
 	        const unsigned int rank=this->rank();
@@ -1251,6 +1281,7 @@ namespace madness {
 	        		config.scale(oofac);
 	        	}
 	        }
+            MADNESS_ASSERT(has_structure());
 		}
 
 		/// does what you think it does
@@ -1264,6 +1295,7 @@ namespace madness {
 				vector_[1](i,Slice(_)).scale(fac);
 				weights_[i]=1.0;
 			}
+			MADNESS_ASSERT(has_structure());
 		}
 
 		/// check if the terms are orthogonal
@@ -1272,14 +1304,11 @@ namespace madness {
 			// fast return if possible
 			if (rank()==0) return true;
 
-			bool was_flat=is_flat();
 			MADNESS_ASSERT(type()==TT_2D);
-//			MADNESS_ASSERT(is_flat());
 
-			if (not was_flat) undo_structure();
-			tensorT S=inner(ref_vector(1)(c0()),ref_vector(1)(c0()),1,1);
+			const tensorT t1=ref_vector(1)(c0()).reshape(rank(),kVec());
+			tensorT S=inner(t1,t1,1,1);
 			for (int i=0; i<S.dim(0); i++) S(i,i)-=1.0;
-			if (was_flat) make_structure();
 
 			// error per matrix element
 			double norm=S.normf();
@@ -1294,7 +1323,7 @@ namespace madness {
 
 		/// return if this has a tensor structure (has not been flattened)
 		bool has_structure() const {
-			return (vector_[0].dim(1)==this->get_k());
+            return (type()==TT_FULL or has_no_data() or vector_[0].dim(1)==this->get_k());
 		}
 
 		/// return the dimension of this
@@ -1343,7 +1372,6 @@ namespace madness {
 			 */
 
 			// some checks
-			MADNESS_ASSERT(rhs.is_flat()==lhs.is_flat());
 			MADNESS_ASSERT(rhs.dim()==lhs.dim());
 			MADNESS_ASSERT(rhs.dim()>0);
 
@@ -1358,15 +1386,11 @@ namespace madness {
 			// get the weight matrix
 			Tensor<resultT> weightMatrix=outer(lhs.weights_(Slice(0,lhs.rank()-1)),
 					rhs.weights_(Slice(0,rhs.rank()-1)));
-			SRConf<T> lhs3(lhs);
-			lhs3.undo_structure();
-			SRConf<Q> rhs3(rhs);
-			rhs3.undo_structure();
 
 			// calculate the overlap matrices for each dimension at a time
 			for (unsigned int idim=0; idim<dim_eff; idim++) {
-				const Tensor<T> lhs2=lhs3.ref_vector(idim)(lhs.c0());
-				const Tensor<Q> rhs2=rhs3.ref_vector(idim)(rhs.c0());
+				const Tensor<T> lhs2=lhs.flat_vector(idim);
+				const Tensor<Q> rhs2=rhs.flat_vector(idim);
 				Tensor<resultT> ovlp(lhs.rank(),rhs.rank());
 				inner_result(lhs2,rhs2,-1,-1,ovlp);
 
@@ -1395,7 +1419,6 @@ namespace madness {
 			if (type()==TT_FULL) return ref_vector(0).normf();
 
 			// some checks
-			MADNESS_ASSERT(is_flat());
 			MADNESS_ASSERT(dim()>0);
 			MADNESS_ASSERT(not TensorTypeData<T>::iscomplex);
 
@@ -1404,7 +1427,7 @@ namespace madness {
 
 			// calculate the overlap matrices for each dimension at a time
 			for (unsigned int idim=0; idim<dim_eff(); idim++) {
-				const Tensor<T> vec=ref_vector(idim)(c0());
+				const Tensor<T> vec=flat_vector(idim);
 				Tensor<T> ovlp(rank(),rank());
 				inner_result(vec,vec,-1,-1,ovlp);
 
@@ -1480,6 +1503,7 @@ namespace madness {
 
 				}
 			}
+            MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
 
@@ -1518,6 +1542,7 @@ namespace madness {
 
 				}
 			}
+            MADNESS_ASSERT(result.has_structure());
 			return result;
 		}
 
@@ -1549,6 +1574,7 @@ namespace madness {
 
 			// note: no slicing necessary, since we've copied this to result (incl shrinking)
 			result.ref_vector(idim)=madness::transform_dir(this->ref_vector(idim),c,jdim);
+            MADNESS_ASSERT(result.has_structure());
 
 			return result;
 		}

@@ -49,6 +49,7 @@
 #include "mra/function_factory_and_interface.h"
 #include "mra/gentensor.h"
 #include <world/typestuff.h>
+#include "mra/function_common_data.h"
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -108,6 +109,9 @@ namespace madness {
             }
         }
     };
+
+#if 0
+    // moved to its own file
 
     /// FunctionCommonData holds all Function data common for given k
 
@@ -174,7 +178,8 @@ namespace madness {
         Tensor<double> quad_phit; ///< transpose of quad_phi
         Tensor<double> quad_phiw; ///< quad_phiw(i,j) = at x[i] value of w[i]*phi[j]
 
-        Tensor<double> h0T, h1T, g0T, g1T; ///< The separate blocks of twoscale coefficients
+        Tensor<double> h0, h1, g0, g1;      ///< The separate blocks of twoscale coefficients
+        Tensor<double> h0T, h1T, g0T, g1T;  ///< The separate blocks of twoscale coefficients
         Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
         Tensor<double> hgsonly; ///< hg[0:k,:]
 
@@ -193,6 +198,7 @@ namespace madness {
                          double>& quad_w, Tensor<double>& quad_phi,
                          Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
     };
+#endif
 
 
 
@@ -1574,10 +1580,14 @@ namespace madness {
         struct do_stuff {
             typedef Range<typename dcT::iterator> rangeT;
             FunctionCommonData<T,NDIM> cdata;
+            TensorType tt;
+            int k;
 
             // constructor takes target precision
-            do_stuff() :
-                cdata(FunctionCommonData<T,NDIM>::get(FunctionDefaults<NDIM>::get_k()))
+            do_stuff()
+                : cdata(FunctionCommonData<T,NDIM>::get(FunctionDefaults<NDIM>::get_k()))
+                , tt(FunctionDefaults<NDIM>::get_tensor_type())
+                , k(FunctionDefaults<NDIM>::get_k())
             {
             }
 
@@ -1585,13 +1595,18 @@ namespace madness {
 
                 nodeT& node = it->second;
                 const keyT& key = it->first;
+                if (0) print("key",key);
                 if (node.coeff().rank()==0) {
-                    print("empty key in do_stuffq",key);
+//                    print("empty key in do_stuffq",key);
+                    node.coeff()=coeffT(cdata.v2k,tt);
                 } else {
-                    TensorType tt=node.coeff().tensor_type();
-                    coeffT d(cdata.v2k,tt);
-                    d(cdata.s0)+=node.coeff();
-                    node.coeff()=d;
+//                    if (node.has_children()) {
+                    MADNESS_ASSERT(node.coeff().dim(0)==k);
+                        TensorType tt=node.coeff().tensor_type();
+                        coeffT d(cdata.v2k,tt);
+                        d(cdata.s0)+=node.coeff();
+                        node.coeff()=d;
+//                    }
                 }
                 return true;
             }
@@ -3075,7 +3090,6 @@ namespace madness {
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
         /// |Phi(1,2)> = |phi(1)> x |phi(2)>
-        /// TODO: there is still an unknown source of error!!
         template<std::size_t LDIM>
         Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2, bool fence) {
             MADNESS_ASSERT(p1->is_nonstandard());
@@ -3732,6 +3746,29 @@ namespace madness {
             return result;
         }
 
+        /// upsample the sum coefficients of level 1 to sum coeffs on level n+1
+
+        /// specialization of the unfilter method, will transform only the sum coefficients
+        /// @param[in]  key     key of level n+1
+        /// @param[in]  coeff   sum coefficients of level n (does NOT belong to key!!)
+        /// @param[in]  args    TensorArguments for possible low rank approximations
+        /// @return     sum     coefficients on level n+1
+        coeffT upsample(const keyT& key, const coeffT& coeff) const {
+
+            // the twoscale coefficients: for upsampling use h0/h1; see Alpert Eq (3.35a/b)
+            // note there are no difference coefficients; if you want that use unfilter
+            const tensorT h[2] = {cdata.h0, cdata.h1};
+            tensorT matrices[NDIM];
+
+            // get the appropriate twoscale coefficients for each dimension
+            for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=h[key.translation()[ii]%2];
+
+            // transform and accumulate on the result
+            const coeffT result=general_transform(coeff,matrices);
+            return result;
+        }
+
+
         /// Projects old function into new basis (only in reconstructed form)
         void project(const implT& old, bool fence) {
             long kmin = std::min(cdata.k,old.cdata.k);
@@ -3881,6 +3918,61 @@ namespace madness {
                 zero_norm_tree();
                 world.gop.fence();
             }
+        }
+
+        /// sum all the contributions from all scales after applying an operator in mod-NS form
+        void trickle_down(bool fence) {
+            MADNESS_ASSERT(is_redundant());
+            nonstandard = compressed = redundant = false;
+            this->print_size("in trickle_down");
+            if (world.rank() == coeffs.owner(cdata.key0))
+                woT::task(world.rank(), &implT::trickle_down_op, cdata.key0,coeffT());
+            if (fence)
+                world.gop.fence();
+        }
+
+        /// sum all the contributions from all scales after applying an operator in mod-NS form
+
+        /// cf reconstruct_op
+        Void trickle_down_op(const keyT& key, const coeffT& s) {
+            // Note that after application of an integral operator not all
+            // siblings may be present so it is necessary to check existence
+            // and if absent insert an empty leaf node.
+            //
+            // If summing the result of an integral operator (i.e., from
+            // non-standard form) there will be significant scaling function
+            // coefficients at all levels and possibly difference coefficients
+            // in leaves, hence the tree may refine as a result.
+            typename dcT::iterator it = coeffs.find(key).get();
+            if (it == coeffs.end()) {
+                coeffs.replace(key,nodeT(coeffT(),false));
+                it = coeffs.find(key).get();
+            }
+            nodeT& node = it->second;
+
+            // The integral operator will correctly connect interior nodes
+            // to children but may leave interior nodes without coefficients
+            // ... but they still need to sum down so just give them zeros
+            if (node.coeff().has_no_data()) node.coeff()=coeffT(cdata.vk,targs);
+
+//            if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+            if (node.has_children()) { // Must allow for inconsistent state from transform, etc.
+                coeffT d = node.coeff();
+                if (key.level() > 0) d += s; // -- note accumulate for NS summation
+                node.clear_coeff();
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    coeffT ss= upsample(child,d);
+                    ss.reduceRank(thresh);
+                    PROFILE_BLOCK(recon_send);
+                    woT::task(coeffs.owner(child), &implT::trickle_down_op, child, ss);
+                }
+            }
+            else {
+                node.coeff()+=s;
+                node.coeff().reduceRank(thresh);
+            }
+            return None;
         }
 
         void reconstruct(bool fence) {
@@ -4291,9 +4383,9 @@ namespace madness {
         Void do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
-
-            // apply2 returns result in SVD form
-            coeffT result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            coeffT result;
+            if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
+            if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
             double result_norm=-1.0;
             if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
             if (result.tensor_type()==TT_FULL) result_norm=result.normf();
@@ -4395,7 +4487,7 @@ namespace madness {
 
         /// apply an operator on the coeffs c (at node key)
 
-        /// the result is accumulated inplace to this's tree at various FunctionNodes
+        /// invoked by result; the result is accumulated inplace to this's tree at various FunctionNodes
         /// @param[in] op     the operator to act on the source function
         /// @param[in] key    key of the source FunctionNode of f which is processed (see "source")
         /// @param[in] coeff  coeffs of FunctionNode being processed
@@ -4473,16 +4565,16 @@ namespace madness {
 
                         if (cost_ratio>0.0) {
 
+                            ProcessID here = world.rank();
+//                            ProcessID there =  world.random_proc();
+//                            ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
+                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
+
                             // Most expensive part is the kernel ... do it in a separate task -- full rank
                             if (cost_ratio<1.0) {
 
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
 
-                                // This introduces finer grain parallelism
-                                ProcessID here = world.rank();
-//                                ProcessID there =  world.random_proc();
-//            			        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
-                                do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
                                 woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
                                         args,apply_targs,TaskAttributes::hipri());
 
@@ -4490,23 +4582,8 @@ namespace madness {
 //                                        args,apply_targs,TaskAttributes::hipri());
 
                             } else {
-
-                                // apply2 returns result in SVD form
-                                coeffT result;
-                                if (NDIM==opdim) result= op->apply2(source, d, coeff, tol/fac/cnorm, tol/fac);
-                                if (NDIM==2*opdim) result= op->apply2_lowdim(source, d, coeff, tol/fac/cnorm, tol/fac);
-                                double result_norm=-1.0;
-                                if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
-                                if (result.tensor_type()==TT_FULL) result_norm=result.normf();
-                                MADNESS_ASSERT(result_norm>-0.5);
-                                if (result_norm> 0.1*tol/fac) {
-
-                                    generated_terms+=result.rank();
-
-                                    // accumulate also expects result in SVD form
-                                    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, apply_targs,
-                                            TaskAttributes::hipri());
-                                }
+                                woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
+                                        args,apply_targs,TaskAttributes::hipri());
                             }
                         }
                     } else if (d.distsq() >= 12) {
@@ -4554,10 +4631,16 @@ namespace madness {
              // change TT_FULL to low rank
              flo_unary_op_node_inplace(do_change_tensor_type(targs),true);
 
-             if (op.modified()) flo_unary_op_node_inplace(do_stuff(),true);
-             this->compressed=true;
-             this->nonstandard=true;
-             this->redundant=false;
+//             if (op.modified()) flo_unary_op_node_inplace(do_stuff(),true);
+             if (op.modified()) {
+                 this->compressed=false;
+                 this->nonstandard=false;
+                 this->redundant=true;
+             } else {
+                 this->compressed=true;
+                 this->nonstandard=true;
+                 this->redundant=false;
+             }
 
 //             // looping through all the coefficients of the target
 //             typename dcT::const_iterator end2 = this->get_coeffs().end();

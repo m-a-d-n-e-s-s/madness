@@ -50,6 +50,7 @@
 #include <mra/simplecache.h>
 #include <mra/convolution1d.h>
 #include <mra/displacements.h>
+#include <mra/function_common_data.h>
 
 namespace madness {
 
@@ -132,7 +133,6 @@ namespace madness {
         bool modified_;     ///< use modified NS form
         int particle_;
 
-        mutable bool printnow;
         typedef Key<NDIM> keyT;
         const static size_t opdim=NDIM;
 
@@ -142,6 +142,7 @@ namespace madness {
         mutable std::vector< ConvolutionND<Q,NDIM> > ops;   ///< ConvolutionND keeps data for 1 term, all dimensions, 1 displacement
         const BoundaryConditions<NDIM> bc;
         const int k;
+        const FunctionCommonData<Q,NDIM>& cdata;
         const int rank;
         const std::vector<long> vk;
         const std::vector<long> v2k;
@@ -160,6 +161,13 @@ namespace madness {
         const int& particle() const {return particle_;}
     private:
 
+        /// laziness for calling lists: which terms to apply
+        struct ApplyTerms {
+            ApplyTerms() : r_term(false), t_term(false) {}
+            bool r_term;
+            bool t_term;
+            bool any_terms() const {return r_term or t_term;}
+        };
 
         /// too lazy for extended calling lists
         struct Transformation {
@@ -203,7 +211,7 @@ namespace madness {
 
         /// accumulate into result
         template <typename T, typename R>
-        void apply_transformation(Level n, long dimk,
+        void apply_transformation(long dimk,
                                   const Transformation trans[NDIM],
                                   const Tensor<T>& f,
                                   Tensor<R>& work1,
@@ -344,7 +352,7 @@ namespace madness {
 
         /// Apply one of the separated terms, accumulating into the result
         template <typename T>
-        void muopxv_fast(Level n,
+        void muopxv_fast(ApplyTerms at,
                          const ConvolutionData1D<Q>* const ops_1d[NDIM],
                          const Tensor<T>& f, const Tensor<T>& f0,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
@@ -362,7 +370,7 @@ namespace madness {
             double Rnorm = 1.0;
             for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops_1d[d]->Rnorm;
 
-            if (Rnorm > 1.e-20) {
+            if (at.r_term and (Rnorm > 1.e-20)) {
 
                 tol = tol/(Rnorm*NDIM);  // Errors are relative within here
 
@@ -393,7 +401,7 @@ namespace madness {
                     }
                     trans2[d]=ops_1d[d]->R;
                 }
-                apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+                apply_transformation(twok, trans, f, work1, work2, work5, mufac, result);
     //            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
 //                apply_transformation3(trans2, f, mufac, result);
             }
@@ -401,7 +409,7 @@ namespace madness {
             double Tnorm = 1.0;
             for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
 
-            if ((n > 0) and (Tnorm>0.0)) {
+            if (at.t_term and (Tnorm>0.0)) {
                 long break_even;
                 if (NDIM==1) break_even = long(0.5*k);
                 else if (NDIM==2) break_even = long(0.6*k);
@@ -425,7 +433,7 @@ namespace madness {
                     }
                     trans2[d]=ops_1d[d]->T;
                 }
-                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation(k, trans, f0, work1, work2, work5, -mufac, result0);
 //                apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
 //                apply_transformation3(trans2, f0, -mufac, result0);
             }
@@ -762,6 +770,74 @@ namespace madness {
             }
         }
 
+
+        /// upsample some of the dimensions of coeff to its child indicated by key
+
+        /// @param[in]  coeff   the coeffs of dim 2*NDIM that will be upsampled
+        /// @param[in]  key     the key indicating the child -- only some dimensions will be "reproductive"
+        /// @param[in]  particle    if 0: upsample dimensions 0-2
+        ///                         if 1: upsample dimensions 3-5
+        /// @return     a partially upsampled coefficient tensor
+        template<typename T, size_t FDIM>
+        GenTensor<T> partial_upsample(const Key<FDIM>& key, const GenTensor<T>& coeff, const int particle) const {
+
+            if (coeff.rank()==0) return GenTensor<T>();
+            MADNESS_ASSERT(coeff.dim(0)==k);
+            if (NDIM==coeff.ndim()) {
+                MADNESS_ASSERT(particle==1);    // other particle, leave this particle unchanged
+                return coeff;
+            }
+
+            MADNESS_ASSERT(coeff.ndim()==FDIM);
+            MADNESS_ASSERT(particle==0 or (2*NDIM==FDIM));
+
+            // the twoscale coefficients: for upsampling use h0/h1; see Alpert Eq (3.35a/b)
+            // handle the spectator dimensions with the identity matrix
+            const Tensor<T> h[2] = {cdata.h0, cdata.h1};
+            Tensor<T> identity(k,k);
+            for (int i=0; i<k; ++i) identity(i,i)=1.0;
+            Tensor<T> matrices[2*NDIM];
+
+            // get the appropriate twoscale coefficients for each dimension
+            if (particle==0) {
+                for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=h[key.translation()[ii]%2];
+                for (size_t ii=0; ii<NDIM; ++ii) matrices[ii+NDIM]=identity;
+            } else if (particle==1) {
+                for (size_t ii=0; ii<NDIM; ++ii) matrices[ii]=identity;
+                for (size_t ii=0; ii<NDIM; ++ii) matrices[ii+NDIM]=h[key.translation()[ii+NDIM]%2];
+            } else {
+                MADNESS_EXCEPTION("unknown particle",1);
+            }
+
+            // transform and accumulate on the result
+            const GenTensor<T> result=general_transform(coeff,matrices);
+            return result;
+        }
+
+
+        /// upsample the sum coefficients of level 1 to sum coeffs on level n+1
+
+        /// specialization of the unfilter method, will transform only the sum coefficients
+        /// @param[in]  key     key of level n+1
+        /// @param[in]  coeff   sum coefficients of level n (does NOT belong to key!!)
+        /// @return     sum     coefficients on level n+1
+        template<typename T, size_t FDIM>
+        GenTensor<T> upsample(const Key<FDIM>& key, const GenTensor<T>& coeff) const {
+
+            // the twoscale coefficients: for upsampling use h0/h1; see Alpert Eq (3.35a/b)
+            // note there are no difference coefficients; if you want that use unfilter
+            const Tensor<T> h[2] = {cdata.h0, cdata.h1};
+            Tensor<T> matrices[FDIM];
+
+            // get the appropriate twoscale coefficients for each dimension
+            for (size_t ii=0; ii<FDIM; ++ii) matrices[ii]=h[key.translation()[ii]%2];
+
+            // transform and accumulate on the result
+            const GenTensor<T> result=general_transform(coeff,matrices);
+            return result;
+        }
+
+
     public:
 
         // For separated convolutions with same operator in each direction (isotropic)
@@ -777,6 +853,7 @@ namespace madness {
                 , particle_(1)
                 , bc(bc)
                 , k(k)
+                , cdata(FunctionCommonData<Q,NDIM>::get(k))
                 , rank(argops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
@@ -809,6 +886,7 @@ namespace madness {
                 , ops(argops)
                 , bc(bc)
                 , k(k)
+                , cdata(FunctionCommonData<Q,NDIM>::get(k))
                 , rank(argops.size())
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
@@ -835,6 +913,7 @@ namespace madness {
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
+                , cdata(FunctionCommonData<Q,NDIM>::get(k))
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
@@ -876,6 +955,7 @@ namespace madness {
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
+                , cdata(FunctionCommonData<Q,NDIM>::get(k))
                 , rank(coeff.dim(0))
                 , vk(NDIM,k)
                 , v2k(NDIM,2*k)
@@ -940,6 +1020,8 @@ namespace madness {
                                               const Tensor<T>& coeff,
                                               double tol) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            MADNESS_ASSERT(coeff.ndim()==NDIM);
+
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
@@ -962,6 +1044,9 @@ namespace madness {
             }
 
             tol = tol/rank; // Error is per separated term
+            ApplyTerms at;
+            at.r_term=true;
+            at.t_term=(source.level()>0);
 
             /// SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
@@ -978,7 +1063,6 @@ namespace madness {
                    work2=Tensor<resultT>(vk,false);
                    work5=Tensor<Q>(k,k);
             }
-            printnow=false;
 
             const Tensor<T> f0 = copy(coeff(s0));
             for (int mu=0; mu<rank; ++mu) {
@@ -987,29 +1071,10 @@ namespace madness {
                 if (muop.norm > tol) {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
-                    muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2, work5);
                 }
             }
-
-            if (printnow) {
-                print("r0,r");
-                print(r0);
-                print(r);
-            }
-//            Vector<Translation, NDIM> l(0);
-//            l[0]=1;
-//            keyT key1(0,l);
-//
-//            if (shift==key1) {
-//                print("coeff, r, r0", source, shift);
-//                print(0.5*coeff(_,_,0));
-//                print(0.5*r(_,_,0));
-//                print(0.5*r0(_,_,0));
-//                r(s0).gaxpy(1.0,r0,1.0);
-//                print(0.5*r(_,_,0));
-//                MADNESS_EXCEPTION("debug",1);
-//            }
 
             r(s0).gaxpy(1.0,r0,1.0);
             return r;
@@ -1072,6 +1137,10 @@ namespace madness {
                 // accumulate all terms of the operator for a specific term of the function
                 Tensor<resultT> result(v2k), result0(vk);
 
+                ApplyTerms at;
+                at.r_term=true;
+                at.t_term=source.level()>0;
+
                 // this loop will return on result and result0 the terms [(P+Q) G (P+Q)]_1,
                 // and [P Q P]_1, respectively
                 for (int mu=0; mu<rank; ++mu) {
@@ -1080,7 +1149,7 @@ namespace madness {
                     if (muop.norm > tol*weight) {
 
                         Q fac = ops[mu].getfac();
-                        muopxv_fast(source.level(), muop.ops, chunk, chunk0, result, result0,
+                        muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
                                 tol/std::abs(fac), fac, work1, work2, work5);
 
                     }
@@ -1121,6 +1190,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
+            MADNESS_ASSERT(coeff.ndim()==NDIM);
 //            MADNESS_EXCEPTION("no apply2",1);
             const TensorType tt=coeff.tensor_type();
 
@@ -1200,7 +1270,7 @@ namespace madness {
 
         /// @param[in]  source  source key
         /// @param[in]  shift   displacement
-        /// @param[in]  tol     thresh/#neigh*cnorm
+        /// @param[in]  tol     thresh/#neigh/cnorm
         /// @param[in]  tol2    thresh/#neigh
         /// @return cost_ratio  r=-1:   no terms left
         ///                     0<r<1:  better to do full rank

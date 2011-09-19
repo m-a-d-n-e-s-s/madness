@@ -38,6 +38,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/function_common_data.h>
 #include <world/worldhashmap.h>
 #include <math.h>
 
@@ -57,6 +58,12 @@ namespace madness {
 
         Slice sk(0,k-1), sk2(k,-1);
         hgsonly = copy(hg(Slice(0,k-1),_));
+
+        h0 = copy(hg(sk,sk));
+        h1 = copy(hg(sk,sk2));
+        g0 = copy(hg(sk2,sk));
+        g1 = copy(hg(sk2,sk2));
+
         h0T = copy(transpose(hg(sk,sk)));
         h1T = copy(transpose(hg(sk,sk2)));
         g0T = copy(transpose(hg(sk2,sk)));

@@ -22,7 +22,7 @@ libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       \
                       adquad.h  funcimpl.h flonode.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
                       funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h \
-                      funcplot.h
+                      funcplot.h function_common_data.h
 
 testsuite_SOURCES = testsuite.cc test_sepop.cc
 testperiodic_SOURCES = testperiodic.cc

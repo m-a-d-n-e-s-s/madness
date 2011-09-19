@@ -556,7 +556,7 @@ namespace madness {
                                                     ;
                 // make the tree
                 vphi.get_impl()->convolute(op_mod);
-                vphi.scale(-2.0);
+                vphi.scale(-2.0).truncate();
                 vphi.print_size("vphi of the zeroth order pair function with 1-electron potentials");
 
                 /// apply the convolution

@@ -424,7 +424,8 @@ namespace madness {
 				return gentensorT(configT(a));
 			}
 
-			_ptr->make_structure();
+			MADNESS_ASSERT(_ptr->has_structure());
+//			_ptr->make_structure();
 
 			// get dimensions
 			const TensorType tt=this->tensor_type();
@@ -498,6 +499,7 @@ namespace madness {
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
+		    if (rhs.has_no_data()) return *this;
 //			rhs.accumulate_into(*this,1.0);
 			if (tensor_type()==TT_FULL) {
 				if (not rhs.tensor_type()==TT_FULL)
@@ -637,17 +639,12 @@ namespace madness {
 		/// returns the Frobenius norm
 		double normf() const {
 			if (has_no_data()) return 0.0;
-			_ptr->undo_structure();
 			return config().normf();
 		};
 
 		/// returns the trace of <this|rhs>
 		T trace_conj(const GenTensor<T>& rhs) const {
-			_ptr->undo_structure();
-			rhs._ptr->undo_structure();
 			T ovlp=overlap(*_ptr,*rhs._ptr);
-			_ptr->make_structure();
-			rhs._ptr->make_structure();
 			return ovlp;
 		}
 
@@ -695,27 +692,28 @@ namespace madness {
 				return;
 			} else if (this->tensor_type()==TT_3D) {
 				this->doReduceRank(eps,Tensor<T>());
-				this->_ptr->make_structure();
+                MADNESS_EXCEPTION("flat/structure issue",1);
+//				this->_ptr->make_structure();
 			} else if (this->tensor_type()==TT_2D) {
 
 				// determine what is faster: reconstruction or direct rank reduction
 				const double ratio=(_ptr->kVec())/(2.0*rank());
 				if (ratio>1.0) {
 
-					config().undo_structure();
 					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
 						config().divide_and_conquer_reduce(eps*facReduce);
 
 					} else if (OrthoMethod::om==sequential_) {
+					    MADNESS_EXCEPTION("flat/structure issue",1);
 						config().sequential_orthogonalization(eps*facReduce);
 
 					} else if (OrthoMethod::om==reconstruct_) {
+                        MADNESS_EXCEPTION("flat/structure issue",1);
 						reconstruct_and_decompose(eps);
 
 					} else {
 						MADNESS_EXCEPTION("confused about orthogonalization method??",0);
 					}
-					config().make_structure();
 				} else {
 					reconstruct_and_decompose(eps);
 				}
@@ -779,8 +777,6 @@ namespace madness {
 
 			// flatten this
 			gentensorT sr=*this;
-			sr._ptr->undo_structure();
-			//			sr._ptr->semi_flatten();
 
 			// and a scratch Tensor
 			Tensor<T>  scr(rank);
@@ -798,24 +794,27 @@ namespace madness {
 
 			} else if (conf_dim==2) {
 
+
 				//				tensorT weight_matrix(rank,rank);
 				//				for (unsigned int r=0; r<rank; r++) {
 				//					weight_matrix(r,r)=this->weight(r);
 				//				}
 				//				s=inner(weight_matrix,sr._ptr->refVector(0));
 				//				s=inner(s,sr._ptr->refVector(1),0,0);
-				tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
+//                tensorT sscr=copy(sr._ptr->ref_vector(0)(sr._ptr->c0()));
+				tensorT sscr=copy(sr._ptr->flat_vector(0));
 				for (unsigned int r=0; r<rank; r++) {
 					const double w=_ptr->weights(r);
 					for (unsigned int k=0; k<conf_k; k++) {
 						sscr(r,k)*=w;
 					}
 				}
-				inner_result(sscr,sr._ptr->ref_vector(1)(sr._ptr->c0()),0,0,s);
+				inner_result(sscr,sr._ptr->flat_vector(1),0,0,s);
 
 
 			} else if (conf_dim==3) {
 
+                MADNESS_EXCEPTION("flat/structure issue",1);
 				for (unsigned int i0=0; i0<conf_k; i0++) {
 					scr=copy(sr._ptr->weights_(Slice(0,sr.rank()-1)));
 					scr.emul(sr._ptr->ref_vector(0)(Slice(0,rank-1),i0));
@@ -912,11 +911,12 @@ namespace madness {
 			tensorT s=t.reshape(conf_dim,d);
 
 			// flatten this
-			_ptr->undo_structure();
+//			_ptr->undo_structure();
 
 			if (conf_dim==2) {
 
-				tensorT sscr=copy(_ptr->ref_vector(0)(_ptr->c0()));
+//                tensorT sscr=copy(_ptr->ref_vector(0)(_ptr->c0()));
+				tensorT sscr=copy(_ptr->flat_vector(0));
 				if (fac!=1.0) sscr.scale(fac);
 				for (unsigned int r=0; r<rank; r++) {
 					const double w=_ptr->weights(r);
@@ -924,10 +924,12 @@ namespace madness {
 						sscr(r,k)*=w;
 					}
 				}
-				inner_result(sscr,_ptr->ref_vector(1)(_ptr->c0()),0,0,s);
+//                inner_result(sscr,_ptr->ref_vector(1)(_ptr->c0()),0,0,s);
+				inner_result(sscr,_ptr->flat_vector(1),0,0,s);
 
 			} else {
 
+			    MADNESS_EXCEPTION("flat/structure issue",1);
 				// include weights in first vector
 				tensorT scr1=copy(_ptr->ref_vector(0)(_ptr->c0()));
 				if (fac!=1.0) scr1.scale(fac);
@@ -949,9 +951,7 @@ namespace madness {
 		}
 
 		/// append this to rhs, shape must conform
-		void append( gentensorT& rhs, const double fac=1.0) const {
-			rhs._ptr->undo_structure();
-			_ptr->undo_structure();
+		void append(gentensorT& rhs, const double fac=1.0) const {
 			rhs.config().append(*this->_ptr,fac);
 		}
 
@@ -966,8 +966,6 @@ namespace madness {
 				*this=rhs;
 				return;
 			}
-			config().undo_structure();
-			rhs._ptr->undo_structure();
 			config().add_SVD(rhs.config(),thresh);
 		}
 
@@ -1007,21 +1005,25 @@ namespace madness {
 
 		/// transform the Legendre coefficients with the tensor
 		gentensorT transform(const Tensor<T> c) const {
-			_ptr->make_structure();
+//			_ptr->make_structure();
+			MADNESS_ASSERT(_ptr->has_structure());
 			return gentensorT (this->_ptr->transform(c));
 		}
 
 		/// transform the Legendre coefficients with the tensor
 		template<typename Q>
 		gentensorT general_transform(const Tensor<Q> c[]) const {
-		    this->_ptr->make_structure();
+//		    this->_ptr->make_structure();
+		    if (has_no_data()) return gentensorT();
+            MADNESS_ASSERT(_ptr->has_structure());
 			return gentensorT (this->config().general_transform(c));
 		}
 
 		/// inner product
 		gentensorT transform_dir(const Tensor<T>& c, const int& axis) const {
-            this->_ptr->make_structure();
-			return this->_ptr->transform_dir(c,axis);
+//            this->_ptr->make_structure();
+            MADNESS_ASSERT(_ptr->has_structure());
+            return this->_ptr->transform_dir(c,axis);
 		}
 
 		/// return a reference to the SRConf
@@ -1379,8 +1381,10 @@ namespace madness {
 			if (tensor_type()==TT_FULL) {
 				full_tensor()(lhs_s).gaxpy(alpha,rhs.full_tensor()(rhs_s),beta);
 			} else {
-				rhs._ptr->make_structure();
-				_ptr->make_structure();
+//				rhs._ptr->make_structure();
+//				_ptr->make_structure();
+				MADNESS_ASSERT(_ptr->has_structure());
+                MADNESS_ASSERT(rhs._ptr->has_structure());
 				this->_ptr->inplace_add(*rhs._ptr,lhs_s,rhs_s, alpha, beta);
 			}
 		}
@@ -1430,6 +1434,9 @@ namespace madness {
 		/// follow section 3 in BM2005
 		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
 			//				const SepRep& trial2=SepRep()) {
+
+		    MADNESS_EXCEPTION("flat/structure issue",1);
+
 			/*
 			 * basic idea is to use the residual Frobenius norm to check
 			 * convergence. Don't know if this is rigorous, probably not..
@@ -1460,8 +1467,7 @@ namespace madness {
 			if ((not haveSR) and (not haveVal)) return;
 
 
-			//			reference.configs_=this->_ptr->semi_flatten();
-			reference._ptr->undo_structure();
+//			reference._ptr->undo_structure();
 
 			//			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
 
@@ -1493,7 +1499,7 @@ namespace madness {
 
 			// set up a trial function
 			gentensorT trial(reference.tensor_type(),reference.get_k(),reference.dim());
-			trial._ptr->undo_structure();
+//			trial._ptr->undo_structure();
 			trial._ptr->reserve(10);
 			//			trial._ptr->semi_flatten();
 			//			if (useTrial) trial=trial2;
@@ -1507,7 +1513,7 @@ namespace madness {
 
 				// compute the residual wrt reference minus trial
 				residual._ptr->fillWithRandom(1);
-				residual._ptr->undo_structure();
+//				residual._ptr->undo_structure();
 
 				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
 
@@ -1522,11 +1528,11 @@ namespace madness {
 				// otherwise add residual to the trial function ..
 				//				trial._ptr->unflatten();
 				//				residual._ptr->unflatten();
-				trial._ptr->make_structure();
-				residual._ptr->make_structure();
+//				trial._ptr->make_structure();
+//				residual._ptr->make_structure();
 				trial+=residual;
-				trial._ptr->undo_structure();
-				residual._ptr->undo_structure();
+//				trial._ptr->undo_structure();
+//				residual._ptr->undo_structure();
 				//				trial._ptr->semi_flatten();
 				//				residual._ptr->semi_flatten();
 
@@ -1556,7 +1562,7 @@ namespace madness {
 
 			// copy shrinks the matrices
 			*this=copy(*trial._ptr);
-			this->_ptr->make_structure();
+//			this->_ptr->make_structure();
 			//			timeReduce_.end();
 
 		}
@@ -1672,7 +1678,8 @@ namespace madness {
 
 		/// for compatibility with tensor
 		friend GenTensor<T> copy(const SliceGenTensor<T>& rhs) {
-			return GenTensor<T>(rhs);
+		    if (rhs._refGT.has_data()) return GenTensor<T>(rhs);
+		    return GenTensor<T>();
 		}
 
 	};

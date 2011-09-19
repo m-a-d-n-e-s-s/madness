@@ -371,8 +371,6 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 			GenTensor<double> g0(t0,eps,tt);
 			GenTensor<double> g1(t1,eps,tt);
 
-			g0.config().undo_structure();
-			g1.config().undo_structure();
 			g0.config().orthonormalize(eps*0.5/std::max(1.0,g1.normf()));
 			g1.config().orthonormalize(eps*0.5/std::max(1.0,g0.normf()));
 			g0.add_SVD(g1,eps);
@@ -395,7 +393,6 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 
 			g0+=g1;
 			t0+=t1;
-			g0.config().undo_structure();
 			g0.reconstruct_and_decompose(eps/1.e-3);
 			norm=(g0.full_tensor_copy()-t0).normf();
 			print(ok(is_small(norm,eps)),"rank reduction reconstruct   ",g0.what_am_i(),norm,g0.rank());
@@ -644,7 +641,7 @@ int main(int argc, char**argv) {
     print("eps  ",eps);
 
     // some test
-#if 1
+#if 0
 
 	int nloop=3*30;
 	print("nloop",nloop);

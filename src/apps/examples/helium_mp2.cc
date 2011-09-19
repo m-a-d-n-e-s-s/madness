@@ -719,7 +719,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
             cell(Slice(_),0)=-2.0;
             cell(Slice(_),1)= 2.0;
             std::string filename="plot_plane_d"+stringify(fix_coord[4])+"_k"+stringify(k)+"_eps"+stringify(thresh);
-            vphi.get_impl()->print_plane(filename,"xy",fix_coord,cell);
+            vphi.get_impl()->print_plane(filename,"xy",fix_coord);
 
         }
         std::string name="vphi_k"+stringify(k)+"_e"+stringify(thresh)+"_it"+stringify(i);
@@ -768,7 +768,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
         cell(Slice(_),0)=-2.0;
         cell(Slice(_),1)= 2.0;
         std::string filename="plot_plane_d"+stringify(fix_coord[4])+"_k"+stringify(k)+"_eps"+stringify(thresh);
-        pair_impl->print_plane(filename,"xy",fix_coord,cell);
+        pair_impl->print_plane(filename,"xy",fix_coord);
 
     }
 
