@@ -38,8 +38,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <world/worldreduce.h>
-#include <world/functional.h>
-#include <world/functional.h>
 #include <world/deferred_deleter.h>
 #include <gtest/gtest.h>
 
