@@ -1,6 +1,8 @@
 #ifndef MADNESS_STDARRAY_H
 #define MADNESS_STDARRAY_H
 
+#include <madness_config.h>
+
 #if defined(MADNESS_USE_ARRAY)
 #  include <array>
 #elif defined(MADNESS_USE_TR1_ARRAY)

@@ -38,8 +38,10 @@
 #include <world/worldtypes.h>
 #include <world/worldobj.h>
 #include <world/worldtask.h>
+#include <world/array.h>
 #include <algorithm>
 #include <iterator>
+
 
 namespace madness {
 

@@ -39,63 +39,21 @@
 /// \file typestuff.h
 /// \brief Grossly simplified Boost-like type traits and templates
 
-// Aims to be a compatible subset of Boost ... wish we could rely on
-// Boost being there but between bjam (theirs), bloat (theirs), brain
-// deficiences (mine, not theirs), bleeding edge massively parallel
-// systems, and compiler deficiences, we have to be independent for the
-// time being.
-
 #include <cstddef>
 #include <stdint.h>
 #include <madness_config.h>
+
+// Next 3 use TR1 or BOOST if available, otherwise a minimal
+// version we support ... in the std:: namespace
+#include <world/type_traits.h>
+
+// Boost-like enable if stuff in the madness:: namespace
 #include <world/enable_if.h>
-#include <world/tr1/type_traits.h>
+
+// Boost-like stuff in the madnes::tr1::details namespace
+#include <world/function_traits_bits.h>
 
 namespace madness {
-
-    template <bool Cond, typename T1, typename T2>
-    struct if_c {
-        typedef T1 type;
-    };
-
-    template <typename T1, typename T2>
-    struct if_c<false, T1, T2> {
-        typedef T2 type;
-    };
-
-    template <typename Cond, typename T1, typename T2>
-    struct if_ : public if_c<Cond::value, T1, T2> {};
-
-    /// type_or_c<bool A, bool B>::value will be true if (A || B)
-    template <bool A, bool B>
-    class type_or_c : public std::true_type { };
-
-    /// type_or_c<bool A, bool B>::value will be true if (A || B)
-    template<> class type_or_c<false,false> : public std::false_type { };
-
-    /// type_or<CondA,CondB>::value  will be true if (CondA::value || CondB::value)
-    template <class CondA, class CondB>
-    class type_or : public type_or_c<CondA::value, CondB::value> { };
-
-
-    /// type_and_c<bool A, bool B>::value will be true if (A && B)
-    template <bool A, bool B>
-    class type_and_c : public std::false_type { };
-
-    /// type_and_c<bool A, bool B>::value will be true if (A && B)
-    template<> class type_and_c<true, true> : public std::true_type { };
-
-    /// type_and<CondA,CondB>::value  will be true if (CondA::value && CondB::value)
-    template <class CondA, class CondB>
-    class type_and: public type_and_c<CondA::value, CondB::value> { };
-
-    /// is_eq<A,B> returns true if A and B are the same integers
-    template <int A, int B>
-    struct is_eq  : public std::false_type { };
-
-    /// is_eq<A,B> returns true if A and B are the same integers
-    template <int A>
-    struct is_eq<A,A> : public std::true_type { };
 
     /// True if A is derived from B and is not B
     template <class A, class B>
@@ -109,476 +67,7 @@ namespace madness {
 
     /// True if A is derived from B and is not B
     template <class A>
-    struct is_derived_from<A,A> {
-        static const bool value = false;
-    };
-
-
-    /// Function traits in the spirt of boost function traits
-    template <typename functionT>
-    struct function_traits {
-        static const bool value = false;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT>
-    struct function_traits<returnT(*)()> {
-        static const bool value = true;
-        static const int arity = 0;
-        typedef returnT result_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T>
-    struct function_traits<returnT(*)(arg1T)> {
-        static const bool value = true;
-        static const int arity = 1;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T>
-    struct function_traits<returnT(*)(arg1T,arg2T)> {
-        static const bool value = true;
-        static const int arity = 2;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T)> {
-        static const bool value = true;
-        static const int arity = 3;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T)> {
-        static const bool value = true;
-        static const int arity = 4;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T,arg5T)> {
-        static const bool value = true;
-        static const int arity = 5;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-    };
-
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)> {
-        static const bool value = true;
-        static const int arity = 6;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-    };
-
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)> {
-        static const bool value = true;
-        static const int arity = 7;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T)> {
-        static const bool value = true;
-        static const int arity = 8;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-    };
-
-    /// Function traits in the spirt of boost function traits
-    template <typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
-    struct function_traits<returnT(*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T)> {
-        static const bool value = true;
-        static const int arity = 9;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-        typedef arg9T arg9_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename memfuncT>
-    struct memfunc_traits {
-        static const bool value = false;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT>
-    struct memfunc_traits<returnT(objT::*)()> {
-        static const bool value = true;
-        static const int arity = 0;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T>
-    struct memfunc_traits<returnT(objT::*)(arg1T)> {
-        static const bool value = true;
-        static const int arity = 1;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T)> {
-        static const bool value = true;
-        static const int arity = 2;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T)> {
-        static const bool value = true;
-        static const int arity = 3;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T)> {
-        static const bool value = true;
-        static const int arity = 4;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T)> {
-        static const bool value = true;
-        static const int arity = 5;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)> {
-        static const bool value = true;
-        static const int arity = 6;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)> {
-        static const bool value = true;
-        static const int arity = 7;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T)> {
-        static const bool value = true;
-        static const int arity = 8;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T)> {
-        static const bool value = true;
-        static const int arity = 9;
-        static const bool constness = false;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-        typedef arg9T arg9_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT>
-    struct memfunc_traits<returnT(objT::*)() const> {
-        static const bool value = true;
-        static const int arity = 0;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T>
-    struct memfunc_traits<returnT(objT::*)(arg1T) const> {
-        static const bool value = true;
-        static const int arity = 1;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T) const> {
-        static const bool value = true;
-        static const int arity = 2;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-    };
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T) const> {
-        static const bool value = true;
-        static const int arity = 3;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T) const> {
-        static const bool value = true;
-        static const int arity = 4;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-    };
-
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T) const> {
-        static const bool value = true;
-        static const int arity = 5;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T) const> {
-        static const bool value = true;
-        static const int arity = 6;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T) const> {
-        static const bool value = true;
-        static const int arity = 7;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-    };
-
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T) const> {
-        static const bool value = true;
-        static const int arity = 8;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-    };
-
-
-    /// Member function traits in the spirt of boost function traits
-    template <typename objT, typename returnT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
-    struct memfunc_traits<returnT(objT::*)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T) const> {
-        static const bool value = true;
-        static const int arity = 9;
-        static const bool constness = true;
-        typedef objT obj_type;
-        typedef returnT result_type;
-        typedef arg1T arg1_type;
-        typedef arg2T arg2_type;
-        typedef arg3T arg3_type;
-        typedef arg4T arg4_type;
-        typedef arg5T arg5_type;
-        typedef arg6T arg6_type;
-        typedef arg7T arg7_type;
-        typedef arg8T arg8_type;
-        typedef arg9T arg9_type;
-    };
-
-
-    /// is_function_ptr<T>::value is true if T is a function pointer
-//    template <typename T>
-//    struct is_function_ptr {
-//        static const bool value = function_traits<T>::value;
-//    };
-
-    template <typename fnT, typename Enabler = void>
-    struct result_of {
-        typedef typename fnT::result_type type;
-    };
-
-    template <typename fnT>
-    struct result_of<fnT, typename enable_if_c<function_traits<fnT>::value>::type> {
-        typedef typename function_traits<fnT>::result_type type;
-    };
-
-    template <typename fnT>
-    struct result_of<fnT, typename enable_if_c<memfunc_traits<fnT>::value>::type> {
-        typedef typename memfunc_traits<fnT>::result_type type;
-    };
+    struct is_derived_from<A,A> : public std::false_type {};
 
     template <typename> class Future;
     template <typename> struct remove_future;
@@ -587,21 +76,14 @@ namespace madness {
     template <typename T>
     struct remove_fcvr {
         typedef typename remove_future<typename std::remove_cv<
-                typename std::remove_reference<T>::type>::type>::type type;
+                                           typename std::remove_reference<T>::type>::type>::type type;
     };
 
     /// This defines stuff that is serialiable by default rules ... basically anything contiguous
-
-    /// Fundamental types, member function pointers, and function pointers
-    /// are handled by default.
     template <typename T>
-    struct is_serializable : public std::integral_constant<bool,
-            std::is_fundamental<T>::value ||
-            std::is_member_function_pointer<T>::value ||
-            (std::is_function<typename std::remove_pointer<T>::type>::value &&
-            ::std::is_pointer<T>::value)>
-    {};
-
+    struct is_serializable {
+        static const bool value = std::is_fundamental<T>::value || std::is_member_function_pointer<T>::value || std::is_function<T>::value;
+    };
 
     /// Simple binder for member functions with no arguments
     template <class T, typename resultT>
@@ -701,10 +183,10 @@ namespace madness {
 
     /**
        \def REMREF(TYPE)
-       \brief Macro to make std::remove_reference<T> easier to use
+       \brief Macro to make remove_reference<T> easier to use
 
        \def REMCONST(TYPE)
-       \brief Macro to make std::remove_const<T> easier to use
+       \brief Macro to make remove_const<T> easier to use
 
        \def MEMFUN_RETURNT(TYPE)
        \brief Macro to make member function type traits easier to use
@@ -753,32 +235,31 @@ namespace madness {
 
     */
 
-
 #define REMREF(TYPE)    typename std::remove_reference< TYPE >::type
 #define REMCONST(TYPE)  typename std::remove_const< TYPE >::type
 #define REMCONSTX(TYPE) std::remove_const< TYPE >::type
-#define RETURN_WRAPPERT(TYPE) typename ReturnWrapper< TYPE >::type
+#define RETURN_WRAPPERT(TYPE) typename madness::ReturnWrapper< TYPE >::type
 
-#define MEMFUN_RETURNT(MEMFUN) typename memfunc_traits< MEMFUN >::result_type
-#define MEMFUN_CONSTNESS(MEMFUN) memfunc_traits< MEMFUN >::constness
-#define MEMFUN_OBJT(MEMFUN)    typename memfunc_traits< MEMFUN >::obj_type
-#define MEMFUN_ARITY(MEMFUN)   memfunc_traits< MEMFUN >::arity
-#define MEMFUN_ARG1T(MEMFUN)   typename memfunc_traits< MEMFUN >::arg1_type
-#define MEMFUN_ARG2T(MEMFUN)   typename memfunc_traits< MEMFUN >::arg2_type
-#define MEMFUN_ARG3T(MEMFUN)   typename memfunc_traits< MEMFUN >::arg3_type
-#define MEMFUN_ARG4T(MEMFUN)   typename memfunc_traits< MEMFUN >::arg4_type
+#define MEMFUN_RETURNT(MEMFUN) typename madness::detail::memfunc_traits< MEMFUN >::result_type
+#define MEMFUN_CONSTNESS(MEMFUN) madness::detail::memfunc_traits< MEMFUN >::constness
+#define MEMFUN_OBJT(MEMFUN)    typename madness::detail::memfunc_traits< MEMFUN >::obj_type
+#define MEMFUN_ARITY(MEMFUN)   madness::detail::memfunc_traits< MEMFUN >::arity
+#define MEMFUN_ARG1T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg1_type
+#define MEMFUN_ARG2T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg2_type
+#define MEMFUN_ARG3T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg3_type
+#define MEMFUN_ARG4T(MEMFUN)   typename madness::detail::memfunc_traits< MEMFUN >::arg4_type
 
-#define FUNCTION_RETURNT(FUNCTION) typename function_traits< FUNCTION >::result_type
-#define FUNCTION_ARITY(FUNCTION)   function_traits< FUNCTION >::arity
-#define FUNCTION_ARG1T(FUNCTION)   typename function_traits< FUNCTION >::arg1_type
-#define FUNCTION_ARG2T(FUNCTION)   typename function_traits< FUNCTION >::arg2_type
-#define FUNCTION_ARG3T(FUNCTION)   typename function_traits< FUNCTION >::arg3_type
-#define FUNCTION_ARG4T(FUNCTION)   typename function_traits< FUNCTION >::arg4_type
+#define FUNCTION_RETURNT(FUNCTION) typename madness::detail::function_traits< FUNCTION >::result_type
+#define FUNCTION_ARITY(FUNCTION)   madness::detail::function_traits< FUNCTION >::arity
+#define FUNCTION_ARG1T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg1_type
+#define FUNCTION_ARG2T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg2_type
+#define FUNCTION_ARG3T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg3_type
+#define FUNCTION_ARG4T(FUNCTION)   typename madness::detail::function_traits< FUNCTION >::arg4_type
 
-#define RESULT_OF(FUNCTION) typename madness::result_of< FUNCTION >::type
+#define RESULT_OF(FUNCTION) typename madness::detail::result_of< FUNCTION >::type
 
 #define IS_SAME(A, B) std::is_same< A, B >
-#define IS_EQ(A, B) is_eq< A, B >
+#define IS_EQ(A, B) std::is_eq< A, B >
 
 } // end of namespace madness
 #endif // MADNESS_WORLD_TYPESTUFF_H__INCLUDED

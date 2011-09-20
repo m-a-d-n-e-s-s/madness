@@ -1,9 +1,12 @@
 #ifndef MADNESS_SHARED_PTR_H_
 #define MADNESS_SHARED_PTR_H_
 
+#include <madness_config.h>
+
 #include <world/boost_checked_delete_bits.h>
 
 // Select header that contains shared_ptr
+
 #if defined(MADNESS_USE_MEMORY)
 #  include <memory>
 #elif defined(MADNESS_USE_TR1_MEMORY)

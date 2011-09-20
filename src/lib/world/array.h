@@ -38,16 +38,16 @@
 #include <madness_config.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
+#include <world/stdarray.h>
 #include <vector>
 #include <algorithm>
 #include <iostream>
-#include <world/tr1/array.h>
 
-MADNESS_BEGIN_NAMESPACE_TR1
+namespace madness {
 
     /// Output std::array to stream for human consumption
     template <typename T, std::size_t N>
-    std::ostream& operator<<(std::ostream& s, const array<T,N>& a) {
+    std::ostream& operator<<(std::ostream& s, const std::array<T,N>& a) {
         s << "[";
         for(std::size_t i=0; i<N; ++i) {
             s << a[i];
@@ -59,22 +59,10 @@ MADNESS_BEGIN_NAMESPACE_TR1
 
     /// Hash std::array with madness::Hash
     template <typename T, std::size_t N>
-    madness::hashT hash_value(const array<T,N>& a) {
+    madness::hashT hash_value(const std::array<T,N>& a) {
         // Use this version of range for potential optimization.
         return madness::hash_range(a.data(), N);
     }
-
-    /// Hash std::array with MADNESS Hashing
-    template <typename T, std::size_t N>
-    struct hash<array<T,N> > {
-        std::size_t operator()(const array<T,N>& a) const {
-            return hash_value(a);
-        }
-    };
-
-MADNESS_END_NAMESPACE_TR1
-
-namespace madness {
 
     // Serialize std::array objects
     namespace archive {

@@ -177,7 +177,9 @@ void test5(World& world) {
     print("done with fence");
 
     world.taskq.add(TTT::fred);
+    print("MAKING MARY");
     Future<int> mary = world.taskq.add(TTT::mary);
+    print("MADE MARY");
     Future<int> carl = world.taskq.add(right,TTT::carl);
     Future<int> dave = world.taskq.add(right,TTT::dave, &world);
     Future<int> bert_input;

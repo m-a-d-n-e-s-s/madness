@@ -35,8 +35,6 @@
 #ifndef MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 #define MADNESS_WORLD_ENABLE_IF_H__INCLUDED
 
-//#include <world/typestuff.h>
-
 namespace madness {
 
     /// enable_if_c from Boost for conditionally instantiating templates based on type
@@ -134,7 +132,22 @@ namespace madness {
     ///     template <class T> A(T& other, typename enable_if_same<A const,T>::type = 0) {
     /// \endcode
 //    template <class T, class U, class returnT = void>
-//    struct enable_if_same : public enable_if<std::is_same<T,U>, returnT> {};
+//    struct enable_if_same : public enable_if<madness::is_same<T,U>, returnT> {};
+
+        template <bool Cond, typename T1, typename T2>
+        struct if_c {
+            typedef T1 type;
+        };
+        
+        template <typename T1, typename T2>
+        struct if_c<false, T1, T2> {
+            typedef T2 type;
+        };
+        
+        template <typename Cond, typename T1, typename T2>
+        struct if_ : public if_c<Cond::value, T1, T2> {};
+
+
 
 } // namespace madness
 
@@ -151,13 +164,13 @@ namespace madness {
 
 
    \def DISABLE_IF(CONDITION,TYPEIFTRUE)
-   \brief Macro to make enable_if<std::is_same< A , B > > template easier to use
+   \brief Macro to make enable_if<madness::is_same< A , B > > template easier to use
 
 */
 
 #define ENABLE_IF(CONDITION,TYPEIFTRUE)  typename madness::enable_if< CONDITION, TYPEIFTRUE >::type
 #define DISABLE_IF(CONDITION,TYPEIFTRUE) typename madness::disable_if< CONDITION, TYPEIFTRUE >::type
-#define ENABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::enable_if<std::is_same< A , B >, TYPEIFTRUE >::type
-#define DISABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::disable_if<std::is_same< A , B >, TYPEIFTRUE >::type
+#define ENABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::enable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
+#define DISABLE_IF_SAME(A,B,TYPEIFTRUE) typename madness::disable_if<madness::is_same< A , B >, TYPEIFTRUE >::type
 
 #endif // MADNESS_WORLD_ENABLE_IF_H__INCLUDED

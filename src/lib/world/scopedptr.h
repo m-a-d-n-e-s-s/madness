@@ -65,7 +65,7 @@
 #define MADNESS_WORLD_SCOPED_PTR_H__INCLUDED
 
 #include <world/worldexc.h>
-#include <world/sharedptr.h>
+#include <world/shared_ptr.h>
 #include <cstddef>
 
 namespace madness {
@@ -121,7 +121,7 @@ namespace madness {
         /// Destructor
 
         /// calls \c delete operator
-        ~ScopedPtr() { detail::checked_delete<ptrT>(ptr_); }
+        ~ScopedPtr() { madness::detail::checked_delete<ptrT>(ptr_); }
 
         /// Reset the current pointer
 
@@ -236,7 +236,7 @@ namespace madness {
         /// Destructor
 
         /// Calls \c delete[] operator
-        ~ScopedArray() { detail::checked_array_delete<ptrT>(ptr_); }
+        ~ScopedArray() { madness::detail::checked_array_delete<ptrT>(ptr_); }
 
         /// Reset the current pointer
 

@@ -44,7 +44,7 @@
 #include <world/nodefaults.h>
 #include <world/worlddep.h>
 #include <world/array.h>
-#include <world/sharedptr.h>
+#include <world/shared_ptr.h>
 #include <world/worldref.h>
 #include <world/typestuff.h>
 #include <world/world.h>

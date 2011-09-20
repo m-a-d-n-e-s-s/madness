@@ -40,7 +40,7 @@
 /// \brief Implements RemoteReference which is for internal use
 
 #include <world/atomicint.h>    // for AtomicInt
-#include <world/sharedptr.h>    // for shared_ptr
+#include <world/shared_ptr.h>   // for shared_ptr
 #include <world/worldtypes.h>   // for ProcessID
 #include <world/archive.h>      // for wrap_opaque
 #include <world/worldam.h>      // for new_am_arg

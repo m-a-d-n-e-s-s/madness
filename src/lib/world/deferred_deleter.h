@@ -35,7 +35,7 @@
 #ifndef MADNESS_WORLD_DEFERRED_DELETER_H__INCLUDED
 #define MADNESS_WORLD_DEFERRED_DELETER_H__INCLUDED
 
-#include <world/sharedptr.h>
+#include <world/shared_ptr.h>
 #include <world/typestuff.h>
 #include <world/deferred_cleanup.h>
 
@@ -70,7 +70,7 @@ namespace madness {
         /// Construct a default deleter for a function pointer
         template <typename D>
         static typename enable_if<std::is_same<D, void(*)(ptrT*)>, D>::type
-        default_deleter() { return & detail::checked_delete<ptrT>; }
+        default_deleter() { return & madness::detail::checked_delete<ptrT>; }
 
         /// Construct a default deleter for a functor
         template <typename D>

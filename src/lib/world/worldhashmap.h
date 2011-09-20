@@ -47,6 +47,7 @@
 #include <world/worldmutex.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
+#include <world/enable_if.h>
 #include <new>
 #include <stdio.h>
 
