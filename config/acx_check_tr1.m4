@@ -82,7 +82,7 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
   # post shared_ptr results
   AC_MSG_RESULT([$acx_shared_ptr])
   if test "$acx_shared_ptr" = no; then
-    AC_MSG_ERROR([std::shared_ptr and std::tr1::shared_ptr are not supported. Reconfigure MADNESS to with the --with-boost option.])
+    echo "std::shared_ptr and std::tr1::shared_ptr not found ... using default implementation"
   fi
   
   #Check for std::make_shared and std::allocate_shared
@@ -189,7 +189,7 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
   # post type traits results
   AC_MSG_RESULT([$acx_type_traits])
   if test "$acx_type_traits" = no; then
-    AC_MSG_ERROR([std and std::tr1 type traits are not supported. Reconfigure MADNESS with the --with-boost option.])
+    echo "std or std::tr1 type traits not found ... using default implentation"
   fi
   
   AC_LANG_RESTORE
@@ -312,7 +312,7 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   # post array results
   AC_MSG_RESULT([$acx_array])
   if test "$acx_array" = no; then
-    AC_MSG_ERROR([std::array and std::tr1::array are not supported. Reconfigure MADNESS to use Boost with the --with-boost option.])
+    echo "std::array or std::tr1::array not supported ... using default implementation"
   fi
 
   AC_LANG_RESTORE
@@ -392,18 +392,18 @@ AC_DEFUN([ACX_CHECK_HASH], [
     )
   fi
   
-  # Check if we should use boost tr1 hash
-  if test "$acx_with_boost$acx_hash" = yesno; then
-    AC_DEFINE([MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP],[1],[define if MADNESS is using <boost/tr1/functional.hpp>.])
-    AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
-    acx_hash=yes
-  fi
+  ## Check if we should use boost tr1 hash
+  #if test "$acx_with_boost$acx_hash" = yesno; then
+  #  AC_DEFINE([MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP],[1],[define if MADNESS is using <boost/tr1/functional.hpp>.])
+  #  AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
+  #  acx_hash=yes
+  #fi
   
   # post hash results
-  AC_MSG_RESULT([$acx_hash])
-  if test "$acx_hash" = no; then
-    AC_MSG_ERROR([std::hash and std::tr1::hash are not supported. Reconfigure MADNESS with the --with-boost option.])
-  fi
+  #AC_MSG_RESULT([$acx_hash])
+  #if test "$acx_hash" = no; then
+  #  AC_MSG_ERROR([std::hash and std::tr1::hash are not supported. Reconfigure MADNESS with the --with-boost option.])
+  #fi
 
   AC_LANG_RESTORE
 ])
@@ -479,17 +479,17 @@ AC_DEFUN([ACX_CHECK_RESULT_OF], [
   fi
   
   # Check if we should use boost tr1 functional
-  if test "$acx_with_boost$acx_result_of" = yesno; then
-    AC_DEFINE([MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP],[1],[define if MADNESS is using <boost/tr1/functional.hpp>.])
-    AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1 restult_of are available.])
-    acx_shared_ptr=yes
-  fi
+  #if test "$acx_with_boost$acx_result_of" = yesno; then
+  #  AC_DEFINE([MADNESS_USE_BOOST_TR1_FUNCTIONAL_HPP],[1],[define if MADNESS is using <boost/tr1/functional.hpp>.])
+  #  AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1 restult_of are available.])
+  #  acx_shared_ptr=yes
+  #fi
   
   # post result_of results
-  AC_MSG_RESULT([$acx_result_of])
-  if test "$acx_result_of" = no; then
-    AC_MSG_ERROR([std and std::tr1 result_of are not supported. Reconfigure MADNESS to use Boost with the --with-boost option.])
-  fi
+  #AC_MSG_RESULT([$acx_result_of])
+  #if test "$acx_result_of" = no; then
+  #  AC_MSG_ERROR([std and std::tr1 result_of are not supported. Reconfigure MADNESS to use Boost with the --with-boost option.])
+  #fi
   
   AC_LANG_RESTORE
 ])
@@ -500,6 +500,6 @@ AC_DEFUN([ACX_CHECK_TR1],
   ACX_CHECK_SHARED_PTR
   ACX_CHECK_TYPE_TRAITS
   ACX_CHECK_ARRAY
-  ACX_CHECK_HASH
+#  ACX_CHECK_HASH
 #  ACX_CHECK_RESULT_OF
 ])
