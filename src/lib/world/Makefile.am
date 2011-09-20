@@ -1,7 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-SUBDIRS = tr1
-
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
                gtest_example qtest worldprofile_test worldptr_test worldref_test \
