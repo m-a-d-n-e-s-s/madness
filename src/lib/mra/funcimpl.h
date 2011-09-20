@@ -2679,7 +2679,7 @@ namespace madness {
             static void load(const Archive& ar, std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
                 const FunctionImpl<T,NDIM>* f = NULL;
                 ArchiveLoadImpl<Archive, const FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & detail::no_delete<const FunctionImpl<T,NDIM> >);
+                ptr.reset(f, & madness::detail::no_delete<const FunctionImpl<T,NDIM> >);
             }
         };
 
@@ -2695,7 +2695,7 @@ namespace madness {
             static void load(const Archive& ar, std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
                 FunctionImpl<T,NDIM>* f = NULL;
                 ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & detail::no_delete<FunctionImpl<T,NDIM> >);
+                ptr.reset(f, & madness::detail::no_delete<FunctionImpl<T,NDIM> >);
             }
         };
 
