@@ -45,7 +45,10 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
         AC_MSG_NOTICE([Setting compiler flags for GNU C++ major=$CXXMAJOR minor=$CXXMINOR micro=$CXXMICRO])
 
         # Flags for all GCC variants
-        acx_enable_optimal_flags="$acx_enable_optimal_flags -ffast-math -std=c++0x"
+        acx_enable_optimal_flags="$acx_enable_optimal_flags -ffast-math"
+        if test $enable_cpp0x = "yes"; then
+          acx_enable_optimal_flags="$acx_enable_optimal_flags -std=c++0x"
+        fi
 
         # Add GCC system specific flags
         if test "x$HAVE_CRAYXT" = xyes; then
@@ -90,6 +93,9 @@ AC_DEFUN([ACX_ENABLE_OPTIMAL], [
 
       Intel)
         acx_enable_optimal_flags="$acx_enable_optimal_flags -ip -no-prec-div -mkl -ansi"
+        if test $enable_cpp0x = "yes"; then
+          acx_enable_optimal_flags="$acx_enable_optimal_flags -std=c++0x"
+        fi
 #-use-intel-optimized-headers -fp-model fast=2 -inline-level=2
       ;;
       

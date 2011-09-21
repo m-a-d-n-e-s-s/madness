@@ -21,55 +21,58 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
     ]
   )
   
-  # Check for std::tr1::shared_ptr in <memory>
-  if test "$acx_shared_ptr" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <memory>]],
-          [[std::tr1::shared_ptr<int> p;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_MEMORY],[1],[define if MADNESS is using <memory>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
-        acx_shared_ptr=yes
-      ]
-    )
-  fi
-  
-  # Check for std::shared_ptr in <tr1/memory>
-  if test "$acx_shared_ptr" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/memory>]],
-          [[std::shared_ptr<int> p;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_MEMORY],[1],[define if MADNESS is using <tr1/memory>.])
-        AC_DEFINE([MADNESS_HAS_STD_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
-        acx_shared_ptr=yes
-      ]
-    )
-  fi
-  
-  # Check for std::tr1::shared_ptr in <tr1/memory>
-  if test "$acx_shared_ptr" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/memory>]],
-          [[std::tr1::shared_ptr<int> p;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_MEMORY],[1],[define if MADNESS is using <tr1/memory>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
-        acx_shared_ptr=yes
-      ]
-    )
+  # Check for std::tr1::shared_ptr in <memory> unless 
+  # disabled by user
+  if test "$enable_cpptr1" = yes; then
+    if test "$acx_shared_ptr" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <memory>]],
+            [[std::tr1::shared_ptr<int> p;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_MEMORY],[1],[define if MADNESS is using <memory>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
+          acx_shared_ptr=yes
+        ]
+      )
+    fi
+
+    # Check for std::shared_ptr in <tr1/memory>
+    if test "$acx_shared_ptr" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/memory>]],
+            [[std::shared_ptr<int> p;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_MEMORY],[1],[define if MADNESS is using <tr1/memory>.])
+          AC_DEFINE([MADNESS_HAS_STD_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
+          acx_shared_ptr=yes
+        ]
+      )
+    fi
+
+    # Check for std::tr1::shared_ptr in <tr1/memory>
+    if test "$acx_shared_ptr" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/memory>]],
+            [[std::tr1::shared_ptr<int> p;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_MEMORY],[1],[define if MADNESS is using <tr1/memory>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
+          acx_shared_ptr=yes
+        ]
+      )
+    fi
   fi
   
   # Check if we should use boost tr1 memory
@@ -131,52 +134,55 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
     ]
   )
 
-  if test "$acx_type_traits" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <type_traits>]],
-          [[typedef std::tr1::is_same<int, double> sameT;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TYPE_TRAITS],[1],[define if MADNESS is using <type_traits>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
-        acx_type_traits=yes
-      ]
-    )
-  fi
-  
-  if test "$acx_type_traits" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/type_traits>]],
-          [[typedef std::is_same<int, double> sameT;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_TYPE_TRAITS],[1],[define if MADNESS is using <tr1/type_traits>.])
-        AC_DEFINE([MADNESS_HAS_STD_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
-        acx_type_traits=yes
-      ]
-    )
-  fi
-  
-  if test "$acx_type_traits" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/type_traits>]],
-          [[typedef std::tr1::is_same<int, double> sameT;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_TYPE_TRAITS],[1],[define if MADNESS is using <tr1/type_traits>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
-        acx_type_traits=yes
-      ]
-    )
+  # look in tr1 unless disabled by the user
+  if test "$enable_cpptr1" = yes; then
+    if test "$acx_type_traits" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <type_traits>]],
+            [[typedef std::tr1::is_same<int, double> sameT;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TYPE_TRAITS],[1],[define if MADNESS is using <type_traits>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
+          acx_type_traits=yes
+        ]
+      )
+    fi
+
+    if test "$acx_type_traits" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/type_traits>]],
+            [[typedef std::is_same<int, double> sameT;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_TYPE_TRAITS],[1],[define if MADNESS is using <tr1/type_traits>.])
+          AC_DEFINE([MADNESS_HAS_STD_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
+          acx_type_traits=yes
+        ]
+      )
+    fi
+
+    if test "$acx_type_traits" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/type_traits>]],
+            [[typedef std::tr1::is_same<int, double> sameT;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_TYPE_TRAITS],[1],[define if MADNESS is using <tr1/type_traits>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
+          acx_type_traits=yes
+        ]
+      )
+    fi
   fi
   
   # Check if we should use boost tr1 type_traits
@@ -220,76 +226,78 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   )
   
   # Check for std::tr1::array in <array>
-  if test "$acx_array" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <array>]],
-          [[std::tr1::array<int,10> a;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_ARRAY],[1],[define if MADNESS is using <array>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])
+  if test "$enable_cpptr1" = yes; then
+    if test "$acx_array" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <array>]],
+            [[std::tr1::array<int,10> a;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_ARRAY],[1],[define if MADNESS is using <array>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])
 
-        # Check to see if array has fill function
-        AC_COMPILE_IFELSE(
-          [
-            AC_LANG_PROGRAM(
-              [[#include <array>]],
-              [[std::tr1::array<int,10> a; a.fill(0);]]
-            )
-          ],
-          [AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])]
-        )
-        acx_array=yes
-      ]
-    )
-  fi
-  
-  # Check for std::array in <tr1/array>
-  if test "$acx_array" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/array>]],
-          [[std::array<int,10> a;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_ARRAY],[1],[define if MADNESS is using <tr1/array>.])
-        AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::tr1::array is available.])
-        AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])
-        acx_array=yes
-      ]
-    )
-  fi
-  
-  # Check for std::tr1::array in <tr1/array>
-  if test "$acx_array" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/array>]],
-          [[std::tr1::array<int,10> a;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_ARRAY],[1],[define if MADNESS is using <tr1/array>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])        
-        # Check to see if array has fill function
-        AC_COMPILE_IFELSE(
-          [
-            AC_LANG_PROGRAM(
-              [[#include <tr1/array>]],
-              [[std::tr1::array<int,10> a; a.fill(0);]]
-            )
-          ],
-          [AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])]
-        )
-        acx_array=yes
-      ]
-    )
+          # Check to see if array has fill function
+          AC_COMPILE_IFELSE(
+            [
+              AC_LANG_PROGRAM(
+                [[#include <array>]],
+                [[std::tr1::array<int,10> a; a.fill(0);]]
+              )
+            ],
+            [AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])]
+          )
+          acx_array=yes
+        ]
+      )
+    fi
+
+    # Check for std::array in <tr1/array>
+    if test "$acx_array" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/array>]],
+            [[std::array<int,10> a;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_ARRAY],[1],[define if MADNESS is using <tr1/array>.])
+          AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::tr1::array is available.])
+          AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])
+          acx_array=yes
+        ]
+      )
+    fi
+
+    # Check for std::tr1::array in <tr1/array>
+    if test "$acx_array" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/array>]],
+            [[std::tr1::array<int,10> a;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_ARRAY],[1],[define if MADNESS is using <tr1/array>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_ARRAY],[1],[define if std::tr1::array is available.])        
+          # Check to see if array has fill function
+          AC_COMPILE_IFELSE(
+            [
+              AC_LANG_PROGRAM(
+                [[#include <tr1/array>]],
+                [[std::tr1::array<int,10> a; a.fill(0);]]
+              )
+            ],
+            [AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])]
+          )
+          acx_array=yes
+        ]
+      )
+    fi
   fi
   
   # Check if we should use boost tr1 array
@@ -341,55 +349,57 @@ AC_DEFUN([ACX_CHECK_HASH], [
     ]
   )
   
-  # Check for std::tr1::hash in <functional>
-  if test "$acx_hash" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <functional>]],
-          [[std::tr1::hash<int> h; h(1);]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if MADNESS is using <functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
-        acx_hash=yes
-      ]
-    )
-  fi
-  
-  # Check for std::hash in <tr1/functional>
-  if test "$acx_hash" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/functional>]],
-          [[std::hash<int> h; h(1);]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_HASH],[1],[define if std::tr1::hash is available.])
-        acx_hash=yes
-      ]
-    )
-  fi
-  
-  # Check for std::tr1::hash in <tr1/functional>
-  if test "$acx_hash" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/functional>]],
-          [[std::tr1::hash<int> h; h(1);]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])        
-        acx_hash=yes
-      ]
-    )
+  if test "$enable_cpptr1" = yes; then
+    # Check for std::tr1::hash in <functional>
+    if test "$acx_hash" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <functional>]],
+            [[std::tr1::hash<int> h; h(1);]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if MADNESS is using <functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])
+          acx_hash=yes
+        ]
+      )
+    fi
+
+    # Check for std::hash in <tr1/functional>
+    if test "$acx_hash" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/functional>]],
+            [[std::hash<int> h; h(1);]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_HASH],[1],[define if std::tr1::hash is available.])
+          acx_hash=yes
+        ]
+      )
+    fi
+
+    # Check for std::tr1::hash in <tr1/functional>
+    if test "$acx_hash" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/functional>]],
+            [[std::tr1::hash<int> h; h(1);]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_HASH],[1],[define if std::tr1::hash is available.])        
+          acx_hash=yes
+        ]
+      )
+    fi
   fi
   
   ## Check if we should use boost tr1 hash
@@ -430,52 +440,54 @@ AC_DEFUN([ACX_CHECK_RESULT_OF], [
     ]
   )
 
-  if test "$acx_result_of" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <functional>]],
-          [[using std::tr1::result_of;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if MADNESS is using <functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1::result_of are available.])
-        acx_result_of=yes
-      ]
-    )
-  fi
-  
-  if test "$acx_result_of" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/functional>]],
-          [[using std::result_of;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_RESULT_OF],[1],[define if std::result_of are available.])
-        acx_result_of=yes
-      ]
-    )
-  fi
-  
-  if test "$acx_result_of" = no; then
-    AC_COMPILE_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[#include <tr1/functional>]],
-          [[using std::tr1::result_of;]]
-        )
-      ],
-      [
-        AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
-        AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1::result_of are available.])
-        acx_result_of=yes
-      ]
-    )
+  if test "$enable_cpptr1" = yes; then
+    if test "$acx_result_of" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <functional>]],
+            [[using std::tr1::result_of;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_FUNCTIONAL],[1],[define if MADNESS is using <functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1::result_of are available.])
+          acx_result_of=yes
+        ]
+      )
+    fi
+
+    if test "$acx_result_of" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/functional>]],
+            [[using std::result_of;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_RESULT_OF],[1],[define if std::result_of are available.])
+          acx_result_of=yes
+        ]
+      )
+    fi
+
+    if test "$acx_result_of" = no; then
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <tr1/functional>]],
+            [[using std::tr1::result_of;]]
+          )
+        ],
+        [
+          AC_DEFINE([MADNESS_USE_TR1_FUNCTIONAL],[1],[define if MADNESS is using <tr1/functional>.])
+          AC_DEFINE([MADNESS_HAS_STD_TR1_RESULT_OF],[1],[define if std::tr1::result_of are available.])
+          acx_result_of=yes
+        ]
+      )
+    fi
   fi
   
   # Check if we should use boost tr1 functional
