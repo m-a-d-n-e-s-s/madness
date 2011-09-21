@@ -99,7 +99,7 @@ typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
 public:
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER) || defined(__PGI)
   using madness::TaskInterface::run;
 #endif
     void run(World& world) {
@@ -251,7 +251,7 @@ public:
         print("Testing barrier with nthread", attr.get_nthread());
     }
 
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER) || defined(__PGI)
   using madness::TaskInterface::run;
 #endif
 
@@ -286,7 +286,7 @@ public:
         print("Timing barrier with nthread", attr.get_nthread());
     }
 
-#ifdef __INTEL_COMPILER
+#if defined(__INTEL_COMPILER) || defined(__PGI)
   using madness::TaskInterface::run;
 #endif
 

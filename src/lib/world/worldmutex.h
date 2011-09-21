@@ -34,6 +34,7 @@
 #define MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 
 #include <madness_config.h>
+#include <pthread.h>
 #ifdef ON_A_MAC
 #include <libkern/OSAtomic.h>
 typedef OSSpinLock pthread_spinlock_t;
