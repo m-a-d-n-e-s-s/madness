@@ -40,23 +40,6 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
       )
     fi
 
-    # Check for std::shared_ptr in <tr1/memory>
-    if test "$acx_shared_ptr" = no; then
-      AC_COMPILE_IFELSE(
-        [
-          AC_LANG_PROGRAM(
-            [[#include <tr1/memory>]],
-            [[std::shared_ptr<int> p;]]
-          )
-        ],
-        [
-          AC_DEFINE([MADNESS_USE_TR1_MEMORY],[1],[define if MADNESS is using <tr1/memory>.])
-          AC_DEFINE([MADNESS_HAS_STD_SHARED_PTR],[1],[define if std::tr1::shared_ptr is available.])
-          acx_shared_ptr=yes
-        ]
-      )
-    fi
-
     # Check for std::tr1::shared_ptr in <tr1/memory>
     if test "$acx_shared_ptr" = no; then
       AC_COMPILE_IFELSE(
@@ -85,7 +68,7 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
   # post shared_ptr results
   AC_MSG_RESULT([$acx_shared_ptr])
   if test "$acx_shared_ptr" = no; then
-    echo "std::shared_ptr and std::tr1::shared_ptr not found ... using default implementation"
+    AC_MSG_WARNING([std::shared_ptr and std::tr1::shared_ptr not found ... using default implementation])
   fi
   
   #Check for std::make_shared and std::allocate_shared
@@ -157,22 +140,6 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
         [
           AC_LANG_PROGRAM(
             [[#include <tr1/type_traits>]],
-            [[typedef std::is_same<int, double> sameT;]]
-          )
-        ],
-        [
-          AC_DEFINE([MADNESS_USE_TR1_TYPE_TRAITS],[1],[define if MADNESS is using <tr1/type_traits>.])
-          AC_DEFINE([MADNESS_HAS_STD_TYPE_TRAITS],[1],[define if std::tr1 type traits are available.])
-          acx_type_traits=yes
-        ]
-      )
-    fi
-
-    if test "$acx_type_traits" = no; then
-      AC_COMPILE_IFELSE(
-        [
-          AC_LANG_PROGRAM(
-            [[#include <tr1/type_traits>]],
             [[typedef std::tr1::is_same<int, double> sameT;]]
           )
         ],
@@ -195,7 +162,7 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
   # post type traits results
   AC_MSG_RESULT([$acx_type_traits])
   if test "$acx_type_traits" = no; then
-    echo "std or std::tr1 type traits not found ... using default implentation"
+    AC_MSG_WARNING([std or std::tr1 type traits not found ... using default implentation])
   fi
   
   AC_LANG_RESTORE
@@ -254,24 +221,6 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
       )
     fi
 
-    # Check for std::array in <tr1/array>
-    if test "$acx_array" = no; then
-      AC_COMPILE_IFELSE(
-        [
-          AC_LANG_PROGRAM(
-            [[#include <tr1/array>]],
-            [[std::array<int,10> a;]]
-          )
-        ],
-        [
-          AC_DEFINE([MADNESS_USE_TR1_ARRAY],[1],[define if MADNESS is using <tr1/array>.])
-          AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::tr1::array is available.])
-          AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])
-          acx_array=yes
-        ]
-      )
-    fi
-
     # Check for std::tr1::array in <tr1/array>
     if test "$acx_array" = no; then
       AC_COMPILE_IFELSE(
@@ -320,7 +269,7 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   # post array results
   AC_MSG_RESULT([$acx_array])
   if test "$acx_array" = no; then
-    echo "std::array or std::tr1::array not supported ... using default implementation"
+    AC_MSG_WARNING([std::array or std::tr1::array not supported ... using default implementation])
   fi
 
   AC_LANG_RESTORE
