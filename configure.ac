@@ -77,6 +77,11 @@ ACX_ENABLE_OPTIMIZATION
 
 # Set warning flags by compiler vendor
 ACX_ENABLE_WARN
+
+# Look for user choice of language standard
+ACX_ENABLE_CPP0XTR1
+
+# Selelect best compilation flags
 ACX_ENABLE_OPTIMAL
 
 # Check for boost
