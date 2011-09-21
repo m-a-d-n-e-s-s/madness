@@ -68,7 +68,7 @@ AC_DEFUN([ACX_CHECK_SHARED_PTR], [
   # post shared_ptr results
   AC_MSG_RESULT([$acx_shared_ptr])
   if test "$acx_shared_ptr" = no; then
-    AC_MSG_WARNING([std::shared_ptr and std::tr1::shared_ptr not found ... using default implementation])
+    AC_MSG_WARN([std::shared_ptr and std::tr1::shared_ptr not found ... using default implementation])
   fi
   
   #Check for std::make_shared and std::allocate_shared
@@ -162,7 +162,7 @@ AC_DEFUN([ACX_CHECK_TYPE_TRAITS], [
   # post type traits results
   AC_MSG_RESULT([$acx_type_traits])
   if test "$acx_type_traits" = no; then
-    AC_MSG_WARNING([std or std::tr1 type traits not found ... using default implentation])
+    AC_MSG_WARN([std or std::tr1 type traits not found ... using default implentation])
   fi
   
   AC_LANG_RESTORE
@@ -269,7 +269,7 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
   # post array results
   AC_MSG_RESULT([$acx_array])
   if test "$acx_array" = no; then
-    AC_MSG_WARNING([std::array or std::tr1::array not supported ... using default implementation])
+    AC_MSG_WARN([std::array or std::tr1::array not supported ... using default implementation])
   fi
 
   AC_LANG_RESTORE
