@@ -44,7 +44,7 @@ AC_DEFUN([ACX_OPTIMAL_CXXFLAGS], [
             ;;
 
          Portland)
-            CXXFLAGS="-O3 -fastsse -Mflushz -Mcache_align"    
+            CXXFLAGS="-O3 -fastsse -Mflushz -Mcache_align -Drestrict=__restrict"    
             echo "Appending -pgf90libs to LIBS so can link against Fortran BLAS/linalg"
             LIBS="$LIBS -pgf90libs"
             if test "x$HAVE_CRAYXT" = xyes; then
