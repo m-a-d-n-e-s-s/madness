@@ -1362,14 +1362,14 @@ namespace madness
 //            _aobasisf.push_back(ao[iao]);
 //          }
 
-      //    for (unsigned int ai = 0; ai < ao.size(); ai++)
-      //    {
-      //      std::ostringstream strm;
-      //      strm << "aod" << ai << ".dx";
-      //      std::string fname = strm.str();
-      //      vector<long> npt(3,101);
-      //      plotdx(ao[ai], fname.c_str(), FunctionDefaults<3>::get_cell(), npt);
-      //    }
+          for (unsigned int ai = 0; ai < ao.size(); ai++)
+          {
+            std::vector<long> npt(3,101);
+            char fnamedx[50];
+            sprintf(fnamedx, "aofunc_k_%2.2d__%2.2d__.dx",ki,ai);
+            std::vector<long> npt2(3,101);
+            plotdx(ao[ai], fnamedx, FunctionDefaults<3>::get_cell(), npt2);
+          }
 
           // load balancing
           //if(_world.size() > 1)
@@ -1401,7 +1401,7 @@ namespace madness
 
           // Build kinetic matrx
           //ctensorT kinetic = ::kinetic_energy_matrix_slow<T,NDIM>(_world, ao, _params.periodic, kpt);
-          ctensorT kinetic = ::kinetic_energy_matrix<T,NDIM>(_world, ao, _params.periodic, kpoint);
+          ctensorT kinetic = ::kinetic_energy_matrix_slow<T,NDIM>(_world, ao, _params.periodic, kpoint);
           // Build the overlap matrix
           if (_world.rank() == 0) print("Building overlap matrix ...\n\n");
           ctensorT overlap = matrix_inner(_world, ao, ao, true);
@@ -1424,7 +1424,26 @@ namespace madness
 
           // Construct and diagonlize Fock matrix
           ctensorT fock = potential + kinetic;
-          fock = 0.5 * (fock + transpose(fock));
+          ctensorT fockzero = fock-conj_transpose(fock);
+          if (_world.rank() == 0)
+          {
+            print("Kinetic:");
+            print(kinetic);
+            print("Potential:");
+            print(potential);
+            print("Fock: (pre-symmetrized)");
+            print(fock);
+            print("FockZero: (should be zero)");
+            print(fockzero);
+            print("Overlap:");
+            print(overlap);
+          }
+          fock = 0.5 * (fock + conj_transpose(fock));
+
+          // WSTHORNTON
+//          fock(3,3) += 0.1;
+//          fock(4,4) += 0.2;
+
           ctensorT c; rtensorT e;
           sygv(fock, overlap, 1, c, e);
 
@@ -2298,14 +2317,13 @@ namespace madness
 
       // WSTHORNTON (debug) Test periodicity
       if (_world.rank() == 0) printf("initial orbitals (periodicity) ...\n\n");
-//      for (unsigned int i = 0; i < _phisa.size(); i++)
-//      {
-//        if (_world.rank() == 0) printf("orbital %d\n",i);
-//        test_periodicity(_phisa[i]);
-//        if (_world.rank() == 0) printf("\n\n");
-//      }
-//      if (_world.rank() == 0) printf("\n\n\n\n");
-
+      for (unsigned int i = 0; i < _phisa.size(); i++)
+      {
+        if (_world.rank() == 0) printf("orbital %d\n",i);
+        test_periodicity(_phisa[i]);
+        if (_world.rank() == 0) printf("\n\n");
+      }
+      if (_world.rank() == 0) printf("\n\n\n\n");
 
       if (_world.rank() == 0) print("size of phisa is:  ", _phisa.size());
       // keep track of how many iterations have gone by without reprojecting
@@ -2432,14 +2450,14 @@ namespace madness
         if (_world.rank() == 0) printf("\n\n\n\n");
 
         // WSTHORNTON (debug) Test periodicity
-//        if (_world.rank() == 0) printf("before BSH application (periodicity) ...\n\n");
-//        for (unsigned int i = 0; i < _phisa.size(); i++)
-//        {
-//          if (_world.rank() == 0) printf("orbital %d\n",i);
-//          test_periodicity(_phisa[i]);
-//          if (_world.rank() == 0) printf("\n\n");
-//        }
-//        if (_world.rank() == 0) printf("\n\n\n\n");
+        if (_world.rank() == 0) printf("before BSH application (periodicity) ...\n\n");
+        for (unsigned int i = 0; i < _phisa.size(); i++)
+        {
+          if (_world.rank() == 0) printf("orbital %d\n",i);
+          test_periodicity(_phisa[i]);
+          if (_world.rank() == 0) printf("\n\n");
+        }
+        if (_world.rank() == 0) printf("\n\n\n\n");
 
         // Make BSH Green's function
         std::vector<poperatorT> bopsa = make_bsh_operators(alpha);
@@ -2676,7 +2694,7 @@ namespace madness
 
       if (_world.rank() == 0) _outputF << "Constructing Fock matrix ...\n\n" << endl;
       tensorT fock = potential + kinetic;
-      fock = 0.5 * (fock + transpose(fock));
+      fock = 0.5 * (fock + conj_transpose(fock));
       _world.gop.fence();
 
       // DEBUG
@@ -3032,6 +3050,14 @@ namespace madness
             functionT dz_wf = Dz(k_wf[i]);
 
             // WSTHORNTON
+            double delxx = std::abs(inner(k_wf[i],Dx(Dx(k_wf[i]))));
+            double delyy = std::abs(inner(k_wf[i],Dy(Dy(k_wf[i]))));
+            double delzz = std::abs(inner(k_wf[i],Dz(Dz(k_wf[i]))));
+
+            if (_world.rank() == 0)
+              printf("orb %2.2d  delxx:  %15.8e  delyy:  %15.8e  delzz:  %15.8e\n",i, delxx, delyy, delzz);
+
+            // WSTHORNTON
             std::vector<long> npt(3,101);
             char fnamedx[50];
             sprintf(fnamedx, "xorb%2.2d__.dx",i);
@@ -3341,7 +3367,7 @@ namespace madness
 
       if (_world.rank() == 0) _outputF << "Constructing Fock matrix ...\n\n" << endl;
       tensorT fock = potential + kinetic;
-      fock = 0.5 * (fock + transpose(fock));
+      fock = 0.5 * (fock + conj_transpose(fock));
       _world.gop.fence();
 
       return fock;
@@ -3380,7 +3406,7 @@ namespace madness
         int n=s.dim(0), m=s.dim(1);
         MADNESS_ASSERT(n==m);
         ctensorT c; rtensorT e;
-        //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
+        //s.gaxpy(0.5,conj_transpose(s),0.5); // Ensure exact symmetry
         syev(s, c, e);
         for (int i=0; i<n; ++i) {
             if (e(i) < -tol) {
