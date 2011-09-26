@@ -44,67 +44,90 @@ protected:
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
+    void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
+                         madness::Tensor<double>& rho, 
+                         madness::Tensor<double>& sigma) const;
     int nderiv;
 #endif
 
-    // For x<xmax, smoothly restricts x to be greater than or equal to xmin>0
-    static double munge(double x, double xmin, double xmax) {
-        // A quintic polyn that smoothly interpolates between
-        //
-        // x=0    where it has value xmin and zero slope, and
-        //
-        // x=xmax where it has value xmax, unit slope, and zero seond and third derivatives
-        
+
+    /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
+
+    /// \f[
+    ///  f(x,x_{min},x_{max}) = \left\{
+    /// \begin{array}{ll}
+    ///   x_{min} & x < x_{min}  \                                      \
+    ///   p(x,x_{min},x_{max}) &  x_{min} \leq x \leq x_{max} \         \
+    ///   x & x_{max} < x 
+    /// \end{array}
+    /// \right.
+    /// \f]
+    /// where \f$p(x)\f$ is the unique quintic polynomial that 
+    /// satisfies \f$p(x_{min})=x_{min}\f$, \f$p(x_{max})=x_{max}\f$, 
+    /// \f$dp(x_{max})/dx=1\f$, and 
+    /// \f$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0\f$.
+    static void polyn(const double x, double& p, double& dpdx) {
+        // All of the static const stuff is evaluated at compile time
+
+        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+
+        static const double xmax2 = xmax*xmax;
+        static const double xmax3 = xmax2*xmax;
+        static const double xmin2 = xmin*xmin;
+        static const double xmin3 = xmin2*xmin;
+        static const double r = 1.0/((xmax-xmin)*(-xmin3+(3.0*xmin2+(-3.0*xmin+xmax)*xmax)*xmax));
+        static const double a0 = xmax3*xmin*(xmax-4.0*xmin)*r;
+        static const double a = xmin2*(xmin2+(-4.0*xmin+18.0*xmax)*xmax)*r;
+        static const double b = -6.0*xmin*xmax*(3.0*xmax+2.0*xmin)*r;
+        static const double c = (4.0*xmin2+(20.0*xmin+6.0*xmax)*xmax)*r;
+        static const double d = -(8.0*xmax+7.0*xmin)*r;
+        static const double e = 3.0*r;
+
         if (x > xmax) {
-            return x; // most probable case
+            p = x;
+            dpdx = 1.0;
         }
-        else if (x <= 0.0) {
-            return xmin;
+        else if (x < xmin) {
+            p = xmin;
+            dpdx = 0.0;
         }
         else {
-            double xmax2 = xmax*xmax;
-            double xmax3 = xmax2*xmax;
-            double xmax4 = xmax2*xmax2;
-            double xmax5 = xmax3*xmax2;
-
-            return xmin+((-10.0*xmin+4.0*xmax)/xmax2+(-(-20.0*xmin+6.0*xmax)/xmax3+((-15.0*xmin+4.0*xmax)/xmax4-(-4.0*xmin+xmax)*x/xmax5)*x)*x)*x*x;
+            p = a0+(a+(b+(c+(d+e*x)*x)*x)*x)*x;
+            dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
         }
     }
 
-    // Uses same smoothing as above but smooths f (=x), and |del f|^2
-    static void munge2(double& x, double& delxsq, double xmin, double xmax) {
-        
-        if (x > xmax) {
-            return;
-        }
-        else if (x <= 0.0) {
-            x = xmin;
-            delxsq = 0.0;
-        }
-        else {
-            double xmax2 = xmax*xmax;
-            double xmax3 = xmax2*xmax;
-            double xmax4 = xmax2*xmax2;
-            double xmax5 = xmax3*xmax2;
-
-            x = xmin+((-10.0*xmin+4.0*xmax)/xmax2+(-(-20.0*xmin+6.0*xmax)/xmax3+((-15.0*xmin+4.0*xmax)/xmax4-(-4.0*xmin+xmax)*x/xmax5)*x)*x)*x*x;
-
-            // This is just the derivative of the above 
-            double d = ((-20.0*xmin+8.0*xmax)/xmax2+((60.0*xmin-18.0*xmax)/xmax3+((-60.0*xmin+16.0*xmax)/xmax4+(20.0*xmin-5*xmax)*x/xmax5)*x)*x)*x;
-
-            delxsq *= d*d;
-        }
+    static double munge(double rho) {
+        double p, dpdx;
+        polyn(rho, p, dpdx);
+        return p;
     }
 
-    // Smoothly maps the density to a value slightly greater than zero
-    static double munge_rho(double r)  {
-        return munge(r, 1e-10, 1e-8);
-        return r;
+    static void munge2(double& rho, double& sigma) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (sigma < 0.0) sigma = 0.0;
+        double p, dpdx;
+        polyn(rho, p, dpdx);
+        rho = p;
+        sigma *= dpdx*dpdx;
     }
 
-    // Smooths density and also returns consistent scaling of sigma = |grad rho|^2
-    static void munge_rho_sig(double& r, double& sig)  {
-        return munge2(r, sig, 1e-10, 1e-8);
+    static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (saa < 0.0) saa = 0.0;
+        if (sab < 0.0) sab = 0.0;
+        if (sbb < 0.0) sbb = 0.0;
+        double pa, pb, dpadx, dpbdx;
+        polyn(rhoa, pa, dpadx);
+        polyn(rhob, pb, dpbdx);
+        rhoa = pa;
+        rhob = pb;
+        saa *= dpadx*dpadx;
+        sab *= dpadx*dpbdx;
+        sbb *= dpbdx*dpbdx;
     }
 
 public:

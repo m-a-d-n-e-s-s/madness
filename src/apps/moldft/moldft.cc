@@ -958,7 +958,7 @@ struct Calculation {
         Level initial_level = 2;
         for(int i = 0;i < aobasis.nbf(molecule);++i){
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-            ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+            ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence().truncate_mode(1);
         }
         world.gop.fence();
         std::vector<double> norms;
@@ -973,7 +973,7 @@ struct Calculation {
                 if(norms[i] < 0.25){
                     ++nredone;
                     functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-                    ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
+                    ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence().truncate_mode(1);
                 }
             }
 
@@ -1657,9 +1657,9 @@ struct Calculation {
     }
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int what) 
     {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc,ispin), vf);
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc,what), vf);
     }
 
     double make_dft_energy(World & world, const vecfuncT& vf)
@@ -1669,15 +1669,34 @@ struct Calculation {
     }
 
     vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
-                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin)
+                             const vecfuncT& vf, const vecfuncT& delrho, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
         exc = 0.0;
 
+        print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf);
             vloc = vloc + make_dft_potential(world, vf, ispin);
+            print("VLOC1", vloc.trace(), vloc.norm2());
+
+            if (xc.is_gga()) {
+                if (xc.is_spin_polarized()) {
+                    throw "not yet";
+                }
+                else {
+                    print("VF", vf[0].trace(), vf[1].trace());
+                    real_function_3d vsig = make_dft_potential(world, vf, 1);
+                    print("VSIG", vsig.trace(), vsig.norm2());
+                    real_function_3d vr(world);
+                    for (int axis=0; axis<3; axis++) {
+                        vr += (*gradop[axis])(vsig*delrho[axis]);
+                    }
+                    vloc = vloc - vr; // need a 2?
+                    print("VLOC2", vloc.trace(), vloc.norm2());
+                }
+            }
             END_TIMER(world, "DFT potential");
         }
         
@@ -1849,9 +1868,14 @@ struct Calculation {
         ops.clear();
         Vpsi.clear();
         world.gop.fence();
+
+        // Thought it was a bad idea to truncate *before* computing the residual
+        // but simple tests suggest otherwise ... no more iterations and 
+        // reduced iteration time from truncating.
         START_TIMER(world);
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
+
         vecfuncT r = sub(world, psi, new_psi);
         std::vector<double> rnorm = norm2s(world, r);
         if (world.rank() == 0) print("residuals", rnorm);
@@ -2358,27 +2382,35 @@ struct Calculation {
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
 
-            vecfuncT vf;
+            vecfuncT vf, delrho;
             if (xc.is_dft()) {
                 arho.reconstruct();
                 if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
 
                 vf.push_back(arho);
-                if (xc.is_spin_polarized()) vf.push_back(brho); // What to do for no beta electrons and spin polarized?
+                if (xc.is_spin_polarized()) vf.push_back(brho);
                 if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) vf.push_back((*gradop[axis])(arho,false));
-                    if (param.nbeta && xc.is_spin_polarized()) 
-                        for(int axis=0; axis<3; ++axis) vf.push_back((*gradop[axis])(brho,false));
-                    world.gop.fence();
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
+                    if (xc.is_spin_polarized()) {
+                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+                    }
+                    world.gop.fence(); // NECESSARY
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
+                    if (xc.is_spin_polarized()) {
+                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+                    }
                 }
-                if (vf.size() > 1UL) 
+                if (vf.size()) {
+                    reconstruct(world, vf);
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                }
             }
             
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, vlocal, exca, 0);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
             vecfuncT Vpsib;
             if(!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, vlocal, excb, 1);
+                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
             }
 
             double ekina = 0.0, ekinb = 0.0;

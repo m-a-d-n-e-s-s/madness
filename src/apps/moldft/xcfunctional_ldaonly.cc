@@ -66,8 +66,8 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
-            double ra = munge_rho(arho[i]); 
-            double rb = munge_rho(brho[i]); 
+            double ra = munge(arho[i]); 
+            double rb = munge(brho[i]); 
             double xf, cf, xdfdr[2], cdfdr[2];
             
             x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
@@ -80,7 +80,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         MADNESS_ASSERT(t.size() == 1);
         double q1, q2, dq;
         for (unsigned int i=0; i<result.size(); i++) {
-            double r = munge_rho(2.0 * arho[i]); 
+            double r = munge(2.0 * arho[i]); 
             x_rks_s__(&r, &q1, &dq);
             c_rks_vwn5__(&r, &q2, &dq);
             f[i] = q1 + q2; 
@@ -100,8 +100,8 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
         MADNESS_ASSERT(t.size() == 2);
         const double* brho = t[1].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
-            double ra = munge_rho(arho[i]); 
-            double rb = munge_rho(brho[i]); 
+            double ra = munge(arho[i]); 
+            double rb = munge(brho[i]); 
             double xf, cf, xdfdr[2], cdfdr[2];
             
             x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
@@ -114,7 +114,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
         MADNESS_ASSERT(t.size() == 1);
         const double* arho = t[0].ptr();
         for (unsigned int i=0; i<result.size(); i++) {
-            double r = munge_rho(2.0 * arho[i]); 
+            double r = munge(2.0 * arho[i]); 
             double q, dq1, dq2;
             x_rks_s__(&r, &q, &dq1);
             c_rks_vwn5__(&r, &q, &dq2); 
