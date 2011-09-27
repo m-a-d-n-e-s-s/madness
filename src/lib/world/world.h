@@ -346,7 +346,7 @@ typedef UINT64_T uint64_t;
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
 //#include <world/sharedptr.h>
-//#include <world/archive.h>
+#include <world/archive.h>
 #include <world/worldprofile.h>
 #include <world/worldthread.h>
 
@@ -469,6 +469,107 @@ namespace madness {
         }
     }; // class uniqueidT
 
+    class ComputeBase {
+    public: 
+        long computeAddress;                                                  
+            
+        ComputeBase() : computeAddress(0) {}
+
+        ComputeBase(long _address) : computeAddress(_address) {}                                  
+
+        /*
+        bool
+        operator==(const ComputeBase& other) const {
+           return computeAddress == other.computeAddress;
+        }        
+
+        bool
+        operator==(const ComputeBase& other) const {
+           return !(*this == other);
+        } 
+        */   
+
+        virtual void add(void * obj){
+
+        }
+
+        virtual void addArg(void * arg){
+
+        }
+
+        virtual void run() {}    
+    };            
+                     
+    template <typename memfunComputeT, typename memfunPostprocessT, typename arg1T, typename objT>           
+    class ComputeDerived : public ComputeBase {                                      
+    public:
+        typedef MEMFUN_RETURNT(memfunComputeT) ret1T;
+        
+        memfunComputeT memfunCompute; memfunPostprocessT memfunPostprocess;
+        //arg1T arg1;
+        //objT obj;
+
+        std::vector<objT*> inObj;
+        std::vector<arg1T> inArgs;
+        std::vector<ret1T> outArgs;        
+
+        ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess) : 
+           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess) {
+        }
+        
+        virtual void add(void * obj){
+           addObj(static_cast<objT *>(obj));
+        }
+
+        virtual void addArg(void * arg){
+           addInArg(*(static_cast<arg1T *>(arg)));
+        }
+
+        void addObj(objT * obj){
+          inObj.push_back(obj);
+        }
+
+        void addInArg(arg1T arg1){
+          inArgs.push_back(arg1);
+        }
+        
+        /*
+        bool
+        operator==(const ComputeBase& other) const {
+           return computeAddress == other.computeAddress;
+        }        
+
+        bool
+        operator==(const ComputeBase& other) const {
+           return !(*this == other);
+        }
+
+        bool
+        operator==(const ComputeDerived& other) const {
+           return computeAddress == other.computeAddress;
+        }        
+
+        bool
+        operator==(const ComputeDerived& other) const {
+           return !(*this == other);
+        }    
+        */  
+
+        virtual void run(){
+          for (unsigned int i = 0; i < inArgs.size(); i++){
+            objT * obj = inObj.at(i);
+            arg1T arg1 = inArgs.at(i);  
+            ret1T ret1 = (obj->*memfunCompute)(arg1);
+            outArgs.push_back(ret1);
+          }
+
+          for (unsigned int i = 0; i < outArgs.size(); i++){  
+            objT * obj = inObj.at(i);
+            (obj->*memfunPostprocess)(outArgs.at(i));  
+          }
+        }
+    };        
+
     /// A parallel world with full functionality wrapping an MPI communicator
 
     /// Multiple worlds with different communicators can co-exist.
@@ -516,6 +617,8 @@ namespace madness {
         WorldTaskQueue& taskq;   ///< Task queue
         WorldGopInterface& gop;  ///< Global operations
 
+        ConcurrentHashMap<long, ComputeBase*>& gpu_hash;
+        
     private:
         unsigned int myrand_next;///< State of crude internal random number generator
 

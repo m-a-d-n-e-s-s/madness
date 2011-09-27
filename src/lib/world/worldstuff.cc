@@ -66,6 +66,7 @@ namespace madness {
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
             , gop(* (new WorldGopInterface(*this)))
+            , gpu_hash(* (new ConcurrentHashMap<long, ComputeBase*>()))
             , myrand_next(0)
     {
         worlds.push_back(this);
@@ -235,6 +236,10 @@ namespace madness {
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
+
+        //For CPS on GPU:
+        EverRunningTask * ert = new EverRunningTask;
+        ThreadPool::add(ert);
     }
 
     void finalize() {

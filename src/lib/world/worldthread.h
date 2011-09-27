@@ -40,6 +40,7 @@
 #include <vector>
 #include <cstddef>
 #include <pthread.h>
+#include <sched.h> // Needed for sched_yield()
 
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
@@ -339,13 +340,25 @@ namespace madness {
         }
     };
 
+    /// An ever-running task for communication with GPU
+    class EverRunningTask : public PoolTaskInterface {
+    public:
+        void run(const TaskThreadEnv& info) {
+          while (1){
+            printf("ERT \n");
+            sched_yield();
+            sleep(10);
+          }
+        }
+        virtual ~EverRunningTask() {}
+    };
+
     /// A no-op task used for various purposes
     class PoolTaskNull : public PoolTaskInterface {
     public:
         void run(const TaskThreadEnv& /*info*/) {}
         virtual ~PoolTaskNull() {}
     };
-
 
     /// A singleton pool of threads for dynamic execution of tasks.
 

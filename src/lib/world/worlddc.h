@@ -545,25 +545,28 @@ namespace madness {
             typedef MEMFUN_RETURNT(memfun1T) ret1T;
 	    typedef MEMFUN_RETURNT(memfun2T) ret2T;
             typedef MEMFUN_RETURNT(memfun3T) ret3T;
-            //ret1T(implT::*itemfun)(const keyT&, memfun1T, const keyT&, const containerT&, const arg1T&, const arg2T&, const arg3T&, const arg4T&, const arg5T&) = &implT:: template itemfun<memfun1T, keyT, containerT, arg1T, arg2T, arg3T, arg4T, arg5T>;
-                   
-            //print("before accessor");
-            //accessor acc;
-            //local.insert(acc, key);
+            
             iterator it = find(key).get();
             ret1T ret1 = (it->second.*memfun1)(arg1);
-            //ret2T(implT::*itemfun)(const keyT&, memfun2T, const ret1T&) = &implT:: template itemfun<memfun2T, ret1T>;
-            
-            //print("locally updated 1");
 
+            /*
             ret2T ret2 = (it->second.*memfun2)(ret1);
-            //ret3T(implT::*itemfun)(const keyT&, memfun3T, const ret2T&) = &implT:: template itemfun<memfun3T, ret2T>;
             
-            //print("locally updated 2");
-            
-            /*ret3T ret3 = */(it->second.*memfun3)(ret2);     
+            (it->second.*memfun3)(ret2);     
+            */
 
-            //print("locally updated");
+            ComputeDerived<memfun2T, memfun3T, ret1T, valueT> * cd = 
+               new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3);
+
+            ComputeBase * cb = static_cast<ComputeBase *>(cd);
+
+            cb->add(&(it->second));
+            cb->addArg(&ret1);
+
+            cb->run();
+
+            delete cd;  
+
             return None;
         } 
 
