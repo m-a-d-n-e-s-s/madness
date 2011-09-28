@@ -618,6 +618,7 @@ namespace madness {
         WorldGopInterface& gop;  ///< Global operations
 
         ConcurrentHashMap<long, ComputeBase*>& gpu_hash;
+        Spinlock gpu_hashlock;
         
     private:
         unsigned int myrand_next;///< State of crude internal random number generator

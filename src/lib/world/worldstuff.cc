@@ -59,6 +59,26 @@ namespace madness {
 
     static int finalizestate = 0;
 
+    /// An ever-running task for communication with GPU
+    class EverRunningTask : public PoolTaskInterface {
+    public:
+
+        World * w;
+
+        EverRunningTask(World * _w): PoolTaskInterface(){
+           w = _w;
+        }
+
+        void run(const TaskThreadEnv& info) {
+          while (1){
+            printf("ERT \n");
+            sched_yield();
+            sleep(10);
+          }
+        }
+        virtual ~EverRunningTask() {}
+    };
+
     World::World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
@@ -70,6 +90,12 @@ namespace madness {
             , myrand_next(0)
     {
         worlds.push_back(this);
+
+        //For CPS on GPU:
+        //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
+        EverRunningTask * ert = new EverRunningTask(this);
+        ThreadPool::add(ert);
+
         srand();  // Initialize random number generator
         cpu_frequency();
 
@@ -236,10 +262,6 @@ namespace madness {
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
-
-        //For CPS on GPU:
-        EverRunningTask * ert = new EverRunningTask;
-        ThreadPool::add(ert);
     }
 
     void finalize() {
