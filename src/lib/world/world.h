@@ -334,8 +334,12 @@ instantiate the templates that you are using.
 #include <utility>
 #include <cstddef>
 
-#ifdef HAVE_RANDOM
+#include <stdio.h>
 #include <stdlib.h>
+#include <pthread.h>
+
+#ifdef HAVE_RANDOM
+//#include <stdlib.h>
 #endif
 
 #ifdef UINT64_T
@@ -497,7 +501,11 @@ namespace madness {
 
         }
 
-        virtual void run() {}    
+        virtual void run() {}   
+
+        virtual void aggregateParams(ComputeBase * base) {}
+
+        virtual ~ComputeBase() {} 
     };            
                      
     template <typename memfunComputeT, typename memfunPostprocessT, typename arg1T, typename objT>           
@@ -513,8 +521,10 @@ namespace madness {
         std::vector<arg1T> inArgs;
         std::vector<ret1T> outArgs;        
 
-        ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess) : 
-           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess) {
+        WorldTaskQueue * q;
+
+        ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess, WorldTaskQueue * _q) : 
+           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess), q(_q) {
         }
         
         virtual void add(void * obj){
@@ -555,19 +565,17 @@ namespace madness {
         }    
         */  
 
-        virtual void run(){
-          for (unsigned int i = 0; i < inArgs.size(); i++){
-            objT * obj = inObj.at(i);
-            arg1T arg1 = inArgs.at(i);  
-            ret1T ret1 = (obj->*memfunCompute)(arg1);
-            outArgs.push_back(ret1);
-          }
+        virtual void run();
 
-          for (unsigned int i = 0; i < outArgs.size(); i++){  
-            objT * obj = inObj.at(i);
-            (obj->*memfunPostprocess)(outArgs.at(i));  
-          }
+        virtual void aggregateParams(ComputeBase * base) {
+          ComputeDerived<memfunComputeT, memfunPostprocessT, ret1T, objT> * derived = static_cast<ComputeDerived<memfunComputeT, memfunPostprocessT, ret1T, objT> *>(base);
+          memfunCompute = derived->memfunCompute;
+          memfunPostprocess = derived->memfunPostprocess;
+          addObj(derived->inObj.at(0));
+          addInArg(derived->inArgs.at(0));
         }
+
+        virtual ~ComputeDerived() {}
     };        
 
     /// A parallel world with full functionality wrapping an MPI communicator
@@ -617,6 +625,7 @@ namespace madness {
         WorldTaskQueue& taskq;   ///< Task queue
         WorldGopInterface& gop;  ///< Global operations
 
+        pthread_t gpu_thread;
         ConcurrentHashMap<long, ComputeBase*>& gpu_hash;
         Spinlock gpu_hashlock;
         
@@ -817,6 +826,7 @@ namespace madness {
 
         ~World();
     }; // class World
+       
 
     namespace archive {
 

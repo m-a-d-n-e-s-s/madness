@@ -186,6 +186,14 @@ namespace madness {
         /// Returns the number of pending tasks
         size_t size() const { return nregistered; }
 
+        void incNRegistered(){
+            nregistered++;
+        }
+
+        void decNRegistered(){
+            nregistered--;
+        }
+
         /// Add a new local task taking ownership of the pointer
 
         /// The task pointer (t) is assumed to have been created with
@@ -742,6 +750,23 @@ namespace madness {
         /// While waiting the calling thread will run tasks.
         void fence();
     };
+
+     template <typename memfunComputeT, typename memfunPostprocessT, typename arg1T, typename objT> 
+     void ComputeDerived<memfunComputeT, memfunPostprocessT, arg1T, objT>::run(){
+        for (unsigned int i = 0; i < inArgs.size(); i++){
+             objT * obj = inObj.at(i);
+             arg1T arg1 = inArgs.at(i);  
+             ret1T ret1 = (obj->*memfunCompute)(arg1);
+             outArgs.push_back(ret1);
+        }
+
+        for (unsigned int i = 0; i < outArgs.size(); i++){  
+            objT * obj = inObj.at(i);
+            //(obj->*memfunPostprocess)(outArgs.at(i));
+            q->add(*obj, memfunPostprocess, outArgs.at(i));
+            q->decNRegistered();  
+        }
+    }
 
 
     /// Serialization container for sending tasks to remote nodes

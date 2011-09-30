@@ -38,6 +38,10 @@
 #include <cstdlib>
 #include <sstream>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
 
@@ -60,6 +64,7 @@ namespace madness {
     static int finalizestate = 0;
 
     /// An ever-running task for communication with GPU
+    /*
     class EverRunningTask : public PoolTaskInterface {
     public:
 
@@ -78,6 +83,29 @@ namespace madness {
         }
         virtual ~EverRunningTask() {}
     };
+    */
+
+    void * everRunningTask(void * arg){
+          World * w = static_cast<World *>(arg);
+          while (1){
+            //printf("ERT \n");
+            sched_yield();
+            usleep(50);
+            w->gpu_hashlock.lock();
+            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
+
+            gpu_it = w->gpu_hash.begin();
+            while (gpu_it != w->gpu_hash.end()){
+                (*gpu_it).second->run();
+                ConcurrentHashMap<long, ComputeBase *>::iterator temp_it = gpu_it;
+                gpu_it++;
+                w->gpu_hash.erase(temp_it);
+            }
+
+            w->gpu_hashlock.unlock(); 
+          }
+          return NULL;
+    }
 
     World::World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
@@ -90,11 +118,6 @@ namespace madness {
             , myrand_next(0)
     {
         worlds.push_back(this);
-
-        //For CPS on GPU:
-        //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
-        EverRunningTask * ert = new EverRunningTask(this);
-        ThreadPool::add(ert);
 
         srand();  // Initialize random number generator
         cpu_frequency();
@@ -115,6 +138,12 @@ namespace madness {
         gop.barrier();
 
 //        std::cout << "JUST MADE WORLD " << id() << std::endl
+
+        //For CPS on GPU:
+        //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
+        //EverRunningTask * ert = new EverRunningTask(this);
+        //ThreadPool::add(ert);
+        int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
     }
 
 

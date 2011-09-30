@@ -71,7 +71,6 @@ namespace madness {
 	virtual ~WorldDCRedistributeInterface() {};
     };
 
-
     /// Interface to be provided by any process map
 
     /// \ingroup worlddc
@@ -547,60 +546,49 @@ namespace madness {
             typedef MEMFUN_RETURNT(memfun3T) ret3T;
             
             iterator it = find(key).get();
-            //accessor acc;
-            //local.insert(acc, key);
             ret1T ret1 = (it->second.*memfun1)(arg1);
-            //acc.release();
-
-            /*
-            ret2T ret2 = (it->second.*memfun2)(ret1);
             
-            (it->second.*memfun3)(ret2);     
-            */
+            ////accessor acc;
+            ////local.find(acc, key);
+            ////ret1T ret1 = (acc->second.*memfun1)(arg1);
+
 
             
             ComputeDerived<memfun2T, memfun3T, ret1T, valueT> * cd = 
-               new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3);
+               new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3, &(this->world.taskq));
 
             ComputeBase * cb = static_cast<ComputeBase *>(cd);
 
             cb->add(&(it->second));
+            ////cb->add(&(acc->second));
             cb->addArg(&ret1);
-           
-            /* 
-            ConcurrentHashMap<long, ComputeBase *>::accessor acc_gpu;
-            bool found = this->world.gpu_hash.find(acc_gpu, (long)(&memfun2));
-            if (!found){
-               worldobjT::world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
-            }
-            else{
-               worldobjT::world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
-               //Need to change this to not overwrite the object, but add to its vector 
-            }
-            //acc_gpu.release();
-            */
-
-            //iterator it1 = this->world.gpu_hash.find((long)(&memfun2));
-            //(*acc_gpu).second->run();
-            //MADNESS_ASSERT(it1 != this->world.gpu_hash.end());
-            //it1->second()->run();
+            ////acc.release();
             
-            //cb->run();
-
-            //acc_gpu.release();
+            ////ConcurrentHashMap<long, ComputeBase *>::accessor acc_gpu;
+            ////worldobjT::world.gpu_hash.insert(acc_gpu, (long)(&memfun2));
+            ////(acc_gpu->second->aggregateParams(cb));
+               //Need to change this to not overwrite the object, but add to its vector 
 
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            
             this->world.gpu_hashlock.lock();
             gpu_it = this->world.gpu_hash.find((long)(&memfun2));
-            if (gpu_it != gpu_end) this->world.gpu_hash.erase(gpu_it);
-            this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
- 
-            gpu_it = this->world.gpu_hash.find((long)(&memfun2));
-            MADNESS_ASSERT(gpu_it != gpu_end);
-            (*gpu_it).second->run();
+            if (gpu_it != gpu_end){ 
+                (*gpu_it).second->add(cd->inObj.at(0));
+                (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
+                delete cd;  
+
+            }
+            else{
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
+            }
+
+            this->world.taskq.incNRegistered(); 
+            //gpu_it = this->world.gpu_hash.find((long)(&memfun2));
+            //MADNESS_ASSERT(gpu_it != gpu_end);
+            //(*gpu_it).second->run();
             this->world.gpu_hashlock.unlock();
-            delete cd;  
 
             return None;
         } 
