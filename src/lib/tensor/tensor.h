@@ -378,8 +378,9 @@ namespace madness {
         /// b = a;
         /// b[1] = 3; // a[1] is now also 3
         /// \endcode
+
         Tensor<T>& operator=(const Tensor<T>& t) {
-            if (this != &t) {
+           if (this != &t) {
                 _p = t._p;
                 _shptr = t._shptr;
                 _size = t._size;
@@ -391,7 +392,6 @@ namespace madness {
             }
             return *this;
         }
-
 
         /// Type conversion makes a deep copy
         template <class Q> operator Tensor<Q>() const { // type conv => deep copy

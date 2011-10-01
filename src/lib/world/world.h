@@ -503,7 +503,7 @@ namespace madness {
 
         virtual void run() {}   
 
-        virtual void aggregateParams(ComputeBase * base) {}
+        //virtual void aggregateParams(ComputeBase * base) {}
 
         virtual ~ComputeBase() {} 
     };            
@@ -512,6 +512,7 @@ namespace madness {
     class ComputeDerived : public ComputeBase {                                      
     public:
         typedef MEMFUN_RETURNT(memfunComputeT) ret1T;
+        typedef MEMFUN_ARG1T(memfunPostprocessT) param2T;
         
         memfunComputeT memfunCompute; memfunPostprocessT memfunPostprocess;
         //arg1T arg1;
@@ -519,7 +520,8 @@ namespace madness {
 
         std::vector<objT*> inObj;
         std::vector<arg1T> inArgs;
-        std::vector<ret1T> outArgs;        
+        //std::vector<ret1T> outArgs;        
+        std::vector<param2T> outArgs;        
 
         WorldTaskQueue * q;
 
@@ -567,6 +569,7 @@ namespace madness {
 
         virtual void run();
 
+        /*
         virtual void aggregateParams(ComputeBase * base) {
           ComputeDerived<memfunComputeT, memfunPostprocessT, ret1T, objT> * derived = static_cast<ComputeDerived<memfunComputeT, memfunPostprocessT, ret1T, objT> *>(base);
           memfunCompute = derived->memfunCompute;
@@ -574,6 +577,7 @@ namespace madness {
           addObj(derived->inObj.at(0));
           addInArg(derived->inArgs.at(0));
         }
+        */
 
         virtual ~ComputeDerived() {}
     };        

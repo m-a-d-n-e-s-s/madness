@@ -532,11 +532,11 @@ namespace madness {
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
         Void
-        __local_update(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, arg1T arg1){
+        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, arg1T arg1){
             ProcessID dest = owner(key);
             if (dest != me){
                print("send task");
-               worldobjT::task(dest, &implT:: template __local_update<memfun1T, memfun2T, memfun3T, arg1T>, key, memfun1, memfun2, memfun3, arg1);
+               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, arg1T>, key, memfun1, memfun2, memfun3, arg1);
  
                return None;
             }
@@ -552,8 +552,7 @@ namespace madness {
             ////local.find(acc, key);
             ////ret1T ret1 = (acc->second.*memfun1)(arg1);
 
-
-            
+                      
             ComputeDerived<memfun2T, memfun3T, ret1T, valueT> * cd = 
                new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3, &(this->world.taskq));
 
@@ -589,6 +588,31 @@ namespace madness {
             //MADNESS_ASSERT(gpu_it != gpu_end);
             //(*gpu_it).second->run();
             this->world.gpu_hashlock.unlock();
+           
+
+            return None;
+        } 
+
+        template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
+        Void
+        __local_update(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, arg1T arg1){
+            ProcessID dest = owner(key);
+            if (dest != me){
+               print("send task");
+               worldobjT::task(dest, &implT:: template __local_update<memfun1T, memfun2T, memfun3T, arg1T>, key, memfun1, memfun2, memfun3, arg1);
+ 
+               return None;
+            }
+             
+            typedef MEMFUN_RETURNT(memfun1T) ret1T;
+	    typedef MEMFUN_RETURNT(memfun2T) ret2T;
+            typedef MEMFUN_RETURNT(memfun3T) ret3T;
+            
+            iterator it = find(key).get();
+            ret1T ret1 = (it->second.*memfun1)(arg1);
+            ret2T ret2 = (it->second.*memfun2)(ret1);
+            (it->second.*memfun3)(ret2);
+
 
             return None;
         } 
@@ -1322,6 +1346,16 @@ namespace madness {
             typedef REMFUTURE(arg1T) a1T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T>;
             return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, attr);
+        }
+
+        template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
+        Void
+        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            p->__local_updateGPU(key, memfun1, memfun2, memfun3, arg1);
+            
+            return None;
         }
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>

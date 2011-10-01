@@ -753,12 +753,14 @@ namespace madness {
 
      template <typename memfunComputeT, typename memfunPostprocessT, typename arg1T, typename objT> 
      void ComputeDerived<memfunComputeT, memfunPostprocessT, arg1T, objT>::run(){
-        for (unsigned int i = 0; i < inArgs.size(); i++){
-             objT * obj = inObj.at(i);
-             arg1T arg1 = inArgs.at(i);  
-             ret1T ret1 = (obj->*memfunCompute)(arg1);
-             outArgs.push_back(ret1);
-        }
+        //for (unsigned int i = 0; i < inArgs.size(); i++){
+             //objT * obj = inObj.at(i);
+             //arg1T arg1 = inArgs.at(i);  
+             //ret1T ret1 = (obj->*memfunCompute)(arg1);
+             //outArgs.push_back(ret1);
+        //}
+        objT odef; //this relies on objT having a default constructor
+        this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
 
         for (unsigned int i = 0; i < outArgs.size(); i++){  
             objT * obj = inObj.at(i);
