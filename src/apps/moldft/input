@@ -1,10 +1,13 @@
 dft
-  xc GGA_XC_HCTH_120
+  xc LDA
+  aobasis sto-3g
+  canon
 end
 
+#GGA_XC_HCTH_120
 
 geometry
-  be 0 0 0
+  ne 0 0 0
 end
 
 geometry

@@ -418,7 +418,6 @@ double dsmoothed_potential(double r) {
 /// smoothed volume.
 double smoothed_density(double r) {
     static const double rpithreehalf = std::pow(madness::constants::pi, -1.5);
-
     double rsq = r*r;
     return exp(-rsq)*(2.5 - rsq) * rpithreehalf;
 }
