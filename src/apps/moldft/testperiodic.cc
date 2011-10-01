@@ -20,11 +20,11 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
-static const double L = 4.0; // Unit cell size in AU
+static const double L = 3.0; // Unit cell size in AU
 static const int R = 2; // periodic sums from -R to +R inclusive
 
-static const double kx=0.5*twopi, ky=0.5*twopi, kz=0.5*twopi;
-//static const double kx=0, ky=0, kz=0;
+//static const double kx=0.5*twopi, ky=0.5*twopi, kz=0.5*twopi;
+static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
