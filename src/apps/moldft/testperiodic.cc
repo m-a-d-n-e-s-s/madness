@@ -20,11 +20,11 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
-static const double L = 3.0; // Unit cell size in AU
-static const int R = 2; // periodic sums from -R to +R inclusive
+static const double L = 6.0; // Unit cell size in AU
+static const int R = 1; // periodic sums from -R to +R inclusive
 
-//static const double kx=0.5*twopi, ky=0.5*twopi, kz=0.5*twopi;
-static const double kx=0, ky=0, kz=0;
+static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+//static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
@@ -197,15 +197,15 @@ vector_complex_function_3d update(World& world,
     int nmo = psi.size();
 
     // Append additional terms for periodic case to the potential
-    // +ik.del - 1/2 k^2
+    // -ik.del + 1/2 k^2
     double ksq = 0.5 * (kx*kx + ky*ky + kz*kz);
     coord_3d k = vec(kx, ky, kz);
     for (int i=0; i<nmo; i++) {
         for (int axis=0; axis<3; axis++) {
             complex_derivative_3d D(world, axis);
-            vpsi[i] = vpsi[i] + (I*k[axis])*D(psi[i]);
+            vpsi[i] = vpsi[i] - (I*k[axis])*D(psi[i]);
         }
-        vpsi[i] = vpsi[i] - (0.5*ksq)*psi[i];
+        vpsi[i] = vpsi[i] + (0.5*ksq)*psi[i];
     }
 
     // determine shift to make homo <=-0.1
@@ -281,7 +281,7 @@ int main(int argc, char** argv) {
     vector_real norms = norm2s(world, psi);
     print(norms);
 
-    for (int iter=0; iter<10; iter++) {
+    for (int iter=0; iter<100; iter++) {
         print("\n\n  Iteration",iter,"\n");
         real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
         vector_complex_function_3d vpsi = apply_potential(v, psi);
