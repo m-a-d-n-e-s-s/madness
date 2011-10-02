@@ -20,7 +20,10 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
-static const double L = 8.37; // Unit cell size in AU
+//static const double L = 8.37; // Unit cell size in au for neon
+//static const double L = 7.65; // Unit cell size in au for LiF
+static const double L = 3.8; // Unit cell size in au for LiF
+
 static const int R = 1; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
 static const double kwavelet = 6;
@@ -194,7 +197,8 @@ vector<poperatorT> make_bsh_operators(World & world, const tensor_real& evals, d
 vector_complex_function_3d update(World& world, 
                                   const vector_complex_function_3d& psi, 
                                   vector_complex_function_3d& vpsi, 
-                                  const tensor_real& e) 
+                                  const tensor_real& e,
+                                  int iter) 
 {
     // psi = - 2 G(E+shift) * (V+shift) psi
     int nmo = psi.size();
@@ -226,13 +230,18 @@ vector_complex_function_3d update(World& world,
     vector_complex_function_3d new_psi = apply(world, ops, vpsi);
     
     // Step restriction
-    double damp = 0.5;
+    double damp;
+    if (iter<3)
+        damp = 0.85;
+    else
+        damp = 0.5;
+
     printf("      eigenvalue    residual\n");
     for (int i=0; i<nmo; i++) {
         double rnorm = (psi[i]-new_psi[i]).norm2();
         printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
 
-        if (rnorm > 0.1) {
+        if (rnorm > 0.05) {
             new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
         }
     }
@@ -262,14 +271,22 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_cubic_cell(0,L);
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
     
-    // Put a neon atom in the middle of the cell
-    //molecule.add_atom(L/2, L/2, L/2, 10.0, 10);
+    // // FCC unit cell for ne
+    // molecule.add_atom(  0,  0,  0, 10.0, 10);
+    // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
+    // molecule.add_atom(L/2,  0,L/2, 10.0, 10);
+    // molecule.add_atom(  0,L/2,L/2, 10.0, 10);
 
-    // FCC unit cell
-    molecule.add_atom(  0,  0,  0, 10.0, 10);
-    molecule.add_atom(L/2,L/2,  0, 10.0, 10);
-    molecule.add_atom(L/2,  0,L/2, 10.0, 10);
-    molecule.add_atom(  0,L/2,L/2, 10.0, 10);
+    // Cubic cell for LiF
+    molecule.add_atom(  0,  0,  0, 9.0, 9);
+    // molecule.add_atom(L/2,L/2,  0, 9.0, 9);
+    // molecule.add_atom(L/2,  0,L/2, 9.0, 9);
+    // molecule.add_atom(  0,L/2,L/2, 9.0, 9);
+    // molecule.add_atom(L/2,  0,  0, 3.0, 3);
+    // molecule.add_atom(  0,L/2,  0, 3.0, 3);
+    // molecule.add_atom(  0,  0,L/2, 3.0, 3);
+    molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
+
     molecule.set_eprec(1e-3);
     
     // Load basis
@@ -287,6 +304,8 @@ int main(int argc, char** argv) {
     double rhot = rho.trace();
     print("total guess charge", rhot);
     rho.scale(molecule.total_nuclear_charge()/rhot);
+
+    int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
     
     // Make AO basis functions
     vector_complex_function_3d psi = makeao(world);
@@ -312,10 +331,15 @@ int main(int argc, char** argv) {
         //print("eigenvectors"); print(c);
         //print("eigenvalues"); print(e);
 
+        if (iter == 0) {
+            c = copy(c(_,Slice(0,nmo-1))); // truncate to occupied states
+            e = e(Slice(0,nmo-1));
+        }
+
         psi = transform(world, psi, c);
         vpsi = transform(world, vpsi, c);
 
-        psi = update(world, psi, vpsi, e);
+        psi = update(world, psi, vpsi, e, iter);
 
         rho = make_density(world, psi);
     }
