@@ -20,11 +20,14 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
-static const double L = 6.0; // Unit cell size in AU
+static const double L = 8.37; // Unit cell size in AU
 static const int R = 1; // periodic sums from -R to +R inclusive
+static const double thresh = 1e-4;
+static const double kwavelet = 6;
+static const int truncate_mode = 0;
 
-static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
-//static const double kx=0, ky=0, kz=0;
+//static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
@@ -121,7 +124,7 @@ vector_complex_function_3d makeao(World& world) {
     vector_complex_function_3d ao(aobasis.nbf(molecule));
     for(int i = 0; i<aobasis.nbf(molecule); ++i) {
         complex_functor_3d aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-        ao[i] = complex_factory_3d(world).functor(aofunc).truncate_on_project();
+        ao[i] = complex_factory_3d(world).functor(aofunc).truncate_on_project().truncate_mode(0);
     }
     return ao;
 }
@@ -171,7 +174,7 @@ real_function_3d make_lda_potential(World& world, const real_function_3d &rho)
 
 real_function_3d make_coulomb_potential(World& world, const real_function_3d& rho) 
 {
-    real_convolution_3d op = CoulombOperator(world, 1e-4, 1e-4);
+    real_convolution_3d op = CoulombOperator(world, 1e-4, thresh);
     return op(rho);
 }
 
@@ -181,7 +184,7 @@ vector<poperatorT> make_bsh_operators(World & world, const tensor_real& evals, d
     vector<poperatorT> ops(nmo);
     for(int i = 0;i < nmo; ++i){
         double eps = evals(i) + shift;
-        ops[i] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps),  1e-4, 1e-4));
+        ops[i] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps),  1e-4, thresh));
     }
     return ops;
 }
@@ -214,7 +217,7 @@ vector_complex_function_3d update(World& world,
         shift = -0.1 - e(nmo-1);
         gaxpy(world, 1.0, vpsi, shift, psi);
     }
-    print("shift", shift);
+    print("  shift", shift);
 
     // Do the BSH thing
     scale(world, vpsi, -2.0);
@@ -224,10 +227,11 @@ vector_complex_function_3d update(World& world,
     
     // Step restriction
     double damp = 0.5;
-    print("residuals");
+    printf("      eigenvalue    residual\n");
     for (int i=0; i<nmo; i++) {
         double rnorm = (psi[i]-new_psi[i]).norm2();
-        print("  ", i,rnorm);
+        printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
+
         if (rnorm > 0.1) {
             new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
         }
@@ -252,25 +256,33 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
-    FunctionDefaults<3>::set_thresh(1e-4);
-    FunctionDefaults<3>::set_k(6);
+    FunctionDefaults<3>::set_thresh(thresh);
+    FunctionDefaults<3>::set_k(kwavelet);
     FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
     FunctionDefaults<3>::set_cubic_cell(0,L);
+    FunctionDefaults<3>::set_truncate_mode(truncate_mode);
     
     // Put a neon atom in the middle of the cell
-    molecule.add_atom(L/2, L/2, L/2, 10.0, 10);
+    //molecule.add_atom(L/2, L/2, L/2, 10.0, 10);
+
+    // FCC unit cell
+    molecule.add_atom(  0,  0,  0, 10.0, 10);
+    molecule.add_atom(L/2,L/2,  0, 10.0, 10);
+    molecule.add_atom(L/2,  0,L/2, 10.0, 10);
+    molecule.add_atom(  0,L/2,L/2, 10.0, 10);
     molecule.set_eprec(1e-3);
     
     // Load basis
     aobasis.read_file("sto-3g");
 
     // Nuclear potential
-    real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule)));
+    real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
     print("total nuclear charge", vnuc.trace());
     vnuc = -1.0*make_coulomb_potential(world, vnuc);
+    vnuc.truncate();
 
     // Guess density
-    real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(new MolecularGuessDensityFunctor(molecule,aobasis)));
+    real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(new MolecularGuessDensityFunctor(molecule,aobasis))).truncate_on_project();
     rho.truncate();
     double rhot = rho.trace();
     print("total guess charge", rhot);
@@ -298,7 +310,7 @@ int main(int argc, char** argv) {
         tensor_real e;
         sygv(ke_mat + pe_mat, ov_mat, 1, c, e);
         //print("eigenvectors"); print(c);
-        print("eigenvalues"); print(e);
+        //print("eigenvalues"); print(e);
 
         psi = transform(world, psi, c);
         vpsi = transform(world, vpsi, c);
