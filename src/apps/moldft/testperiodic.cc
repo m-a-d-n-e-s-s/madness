@@ -256,9 +256,8 @@ vector_complex_function_3d update(World& world,
         double rnorm = (psi[i]-new_psi[i]).norm2();
         printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
 
-        if (rnorm > 0.05) {
-            new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
-        }
+        //if (rnorm > 0.05)
+        new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
     }
     truncate(world,new_psi);
     normalize(world, new_psi);
