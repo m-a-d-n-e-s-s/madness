@@ -22,15 +22,16 @@ static const double twopi = 2.0*constants::pi;
 
 //static const double L = 8.37; // Unit cell size in au for neon
 //static const double L = 7.65; // Unit cell size in au for LiF
-static const double L = 3.8; // Unit cell size in au for LiF
+//static const double L = 3.8; // Unit cell size in au for LiF
+static const double L = 4.5;
 
 static const int R = 1; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
 static const double kwavelet = 6;
 static const int truncate_mode = 0;
 
-//static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
-static const double kx=0, ky=0, kz=0;
+static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+//static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
@@ -192,6 +193,20 @@ vector<poperatorT> make_bsh_operators(World & world, const tensor_real& evals, d
     return ops;
 }
 
+void orthogonalize(World& world, vector_complex_function_3d& psi) {
+    compress(world, psi);
+    for (unsigned int i = 0; i<psi.size(); i++) {
+        complex_function_3d& psi_i = psi[i];
+        psi_i.scale(1.0/psi_i.norm2());
+        for (unsigned int j = 0; j<i; j++) {
+            complex_function_3d& psi_j = psi[j];
+            double_complex s = inner(psi_j,psi_i);
+            psi_i.gaxpy(1.0,psi_j,-s); // |i> = |i> - |j><j|i>
+            psi_i.scale(1.0/psi_i.norm2());
+        }
+    }
+}
+
 
 // DESTROYS VPSI
 vector_complex_function_3d update(World& world, 
@@ -205,7 +220,7 @@ vector_complex_function_3d update(World& world,
 
     // Append additional terms for periodic case to the potential
     // -ik.del + 1/2 k^2
-    double ksq = 0.5 * (kx*kx + ky*ky + kz*kz);
+    double ksq = kx*kx + ky*ky + kz*kz;
     coord_3d k = vec(kx, ky, kz);
     for (int i=0; i<nmo; i++) {
         for (int axis=0; axis<3; axis++) {
@@ -247,6 +262,7 @@ vector_complex_function_3d update(World& world,
     }
     truncate(world,new_psi);
     normalize(world, new_psi);
+    orthogonalize(world, new_psi);
     return new_psi;
 }
 
@@ -272,20 +288,20 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
     
     // // FCC unit cell for ne
-    // molecule.add_atom(  0,  0,  0, 10.0, 10);
+    molecule.add_atom(  0,  0,  0, 10.0, 10);
     // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
     // molecule.add_atom(L/2,  0,L/2, 10.0, 10);
     // molecule.add_atom(  0,L/2,L/2, 10.0, 10);
 
     // Cubic cell for LiF
-    molecule.add_atom(  0,  0,  0, 9.0, 9);
+    // molecule.add_atom(  0,  0,  0, 9.0, 9);
     // molecule.add_atom(L/2,L/2,  0, 9.0, 9);
     // molecule.add_atom(L/2,  0,L/2, 9.0, 9);
     // molecule.add_atom(  0,L/2,L/2, 9.0, 9);
     // molecule.add_atom(L/2,  0,  0, 3.0, 3);
     // molecule.add_atom(  0,L/2,  0, 3.0, 3);
     // molecule.add_atom(  0,  0,L/2, 3.0, 3);
-    molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
+    // molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
     molecule.set_eprec(1e-3);
     
