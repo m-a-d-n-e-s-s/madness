@@ -23,15 +23,15 @@ static const double twopi = 2.0*constants::pi;
 //static const double L = 8.37; // Unit cell size in au for neon
 //static const double L = 7.65; // Unit cell size in au for LiF
 //static const double L = 3.8; // Unit cell size in au for LiF
-static const double L = 4.5;
+static const double L = 8.0;
 
 static const int R = 1; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
 static const double kwavelet = 6;
 static const int truncate_mode = 0;
 
-static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
-//static const double kx=0, ky=0, kz=0;
+//static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
@@ -236,7 +236,6 @@ vector_complex_function_3d update(World& world,
         shift = -0.1 - e(nmo-1);
         gaxpy(world, 1.0, vpsi, shift, psi);
     }
-    print("  shift", shift);
 
     // Do the BSH thing
     scale(world, vpsi, -2.0);
@@ -246,22 +245,22 @@ vector_complex_function_3d update(World& world,
     
     // Step restriction
     double damp;
-    if (iter<3)
-        damp = 0.85;
-    else
-        damp = 0.5;
+    if (iter < 10) damp = 0.95;
+    else if (iter < 20) damp = 0.85;
+    else damp = 0.75;
+    print("  shift", shift, "damp", damp, "\n");
 
     printf("      eigenvalue    residual\n");
     for (int i=0; i<nmo; i++) {
         double rnorm = (psi[i]-new_psi[i]).norm2();
         printf("%4d  %10.6f  %10.1e\n", i, e[i], rnorm);
-
-        //if (rnorm > 0.05)
         new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
     }
     truncate(world,new_psi);
     normalize(world, new_psi);
     orthogonalize(world, new_psi);
+    truncate(world,new_psi);
+    normalize(world, new_psi);
     return new_psi;
 }
 
@@ -287,20 +286,20 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
     
     // // FCC unit cell for ne
-    molecule.add_atom(  0,  0,  0, 10.0, 10);
+    //molecule.add_atom(  0,  0,  0, 10.0, 10);
     // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
     // molecule.add_atom(L/2,  0,L/2, 10.0, 10);
     // molecule.add_atom(  0,L/2,L/2, 10.0, 10);
 
     // Cubic cell for LiF
-    // molecule.add_atom(  0,  0,  0, 9.0, 9);
+    molecule.add_atom(  0,  0,  0, 9.0, 9);
     // molecule.add_atom(L/2,L/2,  0, 9.0, 9);
     // molecule.add_atom(L/2,  0,L/2, 9.0, 9);
     // molecule.add_atom(  0,L/2,L/2, 9.0, 9);
     // molecule.add_atom(L/2,  0,  0, 3.0, 3);
     // molecule.add_atom(  0,L/2,  0, 3.0, 3);
     // molecule.add_atom(  0,  0,L/2, 3.0, 3);
-    // molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
+    molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
     molecule.set_eprec(1e-3);
     
@@ -326,7 +325,7 @@ int main(int argc, char** argv) {
     vector_complex_function_3d psi = makeao(world);
     vector_real norms = norm2s(world, psi);
     print(norms);
-
+    
     for (int iter=0; iter<100; iter++) {
         print("\n\n  Iteration",iter,"\n");
         real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
@@ -340,9 +339,22 @@ int main(int argc, char** argv) {
         //print("PE"); print(pe_mat);
         //print("OV"); print(ov_mat);
 
+        tensor_complex fock = ke_mat + pe_mat;
+        // eliminate small off-diagonal elements and lift diagonal
+        // degeneracies to reduce random mixing
+        for (unsigned int i=0; i<psi.size(); i++) {
+            fock(i,i) += i*thresh*1e-2;
+            for (unsigned int j=0; j<i; j++) {
+                if (std::abs(fock(i,j)) < thresh*1e-1 || std::abs(ov_mat(i,j)) < thresh*1e-1) {
+                    fock(i,j) = fock(j,i) = 0.0;
+                    ov_mat(i,j) = ov_mat(j,i) = 0.0;
+                }
+            }
+        }
+
         tensor_complex c;
         tensor_real e;
-        sygv(ke_mat + pe_mat, ov_mat, 1, c, e);
+        sygv(fock, ov_mat, 1, c, e);
         //print("eigenvectors"); print(c);
         //print("eigenvalues"); print(e);
 
