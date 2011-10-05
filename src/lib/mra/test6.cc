@@ -231,6 +231,35 @@ int test_exchange(World& world, const long& k, const double thresh) {
     return nerror;
 }
 
+/// test inner product using redundant wave functions
+int test_inner(World& world, const long& k, const double thresh) {
+
+    print("entering inner");
+    int nerror=0;
+    bool good;
+
+    double norm;
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    real_function_3d phi2=phi*phi;
+
+    real_function_6d f1=hartree_product(phi,phi);
+    real_function_6d f2=hartree_product(phi,phi2);
+
+    double a1=inner(f1,f2);
+    double a2=inner(phi,phi) * inner(phi,phi2);
+    norm=a1-a2;
+
+    if (world.rank()==0) print("diff norm",norm);
+    good=is_small(norm,thresh);
+    print(ok(good), "inner error:",norm);
+    if (not good) nerror++;
+
+    print("all done\n");
+    return nerror;
+}
+
+
+
 int test(World& world, const long& k, const double thresh) {
 
     print("entering test");
@@ -349,15 +378,16 @@ int main(int argc, char**argv) {
     double norm=phi.norm2();
     if (world.rank()==0) printf("phi.norm2()   %12.8f\n",norm);
 
-    real_function_3d phi2=phi*phi;
+    real_function_3d phi2=2.0*phi*phi;
     norm=phi2.norm2();
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
-    test(world,k,thresh);
-//    error+=test_hartree_product(world,k,thresh);
+//    test(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
 //    error+=test_multiply(world,k,thresh);
 //    error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);
+    error+=test_inner(world,k,thresh);
 
 
     print(ok(error==0),error,"finished test suite\n");

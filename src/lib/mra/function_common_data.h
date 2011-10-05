@@ -122,6 +122,64 @@ namespace madness {
                          double>& quad_w, Tensor<double>& quad_phi,
                          Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
     };
+
+
+    class Timer {
+
+        typedef ConcurrentHashMap<int,double> map;
+        typedef ConcurrentHashMap<int,double>::accessor accessor;
+
+        map data;
+        static const int itotal=-10;
+
+    public:
+        /// start timer
+        Timer() {
+        }
+
+        /// accumulate timer
+        void accumulate(const double time) const {
+
+            accessor acc;
+            map& map2=const_cast<map&>(data);
+            bool found=map2.find(acc, -10);
+            if (found) {
+                acc->second+=time;
+            } else {
+                map2.insert(std::pair<int,double>(-10,time));
+            }
+
+
+            int ilog=0;
+            if (time<0.1) ilog=-1;
+            else if (time<1.0) ilog=0;
+            else if (time<10.0) ilog=1;
+            else if (time<100.0) ilog=2;
+            else ilog=3;
+
+            found=map2.find(acc, ilog);
+            if (found) {
+                acc->second+=1.0;
+            } else {
+                map2.insert(std::pair<int,long>(ilog,1));
+            }
+        }
+
+        /// print timer
+        void print(std::string line="") const {
+
+            madness::print("timing of ",line);
+            typedef ConcurrentHashMap<int,double>::const_accessor accessor;
+            accessor acc;
+            for (int ilog=-10; ilog<4; ++ilog) {
+                const bool found=data.find(acc, ilog);
+                if (found) madness::print("  time spent in log(10) ", acc->first, acc->second);
+            }
+        }
+    };
+
+
+
 }
 
 

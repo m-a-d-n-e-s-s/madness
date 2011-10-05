@@ -74,6 +74,9 @@ namespace madness {
 
     template<typename T, std::size_t NDIM, std::size_t MDIM>
     class CompositeFactory;
+
+    template<typename T, std::size_t NDIM>
+    Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<T,NDIM>&), const Tensor<double>&);
 }
 
 
@@ -105,6 +108,11 @@ namespace madness {
 			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
 			return coeffT();
 		}
+
+        virtual coeffT values(const keyT&, const tensorT&) const {
+            MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
+            return coeffT();
+        }
 
 		virtual coeffT eri_values(const keyT& key) const {
 		    MADNESS_EXCEPTION("your functor hasn't implemented eri_values",1);
@@ -320,12 +328,19 @@ namespace madness {
 
 	public:
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+        typedef GenTensor<T> coeffT;
+        typedef Tensor<T> tensorT;
 
 		T (*f)(const coordT&);
 
 		ElementaryInterface(T (*f)(const coordT&)) : f(f) {}
 
 		T operator()(const coordT& x) const {return f(x);}
+
+		coeffT values(const Key<NDIM>& key, const Tensor<double>& quad_x) const {
+            tensorT fval=madness::fcube(key,f,quad_x);
+            return coeffT(fval,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
+		}
 	};
 
 

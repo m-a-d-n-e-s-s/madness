@@ -91,6 +91,15 @@ namespace madness {
     template<typename T, std::size_t NDIM>
     class FunctionFunctorInterface;
 
+    template<typename T, std::size_t NDIM>
+    struct hartree_leaf_op;
+
+    template<typename T, std::size_t NDIM, typename opT>
+    struct hartree_convolute_leaf_op;
+
+    template<typename T, std::size_t NDIM>
+    struct noop;
+
 }
 
 
@@ -1027,6 +1036,72 @@ namespace madness {
 
         };
 
+        /// returns true if the result of a multiplication is a leaf node
+        struct mul_leaf_op {
+            const implT* f;
+
+            mul_leaf_op() {}
+            mul_leaf_op(const implT* f) : f(f) {}
+
+            /// return true if f is a leaf and the result is well-represented
+            bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
+                double flo,fhi,glo,ghi;
+                bool is_leaf=true;
+                f->tnorm(fcoeff,&flo,&fhi);
+                f->tnorm(gcoeff,&glo,&ghi);
+                double total_hi=glo*fhi + ghi*flo + fhi*ghi;
+                if (total_hi>f->truncate_tol(f->get_thresh(),key)) is_leaf=false;
+                return is_leaf;
+            }
+            template <typename Archive> void serialize (Archive& ar) {
+                ar & f;
+            }
+        };
+
+
+
+        /// With this being an on-demand function, fill the MRA tree according to different criteria
+
+        /// @param[in]  g   the function after which the MRA structure is modeled (any basis works)
+        template<typename R>
+        void fill_tree(const Function<R,NDIM>& g, bool fence=true) {
+            MADNESS_ASSERT(g.is_initialized());
+            MADNESS_ASSERT(is_on_demand());
+
+            // clear what we have
+            impl->get_coeffs().clear();
+
+            leaf_op gnode_is_leaf(g.get_impl().get());
+            impl->make_Vphi(gnode_is_leaf,fence);
+
+        }
+
+        /// perform the hartree product of f*g, invoked by result
+        template<size_t LDIM, size_t KDIM, typename opT>
+        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right,
+                const opT* op) {
+
+            // get the right leaf operator
+            const FunctionCommonData<T,LDIM>& cdata(FunctionCommonData<T,LDIM>::get(k()));
+            hartree_convolute_leaf_op<T,KDIM+LDIM,opT> leaf_op(impl.get(),cdata.s0,op);
+
+            impl->hartree_product(left,right,leaf_op,true);
+            this->truncate(0.0,false);
+
+        }
+
+        /// perform the hartree product of f*g, invoked by result
+        template<size_t LDIM, size_t KDIM>
+        void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right) {
+
+            const FunctionCommonData<T,LDIM>& cdata(FunctionCommonData<T,LDIM>::get(k()));
+
+            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
+            impl->hartree_product(left,right,leaf_op,true);
+            this->truncate(0.0,false);
+
+        }
+
         /// Returns the inner product
 
         /// Not efficient for computing multiple inner products
@@ -1048,6 +1123,10 @@ namespace madness {
             FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
 
             bool g_on_demand=g.is_on_demand();
+            // save for later
+            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func;
+            if (g_on_demand) func=gimpl->get_functor();
+
             if (g_on_demand) {
 
                 // it does work, but it might not give you the precision
@@ -1057,13 +1136,15 @@ namespace madness {
                 this->reconstruct();
                 leaf_op fnode_is_leaf(this->get_impl().get());
                 gimpl->make_Vphi(fnode_is_leaf,true);  // fence here
-                gimpl->print_size("gimpl");
-                this->print_size("f");
+//                gimpl->print_size("gimpl");
+//                this->print_size("f");
 
             } else {
 
-                if (!is_compressed()) compress();
-                if (!g.is_compressed()) g.compress();
+//                if (!is_compressed()) compress(false);
+//                if (!g.is_compressed()) g.compress();
+                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
+                if (not gimpl->is_redundant()) gimpl->make_redundant(true);
             }
 
             if (VERIFY_TREE) verify_tree();
@@ -1074,9 +1155,12 @@ namespace madness {
 
             // bring g to original state
             if (g_on_demand) {
-                MADNESS_ASSERT(gimpl->get_functor());
+                gimpl->set_functor(func);
                 gimpl->get_coeffs().clear();
                 gimpl->is_on_demand()=true;
+            } else {
+                if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
+                if (gimpl->is_redundant()) gimpl->undo_redundant(true);
             }
 
             return local;
@@ -1203,6 +1287,25 @@ namespace madness {
             vresult[0]->mulXXvec(left.get_impl().get(), vright, vresult, tol, fence);
         }
 
+        /// Same as \c operator* but with optional fence and no automatic reconstruction
+
+        /// f or g are on-demand functions
+        void mul_on_demand(const Function<T,NDIM>& f, const Function<T,NDIM>& g, bool fence=true) {
+            const implT* fimpl=f.get_impl().get();
+            const implT* gimpl=g.get_impl().get();
+            if (fimpl->is_on_demand() and gimpl->is_on_demand()) {
+                MADNESS_EXCEPTION("can't multiply two on-demand functions",1);
+            }
+
+            if (fimpl->is_on_demand()) {
+                mul_leaf_op leaf_op1(gimpl);
+                impl->multiply(leaf_op1,gimpl,fimpl,fence);
+            } else {
+                mul_leaf_op leaf_op1(fimpl);
+                impl->multiply(leaf_op1,fimpl,gimpl,fence);
+            }
+        }
+
         /// sparse transformation of a vector of functions ... private
         template <typename R, typename Q>
         void vtransform(const std::vector< Function<R,NDIM> >& v,
@@ -1252,6 +1355,11 @@ namespace madness {
             return asy;
         }
 
+        /// reduce the rank of the coefficient tensors
+        void reduce_rank(const bool fence=true) {
+            verify();
+            impl->reduce_rank(impl->get_tensor_args(),fence);
+        }
     };
 
     template <typename T, typename opT, int NDIM>
@@ -1387,41 +1495,83 @@ namespace madness {
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
         if (left.is_compressed())  left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
-        return mul(left,right,true);
+        if (left.is_on_demand() or right.is_on_demand()) {
+            Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
+            result.set_impl(left, false);
+            result.mul_on_demand(left,right,true);
+            return result;
+        } else {
+            return mul(left,right,true);
+        }
     }
 
     /// Performs a Hartree product on the two given low-dimensional functions
     template<typename T, std::size_t KDIM, std::size_t LDIM>
     Function<T,KDIM+LDIM>
-    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2, const bool fence=true) {
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2) {
+
+        // we need both sum and difference coeffs for error estimation
+        Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
+        Function<T,LDIM>& right = const_cast< Function<T,LDIM>& >(right2);
+
+        const double thresh=FunctionDefaults<KDIM+LDIM>::get_thresh();
+
+        FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
+                .k(left.k()).thresh(thresh);
+        Function<T,KDIM+LDIM> result=factory.empty();
+
+//        if (result.world().rank()==0) {
+//            print("incomplete FunctionFactory in Function::hartree_product");
+//            print("thresh: ", thresh);
+//        }
+        bool same=(left2.get_impl()==right2.get_impl());
+
+        // some prep work
+        left.nonstandard(true,true);
+        right.nonstandard(true,true);
+
+        result.do_hartree_product(left.get_impl().get(),right.get_impl().get());
+
+        left.standard(false);
+        if (not same) right.standard(false);
+        left2.world().gop.fence();
+
+        return result;
+
+    }
+
+
+    /// Performs a Hartree product on the two given low-dimensional functions
+    template<typename T, std::size_t KDIM, std::size_t LDIM, typename opT>
+    Function<T,KDIM+LDIM>
+    hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2,
+            const opT* op) {
 
         // we need both sum and difference coeffs for error estimation
     	Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
     	Function<T,LDIM>& right = const_cast< Function<T,LDIM>& >(right2);
 
+    	const double thresh=FunctionDefaults<KDIM+LDIM>::get_thresh();
 
     	FunctionFactory<T,KDIM+LDIM> factory=FunctionFactory<T,KDIM+LDIM>(left.world())
-    			.k(left.k()).thresh(left.thresh());
-        if (left.get_impl()->world.rank()==0) 
-		print("incomplete FunctionFactory in Function::hartree_product");
+    			.k(left.k()).thresh(thresh);
+        Function<T,KDIM+LDIM> result=factory.empty();
+
+    	if (result.world().rank()==0) {
+            print("incomplete FunctionFactory in Function::hartree_product");
+            print("thresh: ", thresh);
+        }
         bool same=(left2.get_impl()==right2.get_impl());
 
-        left.reconstruct();
-        left.norm_tree();
+        // some prep work
         left.nonstandard(true,true);
-        if (not same) {
-			right.reconstruct();
-			right.norm_tree();
-			right.nonstandard(true,true);
-        }
+        right.nonstandard(true,true);
 
-        Function<T,KDIM+LDIM> result=factory.empty();
-        result.get_impl()->hartree_product(left.get_impl().get(),right.get_impl().get(),true);
+        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),op);
 
-        result.truncate(0.0,false);
         left.standard(false);
         if (not same) right.standard(false);
-        if (fence) left2.world().gop.fence();
+        left2.world().gop.fence();
 
         return result;
     }
@@ -1602,7 +1752,14 @@ namespace madness {
 
        	result.set_impl(f, true);
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+        if ((NDIM==6) and (opT::opdim==6) and (f.world().rank()==0)) {
+            result.get_impl()->timer_accumulate.print("accumulate");
+            result.get_impl()->timer_target_driven.print("total target_driven");
 
+            op.timer_full.print("op full tensor       ");
+            op.timer_low_transf.print("op low rank transform");
+            op.timer_low_accumulate.print("op low rank addition ");
+        }
         return result;
     }
 
@@ -1634,6 +1791,10 @@ namespace madness {
 
             ff.nonstandard(op.doleaves, true);
             ff.print_size("ff in apply after nonstandard");
+            if ((NDIM==6) and (opT::opdim==6) and (f.world().rank()==0)) {
+                ff.get_impl()->timer_filter.print("filter");
+                ff.get_impl()->timer_compress_svd.print("compress_svd");
+            }
             result = apply_only(op, ff, fence);
             result.print_size("result after apply");
             result.reconstruct();
@@ -1753,7 +1914,8 @@ namespace madness {
 
         fimpl->undo_redundant(false);
         gimpl->undo_redundant(fence);
-        result.print_size("finished multiplication f(1,2)*g(1)");
+        if (particle==1) result.print_size("finished multiplication f(1,2)*g(1)");
+        if (particle==2) result.print_size("finished multiplication f(1,2)*g(2)");
 
         return result;
     }

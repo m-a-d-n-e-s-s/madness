@@ -258,15 +258,21 @@ namespace madness {
             coeffT d = node.coeff();
             if (!d.has_data()) d = coeffT(cdata.v2k,targs);
             if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
-            d = unfilter(d);
-            node.clear_coeff();
-            node.set_has_children(true);
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                const keyT& child = kit.key();
-                coeffT ss = copy(d(child_patch(child)));
-                ss.reduceRank(thresh);
-                PROFILE_BLOCK(recon_send);
-                woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
+            if (d.dim(0)==2*get_k()) {              // d might be pre-truncated if it's a leaf
+                d = unfilter(d);
+                node.clear_coeff();
+                node.set_has_children(true);
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                    const keyT& child = kit.key();
+                    coeffT ss = copy(d(child_patch(child)));
+                    ss.reduceRank(thresh);
+                    PROFILE_BLOCK(recon_send);
+                    woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
+                }
+            } else {
+                MADNESS_ASSERT(node.is_leaf());
+//                node.coeff()+=s;
+                node.coeff().reduceRank(targs.thresh);
             }
         }
         else {
@@ -276,16 +282,29 @@ namespace madness {
         return None;
     }
 
-    template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
-//		fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
-		fcube(key,ElementaryInterface<T,NDIM>(f) , qx, fval);
-	}
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+    Tensor<T> fcube(const Key<NDIM>& key, T (*f)(const Vector<T,NDIM>&), const Tensor<double>& qx) {
+//      fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+        std::vector<long> npt(NDIM,qx.dim(0));
+        Tensor<T> fval(npt);
+        fcube(key,ElementaryInterface<T,NDIM>(f) , qx, fval);
+        return fval;
+    }
+
+
+    /// return the values of a Function on a grid
+
+    /// @param[in]  key the key indicating where the quadrature points are located
+    /// @param[in]  f   the interface to the elementary function
+    /// @param[in]  qx  quadrature points on a level=0 box
+    /// @param[out] fval    values
+    template <typename T, std::size_t NDIM>
+//    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+    void fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, Tensor<T>& fval) {
     //~ template <typename T, std::size_t NDIM> template< typename FF>
     //~ void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FF& f, const Tensor<double>& qx, tensorT& fval) const {
+        typedef Vector<double,NDIM> coordT;
         PROFILE_MEMBER_FUNC(FunctionImpl);
         const Vector<Translation,NDIM>& l = key.translation();
         const Level n = key.level();
@@ -380,6 +399,12 @@ namespace madness {
         else {
             MADNESS_EXCEPTION("FunctionImpl: fcube: confused about NDIM?",NDIM);
         }
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
+//      fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+        madness::fcube(key,ElementaryInterface<T,NDIM>(f) , qx, fval);
     }
 
     /// project the functor into this functionimpl, and "return" a tree in reconstructed,
@@ -639,7 +664,7 @@ namespace madness {
             tensorT work(cdata.vq,false); // initially evaluate the function in here
             tensorT workq(cdata.vq,false); // initially evaluate the function in here
 
-        	fcube(key,*functor,cdata.quad_x,work);
+        	madness::fcube(key,*functor,cdata.quad_x,work);
 
         	work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
             //return transform(work,cdata.quad_phiw);

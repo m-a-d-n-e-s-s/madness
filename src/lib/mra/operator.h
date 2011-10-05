@@ -135,6 +135,9 @@ namespace madness {
 
         typedef Key<NDIM> keyT;
         const static size_t opdim=NDIM;
+        Timer timer_full;
+        Timer timer_low_transf;
+        Timer timer_low_accumulate;
 
     private:
 
@@ -1022,6 +1025,8 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             MADNESS_ASSERT(coeff.ndim()==NDIM);
 
+            double cpu0=cpu_time();
+
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
             const Tensor<T>* input = &coeff;
             Tensor<T> dummy;
@@ -1077,6 +1082,9 @@ namespace madness {
             }
 
             r(s0).gaxpy(1.0,r0,1.0);
+            double cpu1=cpu_time();
+            timer_full.accumulate(cpu1-cpu0);
+
             return r;
         }
 
@@ -1250,14 +1258,21 @@ namespace madness {
                         const GenTensor<resultT> chunk=input->get_configs(0,r_max);
                         const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
 
+                        double cpu0=cpu_time();
+
                         Q fac = ops[mu].getfac();
                         muopxv_fast2(source.level(), muop.ops, chunk, chunk0, r, r0,
                                 tol/std::abs(fac), fac,	work1, work2, work5);
+                        double cpu1=cpu_time();
+                        timer_low_transf.accumulate(cpu1-cpu0);
+                        cpu0=cpu1;
 
                         r(s0)+=r0;
                         r.reduceRank(tol2*0.5);				// reduce 1
                         MADNESS_ASSERT(OrthoMethod::om==ortho3_);
                         result.add_SVD(r,tol2);
+                        cpu1=cpu_time();
+                        timer_low_accumulate.accumulate(cpu1-cpu0);
 
                     }
                 }
@@ -1282,6 +1297,8 @@ namespace madness {
                 double tol, double tol2) const {
 
             if (coeff.tensor_type()==TT_FULL) return 0.5;
+            if (2*NDIM==coeff.ndim()) return 1.5;
+            MADNESS_ASSERT(NDIM==coeff.ndim());
             MADNESS_ASSERT(coeff.tensor_type()==TT_2D);
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
