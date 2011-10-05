@@ -168,11 +168,13 @@ namespace madness {
         GenTensor<T> full_tensor_copy() {return *this;}
 
         bool has_data() const {return this->size()>0;};
+        bool has_no_data() const {return not has_data();};
 		long rank() const {return -1;}
 
         void reduceRank(const double& eps) {return;};
         void right_orthonormalize(const double& eps) {return;};
         void reconstruct_and_decompose(const double& eps) {return;}
+        void normalize() {return;}
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
 		TensorType tensor_type() const {return TT_FULL;}
@@ -182,6 +184,9 @@ namespace madness {
 		void accumulate_into(GenTensor<T>& t, const double& eps, const double& fac) const {t+=*this*fac;}
 		void accumulate_into(GenTensor<T>& t, const std::complex<double>& fac) const {t+=*this*fac;}
 		void add_SVD(const GenTensor<T>& rhs, const double& eps) {*this+=rhs;}
+
+		SRConf<T> config() const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
+        SRConf<T> get_configs(const int& start, const int& end) const {MADNESS_EXCEPTION("no SRConf in complex GenTensor",1);}
 
 		/// return the additional safety for rank reduction
 		static double fac_reduce() {return -1.0;};
@@ -642,6 +647,13 @@ namespace madness {
 			return config().normf();
 		};
 
+        /// returns the Frobenius norm; expects full rank or SVD!
+        double svd_normf() const {
+            if (has_no_data()) return 0.0;
+            if (tensor_type()==TT_2D) return config().svd_normf();
+            return config().normf();
+        };
+
 		/// returns the trace of <this|rhs>
 		T trace_conj(const GenTensor<T>& rhs) const {
 			T ovlp=overlap(*_ptr,*rhs._ptr);
@@ -958,12 +970,12 @@ namespace madness {
 		/// add SVD
 		void add_SVD(const gentensorT& rhs, const double& thresh) {
 			if (rhs.has_no_data()) return;
+            if (has_no_data()) {
+                *this=rhs;
+                return;
+            }
 			if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) {
 				this->full_tensor()+=rhs.full_tensor();
-				return;
-			}
-			if (has_no_data()) {
-				*this=rhs;
 				return;
 			}
 			config().add_SVD(rhs.config(),thresh);
