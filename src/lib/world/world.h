@@ -362,6 +362,8 @@ typedef UINT64_T uint64_t;
 //#include <world/worldobj.h>
 //#include <world/worldtime.h>
 
+#define HAVE_GPU 1
+
 namespace madness {
 
     class World;
