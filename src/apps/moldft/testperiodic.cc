@@ -20,18 +20,19 @@ using namespace madness;
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;
 
+static const double L = 5.0; // Unit cell size in au for neon
 //static const double L = 8.37; // Unit cell size in au for neon
 //static const double L = 7.65; // Unit cell size in au for LiF
 //static const double L = 3.8; // Unit cell size in au for LiF
-static const double L = 8.0;
+//static const double L = 8.0;
 
 static const int R = 1; // periodic sums from -R to +R inclusive
 static const double thresh = 1e-4;
 static const double kwavelet = 6;
 static const int truncate_mode = 0;
 
-//static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
-static const double kx=0, ky=0, kz=0;
+static const double kx=0.5*twopi/L, ky=0.5*twopi/L, kz=0.5*twopi/L;
+//static const double kx=0, ky=0, kz=0;
 
 static Molecule molecule;
 static AtomicBasisSet aobasis;
