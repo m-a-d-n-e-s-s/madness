@@ -61,7 +61,11 @@ typedef std::complex<double> double_complex;
 #include <tensor/aligned.h>
 #include <tensor/mxm.h>
 #include <tensor/mtxmq.h>
-
+//#include <tensor/cu_mxm.h>
+#ifdef	HAVE_CUDA
+#include <tensor/cu_mtxmq.h>
+//extern  template void cu_mTxmq<double,double,double>(long m, long n,long k, double *C, const double *A, const double *B);
+#endif
 
 /*!
   \file tensor.h
@@ -378,9 +382,8 @@ namespace madness {
         /// b = a;
         /// b[1] = 3; // a[1] is now also 3
         /// \endcode
-
         Tensor<T>& operator=(const Tensor<T>& t) {
-           if (this != &t) {
+            if (this != &t) {
                 _p = t._p;
                 _shptr = t._shptr;
                 _size = t._size;
@@ -392,6 +395,7 @@ namespace madness {
             }
             return *this;
         }
+
 
         /// Type conversion makes a deep copy
         template <class Q> operator Tensor<Q>() const { // type conv => deep copy
@@ -2296,6 +2300,8 @@ namespace madness {
         }
         return result;
     }
+    
+    //extern   void cu_mTxmq(int m, int n,int k, double *C, const double *A, const double *B);
 
     /// Restricted but heavily optimized form of transform()
 
@@ -2344,18 +2350,42 @@ namespace madness {
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
                 IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; ++i) t0[i] = 0.0;
+//#ifdef HAVE_CUDA
+// cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);	    
+//#else
             mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+//#endif
             for (int n=1; n<t.ndim(); ++n) {
                 for (long i=0; i<nij; ++i) t1[i] = 0.0;
+//#ifdef HAVE_CUDA
+//cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);		
+//#else
                 mTxm(dimi, dimj, dimj, t1, t0, pc);
+		
+//#endif
                 std::swap(t0,t1);
             }
         }
         else {
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
+            
+//#ifdef	HAVE_CUDA
+	    cu_mTxmq(dimi, dimj, dimj,t0, t.ptr(), pc);
+//#else
+//printf("dimi=%d dimj=%d dimk=%d\n", dimi,dimj,dimj);
+//	    mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+//#endif
+
+	    for (int n=1; n<t.ndim(); ++n) {
+//#ifdef	HAVE_CUDA
+            
+		 cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
+		 std::swap(t0,t1);
+//#else
+	    
+//                mTxmq(dimi, dimj, dimj, t1, t0, pc);
+//		std::swap(t0,t1);
+//#endif
+                
             }
         }
 

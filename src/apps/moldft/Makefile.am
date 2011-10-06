@@ -12,9 +12,9 @@ testpg_SOURCES = testpg.cc pointgroup.h
 
 mcpfit_SOURCES = mcpfit.cc atomutil.h atomutil.cc corepotential.h corepotential.cc
 
-moldft_LDADD = $(MRALIBS)
+moldft_LDADD = $(MRALIBS) $(NVCCFLAGS)
 
-testpg_LDADD = $(MRALIBS)
+testpg_LDADD = $(MRALIBS) $(NVCCFLAGS)
 
-mcpfit_LDADD = $(MRALIBS)
+mcpfit_LDADD = $(MRALIBS) $(NVCCFLAGS)
 

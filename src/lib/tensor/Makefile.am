@@ -1,44 +1,48 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott
-lib_LIBRARIES = libMADtensor.a
+
+bin_PROGRAMS = test test_mtxmq test_Zmtxmq jimkernel test_scott
+lib_LIBRARIES = libMADtensor.a 
+
 
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
 
 test_SOURCES = test.cc
-test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS) 
 
-oldtest_SOURCES = oldtest.cc
-oldtest_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
 
 test_scott_SOURCES = test_scott.cc
-test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
 test_mtxmq_SOURCES = test_mtxmq.cc
-test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)
+test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)  $(NVCCFLAGS)
 test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 jimkernel_SOURCES = jimkernel.cc
-jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
+jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
-test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
+test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD) $(NVCCFLAGS)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
-libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \
+libMADtensor_a_SOURCES =   cu_mtxmq.cu cu_mtxmq_kernels.cu tensor.cc  tensoriter.cc basetensor.cc mtxmq.cc vmath.cc   \
                          \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
 
+.cu.o:  
+	$(NVCC)  -arch=sm_13 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
+
+	
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -I. -DX86_64 -c -o $@ $<
+	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(NVCCFLAGS)  $(AM_CPPFLAGS) -I. -DX86_64 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
@@ -47,7 +51,7 @@ endif
 if USE_X86_32_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
 mtxmq_asm.o:	mtxmq_asm.S mtxm_gen.h
-	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(AM_CPPFLAGS) -I. -DX86_32 -c -o $@ $<
+	$(CC) $(CXXFLAGS) $(CPPFLAGS) $(NVCCFLAGS)  $(AM_CPPFLAGS) -I. -DX86_32 -c -o $@ $<
 
 mtxm_gen.h:	genmtxm.py 
 	python $(srcdir)/genmtxm.py > $@
@@ -66,4 +70,6 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 #        $(CXX) -o $@  $^
 
 libraries:	$(lib_LIBRARIES)
-	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+	for dir in $(SUBDIRS) ; do $(MAKE)  -C $$dir $@ ; done
+
+

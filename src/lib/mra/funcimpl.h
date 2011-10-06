@@ -683,9 +683,12 @@ namespace madness {
             }
         }
         else {
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+            //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+            print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
+            cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
             for (int n=1; n<t.ndim(); ++n) {
-                mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                //mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
             }
         }
