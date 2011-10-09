@@ -47,10 +47,11 @@
   \endverbatim
  */
 
+#include <mra/mra.h>
 #include <linalg/solvers.h>
 
 namespace madness {
-    /// A simple Krylov-subspace nonlinear equation solver 
+    /// A simple Krylov-subspace nonlinear equation solver
 
     /// \ingroup nonlinearsolve
     class NonlinearSolver {
@@ -100,5 +101,83 @@ namespace madness {
 	    return unew;
 	}
     };
+
+    template <class T>
+    struct default_allocator {
+        T operator()() {return T();}
+    };
+    
+    /// Generalized version of NonlinearSolver not limited to a single madness function
+
+    /// \ingroup nonlinearsolve 
+    ///
+    /// This solves the equation \f$r(u) = 0\f$ where u and r are both
+    /// of type \c T and inner products between two items of type \c T
+    /// produce a number of type \c C (defaulting to double).  The type \c T
+    /// must support storage in an STL vector, scaling by a constant
+    /// of type \c C, inplace addition (+=), subtraction, allocation with
+    /// value zero, and inner products computed with the interface \c
+    /// inner(a,b).  Have a look in examples/testsolver.cc for a
+    /// simple but complete example, and in examples/h2dynamic.cc for a 
+    /// more complex example.
+    ///
+    /// I've not yet tested with anything except \c C=double and I think
+    /// that the KAIN routine will need extending for anything else.
+    template <class T, class C = double, class Alloc = default_allocator<T>>
+    class XNonlinearSolver {
+        unsigned int maxsub; //< Maximum size of subspace dimension
+        Alloc alloc;
+        std::vector<T> ulist, rlist; ///< Subspace information
+	Tensor<C> Q;
+    public:
+
+	XNonlinearSolver(const Alloc& alloc = Alloc())
+            : maxsub(10)
+            , alloc(alloc)
+        {}
+
+        void set_maxsub(int maxsub) 
+        {
+            this->maxsub = maxsub;
+        }
+
+	/// Computes next trial solution vector
+
+	/// You are responsible for performing step restriction or line search
+	/// (not necessary for linear problems).
+	///
+	/// @param u Current solution vector
+	/// @param r Corresponding residual
+	/// @return Next trial solution vector
+	T update(const T& u, const T& r) {
+	    int iter = ulist.size();
+	    ulist.push_back(u);
+	    rlist.push_back(r);
+
+	    // Solve subspace equations
+	    Tensor<C> Qnew(iter+1,iter+1);
+	    if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+	    for (int i=0; i<=iter; i++) {
+		Qnew(i,iter) = inner(ulist[i],rlist[iter]);
+		Qnew(iter,i) = inner(ulist[iter],rlist[i]);
+	    }
+	    Q = Qnew;
+	    Tensor<C> c = KAIN(Q);
+
+	    // Form new solution in u
+	    T unew = alloc();
+	    for (int i=0; i<=iter; i++) {
+                unew += (ulist[i] - rlist[i])*c[i];
+	    }
+
+            if (ulist.size() == maxsub) {
+                ulist.erase(ulist.begin());
+                rlist.erase(rlist.begin());
+                Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+            }
+	    return unew;
+	}
+    };
+
 }
 #endif
