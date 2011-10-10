@@ -40,6 +40,7 @@
 #define ENABLE_CUBLAS 1  
 #include <tensor/cu_mtxmq_kernels.cu>
 #include <tensor/cu_mtxmq.h>
+#include <world/cuda_streams.h>
 //namespace madness {
 
  
@@ -54,10 +55,37 @@
     ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
     /// \endcode
 
+ template <typename T, typename T, typename tensorT>
+ void padwrapper(long dimi, long dimj, const double* pc, T* t0, T* t1, tensorT d,unsigned int i){
+
+	tensorT t = d;
+	long nij = dimi*dimj;
+	if (IS_ODD(dimi) || IS_ODD(dimj) ||
+		IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+	    for (long i=0; i<nij; ++i) t0[i] = 0.0;
+	    mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+	    for (int n=1; n<t.ndim(); ++n) {
+		for (long i=0; i<nij; ++i) t1[i] = 0.0;
+		mTxm(dimi, dimj, dimj, t1, t0, pc);
+		std::swap(t0,t1);
+	    }
+	}
+	else {
+	    //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+	    print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
+	    cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc, i);
+	    for (int n=1; n<t.ndim(); ++n) {
+		//mTxmq(dimi, dimj, dimj, t1, t0, pc);
+		cu_mTxmq(dimi, dimj, dimj, t1, t0, pc, i);
+		std::swap(t0,t1);
+	    }
+	}
+
+ }
  
  template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b) {
+               cT* restrict c, const aT* a, const bT* b, unsigned long i) {
         printf("gpu code");
         const aT *h_A= a;
 	const bT *h_B= b;
@@ -161,18 +189,18 @@
 	cudaFree(d_C);
     }
 
-template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B){}    
+template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B, unsigned long i){}    
 #if !ENABLE_CUBLAS 
-      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c, const float* a, const float* b) ;
+      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c, const float* a, const float* b, unsigned long i) ;
      
-      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B);
+      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B, unsigned long i);
     
-  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B){}
+  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B, unsigned long i){}
 	 
        
 #else
 
-  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B){
+  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B, unsigned long i){
 
 
 	double one=1.0;
@@ -342,7 +370,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
     }
     
   */  
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B, unsigned long i){
 	cuDoubleComplex one;
 	one.x=1.0;
 	one.y=0.0;
@@ -394,7 +422,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
     }
 
 
-template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B){
+template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B, unsigned long i){
 	float one=1.0;
 	float zero=0.0;
 	printf(" GPU Scublas code execution");
@@ -449,7 +477,7 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
     }
     
     
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C, const std::complex<float> *A, const std::complex<float> *B){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C, const std::complex<float> *A, const std::complex<float> *B, unsigned long i){
 	cuComplex one;
 	one.x=1.0;
 	one.y=0.0;

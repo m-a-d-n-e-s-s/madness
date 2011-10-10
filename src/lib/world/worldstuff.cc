@@ -35,6 +35,7 @@
 #include <world/world.h>
 #include <world/worldmem.h>
 #include <world/worldtime.h>
+#include <world/cuda_streams.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -87,6 +88,7 @@ namespace madness {
 
     void * everRunningTask(void * arg){
           World * w = static_cast<World *>(arg);
+          streams_initialize();
           while (1){
             //printf("ERT \n");
             sched_yield();
@@ -104,6 +106,7 @@ namespace madness {
 
             w->gpu_hashlock.unlock(); 
           }
+          streams_destroy();
           return NULL;
     }
 
