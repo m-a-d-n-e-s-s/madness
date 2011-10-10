@@ -18,8 +18,10 @@ AC_CONFIG_HEADERS([include/madness_config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
+ACX_CRAYXE
 ACX_MAC
 ACX_IBMBGP
+ACX_IBMBGQ
 #AC_AIX
 ACX_WITH_STUBMPI
 
