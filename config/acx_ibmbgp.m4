@@ -5,8 +5,8 @@ AC_DEFUN([ACX_IBMBGP], [
         #   - sets thread binding to "1 0 2"
         #   - enables spinlocks
         #   - sets the host architecture to powerpc-bgp-linux-gnu
-        # JEFF AC_CHECK_FILE([/bgsys],[HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBMBGP])],[])
-        AC_CHECK_DEFINE([__bgp__],[HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBMBGP])],[])
+        AC_CHECK_FILE([/bgsys],[HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBMBGP])],[])
+        # BROKEN AC_CHECK_DEFINE([__bgp__],[HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBMBGP])],[])
         if test "x$HAVE_IBMBGP" = xyes; then
                 echo "IBM BG/P system detected"
                 host="powerpc-bgp-linux"
