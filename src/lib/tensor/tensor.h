@@ -295,6 +295,8 @@ namespace madness {
                 TENSOR_ASSERT(_size>=0 && _size<268435456, "invalid size in new tensor",_size,0);
                 try {
 #if HAVE_IBMBGP
+#define TENSOR_ALIGNMENT 16
+#elif HAVE_IBMBGQ
 #define TENSOR_ALIGNMENT 32
 #else
 #define TENSOR_ALIGNMENT 16
