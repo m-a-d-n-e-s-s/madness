@@ -468,12 +468,67 @@ struct CalculationParameters {
     double sigma;               ///< surface width    jacob added
     bool solventplot;            ///< to plot the solvation, free space and reaction potentials
     double thresh;               ///<thresh value of the wavelet coefficient
+    double angle;                  ///<angle between the electric field and the axis on the ij-plane
+    bool nonaxial;                ///<if true solve for off diagonal terms of the optical ptoperties
+    bool opticprop;               ///<if true solve for diagonal terms of the optical ptoperties
+    double F;                      ///<magnitude of the electric field on the ij-plane
+    bool fx;                      ///< if true compute mux(fx) muy(fx) muz(fx) and E(fx)
+    bool mfx;
+    bool fy;
+    bool mfy;
+    bool fz;
+    bool mfz;
+    bool ofx;                      ///< if true compute mux(fx) muy(fx) muz(fx) and E(fx)
+    bool mofx;
+    bool ofy;
+    bool mofy;
+    bool ofz;
+    bool mofz;
+    bool fzfy;
+    bool mfzfy;
+    bool fzmfy;
+    bool mfzmfy;
+    bool fzfx;
+    bool mfzfx;
+    bool fzmfx;
+    bool mfzmfx;
+    bool fyfz;
+    bool mfyfz;
+    bool fymfz;
+    bool mfymfz;
+    bool fyfx;
+    bool mfyfx;
+    bool fymfx;
+    bool mfymfx;
+    bool tfx;
+    bool mtfx;
+    bool tfy;
+    bool mtfy;
+    bool tfz;
+    bool mtfz;
+    bool otfx;
+    bool motfx;
+    bool otfy;
+    bool motfy;
+    bool otfz;
+    bool motfz;
+    bool fxfz;
+    bool mfxfz;
+    bool fxmfz;
+    bool mfxmfz;
+    bool fxfy;
+    bool mfxfy;
+    bool fxmfy;
+    bool mfxmfy;
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
-	ar & sigma & solventplot & thresh ;
+	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & F & fx & mfx & fy & mfy & fz & mfz & fzfy & mfzfy;
+	ar & fzmfy & mfzmfy & fyfz & mfyfz & fymfz & mfymfz & tfx & mtfx & tfy & mtfy & tfz & mtfz & fxfy & mfxfy & fxmfy & mfxmfy;
+	ar & fzfx & mfzfx & fzmfx & mfzmfx & fyfx & mfyfx & fymfx & mfymfx & fxfz & mfxfz & fxmfz & mfxmfz;
+	ar & ofx & mofx & ofy & mofy & ofz & mofz & otfx & motfx & otfy & motfy & otfz & motfz; 
         ar & core_type;
     }
 
@@ -516,7 +571,59 @@ struct CalculationParameters {
         , rho_0(0.0004)
 	, sigma(0.1)            //Jacob added
 	,solventplot(false)   //jacob added
-	,thresh(1e-04){}
+	,thresh(1e-04)
+	,angle(45.0)
+	,nonaxial(false)
+	,opticprop(false)
+	,F(0.0)
+ 	,fx(false)
+	,mfx(false)
+	,fy(false)
+	,mfy(false)
+	,fz(false)
+	,mfz(false)
+	,ofx(false)
+	,mofx(false)
+	,ofy(false)
+	,mofy(false)
+	,ofz(false)
+	,mofz(false)
+	,fzfy(false)
+	,mfzfy(false)
+	,fzmfy(false)
+	,mfzmfy(false)
+	,fzfx(false)
+	,mfzfx(false)
+	,fzmfx(false)
+	,mfzmfx(false)
+	,fyfz(false)
+	,mfyfz(false)
+	,fymfz(false)
+	,mfymfz(false)
+	,fyfx(false)
+	,mfyfx(false)
+	,fymfx(false)
+	,mfymfx(false)
+	,tfx(false)
+	,mtfx(false)
+	,tfy(false)
+	,mtfy(false)
+	,tfz(false)
+	,mtfz(false)
+        ,otfx(false)
+	,motfx(false)
+	,otfy(false)
+	,motfy(false)
+	,otfz(false)
+	,motfz(false)
+	,fxfz(false)
+	,mfxfz(false)
+	,fxmfz(false)
+	,mfxmfz(false)
+	,fxfy(false)
+	,mfxfy(false)
+	,fxmfy(false)
+	,mfxmfy(false){}
 	void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
@@ -612,6 +719,162 @@ struct CalculationParameters {
             }
 	    else if (s == "sigma"){
 	      f>>sigma;
+	    }   
+	    else if (s == "angle"){
+	      f>>angle;
+	    }   
+	    else if (s == "nonaxial"){
+	      nonaxial = true;
+	    }   
+	    else if (s == "opticprop"){
+	      opticprop = true;
+	    }   
+	    else if (s == "Field"|| s == "field"){
+	      f>> F;
+	    }   
+	    else if (s == "Fx"|| s == "fx"){
+	      fx= true;
+	    }   
+	    else if (s == "mFx"|| s == "mfx"){
+	      mfx=true;
+	    }   
+	    else if (s == "Fy"|| s == "fy"){
+	      fy= true;
+	    }   
+	    else if (s == "mFy"|| s == "mfy"){
+	      mfy=true;
+	    }   
+	    else if (s == "Fz"|| s == "fz"){
+	      fz= true;
+	    }   
+	    else if (s == "mFz"|| s == "mfz"){
+	      mfz=true;
+	    }   
+	    else if (s == "tFx"|| s == "tfx"){
+	      tfx= true;
+	    }   
+	    else if (s == "mtFx"|| s == "mtfx"){
+	      mtfx=true;
+	    }   
+	    else if (s == "tFy"|| s == "tfy"){
+	      tfy= true;
+	    }   
+	    else if (s == "mtFy"|| s == "mtfy"){
+	      mtfy=true;
+	    }   
+	    else if (s == "tFz"|| s == "tfz"){
+	      tfz= true;
+	    }   
+	    else if (s == "mtFz"|| s == "mtfz"){
+	      mtfz=true;
+	    }   //st
+	    else if (s == "oFx"|| s == "ofx"){
+	      ofx= true;
+	    }   
+	    else if (s == "moFx"|| s == "mofx"){
+	      mofx=true;
+	    }   
+	    else if (s == "oFy"|| s == "ofy"){
+	      ofy= true;
+	    }   
+	    else if (s == "moFy"|| s == "mofy"){
+	      mofy=true;
+	    }   
+	    else if (s == "oFz"|| s == "ofz"){
+	      ofz= true;
+	    }   
+	    else if (s == "moFz"|| s == "mofz"){
+	      mofz=true;
+	    }   
+	    else if (s == "otFx"|| s == "otfx"){
+	      otfx= true;
+	    }   
+	    else if (s == "motFx"|| s == "motfx"){
+	      motfx=true;
+	    }   
+	    else if (s == "otFy"|| s == "otfy"){
+	      otfy= true;
+	    }   
+	    else if (s == "motFy"|| s == "motfy"){
+	      motfy=true;
+	    }   
+	    else if (s == "otFz"|| s == "otfz"){
+	      otfz= true;
+	    }   
+	    else if (s == "motFz"|| s == "motfz"){
+	      motfz=true;
+	    }   //st
+	    else if (s == "FxFy"|| s == "fxfy"){
+	      fxfy= true;
+	    }   
+	    else if (s == "mFxFy"|| s == "mfxfy"){
+	      mfxfy=true;
+	    }   
+	    else if (s == "FxmFy"|| s == "fxmfy"){
+	      fxmfy= true;
+	    }   
+	    else if (s == "mFxmFy"|| s == "mfxmfy"){
+	      mfxmfy=true;
+	    }   
+	    else if (s == "FxFz"|| s == "fxfz"){
+	      fxfz= true;
+	    }   
+	    else if (s == "mFxFz"|| s == "mfxfz"){
+	      mfxfz=true;
+	    }   
+	    else if (s == "FxmFz"|| s == "fxmfz"){
+	      fxmfz= true;
+	    }   
+	    else if (s == "mFxmFz"|| s == "mfxmfz"){
+	      mfxmfz=true;
+	    }   
+	    else if (s == "FzFy"|| s == "fzfy"){
+	      fzfy= true;
+	    }   
+	    else if (s == "mFzFy"|| s == "mfzfy"){
+	      mfzfy=true;
+	    }   
+	    else if (s == "FzmFy"|| s == "fzmfy"){
+	      fzmfy= true;
+	    }   
+	    else if (s == "mFzmFy"|| s == "mfzmfy"){
+	      mfzmfy= true;
+	    }   
+	    else if (s == "FzFx"|| s == "fzfx"){
+	      fzfx= true;
+	    }   
+	    else if (s == "mFzFx"|| s == "mfzfx"){
+	      mfzfx=true;
+	    }   
+	    else if (s == "FzmFx"|| s == "fzmfx"){
+	      fzmfx= true;
+	    }   
+	    else if (s == "mFzmFx"|| s == "mfzmfx"){
+	      mfzmfx= true;
+	    }   ////
+	    else if (s == "mFyFz"|| s == "mfyfz"){
+	      mfyfz=true;
+	    }   
+	    else if (s == "FyFz"|| s == "fyfz"){
+	      fyfz= true;
+	    }   
+	    else if (s == "FymFz"|| s == "fymfz"){
+	      fymfz=true;
+	    }   //end
+	    else if (s == "mFymFz"|| s == "mfymfz"){
+	      mfymfz= true;
+	    }   
+	    else if (s == "mFyFx"|| s == "mfyfx"){
+	      mfyfx=true;
+	    }   
+	    else if (s == "FyFx"|| s == "fyfx"){
+	      fyfx= true;
+	    }   
+	    else if (s == "FymFx"|| s == "fymfx"){
+	      fymfx=true;
+	    }   //end
+	    else if (s == "mFymFx"|| s == "mfymfx"){
+	      mfymfx= true;
 	    }   
 	    else if (s == "aobasis") {
 	      f >> aobasis;
@@ -714,6 +977,7 @@ struct CalculationParameters {
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);
         madness::print("        plot npoints ", npt_plot);
+	madness::print("      Electric Field ", F);
         madness::print("ab intio DFT solvation ", absolvent);
 	madness::print("density at interface ", rho_0);
 	madness::print("cavity convergence, beta ", beta);
@@ -744,6 +1008,7 @@ struct Calculation {
     AtomicBasisSet aobasis;
     functionT vnuc;
     functionT mask;
+    functionT rho;
     vecfuncT amo, bmo;
     std::vector<int> aset, bset;
     vecfuncT ao;
@@ -766,6 +1031,7 @@ struct Calculation {
     double Ues;
     realfunc dESPdrho ;
     realfunc dfreedrho ;
+    double muz, mux, muy;
   // SolventPotential Solvent; //jacob added
   
     Calculation(World & world, const char *filename)
@@ -795,7 +1061,7 @@ struct Calculation {
         int k;
         if(thresh >= 1e-2)
             k = 4;
-        else if(thresh >= 1e-4)
+        else if(thresh >= 1e-7) //-4
             k = 6;
         else if(thresh >= 1e-6)
             k = 8;
@@ -2306,12 +2572,11 @@ struct Calculation {
         amo = amo_new;
         bmo = bmo_new;
     }
-
-    // For given protocol, solve the DFT/HF/response equations
+  // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
-        functionT arho_old, brho_old, vlocal;
-	functionT adelrhosq, bdelrhosq;
+      functionT arho_old, brho_old, vlocal,rhom, rhop;
+	functionT adelrhosq, bdelrhosq,fdip,X, Y, Z;
         const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
         const double trantol = vtol / std::min(30.0, double(amo.size()));
         const double tolloc = 1e-3;
@@ -2326,11 +2591,11 @@ struct Calculation {
 	realfunct rhon_functor(new NuclearDensityFunctor(molecule));
 	if (world.rank()==0)
 	  print("starting to project rhon");
-	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
+	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added 
+	rhon.truncate();
 	double total_rhon = rhon.trace();
 	if(world.rank()==0)
 	  print("TRACE OF RHON", total_rhon);
-	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project(); // nuclear charge density//Jacob added 
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
@@ -2406,8 +2671,8 @@ struct Calculation {
             }
             arho_old = arho;
             brho_old = brho;
-            functionT rho = arho + brho;                  //compute electronic charge density
-            //rho.truncate();
+	    rho = arho + brho;                  //compute electronic charge density
+	    rho.truncate();
 	    rhotp = rhon - rho;  //total charge for the DFTSolventSolver
 	    rhotm = rhon - rho;  // total charge for the ScreenSolventPotential
 	    double enuclear = inner(rho, vnuc);       //nuclear potential energy
@@ -2415,23 +2680,181 @@ struct Calculation {
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
-	    // rho.clear(false);
+	    X = factoryT(world).functor(functorT(new DipoleFunctor(0))).initial_level(4);
+	    Y = factoryT(world).functor(functorT(new DipoleFunctor(1))).initial_level(4);
+	    Z = factoryT(world).functor(functorT(new DipoleFunctor(2))).initial_level(4);
+	    mux = X.inner(rho);
+	    muy = Y.inner(rho);
+	    muz = Z.inner(rho);
 	    if(param.absolvent){
-	      print("Entrying DFT SOLVATION");
 	      DFTSolventSolver DFTSsolver(rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta,std::max(1e-3,param.thresh));
+	      print("in dft solventsolver");
 	      realfunc U = DFTSsolver.ESP();
 	      dESPdrho = DFTSsolver.dESP_drho(U);
-	      print("ELECTROSTATIC NORM", U.norm2());
-	      vlocal = vcoul + vnuc + dESPdrho ;//+ dfreedrho;
+              dfreedrho = DFTSsolver.dfree_drho();
+	      vlocal = vcoul + vnuc + U + dESPdrho + dfreedrho;
+	      print("out of dftsolvent");
 	    } else if (param.svpe){
 	      ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
 					     molecule.get_all_coords_vec()); 
-	      vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotm,param.solventplot);
+	      vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotp,param.solventplot);
 	      vlocal = vcoul + vnuc + vsolvent;
 	    }
-	    else {
-	      vlocal = vcoul + vnuc ;  //ADD RXN POT HERE
+	    //put molecule in various components of elecric field and compute energy and dipole moment
+	    else if(param.fx) {
+	      vlocal = vcoul + vnuc - X.scale(param.F); //mux(fx), E(fx)
 	    }
+	    else if(param.mfx){
+	      vlocal = vcoul + vnuc + X*param.F ;  //mux(-fx), E(-fx)
+	    } 
+	    else if(param.fy) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F);//muy(fy), E(fy)
+	    }
+	    else if(param.mfy){
+	      vlocal = vcoul + vnuc + Y*param.F ;//muy(-fy), E(-fy)
+	    } 
+	    else if(param.fz) {
+	      vlocal = vcoul + vnuc - Z.scale(param.F);//muz(fz), E(fz)
+	    }
+	    else if(param.mfz){
+	      vlocal = vcoul + vnuc + Z*param.F ; //muz(-fz), E(-fz)
+	    } 
+	    else if(param.tfx) {
+	      vlocal = vcoul + vnuc - 2.0*X.scale(param.F); //mux(2fx), E(2fx)
+	    }
+	    else if(param.mtfx){
+	      vlocal = vcoul + vnuc + 2.0*X*param.F ;  //mux(-2fx), E(-2fx)
+	    } 
+	    else if(param.tfy) {
+	      vlocal = vcoul + vnuc - 2.0*Y.scale(param.F);  //muy(2fy), E(2fy)
+	    }
+	    else if(param.mtfy){
+	      vlocal = vcoul + vnuc +2.0*Y*param.F ;         //muy(-2fy), E(-2fy)
+	    } 
+	    else if(param.tfz) {
+	      vlocal = vcoul + vnuc - 2.0*Z.scale(param.F);  //muz(2fz), E(2fz)
+	    }
+	    else if(param.mtfz){
+	      vlocal = vcoul + vnuc + 2.0*Z*param.F ;    //muz(-2fz), E(-2fz)
+	    }
+	    else if(param.ofx) {
+	      vlocal = vcoul + vnuc - 0.5*X.scale(param.F); //mux(fx), E(fx)
+	    }
+	    else if(param.mofx){
+	      vlocal = vcoul + vnuc + 0.5*X*param.F ;  //mux(-fx), E(-fx)
+	    } 
+	    else if(param.ofy) {
+	      vlocal = vcoul + vnuc - 0.5*Y.scale(param.F);//muy(fy), E(fy)
+	    }
+	    else if(param.mofy){
+	      vlocal = vcoul + vnuc + 0.5*Y*param.F ;//muy(-fy), E(-fy)
+	    } 
+	    else if(param.ofz) {
+	      vlocal = vcoul + vnuc - 0.707106781*Z.scale(param.F);//muz(fz), E(fz)
+	    }
+	    else if(param.mofz){
+	      vlocal = vcoul + vnuc + 0.707106781*Z*param.F ; //muz(-fz), E(-fz)
+	    } 
+	    else if(param.otfx) {
+	      vlocal = vcoul + vnuc - X.scale(param.F); //mux(2fx), E(2fx)
+	    }
+	    else if(param.motfx){
+	      vlocal = vcoul + vnuc + X*param.F ;  //mux(-2fx), E(-2fx)
+	    } 
+	    else if(param.otfy) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F);  //muy(2fy), E(2fy)
+	    }
+	    else if(param.motfy){
+	      vlocal = vcoul + vnuc + Y*param.F ;         //muy(-2fy), E(-2fy)
+	    } 
+	    else if(param.otfz) {
+	      vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F);  //muz(2fz), E(2fz)
+	    }
+	    else if(param.motfz){
+	      vlocal = vcoul + vnuc + 1.414213562*Z*param.F ;    //muz(-2fz), E(-2fz)
+	    }
+	    /*compute mux(fx,fy), mux(-fx,fy), mux(fx,-fy), mux(-fx,-fy)*/
+	    else if(param.fxfy) {
+	      vlocal = vcoul + vnuc - 0.5*X.scale(param.F) - 0.5*Y.scale(param.F);
+	    }
+	    else if(param.mfxfy) {
+	      vlocal = vcoul + vnuc + 0.5*X.scale(param.F) - Y.scale(param.F)*0.5;
+	    }
+	    else if(param.fxmfy) {
+	      vlocal = vcoul + vnuc - X.scale(param.F)*0.5 + Y.scale(param.F)*0.5;
+	    }
+	    else if(param.mfxmfy) {
+	      vlocal = vcoul + vnuc + X.scale(param.F)*0.5 + Y.scale(param.F)*0.5;
+	    }
+	    /*compute mux(fx,fz), mux(-fx,fz), mux(fx,-fz), mux(-fx,-fz)*/
+	    else if(param.fxfz) {
+	      vlocal = vcoul + vnuc - 0.5*X.scale(param.F) - 0.707106781*Z.scale(param.F);
+	    }
+	    else if(param.mfxfz) {
+	      vlocal = vcoul + vnuc + 0.5*X.scale(param.F) - Z.scale(param.F)*0.707106781;
+	    }
+	    else if(param.fxmfz) {
+	      vlocal = vcoul + vnuc - X.scale(param.F)*0.5 + Z.scale(param.F)*0.707106781;
+	    }
+	    else if(param.mfxmfz) {
+	      vlocal = vcoul + vnuc + X.scale(param.F)*0.5 + Z.scale(param.F)*0.707106781;
+	    }
+	    /*compute muy(fy,fz), muy(-fy,fz), muy(fy,-fz), muy(-fy,-fz)*/
+	    else if(param.fyfz) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F)*0.5 - Z.scale(param.F)*0.707106781;
+	    }
+	    else if(param.mfyfz) {
+	      vlocal = vcoul + vnuc + Y.scale(param.F)*0.5 - Z.scale(param.F)*0.707106781;
+	    }
+	    else if(param.fymfz) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F)*0.5 + Z.scale(param.F)*0.707106781;
+	    }
+	    else if(param.mfymfz) {
+	      vlocal = vcoul + vnuc + Y.scale(param.F)*0.5 + Z.scale(param.F)*0.707106781;
+	    }
+	    /*compute muy(fy,fx), muy(-fy,fx), muy(fy,-fx), muy(-fy,-fx)*/
+	    else if(param.fyfx) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F)*0.5 - X.scale(param.F)*0.5;
+	    }
+	    else if(param.mfyfx) {
+	      vlocal = vcoul + vnuc + Y.scale(param.F)*0.5 - X.scale(param.F)*0.5;
+	    }
+	    else if(param.fymfx) {
+	      vlocal = vcoul + vnuc - Y.scale(param.F)*0.5 + X.scale(param.F)*0.5;
+	    }
+	    else if(param.mfymfx) {
+	      vlocal = vcoul + vnuc + Y.scale(param.F)*0.5 + X.scale(param.F)*0.5;
+	    }
+	    /*compute muz(fz,fy), muz(-fz,fy), muz(fz,-fy), muz(-fz,-fy)*/
+	    else if(param.fzfy) {
+	      vlocal = vcoul + vnuc - Z.scale(param.F)*0.707106781 - Y.scale(param.F)*0.5;
+	    }
+	    else if(param.mfzfy) {
+	      vlocal = vcoul + vnuc + Z.scale(param.F)*0.707106781 - Y.scale(param.F)*0.5;
+	    }
+	    else if(param.fzmfy) {
+	      vlocal = vcoul + vnuc - Z.scale(param.F)*0.707106781 + Y.scale(param.F)*0.5;
+	    }
+	    else if(param.mfzmfy) {
+	      vlocal = vcoul + vnuc + Z.scale(param.F)*0.707106781 + Y.scale(param.F)*0.5;
+	    }
+	    /*compute muz(fz,fx), muz(-fz,fx), muz(fz,-fx), muz(-fz,-fx)*/
+	    else if(param.fzfx) {
+	      vlocal = vcoul + vnuc - Z.scale(param.F)*0.707106781 - X.scale(param.F)*0.5;
+	    }
+	    else if(param.mfzfx) {
+	      vlocal = vcoul + vnuc + Z.scale(param.F)*0.707106781 - X.scale(param.F)*0.5;
+	    }
+	    else if(param.fzmfx) {
+	      vlocal = vcoul + vnuc - Z.scale(param.F)*0.707106781 + X.scale(param.F)*0.5;
+	    }
+	    else if(param.mfzmfx) {
+	      vlocal = vcoul + vnuc + Z.scale(param.F)*0.707106781 + X.scale(param.F)*0.5;
+	    }
+	    else
+	      {
+		vlocal = vcoul + vnuc;
+	      }
 	    vcoul.clear(false);
 	    vlocal.truncate();
             double exca = 0.0, excb = 0.0;
@@ -2465,7 +2888,7 @@ struct Calculation {
             double enrep = molecule.nuclear_repulsion_energy();
             double ekinetic = ekina + ekinb;
             double exc = exca + excb;
-	    etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+	    etot = ekinetic + enuclear + ecoulomb + exc + enrep;// - edip;
 	    current_energy = etot ;
 	    if(world.rank() == 0){
 	      printf("\n              kinetic %16.8f\n", ekinetic);
@@ -2479,7 +2902,19 @@ struct Calculation {
             if(iter > 0){
                 if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && bsh_residual < 5.0*dconv){
 		  if(world.rank() == 0) {
-		    print("\nConverged!\n");
+		    print("\nConverged! \n");
+		    print(" \n                     Summary                  \n ");
+		    printf("\n              kinetic %16.8f\n", ekinetic);
+		    printf("   nuclear attraction %16.8f\n", enuclear);
+		    printf("              coulomb %16.8f\n", ecoulomb);
+		    printf(" exchange-correlation %16.8f\n", exc);
+		    printf("    nuclear-repulsion %16.8f\n", enrep);
+		    printf("                total %16.8f\n\n", etot);
+		    print("                Dipole Moment                        ");
+		    printf("mux  %16.8f\n ", mux);
+		    printf("muy  %16.8f\n ", muy);
+		    printf("muz  %16.8f\n ", muz);
+		    
 		  }	    
 		  // Diagoanlize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
@@ -2537,9 +2972,9 @@ struct Calculation {
 
             analyze_vectors(world, bmo, bocc, beps);
         }
-	functionT arho = make_density(world, aocc, amo);
-	functionT brho = make_density(world, bocc, bmo);
-	functionT rho = arho + brho;
+	//	functionT arho = make_density(world, aocc, amo);
+	//	functionT brho = make_density(world, bocc, bmo);
+	//	functionT rho = arho + brho;
 	if(param.absolvent){
 	  DFTSolventSolver DFTSsolver(rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta,std::max(1e-3,param.thresh));
 	  //DFTSsolver.dftsolverplots();
@@ -2553,9 +2988,9 @@ struct Calculation {
 	    print("                            MADNESS DFT SOLVATION            ");
 	    print("                          _________________         ");
 	    print("\n(electrostatic) solvation energy:     ",E_es, "(",E_es*627.503,"kcal/mol)");
-	    print("               cavitation energy:     ",E_cav*627.503);
-	    print("                gas phase energy:     ",etot);
-	    print("           solution phase energy:     ",E_es + etot,"\n\n");
+	    printf("               cavitation energy %16.8f\n     ",E_cav*627.503);
+	    printf("                gas phase energy %16.8f\n     ",etot);
+	    printf("           solution phase energy%16.8f\n\n     ",E_es + etot);
 	  }
 	}
 	else if(param.svpe){
@@ -2570,20 +3005,11 @@ struct Calculation {
             print("                            MADNESS SVPE            ");
             print("                          _________________         ");
             print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
-            print("                gas phase energy:     ",etot);
-            print("                cavitation energy:     ",cav_energy);
-            print("           solution phase energy:     ",total_energy);
+            printf("                gas phase energy%16.8f\n     ",etot);
+            printf("                cavitation energy%16.8f\n     ",cav_energy);
+            printf("           solution phase energy%16.8f\n     ",total_energy);
           }
 	}
-	else
-	  {
-	    double rhom = rhotm.trace();
-	    double rhop = rhotp.trace();
-	    if(world.rank() ==0){
-	      print("Total svpe charge: ",rhom);
-	      print("Total ab init dft charge: ",rhop);
-	    } 
-	  }
     }
 };//end Calculation
 
