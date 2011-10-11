@@ -2346,6 +2346,7 @@ namespace madness {
         for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
         long nij = dimi*dimj;
 
+        //printf("old version ");
 
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
                 IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
@@ -2369,21 +2370,21 @@ namespace madness {
         else {
             
 //#ifdef	HAVE_CUDA
-	    cu_mTxmq(dimi, dimj, dimj,t0, t.ptr(), pc);
+//	    cu_mTxmq(dimi, dimj, dimj,t0, t.ptr(), pc);
 //#else
 //printf("dimi=%d dimj=%d dimk=%d\n", dimi,dimj,dimj);
-//	    mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+	    mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
 //#endif
 
 	    for (int n=1; n<t.ndim(); ++n) {
 //#ifdef	HAVE_CUDA
             
-		 cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
-		 std::swap(t0,t1);
+//		 cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
+//		 std::swap(t0,t1);
 //#else
 	    
-//                mTxmq(dimi, dimj, dimj, t1, t0, pc);
-//		std::swap(t0,t1);
+                mTxmq(dimi, dimj, dimj, t1, t0, pc);
+		std::swap(t0,t1);
 //#endif
                 
             }

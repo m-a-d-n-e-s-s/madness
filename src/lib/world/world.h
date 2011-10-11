@@ -363,8 +363,10 @@ typedef UINT64_T uint64_t;
 //#include <world/worldtime.h>
 
 #define HAVE_GPU 1
-
+#define NUM_STREAMS 16
 namespace madness {
+
+//    void ** GPU_streams;
 
     class World;
     class uniqueidT;

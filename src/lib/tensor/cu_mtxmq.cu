@@ -40,7 +40,8 @@
 #define ENABLE_CUBLAS 1  
 #include <tensor/cu_mtxmq_kernels.cu>
 #include <tensor/cu_mtxmq.h>
-#include <world/cuda_streams.h>
+//#include <world/cuda_streams.h>
+#include <cublas_v2.h>
 //namespace madness {
 
  
@@ -54,7 +55,7 @@
     /// \code
     ///    c(i,j) = sum(k) a(k,i)*b(k,j)  <------ does not accumulate into C
     /// \endcode
-
+/*
  template <typename T, typename T, typename tensorT>
  void padwrapper(long dimi, long dimj, const double* pc, T* t0, T* t1, tensorT d,unsigned int i){
 
@@ -82,10 +83,10 @@
 	}
 
  }
- 
+ */
  template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b, unsigned long i) {
+               cT* restrict c, const aT* a, const bT* b,void *stream) {
         printf("gpu code");
         const aT *h_A= a;
 	const bT *h_B= b;
@@ -139,10 +140,10 @@
 	
 	//printf("A_size=%d\n\n\n",A_size);
 	
-	cudaMalloc((void**)&d_A, A_size) ;
-	cudaMalloc((void**)&d_B, B_size) ;
-	cudaMalloc((void**)&d_C, C_size) ;
-	cudaMalloc((void**)&d_odata, A_size) ;
+	cudaMallocHost((void**)&d_A, A_size) ;
+	cudaMallocHost((void**)&d_B, B_size) ;
+	cudaMallocHost((void**)&d_C, C_size) ;
+	cudaMallocHost((void**)&d_odata, A_size) ;
 	cudaMemcpy(d_A, ha, A_size, cudaMemcpyHostToDevice) ; 
 	cudaMemcpy(d_B, hb, B_size, cudaMemcpyHostToDevice) ;
 	
@@ -189,55 +190,58 @@
 	cudaFree(d_C);
     }
 
-template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B, unsigned long i){}    
+template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B,void *stream){}    
 #if !ENABLE_CUBLAS 
-      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c, const float* a, const float* b, unsigned long i) ;
+      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c, const float* a, const float* b,void *stream) ;
      
-      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B, unsigned long i);
+      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *stream);
     
-  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B, unsigned long i){}
+  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B,void *stream){}
 	 
        
 #else
 
-  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B, unsigned long i){
+  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *GPU_stream){
 
 
 	double one=1.0;
 	double zero=0.0;
-	//printf(" GPU Scublas code execution");
+	printf(" GPU Scublas code execution");
 	//sleep(100);
 	int M = (int)m;
 	int N = (int)n;
 	int K = (int)k;
-	cublasStatus stat;
+	cublasStatus_t statt;
+	cudaError_t stat;	
 	double *devPtrA, *devPtrB, *devPtrC;
+        cublasHandle_t handle;	
+	cublasCreate(&handle);
+	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	cublasSetStream(handle, *stream);
 	
-	cublasInit();
-	
-	stat = cublasAlloc (M*K, sizeof(double), (void**)&devPtrA);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (K*N, sizeof(double), (void**)&devPtrB);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (M*N, sizeof(double), (void**)&devPtrC);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	cublasSetMatrix (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M);
-	cublasSetMatrix (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K);
+	cublasSetMatrixAsync (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M,*stream);
+	cublasSetMatrixAsync (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K,*stream);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasDgemm('t','n',M,N,K,one,devPtrA,K,devPtrB,K,zero,devPtrC,M);
-	cublasDgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
+	cublasDgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
 	int  b=cublasGetError();
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -258,11 +262,11 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 	//cublasGetMatrix (K, K, sizeof(double), (void *)devPtrC, K, (void *)C, K);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasSgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrix (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M);
-	cublasFree (devPtrA);
-	cublasFree (devPtrB);
-	cublasFree (devPtrC);
-	cublasShutdown();
+	cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M,*stream);
+	cudaFree (devPtrA);
+	cudaFree (devPtrB);
+	cudaFree (devPtrC);
+	cublasDestroy(handle);
 
     }
 
@@ -276,12 +280,12 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 	int M = (int)m;
 	int N = (int)n;
 	int K = (int)k;
-	cublasStatus stat,b;
+	cublasStatus_t stat,b;
 	double *devPtrA, *devPtrB, *devPtrC;
  		
 	do{
-	stat=cublasInit();
-	}while(	stat!= CUBLAS_STATUS_SUCCESS);
+	stat=cublasCreate(cublasHandle_t *handle);
+	}while(	stat!= cudaSuccess);
     b=cublasGetError();
         if (b == CUBLAS_STATUS_INVALID_VALUE)
           printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -299,33 +303,33 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
 
         else
-          printf("CUBLAS_STATUS_SUCCESS");
+          printf("cudaSuccess");
 	
 	stat = cublasAlloc (M*K, sizeof(double), (void**)&devPtrA);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
 	stat = cublasAlloc (K*N, sizeof(double), (void**)&devPtrB);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
 	stat = cublasAlloc (M*N*4, sizeof(double), (void**)&devPtrC);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	cublasSetMatrix (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M);
-	cublasSetMatrix (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K);
+	cublasSetMatrixAsync (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M,stream[i]);
+	cublasSetMatrixAsync (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K,stream[i]);
 
 //do{	
 //	cublasFree (devPtrC);
 //	stat = cublasAlloc (M*N, sizeof(double), (void**)&devPtrC);
-  //      if (stat != CUBLAS_STATUS_SUCCESS) {
+  //      if (stat != cudaSuccess) {
     //    printf ("device memory allocation failed");
       //  return ;
        // }
@@ -335,7 +339,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
 
 	//cublasDgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
 	 b=cublasGetError();
-//}while(b != CUBLAS_STATUS_SUCCESS);
+//}while(b != cudaSuccess);
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
 	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -352,7 +356,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
 
 	else
-	  printf("CUBLAS_STATUS_SUCCESS");
+	  printf("cudaSuccess");
 
 // make sure Dgemm is finished
         cudaError_t cudaErr = cudaThreadSynchronize();
@@ -362,15 +366,15 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
 	//cublasGetMatrix (K, K, sizeof(double), (void *)devPtrC, K, (void *)C, K);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasDgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrix (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M);
+	cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M,stream[i]);
 	cublasFree (devPtrA);
 	cublasFree (devPtrB);
 	cublasFree (devPtrC);
-	cublasShutdown();
+	cublasDestroy(cublasHandle_t handle);
     }
     
   */  
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B, unsigned long i){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B,void *GPU_stream){
 	cuDoubleComplex one;
 	one.x=1.0;
 	one.y=0.0;
@@ -383,46 +387,48 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
 	int N = (int)n;
 	int K = (int)k;
 	
-	cublasStatus stat;
+	cudaError_t  stat;
 	cuDoubleComplex *devPtrA, *devPtrB, *devPtrC;
 	cuDoubleComplex *A1=(cuDoubleComplex *)A;
 	cuDoubleComplex *B1=(cuDoubleComplex *)B;
 	//cuDoubleComplex *C1=(cuDoubleComplex *)C;
-	cublasInit();
-	
-	stat = cublasAlloc (M*K, sizeof(cuDoubleComplex), (void**)&devPtrA);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	cublasHandle_t handle;
+	cublasCreate(&handle);
+	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	cublasSetStream(handle, *stream);
+	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (K*N, sizeof(cuDoubleComplex), (void**)&devPtrB);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (M*N, sizeof(cuDoubleComplex), (void**)&devPtrC);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	cublasSetMatrix (M, K, sizeof(cuDoubleComplex), (void *)A1, M, (void *)devPtrA, M);
-	cublasSetMatrix (K, N, sizeof(cuDoubleComplex), (void *)B1, K, (void *)devPtrB, K);
+	cublasSetMatrixAsync (M, K, sizeof(cuDoubleComplex), (void *)A1, M, (void *)devPtrA, M, *stream);
+	cublasSetMatrixAsync (K, N, sizeof(cuDoubleComplex), (void *)B1, K, (void *)devPtrB, K, *stream);
 	
 	//cublasZgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,K);
-	cublasZgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrix (N, M, sizeof(*C), (void *)devPtrC, N, (void *)C, N);
-	cublasFree (devPtrA);
-	cublasFree (devPtrB);
-	cublasFree (devPtrC);
-	cublasShutdown();
+	cublasZgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
+	cublasGetMatrixAsync (N, M, sizeof(*C), (void *)devPtrC, N, (void *)C, N, *stream);
+	cudaFree (devPtrA);
+	cudaFree (devPtrB);
+	cudaFree (devPtrC);
+	cublasDestroy( handle);
 
     }
 
 
-template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B, unsigned long i){
+template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B,void *GPU_stream){
 	float one=1.0;
 	float zero=0.0;
 	printf(" GPU Scublas code execution");
@@ -430,34 +436,35 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 	int M = (int)m;
 	int N = (int)n;
 	int K = (int)k;
-	cublasStatus stat;
+	cudaError_t stat;
 	float *devPtrA, *devPtrB, *devPtrC;
-	
-	cublasInit();
-	
-	stat = cublasAlloc (M*K, sizeof(float), (void**)&devPtrA);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	cublasHandle_t handle;
+        cublasCreate(&handle);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(handle, *stream);	
+	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (K*N, sizeof(float), (void**)&devPtrB);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (M*N, sizeof(float), (void**)&devPtrC);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	cublasSetMatrix (M, K, sizeof(float), (void *)A, M, (void *)devPtrA, M);
-	cublasSetMatrix (K, N, sizeof(float), (void *)B, K, (void *)devPtrB, K);
+	cublasSetMatrixAsync (M, K, sizeof(float), (void *)A, M, (void *)devPtrA, M,*stream);
+	cublasSetMatrixAsync (K, N, sizeof(float), (void *)B, K, (void *)devPtrB, K,*stream);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasDgemm('t','n',M,N,K,one,devPtrA,K,devPtrB,K,zero,devPtrC,M);
-	cublasSgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
+	cublasSgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
 	int  b=cublasGetError();
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -468,16 +475,16 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 	//cublasGetMatrix (K, K, sizeof(float), (void *)devPtrC, K, (void *)C, K);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasSgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrix (M, N, sizeof(float), (void *)devPtrC, M, (void *)C, M);
-	cublasFree (devPtrA);
-	cublasFree (devPtrB);
-	cublasFree (devPtrC);
-	cublasShutdown();
+	cublasGetMatrixAsync (M, N, sizeof(float), (void *)devPtrC, M, (void *)C, M,*stream);
+	cudaFree (devPtrA);
+	cudaFree (devPtrB);
+	cudaFree (devPtrC);
+	cublasDestroy(handle);
 
     }
     
     
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C, const std::complex<float> *A, const std::complex<float> *B, unsigned long i){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C, const std::complex<float> *A, const std::complex<float> *B,void *GPU_stream){
 	cuComplex one;
 	one.x=1.0;
 	one.y=0.0;
@@ -490,41 +497,42 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 	int N = (int)n;
 	int K = (int)k;
 	
-	cublasStatus stat;
+	cudaError_t  stat;
 	cuComplex *devPtrA, *devPtrB, *devPtrC;
 	cuComplex *A1=(cuComplex *)A;
 	cuComplex *B1=(cuComplex *)B;
 	//cuDoubleComplex *C1=(cuDoubleComplex *)C;
-	cublasInit();
-	
-	stat = cublasAlloc (M*K, sizeof(cuComplex), (void**)&devPtrA);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	cublasHandle_t handle;
+        cublasCreate(&handle);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(handle, *stream);
+	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (K*N, sizeof(cuComplex), (void**)&devPtrB);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
 	
-	stat = cublasAlloc (M*N, sizeof(cuComplex), (void**)&devPtrC);
-	if (stat != CUBLAS_STATUS_SUCCESS) {
+	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
+	if (stat != cudaSuccess) {
 	printf ("device memory allocation failed");
 	return ;
 	}
-	
-	cublasSetMatrix (M, K, sizeof(cuComplex), (void *)A1, M, (void *)devPtrA, M);
-	cublasSetMatrix (K, N, sizeof(cuComplex), (void *)B1, K, (void *)devPtrB, K);
+	cublasSetMatrixAsync (M, K, sizeof(cuComplex), (void *)A1, M, (void *)devPtrA, M,*stream);
+	cublasSetMatrixAsync (K, N, sizeof(cuComplex), (void *)B1, K, (void *)devPtrB, K,*stream);
 	
 	//cublasCgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,K);
-	cublasCgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrix (N, M, sizeof(*C), (void *)devPtrC, N, (void *)C, N);
-	cublasFree (devPtrA);
-	cublasFree (devPtrB);
-	cublasFree (devPtrC);
-	cublasShutdown();
+	cublasCgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
+	cublasGetMatrixAsync (N, M, sizeof(*C), (void *)devPtrC, N, (void *)C, N,*stream);
+	cudaFree (devPtrA);
+	cudaFree (devPtrB);
+	cudaFree (devPtrC);
+	cublasDestroy( handle);
 
     }
 #endif

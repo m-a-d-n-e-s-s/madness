@@ -35,7 +35,7 @@
 #include <world/world.h>
 #include <world/worldmem.h>
 #include <world/worldtime.h>
-#include <world/cuda_streams.h>
+#include <world/GPU_streams.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -45,20 +45,21 @@
 
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
-
+//#define NUM_STREAMS 16
 #ifdef __CYGWIN__
 #include <windows.h>
 #endif
-
+void ** GPU_streams;
+//extern cudaStream_t *streams;
+extern "C" void** streams_initialize(unsigned int);
+extern "C" void  streams_destroy(void **,unsigned int);
 namespace madness {
-
 
     //    SharedCounter future_count;
 
     static double start_cpu_time;
     static double start_wall_time;
     const int WorldAmInterface::NSEND;
-
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
 
@@ -88,11 +89,12 @@ namespace madness {
 
     void * everRunningTask(void * arg){
           World * w = static_cast<World *>(arg);
-          streams_initialize();
+//          streams=new void *[NUM_STREAMS];
+          GPU_streams=streams_initialize(NUM_STREAMS);
           while (1){
             //printf("ERT \n");
             sched_yield();
-            usleep(50);
+            usleep(500);
             w->gpu_hashlock.lock();
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
 
@@ -106,7 +108,7 @@ namespace madness {
 
             w->gpu_hashlock.unlock(); 
           }
-          streams_destroy();
+          streams_destroy(GPU_streams,NUM_STREAMS);
           return NULL;
     }
 

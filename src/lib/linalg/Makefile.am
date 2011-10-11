@@ -15,10 +15,10 @@ libMADlinalg_a_SOURCES = lapack.cc \
                          solvers.cc solvers.h
 
 test_SOURCES = test.cc
-test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+test_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS)
 
 test_solvers_SOURCES = test_solvers.cc
-test_solvers_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+test_solvers_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS)
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

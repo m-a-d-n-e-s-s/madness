@@ -48,11 +48,15 @@
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
-#include <world/cuda_streams.h>
+#include <world/GPU_streams.h>
+//#include <world/cuda_streams.h>
 
 #include<math.h>
-
+extern "C" void streams_synchronize(void **,unsigned int);
 namespace madness {
+#define IS_ODD(n) ((n)&0x1)
+#define IS_UNALIGNED(p) (((unsigned long)(p))&0x7)
+
     template <typename T, std::size_t NDIM>
     class DerivativeBase;
 
@@ -686,10 +690,10 @@ namespace madness {
         else {
             //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
             print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
-            cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+            cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[0]);
             for (int n=1; n<t.ndim(); ++n) {
                 //mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[0]);
                 std::swap(t0,t1);
             }
         }
@@ -720,31 +724,32 @@ namespace madness {
 
         std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
+            print("inArgs.size() = ",inArgs.size());
             for (unsigned int i = 0; i < inArgs.size(); i++){
-		std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> in = inArgs.at(i);
-		tensorT d = std::tr1::get<0>(in);
-		int k = std::tr1::get<1>(in);
+		tensorT d = std::tr1::get<0>(inArgs.at(i));
+		int k = std::tr1::get<1>(inArgs.at(i));
 		FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
-		keyT key = std::tr1::get<2>(in);
-		containerT ct = std::tr1::get<3>(in); 
-		bool nonstandard = std::tr1::get<4>(in); 
-		keyT parent = std::tr1::get<5>(in); 
-		dcT dc = std::tr1::get<6>(in); 
-		long dimi = std::tr1::get<7>(in);
-		long dimj = std::tr1::get<8>(in);
-		Tensor<double>* c = std::tr1::get<9>(in);
-		T* t0 = std::tr1::get<10>(in);
-		T* t1 = std::tr1::get<11>(in);
-		tensorT* result = std::tr1::get<12>(in);
-		tensorT* workspace = std::tr1::get<13>(in);
-		const double* pc = std::tr1::get<14>(in);
+		keyT key = std::tr1::get<2>(inArgs.at(i));
+		containerT ct = std::tr1::get<3>(inArgs.at(i)); 
+		bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
+		keyT parent = std::tr1::get<5>(inArgs.at(i)); 
+		dcT dc = std::tr1::get<6>(inArgs.at(i)); 
+		long dimi = std::tr1::get<7>(inArgs.at(i));
+		long dimj = std::tr1::get<8>(inArgs.at(i));
+		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
+		T* t0 = std::tr1::get<10>(inArgs.at(i));
+		T* t1 = std::tr1::get<11>(inArgs.at(i));
+		tensorT* result = std::tr1::get<12>(inArgs.at(i));
+		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
+		const double* pc = std::tr1::get<14>(inArgs.at(i));
 
-                padwrapper(dimi, dimj, pc, t0, t1, d, i); 
-                /*
+                //padwrapper(dimi, dimj, pc, t0, t1, d, i); 
+                
 		tensorT t = d;
 		long nij = dimi*dimj;
 		if (IS_ODD(dimi) || IS_ODD(dimj) ||
 			IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+                    print("NON-CUDA ",dimi," ",dimj," ",IS_UNALIGNED(pc)," ",IS_UNALIGNED(t0)," ",IS_UNALIGNED(t1));
 		    for (long i=0; i<nij; ++i) t0[i] = 0.0;
 		    mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
 		    for (int n=1; n<t.ndim(); ++n) {
@@ -756,40 +761,39 @@ namespace madness {
 		else {
 		    //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
 		    print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
-		    cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+		    cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS]);
 		    for (int n=1; n<t.ndim(); ++n) {
 			//mTxmq(dimi, dimj, dimj, t1, t0, pc);
-			cu_mTxmq(dimi, dimj, dimj, t1, t0, pc);
+			cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS]);
 			std::swap(t0,t1);
 		    }
 		}
-                */
+                
 
                 //std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> temp = inObj.at(i)->compressop_fasttransform(inArgs.at(i))/*compressop_compute(inArgs.at(i))*/;
                 //outArg[i] = temp;
             }
 
             //synchronize streams
-            streams_synchronize();
+            streams_synchronize(GPU_streams,NUM_STREAMS);
  
             for (unsigned int i = 0; i < inArgs.size(); i++){
-		std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> in = inArgs.at(i);
-		tensorT d = std::tr1::get<0>(in);
-		int k = std::tr1::get<1>(in);
+		tensorT d = std::tr1::get<0>(inArgs.at(i));
+		int k = std::tr1::get<1>(inArgs.at(i));
 		FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
-		keyT key = std::tr1::get<2>(in);
-		containerT ct = std::tr1::get<3>(in); 
-		bool nonstandard = std::tr1::get<4>(in); 
-		keyT parent = std::tr1::get<5>(in); 
-		dcT dc = std::tr1::get<6>(in); 
-		long dimi = std::tr1::get<7>(in);
-		long dimj = std::tr1::get<8>(in);
-		Tensor<double>* c = std::tr1::get<9>(in);
-		T* t0 = std::tr1::get<10>(in);
-		T* t1 = std::tr1::get<11>(in);
-		tensorT* result = std::tr1::get<12>(in);
-		tensorT* workspace = std::tr1::get<13>(in);
-		const double* pc = std::tr1::get<14>(in);
+		keyT key = std::tr1::get<2>(inArgs.at(i));
+		containerT ct = std::tr1::get<3>(inArgs.at(i)); 
+		bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
+		keyT parent = std::tr1::get<5>(inArgs.at(i)); 
+		dcT dc = std::tr1::get<6>(inArgs.at(i)); 
+		long dimi = std::tr1::get<7>(inArgs.at(i));
+		long dimj = std::tr1::get<8>(inArgs.at(i));
+		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
+		T* t0 = std::tr1::get<10>(inArgs.at(i));
+		T* t1 = std::tr1::get<11>(inArgs.at(i));
+		tensorT* result = std::tr1::get<12>(inArgs.at(i));
+		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
+		const double* pc = std::tr1::get<14>(inArgs.at(i));
 
                 std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,ct,nonstandard,parent,dc,workspace,c) ;
                 outArg[i] = t11;

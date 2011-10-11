@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 
-bin_PROGRAMS = test test_mtxmq test_Zmtxmq jimkernel test_scott
+bin_PROGRAMS = test test_Zmtxmq jimkernel test_scott
 lib_LIBRARIES = libMADtensor.a 
 
 
@@ -17,9 +17,9 @@ test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS)
 test_scott_SOURCES = test_scott.cc
 test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
-test_mtxmq_SOURCES = test_mtxmq.cc
-test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)  $(NVCCFLAGS)
-test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
+#test_mtxmq_SOURCES = test_mtxmq.cc
+#test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)  $(NVCCFLAGS)
+#test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
@@ -36,7 +36,7 @@ libMADtensor_a_SOURCES =   cu_mtxmq.cu cu_mtxmq_kernels.cu tensor.cc  tensoriter
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
 
 .cu.o:  
-	$(NVCC)  -arch=sm_13 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
+	$(NVCC)  -arch=sm_20 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
 
 	
 if USE_X86_64_ASM
