@@ -44,7 +44,7 @@
 
 template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b, void *GPU_stream);
+               cT* restrict c,const  aT* a, const bT* b, void *GPU_stream,int ndim,long tsize);
     
 #endif
 

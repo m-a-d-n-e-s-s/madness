@@ -41,7 +41,7 @@
 #include <fortran_ctypes.h>
 #include <iostream>
 #include <cuda.h>
-#include <cublas.h>
+//#include <cublas.h>
 #include <cuda_runtime.h>
 #include <cuComplex.h>
 //#include <tensor/cu_mtxmq.h>

@@ -50,10 +50,15 @@
 #include <mra/funcdefaults.h>
 #include <world/GPU_streams.h>
 //#include <world/cuda_streams.h>
+static double tttt, ssss;
+#define STARTt_TIMER  tttt=wall_time(); ssss=cpu_time()
+#define ENDt_TIMER(msg) tttt=wall_time()-tttt; ssss=cpu_time()-ssss;  printf("timer: %20.20s %8.10fs %8.10fs\n", msg, ssss, tttt)
+
 
 #include<math.h>
 extern "C" void streams_synchronize(void **,unsigned int);
 namespace madness {
+
 #define IS_ODD(n) ((n)&0x1)
 #define IS_UNALIGNED(p) (((unsigned long)(p))&0x7)
 
@@ -680,20 +685,24 @@ namespace madness {
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
                 IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; ++i) t0[i] = 0.0;
-            mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
+           // mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+
+                cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[0],1,t.size());
+           for (int n=1; n<t.ndim(); ++n) {
                 for (long i=0; i<nij; ++i) t1[i] = 0.0;
-                mTxm(dimi, dimj, dimj, t1, t0, pc);
+//                mTxm(dimi, dimj, dimj, t1, t0, pc);
+
+                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[0],t.ndim(),t.size());
                 std::swap(t0,t1);
-            }
+           }
         }
         else {
-            //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
-            cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[0]);
+           // mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+           // print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
+            cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[0],1,t.size());
             for (int n=1; n<t.ndim(); ++n) {
-                //mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[0]);
+             //   mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[0],t.ndim(),t.size());
                 std::swap(t0,t1);
             }
         }
@@ -725,6 +734,8 @@ namespace madness {
         std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
             print("inArgs.size() = ",inArgs.size());
+STARTt_TIMER; 
+
             for (unsigned int i = 0; i < inArgs.size(); i++){
 		tensorT d = std::tr1::get<0>(inArgs.at(i));
 		int k = std::tr1::get<1>(inArgs.at(i));
@@ -749,34 +760,37 @@ namespace madness {
 		long nij = dimi*dimj;
 		if (IS_ODD(dimi) || IS_ODD(dimj) ||
 			IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
-                    print("NON-CUDA ",dimi," ",dimj," ",IS_UNALIGNED(pc)," ",IS_UNALIGNED(t0)," ",IS_UNALIGNED(t1));
-		    for (long i=0; i<nij; ++i) t0[i] = 0.0;
-		    mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+                //    print("NON-CUDA ",dimi," ",dimj," ",IS_UNALIGNED(pc)," ",IS_UNALIGNED(t0)," ",IS_UNALIGNED(t1));
+		    for (long j=0; j<nij; ++j) t0[j] = 0.0;
+		  //  mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+
+                cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS],1,t.size());
 		    for (int n=1; n<t.ndim(); ++n) {
-			for (long i=0; i<nij; ++i) t1[i] = 0.0;
-			mTxm(dimi, dimj, dimj, t1, t0, pc);
+			for (long j=0; j<nij; ++j) t1[j] = 0.0;
+		//	mTxm(dimi, dimj, dimj, t1, t0, pc);
+			
+                cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS],t.ndim(),t.size());
 			std::swap(t0,t1);
 		    }
 		}
 		else {
-		    //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-		    print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
-		    cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS]);
+		   //mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+		    //print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
+		    cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS],1,t.size());
 		    for (int n=1; n<t.ndim(); ++n) {
 			//mTxmq(dimi, dimj, dimj, t1, t0, pc);
-			cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS]);
+			cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS],t.ndim(),t.size());
 			std::swap(t0,t1);
 		    }
 		}
                 
-
                 //std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> temp = inObj.at(i)->compressop_fasttransform(inArgs.at(i))/*compressop_compute(inArgs.at(i))*/;
                 //outArg[i] = temp;
-            }
+	   }
 
             //synchronize streams
             streams_synchronize(GPU_streams,NUM_STREAMS);
- 
+ ENDt_TIMER("sTREAMS");
             for (unsigned int i = 0; i < inArgs.size(); i++){
 		tensorT d = std::tr1::get<0>(inArgs.at(i));
 		int k = std::tr1::get<1>(inArgs.at(i));
@@ -1037,7 +1051,10 @@ namespace madness {
               this->set = true;
               if (tensor_keys.size() == max){
                 //dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
-                dc.local_update(key, &nodeT::compressop_preprocess, &nodeT::compressop_compute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                if (HAVE_GPU)
+                  dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allCompute, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                else
+                  dc.local_update(key, &nodeT::compressop_preprocess, &nodeT::compressop_compute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
               }
             ready.unlock();
 

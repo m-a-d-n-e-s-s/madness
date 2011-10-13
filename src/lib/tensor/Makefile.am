@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 
-bin_PROGRAMS = test test_Zmtxmq jimkernel test_scott
+bin_PROGRAMS = test  test_Zmtxmq jimkernel test_scott
 lib_LIBRARIES = libMADtensor.a 
 
 
@@ -17,7 +17,7 @@ test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS)
 test_scott_SOURCES = test_scott.cc
 test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
-#test_mtxmq_SOURCES = test_mtxmq.cc
+#test_mtxmq_SOURCES = test_mtxmq.cu
 #test_mtxmq_LDADD = libMADtensor.a $(LIBWORLD)  $(NVCCFLAGS)
 #test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 

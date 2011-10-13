@@ -43,7 +43,7 @@
 //#include <world/cuda_streams.h>
 #include <cublas_v2.h>
 //namespace madness {
-
+//#include <cublas_v2.h>
  
 
     /// Matrix = Matrix transpose * matrix ... reference implementation
@@ -86,7 +86,7 @@
  */
  template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const aT* a, const bT* b,void *stream) {
+               cT* restrict c, const  aT* a, const bT* b,void *stream,int ndim,long tsize) {
         printf("gpu code");
         const aT *h_A= a;
 	const bT *h_B= b;
@@ -190,23 +190,23 @@
 	cudaFree(d_C);
     }
 
-template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B,void *stream){}    
+template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B,void *stream,int ndim,long tsize){}    
 #if !ENABLE_CUBLAS 
-      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c, const float* a, const float* b,void *stream) ;
+      template void cu_mTxmq(long dimi, long dimj, long dimk, float*  c,const  float* a, const float* b,void *stream,int ndim,long tsize) ;
      
-      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *stream);
+      template void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *stream,int ndim,long tsize);
     
-  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B,void *stream){}
+  template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C,const  std::complex<double> *A, const std::complex<double> *B,void *stream,int ndim,long tsize){}
 	 
        
 #else
 
-  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *GPU_stream){
+  template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *GPU_stream,int ndim,long tsize){
 
 
 	double one=1.0;
 	double zero=0.0;
-	printf(" GPU Scublas code execution");
+	//printf(" GPU Scublas code execution");
 	//sleep(100);
 	int M = (int)m;
 	int N = (int)n;
@@ -221,34 +221,71 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 	
 	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
 	if (stat != cudaSuccess) {
-	printf ("device memory allocation failed");
+	printf ("adevice memory allocation failed");
 	return ;
 	}
 	
 	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
 	if (stat != cudaSuccess) {
-	printf ("device memory allocation failed");
+	printf ("bdevice memory allocation failed");
 	return ;
 	}
 	
 	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
 	if (stat != cudaSuccess) {
-	printf ("device memory allocation failed");
+	printf ("cdevice memory allocation failed");
 	return ;
 	}
 	
-	cublasSetMatrixAsync (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M,*stream);
-	cublasSetMatrixAsync (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K,*stream);
+	int b=cublasSetMatrixAsync (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M,*stream);
+	//int  b=cublasGetError();
+        if (b == CUBLAS_STATUS_INVALID_VALUE)
+          printf("CUBLAS_STATUS_INVALID_VALUE");
+        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+          printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("setCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+
+
+	b=cublasSetMatrixAsync (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K,*stream);
+	 // b=cublasGetError();
+        if (b == CUBLAS_STATUS_INVALID_VALUE)
+          printf("CUBLAS_STATUS_INVALID_VALUE");
+        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+          printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("setbCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
+
+
 	//cublasDgemm('t','n',M,N,K,one,devPtrA,K,devPtrB,K,zero,devPtrC,M);
-	cublasDgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
-	int  b=cublasGetError();
+  //      for (int i=0;i<ndim;i++){
+do{
+	b=cublasDgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
+}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
+//	 b=cublasGetError();
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
 	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
 	  printf("CUBLAS_STATUS_ARCH_MISMATCH");
         else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
-          printf("CUBLAS_STATUS_EXECUTION_FAILED");
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
         else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
           printf("CUBLAS_STATUS_MAPPING_ERROR");
         else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
@@ -258,11 +295,66 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
         else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
 	//else
+	//printf("kernel execution success");
+
+
+
+/*
+	if (ndim>1 ){
+
+		double *devtemp=devPtrA;
+		devPtrA=devPtrC;
+		devPtrC=devtemp;
+		//printf("INSIDE SWAP");
+		b=cublasDswap (handle,tsize, devPtrA, 1,devPtrC ,1);
+		//b=cublasGetError();
+		if (b == CUBLAS_STATUS_INVALID_VALUE)
+		  printf("CUBLAS_STATUS_INVALID_VALUE");
+		else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+		  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+		else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+		  printf("swapCUBLAS_STATUS_EXECUTION_FAILED");
+		else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+		  printf("CUBLAS_STATUS_MAPPING_ERROR");
+		else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+		  printf("CUBLAS_STATUS_ALLOC_FAILED");
+		else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+		  printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+		else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+		  printf("CUBLAS_STATUS_INTERNAL_ERROR");
+		
+		for (int j=0;j<tsize;j++)
+		devPtrC[j]=0.0;
+//		stat=cudaMemsetAsync(devPtrC,0,tsize*sizeof(double),*stream);
+//		if (stat != cudaSuccess) {
+//			printf ("setdevice memory allocation failed");
+//			return ;
+//			}
+
+	}
+*/		
+//}	
+	//else
 	  //printf("Error=%d",b);
 	//cublasGetMatrix (K, K, sizeof(double), (void *)devPtrC, K, (void *)C, K);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasSgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M,*stream);
+	b=cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M,*stream);
+	 if (b == CUBLAS_STATUS_INVALID_VALUE)
+          printf("CUBLAS_STATUS_INVALID_VALUE");
+        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+          printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("getCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+
 	cudaFree (devPtrA);
 	cudaFree (devPtrB);
 	cudaFree (devPtrC);
@@ -374,7 +466,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
     }
     
   */  
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const std::complex<double> *B,void *GPU_stream){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const  std::complex<double> *A, const std::complex<double> *B,void *GPU_stream,int ndim,long tsize){
 	cuDoubleComplex one;
 	one.x=1.0;
 	one.y=0.0;
@@ -428,7 +520,7 @@ else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
     }
 
 
-template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B,void *GPU_stream){
+template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const float *B,void *GPU_stream,int ndim,long tsize){
 	float one=1.0;
 	float zero=0.0;
 	printf(" GPU Scublas code execution");
@@ -464,8 +556,8 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 	cublasSetMatrixAsync (K, N, sizeof(float), (void *)B, K, (void *)devPtrB, K,*stream);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasDgemm('t','n',M,N,K,one,devPtrA,K,devPtrB,K,zero,devPtrC,M);
-	cublasSgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
-	int  b=cublasGetError();
+	int b=cublasSgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
+//	int  b=cublasGetError();
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
 	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -484,7 +576,7 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
     }
     
     
-  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C, const std::complex<float> *A, const std::complex<float> *B,void *GPU_stream){
+  template<>   void cu_mTxmq(long m, long n,long k, std::complex<float> *C,const std::complex<float> *A, const std::complex<float> *B,void *GPU_stream,int ndim,long tsize){
 	cuComplex one;
 	one.x=1.0;
 	one.y=0.0;
