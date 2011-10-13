@@ -94,7 +94,7 @@ namespace madness {
           while (1){
             //printf("ERT \n");
             sched_yield();
-            usleep(500);
+            usleep(50);
             w->gpu_hashlock.lock();
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
 

@@ -2748,7 +2748,7 @@ namespace madness {
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
-            tensorContainerT tensorTree(world);
+            tensorContainerT tensorTree(world,coeffs.get_pmap());
             world.gop.fence();
             if (world.rank() == coeffs.owner(cdata.key0)){
                 //compress_spawn(cdata.key0, nonstandard, keepleaves);
