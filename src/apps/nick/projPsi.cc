@@ -540,7 +540,7 @@ int main(int argc, char**argv) {
     try {
         std::vector<std::string> boundList;
         std::vector<std::string> unboundList;
-        //loadList(world, boundList, unboundList);
+        loadList(world, boundList, unboundList);
         projectPsi(world, boundList, unboundList, Z, cutoff);
         //projectL(world, L, wf, nGrid, lMAX, cutoff);
         //zSlice(world, nGrid, L, th, phi, wf);
