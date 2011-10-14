@@ -6,17 +6,17 @@ AC_DEFUN([ACX_IBMBGQ],[
         #   - enables spinlocks
         #   - sets the host architecture to powerpc-bgq-linux-gnu
         #
-        AC_TRY_COMPILE(,[
-          #ifdef __bgq__
-          int ok;
-          #else
-          choke me
-          #endif
-        ],[HAVE_IBMBGQ=yes AC_DEFINE([HAVE_IBMBGQ],[1],[Defined if we are running on an IBM Blue Gene/Q])],[echo This is not an IBM Blue Gene/Q.])
+        #AC_CHECK_FILE([/bgsys], [HAVE_IBMBGQ=yes AC_DEFINE([HAVE_IBMBGQ],[1],[Defined if we are running on an IBM Blue Gene/Q])],[])
+        echo "int main(){ #ifdef __bgq__ \ return 0; #else \ choke me #endif }" > __bgq__.cc
+        mpicxx __bgq__.cc
+        if test $? = 0; then
+                echo "IBM Blue Gene/Q detected"
+                HAVE_IBMBGQ=yes
+                AC_DEFINE(HAVE_IBMBGQ,[1],[Defined if we are running on an IBM Blue Gene/Q])
+        fi
         if test "x$HAVE_IBMBGQ" = xyes; then
-                echo "IBM Blue Gene/Q system detected"
-                host="powerpc64-bgq-linux"
-                host_triplet="powerpc64-bgq-linux"
+                host="powerpc-bgq-linux"
+                host_triplet="powerpc-bgq-linux"
 
                 BIND="-1 -1 -1"
                 AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])

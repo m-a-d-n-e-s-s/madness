@@ -3,15 +3,15 @@ AC_DEFUN([ACX_CRAYXE], [
         #   - defines HAVE_CRAYXE=1 in headers 
         #   - defines HAVE_CRAYXE=yes in the script
         #   - sets MPICXX=CC and MPICC=cc if the user has not already set them
-        #   - sets thread binding to "1 0 2"
+        #   - sets thread binding to "1 0 2" TODO: this has to be wrong on AMD Magny Cours
         #   - enables spinlocks
-        AC_TRY_COMPILE(,[
-          #ifdef __CRAYXE
-          int ok;
-          #else
-          choke me
-          #endif
-        ],[HAVE_CRAYXE=yes AC_DEFINE([HAVE_CRAYXE],[1],[Defined if we are running on an Cray XE])],[echo This is not a Cray XE.])
+        echo "int main(){ #ifdef __CRAYXE \ return 0; #else \ choke me #endif }" > __crayxe.cc
+        mpicxx __crayxe.cc
+        if test $? = 0; then
+                echo "Cray XE detected"
+                HAVE_CRAYXE=yes
+                AC_DEFINE(HAVE_CRAYXE,[1],[Defined if we are running on an Cray XE])
+        fi
         if test "x$HAVE_CRAYXE" = xyes; then
                 AC_DEFINE(AMD_QUADCORE_TUNE,[1],"Target for tuning mtxmq kernels")
                 if test "x$MPICC" = x; then
@@ -22,8 +22,8 @@ AC_DEFUN([ACX_CRAYXE], [
                         echo "Choosing MPICXX=CC for Cray XE"
                         MPICXX=CC;
                 fi
-                echo "int main(){return 0;}" > dddd.cc
-                CC dddd.cc -lacml
+                echo "int main(){return 0;}" > __acml.cc
+                CC __acml.cc -lacml
                 if test $? = 0; then
                         echo "AMD ACML library detected"
                         LIBS="$LIBS -lacml"
