@@ -5,7 +5,14 @@ AC_DEFUN([ACX_CRAYXE], [
         #   - sets MPICXX=CC and MPICC=cc if the user has not already set them
         #   - sets thread binding to "1 0 2" TODO: this has to be wrong on AMD Magny Cours
         #   - enables spinlocks
-        echo "int main(){ #ifdef __CRAYXE \ return 0; #else \ choke me #endif }" > __crayxe.cc
+        echo "int main()"       > __crayxe.cc
+        echo "{"               >> __crayxe.cc
+        echo "#ifdef __CRAYXE" >> __crayxe.cc
+        echo "return 0;"       >> __crayxe.cc
+        echo "#else"           >> __crayxe.cc
+        echo "choke me"        >> __crayxe.cc
+        echo "#endif"          >> __crayxe.cc
+        echo "}"               >> __crayxe.cc
         CC __crayxe.cc
         if test $? = 0; then
                 echo "Cray XE detected"
