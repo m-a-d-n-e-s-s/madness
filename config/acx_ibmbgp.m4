@@ -7,15 +7,14 @@ AC_DEFUN([ACX_IBMBGP],[
         #   - sets the host architecture to powerpc-bgp-linux-gnu
         #
         #AC_CHECK_FILE([/bgsys], [HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBM Blue Gene/P])],[])
-        AC_TRY_COMPILE(,[
-          #ifdef __bgp__
-          int ok;
-          #else
-          choke me
-          #endif
-        ],[HAVE_IBMBGP=yes AC_DEFINE([HAVE_IBMBGP],[1],[Defined if we are running on an IBM Blue Gene/P])],[echo This is not an IBM Blue Gene/P.])
+        echo "int main(){ #ifdef __bgp__ \ return 0; #else \ choke me #endif }" > __bgp__.cc
+        mpicxx __bgp__.cc
+        if test $? = 0; then
+                echo "IBM Blue Gene/P detected"
+                HAVE_IBMBGP=yes
+                AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
+        fi
         if test "x$HAVE_IBMBGP" = xyes; then
-                echo "IBM Blue Gene/P system detected"
                 host="powerpc-bgp-linux"
                 host_triplet="powerpc-bgp-linux"
 
