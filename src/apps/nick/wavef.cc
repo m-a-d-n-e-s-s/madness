@@ -145,11 +145,11 @@ complexd PhiK::f11(double xx) const {
         else return conhyp(AA,BB,ZZ);
     case 2:
         if( xx > 49.3 + 1.32/(k_*k_) - 16.3*k_ + 3.7*k_*k_) {
-            std::cout << xx << "  aFORM" << std::endl;
+            //std::cout << xx << "  aFORM" << std::endl;
             return aForm(ZZ);
         }
         else {
-            std::cout << xx << "  conhyp" << std::endl;
+            //std::cout << xx << "  conhyp" << std::endl;
             return conhyp(AA,BB,ZZ);
         }
     case 3:
@@ -191,11 +191,7 @@ void ScatteringWF::Init(World& world) {
     n = floor(domain/dx +1);
     MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
     //World is needed for timing the length of the CubicInterpolationTable
-    PRINT("XXcutoff = " << cutoff_);
-    PRINT("domain = " << domain);
-    PRINT("BEFORE CubicInterpolationTable");
     fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
-    PRINT("AFTER CubicInterpolationTable");
 }
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by
@@ -351,4 +347,4 @@ Yl0::Yl0( int l=0 ) : l_(l)  { }
 double Yl0::operator()(const vector3D& r) const {
     double cosTH = r[2]/std::sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
     return  gsl_sf_legendre_sphPlm(l_, 0, cosTH);
-}
+}i
