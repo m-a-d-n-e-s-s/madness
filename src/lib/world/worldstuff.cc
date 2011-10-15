@@ -99,7 +99,7 @@ namespace madness {
 /* other code */
 
 t.tv_sec = 0.0;
-t.tv_nsec = 5000;
+t.tv_nsec = 0;
 nanosleep(&t, NULL);
            
             w->gpu_hashlock.lock();
@@ -156,6 +156,7 @@ nanosleep(&t, NULL);
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
+        printf("HAVE_GPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \n",HAVE_GPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS);
     }
 
 

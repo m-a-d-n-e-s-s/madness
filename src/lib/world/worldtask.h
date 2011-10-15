@@ -770,6 +770,25 @@ namespace madness {
         }
     }
 
+     template <typename memfunComputePostprocessT, typename arg1T, typename objT> 
+     void ComputeDerivedJustAgg<memfunComputePostprocessT, arg1T, objT>::run(){
+        //for (unsigned int i = 0; i < inArgs.size(); i++){
+             //objT * obj = inObj.at(i);
+             //arg1T arg1 = inArgs.at(i);  
+             //ret1T ret1 = (obj->*memfunCompute)(arg1);
+             //outArgs.push_back(ret1);
+        //}
+        //objT odef; //this relies on objT having a default constructor
+        //this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
+
+        for (unsigned int i = 0; i < inArgs.size(); i++){  
+            objT * obj = inObj.at(i);
+            //(obj->*memfunPostprocess)(outArgs.at(i));
+            q->add(*obj, memfunComputePostprocess, inArgs.at(i));
+            q->decNRegistered();  
+        }
+    }
+
 
     /// Serialization container for sending tasks to remote nodes
 

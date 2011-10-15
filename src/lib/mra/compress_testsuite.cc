@@ -224,7 +224,9 @@ void test_basic(World& world) {
     double new_norm = f.norm2();
     CHECK(new_norm-norm, 1e-14, "new_norm");
 
+    START_TIMER;
     f.reconstruct();
+    END_TIMER("reconstruct");
     new_norm = f.norm2();
     double new_err = f.err(*functor);
     CHECK(new_norm-norm, 1e-14, "new_norm");

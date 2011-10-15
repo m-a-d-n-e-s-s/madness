@@ -176,7 +176,7 @@ public:
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
-#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
+#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.10fs %8.10fs\n", msg, sss, ttt)
 
 
 template <typename T, std::size_t NDIM>

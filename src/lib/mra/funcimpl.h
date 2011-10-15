@@ -555,7 +555,6 @@ namespace madness {
 
         Void reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k);
 
-
         Void top_down(const keyT& key, dcT dc, containerT ct, bool nonstandard, bool keepleaves, const keyT& parent, int k){
           keyT& parent_t = const_cast<keyT&>(parent);
           ct.update(key, &TensorNode<T,NDIM>::compress_dc, dc, parent_t, nonstandard, k);
@@ -731,9 +730,45 @@ namespace madness {
           //return None;
         }
 
-        std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
+        Void compressopComputePostprocess(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+          //std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
+          tensorT d = std::tr1::get<0>(in);
+          int k = std::tr1::get<1>(in);
+          FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
+          keyT key = std::tr1::get<2>(in);
+          containerT ct = std::tr1::get<3>(in); 
+          bool nonstandard = std::tr1::get<4>(in); 
+          keyT parent = std::tr1::get<5>(in); 
+          dcT dc = std::tr1::get<6>(in); 
+          d = filter(d,cdata);
+
+          if (this->has_coeff()) {
+                const tensorT& c = this->coeff();
+                if (c.dim(0) == k) {
+                    d(cdata.s0) += c;
+                }
+                else {
+                    d += c;
+                }
+            }
+
+            tensorT s = copy(d(cdata.s0));
+
+            if (key.level()> 0 && !nonstandard)
+                d(cdata.s0) = 0.0;
+
+            this->set_coeff(d);
+
+            if (key.level() > 0){
+              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+            }
+
+            return None;
+        }
+
+        std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
-            print("inArgs.size() = ",inArgs.size());
+            //print("inArgs.size() = ",inArgs.size());
 STARTt_TIMER; 
 
             for (unsigned int i = 0; i < inArgs.size(); i++){
@@ -742,16 +777,16 @@ STARTt_TIMER;
 		FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
 		keyT key = std::tr1::get<2>(inArgs.at(i));
 		containerT ct = std::tr1::get<3>(inArgs.at(i)); 
-		bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
+		//bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
 		keyT parent = std::tr1::get<5>(inArgs.at(i)); 
 		dcT dc = std::tr1::get<6>(inArgs.at(i)); 
 		long dimi = std::tr1::get<7>(inArgs.at(i));
 		long dimj = std::tr1::get<8>(inArgs.at(i));
-		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
+		//Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
 		T* t0 = std::tr1::get<10>(inArgs.at(i));
 		T* t1 = std::tr1::get<11>(inArgs.at(i));
-		tensorT* result = std::tr1::get<12>(inArgs.at(i));
-		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
+		//tensorT* result = std::tr1::get<12>(inArgs.at(i));
+		//tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
 		const double* pc = std::tr1::get<14>(inArgs.at(i));
 
                 //padwrapper(dimi, dimj, pc, t0, t1, d, i); 
@@ -800,14 +835,14 @@ STARTt_TIMER;
 		bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
 		keyT parent = std::tr1::get<5>(inArgs.at(i)); 
 		dcT dc = std::tr1::get<6>(inArgs.at(i)); 
-		long dimi = std::tr1::get<7>(inArgs.at(i));
-		long dimj = std::tr1::get<8>(inArgs.at(i));
+		//long dimi = std::tr1::get<7>(inArgs.at(i));
+		//long dimj = std::tr1::get<8>(inArgs.at(i));
 		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
-		T* t0 = std::tr1::get<10>(inArgs.at(i));
-		T* t1 = std::tr1::get<11>(inArgs.at(i));
+		//T* t0 = std::tr1::get<10>(inArgs.at(i));
+		//T* t1 = std::tr1::get<11>(inArgs.at(i));
 		tensorT* result = std::tr1::get<12>(inArgs.at(i));
 		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
-		const double* pc = std::tr1::get<14>(inArgs.at(i));
+		//const double* pc = std::tr1::get<14>(inArgs.at(i));
 
                 std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,ct,nonstandard,parent,dc,workspace,c) ;
                 outArg[i] = t11;
@@ -815,7 +850,17 @@ STARTt_TIMER;
 
             return outArg;
         }
-       
+
+        std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
+            std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > outArg(inArgs.size(),inObj.at(0)->compressop_compute(inArgs.at(0)));
+            //print("inArgs.size() = ",inArgs.size());
+            for (unsigned int i = 0; i < inArgs.size(); i++){
+                std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> temp = inObj.at(i)->compressop_compute(inArgs.at(i));
+                outArg[i] = temp;
+            }
+
+            return outArg;
+        }       
  
         Void compressop_postprocess(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
           //  std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
@@ -893,8 +938,12 @@ STARTt_TIMER;
         Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
 
             if (HAVE_GPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
-            else
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+            else if (SIM_GPU)
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+            else if (JUST_AGG)
+                dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+            else if (THREE_SPLIT)
                 dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
             /*
             * RESTORE THIS
@@ -907,38 +956,38 @@ STARTt_TIMER;
             * RESTORE THIS
             dc.update(key, &FunctionNode<T,NDIM>::compressop_postprocess, t2);
             */
-            /*
-            // Copy child scaling coeffs into contiguous block
-            FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
-            std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
-            tensorT d(cdata.v2k,false);
-            int i=0;
-            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
-                d(child_patch(kit.key(),cdata)) = tk[kit.key()];
+            else{
+		    // Copy child scaling coeffs into contiguous block
+		    FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
+		    std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
+		    tensorT d(cdata.v2k,false);
+		    int i=0;
+		    for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+			d(child_patch(kit.key(),cdata)) = tk[kit.key()];
+		    }
+		    d = filter(d,cdata);
+
+		    if (this->has_coeff()) {
+			const tensorT& c = this->coeff();
+			if (c.dim(0) == k) {
+			    d(cdata.s0) += c;
+			}
+			else {
+			    d += c;
+			}
+		    }
+
+		    tensorT s = copy(d(cdata.s0));
+
+		    if (key.level()> 0 && !nonstandard)
+			d(cdata.s0) = 0.0;
+
+		    this->set_coeff(d); 
+
+		    if (key.level() > 0){
+		      ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+		    }
             }
-            d = filter(d,cdata);
-
-            if (this->has_coeff()) {
-                const tensorT& c = this->coeff();
-                if (c.dim(0) == k) {
-                    d(cdata.s0) += c;
-                }
-                else {
-                    d += c;
-                }
-            }
-
-            tensorT s = copy(d(cdata.s0));
-
-            if (key.level()> 0 && !nonstandard)
-                d(cdata.s0) = 0.0;
-
-            this->set_coeff(d); 
-
-            if (key.level() > 0){
-              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
-            }
-            */
             
             return None;
 
@@ -1052,9 +1101,15 @@ STARTt_TIMER;
               if (tensor_keys.size() == max){
                 //dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
                 if (HAVE_GPU)
-                  dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allCompute, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
-                else
+                  dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allComputeGPU, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                else if (SIM_GPU)
+                  dc.local_updateGPU(key, &nodeT::compressop_preprocess, &nodeT::compressop_allCompute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                else if (JUST_AGG)
+                  dc.local_updateJustAgg(key, &nodeT::compressop_preprocess, &nodeT::compressopComputePostprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                else if (THREE_SPLIT)
                   dc.local_update(key, &nodeT::compressop_preprocess, &nodeT::compressop_compute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                else
+                  dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
               }
             ready.unlock();
 
@@ -1225,6 +1280,8 @@ STARTt_TIMER;
         }
 
         virtual ~FunctionImpl() { }
+
+        Void reconstruct_dc_tasknoupdate(const keyT& key, dcT dc, const tensorT& s);
 
         const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >& get_pmap() const {
             return coeffs.get_pmap();
@@ -2709,8 +2766,9 @@ STARTt_TIMER;
             if (world.rank() == coeffs.owner(cdata.key0)){
                 //world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
                 //world.taskq.add(*this, &implT::reconstruct_update, cdata.key0,tensorT());
-                print("rec_dc");
-                coeffs.update(cdata.key0, &FunctionNode<T,NDIM>::reconstruct_dc_task, tensorT(), cdata.k);
+                //print("rec_dc");
+                //coeffs.update(cdata.key0, &FunctionNode<T,NDIM>::reconstruct_dc_task, tensorT(), cdata.k);
+                world.taskq.add(*this,&FunctionImpl<T,NDIM>::reconstruct_dc_tasknoupdate, cdata.key0, coeffs, tensorT());
             }
                 //reconstruct_update(cdata.key0,tensorT());
             if (fence)
@@ -2718,12 +2776,78 @@ STARTt_TIMER;
         }
 
         // Invoked on node where key is local
-        Void reconstruct_op(const keyT& key, const tensorT& s);
-        Void reconstruct_update(const keyT& key, const tensorT& s);
-        Void reconstruct_access_data(const keyT& key, const tensorT& s);
-        Void reconstruct_prepare_work(const keyT& key, const tensorT& s);
-	
-        std::pair<nodeT, bool> reconstruct_do_work(const keyT& key, const typename dcT::iterator it, const tensorT& s){
+        //Void reconstruct_op(const keyT& key, const tensorT& s);
+    //template <typename T, std::size_t NDIM>
+    inline Void /*FunctionImpl<T,NDIM>::*/reconstruct_update(const keyT& key, const tensorT& s){
+        // Note that after application of an integral operator not all
+        // siblings may be present so it is necessary to check existence
+        // and if absent insert an empty leaf node.
+        //
+        // If summing the result of an integral operator (i.e., from
+        // non-standard form) there will be significant scaling function
+        // coefficients at all levels and possibly difference coefficients
+        // in leaves, hence the tree may refine as a result.
+
+       //print("CPS\n");
+
+        //reconstruct_access_data(key, s);
+
+        //return None;
+      //}   
+
+    //template <typename T, std::size_t NDIM>
+    //inline Void /*FunctionImpl<T,NDIM>::*/reconstruct_access_data(const keyT& key, const tensorT& s){
+        //woT::task(coeffs.owner(key), &implT::reconstruct_prepare_work, key, s);
+        //return None;
+    //}
+
+    //template <typename T, std::size_t NDIM>
+    //inline Void /*FunctionImpl<T,NDIM>::*/reconstruct_prepare_work(const keyT& key, const tensorT& s){
+
+        typename dcT::iterator it = coeffs.find(key).get();
+            nodeT node1;
+            //bool inserted = false;
+
+	    if (it == coeffs.end()) {
+	        node1 = nodeT(tensorT(),false);
+                //inserted = true;
+            }
+            else node1 = it->second;
+
+            nodeT& node = node1;
+
+	    // The integral operator will correctly connect interior nodes
+	    // to children but may leave interior nodes without coefficients
+	    // ... but they still need to sum down so just give them zeros
+	    if (node.has_children() && !node.has_coeff()) {
+		node.set_coeff(tensorT(cdata.v2k));
+	    }
+
+	    if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+		tensorT d = node.coeff();
+		if (d.size() == 0) d = tensorT(cdata.v2k);
+		if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+		d = unfilter(d);
+		node.clear_coeff();
+		node.set_has_children(true);
+		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+		    const keyT& child = kit.key();
+		    tensorT ss = copy(d(child_patch(child)));
+                    world.taskq.add(*this, &implT::reconstruct_update, child, ss);
+		}
+	    }
+	    else {
+		if (key.level()) node.set_coeff(copy(s));
+		else node.set_coeff(s);
+	    }
+	    //std::pair<nodeT, bool> out(node, true);
+        //std::pair<nodeT, bool> out = reconstruct_do_work(key, it, s);
+        //if (out.second){
+          coeffs.replace(key, node);
+        //}
+        return None;
+    }
+        inline std::pair<nodeT, bool> reconstruct_do_work(const keyT& key, const typename dcT::iterator it, const tensorT& s){
 
             nodeT node;
 
@@ -2749,7 +2873,7 @@ STARTt_TIMER;
 		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
 		    const keyT& child = kit.key();
 		    tensorT ss = copy(d(child_patch(child)));
-		    reconstruct_update(child, ss);
+                    world.taskq.add(*this, &implT::reconstruct_update, child, ss);
 		}
 	    }
 	    else {
@@ -2758,7 +2882,12 @@ STARTt_TIMER;
 	    }
 	    return std::pair<nodeT, bool>(node, true);
 	}
-
+ 
+        //inline Void reconstruct_update(const keyT& key, const tensorT& s);
+        //inline Void reconstruct_access_data(const keyT& key, const tensorT& s);
+        //inline Void reconstruct_prepare_work(const keyT& key, const tensorT& s);
+        Void reconstruct_op(const keyT& key, const tensorT& s);
+	
         typedef WorldContainer<keyT, TensorNode<T, NDIM>> tensorContainerT;
 
         void compress(bool nonstandard, bool keepleaves, bool fence) {

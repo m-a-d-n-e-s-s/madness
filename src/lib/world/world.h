@@ -362,7 +362,10 @@ typedef UINT64_T uint64_t;
 //#include <world/worldobj.h>
 //#include <world/worldtime.h>
 
-#define HAVE_GPU 1
+#define HAVE_GPU 0
+#define SIM_GPU 0
+#define JUST_AGG 0
+#define THREE_SPLIT 0
 #define NUM_STREAMS 16
 namespace madness {
 
@@ -585,6 +588,41 @@ namespace madness {
 
         virtual ~ComputeDerived() {}
     };        
+
+    template <typename memfunComputePostprocessT, typename arg1T, typename objT>           
+    class ComputeDerivedJustAgg : public ComputeBase {                                      
+    public:
+        memfunComputePostprocessT memfunComputePostprocess;
+
+        std::vector<objT*> inObj;
+        std::vector<arg1T> inArgs;
+
+        WorldTaskQueue * q;
+
+        ComputeDerivedJustAgg(memfunComputePostprocessT _memfunComputePostprocess, WorldTaskQueue * _q) : 
+           ComputeBase((long)&_memfunComputePostprocess), memfunComputePostprocess(_memfunComputePostprocess), q(_q) {
+        }
+        
+        virtual void add(void * obj){
+           addObj(static_cast<objT *>(obj));
+        }
+
+        virtual void addArg(void * arg){
+           addInArg(*(static_cast<arg1T *>(arg)));
+        }
+
+        void addObj(objT * obj){
+          inObj.push_back(obj);
+        }
+
+        void addInArg(arg1T arg1){
+          inArgs.push_back(arg1);
+        }
+        
+        virtual void run();
+        virtual ~ComputeDerivedJustAgg() {}
+    };        
+
 
     /// A parallel world with full functionality wrapping an MPI communicator
 

@@ -260,9 +260,9 @@ namespace madness {
     }
 
     template <typename T, std::size_t NDIM>
-    Void FunctionNode<T,NDIM>::reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k) {
+    Void FunctionImpl<T,NDIM>::reconstruct_dc_tasknoupdate(const keyT& key, dcT dc, const tensorT& s) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        FunctionCommonData<T, NDIM> cdata =  FunctionCommonData<T,NDIM>::get(k);
+        //FunctionCommonData<T, NDIM> cdata =  FunctionCommonData<T,NDIM>::get(k);
         //print("reconstruct_dc");
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence
@@ -280,6 +280,55 @@ namespace madness {
         }
         nodeT& node = it->second;
         */
+        typename dcT::iterator it = coeffs.find(key).get();
+        if (it == coeffs.end()) {
+            coeffs.replace(key,nodeT(tensorT(),false));
+            it = coeffs.find(key).get();
+        }
+        nodeT& node = it->second;
+        
+
+        // The integral operator will correctly connect interior nodes
+        // to children but may leave interior nodes without coefficients
+        // ... but they still need to sum down so just give them zeros
+        if (node.has_children() && !node.has_coeff()) {
+            node.set_coeff(tensorT(cdata.v2k));
+        }
+
+        if (node.has_children() || node.has_coeff()) { // Must allow for inconsistent state from transform, etc.
+            tensorT d = node.coeff();
+            if (d.size() == 0) d = tensorT(cdata.v2k);
+            if (key.level() > 0) d(cdata.s0) += s; // -- note accumulate for NS summation
+            d = node.unfilter(d, cdata);
+            node.clear_coeff();
+            node.set_has_children(true);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                const keyT& child = kit.key();
+                tensorT ss = copy(d(child_patch(child)));
+                woT::task(coeffs.owner(child), &FunctionImpl<T,NDIM>::reconstruct_dc_tasknoupdate, child, dc, ss);
+            }
+        }
+        else {
+            if (key.level()) node.set_coeff(copy(s));
+            else node.set_coeff(s);
+        }
+        return None;
+    }
+
+    template <typename T, std::size_t NDIM>
+    Void FunctionNode<T,NDIM>::reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k) {
+        PROFILE_MEMBER_FUNC(FunctionImpl);
+        FunctionCommonData<T, NDIM> cdata =  FunctionCommonData<T,NDIM>::get(k);
+        //print("reconstruct_dc");
+        // Note that after application of an integral operator not all
+        // siblings may be present so it is necessary to check existence
+        // and if absent insert an empty leaf node.
+        //
+        // If summing the result of an integral operator (i.e., from
+        // non-standard form) there will be significant scaling function
+        // coefficients at all levels and possibly difference coefficients
+        // in leaves, hence the tree may refine as a result.
+        
 
         // The integral operator will correctly connect interior nodes
         // to children but may leave interior nodes without coefficients
@@ -307,42 +356,6 @@ namespace madness {
         }
         return None;
     }
-
-    template <typename T, std::size_t NDIM>
-    Void FunctionImpl<T,NDIM>::reconstruct_update(const keyT& key, const tensorT& s){
-        // Note that after application of an integral operator not all
-        // siblings may be present so it is necessary to check existence
-        // and if absent insert an empty leaf node.
-        //
-        // If summing the result of an integral operator (i.e., from
-        // non-standard form) there will be significant scaling function
-        // coefficients at all levels and possibly difference coefficients
-        // in leaves, hence the tree may refine as a result.
-
-       //print("CPS\n");
-
-        reconstruct_access_data(key, s);
-
-        return None;
-      }   
- 
-    template <typename T, std::size_t NDIM>
-    Void FunctionImpl<T,NDIM>::reconstruct_access_data(const keyT& key, const tensorT& s){
-        woT::task(coeffs.owner(key), &implT::reconstruct_prepare_work, key, s);
-        return None;
-    }
-
-    template <typename T, std::size_t NDIM>
-    Void FunctionImpl<T,NDIM>::reconstruct_prepare_work(const keyT& key, const tensorT& s){
-
-        typename dcT::iterator it = coeffs.find(key).get();
-        std::pair<nodeT, bool> out = reconstruct_do_work(key, it, s);
-        if (out.second){
-          coeffs.replace(key, out.first);
-        }
-        return None;
-    }
-
 
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::fcube(const keyT& key, T (*f)(const coordT&), const Tensor<double>& qx, tensorT& fval) const {
