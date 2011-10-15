@@ -15,12 +15,13 @@ AC_DEFUN([ACX_IBMBGQ],[
         echo "choke me"        >> __bgq__.cc
         echo "#endif"          >> __bgq__.cc
         echo "}"               >> __bgq__.cc
-        mpicxx __bgq__.cc
+        mpicxx __bgq__.cc >& /dev/null
         if test $? = 0; then
                 echo "IBM Blue Gene/Q detected"
                 HAVE_IBMBGQ=yes
                 AC_DEFINE(HAVE_IBMBGQ,[1],[Defined if we are running on an IBM Blue Gene/Q])
         fi
+        /bin/rm __bgq__.cc
         if test "x$HAVE_IBMBGQ" = xyes; then
                 host="powerpc64-bgq-linux"
                 host_triplet="powerpc64-bgq-linux"

@@ -15,13 +15,14 @@ AC_DEFUN([ACX_IBMBGP],[
         echo "choke me"        >> __bgp__.cc
         echo "#endif"          >> __bgp__.cc
         echo "}"               >> __bgp__.cc
-        mpicxx __bgp__.cc
+        mpicxx __bgp__.cc >& /dev/null
         if test $? = 0; then
                 echo "IBM Blue Gene/P detected"
                 HAVE_IBMBGP=yes
                 AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
         fi
-        if test "x$HAVE_IBMBGP" = xyes; then
+        /bin/rm __bgp__.cc 
+       if test "x$HAVE_IBMBGP" = xyes; then
                 host="powerpc-bgp-linux"
                 host_triplet="powerpc-bgp-linux"
 

@@ -13,12 +13,13 @@ AC_DEFUN([ACX_CRAYXE], [
         echo "choke me"        >> __crayxe.cc
         echo "#endif"          >> __crayxe.cc
         echo "}"               >> __crayxe.cc
-        CC __crayxe.cc
+        CC __crayxe.cc >& /dev/null
         if test $? = 0; then
                 echo "Cray XE detected"
                 HAVE_CRAYXE=yes
                 AC_DEFINE(HAVE_CRAYXE,[1],[Defined if we are running on an Cray XE])
         fi
+        /bin/rm __crayxe.cc
         if test "x$HAVE_CRAYXE" = xyes; then
                 AC_DEFINE(AMD_QUADCORE_TUNE,[1],"Target for tuning mtxmq kernels")
                 if test "x$MPICC" = x; then
@@ -30,7 +31,7 @@ AC_DEFUN([ACX_CRAYXE], [
                         MPICXX=CC;
                 fi
                 echo "int main(){return 0;}" > __acml.cc
-                CC __acml.cc -lacml
+                CC __acml.cc -lacml >& /dev/null
                 if test $? = 0; then
                         echo "AMD ACML library detected"
                         LIBS="$LIBS -lacml"
