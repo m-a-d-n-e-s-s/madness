@@ -413,15 +413,15 @@ namespace madness {
 		/// return a slice of this (deep copy)
 		gentensorT copy_slice(const std::vector<Slice>& s) const {
 
+            // fast return if possible
+            if (this->has_no_data()) {
+                int k_new=s[0].end-s[0].start+1;
+                return gentensorT (this->tensor_type(),k_new,this->dim());
+            }
+
 			// consistency check
 			MADNESS_ASSERT(s.size()==this->dim());
 			MADNESS_ASSERT(s[0].step==1);
-
-			// fast return if possible
-			if (this->has_no_data()) {
-				int k_new=s[0].end-s[0].start+1;
-				return gentensorT (this->tensor_type(),k_new,this->dim());
-			}
 
 			// fast return for full rank tensors
 			if (tensor_type()==TT_FULL) {

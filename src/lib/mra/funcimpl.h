@@ -1742,7 +1742,7 @@ namespace madness {
                 const keyT& key = it->first;
                 nodeT& node = it->second;
 
-                if (node.is_leaf()) {
+                if (node.is_leaf() and node.coeff().has_data()) {
                     coeffT d = copy(node.coeff());
                     d(f->cdata.s0)=0.0;
                     const double error=d.normf();
@@ -5331,6 +5331,90 @@ namespace madness {
             }
             return sum;
         }
+
+        /// project the low-dim function g on the hi-dim function f: this(x) = <f(x,y) | g(y)>
+
+        /// invoked by result, a function of NDIM
+        /// @param[in]  f   hi-dim function of LDIM+NDIM
+        /// @param[in]  g   lo-dim function of LDIM
+        /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
+        /// @return this, with contributions on all scales
+        template<size_t LDIM>
+        void project_out(const FunctionImpl<T,LDIM+NDIM>* f, const FunctionImpl<T,LDIM>* g, const int dim) {
+
+            typedef typename FunctionImpl<T,LDIM>::dcT::const_iterator giterator;
+            typedef typename FunctionImpl<T,NDIM+LDIM>::dcT::const_iterator fiterator;
+
+            // loop over all nodes of hi-dim f, compute the inner products with all
+            // appropriate nodes of g, and accumulate in result
+            fiterator end = f->get_coeffs().end();
+            for (fiterator it=f->get_coeffs().begin(); it!=end; ++it) {
+                const Key<LDIM+NDIM> key=it->first;
+                const FunctionNode<T,LDIM+NDIM> fnode=it->second;
+                const coeffT fcoeff=fnode.coeff();
+
+                if (fnode.is_leaf() and fcoeff.has_data()) {
+
+                    // break key into particle: over key1 will be summed, over key2 will be
+                    // accumulated, or vice versa, depending on dim
+                    Key<NDIM> key1;
+                    Key<LDIM> key2;
+                    key.break_apart(key1,key2);
+
+                    if (dim==0) {
+                        const Future<giterator> git=g->coeffs.find(key1);
+                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,git,key2,dim);
+                    } else if (dim==1) {
+                        const Future<giterator> git=g->coeffs.find(key2);
+                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,git,key1,dim);
+                    } else {
+                        MADNESS_EXCEPTION("confused dim in project_out",1);
+                    }
+                }
+            }
+            this->compressed=false;
+            this->nonstandard=false;
+            this->redundant=true;
+        }
+
+        /// compute the inner product of two nodes of only some dimensions and accumulate on result
+
+        /// invoked by result
+        /// @param[in]  fcoeff  coefficients of high dimension LDIM+NDIM
+        /// @param[in]  git     iterator to node with coeffs of low dimension LDIM
+        /// @param[in]  dest    destination node for the result
+        /// @param[in]  dim     which dimensions should be contracted: 0..LDIM-1 or LDIM..NDIM+LDIM-1
+        template<size_t LDIM>
+        Void do_project_out(const coeffT& fcoeff, const typename FunctionImpl<T,LDIM>::dcT::const_iterator git,
+                const Key<NDIM>& dest, const int dim) const {
+
+            const coeffT gcoeff=git->second.coeff();
+
+            // fast return if possible
+            if (fcoeff.has_no_data() or gcoeff.has_no_data()) return None;
+
+            // let's specialize for the time being on SVD tensors for f and full tensors of half dim for g
+            MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
+            MADNESS_ASSERT(fcoeff.tensor_type()==TT_2D);
+            const tensorT gtensor=gcoeff.full_tensor();
+            tensorT result(cdata.vk);
+
+            const int otherdim=(dim+1)%2;
+
+            // do the actual contraction
+            for (int r=0; r<fcoeff.rank(); ++r) {
+                const tensorT& contracted_tensor=fcoeff.config().ref_vector(dim);
+                const tensorT& other_tensor=fcoeff.config().ref_vector(otherdim);
+                const double ovlp= gtensor.trace_conj(contracted_tensor);
+                const double fac=ovlp * fcoeff.config().weights(r);
+                result+=fac*other_tensor;
+            }
+
+            // accumulate the result
+            coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
+            return None;
+        }
+
 
 
         /// Returns the maximum local depth of the tree ... no communications.

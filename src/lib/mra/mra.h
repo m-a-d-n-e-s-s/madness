@@ -1166,6 +1166,34 @@ namespace madness {
             return local;
         }
 
+        /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
+
+        /// @param[in]  g   low-dim function
+        /// @param[in]  dim over which dimensions to be integrated: 0..LDIM-1 or LDIM..NDIM-1
+        /// @return     new function of dimension NDIM-LDIM
+        template <typename R, size_t LDIM>
+        Function<TENSOR_RESULT_TYPE(T,R),NDIM-LDIM> project_out(const Function<R,LDIM>& g, const int dim) const {
+            if (NDIM<=LDIM) MADNESS_EXCEPTION("confused dimensions in project_out?",1);
+            MADNESS_ASSERT(dim==0 or dim==1);
+            verify();
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+            static const size_t KDIM=NDIM-LDIM;
+
+            FunctionFactory<resultT,KDIM> factory=FunctionFactory<resultT,KDIM>(world())
+                    .k(this->k()).thresh(this->thresh());
+            Function<resultT,KDIM> result=factory.empty();
+
+            FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
+
+            this->reconstruct();
+            gimpl->make_redundant(true);
+            result.get_impl()->project_out(this->get_impl().get(),gimpl,dim);
+            result.world().gop.fence();
+            result.get_impl()->trickle_down(true);
+            gimpl->undo_redundant(true);
+            return result;
+        }
+
 
         /// Replaces this function with one loaded from an archive using the default processor map
 
@@ -1944,7 +1972,6 @@ namespace madness {
         PROFILE_FUNC;
         return f.inner(g);
     }
-
 
     template <typename T, typename R, std::size_t NDIM>
     typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type

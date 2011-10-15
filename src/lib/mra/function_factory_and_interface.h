@@ -343,6 +343,22 @@ namespace madness {
 		}
 	};
 
+    /// FunctorInterface interfaces a class or struct with an operator()()
+    template<typename T, std::size_t NDIM, typename opT>
+    class FunctorInterface : public FunctionFunctorInterface<T,NDIM> {
+
+    public:
+        typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+        typedef GenTensor<T> coeffT;
+        typedef Tensor<T> tensorT;
+
+        opT op;
+
+        FunctorInterface(const opT& op) : op(op) {}
+
+        T operator()(const coordT& x) const {return op(x);}
+    };
+
 
 	/// ElectronRepulsionInterface implements the electron repulsion term 1/r12
 
@@ -396,7 +412,34 @@ namespace madness {
 
 	};
 
+	/// FunctionInterface implements a wrapper around any class with the operator()()
+	template<typename T, size_t NDIM, typename opT>
+	class FunctionInterface : public FunctionFunctorInterface<T,NDIM> {
 
+	    typedef GenTensor<T> coeffT;
+        typedef Tensor<T> tensorT;
+        typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+
+        const opT op;
+
+    public:
+        FunctionInterface(const opT& op) : op(op) {}
+
+        T operator()(const coordT& coord) const {return op(coord);}
+
+        bool provides_coeff() const {return false;}
+
+	};
+
+
+//	/// A helper function to turn a given class into a FunctionInterface
+//	template<typename T, size_t NDIM, typename opT>
+//	std::shared_ptr<FunctionFunctorInterface<T,NDIM> > make_functor(opT& op) {
+//	    FunctionInterface<T,NDIM,opT> a(op);
+//	    FunctionFunctorInterface<T,NDIM>* ff=dynamic_cast<FunctionFunctorInterface<T,NDIM>* >(&a);
+//	    std::shared_ptr<FunctionFunctorInterface<T,NDIM> > f(ff);
+//	    return f;
+//	}
 
 	/// FunctionFactory implements the named-parameter idiom for Function
 
@@ -467,6 +510,13 @@ namespace madness {
 			_functor = f;
 			return *this;
 		}
+		template<typename opT>
+		FunctionFactory&
+        functor2(const opT& op) {
+            _functor=std::shared_ptr<FunctionInterface<T,NDIM,opT> >(new FunctionInterface<T,NDIM,opT>(op));
+            return *this;
+        }
+
 		FunctionFactory&
 		no_functor() {
 			_functor.reset();
