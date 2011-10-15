@@ -37,6 +37,7 @@ AC_DEFUN([ACX_CRAYXE], [
                         LIBS="$LIBS -lacml"
                         AC_DEFINE(HAVE_ACML,[1],[Define if AMD math library available - ACML])
                 fi
+                /bin/rm __acml.cc
                 BIND="1 0 2"
                 AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])
         fi
