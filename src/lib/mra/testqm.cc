@@ -42,74 +42,77 @@
 #include <constants.h>
 #include <mra/qmprop.h>
 
-#include <tensor/random.h>
-
-const double PI = 3.1415926535897932384;
-
 using namespace madness;
 
-typedef Vector<double,1> coordT;
-typedef std::shared_ptr< FunctionFunctorInterface<double_complex,1> > functorT;
-typedef Function<double_complex,1> functionT;
-typedef FunctionFactory<double_complex,1> factoryT;
-typedef SeparatedConvolution<double_complex,1> operatorT;
+typedef Convolution1D<double_complex> complex_operatorT;
 
-double_complex psi0(const coordT& r) {
+double_complex psi0(const coord_1d& r) {
     return double_complex(exp(-r[0]*r[0]*0.5),0.0);
 }
 
-double_complex V(const coordT& r) {
-    return double_complex(0.5*r[0]*r[0],0.0);
+
+double mask(const coord_1d& r) {
+    return 1.0/(1.0 + std::pow(r[0]*0.05,30.0));
 }
 
-double_complex dVsq(const coordT& r) {
+double_complex V(const coord_1d& r) {
+    double v0 = 0.5*r[0]*r[0];
+    double m = mask(r);
+    return v0*m + (1.0-m)*255.0;
+}
+
+double_complex dVsq(const coord_1d& r) {
     return double_complex(r[0]*r[0],0.0);
 }
 
-double_complex energy(const functionT& v, const functionT& psi) {
-    functionT du = diff(psi,0);
+double energy(World& world, const complex_function_1d& v, const complex_function_1d& psi) {
+    complex_derivative_1d D(world, 0);
+    complex_function_1d du = D(psi);
     double_complex ke = 0.5*du.inner(du);
     double_complex pe = psi.inner(v*psi);
 
     print("  ke", real(ke), "pe", real(pe), "total", real(ke+pe), "norm", psi.norm2());
 
-    return ke+pe;
+    return real(ke+pe);
 }
 
-functionT chin_chen(const functionT& expV,
-                    const functionT& expVtilde,
-                    const operatorT& G,
-                    const functionT& psi0) {
+complex_function_1d chin_chen(const complex_function_1d& expV,
+                    const complex_function_1d& expVtilde,
+                    const complex_operatorT* G,
+                    const complex_function_1d& psi0) {
 
     // psi(t) = exp(-i*V*t/6) exp(-i*T*t/2) exp(-i*2*Vtilde*t/3) exp(-i*T*t/2) exp(-i*V*t/6)
 
-    functionT psi1;
+    complex_function_1d psi1;
 
     psi1 = expV*psi0;
-    psi1.truncate();
-    psi1 = apply(G,psi1);
-    psi1.truncate();
+    psi1.reconstruct();
+    psi1.broaden();
+    psi1.broaden();
+    psi1 = apply_1d_realspace_push(*G, psi1, 0);
+    psi1.sum_down();
     psi1 = expVtilde*psi1;
-    psi1.truncate();
-    psi1 = apply(G,psi1);
-    psi1.truncate();
+    psi1 = apply_1d_realspace_push(*G, psi1, 0);
+    psi1.sum_down();
     psi1 = expV*psi1;
     psi1.truncate();
 
     return psi1;
 }
 
-functionT trotter(const functionT& expV,
-                  const operatorT& G,
-                  const functionT& psi0) {
+complex_function_1d trotter(const complex_function_1d& expV,
+                  const complex_operatorT* G,
+                  const complex_function_1d& psi0) {
     //    psi(t) = exp(-i*T*t/2) exp(-i*V*t) exp(-i*T*t/2) psi(0)
 
-    functionT psi1 = apply(G,psi0);
-    psi1.truncate();
-
+    psi0.reconstruct();
+    psi0.broaden();
+    psi0.broaden();
+    complex_function_1d psi1 = apply_1d_realspace_push(*G, psi0, 0);
+    psi1.sum_down();
     psi1 = expV*psi1;
-
-    psi1 = apply(G,psi1);
+    psi1 = apply_1d_realspace_push(*G, psi1, 0);
+    psi1.sum_down();
     psi1.truncate();
 
     return psi1;
@@ -126,9 +129,9 @@ struct unaryexp {
 
 
 /// Returns exp(-I*t*V) with truncation
-functionT make_exp(double t, const functionT& v) {
+complex_function_1d make_exp(double t, const complex_function_1d& v) {
     v.reconstruct();
-    functionT expV = double_complex(0.0,-t)*v;
+    complex_function_1d expV = double_complex(0.0,-t)*v;
     expV.unaryop(unaryexp<double_complex,1>());
     expV.truncate();
     return expV;
@@ -137,44 +140,47 @@ functionT make_exp(double t, const functionT& v) {
 
 void test_trotter(World& world) {
 
-    const double L = 20.0;
+    const double L = 30.0;
     const int k = 16;
     const double thresh = 1e-12;
     FunctionDefaults<1>::set_cubic_cell(-L,L);
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
 
-    cout.precision(8);
+    std::cout.precision(8);
 
-    functionT psi = factoryT(world).f(psi0);
+    complex_function_1d psi = complex_factory_1d(world).f(psi0);
     psi.scale(1.0/psi.norm2());
-    functionT psi0 = copy(psi);
+    complex_function_1d psi0 = copy(psi);
 
-    functionT v = factoryT(world).f(V);
+    complex_function_1d v = complex_factory_1d(world).f(V);
 
-    double_complex e = energy(v,psi);
+    energy(world,v,psi);
 
     double c = 10.0*sqrt(0.5) * 1.86;
-    double tcrit = 2*PI/(c*c);
-    double tstep = tcrit * 0.5;
+    //double c = 10.0*sqrt(0.5) * 1.86 * 2.0;
+    double tcrit = 2*constants::pi/(c*c);
+
+    double tstep = tcrit * 0.125;
 
     print("The time step is", tstep, "\n");
 
-    operatorT G = qm_free_particle_propagator<1>(world, k, c, tstep*0.5, 2*L);
-    functionT expV = make_exp(tstep,v);
+    complex_operatorT* G0 = qm_1d_free_particle_propagator(k, c, tstep, 2*L);
 
-    for (int step=0; step<100; ++step) {
+    complex_function_1d expV = make_exp(tstep,v);
+
+    for (int step=0; step<40; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
         double theta = arg(phase);
         double theta_exact = -time*0.5;
-        while (theta_exact > PI) theta_exact -= 2.0*PI;
+        while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
 
         print("step", step, "time", time, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
-        //energy(v, psi);
+        energy(world, v, psi);
 
-        psi = trotter(expV, G, psi);
+        psi = trotter(expV, G0, psi);
     }
 
 }
@@ -185,7 +191,7 @@ void test_chin_chen(World& world) {
     const int k = 16;
     const double thresh = 1e-12;
     double c = 10.0*sqrt(0.5) * 1.86;
-    double tcrit = 2*PI/(c*c);
+    double tcrit = 2*constants::pi/(c*c);
     double tstep = tcrit;
     print("The time step is", tstep, "\n");
 
@@ -193,35 +199,35 @@ void test_chin_chen(World& world) {
     FunctionDefaults<1>::set_k(k);
     FunctionDefaults<1>::set_thresh(thresh);
 
-    cout.precision(8);
+    std::cout.precision(8);
 
-    functionT psi = factoryT(world).f(psi0);
+    complex_function_1d psi = complex_factory_1d(world).f(psi0);
     psi.scale(1.0/psi.norm2());
-    functionT psi0 = copy(psi);
+    complex_function_1d psi0 = copy(psi);
 
-    functionT v = factoryT(world).f(V);
-    functionT dvsq = factoryT(world).f(dVsq);
+    complex_function_1d v = complex_factory_1d(world).f(V);
+    complex_function_1d dvsq = complex_factory_1d(world).f(dVsq);
 
-    functionT vtilde = v - dvsq*(tstep*tstep/48.0);
+    complex_function_1d vtilde = v - dvsq*(tstep*tstep/48.0);
 
-    operatorT G = qm_free_particle_propagator<1>(world, k, c, tstep*0.5, 2*L);
+    complex_operatorT* G0 = qm_1d_free_particle_propagator(k, c, tstep, 1400.0);
     //G.doleaves = true;
-    functionT expV = make_exp(tstep/6.0, v);
-    functionT expVtilde = make_exp(2.0*tstep/3.0, vtilde);
+    complex_function_1d expV = make_exp(tstep/6.0, v);
+    complex_function_1d expVtilde = make_exp(2.0*tstep/3.0, vtilde);
 
-    for (int step=0; step<10000; ++step) {
+    for (int step=0; step<100; ++step) {
         double time = step * tstep;
         double_complex phase = psi0.inner(psi);
         double radius = abs(phase);
         double theta = arg(phase);
         double theta_exact = -time*0.5;
-        while (theta_exact > PI) theta_exact -= 2.0*PI;
-        while (theta_exact < -PI) theta_exact += 2.0*PI;
+        while (theta_exact > constants::pi) theta_exact -= 2.0*constants::pi;
+        while (theta_exact < -constants::pi) theta_exact += 2.0*constants::pi;
 
         print("step", step, "time", time, "radius", radius, "arg", theta, "exact", theta_exact, "phase err", theta_exact-theta);
-        //energy(v, psi);
+        energy(world, v, psi);
 
-        psi = chin_chen(expV, expVtilde, G, psi);
+        psi = chin_chen(expV, expVtilde, G0, psi);
     }
 
 }
@@ -232,8 +238,9 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
+        bandlimited_propagator_plot();
         //test_trotter(world);
-        test_chin_chen(world);
+        //test_chin_chen(world);
 
     }
     catch (const MPI::Exception& e) {

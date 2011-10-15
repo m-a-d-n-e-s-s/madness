@@ -41,6 +41,7 @@
 #include <constants.h>
 #include <iostream>
 #include <vector>
+#include <algorithm>
 
 /// \file qmprop.cc
 /// \brief Implements BandlimitedPropagator and qm_free_particle_propagator
@@ -69,14 +70,29 @@ namespace madness {
         BandlimitedPropagator(double c, double t, double width) : width(width) {
             // 4.0 is range of window in Fourier space, 32x for
             // oversampling in real space for accurate cubic
-            // interpolation.  Extra factor of 8 from accurate tdse1d testing.
-            const double kmax = 32.0*4.0*c*8;
+            // interpolation.  
+
+            // Extra factor of 4 from accurate tdse1d testing
+
+            const double kmax = 32.0*4.0*c * 4;
             const double fac = kmax/constants::pi;
-            const double c2 = std::pow(2.0,double(std::ceil(std::log(c/20.0)/std::log(2.0))));
-            //std::cout << "C2 " << c2 << std::endl;
-            const int N = 131072 * 2 * c2;
-            const double hk = 2.0*kmax/N;
+            
+            // NEW
+            double hk = 0.0625;
+            const double dN = 2.0*kmax/hk;
+            const int N = std::pow(2.0,double(std::ceil(std::log(dN)/std::log(2.0))));
+            hk = 2.0*kmax/N;
+
+            // ORIGINAL
+            // const double fac = kmax/constants::pi;
+            // const double c2 = std::pow(2.0,double(std::ceil(std::log(c)/std::log(2.0))));
+            // const int N = 131072 * std::max(2*c2,1.0);
+            // const double hk = 2.0*kmax/N;
+
             const double hx = constants::pi/kmax;
+
+            //print("c", c,"t", t, "width", width, "kmax", kmax, "hk", hk, "N", N, "hx", hx);
+            
             std::vector<double_complex> s(N);
 
             for (int i=0; i<N/2; ++i) {
@@ -87,24 +103,20 @@ namespace madness {
 
             CFFT::Inverse(&s[0], N);
 
+            // for (int i=0; i<N; i++) {
+            //     print(i, real(s[i]), imag(s[i]));
+            // }
+            // throw "done";
+            
+            MADNESS_ASSERT(abs(s[N/2]) <1e-14);
             int n;
-            for (n=N/3; n>=0 && std::abs(s[n])<1e-14; --n);
+            for (n=N/2; n>=0 && std::abs(s[n])<1e-14; --n);
             ++n;
 
             s.resize(n);
 
             xmax = (n-1)*hx;
             fit = CubicInterpolationTable<double_complex>(0.0, xmax, n, s);
-
-            //print("QM", c, t, width);
-            //std::cout.precision(12);
-            //print(0.001,(*this)(0.001));
-            //print(0.002,(*this)(0.002));
-//             for (int i=0; i<10001; ++i) {
-//                 double x = i*xmax/10000.0/width;
-//                 double_complex value = (*this)(x);
-//                 print(x,value.real(),value.imag());
-//             }
         }
 
         Level natural_level() const {return 13;}
@@ -125,7 +137,30 @@ namespace madness {
             }
             return;
         }
+
+        static void plot() {
+            test();
+            std::cout.precision(12);
+            for (int j=0; j<=4; j++) {
+                double width = 100.0;
+                double c = 10.0;
+                double tcrit  = 2.0*3.14159/(c*c);
+                double t = tcrit * (1<<j);
+                BandlimitedPropagator bp(c, t, width);
+
+                print("QM: c", c, "tcrit", tcrit, "*", (1<<j));
+                for (int i=0; i<10001; ++i) {
+                    double x = i/10000.0; // SIMULATION coords so don't need width
+                    double_complex value = bp(x);
+                    print(x*width,value.real(),value.imag());
+                }
+            }
+
+        }
     };
+
+    void bandlimited_propagator_plot(){BandlimitedPropagator::plot();}
+
 
     Convolution1D<double_complex>*
     qm_1d_free_particle_propagator(int k, double bandlimit, double timestep, double width) {
