@@ -37,10 +37,11 @@
 
 
 #include <madness_config.h>
-#define ENABLE_CUBLAS 1  
+#define ENABLE_CUBLAS 1 
 #include <tensor/cu_mtxmq_kernels.cu>
 #include <tensor/cu_mtxmq.h>
 //#include <world/cuda_streams.h>
+#include <string.h>
 #include <cublas_v2.h>
 //namespace madness {
 //#include <cublas_v2.h>
@@ -84,111 +85,125 @@
 
  }
  */
+#define CUDA_CHECK_ERROR(k) \
+  {\
+    cudaError_t ce = cudaGetLastError();\
+    if(ce != cudaSuccess) {\
+      printf("%d %s\n",k, cudaGetErrorString(ce));\
+      exit(EXIT_FAILURE);\
+    }\
+  }
+
  template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
-               cT* restrict c, const  aT* a, const bT* b,void *stream,int ndim,long tsize) {
-        printf("gpu code");
-        const aT *h_A= a;
-	const bT *h_B= b;
-	cT *h_C= c;
-	aT *d_A;
-	aT *d_odata;
-	bT *d_B, *hb;
-	cT *d_C, *hc;
-	aT *ha; 
-	dim3 threads = dim3(BLOCK_SIZE,BLOCK_SIZE);
-	dim3 grid = dim3(dimj / threads.x, dimi / threads.y);
-	
-	//if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0){
-	dim3 threads_rem, grid_rem;
-	  
-	//  kernel = &transposeNoBankConflicts; 
-	
-	//}
-	//unsigned int tile_size = sizeof(aT) * TILE_DIM * (TILE_DIM+1);
-	//unsigned int tile_sizee = sizeof(aT) * TILE_DIM * (TILE_DIM);
-	int size_i = dimi + (BLOCK_SIZE-(dimi%BLOCK_SIZE));
-	int size_k = dimk + (BLOCK_SIZE-(dimk%BLOCK_SIZE));
-	int size_j = dimj + (BLOCK_SIZE-(dimj%BLOCK_SIZE));
-	int i,j;
-	if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
-	
-	grid_rem = dim3(size_i / BLOCK_SIZE, size_k / BLOCK_SIZE);
-	ha =(aT*) malloc(size_i*size_k*sizeof(aT));
-	hb =(bT*) malloc(size_j*size_k*sizeof(bT));
-	hc =(cT*) malloc(size_k*size_j*sizeof(cT));
-	for ( i=0, j=0;i<dimi*dimk; i++, j++)
-	{
-	  if (i%dimk==0 && i!=0)
-	    j=j+ (BLOCK_SIZE-(dimk%BLOCK_SIZE));
-	  ha[j]=h_A[i];
-//	   printf("hA[%d]=%f\t ",j,ha[j]);
-	}
-	
-	
-	for (  i=0, j=0;i<dimj*dimk; i++, j++)
-	{
-	  if (i%dimj==0 && j!=0)
-	    j=j+ (BLOCK_SIZE-(dimj%BLOCK_SIZE));
-	  hb[j]=h_B[i];
-	}
-	}
-	
-	int A_size = size_i*size_k*sizeof(aT);
-	int B_size = size_k*size_j*sizeof(bT);
-	int C_size = size_k*size_j*sizeof(cT);
-	
-	//printf("A_size=%d\n\n\n",A_size);
-	
-	cudaMallocHost((void**)&d_A, A_size) ;
-	cudaMallocHost((void**)&d_B, B_size) ;
-	cudaMallocHost((void**)&d_C, C_size) ;
-	cudaMallocHost((void**)&d_odata, A_size) ;
-	cudaMemcpy(d_A, ha, A_size, cudaMemcpyHostToDevice) ; 
-	cudaMemcpy(d_B, hb, B_size, cudaMemcpyHostToDevice) ;
-	
-	//printf("tile size = %u\n",tile_size);
-	if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
-	transposeNoBankConflicts<aT><<<grid_rem, threads>>>(d_odata,d_A, size_k, size_i, 1);
-//if ( cudaSuccess != cudaGetLastError() )
-  //  printf( "Error!\n" );
+               cT* restrict c, const  aT* a, const bT* b,void *GPU_stream,int ndim,long tsize) {
+	//printf("template code");
+	const aT *h_A= a;
+        const bT *h_B= b;
+        cT *h_C= c;
+        aT *d_A;
+        aT *d_odata;
+        bT *d_B, *hb;
+        cT *d_C, *hc;
+        aT *ha;
+        dim3 threads = dim3(BLOCK_SIZE,BLOCK_SIZE);
+        dim3 grid = dim3(dimj / threads.x, dimi / threads.y);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        int size_i,size_j,size_k,A_size,B_size,C_size;
+        dim3 threads_rem, grid_rem;
+        if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
+        size_i = dimi + (BLOCK_SIZE-(dimi%BLOCK_SIZE));
+        size_k = dimk + (BLOCK_SIZE-(dimk%BLOCK_SIZE));
+        size_j = dimj + (BLOCK_SIZE-(dimj%BLOCK_SIZE));
+        A_size = size_i*size_k*sizeof(aT);
+        B_size = size_k*size_j*sizeof(bT);
+        C_size = size_i*size_j*sizeof(cT);
+        cudaMallocHost((void**)&ha,A_size,cudaHostAllocDefault);
+        cudaMallocHost((void**)&hb,B_size,cudaHostAllocDefault);
+        cudaMallocHost((void**)&hc,C_size,cudaHostAllocDefault);
+        cudaMemset(ha,0,size_i*size_k*sizeof(aT));
+        cudaMemset(hb,0,size_j*size_k*sizeof(bT));
+        cudaMemset(hc,0,size_i*size_j*sizeof(cT));
+        }
+        else
+        {
+        size_i = dimi;
+        size_k = dimk;
+        size_j = dimj;
+	A_size = size_i*size_k*sizeof(aT);
+        B_size = size_k*size_j*sizeof(bT);
+        C_size = size_i*size_j*sizeof(cT);
+        cudaMallocHost((void**)&ha,A_size,cudaHostAllocDefault);
+        cudaMallocHost((void**)&hb,B_size,cudaHostAllocDefault);
+        cudaMallocHost((void**)&hc,C_size,cudaHostAllocDefault);
 
-//	cudaThreadSynchronize();
-//	cudaMemcpy((void *)ha,(void *) d_odata, A_size, cudaMemcpyDeviceToHost) ;
-	grid_rem = dim3(size_j / BLOCK_SIZE, size_k / BLOCK_SIZE);
-//	  printf("ha[%d]=%f\t ",i,ha[i]);
-	matrixMul_coalescing<aT,bT,cT><<< grid_rem, threads >>>(d_C, d_odata, d_B, size_i, size_j);
-	
-//cudaThreadSynchronize();
-	}
-	else
-	{ transposeNoBankConflicts<aT><<<grid, threads>>>(d_A,d_A, dimk, dimi, 1);
-	
-	matrixMul_coalescing<aT,bT,cT><<< grid, threads >>>(d_C, d_A, d_B, dimi, dimj);
-	}
-	//matrixMul_coalescing_rem<aT,bT,cT><<< grid, threads>>>(d_C, d_A, d_B, dimk, dimj, dimi);
-	//if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0){
-	  //threads_rem = dim3(dimj%BLOCK_SIZE,dimi%BLOCK_SIZE);
-	//dim3 grid_rem = dim3(1);
-	//matrixMul_coalescing_rem<<< grid_rem, threads_rem, tile_sizee >>>(d_C, d_A, d_B, dimk, dimj, dimi);
-	//}
-	// copy result from device to host
-	cudaMemcpy((void *)hc,(void *) d_C, C_size, cudaMemcpyDeviceToHost) ;
-       for (  i=0, j=0;i<dimj*dimk; i++, j++)
-	{
-	  if (i%dimj==0 && i!=0)
-	    j=j+ (BLOCK_SIZE-(dimj%BLOCK_SIZE));
-	  h_C[i]=hc[j];
-	}
+        }
+        int i,j;
+        if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
 
-	free(ha);
-	free(hb);
-	free(hc);
-	cudaFree(d_odata);
-	cudaFree(d_A);
-	cudaFree(d_B);
-	cudaFree(d_C);
-    }
+
+        for ( i=0, j=0;i<dimi*dimk; i++, j++)
+        {
+          if (i%dimk==0 && i!=0)
+            j=j+ (BLOCK_SIZE-(dimk%BLOCK_SIZE));
+          cudaMemcpy(&ha[j],&h_A[i],sizeof(aT),cudaMemcpyHostToHost);
+        }
+
+
+        for (  i=0, j=0;i<dimj*dimk; i++, j++)
+        {
+          if (i%dimj==0 && j!=0)
+            j=j+ (BLOCK_SIZE-(dimj%BLOCK_SIZE));
+//          hb[j]=h_B[i];
+	cudaMemcpy(&hb[j],&h_B[i],sizeof(bT),cudaMemcpyHostToHost);
+        }
+        }
+
+
+        cudaMalloc((void**)&d_A, A_size) ;
+        cudaMalloc((void**)&d_B, B_size) ;
+        cudaMalloc((void**)&d_C, C_size) ;
+        cudaMalloc((void**)&d_odata, A_size) ;
+        cudaMemcpyAsync(d_A, ha, A_size, cudaMemcpyHostToDevice,*stream) ;
+        cudaMemcpyAsync(d_B, hb, B_size, cudaMemcpyHostToDevice,*stream) ;
+    
+ if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
+	
+        dim3 grid_rem = dim3(size_j / threads.x, size_i / threads.y);
+        transposeNoBankConflicts<aT><<<grid_rem, threads,0,*stream>>>(d_odata,d_A, size_k, size_i, 1);
+	CUDA_CHECK_ERROR(1);
+        grid_rem = dim3(size_j / BLOCK_SIZE, size_k / BLOCK_SIZE);
+
+        matrixMul_coalescing<aT,bT,cT><<< grid_rem, threads,0,*stream >>>(d_C, d_odata, d_B, size_i, size_j);
+	CUDA_CHECK_ERROR(2);
+        }
+        else
+        { transposeNoBankConflicts<aT><<<grid, threads,0,*stream>>>(d_A,d_A, dimk, dimi, 1);
+
+        matrixMul_coalescing<aT,bT,cT><<< grid, threads,0,*stream >>>(d_C, d_A, d_B, dimi, dimj);
+        }
+
+        // copy result from device to host
+        cudaMemcpyAsync((void *)hc,(void *) d_C, C_size, cudaMemcpyDeviceToHost,*stream) ;
+          if (dimi%BLOCK_SIZE !=0 || dimj%BLOCK_SIZE!=0 || dimk%BLOCK_SIZE!=0){
+       for (  i=0, j=0;i<dimj*dimi; i++, j++)
+        {
+          if (i%dimj==0 && i!=0)
+            j=j+ (BLOCK_SIZE-(dimj%BLOCK_SIZE));
+       //   h_C[i]=hc[j];
+	cudaMemcpy(&h_C[i],&hc[j],sizeof(cT),cudaMemcpyHostToHost);
+        }
+          }
+
+        cudaFreeHost(ha);
+        cudaFreeHost(hb);
+        cudaFreeHost(hc);
+        cudaFree(d_odata);
+        cudaFree(d_A);
+        cudaFree(d_B);
+        cudaFree(d_C);
+
+}
 
 template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const std::complex<double> *A, const double *B,void *stream,int ndim,long tsize){}    
 #if !ENABLE_CUBLAS 
@@ -203,7 +218,7 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 
   template<>   void cu_mTxmq(long m, long n,long k, double *C, const double *A, const double *B,void *GPU_stream,int ndim,long tsize){
 
-
+        double *ha,*hb, *hc; 
 	double one=1.0;
 	double zero=0.0;
 	//printf(" GPU Scublas code execution");
@@ -211,7 +226,7 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 	int M = (int)m;
 	int N = (int)n;
 	int K = (int)k;
-	cublasStatus_t statt;
+	//cublasStatus_t statt;
 	cudaError_t stat;	
 	double *devPtrA, *devPtrB, *devPtrC;
         cublasHandle_t handle;	
@@ -219,26 +234,33 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
 	cublasSetStream(handle, *stream);
 	
-	stat = cudaMallocHost ( (void**)&devPtrA,M*K*sizeof(double),cudaHostAllocDefault ) ;
+	stat = cudaMallocHost ( (void**)&ha,M*K*sizeof(double) ) ;
 	if (stat != cudaSuccess) {
 	printf ("adevice memory allocation failed");
 	return ;
 	}
 	
-	stat = cudaMallocHost ((void**)&devPtrB,K*N*sizeof(double),cudaHostAllocDefault ) ;
+	stat = cudaMallocHost ((void**)&hb,K*N*sizeof(double) ) ;
 	if (stat != cudaSuccess) {
 	printf ("bdevice memory allocation failed");
 	return ;
 	}
-	
-	stat = cudaMallocHost ((void**)&devPtrC,M*N*sizeof(double),cudaHostAllocDefault ) ;
+	stat = cudaMallocHost ((void**)&hc,M*N*sizeof(double) ) ;
 	if (stat != cudaSuccess) {
 	printf ("cdevice memory allocation failed");
 	return ;
 	}
+	cudaMalloc((void**)&devPtrA,M*K*sizeof(double));
+	cudaMalloc((void**)&devPtrB,N*K*sizeof(double));
+	cudaMalloc((void**)&devPtrC,M*N*sizeof(double));
+
+	cudaMemcpy((void *)ha,(void *) A, M*K*sizeof(double), cudaMemcpyHostToHost) ;
+	cudaMemcpy((void *)hb,(void *) B, N*K*sizeof(double), cudaMemcpyHostToHost) ;
 	
-	int b=cublasSetMatrixAsync (M, K, sizeof(double), (void *)A, M, (void *)devPtrA, M,*stream);
+	int b=cublasSetMatrixAsync (M, K, sizeof(double), (void *)ha, M, (void *)devPtrA, M,*stream);
 	//int  b=cublasGetError();
+//	int b=cublasSetMatrix (M, K, sizeof(double), (void *)ha, M, (void *)devPtrA, M);
+//	cudaStreamSynchronize(*stream);
         if (b == CUBLAS_STATUS_INVALID_VALUE)
           printf("CUBLAS_STATUS_INVALID_VALUE");
         else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -255,7 +277,9 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
 
 
-	b=cublasSetMatrixAsync (K, N, sizeof(double), (void *)B, K, (void *)devPtrB, K,*stream);
+	b=cublasSetMatrixAsync (K, N, sizeof(double), (void *)hb, K, (void *)devPtrB, K,*stream);
+//	cudaStreamSynchronize(*stream);
+	//b=cublasSetMatrix (K, N, sizeof(double), (void *)hb, K, (void *)devPtrB, K);
 	 // b=cublasGetError();
         if (b == CUBLAS_STATUS_INVALID_VALUE)
           printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -275,10 +299,14 @@ template <> void cu_mTxmq(long m, long n,long k, std::complex<double> *C, const 
 
 
 	//cublasDgemm('t','n',M,N,K,one,devPtrA,K,devPtrB,K,zero,devPtrC,M);
-  //      for (int i=0;i<ndim;i++){
-do{
+	if (ndim ==0)
+            ndim=2;
+     for (int i=0;i<ndim-1;i++){
+//do{   
+//	cublasSetStream(handle, *stream);
 	b=cublasDgemm(handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,devPtrB,N,devPtrA,M,&zero,devPtrC,N);
-}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
+  //     cudaStreamSynchronize(*stream);
+//}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
 //	 b=cublasGetError();
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -295,19 +323,17 @@ do{
         else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
 	//else
-	//printf("kernel execution success");
+	 // printf("kernel execution success");
+
+//cudaStreamSynchronize(*stream);
 
 
-
-/*
-	if (ndim>1 ){
-
-		double *devtemp=devPtrA;
-		devPtrA=devPtrC;
-		devPtrC=devtemp;
+	if (tsize==1){
+	//	cublasSetStream(handle, *stream);
 		//printf("INSIDE SWAP");
-		b=cublasDswap (handle,tsize, devPtrA, 1,devPtrC ,1);
+		b=cublasDswap (handle,M*N, devPtrA, 1,devPtrC ,1);
 		//b=cublasGetError();
+//		cudaStreamSynchronize(*stream);
 		if (b == CUBLAS_STATUS_INVALID_VALUE)
 		  printf("CUBLAS_STATUS_INVALID_VALUE");
 		else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -322,24 +348,22 @@ do{
 		  printf("init CUBLAS_STATUS_NOT_INITIALIZED");
 		else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
 		  printf("CUBLAS_STATUS_INTERNAL_ERROR");
-		
-		for (int j=0;j<tsize;j++)
-		devPtrC[j]=0.0;
-//		stat=cudaMemsetAsync(devPtrC,0,tsize*sizeof(double),*stream);
-//		if (stat != cudaSuccess) {
-//			printf ("setdevice memory allocation failed");
-//			return ;
-//			}
+		if (i<ndim-2)
+		stat=cudaMemsetAsync((void*)devPtrC,0,M*N*sizeof(double),*stream);
 
 	}
-*/		
-//}	
+		
+}	
 	//else
 	  //printf("Error=%d",b);
 	//cublasGetMatrix (K, K, sizeof(double), (void *)devPtrC, K, (void *)C, K);
 	//dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
 	//cublasSgemm('n','t',N,M,K,one,devPtrB,N,devPtrA,M,zero,devPtrC,N);
-	b=cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M,*stream);
+	if(tsize==1)
+	b=cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrA, M, (void *)hc, M,*stream);
+	else
+	b=cublasGetMatrixAsync (M, N, sizeof(double), (void *)devPtrC, M, (void *)hc, M,*stream);
+	//b=cublasGetMatrix (M, N, sizeof(double), (void *)devPtrC, M, (void *)C, M);
 	 if (b == CUBLAS_STATUS_INVALID_VALUE)
           printf("CUBLAS_STATUS_INVALID_VALUE");
         else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -354,10 +378,21 @@ do{
           printf("init CUBLAS_STATUS_NOT_INITIALIZED");
         else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
+//	cudaStreamSynchronize(*stream);
+	stat=cudaMemcpy((void *)C,(void *) hc, M*N*sizeof(double), cudaMemcpyHostToHost) ;
+	 if (stat != cudaSuccess) {
+                        printf ("setdevice memory allocation failed");
+                        return ;
+                        }
+
+        
 
 	cudaFree (devPtrA);
 	cudaFree (devPtrB);
 	cudaFree (devPtrC);
+	cudaFreeHost (ha);
+	cudaFreeHost (hb);
+	cudaFreeHost (hc);
 	cublasDestroy(handle);
 
     }
@@ -630,5 +665,126 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 #endif
 
 //}
+template <typename T>
+T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset){
+	T *GPU_buf;
+	cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
+	cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+	return GPU_buf;
+}
+template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset);
+template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset);
+template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset);
+template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset);
+
+
+template <typename T>
+void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset){
+	cudaMemcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost);
+}
+template  void  CPUtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset);
+
+
+template <typename W>
+       void GPUdelete_buffer(W* buf){
+	cudaFree(buf);
+}
+template   void GPUdelete_buffer(double* buf);
+template   void GPUdelete_buffer(std::complex<double>* buf);
+template   void GPUdelete_buffer(float* buf);
+template   void GPUdelete_buffer(std::complex<float>* buf);
+
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmqq(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle)
+{}
+
+  template<>   void cu_mTxmqq(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqq(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqq(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+
+  template<>   void cu_mTxmqq(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  
+  template<>   void cu_mTxmqq(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){
+
+       // double *ha,*hb, *hc; 
+	double one=1.0;
+	double zero=0.0;
+	//printf(" GPU Scublas code execution");
+	//sleep(100);
+	int M = (int)m;
+	int N = (int)n;
+	int K = (int)k;
+	//cublasStatus_t statt;
+	cudaError_t stat;	
+	//double *devPtrA, *devPtrB, *devPtrC;
+        cublasHandle_t *handle=(cublasHandle_t *)h;	
+//	cublasCreate(&handle);
+	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	cublasSetStream(*handle, *stream);
+	
+	if (ndim ==0)
+            ndim=2;
+     for (int i=0;i<ndim-1;i++){
+//do{   
+//	cublasSetStream(handle, *stream);
+	int b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+  //     cudaStreamSynchronize(*stream);
+//}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
+//	 b=cublasGetError();
+	if (b == CUBLAS_STATUS_INVALID_VALUE)
+	  printf("CUBLAS_STATUS_INVALID_VALUE");
+	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+	  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+	//else
+	 // printf("kernel execution success");
+
+//cudaStreamSynchronize(*stream);
+
+
+        /*
+	if (tsize==1){
+	//	cublasSetStream(handle, *stream);
+		//printf("INSIDE SWAP");
+		b=cublasDswap (*handle,M*N, A, 1,C ,1);
+		//b=cublasGetError();
+//		cudaStreamSynchronize(*stream);
+		if (b == CUBLAS_STATUS_INVALID_VALUE)
+		  printf("CUBLAS_STATUS_INVALID_VALUE");
+		else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+		  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+		else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+		  printf("swapCUBLAS_STATUS_EXECUTION_FAILED");
+		else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+		  printf("CUBLAS_STATUS_MAPPING_ERROR");
+		else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+		  printf("CUBLAS_STATUS_ALLOC_FAILED");
+		else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+		  printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+		else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+		  printf("CUBLAS_STATUS_INTERNAL_ERROR");
+		if (i<ndim-2)
+		stat=cudaMemsetAsync((void*)C,0,M*N*sizeof(double),*stream);
+
+	}
+        */
+		
+}	
+//	cublasDestroy(handle);
+
+    }
 #endif // MADNESS_TENSOR_CU_MTXMQ_H__INCLUDED
 

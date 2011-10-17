@@ -766,14 +766,14 @@ namespace madness {
             return None;
         }
 
-       template <typename W>
+    /*   template <typename W>
        W* GPUtransfer_buffer(W* buf, unsigned int offset){
          return buf;
        }
 
        template <typename W>
        void GPUdelete_buffer(W* buf){}
-
+*/
         std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
             //print("inArgs.size() = ",inArgs.size());
@@ -874,14 +874,18 @@ STARTt_TIMER;
 		    //print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
 		    //cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS],1,t.size());
                     //cu_mTxmq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],1,0);
+                    cu_mTxmqq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],0,0,cublas_handle);
+                    /*
                     mTxmq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off);
+                    */
                     T* ptr_t0 = start_t0 + t0_off;
                     T* ptr_t1 = start_t1 + t1_off;
 		    for (int n=1; n<t.ndim(); ++n) {
 			//mTxmq(dimi, dimj, dimj, t1, t0, pc);
 			//cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS],t.ndim(),t.size());
                         //cu_mTxmq(dimi, dimj, dimj, start_t1 + t1_off, start_t0 + t0_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),0);
-                        mTxmq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off);
+                        cu_mTxmqq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),1,cublas_handle);
+                        //mTxmq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off);
 			//std::swap(t0,t1);
 			//std::swap(start_t0 + t0_off, start_t1 + t1_off);
                         T* temp = ptr_t0;
@@ -905,7 +909,8 @@ STARTt_TIMER;
 
             //synchronize streams
             streams_synchronize(GPU_streams,NUM_STREAMS);
-            //CPUtransfer_buffer(&t1_buf,start_t1,t1_off); 
+            CPUtransfer_buffer(t1_buf,start_t1,t1_off); 
+            CPUtransfer_buffer(t0_buf,start_t0,t0_off); 
             
             GPUdelete_buffer(start_t0);
             //delete[] t0_buf;           

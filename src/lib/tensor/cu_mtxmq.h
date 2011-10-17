@@ -45,7 +45,16 @@
 template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
                cT* restrict c,const  aT* a, const bT* b, void *GPU_stream,int ndim,long tsize);
-    
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmqq(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize,void *handle);
+
+template <typename T>
+T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset);
+template <typename T>
+void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
+template <typename W>
+       void GPUdelete_buffer(W* buf) ;   
 #endif
 
     /*
