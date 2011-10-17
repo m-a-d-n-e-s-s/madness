@@ -1326,10 +1326,10 @@ namespace madness {
             }
 
             if (fimpl->is_on_demand()) {
-                mul_leaf_op leaf_op1(gimpl);
+                leaf_op leaf_op1(gimpl);
                 impl->multiply(leaf_op1,gimpl,fimpl,fence);
             } else {
-                mul_leaf_op leaf_op1(fimpl);
+                leaf_op leaf_op1(fimpl);
                 impl->multiply(leaf_op1,fimpl,gimpl,fence);
             }
         }

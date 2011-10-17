@@ -1018,6 +1018,7 @@ namespace madness {
 		/// transform the Legendre coefficients with the tensor
 		gentensorT transform(const Tensor<T> c) const {
 //			_ptr->make_structure();
+		    if (has_no_data()) return gentensorT();
 			MADNESS_ASSERT(_ptr->has_structure());
 			return gentensorT (this->_ptr->transform(c));
 		}

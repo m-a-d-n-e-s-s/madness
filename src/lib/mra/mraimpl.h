@@ -407,8 +407,18 @@ namespace madness {
         madness::fcube(key,ElementaryInterface<T,NDIM>(f) , qx, fval);
     }
 
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::fcube(const keyT& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx, tensorT& fval) const {
+        madness::fcube(key,f,qx,fval);
+    }
+
+
     /// project the functor into this functionimpl, and "return" a tree in reconstructed,
     /// rank-reduced form.
+
+    /// @param[in]  key current FunctionNode
+    /// @param[in]  do_refine
+    /// @param[in]  specialpts  in case these are very spiky functions -- don't undersample
     template <typename T, std::size_t NDIM>
     Void FunctionImpl<T,NDIM>::project_refine_op(const keyT& key,
                                                  bool do_refine,

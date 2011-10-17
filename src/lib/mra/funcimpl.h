@@ -319,6 +319,8 @@ namespace madness {
             MADNESS_EXCEPTION("in noop::operator()",1);
             return true;
         }
+        template <typename Archive> void serialize (Archive& ar) {}
+
     };
 
 
@@ -2996,28 +2998,29 @@ namespace madness {
 
 
         /// perform this multiplication: h=f*g, with g being on-demand
+
+        /// the criteria for refinement are:
+        /// 1. at least a leaf node of f
+        /// 2. compare to coeffs of parent node
         template<typename leaf_opT>
         struct mul_op {
 
             typedef std::pair<Key<NDIM>, FunctionNode<T,NDIM> > datumT;
 
-            implT* h;     ///< the result function h = f * g
+            implT* h;           ///< the result function h = f * g
             const implT* f;     ///< the function f(1,2) that will be multiplied with g
-            const implT* g;     ///< the function g
+            const implT* g;     ///< the function g (on-demand)
             datumT fdatum;      ///< pointing to the most-leaf node of f
             leaf_opT leaf_op;
+            coeffT hparent;     ///< coeffs of h of the parent node
 
             mul_op() {
             };
 
-            mul_op(implT* h, const implT* f, const implT* g, const datumT& fdatum, const leaf_opT& leaf_op)
-                : h(h)
-                , f(f)
-                , g(g)
-                , fdatum(fdatum)
-                , leaf_op(leaf_op) {
+            mul_op(implT* h, const implT* f, const implT* g, const datumT& fdatum, const leaf_opT& leaf_op,
+                    const coeffT& hparent)
+                : h(h), f(f), g(g), fdatum(fdatum), leaf_op(leaf_op), hparent(hparent) {
             };
-
 
             /// apply this on a FunctionNode of f and g of Key key
 
@@ -3025,53 +3028,85 @@ namespace madness {
             /// @return <this node is a leaf, coefficients of this node>
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-                const coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
-                const coeffT gcoeff=coeffT(g->project(key),g->get_tensor_args());
-
-                bool is_leaf=leaf_op(key,fcoeff,gcoeff);
-                if (key.level()<2 or fdatum.second.has_children()) is_leaf=false;
+                // pre-screen if this is a leaf (supposedly leaf_node of f)
+                bool is_leaf=leaf_op(fdatum.first);
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+#if 0
+                // loop over all children, get and get the error (akin to project_refine_op)
+                tensorT r = tensorT(h->cdata.v2k);
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    r(h->child_patch(child)) = this->coeff(child);
+                }
+                // Filter then test difference coeffs at level n
+                tensorT d = h->filter(r);
+                tensorT hcoeff = copy(d(h->cdata.s0));
+                d(h->cdata.s0) = 0.0;
+                double dnorm = d.normf();
+#else
+                const tensorT h_upsampled=h->upsample(key,hparent).full_tensor_copy();
+                const tensorT hcoeff=this->coeff(key);
+                const tensorT diff=h_upsampled-hcoeff;
+                const double dnorm=diff.normf();
+#endif
+                is_leaf=(dnorm<h->truncate_tol(h->get_thresh(),key.level()));
+                if (is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT(hcoeff,h->get_tensor_args()));
+                return std::pair<bool,coeffT> (is_leaf,coeffT());
+            }
+
+        private:
+            /// return the coeffs of h=f*g, for key, using fdatum of the parent key
+            tensorT coeff(const keyT& key) const {
+
+                const coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
+                const tensorT gcoeff=g->project(key);
 
                 // convert coefficients to values
                 tensorT fvalues=f->coeffs2values(key,fcoeff).full_tensor_copy();
-                tensorT gvalues=g->coeffs2values(key,gcoeff).full_tensor_copy();
+                tensorT gvalues=g->coeffs2values(key,gcoeff);
 
                 // multiply f and g
-                tensorT hvalues(h->cdata.vk,false);
-                TERNARY_OPTIMIZED_ITERATOR(T, hvalues, T, fvalues, T, gvalues, *_p0 = *_p1 * *_p2;);
-
-                // convert values back to coefficients
-                coeffT hcoeff=coeffT(h->values2coeffs(key,hvalues),h->get_tensor_args());
-                return std::pair<bool,coeffT> (is_leaf,hcoeff);
+                if (fvalues.has_data() and gvalues.has_data()) {
+                    tensorT hvalues(h->cdata.vk,false);
+                    TERNARY_OPTIMIZED_ITERATOR(T, hvalues, T, fvalues, T, gvalues, *_p0 = *_p1 * *_p2;);
+                    tensorT hcoeff=h->values2coeffs(key,hvalues);
+                    return hcoeff;
+                } else {
+                    return tensorT(h->cdata.vk);
+                }
             }
 
-            ///
+        public:
+
+            /// make operator for child of this
             Future<mul_op> make_child_op(const keyT& child) const {
 
                 // point to "outermost" leaf node
                 Future<datumT> fdatum1=f->outermost_child(child,fdatum);
+                const coeffT hparent1=coeffT(this->coeff(child.parent()),h->get_tensor_args());
 
                 return h->world.taskq.add(*const_cast<mul_op *> (this), &mul_op<leaf_opT>::make_op,
-                        h,f,g,fdatum1,leaf_op);
+                        h,f,g,fdatum1,leaf_op,hparent1);
             }
 
             /// taskq-compatible constructor
             mul_op make_op(implT* h, const implT* f, const implT* g,
-                    const datumT& fdatum, const leaf_opT& leaf_op) {
-                return mul_op(h,f,g,fdatum,leaf_op);
+                    const datumT& fdatum, const leaf_opT& leaf_op, const coeffT& hparent) {
+                return mul_op(h,f,g,fdatum,leaf_op,hparent);
             }
 
             /// serialization
             template <typename Archive> void serialize(const Archive& ar) {
-                 ar & h & f & g & fdatum & leaf_op;
+                 ar & h & f & g & fdatum & leaf_op & hparent;
             }
 
         };
 
 
-        /// multiply f with an on-demand function
+        /// multiply f with an on-demand function, invoked by result
 
-        /// @param[in]  leaf_op     use this as a measure to determine if f needs refinement
+        /// @param[in]  leaf_op     use this as a (pre-) measure to determine if f needs refinement
         /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the on-demand function (provides coeffs via FunctorInterface)
         /// @return     this        f * g
@@ -3088,7 +3123,7 @@ namespace madness {
                 datumT fdatum=datf.get();
 
                 typedef mul_op<leaf_opT> op_type;
-                op_type mul_op(this,f,g,fdatum,leaf_op);
+                op_type mul_op(this,f,g,fdatum,leaf_op,fdatum.second.coeff());
 
                 ProcessID owner = coeffs.owner(cdata.key0);
                 woT::task(owner, &implT:: template recursive_op<op_type>, mul_op, cdata.key0);
@@ -3415,13 +3450,10 @@ namespace madness {
                 datumL datum1=dat1.get();
                 datumL datum2=dat2.get();
 
-                ProcessID owner = coeffs.owner(cdata.key0);
-//                woT::task(owner, &implT:: template hartree_product_spawn<LDIM>, p1, p2, cdata.key0,
-//                      datum1,datum2);
-
                 typedef hartree_op<LDIM,leaf_opT> op_type;
                 op_type hartree_op(this,p1,p2,datum1,datum2,leaf_op);
 
+                ProcessID owner = coeffs.owner(cdata.key0);
                 woT::task(owner, &implT:: template recursive_op<op_type>, hartree_op, cdata.key0);
 
             }

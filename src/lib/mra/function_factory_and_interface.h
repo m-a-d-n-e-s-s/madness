@@ -104,7 +104,7 @@ namespace madness {
 
 		virtual ~FunctionFunctorInterface() {}
 
-		virtual coeffT coeff(const keyT&, const bool NS=false) {
+		virtual coeffT coeff(const keyT&, const bool NS=false) const {
 			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
 			return coeffT();
 		}
@@ -402,7 +402,7 @@ namespace madness {
 
 
 		/// return sum coefficients for imagined node at key
-		coeffT coeff(const Key<NDIM>& key, const bool NS=false)  {
+		coeffT coeff(const Key<NDIM>& key, const bool NS=false) const {
 			MADNESS_ASSERT(not NS);
 //			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
 //					FunctionDefaults<NDIM>::get_tensor_type());
