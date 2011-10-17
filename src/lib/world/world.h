@@ -362,7 +362,7 @@ typedef UINT64_T uint64_t;
 //#include <world/worldobj.h>
 //#include <world/worldtime.h>
 
-#define HAVE_GPU 0
+#define HAVE_GPU 1
 #define SIM_GPU 0
 #define JUST_AGG 0
 #define THREE_SPLIT 0

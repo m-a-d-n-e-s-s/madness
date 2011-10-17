@@ -50,9 +50,12 @@
 #include <windows.h>
 #endif
 void ** GPU_streams;
+void * cublas_handle;
 //extern cudaStream_t *streams;
 extern "C" void** streams_initialize(unsigned int);
 extern "C" void  streams_destroy(void **,unsigned int);
+extern "C" void* cublashandle_create();
+extern "C" void cublashandle_destroy(void*);
 namespace madness {
 
     //    SharedCounter future_count;
@@ -91,6 +94,7 @@ namespace madness {
           World * w = static_cast<World *>(arg);
 //          streams=new void *[NUM_STREAMS];
           GPU_streams=streams_initialize(NUM_STREAMS);
+          cublas_handle = cublashandle_create();
           while (1){
             //printf("ERT \n");
             sched_yield();
@@ -116,6 +120,7 @@ nanosleep(&t, NULL);
             w->gpu_hashlock.unlock(); 
           }
           streams_destroy(GPU_streams,NUM_STREAMS);
+          cublashandle_destroy(cublas_handle);
           return NULL;
     }
 
