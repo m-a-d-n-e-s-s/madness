@@ -461,6 +461,7 @@ struct CalculationParameters {
     double epsilon_1;           ///<vacuum dielectric constant jacob added
     double epsilon_2;          ///< solvent dielectric constant  jacob added
     bool svpe;               ///< if true add reaction potential to the total energy at convergence  jacob added
+    bool cosmo;               ///< if true add reaction potential to the total energy at convergence  jacob added
     bool absolvent;            ///< if true, activate the DFT Solvent Solver
     double Gamma;              ///< Value of the surface tention of the solvent in the solvation model
     double beta;                ///<dielectric cavity convergence parameter of the DFT solvation
@@ -524,7 +525,7 @@ struct CalculationParameters {
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
-        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & svpe & cosmo & absolvent & Gamma & beta & rho_0;
 	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & F & fx & mfx & fy & mfy & fz & mfz & fzfy & mfzfy;
 	ar & fzmfy & mfzmfy & fyfz & mfyfz & fymfz & mfymfz & tfx & mtfx & tfy & mtfy & tfz & mtfz & fxfy & mfxfy & fxmfy & mfxmfy;
 	ar & fzfx & mfzfx & fzmfx & mfzmfx & fyfx & mfyfx & fymfx & mfymfx & fxfz & mfxfz & fxmfz & mfxmfz;
@@ -565,6 +566,7 @@ struct CalculationParameters {
         , epsilon_1(1.0)        //jacob added
         , epsilon_2(epsilon_2)  //jacob added
         , svpe(false)        //jacob added
+        , cosmo(false)        //jacob added
 	, absolvent(false)
         , Gamma(0.0)
         , beta(1.3)
@@ -704,6 +706,9 @@ struct CalculationParameters {
 	    }
 	    else if (s == "svpe"|| s == "SVPE"){
 	       svpe = true;    //jacob added
+	    }
+            else if (s == "cosmo"|| s == "COSMO"){
+	       cosmo = true;    //jacob added
 	    }
 	    else if (s ==" absolvent" || s == "absolvent"){
               absolvent = true;
@@ -979,6 +984,8 @@ struct CalculationParameters {
         madness::print("        plot npoints ", npt_plot);
 	madness::print("      Electric Field ", F);
         madness::print("ab intio DFT solvation ", absolvent);
+        madness::print("COSMO solvation        ", cosmo);
+        madness::print("SVPE  solvation        ", svpe);
 	madness::print("density at interface ", rho_0);
 	madness::print("cavity convergence, beta ", beta);
 	madness::print("surface tension (N/m) ", Gamma);
@@ -2694,10 +2701,15 @@ struct Calculation {
               dfreedrho = DFTSsolver.dfree_drho();
 	      vlocal = vcoul + vnuc + U + dESPdrho + dfreedrho;
 	      print("out of dftsolvent");
-	    } else if (param.svpe){
+	    } else if (param.cosmo){
 	      ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
 					     molecule.get_all_coords_vec()); 
 	      vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotp,param.solventplot);
+	      vlocal = vcoul + vnuc + vsolvent;
+            } else if (param.svpe){
+	      VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+					     molecule.get_all_coords_vec()); 
+	      vsolvent = Solvent.VolumeReactionPotential(rhotp);
 	      vlocal = vcoul + vnuc + vsolvent;
 	    }
 	    //put molecule in various components of elecric field and compute energy and dipole moment
@@ -2957,13 +2969,13 @@ struct Calculation {
             }
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
-        }
-
-        if(world.rank() == 0) {
-            if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
-            else print("Orbitals are eigenvectors - energies are eigenvalues\n");
-            print("Analysis of alpha MO vectors");
-        }
+    }
+    
+    if(world.rank() == 0) {
+        if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
+        else print("Orbitals are eigenvectors - energies are eigenvalues\n");
+        print("Analysis of alpha MO vectors");
+    }
 
         analyze_vectors(world, amo, aocc, aeps);
         if(param.nbeta && !param.spin_restricted){
@@ -2994,21 +3006,38 @@ struct Calculation {
 	  }
 	}
 	else if(param.svpe){
-	  ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+	  VolumeSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
 					 molecule.get_all_coords_vec());
-	  realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotm,param.solventplot); //Jacob added
+	  realfunc vsolvent = Solvent.VolumeReactionPotential(rhotp); //Jacob added
 	  double cav_energy = Solvent.make_cav_energy(param.Gamma);
 	  ereaction = rhotm.inner(vsolvent);
-	  double total_energy = ereaction + etot + cav_energy;
+	  //double total_energy = ereaction + etot + cav_energy;
 	  if(world.rank() == 0) {
             print("\n\n");
             print("                            MADNESS SVPE            ");
             print("                          _________________         ");
             print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
-            printf("                gas phase energy%16.8f\n     ",etot);
+            printf("                solution phase energy%16.8f\n     ",etot);
             printf("                cavitation energy%16.8f\n     ",cav_energy);
-            printf("           solution phase energy%16.8f\n     ",total_energy);
+            // printf("           solution phase energy%16.8f\n     ",total_energy);
           }
+	}
+    	else if(param.svpe){
+            ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
+                                           molecule.get_all_coords_vec());
+            realfunc vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotm,param.solventplot); //Jacob added
+            double cav_energy = Solvent.make_cav_energy(param.Gamma);
+            ereaction = rhotm.inner(vsolvent);
+            // double total_energy = ereaction + etot + cav_energy;
+            if(world.rank() == 0) {
+                print("\n\n");
+                print("                            MADNESS COSMO            ");
+                print("                          _________________         ");
+                print("\n(electrostatic) solvation energy:     ",ereaction, "(",ereaction*627.503,"kcal/mol)");
+                printf("                solution phase energy%16.8f\n     ",etot);
+                printf("                cavitation energy%16.8f\n     ",cav_energy);
+                //printf("           solution phase energy%16.8f\n     ",total_energy);
+            }
 	}
     }
 };//end Calculation
