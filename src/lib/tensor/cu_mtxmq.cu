@@ -728,13 +728,19 @@ template <typename aT, typename bT, typename cT>
 	
 	if (ndim ==0)
             ndim=2;
+//#pragma unroll ndim-1
      for (int i=0;i<ndim-1;i++){
 //do{   
 //	cublasSetStream(handle, *stream);
-	int b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+        int b;
+        if (i % 2 == 0)
+	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+        else
+	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,C,M,&zero,A,N);
   //     cudaStreamSynchronize(*stream);
 //}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
 //	 b=cublasGetError();
+        /*
 	if (b == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
 	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -749,19 +755,24 @@ template <typename aT, typename bT, typename cT>
           printf("init CUBLAS_STATUS_NOT_INITIALIZED");
         else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
+        */
 	//else
 	 // printf("kernel execution success");
 
 //cudaStreamSynchronize(*stream);
 
 
-        /*
-	if (tsize==1){
+        
+	//if (tsize==1){
 	//	cublasSetStream(handle, *stream);
 		//printf("INSIDE SWAP");
-		b=cublasDswap (*handle,M*N, A, 1,C ,1);
+		//b=cublasDswap (*handle,M*N, A, 1,C ,1);
+                //double * temp = A;
+                //A = C;
+                //C = temp; 
 		//b=cublasGetError();
 //		cudaStreamSynchronize(*stream);
+                /*
 		if (b == CUBLAS_STATUS_INVALID_VALUE)
 		  printf("CUBLAS_STATUS_INVALID_VALUE");
 		else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
@@ -776,11 +787,12 @@ template <typename aT, typename bT, typename cT>
 		  printf("init CUBLAS_STATUS_NOT_INITIALIZED");
 		else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
 		  printf("CUBLAS_STATUS_INTERNAL_ERROR");
-		if (i<ndim-2)
-		stat=cudaMemsetAsync((void*)C,0,M*N*sizeof(double),*stream);
+                */
+		//if (i<ndim-2)
+		//stat=cudaMemsetAsync((void*)C,0,M*N*sizeof(double),*stream);
 
-	}
-        */
+	//}
+        
 		
 }	
 //	cublasDestroy(handle);
