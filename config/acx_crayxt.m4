@@ -1,7 +1,7 @@
-AC_DEFUN([ACX_CRAYXE], [
+AC_DEFUN([ACX_CRAYXT], [
         # If on a Cray XT 
         #   - defines HAVE_CRAYXT=1 in headers 
-        #   - defines HAVE_CRAYXE=yes in the script
+        #   - defines HAVE_CRAYXT=yes in the script
         #   - sets MPICXX=CC and MPICC=cc if the user has not already set them
         #   - sets thread binding to "1 0 2"
         #   - enables spinlocks
