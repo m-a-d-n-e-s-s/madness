@@ -119,6 +119,8 @@ public:
     realfunc U = op(rhot);
     //    realfunc U = Uguess.is_initialized()? Uguess : U0;
     double unorm = U.norm2();
+    double surf = surface.trace();
+    print("SURFACE ", surf);
     if (USE_SOLVER) {
       madness::NonlinearSolver solver;
       // This section employs a non-linear equation solver from solvers.h                                                                                  
@@ -170,4 +172,132 @@ public:
   }
 };
 
+//start volumeSolvenPotential                                                                                                                                                                                                               
+class VolumeSolventPotential {
+private:
+    World& world;
+    double& sigma;
+    double& epsilon_1;
+    double& epsilon_2;
+    int& maxiter;
+    std::vector<double>& atomic_radii;
+    std::vector< madness::Vector<double,3> > atomic_coords;
+    realfunc volume;
+    realfunc surface;
+    vector_real_function_3d grad;
+    template <typename T, int NDIM>
+    struct Reciprocal {
+        void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
+            UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = 1.0/(*_p0));
+        }
+        template <typename Archive> void serialize(Archive& ar) {}
+    };
+//Reciprocal of the dielectric function                                                                                                                                                                                                 
+    realfunc ReciprocalDielectric(double epsilon_1,double epsilon_2 ,const realfunc& volume) const {
+        realfunc rdielectric = epsilon_1*volume + epsilon_2*(1.0-volume);
+        rdielectric.unaryop(Reciprocal<double,3>());
+        return rdielectric;
+    }
+//Guess potential function                                                                                                                                                                                                                 
+    realfunc GuessPotential(World& world,const realfunc& rho) const {
+        double tol = madness::FunctionDefaults<3>::get_thresh();
+        real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
+        return op(ReciprocalDielectric(epsilon_1,epsilon_2,volume)*rho);   //U_0                                                                                                                                                            
+    }
+//Molecular potential i.e potential due to the molecular charge distribution                                                                                                                                                               
+    realfunc MolecularPotential(const realfunc rho)const {
+        return ((-1.0)*ReciprocalDielectric(epsilon_1,epsilon_2,volume)*rho);
+    }
+//compute the surface charge                                                                                                                                                                                                               
+realfunc make_surfcharge(const realfunc& u) const {
+    real_derivative_3d Dx = free_space_derivative<double,3>(u.world(), 0);
+    real_derivative_3d Dy = free_space_derivative<double,3>(u.world(), 1);
+    real_derivative_3d Dz = free_space_derivative<double,3>(u.world(), 2);
+// Gradient of dielectric                                                                                                                                                                                                               
+    realfunc di_gradx = (epsilon_1-epsilon_2)*grad[0];
+    realfunc di_grady = (epsilon_1-epsilon_2)*grad[1];
+    realfunc di_gradz = (epsilon_1-epsilon_2)*grad[2];
+    const double rfourpi = -1.0/(4.0*constants::pi);
+    return (rfourpi*ReciprocalDielectric(epsilon_1,epsilon_2,volume)    \
+            *(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u))).truncate();
+}
+public:
+//Compute the surface potential                                                                                                                                                                                                            
+//    realfunc VolumeReactionPotential(World& world,int maxiter,const realfunc rhot)const {
+    realfunc VolumeReactionPotential(const realfunc& rhot)const {
+        const bool USE_SOLVER = true;
+        double tol = std::max(1e-3,FunctionDefaults<3>::get_thresh());
+        real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
+        realfunc U = GuessPotential(world, rhot);
+        double unorm = U.norm2();
+        if (USE_SOLVER) {
+            madness::NonlinearSolver solver;
+            // This section employs a non-linear equation solver from solvers.h                                                                                                                                                             
+            //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract                                                                                                                                                              
+            if (world.rank() == 0){
+                print("\n\n");//for formating output                                                                                                                                                                                        
+                madness::print("    Computing the solute-solvent potential   ");
+                madness::print("           ______________________           \n ");
+                
+                madness::print("iteration ","    "," residue norm2\n");
+            }
+            realfunc uvec, rvec;
+            for (int iter=0; iter<maxiter; iter++) {
+                uvec = U;
+                realfunc W = MolecularPotential(rhot);
+                realfunc Scharge = make_surfcharge(U);
+                rvec = U + op(W + Scharge);
+                realfunc U_new = solver.update(uvec,rvec);
+                double err = rvec.norm2();
+                if (world.rank()==0)
+                madness::print("  ", iter,"             " , err);
+                if (err >0.3*unorm){ U = 0.5*U + 0.5*U_new;
+                }
+                
+                else
+                    U = U_new;
+                if(err < 10.0*tol) break;
+            }
+        }
+//compute the reaction potential after total potential converges                                                                                                                                                                         
+//U_ref is the total vacouo potential which is the reference potential                                                                                                                                                                   
+//rho_total is the sum of the nuclear and electronic potentials                                                                                                                                                                          
+        realfunc U_ref = op(rhot);
+        return U - U_ref;
+    }
+//compute the cavitation energy (surface_tension*solvent accessible surface)                                                                                                                                                               
+    double make_cav_energy(const double& surface_tension) const {
+        //surface tension should be in Newton/meter                                                                                                                                                                                         
+    double convfact = 6.423049507*std::pow(10,-4); // 1N/m = 6.423049507e−4a.u                                                                                                                                                              
+    return surface.trace()*surface_tension*convfact;
+    }
+//constructor                                                                                                                                                                                                                              
+    VolumeSolventPotential(World& world,
+                           double& sigma,
+                           double& epsilon_1,
+                           double& epsilon_2,
+                           int& maxiter,
+                           std::vector<double>& atomic_radii,
+                           std::vector< madness::Vector<double,3> > atomic_coords):
+        world(world),
+        sigma(sigma),
+        epsilon_1(epsilon_1),
+        epsilon_2(epsilon_2),
+        maxiter(maxiter),
+        atomic_radii(atomic_radii),
+        atomic_coords(atomic_coords),
+        grad(3){
+        realfunct volume_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+        realfunct surface_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+        realfunct gradx_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 0));
+        realfunct grady_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 1));
+        realfunct gradz_functor(new MolecularVolumeMaskGrad(sigma, atomic_radii, atomic_coords, 2));
+        //make real functions                                                                                                                                                                                                                    
+        volume = real_factory_3d(world).functor(volume_functor).initial_level(4);
+        surface = real_factory_3d(world).functor(surface_functor);
+        grad[0] = real_factory_3d(world).functor(gradx_functor);
+        grad[1] = real_factory_3d(world).functor(grady_functor);
+        grad[2] = real_factory_3d(world).functor(gradz_functor);
+    }
+}; //end VolumeSolventPotential 
 #endif
