@@ -789,6 +789,35 @@ namespace madness {
         }
     }
 
+     template <typename memfunComputeT, typename memfunPostprocessT, typename memfunBacktoCPUT, typename arg1T, typename objT> 
+     void ComputeDerivedBacktoCPU<memfunComputeT, memfunPostprocessT, memfunBacktoCPUT, arg1T, objT>::run(){
+        //for (unsigned int i = 0; i < inArgs.size(); i++){
+             //objT * obj = inObj.at(i);
+             //arg1T arg1 = inArgs.at(i);  
+             //ret1T ret1 = (obj->*memfunCompute)(arg1);
+             //outArgs.push_back(ret1);
+        //}
+        //printf("this->inArgs.size() = %i \n",this->inArgs.size());
+        if (this->inArgs.size() >= GPU_MINTASKS){
+            objT odef; //this relies on objT having a default constructor
+            this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
+
+            for (unsigned int i = 0; i < outArgs.size(); i++){  
+                objT * obj = inObj.at(i);
+                //(obj->*memfunPostprocess)(outArgs.at(i));
+                q->add(*obj, memfunPostprocess, outArgs.at(i));
+                q->decNRegistered();  
+            }
+        }
+        else{
+            for (unsigned int i = 0; i < inArgs.size(); i++){
+                objT * obj = inObj.at(i);
+                q->add(*obj, memfunBacktoCPU, inArgs.at(i));
+                q->decNRegistered();  
+            }
+        }
+    }
+
 
     /// Serialization container for sending tasks to remote nodes
 

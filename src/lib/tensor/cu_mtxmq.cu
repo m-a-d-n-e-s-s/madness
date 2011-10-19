@@ -666,16 +666,17 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 
 //}
 template <typename T>
-T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset){
+T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
 	T *GPU_buf;
 	cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
-	cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+        if (copy)
+	  cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
 	return GPU_buf;
 }
-template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset);
-template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset);
-template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset);
-template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset);
+template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset, bool copy);
+template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset, bool copy);
+template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
+template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
 
 
 template <typename T>
@@ -733,10 +734,10 @@ template <typename aT, typename bT, typename cT>
 //do{   
 //	cublasSetStream(handle, *stream);
         int b;
-        if (i % 2 == 0)
+        //if (i % 2 == 0)
 	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
-        else
-	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,C,M,&zero,A,N);
+        //else
+	//b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,C,M,&zero,A,N);
   //     cudaStreamSynchronize(*stream);
 //}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
 //	 b=cublasGetError();
@@ -763,10 +764,10 @@ template <typename aT, typename bT, typename cT>
 
 
         
-	//if (tsize==1){
+	if (tsize==1 && i < ndim - 2){
 	//	cublasSetStream(handle, *stream);
 		//printf("INSIDE SWAP");
-		//b=cublasDswap (*handle,M*N, A, 1,C ,1);
+		b=cublasDswap (*handle,M*N, A, 1,C ,1);
                 //double * temp = A;
                 //A = C;
                 //C = temp; 
@@ -791,7 +792,7 @@ template <typename aT, typename bT, typename cT>
 		//if (i<ndim-2)
 		//stat=cudaMemsetAsync((void*)C,0,M*N*sizeof(double),*stream);
 
-	//}
+	}
         
 		
 }	

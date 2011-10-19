@@ -161,7 +161,7 @@ nanosleep(&t, NULL);
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
-        printf("HAVE_GPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \n",HAVE_GPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS);
+        printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,GPU_MINTASKS);
     }
 
 

@@ -363,10 +363,12 @@ typedef UINT64_T uint64_t;
 //#include <world/worldtime.h>
 
 #define HAVE_GPU 1
+#define BACKTO_CPU 0
 #define SIM_GPU 0
 #define JUST_AGG 0
 #define THREE_SPLIT 0
-#define NUM_STREAMS 1 
+#define NUM_STREAMS 16
+#define GPU_MINTASKS 6 
 namespace madness {
 
 //    void ** GPU_streams;
@@ -621,6 +623,50 @@ namespace madness {
         
         virtual void run();
         virtual ~ComputeDerivedJustAgg() {}
+    };        
+
+    template <typename memfunComputeT, typename memfunPostprocessT, typename memfunBacktoCPUT, typename arg1T, typename objT>           
+    class ComputeDerivedBacktoCPU : public ComputeBase {                                      
+    public:
+        typedef MEMFUN_RETURNT(memfunComputeT) ret1T;
+        typedef MEMFUN_ARG1T(memfunPostprocessT) param2T;
+        
+        memfunComputeT memfunCompute; memfunPostprocessT memfunPostprocess; memfunBacktoCPUT memfunBacktoCPU;
+        //arg1T arg1;
+        //objT obj;
+
+        std::vector<objT*> inObj;
+        std::vector<arg1T> inArgs;
+        //std::vector<ret1T> outArgs;        
+        std::vector<param2T> outArgs;        
+
+        WorldTaskQueue * q;
+
+        ComputeDerivedBacktoCPU(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess,
+            memfunBacktoCPUT _memfunBacktoCPU, WorldTaskQueue * _q) : 
+           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), 
+           memfunPostprocess(_memfunPostprocess), memfunBacktoCPU(_memfunBacktoCPU), q(_q) {
+        }
+        
+        virtual void add(void * obj){
+           addObj(static_cast<objT *>(obj));
+        }
+
+        virtual void addArg(void * arg){
+           addInArg(*(static_cast<arg1T *>(arg)));
+        }
+
+        void addObj(objT * obj){
+          inObj.push_back(obj);
+        }
+
+        void addInArg(arg1T arg1){
+          inArgs.push_back(arg1);
+        }
+        
+        virtual void run();
+
+        virtual ~ComputeDerivedBacktoCPU() {}
     };        
 
 

@@ -6,7 +6,7 @@
 #include <constants.h>
 using namespace madness;
 
-static const int NFUNC = 10;
+static const int NFUNC = 20;
 
 double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()

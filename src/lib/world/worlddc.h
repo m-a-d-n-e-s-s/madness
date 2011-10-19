@@ -529,6 +529,71 @@ namespace madness {
             return None;     
         } 
         */
+        template <typename memfun1T, typename memfun2T, typename memfun3T, typename memfun4T, typename arg1T>
+        Void
+        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, arg1T arg1){
+            ProcessID dest = owner(key);
+            if (dest != me){
+               print("send task");
+               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, memfun4T, arg1T>, key, memfun1, memfun2, memfun3, memfun4, arg1);
+ 
+               return None;
+            }
+             
+            typedef MEMFUN_RETURNT(memfun1T) ret1T;
+	    typedef MEMFUN_RETURNT(memfun2T) ret2T;
+            typedef MEMFUN_RETURNT(memfun3T) ret3T;
+            typedef MEMFUN_RETURNT(memfun4T) ret4T;
+            
+            iterator it = find(key).get();
+            ret1T ret1 = (it->second.*memfun1)(arg1);
+            
+            ////accessor acc;
+            ////local.find(acc, key);
+            ////ret1T ret1 = (acc->second.*memfun1)(arg1);
+
+                      
+            ComputeDerivedBacktoCPU<memfun2T, memfun3T, memfun4T, ret1T, valueT> * cd = 
+               new ComputeDerivedBacktoCPU<memfun2T, memfun3T, memfun4T, ret1T ,valueT>(memfun2, memfun3, memfun4, &(this->world.taskq));
+
+            ComputeBase * cb = static_cast<ComputeBase *>(cd);
+
+            cb->add(&(it->second));
+            ////cb->add(&(acc->second));
+            cb->addArg(&ret1);
+            ////acc.release();
+            
+            ////ConcurrentHashMap<long, ComputeBase *>::accessor acc_gpu;
+            ////worldobjT::world.gpu_hash.insert(acc_gpu, (long)(&memfun2));
+            ////(acc_gpu->second->aggregateParams(cb));
+               //Need to change this to not overwrite the object, but add to its vector 
+
+            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            
+            this->world.gpu_hashlock.lock();
+            //gpu_it = this->world.gpu_hash.find((long)(&memfun2));
+            gpu_it = this->world.gpu_hash.find(0);
+            if (gpu_it != gpu_end){ 
+                (*gpu_it).second->add(cd->inObj.at(0));
+                (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
+                delete cd;  
+
+            }
+            else{
+                //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
+            }
+
+            this->world.taskq.incNRegistered(); 
+            //gpu_it = this->world.gpu_hash.find((long)(&memfun2));
+            //MADNESS_ASSERT(gpu_it != gpu_end);
+            //(*gpu_it).second->run();
+            this->world.gpu_hashlock.unlock();
+           
+
+            return None;
+        } 
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
         Void
@@ -1412,6 +1477,16 @@ namespace madness {
             typedef REMFUTURE(arg1T) a1T;
             MEMFUN_RETURNT(memfunT)(implT::*itemfun)(const keyT&, memfunT, const keyT&, const containerT&, const a1T&) = &implT:: template itemfun<memfunT, keyT, containerT, a1T>;
             return p->task(owner(key), itemfun, key, memfun, key, *this, arg1, attr);
+        }
+
+        template <typename memfun1T, typename memfun2T, typename memfun3T, typename memfun4T, typename arg1T>
+        Void
+        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+            check_initialized();
+            typedef REMFUTURE(arg1T) a1T;
+            p->__local_updateGPU(key, memfun1, memfun2, memfun3, memfun4, arg1);
+            
+            return None;
         }
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>

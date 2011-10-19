@@ -50,7 +50,7 @@ template <typename aT, typename bT, typename cT>
                cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize,void *handle);
 
 template <typename T>
-T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset);
+T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
 template <typename T>
 void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
 template <typename W>
