@@ -139,6 +139,7 @@ complexd PhiK::f11(double xx) const {
     //error (which we don't handle) if convergence isn't reached in 20000 terms.
     
     //Convergence is different for each value of Z
+    if( xx > cutoff_) return complexd(0.0,0.0);
     switch( int(Z_) ) {
     case 1:
         if( xx > 40.3 +  0.412/(k_*k_) - 10.5*k_ + 3*k_*k_) return aForm(ZZ);
@@ -186,8 +187,7 @@ void ScatteringWF::Init(World& world) {
  * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
  * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
  **********************************************************************/
-    //domain = k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);    
-    domain = sqrt(3)*cutoff_;    
+    domain = k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);    
     n = floor(domain/dx +1);
     MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
     //World is needed for timing the length of the CubicInterpolationTable
