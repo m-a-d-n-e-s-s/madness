@@ -428,6 +428,13 @@ struct CalculationParameters {
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
     std::string xcdata;         ///< XC input line
+    bool gopt;                  ///< geometry optimizer
+    double gtol;                ///< geometry tolerance
+    bool gtest;                 ///< geometry tolerance
+    double gval;                ///< value precision 
+    double gprec;               ///< gradient precision 
+    int  gmaxiter;               ///< optimization maxiter 
+    std::string algopt;         ///< algorithm used for optimization
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -436,6 +443,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xcdata;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt;
     }
 
     CalculationParameters()
@@ -471,6 +479,13 @@ struct CalculationParameters {
         , nmo_beta(0)
         , lo(1e-10) 
         , xcdata("lda")
+        , gopt(false)
+        , gtol(1e-3)
+        , gtest(false)
+        , gval(1e-5)
+        , gprec(1e-4)
+        , gmaxiter(20)
+        , algopt("BFGS")
     {}
         
 
@@ -583,6 +598,29 @@ struct CalculationParameters {
             else if (s == "convonlydens") {
                 conv_only_dens = true;
             }
+            else if (s == "gopt") {
+               gopt = true;
+            }
+            else if (s == "gtol") {
+                f >> gtol;
+            }
+            else if (s == "gtest") {
+               gtest = true;
+            }
+            else if (s == "gval") {
+                f >> gval;
+            }
+            else if (s == "gprec") {
+                f >> gprec;
+            }
+            else if (s == "gmaxiter") {
+                f >> gmaxiter;
+            }
+            else if (s == "algopt") {
+                char buf[1024];
+                f.getline(buf,sizeof(buf));
+                algopt = buf;
+            }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -679,6 +717,16 @@ struct CalculationParameters {
             madness::print("    calc derivatives ");
         if (dipole)
             madness::print("         calc dipole ");
+    }
+//};
+    void gprint(World& world) const {
+        madness::print(" Optimizer parameters:           ");
+        madness::print("   Maximum iterations (gmaxiter) ", gmaxiter);
+        madness::print("                Tolerance (gtol) ", gtol);
+        madness::print("           Gradient value (gval) ", gval);
+        madness::print("      Gradient precision (gprec) ", gprec);
+        madness::print(" Optimization algorithm (algopt) ", algopt);
+        madness::print(" Gradient numerical test (gtest) ", gtest);
     }
 };
 
@@ -2635,10 +2683,27 @@ int main(int argc, char** argv) {
           calc.initial_load_bal(world);
         }
 
-        MolecularEnergy E(world, calc);
-        E.value(calc.molecule.get_all_coords().flat()); // ugh!
-        if (calc.param.derivatives) calc.derivatives(world);
-        if (calc.param.dipole) calc.dipole(world);
+        if ( calc.param.gopt) {
+          print("\n\n Geometry Optimization                      ");
+          print(" ----------------------------------------------------------\n");
+          calc.param.gprint(world);
+
+          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+                           calc.param.gmaxiter,
+                           calc.param.gtol,  //tol
+                           calc.param.gval,  //value prec
+                           calc.param.gprec); // grad prec
+          geom.set_update(calc.param.algopt);
+          geom.set_test(calc.param.gtest);
+          geom.optimize(geomcoord);
+        }
+        else {
+          MolecularEnergy E(world, calc);
+          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          if (calc.param.derivatives) calc.derivatives(world);
+          if (calc.param.dipole) calc.dipole(world);
+        }
 
         //        if (calc.param.twoint) {
         //Tensor<double> g = calc.twoint(world,calc.amo);
