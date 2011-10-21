@@ -1010,6 +1010,15 @@ namespace madness {
             }
         };
 
+        /// (de)Serialize an tr1 tuple.
+        template <class Archive, typename T1, typename T2, typename T3, typename T4, typename T5, typename T6>
+        struct ArchiveSerializeImpl< Archive, std::tr1::tuple<T1,T2,T3,T4,T5,T6> > {
+            static inline void serialize(const Archive& ar, std::tr1::tuple<T1,T2,T3,T4,T5,T6>& t) {
+                MAD_ARCHIVE_DEBUG(std::cout << "(de)serialize tr1::tuple" << std::endl);
+                ar & std::tr1::get<0>(t) & std::tr1::get<1>(t) & std::tr1::get<2>(t) & std::tr1::get<3>(t) & std::tr1::get<4>(t) & std::tr1::get<5>(t);
+            }
+        };
+
 
         /// Serialize an STL map (crudely).
         template <class Archive, typename T, typename Q>

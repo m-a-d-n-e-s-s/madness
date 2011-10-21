@@ -383,14 +383,24 @@ namespace madness {
         double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
         bool _has_children; ///< True if there are children
 
+        Spinlock ready;
+
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
         typedef Key<NDIM> keyT;
         typedef Tensor<T> tensorT;
+        typedef FunctionNode<T,NDIM> nodeT; ///< Type of node
+        typedef std::map<keyT, tensorT> mapT;
         typedef WorldContainer<keyT, TensorNode<T,NDIM>> containerT;
+        std::map<keyT, tensorT> tensor_keys;
+        std::size_t max;
+        keyT parent;
+
         /// Default constructor makes node without coeff or children
         FunctionNode() :
                 _coeffs(), _norm_tree(1e300), _has_children(false) {
+            max = (std::size_t)pow(2, NDIM);
+            //tensor_keys = new std::map<keyT, tensorT>;
         }
 
         /// Constructor from given coefficients with optional children
@@ -401,11 +411,15 @@ namespace madness {
         explicit
         FunctionNode(const Tensor<T>& coeff, bool has_children = false) :
                 _coeffs(coeff), _norm_tree(1e300), _has_children(has_children) {
+            max = (std::size_t)pow(2, NDIM);
+            //tensor_keys = new std::map<keyT, tensorT>;
         }
 
         explicit
         FunctionNode(const Tensor<T>& coeff, double norm_tree, bool has_children) :
             _coeffs(coeff), _norm_tree(norm_tree), _has_children(has_children) {
+            max = (std::size_t)pow(2, NDIM);
+            //tensor_keys = new std::map<keyT, tensorT>;
         }
 
         FunctionNode(const FunctionNode<T, NDIM>& other) {
@@ -418,6 +432,14 @@ namespace madness {
                 coeff() = copy(other.coeff());
                 _norm_tree = other._norm_tree;
                 _has_children = other._has_children;
+                 parent = other.parent;
+                 max = (std::size_t)pow(2, NDIM);
+                 //tensor_keys = new std::map<keyT, tensorT>;
+                 //tensor_keys = other.tensor_keys;
+                 //typename mapT::const_iterator it;
+                 //for (it = (other.tensor_keys)->begin(); it != (other.tensor_keys)->end(); it++){
+                 //    tensor_keys->insert(std::pair<keyT, tensorT>(it->first,it->second));
+                 //}
             }
             return *this;
         }
@@ -555,37 +577,104 @@ namespace madness {
 
         Void reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k);
 
-        Void top_down(const keyT& key, dcT dc, containerT ct, bool nonstandard, bool keepleaves, const keyT& parent, int k){
+        Void update_map(const keyT& key, dcT dc, keyT childKey, tensorT t, bool nonstandard, int k){
+            
+            ready.lock();
+            tensor_keys.insert(std::pair<keyT, tensorT>(childKey,t));
+            if (tensor_keys.size() == max){
+            ready.unlock();
+              //dc.update(key, &nodeT::compress_op, tensor_keys, nonstandard, k, this->parent);
+		    if (HAVE_GPU) {
+			dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
+                        //tensor_keys.clear();  
+                    }
+		    else if (SIM_GPU) {
+			dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
+                        //tensor_keys.clear();  
+                    }
+		    else if (JUST_AGG) {
+			dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
+                        //tensor_keys.clear();
+                    }  
+		    else if (THREE_SPLIT){
+			dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
+                        //tensor_keys.clear();
+                    }
+		    else{
+			    // Copy child scaling coeffs into contiguous block
+			    FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
+			    std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
+			    tensorT d(cdata.v2k,false);
+			    int i=0;
+			    for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+				d(child_patch(kit.key(),cdata)) = tk[kit.key()];
+			    }
+			    d = filter(d,cdata);
+
+			    if (this->has_coeff()) {
+				const tensorT& c = this->coeff();
+				if (c.dim(0) == k) {
+				    d(cdata.s0) += c;
+				}
+				else {
+				    d += c;
+				}
+			    }
+
+			    tensorT s = copy(d(cdata.s0));
+
+			    if (key.level()> 0 && !nonstandard)
+				d(cdata.s0) = 0.0;
+
+			    this->set_coeff(d); 
+
+                            //erase tensor_keys contents for efficiency and correctness
+			    if (key.level() > 0){
+			      dc.update(parent, &nodeT::update_map, key, s, nonstandard, k);
+			    }
+		    }
+                    tensor_keys.clear();  
+            }
+            else ready.unlock();
+
+            return None;
+        }
+
+        Void top_down(const keyT& key, dcT dc/*, containerT ct*/, bool nonstandard, bool keepleaves, const keyT& parent, int k){
           keyT& parent_t = const_cast<keyT&>(parent);
-          ct.update(key, &TensorNode<T,NDIM>::compress_dc, dc, parent_t, nonstandard, k);
+          
+         this->parent = parent_t;
+          ////ct.update(key, &TensorNode<T,NDIM>::compress_dc, dc, parent_t, nonstandard, k);
 
           if (this->has_children()) {
             for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                dc.update(kit.key(), &FunctionNode<T,NDIM>::top_down, ct, nonstandard, keepleaves, key, k);
+                dc.update(kit.key(), &FunctionNode<T,NDIM>::top_down, nonstandard, keepleaves, key, k);
+                ////dc.update(kit.key(), &FunctionNode<T,NDIM>::top_down, ct, nonstandard, keepleaves, key, k);
             }
           }
           else {
             tensorT result(this->coeff());
             if (!keepleaves) this->clear_coeff();
             //keyT& key_t = const_cast<keyT&>(key);
-            ct.update(parent_t, &TensorNode<T,NDIM>::update_map, dc, key, result, nonstandard, k);
+            dc.update(parent_t, &FunctionNode<T,NDIM>::update_map, key, result, nonstandard, k);
+            //ct.update(parent_t, &TensorNode<T,NDIM>::update_map, dc, key, result, nonstandard, k);
           }
 
           return None;
         }
 
-          std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> compressop_preprocess(//const keyT& key, dcT dc,
-            const std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >& in
+          std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> compressop_preprocess(//const keyT& key, dcT dc,
+            const std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT >& in
 //const std::map<keyT, tensorT>& tensor_keys, containerT ct, const bool& nonstandard, const int& k, const keyT& parent
 ){
             // Copy child scaling coeffs into contiguous block
             keyT key = std::tr1::get<0>(in);
             dcT dc = std::tr1::get<1>(in);
             std::map<keyT, tensorT> tensor_keys = std::tr1::get<2>(in);
-            containerT ct = std::tr1::get<3>(in); 
-            bool nonstandard = std::tr1::get<4>(in); 
-            int k = std::tr1::get<5>(in);
-            keyT parent = std::tr1::get<6>(in); 
+            //containerT ct = std::tr1::get<3>(in); 
+            bool nonstandard = std::tr1::get<3>(in); 
+            int k = std::tr1::get<4>(in);
+            keyT parent = std::tr1::get<5>(in); 
                         
             FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
             std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
@@ -599,22 +688,21 @@ namespace madness {
             bool nonstandard1 = nonstandard;
             keyT parent1 = parent;
 
-           std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> t1(d,k1,key,ct,nonstandard1,parent1,dc);
+           std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> t1(d,k1,key,nonstandard1,parent1,dc);
            return t1;
 }
 
-          std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> compressop_preprocessGPU(//const keyT& key, dcT dc,
-            const std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >& in
+          std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> compressop_preprocessGPU(//const keyT& key, dcT dc,
+            const std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT >& in
 //const std::map<keyT, tensorT>& tensor_keys, containerT ct, const bool& nonstandard, const int& k, const keyT& parent
 ){
             // Copy child scaling coeffs into contiguous block
             keyT key = std::tr1::get<0>(in);
             dcT dc = std::tr1::get<1>(in);
             std::map<keyT, tensorT> tensor_keys = std::tr1::get<2>(in);
-            containerT ct = std::tr1::get<3>(in); 
-            bool nonstandard = std::tr1::get<4>(in); 
-            int k = std::tr1::get<5>(in);
-            keyT parent = std::tr1::get<6>(in); 
+            bool nonstandard = std::tr1::get<3>(in); 
+            int k = std::tr1::get<4>(in);
+            keyT parent = std::tr1::get<5>(in); 
                         
             FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
             std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
@@ -653,7 +741,7 @@ namespace madness {
            for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
            //long nij = dimi*dimj;
 
-           std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,resultT*,resultT*,tensorT*,tensorT*,const double*> tu1(d,k1,key,ct,nonstandard1,parent1,dc,dimi,dimj,c,t0,t1,result,workspace,pc);
+           std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,resultT*,resultT*,tensorT*,tensorT*,const double*> tu1(d,k1,key,nonstandard1,parent1,dc,dimi,dimj,c,t0,t1,result,workspace,pc);
 
            return tu1;
         //return fast_transform(d,cdata.hgT,r,w);
@@ -661,23 +749,22 @@ namespace madness {
            //return t1;
         }
 
-        std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> compressop_fasttransform(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> in){
+        std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> compressop_fasttransform(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> in){
         tensorT d = std::tr1::get<0>(in);
         int k = std::tr1::get<1>(in);
         FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
         keyT key = std::tr1::get<2>(in);
-        containerT ct = std::tr1::get<3>(in); 
-        bool nonstandard = std::tr1::get<4>(in); 
-        keyT parent = std::tr1::get<5>(in); 
-        dcT dc = std::tr1::get<6>(in); 
-        long dimi = std::tr1::get<7>(in);
-        long dimj = std::tr1::get<8>(in);
-        Tensor<double>* c = std::tr1::get<9>(in);
-        T* t0 = std::tr1::get<10>(in);
-        T* t1 = std::tr1::get<11>(in);
-        tensorT* result = std::tr1::get<12>(in);
-        tensorT* workspace = std::tr1::get<13>(in);
-        const double* pc = std::tr1::get<14>(in);
+        bool nonstandard = std::tr1::get<3>(in); 
+        keyT parent = std::tr1::get<4>(in); 
+        dcT dc = std::tr1::get<5>(in); 
+        long dimi = std::tr1::get<6>(in);
+        long dimj = std::tr1::get<7>(in);
+        Tensor<double>* c = std::tr1::get<8>(in);
+        T* t0 = std::tr1::get<9>(in);
+        T* t1 = std::tr1::get<10>(in);
+        tensorT* result = std::tr1::get<11>(in);
+        tensorT* workspace = std::tr1::get<12>(in);
+        const double* pc = std::tr1::get<13>(in);
 
         tensorT t = d;
         long nij = dimi*dimj;
@@ -706,24 +793,23 @@ namespace madness {
             }
         }
 
-          std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,ct,nonstandard,parent,dc,workspace,c) ;
+          std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,nonstandard,parent,dc,workspace,c) ;
           return t11 ;
 }
 
-        std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> compressop_compute(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+        std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> compressop_compute(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> in){
           //std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
           tensorT d = std::tr1::get<0>(in);
           int k = std::tr1::get<1>(in);
           FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
           keyT key = std::tr1::get<2>(in);
-          containerT ct = std::tr1::get<3>(in); 
-          bool nonstandard = std::tr1::get<4>(in); 
-          keyT parent = std::tr1::get<5>(in); 
-          dcT dc = std::tr1::get<6>(in); 
+          bool nonstandard = std::tr1::get<3>(in); 
+          keyT parent = std::tr1::get<4>(in); 
+          dcT dc = std::tr1::get<5>(in); 
           STARTt_TIMER;
           d = filter(d,cdata); 
           ENDt_TIMER("filter");
-          std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> t11(d,k,key,ct,nonstandard,parent,dc) ;
+          std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> t11(d,k,key,nonstandard,parent,dc) ;
           //Future< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > t1(t11) ;
           return t11;
 
@@ -732,16 +818,15 @@ namespace madness {
           //return None;
         }
 
-        Void compressopComputePostprocess(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+        Void compressopComputePostprocess(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> in){
           //std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
           tensorT d = std::tr1::get<0>(in);
           int k = std::tr1::get<1>(in);
           FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
           keyT key = std::tr1::get<2>(in);
-          containerT ct = std::tr1::get<3>(in); 
-          bool nonstandard = std::tr1::get<4>(in); 
-          keyT parent = std::tr1::get<5>(in); 
-          dcT dc = std::tr1::get<6>(in); 
+          bool nonstandard = std::tr1::get<3>(in); 
+          keyT parent = std::tr1::get<4>(in); 
+          dcT dc = std::tr1::get<5>(in); 
           d = filter(d,cdata);
 
           if (this->has_coeff()) {
@@ -762,7 +847,7 @@ namespace madness {
             this->set_coeff(d);
 
             if (key.level() > 0){
-              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+              dc.update(parent, &FunctionNode<T,NDIM>::update_map, key, s, nonstandard, k);
             }
 
             return None;
@@ -776,8 +861,8 @@ namespace madness {
        template <typename W>
        void GPUdelete_buffer(W* buf){}
 */
-        std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
-            std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
+        std::vector< std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
+            std::vector< std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
             print("inArgs.size() = ",inArgs.size());
 STARTt_TIMER;
             unsigned int t0_off = 0;
@@ -785,12 +870,12 @@ STARTt_TIMER;
             unsigned int pc_off = 0;
             unsigned int t1_off = 0;
             for (unsigned int i = 0; i < inArgs.size(); i++){
-		long dimi = std::tr1::get<7>(inArgs.at(i));
-		long dimj = std::tr1::get<8>(inArgs.at(i));
+		long dimi = std::tr1::get<6>(inArgs.at(i));
+		long dimj = std::tr1::get<7>(inArgs.at(i));
                 //memcpy(t0_buf+t0_off*sizeof(T),t0,dimi*dimj*sizeof(T));
 		register_buf((std::tr1::get<0>(inArgs.at(i))).ptr(),dimi*dimj*sizeof(T));
-		register_buf1(std::tr1::get<14>(inArgs.at(i)),dimj*dimj*sizeof(double));
-		register_buf((std::tr1::get<12>(inArgs.at(i)))->ptr(),dimi*dimj*sizeof(T));
+		register_buf1(std::tr1::get<13>(inArgs.at(i)),dimj*dimj*sizeof(double));
+		register_buf((std::tr1::get<11>(inArgs.at(i)))->ptr(),dimi*dimj*sizeof(T));
                 t0_off += dimi*dimj;
                 //memcpy(tptr_buf+tptr_off*sizeof(T),tptr,dimi*dimj*sizeof(T));
                 tptr_off += dimi*dimj;
@@ -823,8 +908,8 @@ STARTt_TIMER;
 		//bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
 		//keyT parent = std::tr1::get<5>(inArgs.at(i)); 
 		//dcT dc = std::tr1::get<6>(inArgs.at(i)); 
-		long dimi = std::tr1::get<7>(inArgs.at(i));
-		long dimj = std::tr1::get<8>(inArgs.at(i));
+		long dimi = std::tr1::get<6>(inArgs.at(i));
+		long dimj = std::tr1::get<7>(inArgs.at(i));
 		//Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
 		//T* t0 = std::tr1::get<10>(inArgs.at(i));
 		//T* t1 = std::tr1::get<11>(inArgs.at(i));
@@ -841,7 +926,7 @@ STARTt_TIMER;
 	//	tptr_off += dimi*dimj;
                 
 		//memcpy(pc_buf+pc_off,pc,dimj*dimj*sizeof(double));
-                GPUtransfer_buffer1(std::tr1::get<14>(inArgs.at(i)),start_pc+pc_off,dimj*dimj,GPU_streams[i%NUM_STREAMS]);               
+                GPUtransfer_buffer1(std::tr1::get<13>(inArgs.at(i)),start_pc+pc_off,dimj*dimj,GPU_streams[i%NUM_STREAMS]);               
 //ENDt_TIMER("access");                //memcpy(t1_buf+t1_off,t1,dimi*dimj*sizeof(T));
           //      pc_off += dimj*dimj;
             //    t1_off += dimi*dimj;
@@ -916,7 +1001,7 @@ STARTt_TIMER;
                         //delete[] temp_buf;
 		    //}
 		//}
-               CPUtransfer_buffer((std::tr1::get<12>(inArgs.at(i)))->ptr(),start_t1+t1_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]); 
+               CPUtransfer_buffer((std::tr1::get<11>(inArgs.at(i)))->ptr(),start_t1+t1_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]); 
                 t0_off += dimi*dimj;
                 tptr_off += dimi*dimj;
                 pc_off += dimj*dimj;
@@ -951,28 +1036,28 @@ STARTt_TIMER;
 		int k = std::tr1::get<1>(inArgs.at(i));
 		FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
 		keyT key = std::tr1::get<2>(inArgs.at(i));
-		containerT ct = std::tr1::get<3>(inArgs.at(i)); 
-		bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
-		keyT parent = std::tr1::get<5>(inArgs.at(i)); 
-		dcT dc = std::tr1::get<6>(inArgs.at(i)); 
-		long dimi = std::tr1::get<7>(inArgs.at(i));
-		long dimj = std::tr1::get<8>(inArgs.at(i));
-		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
-		T* t0 = std::tr1::get<10>(inArgs.at(i));
-		T* t1 = std::tr1::get<11>(inArgs.at(i));
-		tensorT* result = std::tr1::get<12>(inArgs.at(i));
-		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
+		//containerT ct = std::tr1::get<3>(inArgs.at(i)); 
+		bool nonstandard = std::tr1::get<3>(inArgs.at(i)); 
+		keyT parent = std::tr1::get<4>(inArgs.at(i)); 
+		dcT dc = std::tr1::get<5>(inArgs.at(i)); 
+		long dimi = std::tr1::get<6>(inArgs.at(i));
+		long dimj = std::tr1::get<7>(inArgs.at(i));
+		Tensor<double>* c = std::tr1::get<8>(inArgs.at(i));
+		T* t0 = std::tr1::get<9>(inArgs.at(i));
+		T* t1 = std::tr1::get<10>(inArgs.at(i));
+		tensorT* result = std::tr1::get<11>(inArgs.at(i));
+		tensorT* workspace = std::tr1::get<12>(inArgs.at(i));
 		//const double* pc = std::tr1::get<14>(inArgs.at(i));
 
 		unregister_buf(std::tr1::get<0>(inArgs.at(i)).ptr());
-		unregister_buf1(std::tr1::get<14>(inArgs.at(i)));
-		unregister_buf((std::tr1::get<12>(inArgs.at(i)))->ptr());
+		unregister_buf1(std::tr1::get<13>(inArgs.at(i)));
+		unregister_buf((std::tr1::get<11>(inArgs.at(i)))->ptr());
             //    if (d.ndim()&1)
               //    memcpy(/*t0*/result->ptr(),t0_buf + t0_off,dimi*dimj*sizeof(T));
               //  else
 //                  memcpy(/*t1*/result->ptr(),t1_buf + t1_off,dimi*dimj*sizeof(T));
             //    CPUtransfer_buffer1(result->ptr(),t1_buf+t1_off,dimi*dimj);
-                std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,ct,nonstandard,parent,dc,workspace,c) ;
+                std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> t11(result,k,key,nonstandard,parent,dc,workspace,c) ;
                 outArg[i] = t11;
                 t1_off += dimi*dimj;
                 t0_off += dimi*dimj;
@@ -986,27 +1071,27 @@ STARTt_TIMER;
             return outArg;
         }
 
-        std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
-            std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > outArg(inArgs.size(),inObj.at(0)->compressop_compute(inArgs.at(0)));
+        std::vector< std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
+            std::vector< std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> > outArg(inArgs.size(),inObj.at(0)->compressop_compute(inArgs.at(0)));
             //print("inArgs.size() = ",inArgs.size());
             for (unsigned int i = 0; i < inArgs.size(); i++){
-                std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> temp = inObj.at(i)->compressop_compute(inArgs.at(i));
+                std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> temp = inObj.at(i)->compressop_compute(inArgs.at(i));
                 outArg[i] = temp;
             }
 
             return outArg;
         }       
  
-        Void compressop_postprocess(std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in){
+        Void compressop_postprocess(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT> in){
           //  std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
           tensorT d = std::tr1::get<0>(in);
           int k = std::tr1::get<1>(in);
           FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
           keyT key = std::tr1::get<2>(in); 
-          containerT ct = std::tr1::get<3>(in); 
-          bool nonstandard = std::tr1::get<4>(in);
-          keyT parent = std::tr1::get<5>(in);
-          dcT dc = std::tr1::get<6>(in);
+          //containerT ct = std::tr1::get<3>(in); 
+          bool nonstandard = std::tr1::get<3>(in);
+          keyT parent = std::tr1::get<4>(in);
+          dcT dc = std::tr1::get<5>(in);
  
           if (this->has_coeff()) {
                 const tensorT& c = this->coeff();
@@ -1026,25 +1111,25 @@ STARTt_TIMER;
             this->set_coeff(d);
 
             if (key.level() > 0){
-              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+              dc.update(parent, &FunctionNode<T, NDIM>::update_map, key, s, nonstandard, k);
             }
 
             return None;
         }
         
-        Void compressop_postprocessGPU(std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> in){
+        Void compressop_postprocessGPU(std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> in){
           //  std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
           tensorT* result = std::tr1::get<0>(in);
           tensorT d(*result); delete result;
           int k = std::tr1::get<1>(in);
           FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
           keyT key = std::tr1::get<2>(in); 
-          containerT ct = std::tr1::get<3>(in); 
-          bool nonstandard = std::tr1::get<4>(in);
-          keyT parent = std::tr1::get<5>(in);
-          dcT dc = std::tr1::get<6>(in);
-          tensorT* workspace = std::tr1::get<7>(in); delete workspace;
-          Tensor<double> * c1 = std::tr1::get<8>(in); delete c1; 
+          //containerT ct = std::tr1::get<3>(in); 
+          bool nonstandard = std::tr1::get<3>(in);
+          keyT parent = std::tr1::get<4>(in);
+          dcT dc = std::tr1::get<5>(in);
+          tensorT* workspace = std::tr1::get<6>(in); delete workspace;
+          Tensor<double> * c1 = std::tr1::get<7>(in); delete c1; 
  
           if (this->has_coeff()) {
                 const tensorT& c = this->coeff();
@@ -1064,22 +1149,22 @@ STARTt_TIMER;
             this->set_coeff(d);
 
             if (key.level() > 0){
-              ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+              dc.update(parent, &FunctionNode<T, NDIM>::update_map, key, s, nonstandard, k);
             }
 
             return None;
         }
 
-        Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
+        Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, const bool& nonstandard, const int& k, const keyT& parent) {
 
             if (HAVE_GPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
             else if (SIM_GPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
             else if (JUST_AGG)
-                dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
             else if (THREE_SPLIT)
-                dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
             /*
             * RESTORE THIS
             std::tr1::tuple<tensorT,int,keyT, containerT,bool,keyT,dcT> t1 = compressop_preprocess(key, dc, tensor_keys, ct , nonstandard, k, parent);
@@ -1120,7 +1205,7 @@ STARTt_TIMER;
 		    this->set_coeff(d); 
 
 		    if (key.level() > 0){
-		      ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
+		      dc.update(parent, &TensorNode<T, NDIM>::update_map, key, s, nonstandard, k);
 		    }
             }
             
@@ -1171,7 +1256,7 @@ STARTt_TIMER;
 
         template <typename Archive>
         void serialize(Archive& ar) {
-            ar & coeff() & _has_children & double(_norm_tree);
+            ar & coeff() & _has_children & double(_norm_tree) & tensor_keys & parent & max;
         }
     };
 
@@ -3029,12 +3114,12 @@ STARTt_TIMER;
             // Must set true here so that successive calls without fence do the right thing
             this->compressed = true;
             this->nonstandard = nonstandard;
-            tensorContainerT tensorTree(world,coeffs.get_pmap());
+            //tensorContainerT tensorTree(world,coeffs.get_pmap());
             world.gop.fence();
             if (world.rank() == coeffs.owner(cdata.key0)){
                 //compress_spawn(cdata.key0, nonstandard, keepleaves);
                 print("com_dc");
-                coeffs.update(cdata.key0, &nodeT::top_down, tensorTree, nonstandard, keepleaves, cdata.key0, cdata.k);
+                coeffs.update(cdata.key0, &nodeT::top_down, nonstandard, keepleaves, cdata.key0, cdata.k);
             }
             if (fence)
                 world.gop.fence();
