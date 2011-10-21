@@ -368,7 +368,7 @@ typedef UINT64_T uint64_t;
 #define JUST_AGG 0
 #define THREE_SPLIT 0
 #define NUM_STREAMS 16
-#define NUMPAR_MEMCPYS 8
+#define NUMPAR_MEMCPYS 4
 #define GPU_MINTASKS 6 
 namespace madness {
 

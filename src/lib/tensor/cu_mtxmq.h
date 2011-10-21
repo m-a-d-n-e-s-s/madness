@@ -48,13 +48,27 @@ template <typename aT, typename bT, typename cT>
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqq(long dimi, long dimj, long dimk,
                cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize,void *handle);
-
 template <typename T>
-T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
+T* GPUallocate_buffer(T* CPU_buf,unsigned int offset);
 template <typename T>
-void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
+void GPUtransfer_buffer(T* CPU_buf,T* GPU_buf, unsigned int offset,void *GPU_stream);
 template <typename W>
        void GPUdelete_buffer(W* buf) ;   
+template <typename W>
+       void CPUdelete_buffer(W* buf);
+template <typename T>
+void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset,void *GPU_stream);
+template <typename T>
+void  register_buf(T* CPU_buf1,unsigned int offset);
+void  register_buf1(const double* CPU_buf1,unsigned int offset);
+template <typename T>
+void  unregister_buf(T* CPU_buf1);
+void  unregister_buf1(const double* CPU_buf1);
+void GPUtransfer_buffer1(const double* CPU_buf,double* GPU_buf, unsigned int offset,void *GPU_stream);
+template <typename T>
+void  CPUtransfer_buffer1(T* CPU_buf, T *GPU_buf,unsigned int offset);
+template <typename T>
+T* CPUallocate_buffer(unsigned int offset);
 #endif
 
     /*
