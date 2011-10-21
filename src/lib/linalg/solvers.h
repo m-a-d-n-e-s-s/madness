@@ -259,6 +259,7 @@ namespace madness {
     private:
         std::string update;              // One of BFGS or SR1
         std::shared_ptr<OptimizationTargetInterface> target;
+        const int maxiter;
         const double tol;
         const double value_precision;  // Numerical precision of value
         const double gradient_precision; // Numerical precision of each element of residual
@@ -266,6 +267,7 @@ namespace madness {
         double gnorm;
         Tensor<double> h;
         int n;
+        bool printtest;
 
         double line_search(double a1, double f0, double dxgrad, const Tensor<double>& x, const Tensor<double>& dx);
 
@@ -278,12 +280,16 @@ namespace madness {
 
     public:
         QuasiNewton(const std::shared_ptr<OptimizationTargetInterface>& tar,
+                    int maxiter = 20,
                     double tol = 1e-6,
                     double value_precision = 1e-12,
                     double gradient_precision = 1e-12);
 
         /// Choose update method (currently only "BFGS" or "SR1")
         void set_update(const std::string& method);
+
+        /// Choose update method (currently only "BFGS" or "SR1")
+        void set_test(const bool& test_level);
 
         /// Runs the optimizer
 
