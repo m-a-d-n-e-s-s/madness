@@ -72,9 +72,6 @@ def _header(bg, complex_c, complex_a, complex_b):
 #include <builtins.h>
 #include <complex>
 
-extern "C" {
-#include "dcmf.h"
-}
 #include "mpi.h"
 
 extern "C" void HPM_Init(void);           // initialize the UPC unit
@@ -118,14 +115,26 @@ void mtxm(long dimi, long dimj, long dimk,
 
 unsigned long long _ts;
 
-#ifdef HAVE_BG
+#if defined(__powerpc__) || defined (__bgp__)
 
-inline void start_timer() {
-    _ts = DCMF_Timebase();
-}
+static __inline__ unsigned long long rdtsc(void)
+{
+  unsigned long long int result=0;
+  unsigned long int upper, lower,tmp;
+  __asm__ volatile(
+                "0:                  \n"
+                "\tmftbu   %0           \n"
+                "\tmftb    %1           \n"
+                "\tmftbu   %2           \n"
+                "\tcmpw    %2,%0        \n"
+                "\tbne     0b         \n"
+                : "=r"(upper),"=r"(lower),"=r"(tmp)
+                );
+  result = upper;
+  result = result<<32;
+  result = result|lower;
 
-inline unsigned long long stop_timer() {
-    return DCMF_Timebase() - _ts;
+  return(result);
 }
 
 #else
@@ -137,6 +146,8 @@ static __inline__ unsigned long long rdtsc(void)
     return x;
 }
 
+#endif
+
 inline void start_timer() {
     _ts = rdtsc();
 }
@@ -144,8 +155,6 @@ inline void start_timer() {
 inline unsigned long long stop_timer() {
     return rdtsc() - _ts;
 }
-
-#endif
 """
     return ret
 
