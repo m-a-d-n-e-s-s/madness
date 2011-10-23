@@ -180,7 +180,7 @@ class MTXMGen:
                 ret.append(self._load_bz(spaces, addr, temp, k, j))
             else:
                 ret.append(spaces + temp + ' = ' + self.vector_load + addr + ';')
-                if self.complex_complex and not self.have_bgp:
+                if self.complex_complex and not self.have_bgp and not self.have_bgq:
                     ret.append(self._load_br(spaces, addr, temp, k, j))
         return ret
 
@@ -504,3 +504,24 @@ class MTXMBGP(MTXMGen):
 
     def _post_process(self, lines):
         return [x.replace("__restrict__", "").replace("const", "").replace("double complex", "__complex__ double") for x in lines]
+
+class MTXMBGQ(MTXMGen):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.have_bgq = True
+        self.vector_length = 4
+
+        self.vector_type = 'vector4double'
+        self.vector_load = 'vec_ld'
+        self.vector_store = 'vec_st'
+        self.vector_zero = 'vec_splats(0.0)'
+
+        self.splat_type = 'double'
+        self.splat_op = 'vec_splats'
+
+    def _fma(self, at, bt, ct):
+        return ct + ' = vec_madd(' + at + ', ' + bt + ', ' + ct + ');'
+
+    def _fmaddsub(self, at, bt, ct):
+        return ct + ' = vec_xxnpmadd(' + bt + ', ' + at + ', ' + ct + ');' # this is close but not correct
+
