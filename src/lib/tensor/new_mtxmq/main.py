@@ -92,6 +92,15 @@ def main():
                 (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, 0, args.name)}
         versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
         #versions = [bests[(args.cxa, args.cxb)]]
+    elif args.arch == 'bgq':
+        M = MTXMBGQ
+        # thie following is just copied from BGP and is probably wrong
+        bests = {
+                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, 0, args.name),
+                (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, 0, args.name),
+                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, 0, args.name),
+                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, 0, args.name)}
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
 
     m = M(args.cxa, args.cxb)
     best = bests[(args.cxa, args.cxb)]
