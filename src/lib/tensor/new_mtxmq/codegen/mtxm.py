@@ -65,6 +65,7 @@ class MTXMGen:
         self._mask = False
         self._odds = [1]
         self.have_bgp = False
+        self.have_bgq = False
         # Tile i loop in jik loop order
         self.tile_i = False
         self.complex_a = cxa 

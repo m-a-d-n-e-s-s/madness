@@ -48,7 +48,7 @@ def main():
             help='A (left) matrix is complex', dest='cxa')
     parser.add_argument('-b', '--complex-b', action='store_true', default=False,
             help='B (right) matrix is complex', dest='cxb')
-    parser.add_argument('-m', '--arch', default='sse', choices=['sse', 'avx', 'bgp'],
+    parser.add_argument('-m', '--arch', default='sse', choices=['sse', 'avx', 'bgp', 'bgq'],
             help='Target architecture')
     parser.add_argument('-n', '--name', default='mtxmq',
             help='Name of function to generate')
