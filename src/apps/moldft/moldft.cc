@@ -1321,6 +1321,29 @@ struct Calculation {
                 print("warning: boys localization did not fully converge: ", ndone);
             }
             U = transpose(U);
+
+	    bool switched = true;
+	    while (switched) {
+	      switched = false;
+	      for (int i=0; i<nmo; i++) {
+		for (int j=i+1; j<nmo; j++) {
+		  double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		  double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		  if (snew > sold) {
+		    tensorT tmp = copy(U(_,i));
+		    U(_,i) = U(_,j);
+		    U(_,j) = tmp;
+		    switched = true;
+		  }
+		}
+	      }
+	    }
+
+        // Fix phases.
+        for (long i=0; i<nmo; ++i) {
+            if (U(i,i) < 0.0) U(_,i).scale(-1.0);
+        }
+
         }
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
@@ -1446,11 +1469,6 @@ struct Calculation {
                 lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
-//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//                 world.gop.fence();
                 END_TIMER(world, "guess loadbal");
             }
 
@@ -1478,14 +1496,6 @@ struct Calculation {
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//                 vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-//                 for(unsigned int i = 0;i < ao.size();++i){
-//                     ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-//                 }
-//                 world.gop.fence();
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
@@ -1582,9 +1592,6 @@ struct Calculation {
         lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//         world.gop.fence();
     }
 
     functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
@@ -1722,27 +1729,27 @@ struct Calculation {
         functionT vloc = vlocal;
         exc = 0.0;
 
-        print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
+        //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf);
             vloc = vloc + make_dft_potential(world, vf, ispin);
-            print("VLOC1", vloc.trace(), vloc.norm2());
+            //print("VLOC1", vloc.trace(), vloc.norm2());
 
             if (xc.is_gga()) {
                 if (xc.is_spin_polarized()) {
                     throw "not yet";
                 }
                 else {
-                    print("VF", vf[0].trace(), vf[1].trace());
+		  //print("VF", vf[0].trace(), vf[1].trace());
                     real_function_3d vsig = make_dft_potential(world, vf, 1);
-                    print("VSIG", vsig.trace(), vsig.norm2());
+                    //print("VSIG", vsig.trace(), vsig.norm2());
                     real_function_3d vr(world);
                     for (int axis=0; axis<3; axis++) {
                         vr += (*gradop[axis])(vsig*delrho[axis]);
                     }
                     vloc = vloc - vr; // need a 2?
-                    print("VLOC2", vloc.trace(), vloc.norm2());
+                    //print("VLOC2", vloc.trace(), vloc.norm2());
                 }
             }
             END_TIMER(world, "DFT potential");
@@ -2024,27 +2031,31 @@ struct Calculation {
         sygv(fock, overlap, 1, U, evals);
         END_TIMER(world, "Diagonalization");
 
-        // Fix phases.
-        long j;
-        for (long i=0; i<nmo; ++i) {
-            U(_,i).absmax(&j);
-            if (U(j,i) < 0) U(_,i).scale(-1.0);
-        }
-
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
-        // non-linear solver).  Have to run the reordering multiple
-        // times to handle multiple degeneracies.
-        for (int pass=0; pass<5; ++pass) {
-            for (long i=0; i<nmo; ++i) {
-                U(_,i).absmax(&j);
-                if (i != j) {
-                    tensorT tmp = copy(U(_,i));
-                    U(_,i) = U(_,j);
-                    U(_,j) = tmp;
-                    std::swap(evals[i],evals[j]);
-                }
+        // non-linear solver).  
+	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
+	bool switched = true;
+	while (switched) {
+	  switched = false;
+	  for (int i=0; i<nmo; i++) {
+	    for (int j=i+1; j<nmo; j++) {
+	      double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+	      double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+	      if (snew > sold) {
+		tensorT tmp = copy(U(_,i));
+		U(_,i) = U(_,j);
+		U(_,j) = tmp;
+		std::swap(evals[i],evals[j]);
+		switched = true;
+	      }
             }
+	  }
+	}
+
+        // Fix phases.
+        for (long i=0; i<nmo; ++i) {
+            if (U(i,i) < 0.0) U(_,i).scale(-1.0);
         }
 
         // Rotations between effectively degenerate states confound
@@ -2086,12 +2097,14 @@ struct Calculation {
             ilo = ihi+1;
         }
 
-        // print("Fock");
-        // print(fock);
-        // print("Evec");
-        // print(U);;
-        // print("Eval");
-        // print(evals);
+	//if (world.rank() == 0) {
+	  // print("Fock");
+	  // print(fock);
+	  //print("Evec");
+	  //print(U);;
+	  //print("Eval");
+	  //print(evals);
+	//}
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);
