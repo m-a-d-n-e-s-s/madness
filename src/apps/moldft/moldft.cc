@@ -2401,8 +2401,15 @@ struct Calculation {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
+	    double Xrhotrace = rho.trace(); // DEBUG
             rho.truncate();
             double enuclear = inner(rho, vnuc);
+
+	    // DEBUG
+	    double rhotrace = rho.trace();
+	    double vnuctrace = vnuc.trace();
+	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+	    // END DEBUG
 
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
