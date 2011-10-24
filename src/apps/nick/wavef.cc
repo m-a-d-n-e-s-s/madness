@@ -139,7 +139,7 @@ complexd PhiK::f11(double xx) const {
     //error (which we don't handle) if convergence isn't reached in 20000 terms.
     
     //Convergence is different for each value of Z
-    if( xx > cutoff_) return complexd(0.0,0.0);
+    if( fabs(xx) > cutoff_) return complexd(0.0,0.0);
     switch( int(Z_) ) {
     case 1:
         if( xx > 40.3 +  0.412/(k_*k_) - 10.5*k_ + 3*k_*k_) return aForm(ZZ);
