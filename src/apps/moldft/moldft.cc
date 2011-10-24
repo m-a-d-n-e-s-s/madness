@@ -1327,13 +1327,15 @@ struct Calculation {
 	      switched = false;
 	      for (int i=0; i<nmo; i++) {
 		for (int j=i+1; j<nmo; j++) {
-		  double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
-		  double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
-		  if (snew > sold) {
-		    tensorT tmp = copy(U(_,i));
-		    U(_,i) = U(_,j);
-		    U(_,j) = tmp;
-		    switched = true;
+		  if (set[i] == set[j]) {
+		    double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		    double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		    if (snew > sold) {
+		      tensorT tmp = copy(U(_,i));
+		      U(_,i) = U(_,j);
+		      U(_,j) = tmp;
+		      switched = true;
+		    }
 		  }
 		}
 	      }
@@ -2021,7 +2023,7 @@ struct Calculation {
         return expB;
     }
 
-    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
+    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, const tensorT & occ, double thresh)
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -2040,19 +2042,20 @@ struct Calculation {
 	  switched = false;
 	  for (int i=0; i<nmo; i++) {
 	    for (int j=i+1; j<nmo; j++) {
-	      double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
-	      double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
-	      if (snew > sold) {
-		tensorT tmp = copy(U(_,i));
-		U(_,i) = U(_,j);
-		U(_,j) = tmp;
-		std::swap(evals[i],evals[j]);
-		switched = true;
+	      if (occ(i) == occ(j)) {
+		double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		if (snew > sold) {
+		  tensorT tmp = copy(U(_,i));
+		  U(_,i) = U(_,j);
+		  U(_,j) = tmp;
+		  std::swap(evals[i],evals[j]);
+		  switched = true;
+		}
 	      }
-            }
+	    }
 	  }
 	}
-
         // Fix phases.
         for (long i=0; i<nmo; ++i) {
             if (U(i,i) < 0.0) U(_,i).scale(-1.0);
@@ -2138,41 +2141,10 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
             }
         }
+	world.gop.fence();
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
-//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
-//         if(arho_old.is_initialized())
-//             arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
-
-//         for(unsigned int i = 0;i < ao.size();++i){
-//             ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-//         }
-//         for(unsigned int i = 0;i < amo.size();++i){
-//             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
-//         }
-//         if(param.nbeta && !param.spin_restricted){
-//             brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
-//             if(brho_old.is_initialized())
-//                 brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-
-//             for(unsigned int i = 0;i < bmo.size();++i){
-//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
-//             }
-//         }
-
-//         for(unsigned int i = 0;i < subspace.size();++i){
-//             vecfuncT & v = subspace[i].first;
-//             vecfuncT & r = subspace[i].second;
-//             for(unsigned int j = 0;j < v.size();++j){
-//                 v[j] = copy(v[j], FunctionDefaults<3>::get_pmap(), false);
-//                 r[j] = copy(r[j], FunctionDefaults<3>::get_pmap(), false);
-//             }
-//         }
-
-//         world.gop.fence();
     }
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
@@ -2272,7 +2244,7 @@ struct Calculation {
         END_TIMER(world, "Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
-        } else  if(subspace.size() == param.maxsub){
+        } else if(subspace.size() == param.maxsub){
             subspace.erase(subspace.begin());
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
@@ -2484,10 +2456,10 @@ struct Calculation {
                 ekinb = ekina;
 
             if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
+                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if (!param.spin_restricted && param.nbeta) {
-                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, dconv);
+                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
