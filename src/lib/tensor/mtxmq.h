@@ -81,7 +81,7 @@ namespace madness {
         /* uncomment below to use vendor supplied DGEMM instead */
 //	double one=1.0;
 //	double zero=0.0;
-//	mTxmq("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
+//	dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
     template <>
@@ -90,7 +90,7 @@ namespace madness {
         /* uncomment below to use vendor supplied ZGEMM instead */
 //	double_complex one=1.0;
 //	double_complex zero=0.0;
-//      mTxmq("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
+//      zgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
 #elif defined(X86_64) && !defined(DISABLE_SSE3)
