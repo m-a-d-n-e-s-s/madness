@@ -734,7 +734,12 @@ template  void  CPUtransfer_buffer1(std::complex<float>* CPU_buf, std::complex<f
 template <typename T>
 void  register_buf(T* CPU_buf,unsigned int offset){
 
-        cudaHostRegister((void*)CPU_buf,offset,cudaHostRegisterPortable);
+        cudaError_t err=cudaHostRegister((void*)CPU_buf,offset,cudaHostRegisterPortable);
+	if (err != cudaSuccess)
+		printf("FAILED\n");
+
+	//else
+		//printf("SUCCESS");
 }
 template  void  register_buf(double* CPU_buf,unsigned int offset);
 template  void  register_buf(std::complex<double>* CPU_buf,unsigned int offset);
@@ -759,6 +764,15 @@ void  unregister_buf1(const double* CPU_buf){
 }
 
 
+ int tensor_alloc(void *ptr,size_t sz)
+{
+	cudaError_t err= cudaHostAlloc((void **)&ptr,sz,cudaHostAllocDefault);
+//	err=cudaHostUnregister((void*)ptr);
+	if (err == cudaSuccess)
+		return 0;
+	else
+		return 1;
+}
 
 
 template <typename W>

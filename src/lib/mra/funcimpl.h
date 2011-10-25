@@ -192,6 +192,13 @@ namespace madness {
             return *(data[k-1]);
         }
 
+        static const FunctionCommonData<T, NDIM>&
+        getNoCheck(int k) {
+            //MADNESS_ASSERT(k > 0 && k <= MAXK);
+            //if (!data[k-1]) data[k-1] = new FunctionCommonData<T,NDIM>(k);
+            return *(data[k-1]);
+        }
+
         /// Initialize the quadrature information
 
         /// Made public with all arguments thru interface for reuse in FunctionImpl::err_box
@@ -567,7 +574,7 @@ namespace madness {
             //return transform(s,cdata.hgT);
         }
 
-        std::vector<Slice> child_patch(const keyT& child, FunctionCommonData<T,NDIM> cdata) const {
+        std::vector<Slice> child_patch(const keyT& child, FunctionCommonData<T,NDIM>& cdata) const {
             std::vector<Slice> s(NDIM);
             const Vector<Translation,NDIM>& l = child.translation();
             for (std::size_t i=0; i<NDIM; ++i)

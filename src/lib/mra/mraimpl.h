@@ -318,7 +318,7 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     Void FunctionNode<T,NDIM>::reconstruct_dc_task(const keyT& key, dcT dc, const tensorT& s, int k) {
         PROFILE_MEMBER_FUNC(FunctionImpl);
-        FunctionCommonData<T, NDIM> cdata =  FunctionCommonData<T,NDIM>::get(k);
+        const FunctionCommonData<T, NDIM>& cdata =  FunctionCommonData<T,NDIM>::getNoCheck(k);
         //print("reconstruct_dc");
         // Note that after application of an integral operator not all
         // siblings may be present so it is necessary to check existence

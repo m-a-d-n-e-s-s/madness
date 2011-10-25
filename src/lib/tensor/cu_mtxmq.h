@@ -69,6 +69,7 @@ template <typename T>
 void  CPUtransfer_buffer1(T* CPU_buf, T *GPU_buf,unsigned int offset);
 template <typename T>
 T* CPUallocate_buffer(unsigned int offset);
+int tensor_alloc(void *ptr,size_t sz);
 #endif
 
     /*

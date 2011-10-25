@@ -365,10 +365,10 @@ typedef UINT64_T uint64_t;
 #define HAVE_GPU 1
 #define BACKTO_CPU 0
 #define SIM_GPU 0
-#define JUST_AGG 0
+#define JUST_AGG 1
 #define THREE_SPLIT 0
 #define NUM_STREAMS 16
-#define NUMPAR_MEMCPYS 4
+#define NUMPAR_MEMCPYS 0
 #define GPU_MINTASKS 6 
 namespace madness {
 

@@ -160,7 +160,9 @@ nanosleep(&t, NULL);
         //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
+        if (HAVE_GPU || BACKTO_CPU || SIM_GPU || JUST_AGG){
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
+        }
         printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nNUMPAR_MEMCPYS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,NUMPAR_MEMCPYS,GPU_MINTASKS);
     }
 
