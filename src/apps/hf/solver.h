@@ -3256,7 +3256,7 @@ namespace madness
 
 
         // this is all of the B.S. for the solver
-        if (false)
+        if (_params.solver == 1)
         {
           unsigned int nmo = k_wf.size();
           // Fix phases.
@@ -3786,7 +3786,8 @@ namespace madness
                           vecfuncT& nwfs,
                           int aorb)
     {
-      double s = 0.75;
+      double s = (_it < 4) ? 0.75 : _params.sd;
+      if (_world.rank() == 0) print("damping factor: ", s);
       for (unsigned int i = 0; i < owfs.size(); i++)
           nwfs[i].gaxpy(1.0 - s, owfs[i], s, false);
 //      std::vector<double> rnorm = norm2s(_world, sub(_world, owfs, nwfs));

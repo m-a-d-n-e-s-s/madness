@@ -111,6 +111,8 @@ struct ElectronicStructureParams
   double rcriterion;
   // do we want our crystal centered?
   bool centered;
+  // damping factor for step restriction
+  double sd;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -122,7 +124,7 @@ struct ElectronicStructureParams
         maxrotn & canon & solver & koffset0 & koffset1 & 
         koffset2 & basis & nio & restart & ncharge & 
         swidth & print_matrices & plotorbs & rcriterion &
-        centered;
+        centered & sd;
   }
 
   ElectronicStructureParams()
@@ -162,6 +164,7 @@ struct ElectronicStructureParams
     plotorbs = false;
     rcriterion = 1e-4;
     centered = true;
+    sd = 0.4;
   }
 
   void read_file(const std::string& filename)
@@ -250,6 +253,10 @@ struct ElectronicStructureParams
       else if (s == "maxrotn")
       {
         f >> maxrotn;
+      }
+      else if (s == "damping")
+      {
+        f >> sd;
       }
       else if (s == "thresh")
       {
