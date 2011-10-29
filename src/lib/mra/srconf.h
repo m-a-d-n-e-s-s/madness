@@ -1403,6 +1403,11 @@ namespace madness {
 			return overlap;
 		}
 
+		friend double inner3way(const SRConf<T>& f, const SRConf<T>& g, const SRConf<T>&h) {
+
+		    return 0.0;
+		}
+
 		/// calculate the Frobenius norm, if this is in SVD form
         typename TensorTypeData<T>::float_scalar_type svd_normf() const {
             if (has_no_data()) return 0.0;

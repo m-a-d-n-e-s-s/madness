@@ -83,6 +83,9 @@ namespace madness {
     class FunctionImpl;
 
     template<typename T, std::size_t NDIM>
+    class Function;
+
+    template<typename T, std::size_t NDIM>
     class FunctionNode;
 
     template<typename T, std::size_t NDIM>
@@ -92,16 +95,41 @@ namespace madness {
     class FunctionFunctorInterface;
 
     template<typename T, std::size_t NDIM>
+    struct leaf_op;
+
+    template<typename T, std::size_t NDIM>
+    struct mul_leaf_op;
+
+    template<typename T, std::size_t NDIM>
     struct hartree_leaf_op;
 
-    template<typename T, std::size_t NDIM, typename opT>
+    template<typename T, std::size_t NDIM, std::size_t LDIM, typename opT>
     struct hartree_convolute_leaf_op;
+
+    template<typename T, std::size_t NDIM, typename opT>
+    struct op_leaf_op;
 
     template<typename T, std::size_t NDIM>
     struct noop;
 
+    template<std::size_t NDIM, std::size_t LDIM>
+    class PartialKeyMap;
+
 }
 
+namespace madness {
+    template<typename T, size_t NDIM>
+    struct FunctionVariable {
+
+        const Function<T,NDIM> f;
+        const int i;
+        const int j;
+        FunctionVariable(const Function<T,NDIM>& f, const int i, const int j)
+                : f(f), i(i), j(j) {}
+
+    };
+
+}
 
 
 namespace madness {
@@ -378,6 +406,10 @@ namespace madness {
             if (NDIM>=5) r[4] = yy;
             if (NDIM>=6) r[5] = zz;
             return (*this)(r);
+        }
+
+        FunctionVariable<T,NDIM> operator()(const int i, const int j=0) const {
+            return FunctionVariable<T,NDIM>(*this,i,j);
         }
 
         /// Throws if function is not initialized.
@@ -1018,62 +1050,35 @@ namespace madness {
         }
 
 
-        /// returns true if the function has a leaf node at key (works only locally)
-        struct leaf_op {
-            const implT* f;
-
-            leaf_op() {}
-            leaf_op(const implT* f) : f(f) {}
-
-            bool operator()(const Key<NDIM>& key) const {
-                MADNESS_ASSERT(f->get_coeffs().is_local(key));
-                return (not f->get_coeffs().find(key).get()->second.has_children());
-            }
-            template <typename Archive> void serialize (Archive& ar) {
-                ar & f;
-            }
-
-
-        };
-
-        /// returns true if the result of a multiplication is a leaf node
-        struct mul_leaf_op {
-            const implT* f;
-
-            mul_leaf_op() {}
-            mul_leaf_op(const implT* f) : f(f) {}
-
-            /// return true if f is a leaf and the result is well-represented
-            bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
-                double flo,fhi,glo,ghi;
-                bool is_leaf=true;
-                f->tnorm(fcoeff,&flo,&fhi);
-                f->tnorm(gcoeff,&glo,&ghi);
-                double total_hi=glo*fhi + ghi*flo + fhi*ghi;
-                if (total_hi>f->truncate_tol(f->get_thresh(),key)) is_leaf=false;
-                return is_leaf;
-            }
-            template <typename Archive> void serialize (Archive& ar) {
-                ar & f;
-            }
-        };
-
-
-
         /// With this being an on-demand function, fill the MRA tree according to different criteria
 
         /// @param[in]  g   the function after which the MRA structure is modeled (any basis works)
         template<typename R>
-        void fill_tree(const Function<R,NDIM>& g, bool fence=true) {
+        Function<T,NDIM>& fill_tree(const Function<R,NDIM>& g, bool fence=true) {
             MADNESS_ASSERT(g.is_initialized());
             MADNESS_ASSERT(is_on_demand());
 
             // clear what we have
             impl->get_coeffs().clear();
 
-            leaf_op gnode_is_leaf(g.get_impl().get());
+            leaf_op<T,NDIM> gnode_is_leaf(g.get_impl().get());
             impl->make_Vphi(gnode_is_leaf,fence);
+            return *this;
 
+        }
+
+        /// With this being an on-demand function, fill the MRA tree according to different criteria
+
+        /// @param[in]  op  the convolution operator for screening
+        template<typename opT>
+        Function<T,NDIM>& fill_tree(const opT& op, bool fence=true) {
+            MADNESS_ASSERT(is_on_demand());
+
+            // clear what we have
+            impl->get_coeffs().clear();
+            op_leaf_op<T,NDIM,opT> leaf_op(&op,this->get_impl().get());
+            impl->make_Vphi(leaf_op,fence);
+            return *this;
         }
 
         /// perform the hartree product of f*g, invoked by result
@@ -1082,9 +1087,7 @@ namespace madness {
                 const opT* op) {
 
             // get the right leaf operator
-            const FunctionCommonData<T,LDIM>& cdata(FunctionCommonData<T,LDIM>::get(k()));
-            hartree_convolute_leaf_op<T,KDIM+LDIM,opT> leaf_op(impl.get(),cdata.s0,op);
-
+            hartree_convolute_leaf_op<T,KDIM+LDIM,LDIM,opT> leaf_op(impl.get(),left,op);
             impl->hartree_product(left,right,leaf_op,true);
             this->truncate(0.0,false);
 
@@ -1094,9 +1097,8 @@ namespace madness {
         template<size_t LDIM, size_t KDIM>
         void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right) {
 
-            const FunctionCommonData<T,LDIM>& cdata(FunctionCommonData<T,LDIM>::get(k()));
-
-            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
+//            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),cdata.s0);
+            hartree_leaf_op<T,KDIM+LDIM> leaf_op(impl.get(),k());
             impl->hartree_product(left,right,leaf_op,true);
             this->truncate(0.0,false);
 
@@ -1134,7 +1136,7 @@ namespace madness {
 
                 MADNESS_ASSERT(not gimpl->is_redundant());
                 this->reconstruct();
-                leaf_op fnode_is_leaf(this->get_impl().get());
+                leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
                 gimpl->make_Vphi(fnode_is_leaf,true);  // fence here
 //                gimpl->print_size("gimpl");
 //                this->print_size("f");
@@ -1163,6 +1165,29 @@ namespace madness {
                 if (gimpl->is_redundant()) gimpl->undo_redundant(true);
             }
 
+            return local;
+        }
+
+        /// Computes the trace of three functions of the form int dr1 dr2 dr3 f(1,2) g(1,3) h(2,3)
+
+        /// @param[in]  g  a function of variables g(1,3);
+        /// @param[in]  h  an on-demand functions of variables h(2,3)
+        /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(1,3)*h(2,3)
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) trace3functions(const Function<R,NDIM>& g, const Function<T,NDIM>& h) const {
+            MADNESS_ASSERT(h.is_on_demand());
+
+            FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
+            const implT* himpl=h.get_impl().get();
+
+            if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
+            if (not gimpl->is_redundant()) gimpl->make_redundant(true);
+
+            TENSOR_RESULT_TYPE(T,R) local = impl->trace3functions_local(*gimpl,*himpl);
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+
+            gimpl->undo_redundant(true);
             return local;
         }
 
@@ -1326,10 +1351,10 @@ namespace madness {
             }
 
             if (fimpl->is_on_demand()) {
-                leaf_op leaf_op1(gimpl);
+                leaf_op<T,NDIM> leaf_op1(gimpl);
                 impl->multiply(leaf_op1,gimpl,fimpl,fence);
             } else {
-                leaf_op leaf_op1(fimpl);
+                leaf_op<T,NDIM> leaf_op1(fimpl);
                 impl->multiply(leaf_op1,fimpl,gimpl,fence);
             }
         }
@@ -1573,7 +1598,7 @@ namespace madness {
     template<typename T, std::size_t KDIM, std::size_t LDIM, typename opT>
     Function<T,KDIM+LDIM>
     hartree_product(const Function<T,KDIM>& left2, const Function<T,LDIM>& right2,
-            const opT* op) {
+            const opT& op) {
 
         // we need both sum and difference coeffs for error estimation
     	Function<T,KDIM>& left = const_cast< Function<T,KDIM>& >(left2);
@@ -1595,7 +1620,7 @@ namespace madness {
         left.nonstandard(true,true);
         right.nonstandard(true,true);
 
-        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),op);
+        result.do_hartree_product(left.get_impl().get(),right.get_impl().get(),&op);
 
         left.standard(false);
         if (not same) right.standard(false);
@@ -1972,6 +1997,59 @@ namespace madness {
         PROFILE_FUNC;
         return f.inner(g);
     }
+
+    /// Computes the scalar/inner product between two functions, with different variables
+
+    /// usage: double a=inner(f(1,2), g(2,3))
+    /// @param[in]  ff  a FunctionVariable, construct on-the-fly as e.g. f(1,2);
+    /// @param[in]  gg  a FunctionVariable, construct on-the-fly as e.g. g(2,3);
+    /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(2,3)
+    template <typename T, typename R, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,R) inner(const FunctionVariable<T,NDIM>& ff,
+            const FunctionVariable<R,NDIM>& gg) {
+        PROFILE_FUNC;
+        MADNESS_ASSERT(not ff.i==ff.j);   // no f(1,1) or alike
+        MADNESS_ASSERT(not gg.i==gg.j);
+
+        // regular case f(1,2)*g(1,2)
+        if (ff.i==gg.i and ff.j == gg.j) return ff.f.inner(gg.f);
+
+        // need a case list here..
+//        if (ff.i==1 and ff.j==2 and gg.i==2 and gg.j==3) return ff.f.inner3(gg.f); // f(1,2)*g(2,3)
+        MADNESS_EXCEPTION("you should not be here in inner(f(1,2),g(2,3))",1);
+    }
+
+    /// Computes the trace of three functions of the form int dr1 dr2 dr3 f(1,2) g(1,3) h(2,3)
+
+    /// usage: double a=inner(f(1,2), g(1,3), h(2,3))
+    /// @param[in]  ff  a FunctionVariable, construct on-the-fly as e.g. f(1,2);
+    /// @param[in]  gg  a FunctionVariable, construct on-the-fly as e.g. g(1,3);
+    /// @param[in]  hh  a FunctionVariable, construct on-the-fly as e.g. h(2,3) -- must be on-demand
+    /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(1,3)*h(2,3)
+    template <typename T, typename R, std::size_t NDIM>
+    TENSOR_RESULT_TYPE(T,R) inner(const FunctionVariable<T,NDIM>& ff,
+            const FunctionVariable<R,NDIM>& gg, const FunctionVariable<T,NDIM>& hh) {
+        PROFILE_FUNC;
+
+        // get a pmap that maps only the first part of the key to ensure locality
+//        const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap = (new MyPmap<NDIM>(ff.f.world()));
+        const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >
+            pmap = (std::shared_ptr<WorldDCPmapInterface< Key<NDIM> > >
+            (new PartialKeyMap<NDIM,NDIM/2>(ff.f.world())));
+
+        // for now: for changing this you also need to change the PartialKeyMap
+        MADNESS_ASSERT(ff.i==1 and gg.i==1 and ff.j==2 and gg.j==3 and hh.i==2 and hh.j==3);
+
+        // copy and redistribute the functions f and g -- h is on-demand anyways
+        const Function<T,NDIM> f=copy(ff.f,pmap);
+        const Function<T,NDIM> g=copy(gg.f,pmap);
+        MADNESS_ASSERT(hh.f.is_on_demand());
+
+        // compute the integral
+        const TENSOR_RESULT_TYPE(T,R) a=f.trace3functions(g,hh.f);
+        return a;
+    }
+
 
     template <typename T, typename R, std::size_t NDIM>
     typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type

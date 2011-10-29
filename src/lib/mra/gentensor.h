@@ -675,6 +675,16 @@ namespace madness {
 			return ovlp;
 		}
 
+		/// compute the trace \int (1,2,3) f(1,2) g(1,3) h(2,3)
+		friend double inner3way(const GenTensor<T>& f, const GenTensor<T>& g, const GenTensor<T>& h) {
+	        if (f.has_no_data()) return 0.0;
+	        if (g.has_no_data()) return 0.0;
+	        if (h.has_no_data()) return 0.0;
+	        return inner3way(f.config(),g.config(),h.config());
+	    }
+
+
+
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
         	print("no GenTensor<T>::emul yet");

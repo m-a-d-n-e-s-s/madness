@@ -224,15 +224,52 @@ namespace madness {
         real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j) const {
             real_function_6d result=real_factory_6d(world);
 
+            const double eps=-1.8;
+            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            op_mod.modified()=true;
+
             for (int axis=0; axis<3; ++axis) {
+                print("working on axis",axis);
                 real_derivative_3d D = free_space_derivative<double,3>(world, axis);
                 const real_function_3d Di=(D(phi_i)).truncate();
                 const real_function_3d Dj=(D(phi_j)).truncate();
-                const real_function_6d Dij=(hartree_product(Di,phi_j) - hartree_product(phi_i,Dj)).truncate();
+
                 const real_function_6d u=real_factory_6d(world).functor2(U(gamma,axis)).is_on_demand();
-                result=result+(u*Dij).truncate();
+//                double norm;
+//
+//                const real_function_6d Dij1=(hartree_product(Di,phi_j,op_mod));
+//                Dij1.print_size("Dij1");
+//                norm=Dij1.norm2();
+//                print("Dij1.norm2",norm);
+//                const real_function_6d UDij1=Dij1*u;
+//                UDij1.print_size("UDij1");
+//                norm=UDij1.norm2();
+//                print("UDij1.norm2",norm);
+
+                real_function_6d tmp1=CompositeFactory<double,6,3>(world)
+                            .g12(u.get_impl()).particle1(copy(Di).get_impl()).particle2(copy(phi_j).get_impl());
+                tmp1.fill_tree(op_mod).truncate();
+                real_function_6d tmp2=CompositeFactory<double,6,3>(world)
+                            .g12(u.get_impl()).particle1(copy(phi_i).get_impl()).particle2(copy(Dj).get_impl());
+                tmp2.fill_tree(op_mod).truncate();
+                print("done with fill_tree");
+//                tmp.print_size("tmp before truncation");
+//                norm=tmp.norm2();
+//                print("tmp.norm2",norm);
+//                tmp.truncate();
+//                tmp.print_size("tmp after truncation");
+//                norm=tmp.norm2();
+//                print("tmp.norm2",norm);
+//                real_function_6d diff=UDij1-tmp;
+//                double error=diff.norm2();
+//                print("diff norm ",error);
+
+                result=result+(tmp1-tmp2).truncate();
+                result.truncate();
+//                result=result+(u*Dij).truncate();
+                printf("done with multiplication with U at ime %.1f\n",wall_time());
+                result.print_size("result");
             }
-            result.truncate();
 
             // include the purely local potential that (partially) cancels 1/r12
             if (gamma>0.0) {
@@ -814,10 +851,6 @@ namespace madness {
             const real_function_6d Kphi=apply_K_commutator(pair);
             const double a4=inner(psi1,Kphi);
 
-            {
-
-            }
-
             if (world.rank()==0) printf("a1-a4, %12.8f, %12.8f, %12.8f %12.8f\n",a1,a2,a3,a4);
 
             // compose the B matrix for the cross term r12/conventional
@@ -901,7 +934,7 @@ namespace madness {
 
             pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
             pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
-//            pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
+            pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
 //            pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
 
             const bool r0=world.rank()==0;
@@ -966,19 +999,17 @@ namespace madness {
 
         void test2(const int i, const int j) {
 
-            real_function_6d pair=this->zeroth_order_function(i,j);
-            real_function_6d vpair=-2.0*(this->multiply_with_0th_order_Hamiltonian(pair));
-            vpair.truncate();
+            real_function_6d bla=apply_U(hf.orbital(i),hf.orbital(j));
+            return;
+            real_function_6d f=this->zeroth_order_function(i,j);
 
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            real_function_6d pair2=green(vpair);
+            real_function_6d g=this->zeroth_order_function(i,j);
+            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
 
-            real_function_6d diff=pair-pair2;
-            double norm1=diff.norm2();
-            double inner1=inner(pair,pair2);
-            print("norm(pair-GVpair)",norm1);
-            print("inner(pair,GVpair)",inner1);
+//            real_function_6d::FunctionVariable ff=f(1,2);
+//            real_function_6d::FunctionVariable gg=g(1,2);
+            double a=inner(f(1,2),g(1,3),eri(2,3));
+            print(a);
 
         }
 
@@ -1109,8 +1140,8 @@ namespace madness {
             const real_function_3d JKphi_i=-0.5*coulomb*phi_i;
             const real_function_3d JKphi_j=-0.5*coulomb*phi_j;
             const real_function_6d JKpair=(hartree_product(JKphi_i,phi_j) + hartree_product(phi_i,JKphi_j)).truncate();
-            real_function_6d GJKpair=green(-2.0*JKpair).truncate();
-            save_function(world,GJKpair,"GJKpair");
+//            real_function_6d GJKpair=green(-2.0*JKpair).truncate();
+//            save_function(world,GJKpair,"GJKpair");
 
             // apply Kutzelnigg's regularized potential U_12
             const real_function_6d Upair=apply_U(phi_i,phi_j);
@@ -1220,7 +1251,7 @@ namespace madness {
         }
 
         /// apply K
-        real_function_6d psi1_KffK_phi0(const ElectronPair& pair) const {
+        void psi1_KffK_phi0(const ElectronPair& pair) const {
             MADNESS_ASSERT(is_helium);
             const int i=0;
             const int j=0;
@@ -1243,7 +1274,7 @@ namespace madness {
             const real_function_6d Kphi0=(hartree_product(Kphi_i,phi_j)
                     + hartree_product(phi_i,Kphi_j)).truncate();
 
-            const double a3=inner(Kphi0,psi1);
+            const double a3=inner(Kphi0,corrfac.f()*psi1);
             if (world.rank()==0) printf("<psi^1 | f (K | phi0>) %12.8f\n",a3);
 
             real_function_6d fpsi1=corrfac.f()*psi1;
@@ -1398,7 +1429,8 @@ namespace madness {
                                  .V_for_particle2(copy(v_total).get_impl());
 
             // make the tree
-            vphi.get_impl()->convolute(op_mod);
+//            vphi.get_impl()->convolute(op_mod);
+            vphi.fill_tree(op_mod);
             vphi.print_size("(V_nuc + J1 + J2) |ket>:  made V tree");
 
             // add exchange
@@ -1436,7 +1468,8 @@ namespace madness {
                                  .V_for_particle2(copy(coulomb).get_impl());
 
             // make the tree
-            vphi.get_impl()->convolute(op_mod);
+//            vphi.get_impl()->convolute(op_mod);
+            vphi.fill_tree(op_mod);
             vphi.print_size("(1/r12 - J1 - J2) |ket>:  made V tree");
 
             // add exchange
@@ -1550,7 +1583,8 @@ namespace madness {
             const double eps=zeroth_order_energy(i,j);
             real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op_mod.modified()=true;
-            vpair.get_impl()->convolute(op_mod);
+//            vpair.get_impl()->convolute(op_mod);
+            vpair.fill_tree(op_mod);
 
             // the Green's function
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
@@ -1653,7 +1687,8 @@ int main(int argc, char** argv) {
 
     MP2 mp2(world,hf,f12);
 //    mp2.compute_first_order_correction(0,0);
-    mp2.test(0,0);
+//    mp2.test3(0,0);
+    mp2.test3(0,0);
 //    mp2.apply_K_commutator(0,0);
 //    mp2.test2(0,0);
 //    mp2.test_U();

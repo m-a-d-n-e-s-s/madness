@@ -241,68 +241,6 @@ namespace madness {
 			return false;
 		}
 
-		/// make sum coefficients for required node and insert into provided FunctionImpl
-
-		/// @param[in]	key		compute sum coeffs for this Node
-		/// @param[in,out] impl	the FunctionImpl where the Node will be inserted
-		Void fill_coeff(FunctionImpl<T, NDIM>* impl, const Key<NDIM>& key,
-                const bool do_refine) const {
-
-            MADNESS_ASSERT(impl->get_coeffs().is_local(key));
-            // break key into particles
-            const Vector<Translation, NDIM> l = key.translation();
-            const Key<MDIM> key1(key.level(), vec(l[0], l[1], l[2]));
-            const Key<MDIM> key2(key.level(), vec(l[3], l[4], l[5]));
-
-            Future<coeffT> val_ket, val_eri, val_pot1, val_pot2;
-
-            // ket
-            if (impl_ket) {
-                ProcessID owner = impl_ket->get_coeffs().owner(key);
-                val_ket = impl_ket->task(owner,
-                        &FunctionImpl<T, NDIM>::fcube_for_mul3, key, key);
-            } else {
-                //          		      val_ket=Future<coeffT>(coeffT());
-                val_ket.set(coeffT());
-            }
-
-            // eri (bypass its FunctionImpl)
-            //            		if (impl_eri) {
-            //            			coeffT eri_val=impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
-            ////          		    val_eri=Future<coeffT>(eri_val);
-            //            			val_eri.set(eri_val);
-            //            		} else {
-            val_eri.set(coeffT());
-            //            		}
-
-            // v1
-            if (impl_m1) {
-                //          		  	val_pot1=impl_m1->fcube_for_mul3(key1);
-                ProcessID owner = impl_m1->get_coeffs().owner(key1);
-                val_pot1 = impl_m1->task(owner,
-                        &FunctionImpl<T, MDIM>::fcube_for_mul3, key1, key1);
-            } else {
-                val_pot1.set(coeffT());
-            }
-
-            // v2
-            if (impl_m2) {
-                //          		  	val_pot2=impl_m2->fcube_for_mul3(key2);
-                ProcessID owner = impl_m2->get_coeffs().owner(key2);
-                val_pot2 = impl_m2->task(owner,
-                        &FunctionImpl<T, MDIM>::fcube_for_mul3, key2, key2);
-            } else {
-                val_pot2.set(coeffT());
-            }
-
-            //            		impl->assemble_coeff(do_refine,key,val_ket,val_eri,val_pot1,val_pot2);
-            impl->task(world.rank(),
-                    &FunctionImpl<T, NDIM>:: template do_assemble_coeff<MDIM>,
-//                    do_refine, key, val_ket, val_eri, val_pot1, val_pot2);
-                    do_refine, key, val_ket, impl_eri.get(), val_pot1, val_pot2);
-            return None;
-        }
-
 		coeffT eri_values(const Key<NDIM>& key) const {
 		    return impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
 		}
