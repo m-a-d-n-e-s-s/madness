@@ -2330,7 +2330,14 @@ namespace madness {
             if (result.normf()> 0.3*args.tol/args.fac) {
                 // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
-                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+                //
+                // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY
+                if (args.dest == world.rank()) {
+                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+                }
+                else {
+                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+                }
             }
             return None;
         }
