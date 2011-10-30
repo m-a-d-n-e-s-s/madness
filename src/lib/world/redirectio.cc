@@ -46,15 +46,17 @@ namespace madness {
         //if (world.mpi.rank() != 0) {
         char filename[256];
         std::sprintf(filename,"log.%5.5d",world.mpi.rank());
-
+        
         // Was using this but it seems as if it does not
-        // redirect C stdio interface (at least on Cygwin)
-        //fout.open(filename);
-        //cout.rdbuf(fout.rdbuf());
-        //std::cerr.rdbuf(fout.rdbuf());
+        // redirect C stdio interface (at least on Cygwin).
+        // Switched back to this since it seems to give better
+        // behavior on linux
+        fout.open(filename);
+        cout.rdbuf(fout.rdbuf());
+        std::cerr.rdbuf(fout.rdbuf());
 
-        if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
-        if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
+        //if (!freopen(filename, "w", stdout)) MADNESS_EXCEPTION("reopening stdout failed", 0);
+        //if (!freopen(filename, "w", stderr)) MADNESS_EXCEPTION("reopening stderr failed", 0);
         //}
     }
 }
