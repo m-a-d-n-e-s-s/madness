@@ -242,6 +242,7 @@ namespace madness {
     struct leaf_op {
         typedef FunctionImpl<T,NDIM> implT;
         const implT* f;
+        static const bool do_error_leaf_op=false;
 
         leaf_op() {}
         leaf_op(const implT* f) : f(f) {}
@@ -323,6 +324,7 @@ namespace madness {
         typedef FunctionImpl<T,NDIM> implT;
         const FunctionImpl<T,NDIM>* f;
         long k;
+        static const bool do_error_leaf_op=false;
 
         hartree_leaf_op() {}
         hartree_leaf_op(const implT* f, const long& k) : f(f), k(k) {}
@@ -390,6 +392,8 @@ namespace madness {
 
         const opT* op;    ///< the convolution operator
         const implT* f;   ///< the source or result function, needed for truncate_tol
+        static const bool do_error_leaf_op=true;
+
         op_leaf_op() {}
         op_leaf_op(const opT* op, const implT* f) : op(op), f(f) {}
 
@@ -427,6 +431,7 @@ namespace madness {
         const FunctionImpl<T,NDIM>* f;
         const implL* g;     // for use of its cdata only
         const opT* op;
+        static const bool do_error_leaf_op=false;
 
         hartree_convolute_leaf_op() {}
         hartree_convolute_leaf_op(const implT* f, const implL* g, const opT* op)
@@ -3812,8 +3817,11 @@ namespace madness {
                 is_leaf=leaf_op(key,coeff_ket);
 
                 // compare to parent
-                error_leaf_op<T,NDIM> elop(result.impl);
-                is_leaf=elop(key,coeff_ket,result.datum.second.coeff());
+                if (leaf_op.do_error_leaf_op) {
+                    error_leaf_op<T,NDIM> elop(result.impl);
+                    is_leaf=is_leaf or elop(key,coeff_ket,result.datum.second.coeff());
+                }
+
                 return std::pair<bool,coeffT> (is_leaf,coeff_ket);
             }
 
