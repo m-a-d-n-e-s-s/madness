@@ -38,6 +38,7 @@
 #include <world/GPU_streams.h>
 #include <cstdlib>
 #include <sstream>
+#include <sys/mman.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -265,6 +266,41 @@ nanosleep(&t, NULL);
     }
 
     void initialize(int argc, char** argv) {
+        //allocate for the purpose of obtaining a big arena that we can page-lock
+        /*
+        void * a = malloc(1024*1024*1024);
+        if (!a){
+           perror("Could not allocate 1st big mem arena");
+           exit(-1);
+        }
+        void * b = malloc(1024*1024*1024);
+        if (!b){
+           perror("Could not allocate 2nd big mem arena");
+           exit(-1);
+        }
+        int mlock_rval = mlock(a, 128*1024*1024);
+        if (mlock_rval){
+           perror("Could not page-lock 1st big mem arena");
+           exit(-1);
+        } 
+        mlock_rval = mlock(b, 128*1024*1024);
+        if (mlock_rval){
+           perror("Could not page-lock 2nd big mem arena");
+           exit(-1);
+        } 
+        free(a);
+        free(b);
+        */
+
+        /* 
+        int mlockall_rval = mlockall(MCL_CURRENT | MCL_FUTURE);
+        if (mlockall_rval){
+           perror("Could not mlockall()");
+           exit(-1);
+        }
+        */
+        
+
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
 #ifdef HAVE_PAPI

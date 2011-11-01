@@ -591,7 +591,10 @@ namespace madness {
             if (tensor_keys.size() == max){
             ready.unlock();
               //dc.update(key, &nodeT::compress_op, tensor_keys, nonstandard, k, this->parent);
-		    if (HAVE_GPU) {
+                    if (HAVE_GPU & BACKTO_CPU){
+                        dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
+                    }
+		    else if (HAVE_GPU) {
 			dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, bool, int, keyT>(key, dc, tensor_keys, nonstandard, k, parent));
                         //tensor_keys.clear();  
                     }
@@ -756,6 +759,54 @@ namespace madness {
            //return t1;
         }
 
+        Void compressop_backToCPU(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> in){
+        tensorT d = std::tr1::get<0>(in);
+        int k = std::tr1::get<1>(in);
+        FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
+        keyT key = std::tr1::get<2>(in);
+        bool nonstandard = std::tr1::get<3>(in); 
+        keyT parent = std::tr1::get<4>(in); 
+        dcT dc = std::tr1::get<5>(in); 
+        long dimi = std::tr1::get<6>(in);
+        long dimj = std::tr1::get<7>(in);
+        Tensor<double>* c1 = std::tr1::get<8>(in);
+        T* t0 = std::tr1::get<9>(in);
+        T* t1 = std::tr1::get<10>(in);
+        tensorT* result = std::tr1::get<11>(in);
+        tensorT* workspace = std::tr1::get<12>(in);
+        const double* pc = std::tr1::get<13>(in);
+        
+        delete c1;
+        delete result;
+        delete workspace;
+
+        d = filter(d,cdata);
+
+        if (this->has_coeff()) {
+            const tensorT& c = this->coeff();
+            if (c.dim(0) == k) {
+                d(cdata.s0) += c;
+            }
+            else {
+                d += c;
+            }
+        }
+
+        tensorT s = copy(d(cdata.s0));
+
+        if (key.level()> 0 && !nonstandard)
+            d(cdata.s0) = 0.0;
+
+        this->set_coeff(d);
+
+        if (key.level() > 0){
+            dc.update(parent, &FunctionNode<T, NDIM>::update_map, key, s, nonstandard, k);
+        }
+
+        return None;
+    }
+         
+
         std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> compressop_fasttransform(std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> in){
         tensorT d = std::tr1::get<0>(in);
         int k = std::tr1::get<1>(in);
@@ -871,25 +922,37 @@ namespace madness {
         std::vector< std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg(inArgs.size(),inObj.at(0)->compressop_fasttransform(inArgs.at(0)));
             print("inArgs.size() = ",inArgs.size());
+            long op_dimi = std::tr1::get<6>(inArgs.at(0));
+            long op_dimj = std::tr1::get<7>(inArgs.at(0));
+            //print("dimi = ",op_dimi," dimj = ",op_dimj);
+            long tbuf_size = inArgs.size()*op_dimi*op_dimj;
+            long dbuf_size = inArgs.size()*op_dimj*op_dimj;
+            long tbuf_step = op_dimi*op_dimj;
+            long dbuf_step = op_dimj*op_dimj;
+            long tbuf_stepbytes = op_dimi*op_dimj*sizeof(T);
+            long dbuf_stepbytes = op_dimj*op_dimj*sizeof(double);
 STARTt_TIMER;
             unsigned int t0_off = 0;
-            unsigned int tptr_off = 0;
-            unsigned int pc_off = 0;
+            ////unsigned int tptr_off = 0;
+            ////unsigned int pc_off = 0;
             unsigned int t1_off = 0;
             for (unsigned int i = 0; i < inArgs.size(); i++){
-		long dimi = std::tr1::get<6>(inArgs.at(i));
-		long dimj = std::tr1::get<7>(inArgs.at(i));
+		////long dimi = std::tr1::get<6>(inArgs.at(i));
+		////long dimj = std::tr1::get<7>(inArgs.at(i));
                 //memcpy(t0_buf+t0_off*sizeof(T),t0,dimi*dimj*sizeof(T));
-		register_buf((std::tr1::get<0>(inArgs.at(i))).ptr(),dimi*dimj*sizeof(T));
-		register_buf1(std::tr1::get<13>(inArgs.at(i)),dimj*dimj*sizeof(double));
-		register_buf((std::tr1::get<11>(inArgs.at(i)))->ptr(),dimi*dimj*sizeof(T));
-                t0_off += dimi*dimj;
+		////register_buf((std::tr1::get<0>(inArgs.at(i))).ptr(),dimi*dimj*sizeof(T));
+		////register_buf1(std::tr1::get<13>(inArgs.at(i)),dimj*dimj*sizeof(double));
+		////register_buf((std::tr1::get<11>(inArgs.at(i)))->ptr(),dimi*dimj*sizeof(T));
+		//register_buf((std::tr1::get<0>(inArgs.at(i))).ptr(),tbuf_stepbytes);
+		//register_buf1(std::tr1::get<13>(inArgs.at(i)),dbuf_stepbytes);
+		//register_buf((std::tr1::get<11>(inArgs.at(i)))->ptr(),tbuf_stepbytes);
+                ////t0_off += dimi*dimj;
                 //memcpy(tptr_buf+tptr_off*sizeof(T),tptr,dimi*dimj*sizeof(T));
-                tptr_off += dimi*dimj;
+                ////tptr_off += dimi*dimj;
                 //memcpy(pc_buf+pc_off*sizeof(T),pc,dimj*dimj*sizeof(T));
-                pc_off += dimj*dimj;
+                ////pc_off += dimj*dimj;
                 //memcpy(t1_buf+t1_off*sizeof(T),t1,dimi*dimj*sizeof(T));
-                t1_off += dimi*dimj;
+                ////t1_off += dimi*dimj;
             }
             T* t0_buf ;//= new T[t0_off];
             T* tptr_buf ;//= new T[tptr_off];
@@ -897,15 +960,19 @@ STARTt_TIMER;
             T* t1_buf;// = new T[t1_off];
             
 	    //register_buf(t1_buf,t1_off*sizeof(T));	
-            T * start_t0 = GPUallocate_buffer(t0_buf,t0_off);
-            T * start_t1 = GPUallocate_buffer(t1_buf,t1_off);
+            ////T * start_t0 = GPUallocate_buffer(t0_buf,t0_off);
+	    T * start_t0 = GPUallocate_buffer(t0_buf,tbuf_size);
+            ////T * start_t1 = GPUallocate_buffer(t1_buf,t1_off);
+            T * start_t1 = GPUallocate_buffer(t1_buf,tbuf_size);
 
-            T * start_tptr = GPUallocate_buffer( tptr_buf,tptr_off);
-            double * start_pc = GPUallocate_buffer(pc_buf,pc_off);
-            t0_off = 0;
-            tptr_off = 0;
-            pc_off = 0;
-            t1_off = 0;
+            ////T * start_tptr = GPUallocate_buffer( tptr_buf,tptr_off);
+            T * start_tptr = GPUallocate_buffer( tptr_buf,tbuf_size);
+            ////double * start_pc = GPUallocate_buffer(pc_buf,pc_off);
+            double * start_pc = GPUallocate_buffer(pc_buf,dbuf_size);
+            ////t0_off = 0;
+            ////tptr_off = 0;
+            ////pc_off = 0;
+            ////t1_off = 0;
             for (unsigned int i = 0; i < inArgs.size(); i++){
 		tensorT d = std::tr1::get<0>(inArgs.at(i));
 		//int k = std::tr1::get<1>(inArgs.at(i));
@@ -915,8 +982,8 @@ STARTt_TIMER;
 		//bool nonstandard = std::tr1::get<4>(inArgs.at(i)); 
 		//keyT parent = std::tr1::get<5>(inArgs.at(i)); 
 		//dcT dc = std::tr1::get<6>(inArgs.at(i)); 
-		long dimi = std::tr1::get<6>(inArgs.at(i));
-		long dimj = std::tr1::get<7>(inArgs.at(i));
+		////long dimi = std::tr1::get<6>(inArgs.at(i));
+		////long dimj = std::tr1::get<7>(inArgs.at(i));
 		//Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
 		//T* t0 = std::tr1::get<10>(inArgs.at(i));
 		//T* t1 = std::tr1::get<11>(inArgs.at(i));
@@ -929,11 +996,13 @@ STARTt_TIMER;
 		
 //STARTt_TIMER;
                 //memcpy(tptr_buf+tptr_off,d.ptr(),dimi*dimj*sizeof(T));
-                GPUtransfer_buffer(std::tr1::get<0>(inArgs.at(i)).ptr(),start_tptr+tptr_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]);
+                ////GPUtransfer_buffer(std::tr1::get<0>(inArgs.at(i)).ptr(),start_tptr+tptr_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]);
+                GPUtransfer_buffer(std::tr1::get<0>(inArgs.at(i)).ptr(),start_tptr+i*tbuf_step,tbuf_step,GPU_streams[i%NUM_STREAMS]);
 	//	tptr_off += dimi*dimj;
                 
 		//memcpy(pc_buf+pc_off,pc,dimj*dimj*sizeof(double));
-                GPUtransfer_buffer1(std::tr1::get<13>(inArgs.at(i)),start_pc+pc_off,dimj*dimj,GPU_streams[i%NUM_STREAMS]);               
+                ////GPUtransfer_buffer1(std::tr1::get<13>(inArgs.at(i)),start_pc+pc_off,dimj*dimj,GPU_streams[i%NUM_STREAMS]);               
+                GPUtransfer_buffer1(std::tr1::get<13>(inArgs.at(i)),start_pc+i*dbuf_step,dbuf_step,GPU_streams[i%NUM_STREAMS]);               
 //ENDt_TIMER("access");                //memcpy(t1_buf+t1_off,t1,dimi*dimj*sizeof(T));
           //      pc_off += dimj*dimj;
             //    t1_off += dimi*dimj;
@@ -982,17 +1051,21 @@ STARTt_TIMER;
 		    //print("CUDA KERNEL (dim = ",dimi,",",dimj,")\n");
 		    //cu_mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc,GPU_streams[i%NUM_STREAMS],1,t.size());
                     //cu_mTxmq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],1,0);
-                    cu_mTxmqq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],0,0,cublas_handle);
+                    ////cu_mTxmqq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],0,0,cublas_handle);
+                    cu_mTxmqq(op_dimi, op_dimj, op_dimj, start_t0 + i*tbuf_step, start_tptr + i*tbuf_step, start_pc + i*dbuf_step,GPU_streams[i%NUM_STREAMS],0,0,cublas_handle);
                     /*
                     mTxmq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off);
                     */
-                    T* ptr_t0 = start_t0 + t0_off;
-                    T* ptr_t1 = start_t1 + t1_off;
+                    ////T* ptr_t0 = start_t0 + t0_off;
+                    ////T* ptr_t1 = start_t1 + t1_off;
+                    T* ptr_t0 = start_t0 + i*tbuf_step;
+                    T* ptr_t1 = start_t1 + i*tbuf_step;
 		    //for (int n=1; n<t.ndim(); ++n) {
 			//mTxmq(dimi, dimj, dimj, t1, t0, pc);
 			//cu_mTxmq(dimi, dimj, dimj, t1, t0, pc,GPU_streams[i%NUM_STREAMS],t.ndim(),t.size());
                         //cu_mTxmq(dimi, dimj, dimj, start_t1 + t1_off, start_t0 + t0_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),0);
-                        cu_mTxmqq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),1,cublas_handle);
+                        ////cu_mTxmqq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),1,cublas_handle);
+                        cu_mTxmqq(op_dimi, op_dimj, op_dimj, ptr_t1, ptr_t0, start_pc + i*dbuf_step,GPU_streams[i%NUM_STREAMS],t.ndim(),1,cublas_handle);
                         //mTxmq(dimi, dimj, dimj, /*start_t1 + t1_off*/ptr_t1, /*start_t0 + t0_off*/ptr_t0, start_pc + pc_off);
 			//std::swap(t0,t1);
 			//std::swap(start_t0 + t0_off, start_t1 + t1_off);
@@ -1008,11 +1081,12 @@ STARTt_TIMER;
                         //delete[] temp_buf;
 		    //}
 		//}
-               CPUtransfer_buffer((std::tr1::get<11>(inArgs.at(i)))->ptr(),start_t1+t1_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]); 
-                t0_off += dimi*dimj;
-                tptr_off += dimi*dimj;
-                pc_off += dimj*dimj;
-                t1_off += dimi*dimj;
+               ////CPUtransfer_buffer((std::tr1::get<11>(inArgs.at(i)))->ptr(),start_t1+t1_off,dimi*dimj,GPU_streams[i%NUM_STREAMS]);
+                CPUtransfer_buffer((std::tr1::get<11>(inArgs.at(i)))->ptr(),start_t1+i*tbuf_step,tbuf_step,GPU_streams[i%NUM_STREAMS]);  
+                ////t0_off += dimi*dimj;
+                ////tptr_off += dimi*dimj;
+                ////pc_off += dimj*dimj;
+                ////t1_off += dimi*dimj;
                 //std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> temp = inObj.at(i)->compressop_fasttransform(inArgs.at(i))/*compressop_compute(inArgs.at(i))*/;
                 //outArg[i] = temp;
 	   }
@@ -1056,9 +1130,9 @@ STARTt_TIMER;
 		tensorT* workspace = std::tr1::get<12>(inArgs.at(i));
 		//const double* pc = std::tr1::get<14>(inArgs.at(i));
 
-		unregister_buf(std::tr1::get<0>(inArgs.at(i)).ptr());
-		unregister_buf1(std::tr1::get<13>(inArgs.at(i)));
-		unregister_buf((std::tr1::get<11>(inArgs.at(i)))->ptr());
+		//unregister_buf(std::tr1::get<0>(inArgs.at(i)).ptr());
+		//unregister_buf1(std::tr1::get<13>(inArgs.at(i)));
+		//unregister_buf((std::tr1::get<11>(inArgs.at(i)))->ptr());
             //    if (d.ndim()&1)
               //    memcpy(/*t0*/result->ptr(),t0_buf + t0_off,dimi*dimj*sizeof(T));
               //  else
