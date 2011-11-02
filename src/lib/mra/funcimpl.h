@@ -3148,8 +3148,9 @@ namespace madness {
 
                 coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
                 coeffT gcoeff=g->parent_to_child(gdatum.second.coeff(),gdatum.first,key);
-                fcoeff.gaxpy(alpha,gcoeff,beta);
-                return std::pair<bool,coeffT> (is_leaf,fcoeff);
+                coeffT hcoeff=copy(fcoeff);
+                hcoeff.gaxpy(alpha,gcoeff,beta);
+                return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
 
             Future<add_op> make_child_op(const keyT& child) const {

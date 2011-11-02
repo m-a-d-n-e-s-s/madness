@@ -143,7 +143,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
 /// test f(1,2) + g(1,2) for both f and g reconstructed
 int test_add(World& world, const long& k, const double thresh) {
 
-    print("entering add f(1,2)*g(1)");
+    print("entering add");
     int nerror=0;
     bool good;
 
@@ -152,9 +152,26 @@ int test_add(World& world, const long& k, const double thresh) {
 
     real_function_6d f=hartree_product(phi,phi);
     real_function_6d g=hartree_product(phisq,phi);
+    real_function_6d ff=copy(f);
+    real_function_6d gg=copy(g);
 
     // this is in reconstructed form
     real_function_6d h1=f+g;
+
+    // test f and g being untouched
+    double nf=f.norm2();
+    printf("f.norm2()        %12.8f\n",nf);
+    double nff=ff.norm2();
+    printf("ff.norm2()       %12.8f\n",nff);
+    double diff_f=(f-ff).norm2();
+    printf("(ff-f).norm2()   %12.8f\n",diff_f);
+    double ng=g.norm2();
+    printf("g.norm2()        %12.8f\n",ng);
+    double ngg=gg.norm2();
+    printf("gg.norm2()       %12.8f\n",ngg);
+    double diff_g=(gg-g).norm2();
+    printf("(gg-g).norm2()   %12.8f\n",diff_g);
+
     double err1=h1.err(add_test);
     good=is_small(err1,thresh);
     print(ok(good), "add error1:",err1);
@@ -327,7 +344,7 @@ int main(int argc, char**argv) {
     startup(world,argc,argv);
 
     // the parameters
-    long k=6;
+    long k=5;
     double thresh=1.e-3;
     double L=16;
     TensorType tt=TT_2D;
@@ -383,9 +400,9 @@ int main(int argc, char**argv) {
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
 //    test(world,k,thresh);
-    error+=test_hartree_product(world,k,thresh);
+//    error+=test_hartree_product(world,k,thresh);
 //    error+=test_multiply(world,k,thresh);
-//    error+=test_add(world,k,thresh);
+    error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);
     error+=test_inner(world,k,thresh);
 
