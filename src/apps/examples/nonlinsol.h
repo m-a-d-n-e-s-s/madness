@@ -123,7 +123,7 @@ namespace madness {
     ///
     /// I've not yet tested with anything except \c C=double and I think
     /// that the KAIN routine will need extending for anything else.
-    template <class T, class C = double, class Alloc = default_allocator<T>>
+    template <class T, class C = double, class Alloc = default_allocator<T> >
     class XNonlinearSolver {
         unsigned int maxsub; //< Maximum size of subspace dimension
         Alloc alloc;
