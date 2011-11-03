@@ -198,6 +198,8 @@ public:
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> {
@@ -210,6 +212,8 @@ public:
     double operator()(const coordT& x) const {
         return molecule.molecular_core_potential(x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
@@ -223,29 +227,27 @@ public:
     double operator()(const coordT& x) const {
         return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const AtomicBasisFunction aofunc;
-    std::vector<coordT> specialpt;
+
 public:
     AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
         : aofunc(aofunc)
-    {
-    	double x, y, z;
-        aofunc.get_coords(x,y,z);
-        coordT r;
-        r[0]=x; r[1]=y; r[2]=z;
-        specialpt=std::vector<coordT>(1,r);
-    }
+    {}
 
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
 
-    std::vector<coordT> special_points() const {return specialpt;}
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,aofunc.get_coords_vec());
+    }
 };
 
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
@@ -253,12 +255,18 @@ private:
     const Molecule& molecule;
     const int atom;
     const int axis;
+
 public:
     MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-        : molecule(molecule), atom(atom), axis(axis) {}
+        : molecule(molecule), atom(atom), axis(axis) 
+    {}
 
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
     }
 };
 
@@ -267,6 +275,7 @@ private:
     const Molecule& molecule;
     const int atom;
     const int axis;
+    std::vector<coordT> specialpt;
 public:
     CorePotentialDerivativeFunctor(const Molecule& molecule, int atom, int axis)
         : molecule(molecule), atom(atom), axis(axis) {}
@@ -1003,42 +1012,13 @@ struct Calculation {
 
         START_TIMER(world);
         ao = vecfuncT(aobasis.nbf(molecule));
-        Level initial_level = 2;
         for(int i = 0;i < aobasis.nbf(molecule);++i){
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-            ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence().truncate_mode(1);
+            ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
         }
         world.gop.fence();
-        std::vector<double> norms;
-        while(1){
-            norms = norm2s(world, ao);
-            initial_level += 2;
-            if(initial_level >= 11)
-                throw "project_ao_basis: projection failed?";
-
-            int nredone = 0;
-            for(int i = 0;i < aobasis.nbf(molecule);++i){
-                if(norms[i] < 0.25){
-                    ++nredone;
-                    functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-                    ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence().truncate_mode(1);
-                }
-            }
-
-            world.gop.fence();
-            if(nredone == 0)
-                break;
-
-        }
         truncate(world, ao);
-        // Don't want to renorm since some d and f functions won't be normalized to unity
-        // for(int i = 0;i < aobasis.nbf(molecule);++i){
-        //     if(world.rank() == 0 && fabs(norms[i] - 1.0) > 1e-2)
-        //         print(i, " bad ao norm?", norms[i]);
-
-        //     norms[i] = 1.0 / norms[i];
-        // }
-        // scale(world, ao, norms);
+        normalize(world, ao);
         END_TIMER(world, "project ao basis");
     }
 
@@ -1366,21 +1346,6 @@ struct Calculation {
         return r.scale(0.5);
     }
 
-    struct GuessDensity : public FunctionFunctorInterface<double,3>
-    {
-        const Molecule & molecule;
-        const AtomicBasisSet & aobasis;
-        double operator ()(const coordT & x) const
-        {
-            return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
-        }
-
-        GuessDensity(const Molecule & molecule, const AtomicBasisSet & aobasis)
-            :molecule(molecule), aobasis(aobasis)
-        {
-        }
-
-    };
 
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true)
     {
@@ -1458,7 +1423,7 @@ struct Calculation {
         }
         else {
             // Use the initial density and potential to generate a better process map
-            functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
+            functionT rho = factoryT(world).functor(functorT(new MolecularGuessDensityFunctor(molecule, aobasis))).truncate_on_project();
             END_TIMER(world, "guess density");
             double nel = rho.trace();
             if(world.rank() == 0)
@@ -2401,14 +2366,14 @@ struct Calculation {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
-	    double Xrhotrace = rho.trace(); // DEBUG
+	    //double Xrhotrace = rho.trace(); // DEBUG
             rho.truncate();
             double enuclear = inner(rho, vnuc);
 
 	    // DEBUG
-	    double rhotrace = rho.trace();
-	    double vnuctrace = vnuc.trace();
-	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+// 	    double rhotrace = rho.trace();
+// 	    double vnuctrace = vnuc.trace();
+// 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
 	    // END DEBUG
 
             START_TIMER(world);

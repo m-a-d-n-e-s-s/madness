@@ -66,6 +66,11 @@ public:
     Atom()
             : x(0), y(0), z(0), q(0), atomic_number(0) {}
 
+
+    madness::Vector<double,3> get_coords() const {
+        return madness::vec(x, y, z);
+    }
+
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & x & y & z & q & atomic_number;

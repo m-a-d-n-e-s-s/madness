@@ -376,7 +376,11 @@ public:
 
     void get_coords(double& x, double& y, double& z) const {
     	x=xx; y=yy; z=zz;
-		return;
+        return;
+    }
+
+    madness::Vector<double,3> get_coords_vec() const {
+        return madness::vec(xx, yy, zz);
     }
 };
 
