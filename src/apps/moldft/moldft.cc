@@ -436,7 +436,8 @@ struct CalculationParameters {
     int nmo_alpha;              ///< Number of alpha spin molecular orbitals
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
-    std::string xcdata;         ///< XC input line
+    std::string xc_data;         ///< XC input line
+    std::vector<double> protocol_data;  ///< Calculation protocol
     bool gopt;                  ///< geometry optimizer
     double gtol;                ///< geometry tolerance
     bool gtest;                 ///< geometry tolerance
@@ -451,7 +452,7 @@ struct CalculationParameters {
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
-        ar & xcdata;
+        ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt;
     }
 
@@ -487,7 +488,8 @@ struct CalculationParameters {
         , nmo_alpha(0)
         , nmo_beta(0)
         , lo(1e-10) 
-        , xcdata("lda")
+        , xc_data("lda")
+        , protocol_data(madness::vector_factory(1e-4, 1e-8))
         , gopt(false)
         , gtol(1e-3)
         , gtest(false)
@@ -502,7 +504,8 @@ struct CalculationParameters {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
         std::string s;
-        xcdata = "lda";
+        xc_data = "lda";
+        protocol_data = madness::vector_factory(1e-4, 1e-8);
 
         while (f >> s) {
             if (s == "end") {
@@ -550,7 +553,15 @@ struct CalculationParameters {
             else if (s == "xc") {
                 char buf[1024];
                 f.getline(buf,sizeof(buf));
-                xcdata = buf;
+                xc_data = buf;
+            }
+            else if (s == "protocol") {
+                std::string buf;
+                std::getline(f,buf);
+                protocol_data = std::vector<double>();
+                double d;
+                std::stringstream s(buf);
+                while (s >> d) protocol_data.push_back(d);
             }
             else if (s == "plotmos") {
                 f >> plotlo >> plothi;
@@ -689,7 +700,7 @@ struct CalculationParameters {
         madness::print(" number of electrons ", nalpha, nbeta);
         madness::print("  number of orbitals ", nmo_alpha, nmo_beta);
         madness::print("     spin restricted ", spin_restricted);
-        madness::print("       xc functional ", xcdata);
+        madness::print("       xc functional ", xc_data);
 #ifdef MADNESS_HAS_LIBXC
         madness::print("         xc libraray ", "libxc");
 #else
@@ -699,6 +710,7 @@ struct CalculationParameters {
             madness::print("           core type ", core_type);
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
+        madness::print("    compute protocol ", protocol_data);
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
@@ -768,6 +780,7 @@ struct Calculation {
                 param.aobasis = molecule.guess_file();
                 n_core = molecule.n_core_orb_all();
             }
+
             molecule.orient();
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
@@ -776,7 +789,7 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
-        xc.initialize(param.xcdata, !param.spin_restricted);
+        xc.initialize(param.xc_data, !param.spin_restricted);
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
@@ -2547,53 +2560,35 @@ public:
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
-        calc.set_protocol(world,1e-4);
-        calc.make_nuclear_potential(world);
-        calc.project_ao_basis(world);
-
-        //calc.project(world);
-        if (calc.param.restart) {
-            calc.load_mos(world);
-        }
-        else {
-            calc.initial_guess(world);
-            calc.param.restart = true;
-        }
-
-        // If the basis for the inital guess was not sto-3g
-        // switch to sto-3g since this is needed for analysis
-        // of the MOs and orbital localization
-        if (calc.param.aobasis != "sto-3g") {
-            calc.param.aobasis = "sto-3g";
-            calc.project_ao_basis(world);
-        }
-
-        calc.solve(world);
-        calc.save_mos(world);
-
-        calc.set_protocol(world,1e-6);
-        calc.make_nuclear_potential(world);
-        calc.project_ao_basis(world);
-        calc.project(world);
-        calc.solve(world);
-        calc.save_mos(world);
-
-        if (calc.molecule.get_eprec() < 1e-5) {
-            calc.set_protocol(world,1e-8);
+        for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
+            calc.set_protocol(world,calc.param.protocol_data[proto]);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
-            calc.project(world);
+
+            if (proto == 0) {
+                if (calc.param.restart) {
+                    calc.load_mos(world);
+                }
+                else {
+                    calc.initial_guess(world);
+                    calc.param.restart = true;
+                }
+            }
+            else {
+                calc.project(world);
+            }
+
+            // If the basis for the inital guess was not sto-3g
+            // switch to sto-3g since this is needed for analysis
+            // of the MOs and orbital localization
+            if (calc.param.aobasis != "sto-3g") {
+                calc.param.aobasis = "sto-3g";
+                calc.project_ao_basis(world);
+            }
+
             calc.solve(world);
+            calc.save_mos(world);
         }
-
-        calc.save_mos(world);
-
-        //         calc.set_protocol(world,1e-8);
-        //         calc.make_nuclear_potential(world);
-        //         calc.project(world);
-        //         calc.solve(world);
-        //         calc.save_mos(world);
-
         return calc.current_energy;
     }
 
