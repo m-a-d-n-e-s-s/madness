@@ -63,14 +63,14 @@ static double slater(const coord_3d& r) {
 
 
 template<size_t NDIM>
-void save_function(World& world, const Function<double,NDIM>& pair, const std::string name) {
+void save_function(World& world, const Function<double,NDIM>& pair, const std::string& name) {
     if (world.rank()==0) print("saving function",name);
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
     ar & pair;
 }
 
 template<size_t NDIM>
-void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
+void load_function(World& world, Function<double,NDIM>& pair, const std::string& name) {
     if (world.rank()==0) print("loading function",name);
     archive::ParallelInputArchive ar(world, name.c_str());
     ar & pair;
@@ -229,7 +229,7 @@ namespace madness {
             op_mod.modified()=true;
 
             for (int axis=0; axis<3; ++axis) {
-                print("working on axis",axis);
+                if (world.rank()==0) print("working on axis",axis);
                 real_derivative_3d D = free_space_derivative<double,3>(world, axis);
                 const real_function_3d Di=(D(phi_i)).truncate();
                 const real_function_3d Dj=(D(phi_j)).truncate();
@@ -252,7 +252,7 @@ namespace madness {
                 real_function_6d tmp2=CompositeFactory<double,6,3>(world)
                             .g12(u.get_impl()).particle1(copy(phi_i).get_impl()).particle2(copy(Dj).get_impl());
                 tmp2.fill_tree(op_mod).truncate();
-                print("done with fill_tree");
+                if (world.rank()==0) print("done with fill_tree");
 //                tmp.print_size("tmp before truncation");
 //                norm=tmp.norm2();
 //                print("tmp.norm2",norm);
@@ -267,7 +267,7 @@ namespace madness {
                 result=result+(tmp1-tmp2).truncate();
                 result.truncate();
 //                result=result+(u*Dij).truncate();
-                printf("done with multiplication with U at ime %.1f\n",wall_time());
+                if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
                 result.print_size("result");
             }
 
@@ -558,7 +558,7 @@ namespace madness {
 
             real_function_6d Kfphi0;        ///< the function K f12 |phi^0>
             real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
-//            real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
+            real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
 
             double first_order_correction;  ///< this plus orbital energies will yield the HF energy
             double second_order_correction; ///< this plus the HF energy will yield the MP2 correlation energy
@@ -773,7 +773,7 @@ namespace madness {
         double compute_V(const int i, const int j, const ElectronPair& pair) const {
 
             double V=0.0;
-            const real_function_6d& phi0=this->zeroth_order_function(i,j);
+            const real_function_6d& phi0=pair.phi0;
             const real_function_6d& psi1=pair.function;
             const double e1=pair.first_order_correction;
 
@@ -795,7 +795,7 @@ namespace madness {
                     .ket(copy(phi0).get_impl())
                     .V_for_particle1(copy(coulomb).get_impl())
                     .V_for_particle2(copy(coulomb).get_impl());
-            const double a2=inner(phi0*corrfac.f(),JKphi0);
+            const double a2=inner(pair.r12_phi,JKphi0);
             if (world.rank()==0) printf("<phi^0 | (J+K) f | phi^0>  %12.8f\n",a2);
             V+=a2;
 
@@ -843,20 +843,23 @@ namespace madness {
             // now the cross terms <psi^1 | (H-E) Q f12 | phi^0>
             // note the O_{12} terms all drop out due to intermediate normalization
             const double a1=inner(psi1,pair.r12_phi);
-            const double a2=inner(psi1,pair.Uphi0);
             real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
             real_function_6d vphi=CompositeFactory<double,6,3>(world)
                     .g12(eri.get_impl()).ket(copy(psi1).get_impl());
-            const double a3=inner(phi0,vphi);
-            const real_function_6d Kphi=apply_K_commutator(pair);
+            const double a2=inner(phi0,vphi);
+            const double a3=inner(psi1,pair.Uphi0);
+//            const real_function_6d Kphi=apply_K_commutator(pair);
+            const real_function_6d Kphi=pair.KffKphi0;
             const double a4=inner(psi1,Kphi);
 
+            if (world.rank()==0) print("new 'constant' [K,f] | phi^0> ");
             if (world.rank()==0) printf("a1-a4, %12.8f, %12.8f, %12.8f %12.8f\n",a1,a2,a3,a4);
 
             // compose the B matrix for the cross term r12/conventional
-            tmp=e0*a1 + a2 - a3 - a4 - e0*a1;
+            tmp=e0*a1 - a2 + a3 - a4 - e0*a1;
             if (world.rank()==0) printf("B matrix of the cross term %12.8f\n",tmp);
             B+=2.0* tmp;
+//            psi1_KffK_phi0(pair);
 
             // get the terms <psi^1 | (H-E) | psi^1>
             tmp=compute_B_directly(i,j,psi1);
@@ -889,7 +892,7 @@ namespace madness {
 
             // exchange energy
             real_function_6d Kphi=apply_exchange(fo_function,hf.orbital(i),1);
-            Kphi+=apply_exchange(fo_function,hf.orbital(j),2).truncate();
+            Kphi=Kphi+apply_exchange(fo_function,hf.orbital(j),2).truncate();
             const double x=inner(fo_function,Kphi);
             if (world.rank()==0) printf("ex in Hylleraas  %12.8f\n" ,x);
 
@@ -919,12 +922,14 @@ namespace madness {
         ElectronPair make_pair(const int i, const int j) const {
 
             ElectronPair pair;
+            const bool r0=world.rank()==0;
 
             // some functions repeatedly used
             pair.phi0=this->zeroth_order_function(i,j);
             pair.first_order_correction=this->compute_first_order_correction(i,j);
 
-            const real_function_6d fphi0=corrfac.f()*pair.phi0;
+            pair.r12_phi=corrfac.f()*pair.phi0;
+            const real_function_6d fphi0=pair.r12_phi;
             const real_function_3d phi_i=hf.orbital(i);
             const real_function_3d phi_j=hf.orbital(j);
             const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
@@ -935,9 +940,8 @@ namespace madness {
             pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
             pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
             pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
-//            pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
+            pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
 
-            const bool r0=world.rank()==0;
             const real_function_6d& phi0=pair.phi0;
 
             // some matrix elements
@@ -1132,6 +1136,8 @@ namespace madness {
             const double eps=zeroth_order_energy(i,j);
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
 
+	    ElectronPair pair=make_pair(i,j);
+
             // make the term (-J + K)|phi^0>
             const real_function_3d phi_i=hf.orbital(i);
             const real_function_3d phi_j=hf.orbital(j);
@@ -1140,34 +1146,22 @@ namespace madness {
             const real_function_3d JKphi_i=-0.5*coulomb*phi_i;
             const real_function_3d JKphi_j=-0.5*coulomb*phi_j;
             const real_function_6d JKpair=(hartree_product(JKphi_i,phi_j) + hartree_product(phi_i,JKphi_j)).truncate();
-//            real_function_6d GJKpair=green(-2.0*JKpair).truncate();
-//            save_function(world,GJKpair,"GJKpair");
 
             // apply Kutzelnigg's regularized potential U_12
-            const real_function_6d Upair=apply_U(phi_i,phi_j);
-            real_function_6d GUpair=green(-2.0*Upair).truncate();
-            save_function(world,GUpair,"GUpair");
+            const real_function_6d Upair=pair.Uphi0;
 
             // make the term -E^1|phi^0>
-            real_function_6d pair=hartree_product(phi_i,phi_j);
-            const double e1=compute_first_order_correction(i,j);
-            const real_function_6d epair=-e1*pair;
-            real_function_6d GEpair=green(-2.0*epair).truncate();
-            save_function(world,GEpair,"GEpair");
+            const double e1=pair.first_order_correction;
+            const real_function_6d epair=e1*pair.phi0;
+
+            // make the term [K,f]|phi^0> 
+            const real_function_6d K_comm=pair.KffKphi0;
 
             // make all terms
-            real_function_6d Vpair=(JKpair+Upair+epair).truncate();
+            real_function_6d Vpair=(JKpair+Upair-K_comm-epair).truncate();
+	    load_balance(Vpair,false);
             real_function_6d GVpair=green(-2.0*Vpair).truncate();
             save_function(world,GVpair,"GVpair");
-
-            /// make some terms
-            real_function_6d JKUpair=(JKpair+Upair).truncate();
-            real_function_6d GJKUpair=green(-2.0*JKUpair).truncate();
-            save_function(world,GJKUpair,"GJKUpair");
-
-            // the r12*|phi> termi
-            real_function_6d r12phi=this->r12phi(i,j);
-            save_function(world,r12phi,"r12phi");
         }
 
         void test(const int i, const int j) {
@@ -1175,31 +1169,31 @@ namespace madness {
             const real_function_6d pair=zo_function;
 
             // 0th iteration for the residual equations (the constant term)
-            real_function_6d GJKpair;
-            real_function_6d GEpair;
-            real_function_6d GUpair;
-            real_function_6d GVpair;
-            real_function_6d r12phi;
+//            real_function_6d GJKpair;
+//            real_function_6d GEpair;
+//            real_function_6d GUpair;
+//            real_function_6d GVpair;
+//            real_function_6d r12phi;
 
-            load_function(world,GJKpair,"GJKpair");
-            load_function(world,GUpair,"GUpair");
-            load_function(world,GEpair,"GEpair");
-            load_function(world,GVpair,"GVpair");
-            load_function(world,r12phi,"r12phi");
+//            load_function(world,GJKpair,"GJKpair");
+//            load_function(world,GUpair,"GUpair");
+//            load_function(world,GEpair,"GEpair");
+//            load_function(world,GVpair,"GVpair");
+//            load_function(world,GVpair,"1_it");
+//            load_function(world,r12phi,"r12phi");
 
             ElectronPair result=make_pair(i,j);
-//            result.function=GJKpair+GUpair+GEpair;
-//            print("result.function=GKJpair+GUpair+GEpair");
-            result.function=GVpair;
-            result.r12_phi=r12phi;
+            real_function_6d constant_term;
+
+            // get the initial functions
+            load_function(world,result.function,"GVpair");
+            load_function(world,constant_term,"GVpair");
+//            constant_term=copy(result.function);
 
             orthogonalize(result.function,pair);
-            orthogonalize(result.r12_phi,pair);
+            orthogonalize(constant_term,pair);
 
-            psi1_KffK_phi0(result);
             compute_second_order_correction_with_Hylleraas(i,j,result);
-
-            const real_function_6d constant_term=copy(result.function);
 
             // the Green's function depends on the zeroth order energy, which is the sum
             // of the orbital energies of orbitals i and j
@@ -1208,23 +1202,56 @@ namespace madness {
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
 
 
+//	    if (world.rank()==0) print("computing iteratively");
+//            for (int ii=0; ii<20; ++ii) {
+//
+//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
+//
+//                /// apply the convolution
+//                vphi.scale(-2.0).truncate();
+//                const pairfunctionT tmp=green(vphi).truncate();
+//                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+//                result.function=(constant_term+tmp).truncate();
+//
+//                orthogonalize(result.function,zo_function);
+////                orthogonalize(result.function,result.r12_phi);
+//
+//                compute_second_order_correction_with_Hylleraas(i,j,result);
+//                const std::string name="psi1_it"+stringify(ii);
+//                save_function(world,result.function,name);
+//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+//
+//            }
+
+            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
+	    if (world.rank()==0) print("computing increments");
+            real_function_6d latest_iteration=constant_term;
+
             for (int ii=0; ii<20; ++ii) {
 
-                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
+                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_iteration);
+	        load_balance(vphi,false);
 
                 /// apply the convolution
                 vphi.scale(-2.0).truncate();
-                const pairfunctionT tmp=green(vphi).truncate();
-                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-                result.function=(constant_term-tmp).truncate();
+                latest_iteration=green(vphi).truncate();
+                latest_iteration.print_size("result of applying 0th order Hamiltonian on latest increment");
 
-                orthogonalize(result.function,zo_function);
-                orthogonalize(result.function,result.r12_phi);
+                orthogonalize(latest_iteration,result.phi0); 
+		result.function=result.function+latest_iteration;
 
+                // compute the energy 
                 compute_second_order_correction_with_Hylleraas(i,j,result);
-                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
 
-            }
+                // save for possible later use
+                std::string name="psi1_it"+stringify(ii);
+                save_function(world,result.function,name);
+                name="incremental_psi1_order"+stringify(ii);
+                save_function(world,latest_iteration,name);
+
+                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+	    }
+
 
             result.solved=true;
 
@@ -1260,7 +1287,7 @@ namespace madness {
             // apply K on psi^1
             real_function_6d kpsi1=apply_exchange(psi1,hf.orbital(i),1);
             kpsi1= kpsi1 + apply_exchange(psi1,hf.orbital(j),2);
-            const double a1=inner(pair.phi0,kpsi1);
+            const double a1=inner(pair.r12_phi,kpsi1);
             if (world.rank()==0) printf("(<psi^1 | K) f | phi0> %12.8f\n",a1);
 
             // apply K on fphi^0
@@ -1430,7 +1457,7 @@ namespace madness {
 
             // make the tree
 //            vphi.get_impl()->convolute(op_mod);
-            vphi.fill_tree(op_mod);
+            vphi.fill_tree(op_mod).truncate();
             vphi.print_size("(V_nuc + J1 + J2) |ket>:  made V tree");
 
             // add exchange
@@ -1688,7 +1715,7 @@ int main(int argc, char** argv) {
     MP2 mp2(world,hf,f12);
 //    mp2.compute_first_order_correction(0,0);
 //    mp2.test3(0,0);
-    mp2.test3(0,0);
+    mp2.test(0,0);
 //    mp2.apply_K_commutator(0,0);
 //    mp2.test2(0,0);
 //    mp2.test_U();
