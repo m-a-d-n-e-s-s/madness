@@ -489,7 +489,7 @@ struct CalculationParameters {
         , nmo_beta(0)
         , lo(1e-10) 
         , xc_data("lda")
-        , protocol_data(madness::vector_factory(1e-4, 1e-8))
+        , protocol_data(madness::vector_factory(1e-4, 1e-6))
         , gopt(false)
         , gtol(1e-3)
         , gtest(false)
@@ -505,7 +505,7 @@ struct CalculationParameters {
         position_stream(f, "dft");
         std::string s;
         xc_data = "lda";
-        protocol_data = madness::vector_factory(1e-4, 1e-8);
+        protocol_data = madness::vector_factory(1e-4, 1e-6);
 
         while (f >> s) {
             if (s == "end") {
@@ -799,13 +799,14 @@ struct Calculation {
     void set_protocol(World & world, double thresh)
     {
         int k;
-        if(thresh >= 1e-2)
+        // Allow for imprecise conversion of threshold
+        if(thresh >= 0.9e-2)
             k = 4;
-        else if(thresh >= 1e-4)
+        else if(thresh >= 0.9e-4)
             k = 6;
-        else if(thresh >= 1e-6)
+        else if(thresh >= 0.9e-6)
             k = 8;
-        else if(thresh >= 1e-8)
+        else if(thresh >= 0.9e-8)
             k = 10;
         else
             k = 12;
