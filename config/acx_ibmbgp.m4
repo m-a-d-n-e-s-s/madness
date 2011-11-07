@@ -17,12 +17,18 @@ AC_DEFUN([ACX_IBMBGP],[
         echo "}"               >> __bgp__.cc
         mpicxx __bgp__.cc >& /dev/null
         if test $? = 0; then
-                echo "IBM Blue Gene/P detected"
                 HAVE_IBMBGP=yes
-                AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
         fi
         /bin/rm __bgp__.cc 
-       if test "x$HAVE_IBMBGP" = xyes; then
+        if test "x$HAVE_IBMBGP" = x; then
+                mpicxx --version -c | grep -q bgp
+                if test $? = 0; then
+                        HAVE_IBMBGP=yes
+                fi
+        fi
+        if test "x$HAVE_IBMBGP" = xyes; then
+                echo "IBM Blue Gene/P detected"
+                AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
                 host="powerpc-bgp-linux"
                 host_triplet="powerpc-bgp-linux"
 
