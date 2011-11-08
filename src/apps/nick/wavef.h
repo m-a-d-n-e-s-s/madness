@@ -54,8 +54,8 @@
 #include <iomanip>
 #include <time.h>
 #include "hyp.h"
-
 #include "interp.h"
+
 #define PRINT(str) if(world.rank()==0) std::cout << str
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl
 

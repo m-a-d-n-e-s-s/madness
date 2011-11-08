@@ -1,7 +1,1 @@
-nGrid 1600
-th 0.1
-phi 0.3
-wf 0
-kMomentum 0.02
-lMAX 1
-nPhoton 1
+kMomentum 0.7

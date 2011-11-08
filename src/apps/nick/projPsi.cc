@@ -53,6 +53,7 @@
 
 #include "wavef.h"
 #include "extra.h"
+//#include "loadParam.h"
 #include <mra/lbdeux.h>
 #include <string>
 #include <fstream>
@@ -243,17 +244,28 @@ void testIntegral(World& world, double L, const double Z, double k) {
     double arr[3] = {0, 0, k};
     const vector3D kVec(arr);
     const double constCutoff = L;
-    PRINTLINE("    PhiK phik = PhiK(world, Z, kVec, constCutoff);");
-    PhiK phik = PhiK(world, Z, kVec, constCutoff);
-    PRINTLINE("    phik.Init(world);");
-    phik.Init(world);
-    PRINTLINE("    complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));");
-    complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
+    PRINTLINE("");
+    PRINTLINE("k = " << k);
+    double t1 = wall_time();
+    //PRINTLINE("complex_factoryT(world).functor(functorT( new Expikr(kVec) ))");
+    complex_functionT expikr= complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
+    PRINTLINE("PhiK(world, Z, kVec, constCutoff);");
+    PhiK phiK = PhiK(world, Z, kVec, constCutoff);
+    double t3 = wall_time();
+    PRINTLINE("Time:                    " << t3 - t1);
+    PRINTLINE("phik.Init(world);");
+    phiK.Init(world);
+    double t4 = wall_time();
+    PRINTLINE("Time:                    " << t4 - t3);
+    PRINTLINE("complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));");
+    complex_functionT phiK_mad = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phiK) ));
+    double t5 = wall_time();
+    PRINTLINE("Time:                    " << t5 - t4);
     complexd output;
-    for( int i=1; i<=5; i++ ) {
+    for( int i=1; i<=1; i++ ) {
         double a = 0.1*i*i*i*i;
-        complex_functionT guass = complex_factoryT(world).functor(functorT( new Gaussian(a) ));
-        output = inner(phiK, guass);
+        complex_functionT gauss = complex_factoryT(world).functor(functorT( new Gaussian(a) ));
+        output = inner(phiK_mad, gauss);
         PRINT(std::setprecision(1) << std::fixed << "<k=" << k << "|exp(-" << a << "r^2)> = ");
         PRINTLINE( std::setprecision(8) << output);
     }
@@ -483,23 +495,27 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 /// 0.5 v^2 = n omega - Z^2/2
                 ///      v  = sqrt(2 n omega - Z^2)
                 /// dMAX    = v tMAX
+                ///
+                ///FUTURE: Include logic for Tunneling vs Multiphoton regime
                 PRINTLINE( "omega = " << omega );
                 while( 2*(nPhoton*omega - Z*Z) < 0.0 ) nPhoton++; //just in case nPhoton is too small
                 PRINTLINE("nPhoton = " << nPhoton);
                 PRINTLINE("The following shoud be positive: 2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
                 double dMAX = std::sqrt( 2*(nPhoton*omega - Z*Z)) * tMAX;
+                if(dMAX >= L) {
+                    cutoff = L;
+                    PRINTLINE( "WARNING: cutoff = L = " << cutoff );
+                } else {
                 PRINTLINE("dMAX = " << dMAX );
-                if ( cutoff < dMAX ) cutoff = 0.0;
-                while( cutoff < dMAX ) {
-                    cutoff += L/128;
-                }
+                cutoff = 0.0;
+                while( cutoff < dMAX ) cutoff += L/64;
                 PRINTLINE( "cutoff = " << cutoff );
+                }
             }
         }
     }
     f.close();
 }
-
 int main(int argc, char**argv) {
     // INITIALIZE the parallel programming environment
     initialize(argc, argv);
