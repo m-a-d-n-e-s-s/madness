@@ -666,113 +666,27 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 
 //}
 template <typename T>
-void GPUtransfer_buffer(T* CPU_buf,T* GPU_buf, unsigned int offset,void *GPU_stream){
-	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-//	cudaHostRegister(CPU_buf,offset,cudaHostRegisterPortable);
-	//cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
-	cudaMemcpyAsync((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice,*stream);
-//	cudaHostUnregister(CPU_buf);
-}
-template void GPUtransfer_buffer(double* CPU_buf,double *GPU_buf, unsigned int offset,void *GPU_stream);
-template void GPUtransfer_buffer(std::complex<double>* CPU_buf,std::complex<double>* GPU_buf, unsigned int offset,void *GPU_stream);
-template void GPUtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset,void *GPU_stream);
-template void GPUtransfer_buffer(std::complex<float>* CPU_buf,std::complex<float>* GPU_buf, unsigned int offset,void *GPU_stream);
-void GPUtransfer_buffer1(const double* CPU_buf,double* GPU_buf, unsigned int offset,void *GPU_stream){
-        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        cudaMemcpyAsync((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(double),cudaMemcpyHostToDevice,*stream);
-}
-
-template <typename T>
-T* GPUallocate_buffer(T* CPU_buf,unsigned int offset){
+T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
 	T *GPU_buf;
-        cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
-        return GPU_buf;
+	cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
+        if (copy)
+	  cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+	return GPU_buf;
 }
-template double* GPUallocate_buffer(double* CPU_buf,unsigned int offset);
-template std::complex<double>* GPUallocate_buffer(std::complex<double>* CPU_buf,unsigned int offset);
-template float* GPUallocate_buffer(float* CPU_buf, unsigned int offset);
-template std::complex<float>* GPUallocate_buffer(std::complex<float>* CPU_buf,unsigned int offset);
-
-template <typename T>
-T* CPUallocate_buffer(unsigned int offset){
-        T *CPU_buf;
-        cudaMallocHost((void **)&CPU_buf,offset*sizeof(T));
-        return CPU_buf;
-}
-template double* CPUallocate_buffer(unsigned int offset);
-template std::complex<double>* CPUallocate_buffer(unsigned int offset);
-template float*CPUallocate_buffer( unsigned int offset);
-template std::complex<float>* CPUallocate_buffer( unsigned int offset);
-
+template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset, bool copy);
+template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset, bool copy);
+template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
+template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
 
 
 template <typename T>
-void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset,void *GPU_stream){
-	
-	//cudaHostRegister(CPU_buf,offset,cudaHostRegisterPortable);
-	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-	cudaMemcpyAsync((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost,*stream);
-	//cudaHostUnregister(CPU_buf);
+void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset){
+	cudaMemcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost);
 }
-template  void  CPUtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int offset,void *GPU_stream);
-template  void  CPUtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset,void *GPU_stream);
-template  void  CPUtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset,void *GPU_stream);
-template  void  CPUtransfer_buffer(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset,void *GPU_stream);
-
-template <typename T>
-void  CPUtransfer_buffer1(T* CPU_buf, T *GPU_buf,unsigned int offset){
-
-        //cudaHostRegister(CPU_buf,offset,cudaHostRegisterPortable);
-        cudaMemcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost);
-        //cudaHostUnregister(CPU_buf);
-}
-template  void  CPUtransfer_buffer1(double* CPU_buf, double *GPU_buf,unsigned int offset);
-template  void  CPUtransfer_buffer1(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
-template  void  CPUtransfer_buffer1(float* CPU_buf, float *GPU_buf,unsigned int offset);
-template  void  CPUtransfer_buffer1(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset);
-
-template <typename T>
-void  register_buf(T* CPU_buf,unsigned int offset){
-
-        cudaError_t err=cudaHostRegister((void*)CPU_buf,offset,cudaHostRegisterPortable);
-	if (err != cudaSuccess)
-		printf("FAILED\n");
-
-	//else
-		//printf("SUCCESS");
-}
-template  void  register_buf(double* CPU_buf,unsigned int offset);
-template  void  register_buf(std::complex<double>* CPU_buf,unsigned int offset);
-template  void  register_buf(float* CPU_buf,unsigned int offset);
-template  void  register_buf(std::complex<float>* CPU_buf,unsigned int offset);
-void  register_buf1(const double * CPU_buf,unsigned int offset){
-
-        cudaHostRegister((void*)CPU_buf,offset,cudaHostRegisterMapped);
-}
-
-template <typename T>
-void  unregister_buf(T* CPU_buf){
-       
-        cudaHostUnregister((void*)CPU_buf);
-}
-template  void  unregister_buf(double* CPU_buf);
-template  void  unregister_buf(std::complex<double>* CPU_buf);
-template  void  unregister_buf(float* CPU_buf);
-template  void  unregister_buf(std::complex<float>* CPU_buf);
-void  unregister_buf1(const double* CPU_buf){
-        cudaHostUnregister((void*)CPU_buf);
-}
-
-
- int tensor_alloc(void *ptr,size_t sz)
-{
-	cudaError_t err= cudaHostAlloc((void **)&ptr,sz,cudaHostAllocDefault);
-//	err=cudaHostUnregister((void*)ptr);
-	if (err == cudaSuccess)
-		return 0;
-	else
-		return 1;
-}
+template  void  CPUtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset);
 
 
 template <typename W>
@@ -783,15 +697,6 @@ template   void GPUdelete_buffer(double* buf);
 template   void GPUdelete_buffer(std::complex<double>* buf);
 template   void GPUdelete_buffer(float* buf);
 template   void GPUdelete_buffer(std::complex<float>* buf);
-template <typename W>
-       void CPUdelete_buffer(W* buf){
-        cudaFreeHost(buf);
-}
-template   void CPUdelete_buffer(double* buf);
-template   void CPUdelete_buffer(std::complex<double>* buf);
-template   void CPUdelete_buffer(float* buf);
-template   void CPUdelete_buffer(std::complex<float>* buf);
-
 
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqq(long dimi, long dimj, long dimk,
@@ -836,10 +741,10 @@ template <typename aT, typename bT, typename cT>
 //do{   
 //	cublasSetStream(handle, *stream);
         int b;
-       // if (i % 2 == 0)
+        //if (i % 2 == 0)
 	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
-       // else
-//	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,C,M,&zero,A,N);
+        //else
+	//b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,C,M,&zero,A,N);
   //     cudaStreamSynchronize(*stream);
 //}while(b==CUBLAS_STATUS_EXECUTION_FAILED);
 //	 b=cublasGetError();
@@ -866,7 +771,7 @@ template <typename aT, typename bT, typename cT>
 
 
         
-	if (tsize==1 && i<ndim-2){
+	if (tsize==1 && i < ndim - 2){
 	//	cublasSetStream(handle, *stream);
 		//printf("INSIDE SWAP");
 		b=cublasDswap (*handle,M*N, A, 1,C ,1);
