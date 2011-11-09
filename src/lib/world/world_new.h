@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: world.h 2605 2011-10-19 00:21:42Z vlad.slavici $
 */
 
 
@@ -363,12 +363,11 @@ typedef UINT64_T uint64_t;
 //#include <world/worldtime.h>
 
 #define HAVE_GPU 0
-#define BACKTO_CPU 1
+#define BACKTO_CPU 0
 #define SIM_GPU 0
-#define JUST_AGG 1
+#define JUST_AGG 0
 #define THREE_SPLIT 1
 #define NUM_STREAMS 1
-#define NUMPAR_MEMCPYS 0
 #define GPU_MINTASKS 6 
 namespace madness {
 

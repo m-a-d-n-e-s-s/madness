@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: tensor.h 2576 2011-10-11 22:13:22Z vlad.slavici $
 */
 
 #ifndef MADNESS_TENSOR_TENSOR_H__INCLUDED
@@ -311,8 +311,7 @@ namespace madness {
                     _p = new T[size];
                     _shptr = std::shared_ptr<T>(_p);
 #else
-                    if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size  )) throw 1;
-                    //if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, (sizeof(T)*_size) % 4096 != 0 ? (((int)((1.0*sizeof(T)*_size)/4096)) + 1)*4096 : sizeof(T)*_size)  ) throw 1;
+                    if (posix_memalign((void **) &_p, TENSOR_ALIGNMENT, sizeof(T)*_size)) throw 1;
                     _shptr.reset(_p, &::madness::detail::checked_free<T>);
 #endif
                 }

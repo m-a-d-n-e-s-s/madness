@@ -518,7 +518,739 @@ namespace madness {
             return r;
         }
 
-    };
+        typedef Key<NDIM> keyT;
+
+
+        //op->opt_inlined_apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+        template <typename T>
+        std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, const keyT&, const double&, const double&> 
+        apply_compute(std::tr1::tuple<const keyT&, const keyT&, const keyT&, 
+                                      const double&, const double&, const double&, 
+                                      const Tensor<TENSOR_RESULT_TYPE(T,Q)>&, 
+                                      WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& >& t1) const{
+            
+          typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+          typedef resultT R;
+          typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+
+          const keyT& argskey = std::tr1::get<0>(t1);
+          const keyT& argsd = std::tr1::get<1>(t1);
+          const keyT& argsdest = std::tr1::get<2>(t1);
+          const double& argstol = std::tr1::get<3>(t1);
+          const double& argsfac = std::tr1::get<4>(t1);
+          const double& argscnorm = std::tr1::get<5>(t1);
+          const Tensor<R>& coeff = std::tr1::get<6>(t1);
+          dcT& coeffs = std::tr1::get<7>(t1);
+
+          const Key<NDIM>& source = argskey;
+          const Key<NDIM>& shift = argsd;
+          double tol = argstol/argsfac/argscnorm;
+
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            //print("inlined_apply \n");
+            const Tensor<T>* input = &coeff;
+            Tensor<T> dummy;
+
+            if (coeff.dim(0) == k) {
+                // This processes leaf nodes with only scaling
+                // coefficients ... FuncImpl::apply by default does not
+                // apply the operator to these since for smoothing operators
+                // it is not necessary.  It is necessary for operators such
+                // as differentiation and time evolution and will also occur
+                // if the application of the operator widens the tree.
+                dummy = Tensor<T>(v2k);
+                dummy(s0) = coeff;
+                input = &dummy;
+            }
+            else {
+                MADNESS_ASSERT(coeff.dim(0)==2*k);
+            }
+
+            tol = tol/rank; // Error is per separated term
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+
+            //print("sepop",source,shift,op->norm,tol);
+
+            Tensor<resultT> r(v2k);
+            Tensor<resultT> r0(vk);
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
+
+
+            const Tensor<T> f0 = copy(coeff(s0));
+            
+            Level n = source.level();
+            const Tensor<T>& f = *input;
+            Transformation trans[NDIM];
+	    const long twok = 2*k;
+	    long break_even;
+	    
+            if (NDIM==1) break_even = long(0.5*twok);
+	    else if (NDIM==2) break_even = long(0.6*twok);
+	    else if (NDIM==3) break_even=long(0.65*twok);
+	    else break_even=long(0.7*twok);
+	    
+            long break_even2;
+            if (NDIM==1) break_even2 = long(0.5*k);
+	    else if (NDIM==2) break_even2 = long(0.6*k);
+	    else if (NDIM==3) break_even2=long(0.65*k);
+	    else break_even2=long(0.7*k);
+
+            R* restrict w1=work1.ptr();
+            R* restrict w2=work2.ptr();
+	    Q* restrict w3=work5.ptr();
+
+            for (int mu=0; mu<rank; ++mu) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                //print("muop",source, shift, mu, muop.norm);
+                if (muop.norm > tol) {
+                    Q fac = ops[mu].getfac();
+                    //muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    //            work1, work2, work5);
+
+                    //glue
+                    const ConvolutionData1D<Q>* const* ops/*[NDIM]*/ = muop.ops;
+                    //const Tensor<T>& f0
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r;
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0;
+                    double tol1 = tol/std::abs(fac);
+                    const Q mufac = fac;
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2
+                    //Tensor<Q>& work5
+                     
+		    double Rnorm = 1.0;
+		    for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+		    if (Rnorm == 0.0) continue;
+
+		    tol1 = tol1/(Rnorm*NDIM);  // Errors are relative within here
+
+		    // Determine rank of SVD to use or if to use the full matrix
+		    for (std::size_t d=0; d<NDIM; ++d) {
+			long r1;
+			for (r1=0; r1<twok; ++r1) {
+			    if (ops[d]->Rs[r1] < tol1) break;
+			}
+			if (r1 >= break_even) {
+			    trans[d].r = twok;
+			    trans[d].U = ops[d]->R.ptr();
+			    trans[d].VT = 0;
+			}
+			else {
+			    r1 += (r1&1L);
+			    trans[d].r = std::max(2L,r1);
+			    trans[d].U = ops[d]->RU.ptr();
+			    trans[d].VT = ops[d]->RVT.ptr();
+			}
+		    }
+		    ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+
+		    long dimk = twok;
+		   
+                    long size = 1;
+		    for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+		    long dimi = size/dimk;
+
+		    const Q* U;
+
+		    U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+                    ////GPU
+		    mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+		    size = trans[0].r * size / dimk;
+		    dimi = size/dimk;
+		    for (std::size_t d=1; d<NDIM; ++d) {
+			U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                        ////GPU
+			mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+			size = trans[d].r * size / dimk;
+			dimi = size/dimk;
+                        ////GPU
+			std::swap(w1,w2);
+		    }
+
+		    // If all blocks are full rank we can skip the transposes
+		    bool doit = false;
+		    for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+		    if (doit) {
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    if (trans[d].VT) {
+				dimi = size/trans[d].r;
+                                ////GPU
+				mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				size = dimk*size/trans[d].r;
+			    }
+			    else {
+                                ////GPU
+				fast_transpose(dimk, dimi, w1, w2);
+			    }
+                            ////GPU
+			    std::swap(w1,w2);
+			}
+		    }
+		    // Assuming here that result is contiguous and aligned
+                    ////GPU
+		    aligned_axpy(size, result.ptr(), w1, mufac);
+		    //    long one = 1;
+		    //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+
+		    if (n > 0) {
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    long r1;
+			    for (r1=0; r1<k; ++r1) {
+				if (ops[d]->Ts[r1] < tol1) break;
+			    }
+			    if (r1 >= break_even2) {
+				trans[d].r = k;
+				trans[d].U = ops[d]->T.ptr();
+				trans[d].VT = 0;
+			    }
+			    else {
+				r1 += (r1&1L);
+				trans[d].r = std::max(2L,r1);
+				trans[d].U = ops[d]->TU.ptr();
+				trans[d].VT = ops[d]->TVT.ptr();
+			    }
+			}
+			////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+		        dimk = k;
+                        const Tensor<T>& f1 = f0;
+                        const Q mufac1 = -mufac;
+                        Tensor<R>& result1 = result0;
+
+			size = 1;
+			for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+			dimi = size/dimk;
+
+			const Q* U1;
+
+			U1 = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+                        ////GPU
+			mTxmq(dimi, trans[0].r, dimk, w1, f1.ptr(), U1);
+			size = trans[0].r * size / dimk;
+			dimi = size/dimk;
+			for (std::size_t d=1; d<NDIM; ++d) {
+	                    U1 = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                            ////GPU
+			    mTxmq(dimi, trans[d].r, dimk, w2, w1, U1);
+			    size = trans[d].r * size / dimk;
+			    dimi = size/dimk;
+                            ////GPU
+		            std::swap(w1,w2);
+			}
+
+			// If all blocks are full rank we can skip the transposes
+			bool doit = false;
+			for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+			if (doit) {
+			    for (std::size_t d=0; d<NDIM; ++d) {
+				if (trans[d].VT) {
+			            dimi = size/trans[d].r;
+                                    ////GPU
+				    mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				    size = dimk*size/trans[d].r;
+				}
+				else {
+                                    ////GPU
+			            fast_transpose(dimk, dimi, w1, w2);
+				}
+                                ////GPU
+				std::swap(w1,w2);
+		            }
+			 }
+			 // Assuming here that result is contiguous and aligned
+                         ////GPU
+			 aligned_axpy(size, result1.ptr(), w1, mufac1);
+			 //    long one = 1;
+			 //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+                    }
+                }
+            }
+            Tensor<R> * r1 = new Tensor<R>(r); 
+            Tensor<R> * r01 = new Tensor<R>(r0); 
+            std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, const keyT&, const double&, const double&> t2(r1, r01, coeffs, argsdest, argstol, argsfac);
+            return t2;  
+        }
+
+        template <typename T>
+        Void apply_postprocess(std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *, 
+                               WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, const keyT&, const double&, const double&>& t1) const{
+            typedef Tensor<TENSOR_RESULT_TYPE(T,Q)> resultT;
+            typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+            resultT* r = std::tr1::get<0>(t1);
+            resultT* r0 = std::tr1::get<1>(t1);
+            dcT& coeffs = std::tr1::get<2>(t1);
+            const keyT& argsdest = std::tr1::get<3>(t1);
+            const double& argstol = std::tr1::get<4>(t1);
+            const double& argsfac = std::tr1::get<5>(t1);
+
+            (*r)(s0).gaxpy(1.0,*r0,1.0);
+            if (r->normf()> 0.3*argstol/argsfac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(argsdest, &FunctionNode<T,NDIM>::accumulate, *r, coeffs, argsdest, TaskAttributes::hipri());
+            }
+            delete r0;
+            delete r;
+            return None;
+        } 
+
+        template <typename T>
+        Tensor<TENSOR_RESULT_TYPE(T,Q)> opt_inlined_apply(const Key<NDIM>& source,
+                                              const Key<NDIM>& shift,
+                                              const Tensor<T>& coeff,
+                                              double tol) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            print("inlined_apply \n");
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+            typedef resultT R;
+            const Tensor<T>* input = &coeff;
+            Tensor<T> dummy;
+
+            if (coeff.dim(0) == k) {
+                // This processes leaf nodes with only scaling
+                // coefficients ... FuncImpl::apply by default does not
+                // apply the operator to these since for smoothing operators
+                // it is not necessary.  It is necessary for operators such
+                // as differentiation and time evolution and will also occur
+                // if the application of the operator widens the tree.
+                dummy = Tensor<T>(v2k);
+                dummy(s0) = coeff;
+                input = &dummy;
+            }
+            else {
+                MADNESS_ASSERT(coeff.dim(0)==2*k);
+            }
+
+            tol = tol/rank; // Error is per separated term
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+
+            //print("sepop",source,shift,op->norm,tol);
+
+            Tensor<resultT> r(v2k), r0(vk);
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
+
+
+            const Tensor<T> f0 = copy(coeff(s0));
+            
+            Level n = source.level();
+            const Tensor<T>& f = *input;
+            Transformation trans[NDIM];
+	    const long twok = 2*k;
+	    long break_even;
+	    
+            if (NDIM==1) break_even = long(0.5*twok);
+	    else if (NDIM==2) break_even = long(0.6*twok);
+	    else if (NDIM==3) break_even=long(0.65*twok);
+	    else break_even=long(0.7*twok);
+	    
+            long break_even2;
+            if (NDIM==1) break_even2 = long(0.5*k);
+	    else if (NDIM==2) break_even2 = long(0.6*k);
+	    else if (NDIM==3) break_even2=long(0.65*k);
+	    else break_even2=long(0.7*k);
+
+            R* restrict w1=work1.ptr();
+            R* restrict w2=work2.ptr();
+	    Q* restrict w3=work5.ptr();
+
+            for (int mu=0; mu<rank; ++mu) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                //print("muop",source, shift, mu, muop.norm);
+                if (muop.norm > tol) {
+                    Q fac = ops[mu].getfac();
+                    //muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    //            work1, work2, work5);
+
+                    //glue
+                    const ConvolutionData1D<Q>* const* ops/*[NDIM]*/ = muop.ops;
+                    //const Tensor<T>& f0
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r;
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0;
+                    double tol1 = tol/std::abs(fac);
+                    const Q mufac = fac;
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2
+                    //Tensor<Q>& work5
+                     
+		    double Rnorm = 1.0;
+		    for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+		    if (Rnorm == 0.0) continue;
+
+		    tol1 = tol1/(Rnorm*NDIM);  // Errors are relative within here
+
+		    // Determine rank of SVD to use or if to use the full matrix
+		    for (std::size_t d=0; d<NDIM; ++d) {
+			long r1;
+			for (r1=0; r1<twok; ++r1) {
+			    if (ops[d]->Rs[r1] < tol1) break;
+			}
+			if (r1 >= break_even) {
+			    trans[d].r = twok;
+			    trans[d].U = ops[d]->R.ptr();
+			    trans[d].VT = 0;
+			}
+			else {
+			    r1 += (r1&1L);
+			    trans[d].r = std::max(2L,r1);
+			    trans[d].U = ops[d]->RU.ptr();
+			    trans[d].VT = ops[d]->RVT.ptr();
+			}
+		    }
+		    ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+
+		    long dimk = twok;
+		   
+                    long size = 1;
+		    for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+		    long dimi = size/dimk;
+
+		    const Q* U;
+
+		    U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+                    ////GPU
+		    mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+		    size = trans[0].r * size / dimk;
+		    dimi = size/dimk;
+		    for (std::size_t d=1; d<NDIM; ++d) {
+			U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                        ////GPU
+			mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+			size = trans[d].r * size / dimk;
+			dimi = size/dimk;
+                        ////GPU
+			std::swap(w1,w2);
+		    }
+
+		    // If all blocks are full rank we can skip the transposes
+		    bool doit = false;
+		    for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+		    if (doit) {
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    if (trans[d].VT) {
+				dimi = size/trans[d].r;
+                                ////GPU
+				mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				size = dimk*size/trans[d].r;
+			    }
+			    else {
+                                ////GPU
+				fast_transpose(dimk, dimi, w1, w2);
+			    }
+                            ////GPU
+			    std::swap(w1,w2);
+			}
+		    }
+		    // Assuming here that result is contiguous and aligned
+                    ////GPU
+		    aligned_axpy(size, result.ptr(), w1, mufac);
+		    //    long one = 1;
+		    //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+
+		    if (n > 0) {
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    long r1;
+			    for (r1=0; r1<k; ++r1) {
+				if (ops[d]->Ts[r1] < tol1) break;
+			    }
+			    if (r1 >= break_even2) {
+				trans[d].r = k;
+				trans[d].U = ops[d]->T.ptr();
+				trans[d].VT = 0;
+			    }
+			    else {
+				r1 += (r1&1L);
+				trans[d].r = std::max(2L,r1);
+				trans[d].U = ops[d]->TU.ptr();
+				trans[d].VT = ops[d]->TVT.ptr();
+			    }
+			}
+			////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+		        dimk = k;
+                        const Tensor<T>& f1 = f0;
+                        const Q mufac1 = -mufac;
+                        Tensor<R>& result1 = result0;
+
+			size = 1;
+			for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+			dimi = size/dimk;
+
+			const Q* U1;
+
+			U1 = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+                        ////GPU
+			mTxmq(dimi, trans[0].r, dimk, w1, f1.ptr(), U1);
+			size = trans[0].r * size / dimk;
+			dimi = size/dimk;
+			for (std::size_t d=1; d<NDIM; ++d) {
+	                    U1 = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+                            ////GPU
+			    mTxmq(dimi, trans[d].r, dimk, w2, w1, U1);
+			    size = trans[d].r * size / dimk;
+			    dimi = size/dimk;
+                            ////GPU
+		            std::swap(w1,w2);
+			}
+
+			// If all blocks are full rank we can skip the transposes
+			bool doit = false;
+			for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+			if (doit) {
+			    for (std::size_t d=0; d<NDIM; ++d) {
+				if (trans[d].VT) {
+			            dimi = size/trans[d].r;
+                                    ////GPU
+				    mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				    size = dimk*size/trans[d].r;
+				}
+				else {
+                                    ////GPU
+			            fast_transpose(dimk, dimi, w1, w2);
+				}
+                                ////GPU
+				std::swap(w1,w2);
+		            }
+			 }
+			 // Assuming here that result is contiguous and aligned
+                         ////GPU
+			 aligned_axpy(size, result1.ptr(), w1, mufac1);
+			 //    long one = 1;
+			 //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+                    }
+                }
+            }
+            r(s0).gaxpy(1.0,r0,1.0);
+            return r;
+        }
+
+        template <typename T>
+        Tensor<TENSOR_RESULT_TYPE(T,Q)> inlined_apply(const Key<NDIM>& source,
+                                              const Key<NDIM>& shift,
+                                              const Tensor<T>& coeff,
+                                              double tol) const {
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            print("inlined_apply \n");
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+            typedef resultT R;
+            const Tensor<T>* input = &coeff;
+            Tensor<T> dummy;
+
+            if (coeff.dim(0) == k) {
+                // This processes leaf nodes with only scaling
+                // coefficients ... FuncImpl::apply by default does not
+                // apply the operator to these since for smoothing operators
+                // it is not necessary.  It is necessary for operators such
+                // as differentiation and time evolution and will also occur
+                // if the application of the operator widens the tree.
+                dummy = Tensor<T>(v2k);
+                dummy(s0) = coeff;
+                input = &dummy;
+            }
+            else {
+                MADNESS_ASSERT(coeff.dim(0)==2*k);
+            }
+
+            tol = tol/rank; // Error is per separated term
+
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
+
+            //print("sepop",source,shift,op->norm,tol);
+
+            Tensor<resultT> r(v2k), r0(vk);
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
+
+
+            const Tensor<T> f0 = copy(coeff(s0));
+            for (int mu=0; mu<rank; ++mu) {
+                const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                //print("muop",source, shift, mu, muop.norm);
+                if (muop.norm > tol) {
+                    Q fac = ops[mu].getfac();
+                    //muopxv_fast(source.level(), muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    //            work1, work2, work5);
+
+                    //glue
+                    Level n = source.level();
+                    const ConvolutionData1D<Q>* const* ops/*[NDIM]*/ = muop.ops;
+                    const Tensor<T>& f = *input;
+                    //const Tensor<T>& f0
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r;
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0;
+                    double tol1 = tol/std::abs(fac);
+                    const Q mufac = fac;
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1
+                    //Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2
+                    //Tensor<Q>& work5
+
+                    Transformation trans[NDIM];
+                     
+		    double Rnorm = 1.0;
+		    for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+		    if (Rnorm == 0.0) continue;
+
+		    tol1 = tol1/(Rnorm*NDIM);  // Errors are relative within here
+
+		    // Determine rank of SVD to use or if to use the full matrix
+		    const long twok = 2*k;
+		    long break_even;
+		    if (NDIM==1) break_even = long(0.5*twok);
+		    else if (NDIM==2) break_even = long(0.6*twok);
+		    else if (NDIM==3) break_even=long(0.65*twok);
+		    else break_even=long(0.7*twok);
+		    for (std::size_t d=0; d<NDIM; ++d) {
+			long r1;
+			for (r1=0; r1<twok; ++r1) {
+			    if (ops[d]->Rs[r1] < tol1) break;
+			}
+			if (r1 >= break_even) {
+			    trans[d].r = twok;
+			    trans[d].U = ops[d]->R.ptr();
+			    trans[d].VT = 0;
+			}
+			else {
+			    r1 += (r1&1L);
+			    trans[d].r = std::max(2L,r1);
+			    trans[d].U = ops[d]->RU.ptr();
+			    trans[d].VT = ops[d]->RVT.ptr();
+			}
+		    }
+		    ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+
+		    long dimk = twok;
+		    Tensor<Q>& work3 = work5;
+		    
+                    long size = 1;
+		    for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+		    long dimi = size/dimk;
+
+		    R* restrict w1=work1.ptr();
+		    R* restrict w2=work2.ptr();
+		    Q* restrict w3=work3.ptr();
+
+		    const Q* U;
+
+		    U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+		    mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+		    size = trans[0].r * size / dimk;
+		    dimi = size/dimk;
+		    for (std::size_t d=1; d<NDIM; ++d) {
+			U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+			mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+			size = trans[d].r * size / dimk;
+			dimi = size/dimk;
+			std::swap(w1,w2);
+		    }
+
+		    // If all blocks are full rank we can skip the transposes
+		    bool doit = false;
+		    for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+		    if (doit) {
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    if (trans[d].VT) {
+				dimi = size/trans[d].r;
+				mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				size = dimk*size/trans[d].r;
+			    }
+			    else {
+				fast_transpose(dimk, dimi, w1, w2);
+			    }
+			    std::swap(w1,w2);
+			}
+		    }
+		    // Assuming here that result is contiguous and aligned
+		    aligned_axpy(size, result.ptr(), w1, mufac);
+		    //    long one = 1;
+		    //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+
+		    if (n > 0) {
+			if (NDIM==1) break_even = long(0.5*k);
+			else if (NDIM==2) break_even = long(0.6*k);
+			else if (NDIM==3) break_even=long(0.65*k);
+			else break_even=long(0.7*k);
+			for (std::size_t d=0; d<NDIM; ++d) {
+			    long r1;
+			    for (r1=0; r1<k; ++r1) {
+				if (ops[d]->Ts[r1] < tol1) break;
+			    }
+			    if (r1 >= break_even) {
+				trans[d].r = k;
+				trans[d].U = ops[d]->T.ptr();
+				trans[d].VT = 0;
+			    }
+			    else {
+				r1 += (r1&1L);
+				trans[d].r = std::max(2L,r1);
+				trans[d].U = ops[d]->TU.ptr();
+				trans[d].VT = ops[d]->TVT.ptr();
+			    }
+			}
+			////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+		        dimk = k;
+                        const Tensor<T>& f1 = f0;
+			Tensor<Q>& work31 = work5;
+                        const Q mufac1 = -mufac;
+                        Tensor<R>& result1 = result0;
+
+			size = 1;
+			for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+			dimi = size/dimk;
+
+			w1=work1.ptr();
+			w2=work2.ptr();
+			w3=work31.ptr();
+
+			const Q* U1;
+
+			U1 = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
+			mTxmq(dimi, trans[0].r, dimk, w1, f1.ptr(), U1);
+			size = trans[0].r * size / dimk;
+			dimi = size/dimk;
+			for (std::size_t d=1; d<NDIM; ++d) {
+	                    U1 = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
+			    mTxmq(dimi, trans[d].r, dimk, w2, w1, U1);
+			    size = trans[d].r * size / dimk;
+			    dimi = size/dimk;
+		            std::swap(w1,w2);
+			}
+
+			// If all blocks are full rank we can skip the transposes
+			bool doit = false;
+			for (std::size_t d=0; d<NDIM; ++d) doit = doit || trans[d].VT;
+
+			if (doit) {
+			    for (std::size_t d=0; d<NDIM; ++d) {
+				if (trans[d].VT) {
+			            dimi = size/trans[d].r;
+				    mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+				    size = dimk*size/trans[d].r;
+				}
+				else {
+			            fast_transpose(dimk, dimi, w1, w2);
+				}
+				std::swap(w1,w2);
+		            }
+			 }
+			 // Assuming here that result is contiguous and aligned
+			 aligned_axpy(size, result1.ptr(), w1, mufac1);
+			 //    long one = 1;
+			 //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
+                    }
+                }
+            }
+            r(s0).gaxpy(1.0,r0,1.0);
+            return r;
+        }
+
+    }; 
 
     /// Factory function generating separated kernel for convolution with 1/r in 3D.
     static

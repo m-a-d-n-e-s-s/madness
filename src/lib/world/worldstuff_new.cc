@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: worldstuff.cc 2605 2011-10-19 00:21:42Z vlad.slavici $
 */
 
 #include <world/world.h>
@@ -38,7 +38,6 @@
 #include <world/GPU_streams.h>
 #include <cstdlib>
 #include <sstream>
-#include <sys/mman.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,10 +160,8 @@ nanosleep(&t, NULL);
         //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
-        if (HAVE_GPU || BACKTO_CPU || SIM_GPU || JUST_AGG){
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
-        }
-        printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nNUMPAR_MEMCPYS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,NUMPAR_MEMCPYS,GPU_MINTASKS);
+        printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,GPU_MINTASKS);
     }
 
 
@@ -266,41 +263,6 @@ nanosleep(&t, NULL);
     }
 
     void initialize(int argc, char** argv) {
-        //allocate for the purpose of obtaining a big arena that we can page-lock
-        /*
-        void * a = malloc(1024*1024*1024);
-        if (!a){
-           perror("Could not allocate 1st big mem arena");
-           exit(-1);
-        }
-        void * b = malloc(1024*1024*1024);
-        if (!b){
-           perror("Could not allocate 2nd big mem arena");
-           exit(-1);
-        }
-        int mlock_rval = mlock(a, 128*1024*1024);
-        if (mlock_rval){
-           perror("Could not page-lock 1st big mem arena");
-           exit(-1);
-        } 
-        mlock_rval = mlock(b, 128*1024*1024);
-        if (mlock_rval){
-           perror("Could not page-lock 2nd big mem arena");
-           exit(-1);
-        } 
-        free(a);
-        free(b);
-        */
-
-        /* 
-        int mlockall_rval = mlockall(MCL_CURRENT | MCL_FUTURE);
-        if (mlockall_rval){
-           perror("Could not mlockall()");
-           exit(-1);
-        }
-        */
-        
-
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
 #ifdef HAVE_PAPI

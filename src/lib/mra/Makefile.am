@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
-bin_PROGRAMS = testsuite compress_testsuite vlad  testperiodic testbsh testbc testproj systolic mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir
+bin_PROGRAMS = testsuite apply_testsuite compress_testsuite vlad  testperiodic testbsh testbc testproj systolic mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir
 lib_LIBRARIES = libMADmra.a
 
 data_DATA = autocorr coeffs gaussleg
@@ -24,6 +24,7 @@ libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       funcplot.h
 
 vlad_SOURCES = vlad.cc
+apply_testsuite_SOURCES = apply_testsuite.cc test_sepop.cc
 compress_testsuite_SOURCES = compress_testsuite.cc test_sepop.cc
 testsuite_SOURCES = testsuite.cc test_sepop.cc
 testperiodic_SOURCES = testperiodic.cc
