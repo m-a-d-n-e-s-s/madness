@@ -157,7 +157,7 @@ which merely blows instead of sucking.
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
-        static const int MAXCALLBACKS = 32;
+        static const int MAXCALLBACKS = 4;
         typedef std::stack<CallbackInterface*> callbackT;
         typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
         volatile callbackT callbacks;
