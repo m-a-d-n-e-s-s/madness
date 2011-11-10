@@ -287,8 +287,8 @@ namespace madness {
             } else {
                 rangeT left = range;
                 rangeT right(left,Split());
-                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
-                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
+                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op, TaskAttributes::hipri());
+                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op, TaskAttributes::hipri());
                 return add(&WorldTaskQueue::completion_status, leftsum, rightsum);
             }
         }
