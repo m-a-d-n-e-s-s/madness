@@ -41,6 +41,7 @@
 /// \ingroup futures
 
 #include <vector>
+#include <stack>
 #include <world/nodefaults.h>
 #include <world/worlddep.h>
 #include <world/array.h>
@@ -156,8 +157,8 @@ which merely blows instead of sucking.
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
-        static const int MAXCALLBACKS = 4;
-        typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
+        static const int MAXCALLBACKS = 32;
+        typedef std::stack<CallbackInterface*> callbackT;
         typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
         volatile callbackT callbacks;
         volatile assignmentT assignments;
@@ -198,10 +199,10 @@ which merely blows instead of sucking.
                 p->set(const_cast<T&>(t));
                 p.reset();
             }
-            while (cb.size()) {
-                CallbackInterface* p = cb.pop();
-                MADNESS_ASSERT(p);
-                p->notify();
+            while (! cb.empty()) {
+                MADNESS_ASSERT(cb.top());
+                cb.top()->notify();
+                cb.pop();
             }
         }
 
