@@ -533,9 +533,10 @@ namespace madness {
         std::vector<param2T> outArgs;        
 
         WorldTaskQueue * q;
+        World * w;
 
-        ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess, WorldTaskQueue * _q) : 
-           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess), q(_q) {
+        ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess, WorldTaskQueue * _q, World * _w) : 
+           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess), q(_q), w(_w) {
         }
         
         virtual void add(void * obj){
@@ -600,9 +601,10 @@ namespace madness {
         std::vector<arg1T> inArgs;
 
         WorldTaskQueue * q;
+        World * w;
 
-        ComputeDerivedJustAgg(memfunComputePostprocessT _memfunComputePostprocess, WorldTaskQueue * _q) : 
-           ComputeBase((long)&_memfunComputePostprocess), memfunComputePostprocess(_memfunComputePostprocess), q(_q) {
+        ComputeDerivedJustAgg(memfunComputePostprocessT _memfunComputePostprocess, WorldTaskQueue * _q, World * _w) : 
+           ComputeBase((long)&_memfunComputePostprocess), memfunComputePostprocess(_memfunComputePostprocess), q(_q), w(_w) {
         }
         
         virtual void add(void * obj){
@@ -641,11 +643,12 @@ namespace madness {
         std::vector<param2T> outArgs;        
 
         WorldTaskQueue * q;
+        World * w;
 
         ComputeDerivedBacktoCPU(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess,
-            memfunBacktoCPUT _memfunBacktoCPU, WorldTaskQueue * _q) : 
+            memfunBacktoCPUT _memfunBacktoCPU, WorldTaskQueue * _q, World * _w) : 
            ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), 
-           memfunPostprocess(_memfunPostprocess), memfunBacktoCPU(_memfunBacktoCPU), q(_q) {
+           memfunPostprocess(_memfunPostprocess), memfunBacktoCPU(_memfunBacktoCPU), q(_q), w(_w) {
         }
         
         virtual void add(void * obj){

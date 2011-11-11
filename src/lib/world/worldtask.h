@@ -759,7 +759,7 @@ namespace madness {
              //ret1T ret1 = (obj->*memfunCompute)(arg1);
              //outArgs.push_back(ret1);
         //}
-        objT odef; //this relies on objT having a default constructor
+        objT odef(w); //this relies on objT having a constructor with a World* argument
         this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
 
         for (unsigned int i = 0; i < outArgs.size(); i++){  

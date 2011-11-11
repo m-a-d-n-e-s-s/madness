@@ -554,7 +554,7 @@ namespace madness {
 
                       
             ComputeDerivedBacktoCPU<memfun2T, memfun3T, memfun4T, ret1T, valueT> * cd = 
-               new ComputeDerivedBacktoCPU<memfun2T, memfun3T, memfun4T, ret1T ,valueT>(memfun2, memfun3, memfun4, &(this->world.taskq));
+               new ComputeDerivedBacktoCPU<memfun2T, memfun3T, memfun4T, ret1T ,valueT>(memfun2, memfun3, memfun4, &(this->world.taskq), &(this->world));
 
             ComputeBase * cb = static_cast<ComputeBase *>(cd);
 
@@ -619,7 +619,7 @@ namespace madness {
 
                       
             ComputeDerived<memfun2T, memfun3T, ret1T, valueT> * cd = 
-               new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3, &(this->world.taskq));
+               new ComputeDerived<memfun2T, memfun3T, ret1T ,valueT>(memfun2, memfun3, &(this->world.taskq), &(this->world));
 
             ComputeBase * cb = static_cast<ComputeBase *>(cd);
 
@@ -683,7 +683,7 @@ namespace madness {
 
                       
             ComputeDerivedJustAgg<memfun2T, ret1T, valueT> * cd = 
-               new ComputeDerivedJustAgg<memfun2T, ret1T ,valueT>(memfun2, &(this->world.taskq));
+               new ComputeDerivedJustAgg<memfun2T, ret1T ,valueT>(memfun2, &(this->world.taskq), &(this->world));
 
             ComputeBase * cb = static_cast<ComputeBase *>(cd);
 

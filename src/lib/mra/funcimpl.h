@@ -393,6 +393,11 @@ namespace madness {
                 _coeffs(), _norm_tree(1e300), _has_children(false) {
         }
 
+        // For aggregation of tasks
+        FunctionNode(World * w) :
+                _coeffs(), _norm_tree(1e300), _has_children(false) {
+        }
+
         /// Constructor from given coefficients with optional children
 
         /// Note that only a shallow copy of the coeff are taken so
@@ -3989,11 +3994,74 @@ ENDt_TIMER("memcpy3");
             }
         };
 
+	template <typename R, typename opT>
+	struct Registry {
+            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const double&, const double&> tuple2T;     
+
+            typedef std::vector<tuple2T>(opT::*memfun2T)(const std::vector< const std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&>& >, std::vector<opT*> );
+
+	    typedef Void(opT::*memfun3T)(tuple2T);
+	};
+
         template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
-            std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, const keyT&, const double&, const double&> t2 = op->apply_compute(t1);
-            op->apply_postprocess(t2);
+            typedef std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> tuple1T;
+            //std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            //std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, keyT&, const double&, const double&> t2 = op->apply_compute(t1);
+            //op->apply_postprocess(t2);
+            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, keyT&, double&, double&> tuple2T;     
+
+            typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuple1T >, std::vector<opT*> ) const;
+            //typedef std::vector<tuple2T> (opT::*memfun2T)(const std::vector< const std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&>& >&, const std::vector<opT*>& );
+            typedef Void(opT::*memfun3T)(tuple2T ) const;
+            
+            typedef int(opT::*fooptr)() const;
+            fooptr fptr = &opT::template foo<T,R>;
+            print(fptr); 
+            typedef int (opT::*fooptr1)(std::vector< tuple1T >) const;
+            fooptr1 fptr1 = &opT::template foof1<T,R>;
+            print(fptr1); 
+            typedef int (opT::*fooptr2)(std::vector< tuple1T >, int) const;
+            fooptr2 fptr2 = &opT::template foof2<T,R>;
+            print(fptr2); 
+
+            //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
+            //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
+            memfun2T memfun2 = &opT::template apply_allCompute<T,R,opT>;
+            print(memfun2);
+            memfun3T memfun3 = &opT::template apply_postprocess<T>;
+
+            ComputeDerived<memfun2T, memfun3T, tuple1T, opT> * cd =
+                new ComputeDerived<memfun2T, memfun3T, tuple1T ,opT>(memfun2, memfun3, &(this->world.taskq), &(this->world));
+
+            ComputeBase * cb = static_cast<ComputeBase *>(cd);
+
+            //const void *op1 = static_cast<const void*>(op);
+            //cb->add(const_cast<void *>(op1));
+            opT * op1 = const_cast<opT *>(op);
+            cb->add(op1);
+            cb->addArg(&t1);
+
+            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            this->world.gpu_hashlock.lock();
+            gpu_it = this->world.gpu_hash.find(1);
+            if (gpu_it != gpu_end){
+                const void * temp = static_cast<const void *>(cd->inObj.at(0));
+                (*gpu_it).second->add(const_cast<void *>(temp));
+                (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
+                delete cd;
+
+            }
+            else{
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(1, cb));
+            }
+
+            this->world.taskq.incNRegistered();
+            this->world.gpu_hashlock.unlock();
+
             //tensorT result = op->opt_inlined_apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
             ////tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
 
@@ -4059,7 +4127,7 @@ ENDt_TIMER("memcpy3");
         }
 
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
+        void apply(const/* */ opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
