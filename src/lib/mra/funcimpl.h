@@ -4004,10 +4004,20 @@ ENDt_TIMER("memcpy3");
 	};
 
         template <typename opT, typename R>
+        Void do_apply_kernel_three(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple1T;
+            tuple1T t1(const_cast<keyT&>(args.key), const_cast<keyT&>(args.d), const_cast<keyT&>(args.dest), const_cast<double&>(args.tol), const_cast<double&>(args.fac), const_cast<double&>(args.cnorm), const_cast<Tensor<R>&>(c), coeffs);
+            std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, keyT&, double&, double&> t2 = op->apply_compute(t1);
+            op->apply_postprocess(t2);
+
+            return None;
+        }
+
+        template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            typedef std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> tuple1T;
+            typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple1T;
             //std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
-            tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            tuple1T t1(const_cast<keyT&>(args.key), const_cast<keyT&>(args.d), const_cast<keyT&>(args.dest), const_cast<double&>(args.tol), const_cast<double&>(args.fac), const_cast<double&>(args.cnorm), const_cast<Tensor<R>&>(c), coeffs);
             //std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, keyT&, const double&, const double&> t2 = op->apply_compute(t1);
             //op->apply_postprocess(t2);
             typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, keyT&, double&, double&> tuple2T;     
@@ -4028,9 +4038,9 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allCompute<T,R,opT>;
+            memfun2T memfun2 = &opT::template apply_allCompute<T,opT>;
             print(memfun2);
-            memfun3T memfun3 = &opT::template apply_postprocess<T>;
+            memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
             ComputeDerived<memfun2T, memfun3T, tuple1T, opT> * cd =
                 new ComputeDerived<memfun2T, memfun3T, tuple1T ,opT>(memfun2, memfun3, &(this->world.taskq), &(this->world));
@@ -4047,16 +4057,15 @@ ENDt_TIMER("memcpy3");
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find(1);
+            gpu_it = this->world.gpu_hash.find((long)((void *)memfun2));
             if (gpu_it != gpu_end){
-                const void * temp = static_cast<const void *>(cd->inObj.at(0));
-                (*gpu_it).second->add(const_cast<void *>(temp));
+                (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
                 delete cd;
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(1, cb));
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)((void *)memfun2), cb));
             }
 
             this->world.taskq.incNRegistered();

@@ -528,9 +528,9 @@ namespace madness {
         template <typename T>
         std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
                          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> 
-        apply_compute(std::tr1::tuple<const keyT&, const keyT&, const keyT&, 
-                                      const double&, const double&, const double&, 
-                                      const Tensor<TENSOR_RESULT_TYPE(T,Q)>&, 
+        apply_compute(std::tr1::tuple<keyT&, keyT&, keyT&, 
+                                      double&, double&, double&, 
+                                      Tensor<TENSOR_RESULT_TYPE(T,Q)>&, 
                                       WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& >& t1) const{
             
           typedef TENSOR_RESULT_TYPE(T,Q) resultT;
@@ -539,10 +539,10 @@ namespace madness {
 
           const keyT& argskey = std::tr1::get<0>(t1);
           const keyT& argsd = std::tr1::get<1>(t1);
-          keyT& argsdest = const_cast<keyT&>(std::tr1::get<2>(t1));
-          double& argstol = const_cast<double&>(std::tr1::get<3>(t1));
-          double& argsfac = const_cast<double&>(std::tr1::get<4>(t1));
-          double& argscnorm = const_cast<double&>(std::tr1::get<5>(t1));
+          keyT& argsdest = std::tr1::get<2>(t1);
+          double& argstol = std::tr1::get<3>(t1);
+          double& argsfac = std::tr1::get<4>(t1);
+          double& argscnorm = std::tr1::get<5>(t1);
           const Tensor<R>& coeff = std::tr1::get<6>(t1);
           dcT& coeffs = std::tr1::get<7>(t1);
 
@@ -795,30 +795,32 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 	}	
 	
         template<typename T, typename R>
-        int foof1(std::vector<std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& > > t1) const{
+        int foof1(std::vector<std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& > > t1) const{
                 return 1;
         }
 
         template<typename T, typename R>
-        int foof2(std::vector<std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& > > t1, int i) const{
+        int foof2(std::vector<std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& > > t1, int i) const{
                 return 1;
         }
 
-        template <typename T, typename R, typename opT>
-        std::vector< std::tr1::tuple< Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *, Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *,
+        template <typename T, typename opT>
+        std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
                          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> >
-        apply_allCompute(std::vector<std::tr1::tuple<const keyT&, const keyT&, const keyT&, 
-                                      const double&, const double&, const double&, 
-                                      const Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/>&, 
+        apply_allCompute(std::vector<std::tr1::tuple<keyT&, keyT&, keyT&, 
+                                      double&, double&, double&, 
+                                      Tensor<TENSOR_RESULT_TYPE(T,Q)>&, 
                                       WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >& > > inArgs, 
-                      std::vector< opT* > inObj) const {
+                      std::vector< SeparatedConvolution<Q,NDIM>* > inObj) const {
 
-            std::vector< std::tr1::tuple< Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *, Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *,
-                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> > outArg(inArgs.size(), inObj.at(0)->apply_compute(inArgs.at(0)));
+            print(inArgs.size());
+            
+            std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> > outArg/*(inArgs.size(), inObj.at(0)->apply_compute(inArgs.at(0)))*/;
             for (unsigned int i = 0; i < inArgs.size(); i++){
-                std::tr1::tuple<Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *, Tensor<R/*TENSOR_RESULT_TYPE(T,Q)*/> *,
+                std::tr1::tuple<Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
                          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> temp = inObj.at(i)->apply_compute(inArgs.at(i));
-                outArg[i] = temp;
+                outArg.push_back(temp);
             }
  
             return outArg;
@@ -836,6 +838,30 @@ std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > compre
         }
 
 */
+        
+        template <typename T>
+        Void apply_postprocesspt(std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *, 
+                               WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >&, keyT&, double&, double&> t1) const{
+            typedef Tensor<TENSOR_RESULT_TYPE(T,Q)> resultT;
+            typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+            resultT* r = std::tr1::get<0>(t1);
+            resultT* r0 = std::tr1::get<1>(t1);
+            dcT& coeffs = std::tr1::get<2>(t1);
+            const keyT& argsdest = std::tr1::get<3>(t1);
+            const double& argstol = std::tr1::get<4>(t1);
+            const double& argsfac = std::tr1::get<5>(t1);
+
+            (*r)(s0).gaxpy(1.0,*r0,1.0);
+            if (r->normf()> 0.3*argstol/argsfac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(argsdest, &FunctionNode<T,NDIM>::accumulate, *r, coeffs, argsdest, TaskAttributes::hipri());
+            }
+            delete r0;
+            delete r;
+            return None;
+        } 
+
 
         template <typename T>
         Void apply_postprocess(std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *, 
