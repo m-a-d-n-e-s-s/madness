@@ -161,7 +161,7 @@ which merely blows instead of sucking.
         typedef std::stack<CallbackInterface*> callbackT;
         typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
         volatile callbackT callbacks;
-        volatile assignmentT assignments;
+        volatile mutable assignmentT assignments;
         volatile bool assigned;
         World * world;
         RemoteReference< FutureImpl<T> > remote_ref;
@@ -173,6 +173,8 @@ which merely blows instead of sucking.
             T t;
             arg & ref & t;
             FutureImpl<T>* f = ref.get();
+            // The remote reference holds a copy of the
+            // sharedptr so no need to take another
             f->set(t);
             ref.reset();
         }
@@ -180,40 +182,42 @@ which merely blows instead of sucking.
 
         /// Private:  invoked locally by set routine after assignment
         inline void set_assigned() {
-            // ASSUME THAT WE HAVE THE MUTEX WHILE IN HERE (so that
-            // destructor is not invoked by another thread as a result
-            // of our actions)
+            // Assume that whoever is invoking this routine is holding
+            // a copy of our shared pointer on its *stack* so that 
+            // if this future is destroyed as a result of a callback
+            // the destructor of this object is not invoked until
+            // we return.
+            //
+            // Also assume that the caller either has the lock
+            // or is sure that we are single threaded.
             MADNESS_ASSERT(!assigned);
             assigned = true;
 
-            callbackT& cb = const_cast<callbackT&>(callbacks);
-            assignmentT& as = const_cast<assignmentT&>(assignments);
-
-//             // if taking copy not reference so that destructor can still check for uninvoked cbs
-//             const_cast<callbackT&>(callbacks).clear();
-//             const_cast<assignmentT&>(assignments).clear();
-
-            while (as.size()) {
-                std::shared_ptr< FutureImpl<T> >& p = as.pop();
+            assignmentT* as = const_cast<assignmentT*>(&assignments);
+            while (as->size()) {
+                // Copy of p needed for safe assignement
+                std::shared_ptr< FutureImpl<T> > p = as->pop();
                 MADNESS_ASSERT(p);
                 p->set(const_cast<T&>(t));
-                p.reset();
             }
-            while (! cb.empty()) {
-                MADNESS_ASSERT(cb.top());
-                cb.top()->notify();
-                cb.pop();
+
+            callbackT* cb = const_cast<callbackT*>(&callbacks);
+            while (!cb->empty()) {
+                MADNESS_ASSERT(cb->top());
+                cb->top()->notify();
+                cb->pop();
             }
         }
 
-        inline void add_to_assignments(const std::shared_ptr< FutureImpl<T> >& f) {
-            // ASSUME lock is already acquired by Future<T>::set()
+        // Pass by value with implied copy to manage lifetime of f
+        inline void add_to_assignments(const std::shared_ptr< FutureImpl<T> > f) {
+            // ASSUME lock is already acquired
             if (assigned) {
                 f->set(const_cast<T&>(t));
             }
             else {
-                assignmentT& nvas = const_cast<assignmentT&>(assignments);
-                nvas.push(f);
+                assignmentT* as = const_cast<assignmentT*>(&assignments);
+                as->push(f);
             }
         }
 
@@ -227,11 +231,8 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(0)
                 , remote_ref()
-                , t() {
-            //print("FUTCON(a)",(void*) this);
-
-            //future_count.inc();
-        }
+                , t() 
+        { }
 
 
         // Local assigned value
@@ -241,11 +242,8 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(0)
                 , remote_ref()
-                , t(t) {
-            //print("FUTCON(b)",(void*) this);
-            set_assigned();
-            //future_count.inc();
-        }
+                , t(t) 
+        { set_assigned(); }
 
 
         // Wrapper for a remote future
@@ -255,17 +253,12 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(& remote_ref.get_world())
                 , remote_ref(remote_ref)
-                , t() {
-            //print("FUTCON(c)",(void*) this);
-
-            //future_count.inc();
-        }
+                , t() 
+        { }
 
 
         // Returns true if the value has been assigned
-        inline bool probe() const {
-            return assigned;
-        }
+        inline bool probe() const { return assigned; }
 
 
         // Registers a function to be invoked when future is assigned
@@ -285,6 +278,8 @@ which merely blows instead of sucking.
             ScopedMutex<Spinlock> fred(this);
             if (world) {
                 if (remote_ref.owner() == world->rank()) {
+                    // The remote reference holds a copy of the
+                    // shared ptr so lifetime is managed OK
                     remote_ref.get()->set(value);
                     set_assigned();
                     remote_ref.reset();
@@ -346,17 +341,6 @@ which merely blows instead of sucking.
         }
 
         virtual ~FutureImpl() {
-
-            //future_count.dec_and_test();
-
-            ScopedMutex<Spinlock> fred(this);
-            //print("FUTDEL",(void*) this);
-//             if (!assigned && world) {
-//                 print("Future: unassigned remote future being destroyed?");
-//                 //remote_ref.dec();
-//                 abort();
-//             }
-
             if (const_cast<callbackT&>(callbacks).size()) {
                 print("Future: uninvoked callbacks being destroyed?", assigned);
                 abort();
@@ -403,8 +387,7 @@ which merely blows instead of sucking.
                 : f()
                 , value()
                 , is_the_default_initializer(true)
-        {
-        }
+        { }
 
     public:
         typedef RemoteReference< FutureImpl<T> > remote_refT;
@@ -414,16 +397,14 @@ which merely blows instead of sucking.
                 : f(new FutureImpl<T>())
                 , value()
                 , is_the_default_initializer(false)
-        {
-        }
+        { }
 
         /// Makes an assigned future
         explicit Future(const T& t)
                 : f()
                 , value(t)
                 , is_the_default_initializer(false)
-        {
-        }
+        { }
 
 
         /// Makes a future wrapping a remote reference
@@ -431,8 +412,7 @@ which merely blows instead of sucking.
                 : f(new FutureImpl<T>(remote_ref))
                 , value()
                 , is_the_default_initializer(false)
-        {
-        }
+        { }
 
 
         /// Copy constructor is shallow
@@ -449,9 +429,7 @@ which merely blows instead of sucking.
 
 
         /// See Gotchas on the documentation mainpage about why this exists and how to use it.
-        static const Future<T> default_initializer() {
-            return Future<T>(dddd());
-        }
+        static const Future<T> default_initializer() { return Future<T>(dddd()); }
 
 
         /// Assignment future = future makes a shallow copy just like copy constructor
@@ -467,7 +445,7 @@ which merely blows instead of sucking.
             return *this;
         }
 
-        /// A.set(B) where A & B are futures ensures A has/will-have the same value as B.
+        /// A.set(B) where A & B are futures ensures A has/will have the same value as B.
 
         /// An exception is thrown if A is already assigned since a
         /// Future is a single assignment variable.  We don't yet
@@ -504,7 +482,8 @@ which merely blows instead of sucking.
         /// Assigns the value ... it can only be set ONCE.
         inline void set(const T& value) {
 	    MADNESS_ASSERT(f);
-            f->set(value);
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            ff->set(value);
         }
 
 
