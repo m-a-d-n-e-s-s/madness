@@ -193,19 +193,19 @@ which merely blows instead of sucking.
             MADNESS_ASSERT(!assigned);
             assigned = true;
 
-            assignmentT* as = const_cast<assignmentT*>(&assignments);
-            while (as->size()) {
-                // Copy of p needed for safe assignement
-                std::shared_ptr< FutureImpl<T> > p = as->pop();
-                MADNESS_ASSERT(p);
-                p->set(const_cast<T&>(t));
+            assignmentT& as = const_cast<assignmentT&>(assignments);
+            callbackT& cb = const_cast<callbackT&>(callbacks);
+            
+            while (!as.empty()) {
+                MADNESS_ASSERT(as.front());
+                as.top()->set(const_cast<T&>(t));
+                as.pop();
             }
 
-            callbackT* cb = const_cast<callbackT*>(&callbacks);
-            while (!cb->empty()) {
-                MADNESS_ASSERT(cb->top());
-                cb->top()->notify();
-                cb->pop();
+            while (!cb.empty()) {
+                MADNESS_ASSERT(cb.top());
+                cb.top()->notify();
+                cb.pop();
             }
         }
 
@@ -472,9 +472,11 @@ which merely blows instead of sucking.
                     // callback since it could have been assigned
                     // between the test above and now (and this does
                     // happen)
-                    other.f->lock();     // BEGIN CRITICAL SECTION
-                    other.f->add_to_assignments(f); // Recheck of assigned is performed in here
-                    other.f->unlock(); // END CRITICAL SECTION
+                    std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of me
+                    std::shared_ptr< FutureImpl<T> > of = other.f; // manage lifetime of other
+                    of->lock();     // BEGIN CRITICAL SECTION
+                    of->add_to_assignments(f); // Recheck of assigned is performed in here
+                    of->unlock(); // END CRITICAL SECTION
                 }
             }
         }
@@ -489,7 +491,7 @@ which merely blows instead of sucking.
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline T& get() {
-	        if (f) {
+            if (f) {
                 return f->get();
             } else {
                 return value;
@@ -504,7 +506,6 @@ which merely blows instead of sucking.
                 return value;
             }
         }
-
 
         /// Returns true if the future has been assigned
         inline bool probe() const {
