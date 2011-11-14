@@ -500,13 +500,26 @@ namespace madness {
             return t[n-1];
         }
 
+        T& top() {
+            return front();
+        }
+
         std::size_t size() const {
             return n;
+        }
+
+        bool empty() const {
+            return n==0;
         }
 
         void clear() {
             n = 0;
         }
+
+        void reset() {
+            clear();
+        }
+
     }; // class Stack
 
 
