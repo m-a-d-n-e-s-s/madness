@@ -762,6 +762,7 @@ namespace madness {
         objT odef(w); //this relies on objT having a constructor with a World* argument
         this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
 
+        printf("   %i \n", outArgs.size());
         for (unsigned int i = 0; i < outArgs.size(); i++){  
             objT * obj = inObj.at(i);
             //(obj->*memfunPostprocess)(outArgs.at(i));

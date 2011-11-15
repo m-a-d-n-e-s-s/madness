@@ -4015,12 +4015,13 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple1T;
+            typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple11T;
+            typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
             //std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
-            tuple1T t1(const_cast<keyT&>(args.key), const_cast<keyT&>(args.d), const_cast<keyT&>(args.dest), const_cast<double&>(args.tol), const_cast<double&>(args.fac), const_cast<double&>(args.cnorm), const_cast<Tensor<R>&>(c), coeffs);
+            tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
             //std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, keyT&, const double&, const double&> t2 = op->apply_compute(t1);
             //op->apply_postprocess(t2);
-            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, keyT&, double&, double&> tuple2T;     
+            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
 
             typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuple1T >, std::vector<opT*> ) const;
             //typedef std::vector<tuple2T> (opT::*memfun2T)(const std::vector< const std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&>& >&, const std::vector<opT*>& );
@@ -4028,18 +4029,18 @@ ENDt_TIMER("memcpy3");
             
             typedef int(opT::*fooptr)() const;
             fooptr fptr = &opT::template foo<T,R>;
-            print(fptr); 
-            typedef int (opT::*fooptr1)(std::vector< tuple1T >) const;
+            //print(fptr); 
+            typedef int (opT::*fooptr1)(std::vector< tuple11T >) const;
             fooptr1 fptr1 = &opT::template foof1<T,R>;
-            print(fptr1); 
-            typedef int (opT::*fooptr2)(std::vector< tuple1T >, int) const;
+            //print(fptr1); 
+            typedef int (opT::*fooptr2)(std::vector< tuple11T >, int) const;
             fooptr2 fptr2 = &opT::template foof2<T,R>;
             print(fptr2); 
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
             memfun2T memfun2 = &opT::template apply_allCompute<T,opT>;
-            print(memfun2);
+            //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
             ComputeDerived<memfun2T, memfun3T, tuple1T, opT> * cd =
@@ -4050,6 +4051,7 @@ ENDt_TIMER("memcpy3");
             //const void *op1 = static_cast<const void*>(op);
             //cb->add(const_cast<void *>(op1));
             opT * op1 = const_cast<opT *>(op);
+            //opT * op1 = new opT(*op);
             cb->add(op1);
             cb->addArg(&t1);
 
