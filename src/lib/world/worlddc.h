@@ -637,7 +637,7 @@ namespace madness {
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
             
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((long)((void *)memfun2));
+            gpu_it = this->world.gpu_hash.find((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
             //gpu_it = this->world.gpu_hash.find(0);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
@@ -646,7 +646,7 @@ namespace madness {
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)((void *)memfun2), cb));
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
             }
 

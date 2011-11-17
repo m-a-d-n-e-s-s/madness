@@ -675,14 +675,14 @@ namespace madness {
         bool nonstandard = std::tr1::get<4>(in); 
         keyT parent = std::tr1::get<5>(in); 
         dcT dc = std::tr1::get<6>(in); 
-        long dimi = std::tr1::get<7>(in);
-        long dimj = std::tr1::get<8>(in);
+        //long dimi = std::tr1::get<7>(in);
+        //long dimj = std::tr1::get<8>(in);
         Tensor<double>* c1 = std::tr1::get<9>(in);
-        T* t0 = std::tr1::get<10>(in);
-        T* t1 = std::tr1::get<11>(in);
+        //T* t0 = std::tr1::get<10>(in);
+        //T* t1 = std::tr1::get<11>(in);
         tensorT* result = std::tr1::get<12>(in);
         tensorT* workspace = std::tr1::get<13>(in);
-        const double* pc = std::tr1::get<14>(in);
+        //const double* pc = std::tr1::get<14>(in);
         
         delete c1;
         delete result;
@@ -1110,8 +1110,8 @@ ENDt_TIMER("initial_access");
 		long dimi = std::tr1::get<7>(inArgs.at(i));
 		long dimj = std::tr1::get<8>(inArgs.at(i));
 		//Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
-		T* t0 = std::tr1::get<10>(inArgs.at(i));
-		T* t1 = std::tr1::get<11>(inArgs.at(i));
+		//T* t0 = std::tr1::get<10>(inArgs.at(i));
+		//T* t1 = std::tr1::get<11>(inArgs.at(i));
 		//tensorT* result = std::tr1::get<12>(inArgs.at(i));
 		//tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
 		const double* pc = std::tr1::get<14>(inArgs.at(i));
@@ -1154,7 +1154,7 @@ STARTt_TIMER;
 		tensorT t = d;
 		long dimi = std::tr1::get<7>(inArgs.at(i));
 		long dimj = std::tr1::get<8>(inArgs.at(i));
-		long nij = dimi*dimj;
+		//long nij = dimi*dimj;
 		////T* t0 = std::tr1::get<10>(inArgs.at(i));
 		////T* t1 = std::tr1::get<11>(inArgs.at(i));
 		////const double* pc = std::tr1::get<14>(inArgs.at(i));
@@ -1277,8 +1277,8 @@ STARTt_TIMER;
 		long dimi = std::tr1::get<7>(inArgs.at(i));
 		long dimj = std::tr1::get<8>(inArgs.at(i));
 		Tensor<double>* c = std::tr1::get<9>(inArgs.at(i));
-		T* t0 = std::tr1::get<10>(inArgs.at(i));
-		T* t1 = std::tr1::get<11>(inArgs.at(i));
+		//T* t0 = std::tr1::get<10>(inArgs.at(i));
+		//T* t1 = std::tr1::get<11>(inArgs.at(i));
 		tensorT* result = std::tr1::get<12>(inArgs.at(i));
 		tensorT* workspace = std::tr1::get<13>(inArgs.at(i));
 		//const double* pc = std::tr1::get<14>(inArgs.at(i));
@@ -4039,7 +4039,7 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allComputepreGPU<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPU<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
@@ -4059,7 +4059,7 @@ ENDt_TIMER("memcpy3");
             ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((long)((void *)memfun2));
+            gpu_it = this->world.gpu_hash.find((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4067,7 +4067,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)((void *)memfun2), cb));
+                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
             }
 
             this->world.taskq.incNRegistered();

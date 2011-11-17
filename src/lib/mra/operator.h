@@ -1379,6 +1379,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
             R* rptr_array;
             R* r0ptr_array;
+            T* f0ptr_array;
+            T* fptr_array;
 
             unsigned int* w1_offarray = new unsigned int[inArgs.size()];
             unsigned int* w2_offarray = new unsigned int[inArgs.size()];
@@ -1386,6 +1388,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
             
             unsigned int* rptr_offarray = new unsigned int[inArgs.size()];
             unsigned int* r0ptr_offarray = new unsigned int[inArgs.size()];
+            unsigned int* f0ptr_offarray = new unsigned int[inArgs.size()];
+            unsigned int* fptr_offarray = new unsigned int[inArgs.size()];
 
 
             unsigned int w1_off = 0;
@@ -1394,10 +1398,12 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
             
             unsigned int rptr_off = 0;
             unsigned int r0ptr_off = 0;
+            unsigned int f0ptr_off = 0;
+            unsigned int fptr_off = 0;
 
             
             unsigned int i;
-            for (unsigned int i = 0; i < inArgs.size(); i++){
+            for (i = 0; i < inArgs.size(); i++){
                // std::tr1::tuple<Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
                //          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> temp = inObj.at(i)->apply_computept(inArgs.at(i));
 
@@ -1406,14 +1412,14 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                                   Tensor<TENSOR_RESULT_TYPE(T,Q)>,
                                   WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > > arg1 = inArgs.at(i);
 
-		  keyT& source = std::tr1::get<0>(arg1);
-		  keyT& shift = std::tr1::get<1>(arg1);
-		  keyT& argsdest = std::tr1::get<2>(arg1);
+		  //keyT& source = std::tr1::get<0>(arg1);
+		  //keyT& shift = std::tr1::get<1>(arg1);
+		  //keyT& argsdest = std::tr1::get<2>(arg1);
 		  double argstol = std::tr1::get<3>(arg1);
 		  double argsfac = std::tr1::get<4>(arg1);
 		  double argscnorm = std::tr1::get<5>(arg1);
 		  Tensor<R>& coeff = std::tr1::get<6>(arg1);
-		  dcT& coeffs = std::tr1::get<7>(arg1);
+		  //dcT& coeffs = std::tr1::get<7>(arg1);
                   int kref = inObj.at(i)->k;
                   int rankref = inObj.at(i)->rank;
                   const std::vector<long>& vkref = inObj.at(i)->vk;
@@ -1425,7 +1431,7 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 		  //Key<NDIM>& shift = argsd;
 		  double tol = argstol/argsfac/argscnorm;
 
-		  const SeparatedConvolutionData<Q,NDIM>* op = inObj.at(i)->getop(source.level(), shift);
+		  //const SeparatedConvolutionData<Q,NDIM>* op = inObj.at(i)->getop(source.level(), shift);
 
 		  Tensor<resultT> r(v2kref);
 		  Tensor<resultT> r0(vkref);
@@ -1458,10 +1464,10 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
 		  const Tensor<T> f0 = copy(coeff(s0ref));
 		    
-		  Level n = source.level();
+		  //Level n = source.level();
 		  const Tensor<T>& f = *input;
                   //trans can be made local
-		  Transformation trans[NDIM];
+		  //Transformation trans[NDIM];
 		  const long twok = 2*kref;
 		  long break_even;
 		    
@@ -1476,15 +1482,15 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 		  else if (NDIM==3) break_even2=long(0.65*kref);
 		  else break_even2=long(0.7*kref);
 
-		  R* restrict w1=work1.ptr();
-		  R* restrict w2=work2.ptr();
-		  Q* restrict w3=work5.ptr();
+		  //R* restrict w1=work1.ptr();
+		  //R* restrict w2=work2.ptr();
+		  //Q* restrict w3=work5.ptr();
 			    
                   Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r;
 	          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0;
 
-                  R* resultptr = result.ptr();
-                  R* result0ptr = result0.ptr();
+                  //R* resultptr = result.ptr();
+                  //R* result0ptr = result0.ptr();
                   
                   w1_offarray[i] = w1_off;
                   w2_offarray[i] = w2_off;
@@ -1492,6 +1498,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                   
                   rptr_offarray[i] = rptr_off;
                   r0ptr_offarray[i] = r0ptr_off;
+                  f0ptr_offarray[i] = f0ptr_off;
+                  fptr_offarray[i] = fptr_off;
 
                   w1_off += work1.size();
                   w2_off += work2.size();
@@ -1499,6 +1507,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                   
                   rptr_off += result.size();
                   r0ptr_off += result0.size();
+                  f0ptr_off += f0.size();
+                  fptr_off += f.size();
             }
 
             w1_array = new R[w1_off]; 
@@ -1507,6 +1517,18 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
             rptr_array = new R[rptr_off];
             r0ptr_array = new R[r0ptr_off];
+            f0ptr_array = new T[f0ptr_off];
+            fptr_array = new T[fptr_off];
+
+
+            w1_off = 0;
+            w2_off = 0;
+            w5_off = 0;
+            
+            rptr_off = 0;
+            r0ptr_off = 0;
+            f0ptr_off = 0;
+            fptr_off = 0;
 
             for (i = 0; i < inArgs.size(); i++){
                // std::tr1::tuple<Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
@@ -1517,14 +1539,14 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                                   Tensor<TENSOR_RESULT_TYPE(T,Q)>,
                                   WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > > arg1 = inArgs.at(i);
 
-		  keyT& source = std::tr1::get<0>(arg1);
-		  keyT& shift = std::tr1::get<1>(arg1);
-		  keyT& argsdest = std::tr1::get<2>(arg1);
+		  //keyT& source = std::tr1::get<0>(arg1);
+		  //keyT& shift = std::tr1::get<1>(arg1);
+		  //keyT& argsdest = std::tr1::get<2>(arg1);
 		  double argstol = std::tr1::get<3>(arg1);
 		  double argsfac = std::tr1::get<4>(arg1);
 		  double argscnorm = std::tr1::get<5>(arg1);
 		  Tensor<R>& coeff = std::tr1::get<6>(arg1);
-		  dcT& coeffs = std::tr1::get<7>(arg1);
+		  //dcT& coeffs = std::tr1::get<7>(arg1);
                   int kref = inObj.at(i)->k;
                   int rankref = inObj.at(i)->rank;
                   const std::vector<long>& vkref = inObj.at(i)->vk;
@@ -1536,7 +1558,7 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 		  //Key<NDIM>& shift = argsd;
 		  double tol = argstol/argsfac/argscnorm;
 
-		  const SeparatedConvolutionData<Q,NDIM>* op = inObj.at(i)->getop(source.level(), shift);
+		  //const SeparatedConvolutionData<Q,NDIM>* op = inObj.at(i)->getop(source.level(), shift);
 
 		  Tensor<resultT> r(v2kref);
 		  Tensor<resultT> r0(vkref);
@@ -1569,10 +1591,10 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
 		  const Tensor<T> f0 = copy(coeff(s0ref));
 		    
-		  Level n = source.level();
+		  //Level n = source.level();
 		  const Tensor<T>& f = *input;
                   //trans can be made local
-		  Transformation trans[NDIM];
+		  //Transformation trans[NDIM];
 		  const long twok = 2*kref;
 		  long break_even;
 		    
@@ -1596,6 +1618,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
                   R* resultptr = result.ptr();
                   R* result0ptr = result0.ptr();
+                  T* f0ptr = const_cast<T*>(f0.ptr());
+                  T* fptr = const_cast<T*>(f.ptr());
                   
                   memcpy(w1_array + w1_offarray[i], w1, work1.size()*sizeof(R));
                   memcpy(w2_array + w2_offarray[i], w2, work2.size()*sizeof(R));
@@ -1603,6 +1627,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                   
                   memcpy(rptr_array + rptr_offarray[i], resultptr, result.size()*sizeof(R));
                   memcpy(r0ptr_array + r0ptr_offarray[i], result0ptr, result0.size()*sizeof(R));
+                  memcpy(f0ptr_array + f0ptr_offarray[i], f0ptr, f0.size()*sizeof(T));
+                  memcpy(fptr_array + fptr_offarray[i], fptr, f.size()*sizeof(T));
 
                   //memcpy(w1_array + w1_off, w1, w1.size()*sizeof(R));
                   //memcpy(w2_array + w2_off, w2, w2.size()*sizeof(R));
@@ -1617,6 +1643,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                   
                   rptr_off += result.size();
                   r0ptr_off += result0.size();
+                  f0ptr_off += f0.size();
+                  fptr_off += f.size();
             }
 
             for (i = 0; i < inArgs.size(); i++){
@@ -1698,21 +1726,24 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 		  else if (NDIM==3) break_even2=long(0.65*kref);
 		  else break_even2=long(0.7*kref);
 
-		  R* restrict w1=work1.ptr();
-		  R* restrict w2=work2.ptr();
+		  //R* restrict w1=work1.ptr();
+		  //R* restrict w2=work2.ptr();
 		  Q* restrict w3=work5.ptr();
 			    
                   Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r;
 	          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0;
 
-                  R* resultptr = result.ptr();
-                  R* result0ptr = result0.ptr();
+                  R* resultptr;// = result.ptr();
+                  R* result0ptr;// = result0.ptr();
 
                   R* w1ptr;
                   R* w2ptr;
+                  Q* w3ptr = w3;
+                  T* f0ptr;
+                  T* fptr;
                   
-                  R* rptr;
-                  R* r0ptr;
+                  //R* rptr;
+                  //R* r0ptr;
 
 		    for (int mu=0; mu<rankref; ++mu) {
 			const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
@@ -1768,10 +1799,14 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 			    const Q* U;
 
 			    U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
-			    ////GPU
                             w1ptr = &w1_array[w1_offarray[i]];
                             w2ptr = &w2_array[w2_offarray[i]];
-			    mTxmq(dimi, trans[0].r, dimk, /*w1*/w1ptr, f.ptr(), U);
+                            f0ptr = &f0ptr_array[f0ptr_offarray[i]];
+                            fptr = &fptr_array[fptr_offarray[i]];
+                            resultptr = &rptr_array[rptr_offarray[i]];
+                            result0ptr = &r0ptr_array[r0ptr_offarray[i]];
+			    ////GPU
+			    mTxmq(dimi, trans[0].r, dimk, /*w1*/w1ptr, /*f.ptr()*/fptr, U);
 			    size = trans[0].r * size / dimk;
 			    dimi = size/dimk;
 			    for (std::size_t d=1; d<NDIM; ++d) {
@@ -1844,7 +1879,7 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 
 				U1 = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
 				////GPU
-				mTxmq(dimi, trans[0].r, dimk, /*w1*/w1ptr, f0.ptr(), U1);
+				mTxmq(dimi, trans[0].r, dimk, /*w1*/w1ptr, /*f0.ptr()*/f0ptr, U1);
 				size = trans[0].r * size / dimk;
 				dimi = size/dimk;
 				for (std::size_t d=1; d<NDIM; ++d) {
@@ -1887,11 +1922,22 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 			    }
 			}
 		    }
+                    memcpy(result.ptr(), resultptr, result.size()*sizeof(R));
+                    memcpy(result0.ptr(), result0ptr, result0.size()*sizeof(R));
 		    Tensor<R> * r1 = new Tensor<R>(r); 
 		    Tensor<R> * r01 = new Tensor<R>(r0); 
 		    std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2(r1, r01, coeffs, argsdest, argstol, argsfac);
                     outArg.push_back(t2);
             }
+
+            delete[] w1_array; 
+            delete[] w2_array; 
+            delete[] w5_array; 
+
+            delete[] rptr_array;
+            delete[] r0ptr_array;
+            delete[] f0ptr_array;
+            delete[] fptr_array;
  
             return outArg;
         }
