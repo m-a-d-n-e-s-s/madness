@@ -4091,6 +4091,26 @@ ENDt_TIMER("memcpy3");
             return None;
         }
 
+
+        template <typename opT, typename R>
+        Void do_apply_kernel_std(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+
+            //print("APPLY", key, d, opnorm, cnorm, result.normf());
+
+            // Screen here to reduce communication cost of negligible data
+            // and also to ensure we don't needlessly widen the tree when
+            // applying the operator
+            
+            if (result.normf()> 0.3*args.tol/args.fac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+            }
+           
+            return None;
+        }
+
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
