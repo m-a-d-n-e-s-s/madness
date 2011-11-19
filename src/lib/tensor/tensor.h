@@ -1901,6 +1901,17 @@ namespace madness {
         }
     }
 
+    template <class T> Tensor<T> copy(const Tensor<T>& t, Tensor<T>& result) {
+        if (t.size()) {
+            result = Tensor<T>(t.ndim(),t.dims(),false);
+            BINARY_OPTIMIZED_ITERATOR(T, result, const T, t, *_p0 = *_p1);
+            return result;
+        }
+        else {
+            return Tensor<T>();
+        }
+    }
+
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 
     /// \ingroup tensor
