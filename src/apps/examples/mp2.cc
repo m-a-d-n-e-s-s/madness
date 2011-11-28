@@ -65,6 +65,7 @@ static double slater(const coord_3d& r) {
 template<size_t NDIM>
 void save_function(World& world, const Function<double,NDIM>& pair, const std::string& name) {
     if (world.rank()==0) print("saving function",name);
+    pair.print_size(name);
     archive::ParallelOutputArchive ar(world, name.c_str(), 1);
     ar & pair;
 }
@@ -579,6 +580,7 @@ namespace madness {
         CorrelationFactor corrfac;              ///< correlation factor: Slater or linear
 
         std::vector<ElectronPair> pairs;        ///< pair functions and energies
+        bool restart;                           ///< flag if prep functions have already been computed
         bool solved;                            ///< flag if the residual equations are already solved
 
         real_convolution_3d poisson;
@@ -586,10 +588,11 @@ namespace madness {
         static const double dcut=1.e-6;
 
     public:
-        MP2(World& world, const HartreeFock& hf, const CorrelationFactor& corrfac)
+        MP2(World& world, const HartreeFock& hf, const CorrelationFactor& corrfac, const bool restart)
             : world(world)
             , hf(hf)
             , corrfac(corrfac)
+	    , restart(restart)
             , solved(false)
             , poisson(CoulombOperator(world,0.0001,hf.get_calc().param.econv)) {
 
@@ -899,9 +902,15 @@ namespace madness {
             // kinetic energy expectation value
             double ke=0.0;
             for (int axis=0; axis<6; axis++) {
+            if (world.rank()==0) print("a");
+            fo_function.print_size("fo_function");
+            fo_function.print_tree();
                 real_derivative_6d D = free_space_derivative<double,6>(world, axis);
+            if (world.rank()==0) print("b");
                 real_function_6d dpsi = D(fo_function);
+            if (world.rank()==0) print("c");
                 double aa=dpsi.norm2();
+            if (world.rank()==0) print("d");
                 double a=0.5*aa*aa;
                 ke += a;
                 if (world.rank()==0) print("done with axis",axis, a);
@@ -929,18 +938,29 @@ namespace madness {
             pair.first_order_correction=this->compute_first_order_correction(i,j);
 
             pair.r12_phi=corrfac.f()*pair.phi0;
-            const real_function_6d fphi0=pair.r12_phi;
-            const real_function_3d phi_i=hf.orbital(i);
-            const real_function_3d phi_j=hf.orbital(j);
+
+            const real_function_6d& fphi0=pair.r12_phi;
+            const real_function_3d& phi_i=hf.orbital(i);
+            const real_function_3d& phi_j=hf.orbital(j);
             const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
             const real_function_3d Kphi_j=hf.apply_exchange(phi_j);
             const real_function_6d Kphi0=(hartree_product(Kphi_i,phi_j)
                     + hartree_product(phi_i,Kphi_j)).truncate();
 
-            pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
-            pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
-            pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
-            pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
+            if (restart) {
+                load_function(world,pair.Kfphi0,"Kfphi0");
+                load_function(world,pair.KffKphi0,"KffKphi0");
+                load_function(world,pair.Uphi0,"Uphi0");
+
+	    } else {
+                pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
+                pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
+                save_function(world,pair.Kfphi0,"Kfphi0");
+                pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
+                save_function(world,pair.KffKphi0,"KffKphi0");
+                pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
+                save_function(world,pair.Uphi0,"Uphi0");
+	    }
 
             const real_function_6d& phi0=pair.phi0;
 
@@ -1159,7 +1179,7 @@ namespace madness {
 
             // make all terms
             real_function_6d Vpair=(JKpair+Upair-K_comm-epair).truncate();
-	    load_balance(Vpair,false);
+//	    load_balance(Vpair,false);
             real_function_6d GVpair=green(-2.0*Vpair).truncate();
             save_function(world,GVpair,"GVpair");
         }
@@ -1656,6 +1676,7 @@ int main(int argc, char** argv) {
     // get parameters form input file
     Calculation calc(world,"input");
     TensorType tt=TT_2D;
+    bool restart=false;
 
     // get command line parameters (overrides input file)
     for(int i = 1; i < argc; i++) {
@@ -1666,6 +1687,7 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
+        if (key=="restart") restart=true;                             // usage: size=10
         if (key=="size") calc.param.L=atof(val.c_str());               // usage: size=10
         if (key=="k") calc.param.k=atoi(val.c_str());                  // usage: k=5
         if (key=="thresh") calc.param.econv=atof(val.c_str());        // usage: thresh=1.e-3
@@ -1685,6 +1707,7 @@ int main(int argc, char** argv) {
     calc.set_protocol<6>(world,calc.param.econv);
     calc.molecule.set_eprec(std::min(calc.param.econv,1.e-6));
     FunctionDefaults<6>::set_tensor_type(tt);
+    FunctionDefaults<6>::set_apply_randomize(true);
 
 
     if (world.rank()==0) {
@@ -1711,8 +1734,8 @@ int main(int argc, char** argv) {
     hf.value();
 
     CorrelationFactor f12(world,1.0);
-
-    MP2 mp2(world,hf,f12);
+  
+    MP2 mp2(world,hf,f12,restart);
 //    mp2.compute_first_order_correction(0,0);
 //    mp2.test3(0,0);
     mp2.test(0,0);

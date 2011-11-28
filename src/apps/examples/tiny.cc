@@ -60,12 +60,12 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
 
     archive::ParallelInputArchive ar(world, name.c_str());
 
-    Tensor<double> cell;
-    ar & pair & cell;
+//    Tensor<double> cell;
+    ar & pair;// & cell;
 
     // set the defaults
-    if (NDIM==3) FunctionDefaults<3>::set_cell(cell);
-    if (NDIM==6) FunctionDefaults<6>::set_cell(cell);
+//    if (NDIM==3) FunctionDefaults<3>::set_cell(cell);
+//    if (NDIM==6) FunctionDefaults<6>::set_cell(cell);
 
     FunctionDefaults<3>::set_k(pair.k());
     FunctionDefaults<6>::set_k(pair.k());
@@ -82,22 +82,30 @@ void do_plot(World& world, Function<double,NDIM>& pair, const std::string restar
     Vector<double,NDIM> lo(0.0), hi(0.0);
     lo[0]=-8.0;
     hi[0]=8.0;
-    trajectory<NDIM> line=trajectory<NDIM>::line2(lo,hi,601);
 
-    std::string filename="line_"+restart_name;
-    plot_along<NDIM>(world,line,pair,filename);
-
-
+    {
+        std::string filename="line_"+restart_name;
+        trajectory<NDIM> line=trajectory<NDIM>::line2(lo,hi,601);
+        plot_along<NDIM>(world,line,pair,filename);
+    }
 
 }
 
 
-void do_stuff(World& world) {
+void do_stuff(World& world, const std::string name) {
 
-    double thresh=1.e-6;
-    double eps=2.0;
-    real_convolution_6d op6 = BSHOperator<6>(world, eps, 0.00001, thresh);
-    real_convolution_3d op3 = BSHOperator<3>(world, eps, 0.00001, thresh);
+    Function<double,6> pair;
+    load_function(world,pair,name);
+    pair.print_size(name);
+   
+    pair.reduce_rank();
+    pair.print_size(name);
+    
+    coord_6d fix_coord(0.0);
+    // electron 2:
+    fix_coord[4]=0.1;
+    pair.get_impl()->print_plane(name,"xy",fix_coord);
+
 
 }
 
@@ -107,7 +115,7 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
-    const double L=32;
+    const double L=16;
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
 
@@ -149,8 +157,8 @@ int main(int argc, char** argv) {
         print("");
     }
 
-    if (restart) do_plot(world,pair,restart_name);
-    else do_stuff(world);
+//    if (restart) do_plot(world,pair,restart_name);
+    do_stuff(world,restart_name);
 
 
     return 0;
