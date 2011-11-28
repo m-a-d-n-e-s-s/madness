@@ -526,6 +526,7 @@ namespace madness {
         coeffT _coeffs; ///< The coefficients, if any
         double _norm_tree; ///< After norm_tree will contain norm of coefficients summed up tree
         bool _has_children; ///< True if there are children
+        coeffT buffer; ///< The coefficients, if any
 
     public:
         typedef WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT; ///< Type of container holding the nodes
@@ -799,23 +800,17 @@ namespace madness {
             if (has_coeff()) {
 
 #if 1
+                if (buffer.rank()<coeff().rank()) {
+                    buffer.add_SVD(t,args.thresh);
+                } else {
+                    coeff().add_SVD(buffer,args.thresh);
+                    buffer=copy(t);
+		}
+
+#else
                 // always do low rank
                 coeff().add_SVD(t,args.thresh);
 
-
-#else
-                // make it tensor type depending on what we already have
-                if (coeff().tensor_type()==TT_FULL) {
-                    if (t.tensor_type()==TT_FULL)  coeff().full_tensor()+=t.full_tensor();
-                    else coeff().full_tensor()+=t.full_tensor_copy();
-                } else {
-                    if (t.tensor_type()==TT_FULL) {
-                        tensorT c=coeff().full_tensor_copy()+t.full_tensor();
-                        coeff()=coeffT(c,TensorArgs(0.0,TT_FULL));
-                    } else {
-                        coeff().add_SVD(t,args.thresh);
-                    }
-                }
 #endif
 
             } else {
@@ -830,6 +825,12 @@ namespace madness {
             }
             double cpu1=cpu_time();
             return cpu1-cpu0;
+        }
+
+        Void consolidate_buffer(const TensorArgs& args) {
+            coeff().add_SVD(buffer,args.thresh);
+            buffer=coeffT();
+            return None;
         }
 
         T trace_conj(const FunctionNode<T,NDIM>& rhs) const {
@@ -2212,6 +2213,24 @@ namespace madness {
             }
             template <typename Archive> void serialize(const Archive& ar) {}
         };
+
+        struct do_consolidate_buffer {
+             typedef Range<typename dcT::iterator> rangeT;
+        
+             // threshold for rank reduction / SVD truncation
+             TensorArgs targs;
+             
+             // constructor takes target precision
+             do_consolidate_buffer() {}
+             do_consolidate_buffer(const TensorArgs& targs) : targs(targs) {}
+             bool operator()(typename rangeT::iterator& it) const {
+                  it->second.consolidate_buffer(targs);
+                  return true;
+             }
+             template <typename Archive> void serialize(const Archive& ar) {}
+        };
+
+
 
         template <typename opT>
         struct do_unary_op_value_inplace {
@@ -4918,7 +4937,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             bool do_target_driven=(NDIM==opT::opdim);
-//            do_target_driven=false;
+            do_target_driven=false;
             if (do_target_driven) {
 
 //                // make the MRA structure of the result tree
@@ -4981,8 +5000,13 @@ namespace madness {
             }
             world.gop.fence();
 
+            TensorArgs tight_args(targs);
+            tight_args.thresh*=0.01;
+            flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
+
+
             // reduce the rank of the final nodes, leave full tensors unchanged
-            flo_unary_op_node_inplace(do_reduce_rank(targs.thresh*0.01),true);
+            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
             flo_unary_op_node_inplace(do_reduce_rank(targs),true);
 
             // change TT_FULL to low rank
@@ -5159,6 +5183,11 @@ namespace madness {
                             } else {
                                 const coeffT result=op->apply2(source,disp,coeff,tol/fac/cnorm,tol/fac);
                                 result_low.add_SVD(result,apply_targs.thresh);
+                                if (result_low.rank()>2*k) {
+                                    result_full+=result_low.full_tensor_copy();
+                                    result_low=coeffT();
+                                }
+
                             }
                         }
                     } else if (disp.distsq() >= 12) {

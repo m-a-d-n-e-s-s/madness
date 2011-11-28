@@ -549,7 +549,7 @@ namespace madness {
     }
 
 
-    static coord_6d circle_6d(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+    static coord_6d circle_6d(const coord_6d& lo, const coord_6d& hi, double radius, coord_3d el2, long npt, long ipt) {
     	double stepsize=constants::pi * 2.0 / npt;
 
     	// start at phi=1.0
@@ -580,7 +580,7 @@ namespace madness {
     	long npt;
     	coordT start, end;
     	coord_3d el2;
-    	coordT (*curve)(const coordT lo, coordT hi, double radius, coord_3d el2, long npt, long ipt);
+    	coordT (*curve)(const coordT& lo, const coordT& hi, double radius, coord_3d el2, long npt, long ipt);
 
     //	typedef Vector<double,NDIM> (trajectory::circle_6d)(double lo, double hi, double radius, long npt, long ipt) const;
 
@@ -598,7 +598,7 @@ namespace madness {
     	}
 
 
-        static Vector<double, NDIM> line_internal(const coordT lo, const coordT hi, double radius, coord_3d el2, long npt, long ipt) {
+        static Vector<double, NDIM> line_internal(const coordT& lo, const coordT& hi, double radius, coord_3d el2, long npt, long ipt) {
             const coordT step=(hi-lo)*(1.0/npt);
             coordT coord=lo+step*ipt;
             return coord;
