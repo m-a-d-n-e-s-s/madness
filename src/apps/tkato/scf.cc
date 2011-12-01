@@ -42,7 +42,7 @@ $Id$
 #include <misc/ran.h>
 #include <linalg/solvers.h>
 #include <ctime>
-#include <list>
+#include <vector>
 using namespace madness;
 
 
@@ -377,6 +377,8 @@ SCF::SCF(World & world, const char *filename)
     if(world.rank() == 0) {
         molecule.read_file(filename);
         param.read_file(filename);
+        molsys.spin_restricted = param.spin_restricted;
+        molsys.nio = param.nio;
         unsigned int n_core = 0;
         if (param.core_type != "") {
             molecule.read_core_file(param.core_type);
@@ -435,110 +437,12 @@ void SCF::set_protocol(World & world, double thresh)
 
 void SCF::save_mos(World& world)
 {
-    archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
-    ar & param.spin_restricted;
-    ar & (unsigned int)(amo.size());
-    ar & aeps & aocc & aset;
-    for (unsigned int i=0; i<amo.size(); ++i) ar & amo[i];
-    if (!param.spin_restricted) {
-        ar & (unsigned int)(bmo.size());
-        ar & beps & bocc & bset;
-        for (unsigned int i=0; i<bmo.size(); ++i) ar & bmo[i];
-    }
+    molsys.save(world, "restartdata");
 }
 
 void SCF::load_mos(World& world)
 {
-    const double trantol = vtol / std::min(30.0, double(param.nalpha));
-    const double thresh = FunctionDefaults<3>::get_thresh();
-    const int k = FunctionDefaults<3>::get_k();
-    unsigned int nmo;
-    bool spinrest;
-    amo.clear(); bmo.clear();
-
-    archive::ParallelInputArchive ar(world, "restartdata");
-
-    /*
-       File format:
-
-       bool spinrestricted --> if true only alpha orbitals are present
-
-       unsigned int nmo_alpha;
-       Tensor<double> aeps;
-       Tensor<double> aocc;
-       vector<int> aset;
-       for i from 0 to nalpha-1:
-       .   Function<double,3> amo[i]
-
-       repeat for beta if !spinrestricted
-
-*/
-
-    // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
-    // EPS, SWAP, ... sigh
-
-    ar & spinrest;
-
-    ar & nmo;
-    MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
-    ar & aeps & aocc & aset;
-    amo.resize(nmo);
-    for (unsigned int i=0; i<amo.size(); ++i) ar & amo[i];
-    unsigned int n_core = molecule.n_core_orb_all();
-    if (nmo > unsigned(param.nmo_alpha)) {
-        aset = vector<int>(aset.begin()+n_core, aset.begin()+n_core+param.nmo_alpha);
-        amo = vecfuncT(amo.begin()+n_core, amo.begin()+n_core+param.nmo_alpha);
-        aeps = copy(aeps(Slice(n_core, n_core+param.nmo_alpha-1)));
-        aocc = copy(aocc(Slice(n_core, n_core+param.nmo_alpha-1)));
-    }
-
-    if (amo[0].k() != k) {
-        reconstruct(world,amo);
-        for(unsigned int i = 0;i < amo.size();++i) amo[i] = madness::project(amo[i], k, thresh, false);
-        world.gop.fence();
-    }
-    normalize(world, amo);
-    amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-    truncate(world, amo);
-    normalize(world, amo);
-
-    if (!param.spin_restricted) {
-
-        if (spinrest) { // Only alpha spin orbitals were on disk
-            MADNESS_ASSERT(param.nmo_alpha >= param.nmo_beta);
-            bmo.resize(param.nmo_beta);
-            bset.resize(param.nmo_beta);
-            beps = copy(aeps(Slice(0,param.nmo_beta-1)));
-            bocc = copy(aocc(Slice(0,param.nmo_beta-1)));
-            for (int i=0; i<param.nmo_beta; ++i) bmo[i] = copy(amo[i]);
-        }
-        else {
-            ar & nmo;
-            ar & beps & bocc & bset;
-
-            bmo.resize(nmo);
-            for (unsigned int i=0; i<bmo.size(); ++i) ar & bmo[i];
-
-            if (nmo > unsigned(param.nmo_beta)) {
-                bset = vector<int>(bset.begin()+n_core, bset.begin()+n_core+param.nmo_beta);
-                bmo = vecfuncT(bmo.begin()+n_core, bmo.begin()+n_core+param.nmo_beta);
-                beps = copy(beps(Slice(n_core, n_core+param.nmo_beta-1)));
-                bocc = copy(bocc(Slice(n_core, n_core+param.nmo_beta-1)));
-            }
-
-            if (bmo[0].k() != k) {
-                reconstruct(world,bmo);
-                for(unsigned int i = 0;i < bmo.size();++i) bmo[i] = madness::project(bmo[i], k, thresh, false);
-                world.gop.fence();
-            }
-
-            normalize(world, bmo);
-            bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
-            truncate(world, bmo);
-            normalize(world, bmo);
-
-        }
-    }
+    molsys.load(world, "restartdata", param.nalpha, param.nvalpha, param.nbeta, param.nvbeta, molecule.n_core_orb_all());
 }
 
 void SCF::do_plots(World& world)
@@ -552,13 +456,13 @@ void SCF::do_plots(World& world)
 
     if (param.plotdens || param.plotcoul) {
         functionT rho;
-        rho = make_density(world, aocc, amo);
+        rho = make_density(world, molsys.aocc, molsys.amo);
 
         if (param.spin_restricted) {
             rho.scale(2.0);
         }
         else {
-            functionT rhob = make_density(world, bocc, bmo);
+            functionT rhob = make_density(world, molsys.bocc, molsys.bmo);
             functionT rho_spin = rho - rhob;
             rho += rhob;
             plotdx(rho_spin, "spin_density.dx", param.plot_cell, npt, true);
@@ -577,11 +481,11 @@ void SCF::do_plots(World& world)
         char fname[256];
         if (i < param.nalpha) {
             sprintf(fname, "amo-%5.5d.dx", i);
-            plotdx(amo[i], fname, param.plot_cell, npt, true);
+            plotdx(molsys.amo[i], fname, param.plot_cell, npt, true);
         }
         if (!param.spin_restricted && i < param.nbeta) {
             sprintf(fname, "bmo-%5.5d.dx", i);
-            plotdx(bmo[i], fname, param.plot_cell, npt, true);
+            plotdx(molsys.bmo[i], fname, param.plot_cell, npt, true);
         }
     }
     END_TIMER(world, "plotting");
@@ -589,21 +493,21 @@ void SCF::do_plots(World& world)
 
 void SCF::project(World & world)
 {
-    reconstruct(world, amo);
-    for(unsigned int i = 0;i < amo.size();++i){
-        amo[i] = madness::project(amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+    reconstruct(world, molsys.amo);
+    for(unsigned int i = 0;i < molsys.amo.size();++i){
+        molsys.amo[i] = madness::project(molsys.amo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
     }
     world.gop.fence();
-    truncate(world, amo);
-    normalize(world, amo);
+    truncate(world, molsys.amo);
+    normalize(world, molsys.amo);
     if(param.nbeta && !param.spin_restricted){
-        reconstruct(world, bmo);
-        for(unsigned int i = 0;i < bmo.size();++i){
-            bmo[i] = madness::project(bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
+        reconstruct(world, molsys.bmo);
+        for(unsigned int i = 0;i < molsys.bmo.size();++i){
+            molsys.bmo[i] = madness::project(molsys.bmo[i], FunctionDefaults<3>::get_k(), FunctionDefaults<3>::get_thresh(), false);
         }
         world.gop.fence();
-        truncate(world, bmo);
-        normalize(world, bmo);
+        truncate(world, molsys.bmo);
+        normalize(world, molsys.bmo);
     }
 }
 
@@ -1113,28 +1017,28 @@ void SCF::initial_guess(World & world)
         if (param.core_type != "") {
             ncore = molecule.n_core_orb_all();
         }
-        amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
-        truncate(world, amo);
-        normalize(world, amo);
-        aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
+        molsys.amo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_alpha - 1)), 0.0, true);
+        truncate(world, molsys.amo);
+        normalize(world, molsys.amo);
+        molsys.aeps = e(Slice(ncore, ncore + param.nmo_alpha - 1));
 
-        aocc = tensorT(param.nmo_alpha);
+        molsys.aocc = tensorT(param.nmo_alpha);
         for(int i = 0;i < param.nalpha;++i)
-            aocc[i] = 1.0;
+            molsys.aocc[i] = 1.0;
 
-        aset = std::vector<int>(param.nmo_alpha,0);
+        molsys.aset = std::vector<int>(param.nmo_alpha,0);
         //if (param.localize_pm) {
-        aset[0] = 0;
+        molsys.aset[0] = 0;
         if(world.rank() == 0)
             std::cout << "alpha set " << 0 << " " << 0 << "-";
 
         for(int i = 1;i < param.nmo_alpha;++i) {
-            aset[i] = aset[i - 1];
-            if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
-                ++(aset[i]);
+            molsys.aset[i] = molsys.aset[i - 1];
+            if(molsys.aeps[i] - molsys.aeps[i - 1] > 1.5 || molsys.aocc[i] != 1.0){
+                ++(molsys.aset[i]);
                 if(world.rank() == 0){
                     std::cout << i - 1 << std::endl;
-                    std::cout << "alpha set " << aset[i] << " " << i << "-";
+                    std::cout << "alpha set " << molsys.aset[i] << " " << i << "-";
                 }
             }
         }
@@ -1143,27 +1047,27 @@ void SCF::initial_guess(World & world)
         //}
 
         if(param.nbeta && !param.spin_restricted){
-            bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
-            truncate(world, bmo);
-            normalize(world, bmo);
-            beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
-            bocc = tensorT(param.nmo_beta);
+            molsys.bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
+            truncate(world, molsys.bmo);
+            normalize(world, molsys.bmo);
+            molsys.beps = e(Slice(ncore, ncore + param.nmo_beta - 1));
+            molsys.bocc = tensorT(param.nmo_beta);
             for(int i = 0;i < param.nbeta;++i)
-                bocc[i] = 1.0;
+                molsys.bocc[i] = 1.0;
 
-            bset = std::vector<int>(param.nmo_beta,0);
+            molsys.bset = std::vector<int>(param.nmo_beta,0);
             //if (param.localize_pm) {
-            bset[0] = 0;
+            molsys.bset[0] = 0;
             if(world.rank() == 0)
                 std::cout << " beta set " << 0 << " " << 0 << "-";
 
             for(int i = 1;i < param.nmo_beta;++i) {
-                bset[i] = bset[i - 1];
-                if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
-                    ++(bset[i]);
+                molsys.bset[i] = molsys.bset[i - 1];
+                if(molsys.beps[i] - molsys.beps[i - 1] > 1.5 || molsys.bocc[i] != 1.0){
+                    ++(molsys.bset[i]);
                     if(world.rank() == 0){
                         std::cout << i - 1 << std::endl;
-                        std::cout << " beta set " << bset[i] << " " << i << "-";
+                        std::cout << " beta set " << molsys.bset[i] << " " << i << "-";
                     }
                 }
             }
@@ -1378,9 +1282,9 @@ tensorT SCF::derivatives(World & world)
 {
     START_TIMER(world);
 
-    functionT rho = make_density(world, aocc, amo);
+    functionT rho = make_density(world, molsys.aocc, molsys.amo);
     functionT brho = rho;
-    if (!param.spin_restricted) brho = make_density(world, bocc, bmo);
+    if (!param.spin_restricted) brho = make_density(world, molsys.bocc, molsys.bmo);
     rho.gaxpy(1.0, brho, 1.0);
 
     vecfuncT dv(molecule.natom() * 3);
@@ -1396,9 +1300,9 @@ tensorT SCF::derivatives(World & world)
                 du[atom * 3 + axis] = functionT(factoryT(world).functor(func).truncate_on_project());
 
                 // core projector contribution
-                rc[atom * 3 + axis] = core_projector_derivative(world, amo, aocc, atom, axis);
+                rc[atom * 3 + axis] = core_projector_derivative(world, molsys.amo, molsys.aocc, atom, axis);
                 if (!param.spin_restricted) {
-                    if (param.nbeta) rc[atom * 3 + axis] += core_projector_derivative(world, bmo, bocc, atom, axis);
+                    if (param.nbeta) rc[atom * 3 + axis] += core_projector_derivative(world, molsys.bmo, molsys.bocc, atom, axis);
                 }
                 else {
                     rc[atom * 3 + axis] *= 2 * 2;
@@ -1447,9 +1351,9 @@ tensorT SCF::dipole(World & world)
         std::vector<int> x(3, 0);
         x[axis] = true;
         functionT dipolefunc = factoryT(world).functor(functorT(new MomentFunctor(x)));
-        functionT rho = make_density(world, aocc, amo);
+        functionT rho = make_density(world, molsys.aocc, molsys.amo);
         if (!param.spin_restricted) {
-            if (param.nbeta) rho += make_density(world, bocc, bmo);
+            if (param.nbeta) rho += make_density(world, molsys.bocc, molsys.bmo);
         }
         else {
             rho.scale(2.0);
@@ -1721,13 +1625,13 @@ void SCF::loadbal(World & world, functionT & arho, functionT & brho, functionT &
     LoadBalanceDeux<3> lb(world);
     lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
     lb.add_tree(arho, lbcost<double,3>(1.0, 1.0), false);
-    for(unsigned int i = 0;i < amo.size();++i){
-        lb.add_tree(amo[i], lbcost<double,3>(1.0, 1.0), false);
+    for(unsigned int i = 0;i < molsys.amo.size();++i){
+        lb.add_tree(molsys.amo[i], lbcost<double,3>(1.0, 1.0), false);
     }
     if(param.nbeta && !param.spin_restricted){
         lb.add_tree(brho, lbcost<double,3>(1.0, 1.0), false);
-        for(unsigned int i = 0;i < bmo.size();++i){
-            lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
+        for(unsigned int i = 0;i < molsys.bmo.size();++i){
+            lb.add_tree(molsys.bmo[i], lbcost<double,3>(1.0, 1.0), false);
         }
     }
     world.gop.fence();
@@ -1753,11 +1657,11 @@ void SCF::update_subspace(World & world,
         double & bsh_residual, double & update_residual)
 {
     double aerr = 0.0, berr = 0.0;
-    vecfuncT vm = amo;
-    vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
+    vecfuncT vm = molsys.amo;
+    vecfuncT rm = compute_residual(world, molsys.aocc, focka, molsys.amo, Vpsia, aerr);
     if(param.nbeta && !param.spin_restricted){
-        vecfuncT br = compute_residual(world, bocc, fockb, bmo, Vpsib, berr);
-        vm.insert(vm.end(), bmo.begin(), bmo.end());
+        vecfuncT br = compute_residual(world, molsys.bocc, fockb, molsys.bmo, Vpsib, berr);
+        vm.insert(vm.end(), molsys.bmo.begin(), molsys.bmo.end());
         rm.insert(rm.end(), br.begin(), br.end());
     }
     bsh_residual = std::max(aerr, berr);
@@ -1813,18 +1717,18 @@ void SCF::update_subspace(World & world,
         print("Subspace solution", c);
     }
     START_TIMER(world);
-    vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-    vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
+    vecfuncT amo_new = zero_functions<double,3>(world, molsys.amo.size());
+    vecfuncT bmo_new = zero_functions<double,3>(world, molsys.bmo.size());
     compress(world, amo_new, false);
     compress(world, bmo_new, false);
     world.gop.fence();
     for(unsigned int m = 0;m < subspace.size();++m){
         const vecfuncT & vm = subspace[m].first;
         const vecfuncT & rm = subspace[m].second;
-        const vecfuncT vma(vm.begin(), vm.begin() + amo.size());
-        const vecfuncT rma(rm.begin(), rm.begin() + amo.size());
-        const vecfuncT vmb(vm.end() - bmo.size(), vm.end());
-        const vecfuncT rmb(rm.end() - bmo.size(), rm.end());
+        const vecfuncT vma(vm.begin(), vm.begin() + molsys.amo.size());
+        const vecfuncT rma(rm.begin(), rm.begin() + molsys.amo.size());
+        const vecfuncT vmb(vm.end() - molsys.bmo.size(), vm.end());
+        const vecfuncT rmb(rm.end() - molsys.bmo.size(), rm.end());
         gaxpy(world, 1.0, amo_new, c(m), vma, false);
         gaxpy(world, 1.0, amo_new, -c(m), rma, false);
         gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
@@ -1839,10 +1743,10 @@ void SCF::update_subspace(World & world,
         Q = Q(Slice(1, -1), Slice(1, -1));
     }
 
-    std::vector<double> anorm = norm2s(world, sub(world, amo, amo_new));
-    std::vector<double> bnorm = norm2s(world, sub(world, bmo, bmo_new));
+    std::vector<double> anorm = norm2s(world, sub(world, molsys.amo, amo_new));
+    std::vector<double> bnorm = norm2s(world, sub(world, molsys.bmo, bmo_new));
     int nres = 0;
-    for(unsigned int i = 0;i < amo.size();++i){
+    for(unsigned int i = 0;i < molsys.amo.size();++i){
         if(anorm[i] > param.maxrotn){
             double s = param.maxrotn / anorm[i];
             ++nres;
@@ -1852,7 +1756,7 @@ void SCF::update_subspace(World & world,
 
                 printf(" %d", i);
             }
-            amo_new[i].gaxpy(s, amo[i], 1.0 - s, false);
+            amo_new[i].gaxpy(s, molsys.amo[i], 1.0 - s, false);
         }
 
     }
@@ -1860,7 +1764,7 @@ void SCF::update_subspace(World & world,
         printf("\n");
 
     nres = 0;
-    for(unsigned int i = 0;i < bmo.size();++i){
+    for(unsigned int i = 0;i < molsys.bmo.size();++i){
         if(bnorm[i] > param.maxrotn){
             double s = param.maxrotn / bnorm[i];
             ++nres;
@@ -1870,7 +1774,7 @@ void SCF::update_subspace(World & world,
 
                 printf(" %d", i);
             }
-            bmo_new[i].gaxpy(s, bmo[i], 1.0 - s, false);
+            bmo_new[i].gaxpy(s, molsys.bmo[i], 1.0 - s, false);
         }
 
     }
@@ -1892,7 +1796,7 @@ void SCF::update_subspace(World & world,
         update_residual = std::max(update_residual, maxval);
     }
     START_TIMER(world);
-    double trantol = vtol / std::min(30.0, double(amo.size()));
+    double trantol = vtol / std::min(30.0, double(molsys.amo.size()));
     normalize(world, amo_new);
     amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
     truncate(world, amo_new);
@@ -1904,8 +1808,8 @@ void SCF::update_subspace(World & world,
         normalize(world, bmo_new);
     }
     END_TIMER(world, "Orthonormalize");
-    amo = amo_new;
-    bmo = bmo_new;
+    molsys.amo = amo_new;
+    molsys.bmo = bmo_new;
 }
 
 // For given protocol, solve the DFT/HF/response equations
@@ -1913,7 +1817,7 @@ void SCF::solve(World & world)
 {
     functionT arho_old, brho_old;
     const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
-    const double trantol = vtol / std::min(30.0, double(amo.size()));
+    const double trantol = vtol / std::min(30.0, double(molsys.amo.size()));
     const double tolloc = 1e-3;
     double update_residual = 0.0, bsh_residual = 0.0;
     subspaceT subspace;
@@ -1935,38 +1839,38 @@ void SCF::solve(World & world)
         if(param.localize && do_this_iter) {
             tensorT U;
             if (param.localize_pm) {
-                U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+                U = localize_PM(world, molsys.amo, molsys.aset, tolloc, 0.25, iter == 0);
             }
             else {
-                U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
+                U = localize_boys(world, molsys.amo, molsys.aset, tolloc, 0.25, iter==0);
             }
-            amo = transform(world, amo, U, trantol, true);
-            truncate(world, amo);
-            normalize(world, amo);
-            rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+            molsys.amo = transform(world, molsys.amo, U, trantol, true);
+            truncate(world, molsys.amo);
+            normalize(world, molsys.amo);
+            rotate_subspace(world, U, subspace, 0, molsys.amo.size(), trantol);
             if(!param.spin_restricted && param.nbeta){
                 if (param.localize_pm) {
-                    U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+                    U = localize_PM(world, molsys.bmo, molsys.bset, tolloc, 0.25, iter == 0);
                 }
                 else {
-                    U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
+                    U = localize_boys(world, molsys.bmo, molsys.bset, tolloc, 0.25, iter==0);
                 }
-                bmo = transform(world, bmo, U, trantol, true);
-                truncate(world, bmo);
-                normalize(world, bmo);
-                rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
+                molsys.bmo = transform(world, molsys.bmo, U, trantol, true);
+                truncate(world, molsys.bmo);
+                normalize(world, molsys.bmo);
+                rotate_subspace(world, U, subspace, molsys.amo.size(), molsys.bmo.size(), trantol);
             }
         }
 
         START_TIMER(world);
-        functionT arho = make_density(world, aocc, amo), brho;
+        functionT arho = make_density(world, molsys.aocc, molsys.amo), brho;
 
         if (param.nbeta) {
             if (param.spin_restricted) {
                 brho = arho;
             }
             else {
-                brho = make_density(world, bocc, bmo);
+                brho = make_density(world, molsys.bocc, molsys.bmo);
             }
         }
         else {
@@ -2037,27 +1941,27 @@ void SCF::solve(World & world)
             }
         }
 
-        vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
+        vecfuncT Vpsia = apply_potential(world, molsys.aocc, molsys.amo, vf, delrho, vlocal, exca, 0);
         vecfuncT Vpsib;
         if(!param.spin_restricted && param.nbeta) {
-            Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
+            Vpsib = apply_potential(world, molsys.bocc, molsys.bmo, vf, delrho, vlocal, excb, 1);
         }
 
         double ekina = 0.0, ekinb = 0.0;
-        tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+        tensorT focka = make_fock_matrix(world, molsys.amo, Vpsia, molsys.aocc, ekina);
         tensorT fockb = focka;
 
         if (!param.spin_restricted && param.nbeta)
-            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+            fockb = make_fock_matrix(world, molsys.bmo, Vpsib, molsys.bocc, ekinb);
         else
             ekinb = ekina;
 
         if (!param.localize && do_this_iter) {
-            tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
-            rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+            tensorT U = diag_fock_matrix(world, focka, molsys.amo, Vpsia, molsys.aeps, molsys.aocc, dconv);
+            rotate_subspace(world, U, subspace, 0, molsys.amo.size(), trantol);
             if (!param.spin_restricted && param.nbeta) {
-                U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
-                rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
+                U = diag_fock_matrix(world, fockb, molsys.bmo, Vpsib, molsys.beps, molsys.bocc, dconv);
+                rotate_subspace(world, U, subspace, molsys.amo.size(), molsys.bmo.size(), trantol);
             }
         }
 
@@ -2085,37 +1989,37 @@ void SCF::solve(World & world)
 
                 // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                 tensorT U;
-                tensorT overlap = matrix_inner(world, amo, amo, true);
-                sygv(focka, overlap, 1, U, aeps);
+                tensorT overlap = matrix_inner(world, molsys.amo, molsys.amo, true);
+                sygv(focka, overlap, 1, U, molsys.aeps);
                 if (!param.localize) {
-                    amo = transform(world, amo, U, trantol, true);
-                    truncate(world, amo);
-                    normalize(world, amo);
+                    molsys.amo = transform(world, molsys.amo, U, trantol, true);
+                    truncate(world, molsys.amo);
+                    normalize(world, molsys.amo);
                 }
                 if(param.nbeta && !param.spin_restricted){
-                    overlap = matrix_inner(world, bmo, bmo, true);
-                    sygv(fockb, overlap, 1, U, beps);
+                    overlap = matrix_inner(world, molsys.bmo, molsys.bmo, true);
+                    sygv(fockb, overlap, 1, U, molsys.beps);
                     if (!param.localize) {
-                        bmo = transform(world, bmo, U, trantol, true);
-                        truncate(world, bmo);
-                        normalize(world, bmo);
+                        molsys.bmo = transform(world, molsys.bmo, U, trantol, true);
+                        truncate(world, molsys.bmo);
+                        normalize(world, molsys.bmo);
                     }
                 }
 
                 if(world.rank() == 0) {
                     print(" ");
                     print("alpha eigenvalues");
-                    print(aeps);
+                    print(molsys.aeps);
                     if(param.nbeta && !param.spin_restricted){
                         print("beta eigenvalues");
-                        print(beps);
+                        print(molsys.beps);
                     }
                 }
 
                 if (param.localize) {
                     // Restore the diagonal elements for the analysis
-                    for (unsigned int i=0; i<amo.size(); ++i) aeps[i] = focka(i,i);
-                    for (unsigned int i=0; i<bmo.size(); ++i) beps[i] = fockb(i,i);
+                    for (unsigned int i=0; i<molsys.amo.size(); ++i) molsys.aeps[i] = focka(i,i);
+                    for (unsigned int i=0; i<molsys.bmo.size(); ++i) molsys.beps[i] = fockb(i,i);
                 }
 
                 break;
@@ -2132,12 +2036,12 @@ void SCF::solve(World & world)
         print("Analysis of alpha MO vectors");
     }
 
-    analyze_vectors(world, amo, aocc, aeps);
+    analyze_vectors(world, molsys.amo, molsys.aocc, molsys.aeps);
     if(param.nbeta && !param.spin_restricted){
         if(world.rank() == 0)
             print("Analysis of beta MO vectors");
 
-        analyze_vectors(world, bmo, bocc, beps);
+        analyze_vectors(world, molsys.bmo, molsys.bocc, molsys.beps);
     }
 }
 

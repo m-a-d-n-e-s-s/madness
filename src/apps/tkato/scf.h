@@ -41,6 +41,13 @@ $Id$
 
 #include <mra/mra.h>
 #include <moldft/xcfunctional.h>
+#include <moldft/molecule.h>
+#include <moldft/molecularbasis.h>
+#include <tkato/scfparam.h>
+#include <tkato/molsys.h>
+
+/// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
+tensorT Q3(const madness::Tensor<double>& s);
 
 struct SCF {
     typedef madness::Function<double,3> functionT;
@@ -51,18 +58,15 @@ struct SCF {
     typedef madness::SeparatedConvolution<double,3> operatorT;
     typedef std::shared_ptr<operatorT> poperatorT;
 
+    MolecularSystem molsys;
     Molecule molecule;
     SCFParameters param;
     XCfunctional xc;
     AtomicBasisSet aobasis;
     functionT vnuc;
     functionT mask;
-    vecfuncT amo, bmo;
-    std::vector<int> aset, bset;
     vecfuncT ao;
     std::vector<int> at_to_bf, at_nbf;
-    tensorT aocc, bocc;
-    tensorT aeps, beps;
     poperatorT coulop;
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;

@@ -1,3 +1,5 @@
+#include <tkato/scf.h>
+#include <tkato/molsys.h>
 #include <tkato/response.h>
 using namespace madness;
 

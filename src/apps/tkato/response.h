@@ -42,40 +42,29 @@
 #include <mra/mra.h>
 #include <vector>
 #include <tkato/scf.h>
-
-typedef Vector<double,3> coordT;
-typedef SharedPtr< FunctionFunctorInterface<double,3> > functorT;
-typedef Function<double,3> functionT;
-typedef std::vector<functionT> vecfuncT;
-typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
-typedef std::vector<pairvecfuncT> subspaceT;
-typedef Tensor<double> tensorT;
-typedef FunctionFactory<double,3> factoryT;
-typedef SeparatedConvolution<double,3> operatorT;
-typedef SharedPtr<operatorT> poperatorT;
-
+#include <tkato/molsys.h>
 
 struct PurturbationOperator
 {
-    World & world;
-    functionT & op;
+    madness::World & world;
+    madness::Function<double,3>& op;
     int axis;
     double freq;
 
-    PurturbationOperator (World & world, functionT op, int axis, double freq)
+    PurturbationOperator (madness::World & world, madness::Function<double,3> op, int axis, double freq)
         : world(world), op(op), axis(axis), freq(freq) {}
 };
 
 struct CoupledPurturbation
 {
-    World & world;          ///< World object
+    madness::World & world;          ///< World object
     SCF & calc;     ///< SCF object including solved MOs with HF/DFT
     double freq;            ///< frequency
-    vector< vector<vecfuncT> > rmo;     ///< virtual orbitals
-    vector< vector<vecfuncT> > Vrmo;    ///< potential applied virtual orbitals
+    MolecularSystem rsys; ///< virtual orbitals
+    MolecularSystem Vrsys; ///< potential applied virtual orbitals
     int nXY;                ///< Tamm-Dancoff 1: ON 2: OFF
 
-    CoupledPurturbation (World & world, Calculation & calc, double freq, bool enableTD = false)
+    CoupledPurturbation (madness::World & world, SCF& calc, double freq, bool enableTD = false)
         : world(world), calc(calc), freq(freq), rmo(3), Vrmo(3), nXY(enableTD?1:2) {}
 
     void guess_excite (int axis);
