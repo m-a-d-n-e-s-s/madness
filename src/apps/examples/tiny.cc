@@ -103,7 +103,8 @@ void do_stuff(World& world, const std::string name) {
     
     coord_6d fix_coord(0.0);
     // electron 2:
-    fix_coord[4]=0.1;
+    fix_coord[3]=0.5;
+    fix_coord[4]=2.5;
     pair.get_impl()->print_plane(name,"xy",fix_coord);
 
 

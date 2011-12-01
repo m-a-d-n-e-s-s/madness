@@ -53,7 +53,7 @@
 #include <iostream>
 
 static const bool is_helium=true;
-static const double dcut=1.e-4;
+static const double dcut=1.e-6;
 
 static double slater(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
@@ -189,11 +189,12 @@ namespace madness {
         {}
 
         double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
-            if (node.is_leaf()) {
-                return leaf_value;
-            } else {
-                return parent_value;
-            }
+	    return node.coeff().rank();
+//            if (node.is_leaf()) {
+//                return leaf_value;
+//            } else {
+//                return parent_value;
+//            }
         }
     };
 
@@ -284,6 +285,7 @@ namespace madness {
                 result=result+mul;
             }
             result.truncate();
+            result.reduce_rank();
             result.print_size("U * |ij>");
             return result;
         }
@@ -714,7 +716,7 @@ namespace madness {
             MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
             functionT J=-0.5*hf.get_coulomb_potential();
 
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-8);
+            real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
             real_function_6d v11=CompositeFactory<double,6,3>(world)
                                  .ket(copy(zo_function).get_impl())
                                  .g12(eri.get_impl())
@@ -902,15 +904,9 @@ namespace madness {
             // kinetic energy expectation value
             double ke=0.0;
             for (int axis=0; axis<6; axis++) {
-            if (world.rank()==0) print("a");
-            fo_function.print_size("fo_function");
-            fo_function.print_tree();
                 real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-            if (world.rank()==0) print("b");
                 real_function_6d dpsi = D(fo_function);
-            if (world.rank()==0) print("c");
                 double aa=dpsi.norm2();
-            if (world.rank()==0) print("d");
                 double a=0.5*aa*aa;
                 ke += a;
                 if (world.rank()==0) print("done with axis",axis, a);
@@ -961,6 +957,7 @@ namespace madness {
                 pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
                 save_function(world,pair.Uphi0,"Uphi0");
 	    }
+	    load_balance(pair.Uphi0,false);
 
             const real_function_6d& phi0=pair.phi0;
 

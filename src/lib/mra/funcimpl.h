@@ -3854,7 +3854,9 @@ namespace madness {
                 Key<LDIM> key1, key2;
                 child.break_apart(key1,key2);
 
-                Future<iaT> result_=result.make_child(child.parent());
+                Future<iaT> result_= (leaf_op.do_error_leaf_op) 
+		    	? result.make_child(child.parent())
+			: Future<iaT>(result);
                 Future<iaT> iaket_=iaket.make_child(child);
                 Future<iaL> iap1_=iap1.make_child(key1);
                 Future<iaL> iap2_=iap2.make_child(key2);
