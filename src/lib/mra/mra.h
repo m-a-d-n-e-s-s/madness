@@ -607,6 +607,7 @@ namespace madness {
             if (VERIFY_TREE) verify_tree();
             if (is_compressed()) reconstruct();
             impl->compress(true, keepleaves, fence);
+            print("nonstandard after compress");
         }
 
         /// Converts the function from nonstandard form to standard form.  Possible non-blocking comm.
@@ -1379,7 +1380,22 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         result.set_impl(f, true);
+        print("result k = ",result.get_impl()->getK());
+        print("is per ",op.get_bc().is_periodic());
         result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
+        return result;
+    }
+
+    template <typename opT, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
+    apply1_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+        PROFILE_FUNC;
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+
+        result.set_impl(f, true);
+        print("result k = ",result.get_impl()->getK());
+        print("is per ",op.get_bc().is_periodic());
+        result.get_impl()->apply1(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         return result;
     }
 
@@ -1397,6 +1413,21 @@ namespace madness {
         ff.nonstandard(op.doleaves, true);
 
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply_only(op, ff, fence);
+
+        ff.standard();
+        result.reconstruct();
+        return result;
+    }
+
+    template <typename opT, typename R, std::size_t NDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM>
+    apply1(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
+        Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
+        if (VERIFY_TREE) ff.verify_tree();
+        ff.reconstruct();
+        ff.nonstandard(op.doleaves, true);
+
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result = apply1_only(op, ff, fence);
 
         ff.standard();
         result.reconstruct();

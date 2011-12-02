@@ -2285,6 +2285,10 @@ ENDt_TIMER("memcpy3");
         }
 
 
+        int getK(){
+            return k;
+        }
+
         template <typename Q, typename R>
         struct do_gaxpy_inplace {
             typedef Range<typename FunctionImpl<Q,NDIM>::dcT::const_iterator> rangeT;
@@ -4003,6 +4007,8 @@ ENDt_TIMER("memcpy3");
 	    typedef Void(opT::*memfun3T)(tuple2T);
 	};
 
+        //CHANGE THIS TO SOMETHING MORE LIKE THE PARAMETERS to do_apply_kernel_agg NO REFERENCES JUST COPYING AND SEE IF IT WORKS
+
         template <typename opT, typename R>
         Void do_apply_kernel_three(const opT* op, const Tensor<R>& c, const do_op_args& args) {
             typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple1T;
@@ -4012,12 +4018,34 @@ ENDt_TIMER("memcpy3");
 
             return None;
         }
+        
+        template <typename opT, typename R>
+        Void do_apply_kernel_threecloser(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
+            tuple1T t1(const_cast<keyT&>(args.key), const_cast<keyT&>(args.d), const_cast<keyT&>(args.dest), const_cast<double&>(args.tol), const_cast<double&>(args.fac), const_cast<double&>(args.cnorm), const_cast<Tensor<R>&>(c), coeffs);
+            std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2 = op->apply_computecloser(t1);
+            op->apply_postprocesscloser(t2);
+
+            return None;
+        }
+
+        template <typename opT, typename R>
+        Void do_apply_kernel_threept(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
+            tuple1T t1(const_cast<keyT&>(args.key), const_cast<keyT&>(args.d), const_cast<keyT&>(args.dest), const_cast<double&>(args.tol), const_cast<double&>(args.fac), const_cast<double&>(args.cnorm), const_cast<Tensor<R>&>(c), coeffs);
+            std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2 = op->apply_computept(t1);
+            op->apply_postprocesspt(t2);
+
+            return None;
+        }
+
 
         template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
             typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple11T;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
             //std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            ////Tensor<R> c1 = Tensor<R>(c);
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
             //std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT&, keyT&, const double&, const double&> t2 = op->apply_compute(t1);
             //op->apply_postprocess(t2);
@@ -4039,7 +4067,7 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allCompute<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPU<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
@@ -4055,11 +4083,11 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&t1);
 
-            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
+            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4067,7 +4095,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
+                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
             }
 
             this->world.taskq.incNRegistered();
@@ -4158,6 +4186,52 @@ ENDt_TIMER("memcpy3");
         }
 
         template <typename opT, typename R>
+        Void do_apply1(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // insert timer here
+            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+            double cnorm = c.normf();
+            //const long lmax = 1L << (key.level()-1);
+
+            const std::vector<keyT>& disp = op->get_disp(key.level());
+
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+
+            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+                const keyT& d = *it;
+
+                keyT dest = neighbor(key, d, is_periodic);
+
+                if (dest.is_valid()) {
+                    double opnorm = op->norm(key.level(), d);
+                    // working assumption here is that the operator is isotropic and
+                    // montonically decreasing with distance
+                    double tol = truncate_tol(thresh, key);
+
+                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
+
+                    if (cnorm*opnorm> tol/fac) {
+
+                        // Most expensive part is the kernel ... do it in a separate task
+                        if (d.distsq()==0) {
+                            // This introduces finer grain parallelism
+                            ProcessID where = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            woT::task(where, &implT:: template do_apply_kernel_threecloser<opT,R>, op, c, args);
+                        } else {
+                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            if (result.normf()> 0.3*tol/fac) {
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            }
+                        }
+                    } else if (d.distsq() >= 1)
+                        break; // Assumes monotonic decay beyond nearest neighbor
+                }
+            }
+            return None;
+        }
+
+        template <typename opT, typename R>
         void apply(const/* */ opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typename dcT::const_iterator end = f.coeffs.end();
@@ -4166,9 +4240,30 @@ ENDt_TIMER("memcpy3");
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
+                    print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                         woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
+                    }
+                }
+            }
+            if (fence)
+                world.gop.fence();
+        }
+
+        template <typename opT, typename R>
+        void apply1(const/* */ opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typename dcT::const_iterator end = f.coeffs.end();
+            for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
+                // looping through all the coefficients in the source
+                const keyT& key = it->first;
+                const FunctionNode<R,NDIM>& node = it->second;
+                if (node.has_coeff()) {
+                    print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
+                    if (node.coeff().dim(0) != k || op.doleaves) {
+                        ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+                        woT::task(p, &implT:: template do_apply1<opT,R>, &op, &f, key, node.coeff());
                     }
                 }
             }

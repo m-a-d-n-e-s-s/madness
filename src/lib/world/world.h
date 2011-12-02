@@ -484,11 +484,11 @@ namespace madness {
 
     class ComputeBase {
     public: 
-        long computeAddress;                                                  
+        unsigned long long computeAddress;                                                  
             
         ComputeBase() : computeAddress(0) {}
 
-        ComputeBase(long _address) : computeAddress(_address) {}                                  
+        ComputeBase(unsigned long long _address) : computeAddress(_address) {}                                  
 
         /*
         bool
@@ -536,7 +536,7 @@ namespace madness {
         World * w;
 
         ComputeDerived(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess, WorldTaskQueue * _q, World * _w) : 
-           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess), q(_q), w(_w) {
+           ComputeBase((unsigned long long)&_memfunCompute), memfunCompute(_memfunCompute), memfunPostprocess(_memfunPostprocess), q(_q), w(_w) {
         }
         
         virtual void add(void * obj){
@@ -604,7 +604,7 @@ namespace madness {
         World * w;
 
         ComputeDerivedJustAgg(memfunComputePostprocessT _memfunComputePostprocess, WorldTaskQueue * _q, World * _w) : 
-           ComputeBase((long)&_memfunComputePostprocess), memfunComputePostprocess(_memfunComputePostprocess), q(_q), w(_w) {
+           ComputeBase((unsigned long long)&_memfunComputePostprocess), memfunComputePostprocess(_memfunComputePostprocess), q(_q), w(_w) {
         }
         
         virtual void add(void * obj){
@@ -647,7 +647,7 @@ namespace madness {
 
         ComputeDerivedBacktoCPU(memfunComputeT _memfunCompute, memfunPostprocessT _memfunPostprocess,
             memfunBacktoCPUT _memfunBacktoCPU, WorldTaskQueue * _q, World * _w) : 
-           ComputeBase((long)&_memfunCompute), memfunCompute(_memfunCompute), 
+           ComputeBase((unsigned long long)&_memfunCompute), memfunCompute(_memfunCompute), 
            memfunPostprocess(_memfunPostprocess), memfunBacktoCPU(_memfunBacktoCPU), q(_q), w(_w) {
         }
         
@@ -721,7 +721,7 @@ namespace madness {
         WorldGopInterface& gop;  ///< Global operations
 
         pthread_t gpu_thread;
-        ConcurrentHashMap<long, ComputeBase*>& gpu_hash;
+        ConcurrentHashMap<unsigned long long, ComputeBase*>& gpu_hash;
         Spinlock gpu_hashlock;
         
     private:

@@ -665,9 +665,11 @@ void test_op(World& world) {
     FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
+    print("Getting f");
     START_TIMER;
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
     END_TIMER("project");
+    
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
 
@@ -788,6 +790,7 @@ void test_coulomb(World& world) {
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
 
+    print("f k = ",f.k());
     f.reconstruct();
     double norm = f.norm2(), err = f.err(*functor);
     if (world.rank() == 0) {
@@ -808,8 +811,10 @@ void test_coulomb(World& world) {
 //         print("         f norm is", norm);
 //         print("     f total error", err);
 //     }
-
+    
+    print("Before reconstruct");
     f.reconstruct();
+    print("Before nonstandard");
     START_TIMER;
     f.nonstandard(false,true);
     END_TIMER("nonstandard");
@@ -825,7 +830,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
 
     START_TIMER;
-    Function<double,3> r = apply_only(op,f) ;
+    Function<double,3> r = apply1_only(op,f) ;
     END_TIMER("apply");
 
 
@@ -1252,6 +1257,8 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
+        //sleep(20);
+
         //test_basic<double,1>(world);
         //test_conv<double,1>(world);
         //test_math<double,1>(world);
@@ -1270,7 +1277,7 @@ int main(int argc, char**argv) {
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-        test_qm(world);
+        ////test_qm(world);
 
         //test_basic<double_complex,1>(world);
         //test_conv<double_complex,1>(world);
@@ -1294,6 +1301,9 @@ int main(int argc, char**argv) {
         //test_math<double,3>(world);
         //test_diff<double,3>(world);
         test_op<double,3>(world);
+        //print("before fence ",world.gpu_hash.size(), world.taskq.size());
+        //world.gop.fence();
+        //print("after fence ",world.gpu_hash.size(), world.taskq.size());
         test_coulomb(world);
         //test_plot<double,3>(world);
         //test_io<double,3>(world);

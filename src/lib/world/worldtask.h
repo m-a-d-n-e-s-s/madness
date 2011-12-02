@@ -759,8 +759,9 @@ namespace madness {
              //ret1T ret1 = (obj->*memfunCompute)(arg1);
              //outArgs.push_back(ret1);
         //}
-        objT odef(w); //this relies on objT having a constructor with a World* argument
-        this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
+        //objT odef(w); //this relies on objT having a constructor with a World* argument
+        if (this->inObj.size() > 0){
+        this->outArgs = (this->inObj.at(0)->*memfunCompute)(this->inArgs, this->inObj);
 
         printf("   %i \n", outArgs.size());
         for (unsigned int i = 0; i < outArgs.size(); i++){  
@@ -768,6 +769,7 @@ namespace madness {
             //(obj->*memfunPostprocess)(outArgs.at(i));
             q->add(*obj, memfunPostprocess, outArgs.at(i));
             q->decNRegistered();  
+        }
         }
     }
 
