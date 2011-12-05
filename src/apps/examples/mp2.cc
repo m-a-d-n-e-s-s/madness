@@ -55,11 +55,6 @@
 static const bool is_helium=true;
 static const double dcut=1.e-6;
 
-static double slater(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double r2= x*x + y*y + z*z;
-    return exp(-2.0*sqrt(r2));
-}
 
 
 template<size_t NDIM>
@@ -77,38 +72,6 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string&
     ar & pair;
     pair.print_size(name);
 }
-
-
-//static double gauss_3d(const coord_3d& r) {
-//    const double x=r[0], y=r[1], z=r[2];
-//    const double r2= x*x + y*y + z*z;
-//    const double norm=0.712705695388313;
-//    return norm*exp(-r2);
-//}
-//
-//static double gauss_6d(const coord_6d& r) {
-//    coord_3d r1, r2;
-//    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-//    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-//    return gauss_3d(r1)*gauss_3d(r2);
-//}
-//
-//
-//static double r2r(const coord_6d& r) {
-//    coord_3d r1, r2;
-//    r1[0]=r[0],    r1[1]=r[1],    r1[2]=r[2];
-//    r2[0]=r[3],    r2[1]=r[4],    r2[2]=r[5];
-//    double g1=gauss_3d(r1);
-//    return g1*g1*gauss_3d(r2);
-//}
-//
-//static double one(const coord_6d& r) {
-//    return 1.0;
-//}
-//static double one(const coord_3d& r) {
-//    return 1.0;
-//}
-
 
 /// Smoothed 1/r potential (c is the smoothing distance)
 static double u(double r, double c) {
@@ -135,31 +98,6 @@ static double x12(const coord_6d& r, const int axis) {
     return r[axis]-r[axis+3];
 }
 
-class YetAnotherWrapperClass {
-    const FunctionFunctorInterface<double,6>& func;
-    const Tensor<double>& qx;
-
-public:
-    YetAnotherWrapperClass(const FunctionFunctorInterface<double,6>& func)
-        : func(func)
-        , qx(FunctionCommonData<double,6>::get(FunctionDefaults<6>::get_k()).quad_x) {
-    }
-
-    void operator()(const Key<6>& key, Tensor<double>& t) const {
-        Tensor<double> fval=func.values(key, qx).full_tensor(); // func.values returns coeffT in TT_FULL
-        t.emul(fval);
-    }
-};
-
-
-static double slaterf12(const coord_6d& r) {
-    const double rr=r12(r);
-    static const double gamma=1.0;
-    static const double alpha=1.0;
-    const double f= (1.0-exp(-gamma*rr))/(2.0*gamma);
-    const double phi=exp(-alpha*sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]));
-    return phi*f;
-}
 
 //// according to McQuarrie
 //static double he_orbital_McQuarrie(const coord_3d& r) {
@@ -267,7 +205,7 @@ namespace madness {
 //                print("diff norm ",error);
 
                 result=result+(tmp1-tmp2).truncate();
-                result.truncate();
+                result.truncate().reduce_rank();
 //                result=result+(u*Dij).truncate();
                 if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
                 result.print_size("result");
@@ -313,7 +251,6 @@ namespace madness {
             real_function_6d tmp=real_factory_6d(world).functor2(f_over_r_(gamma)).is_on_demand();
             return tmp;
         }
-
 
         /// return (\nabla f)^2 as on-demand functions
         real_function_6d nablaf2() const {
@@ -551,13 +488,11 @@ namespace madness {
     /// a class for computing the first order wave function and MP2 pair energies
     class MP2 : public OptimizationTargetInterface {
 
-        typedef real_function_6d pairfunctionT;
-        typedef std::vector<pairfunctionT> vecpairfuncT;
-
         struct ElectronPair {
             real_function_6d phi0;          ///< 0th order wave function (orbital product)
             real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
-            real_function_6d r12_phi;       ///< orbital product multiplied with the correlation factor
+            real_function_6d constant_term; ///< first guess, constant in the residual equation
+            real_function_6d r12phi;       ///< orbital product multiplied with the correlation factor
 
             real_function_6d Kfphi0;        ///< the function K f12 |phi^0>
             real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
@@ -582,20 +517,55 @@ namespace madness {
         CorrelationFactor corrfac;              ///< correlation factor: Slater or linear
 
         std::vector<ElectronPair> pairs;        ///< pair functions and energies
-        bool restart;                           ///< flag if prep functions have already been computed
         bool solved;                            ///< flag if the residual equations are already solved
 
+        struct Intermediates {
+            std::string function;      ///< pair function for a specific pair w/o correlation factor part
+            std::string r12phi;       ///< orbital product multiplied with the correlation factor
+            std::string constant_term;
+            std::string Kfphi0;        ///< the function K f12 |phi^0>
+            std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
+            std::string KffKphi0;      ///< the function [K,f12] |phi^0>
+
+            Intermediates() : r12phi(), constant_term(), Kfphi0(), Uphi0(), KffKphi0() {};
+
+            Intermediates(World& world, const std::string& filename) : function(), r12phi(), constant_term(),
+                    Kfphi0(), Uphi0(), KffKphi0() {
+                std::ifstream f(filename.c_str());
+                position_stream(f, "mp2");
+                std::string s;
+
+                while (f >> s) {
+                    if (s == "end") break;
+                    else if (s == "function") f >> function;
+                    else if (s == "r12phi") f >> r12phi;
+                    else if (s == "constant_term") f >> constant_term;
+                    else if (s == "Kfphi0") f >> Kfphi0;
+                    else if (s == "Uphi0") f >> Uphi0;
+                    else if (s == "KffKphi0") f >> KffKphi0;
+                    else {continue;
+                    }
+                    if (world.rank()==0) print("found intermediate in control file: ",s);
+                }
+            }
+            template <typename Archive> void serialize (Archive& ar) {
+                ar & function & r12phi & constant_term & Kfphi0 & Uphi0 & KffKphi0;
+            }
+
+        };
+
+        Intermediates intermediates;
         real_convolution_3d poisson;
 
         static const double dcut=1.e-6;
 
     public:
-        MP2(World& world, const HartreeFock& hf, const CorrelationFactor& corrfac, const bool restart)
+        MP2(World& world, const HartreeFock& hf, const CorrelationFactor& corrfac, const std::string& input)
             : world(world)
             , hf(hf)
             , corrfac(corrfac)
-	    , restart(restart)
             , solved(false)
+            , intermediates()
             , poisson(CoulombOperator(world,0.0001,hf.get_calc().param.econv)) {
 
             // number of pairs:
@@ -603,6 +573,8 @@ namespace madness {
             const int npairs=nocc*(nocc+1)/2;
             pairs.resize(npairs);
 
+            if (world.rank()==0) intermediates=Intermediates(world,input);
+            world.gop.broadcast_serializable(intermediates, 0);
         }
 
         /// return the molecular energy as a function of the coordinates
@@ -612,7 +584,7 @@ namespace madness {
             if (not residual_equations_solved(x)) {
                 for (int i=0; i<hf.nocc(); ++i) {
                     for (int j=i; j<hf.nocc(); ++j) {
-                        solve_residual_equation(i,j);
+                        solve_residual_equations(i,j);
                     }
                 }
             }
@@ -634,7 +606,7 @@ namespace madness {
         }
 
         /// plot a pair function along a line
-        void plot_along(const pairfunctionT& pair, const std::string name) const {
+        void plot_along(const real_function_6d& pair, const std::string name) const {
 
             double L=FunctionDefaults<6>::get_cell_width()[0];
             coord_6d lo(0.05), hi(0.05);
@@ -682,15 +654,8 @@ namespace madness {
         real_function_6d zeroth_order_function(const int i, const int j) const {
             real_function_6d f=hartree_product(hf.orbital(i),hf.orbital(j));
             f.set_thresh(FunctionDefaults<6>::get_thresh());
-            f.truncate();
             double norm=f.norm2();
             f.scale(1.0/norm);
-
-            //            functionT orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
-            //            double norm=orbital.norm2();
-            //            orbital.scale(1.0/norm);
-
-            //            pairfunctionT f=hartree_product(orbital,orbital);
             return f;
         }
 
@@ -699,18 +664,13 @@ namespace madness {
             int ij=make_ij(i,j);
             // we consider this an essential:
             MADNESS_ASSERT(pairs[ij].solved);
-            return pairs[ij].function+pairs[ij].r12_phi;
+            return pairs[ij].function+pairs[ij].r12phi;
         }
 
-        /// return the 1st order energy correction to the orbitals (= HF energy)
-        double compute_first_order_correction(const int i, const int j) const {
-
-            // the first order energy is given by the expression
-            //  E^1 = <phi^0 | V^1 | phi^0>
-            // with V^1=-J+K+1/r12
-
-            // | phi^0 >
-            pairfunctionT zo_function=zeroth_order_function(i,j);
+        /// return the 1st order energy correction E^1 = <phi^0 | -J + K + 1/r12 | phi^0>
+        double compute_first_order_correction(const ElectronPair& pair) const {
+            MADNESS_ASSERT(pair.phi0.is_initialized());
+            const real_function_6d& phi0=pair.phi0;
 
             // J and K
             MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
@@ -718,51 +678,259 @@ namespace madness {
 
             real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
             real_function_6d v11=CompositeFactory<double,6,3>(world)
-                                 .ket(copy(zo_function).get_impl())
-                                 .g12(eri.get_impl())
-                                 .V_for_particle1(copy(J).get_impl())
-                                 .V_for_particle2(copy(J).get_impl())
-                                 ;
+                   .V_for_particle1(copy(J).get_impl()).V_for_particle2(copy(J).get_impl())
+                   .g12(eri.get_impl()).ket(copy(phi0).get_impl());
 
-            const double fo_energy=inner(zo_function,v11);
-            const double zo_energy=zeroth_order_energy(i,j);
-            const double energy=fo_energy+zo_energy;
-
-            if (world.rank()==0)
-                printf("1st order energy contribution and total energy of pair (%2d %2d)  : %12.8f %12.8f \n",
-                        i,j,fo_energy,energy);
+            const double fo_energy=inner(phi0,v11);
             return fo_energy;
         }
 
-        /// given 0th and 1st order pair function, compute the pair energy
-        double compute_second_order_correction(const int i, const int j,
-                const pairfunctionT& fo_function) const {
+        /// solve the residual equation for electron pair (i,j)
+        void solve_residual_equations(const int i, const int j) {
 
-            // the second order energy is given by the expression
-            //  E^2 = <phi^0 | V^1 | phi^1>
+            ElectronPair result=guess_mp1(i,j);
+            compute_second_order_correction_with_Hylleraas(i,j,result);
 
-            const pairfunctionT zo_function=zeroth_order_function(i,j);
-            const double overlap=inner(fo_function,zo_function);
-            if (world.rank()==0) print("<phi^1 | phi^0>",overlap);
+            // the Green's function depends on the zeroth order energy, which is the sum
+            // of the orbital energies of orbitals i and j
+            //  -2.0 G = (T - e_i - e_j) ^ -1
+            const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
 
-            const real_function_6d g=multiply_with_1st_order_Hamiltonian(zo_function);
-            const double so_energy=inner(fo_function,g);
-            if (world.rank()==0)
-                printf("2nd order contribution and total energy of pair (%2d %2d) : %12.8f \n",
-                        i,j,so_energy);
-            return so_energy;
+
+//	    if (world.rank()==0) print("computing iteratively");
+//            for (int ii=0; ii<20; ++ii) {
+//
+//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
+//
+//                /// apply the convolution
+//                vphi.scale(-2.0).truncate();
+//                const pairfunctionT tmp=green(vphi).truncate();
+//                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+//                result.function=(constant_term+tmp).truncate();
+//
+//                orthogonalize(result.function,zo_function);
+////                orthogonalize(result.function,result.r12phi);
+//
+//                compute_second_order_correction_with_Hylleraas(i,j,result);
+//                const std::string name="psi1_it"+stringify(ii);
+//                save_function(world,result.function,name);
+//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+//
+//            }
+
+            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
+	    if (world.rank()==0) print("computing increments");
+            real_function_6d latest_iteration=result.constant_term;
+
+            for (int ii=0; ii<20; ++ii) {
+
+                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_iteration);
+                load_balance(vphi,false);
+
+                /// apply the convolution
+                vphi.scale(-2.0).truncate();
+                latest_iteration=green(vphi).truncate();
+                latest_iteration.print_size("result of applying 0th order Hamiltonian on latest increment");
+
+                orthogonalize(latest_iteration,result.phi0);
+                result.function=result.function+latest_iteration;
+
+                // compute the energy
+                compute_second_order_correction_with_Hylleraas(i,j,result);
+
+                // save for possible later use
+                std::string name="psi1_it"+stringify(ii);
+                save_function(world,result.function,name);
+                name="incremental_psi1_order"+stringify(ii);
+                save_function(world,latest_iteration,name);
+
+                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+	   		}
+
+
+            result.solved=true;
+
+        }
+
+    private:
+
+        /// helper function to map indices i, j to a pair index ij, with i<=j
+        int make_ij(const int i, const int j) const {
+
+            const int nocc=hf.nocc();
+            MADNESS_ASSERT(i<nocc and j<nocc and i>=0 and j>=0 and i<=j);
+
+            int ij=0;
+            for (int ii=0; ii<j; ++ii) {ij+=(ii+1);}    // column index j: will yield ij=0,1,3,6
+            ij+=i;                                      // row index i
+
+            print("i,j,ij",i,j,ij);
+            return ij;
+        }
+
+        /// do some load-balancing
+        void load_balance(const real_function_6d& f, const bool leaf) const {
+
+            LoadBalanceDeux<6> lb(world);
+            if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
+            else lb.add_tree(f,LBCost(0.1,1.0));
+            FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
+            if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
+
+        }
+
+        /// orthogonalize f against function g: |f> <= |f> - |g><g|f>
+        void orthogonalize(real_function_6d& f, const real_function_6d& g) const {
+
+            const double gnorm=g.norm2();
+            const double fac=1.0/(gnorm*gnorm);
+            Projector<double,6> P(g);   // projector on g w/o any normalization
+            const real_function_6d h=(f-fac*P(f)).truncate();
+            const double ovlp=inner(h,g);
+            const double thresh=f.thresh();
+            if (ovlp>thresh and world.rank()==0) printf("ovlp in orthogonalize %12.8f\n",ovlp);
+            f=h;
+        }
+
+        /// compute some matrix elements that don't change during the calculation
+        ElectronPair make_pair(const int i, const int j) const {
+
+            ElectronPair pair;
+            const bool r0=world.rank()==0;
+
+            // some functions repeatedly used
+            pair.phi0=this->zeroth_order_function(i,j);
+            pair.first_order_correction=this->compute_first_order_correction(pair);
+
+            if (intermediates.r12phi.empty()) {
+//                pair.r12phi=corrfac.f()*pair.phi0;
+                real_function_6d bla=corrfac.f()*pair.phi0;
+                pair.r12phi=CompositeFactory<double,6,3>(world)
+                            .g12(corrfac.f().get_impl()).ket(copy(pair.phi0).get_impl());
+                pair.r12phi.fill_tree().truncate().reduce_rank();
+                save_function(world,pair.r12phi,"r12phi");
+            }
+            else load_function(world,pair.r12phi,intermediates.r12phi);
+
+            const real_function_6d& fphi0=pair.r12phi;
+            const real_function_3d& phi_i=hf.orbital(i);
+            const real_function_3d& phi_j=hf.orbital(j);
+            const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
+            const real_function_3d Kphi_j=hf.apply_exchange(phi_j);
+            const real_function_6d Kphi0=(hartree_product(Kphi_i,phi_j)
+                    + hartree_product(phi_i,Kphi_j)).truncate();
+
+
+            if (not intermediates.Kfphi0.empty()) {
+                load_function(world,pair.Kfphi0,intermediates.Kfphi0);
+            } else {
+                pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
+                pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
+                pair.Kfphi0.truncate().reduce_rank();
+                save_function(world,pair.Kfphi0,"Kfphi0");
+            }
+
+            if (not intermediates.KffKphi0.empty()) {
+                load_function(world,pair.KffKphi0,intermediates.KffKphi0);
+            } else {
+                pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
+                pair.KffKphi0.truncate().reduce_rank();
+                save_function(world,pair.KffKphi0,"KffKphi0");
+            }
+
+            if (not intermediates.Uphi0.empty()) {
+                load_function(world,pair.Uphi0,intermediates.Uphi0);
+            } else {
+                pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
+                pair.Uphi0.truncate().reduce_rank();
+                save_function(world,pair.Uphi0,"Uphi0");
+            }
+
+            if (not intermediates.constant_term.empty()) {
+                load_function(world,pair.constant_term,intermediates.constant_term);
+            }
+
+            if (not intermediates.function.empty()) {
+                load_function(world,pair.function,intermediates.function);
+            }
+
+            load_balance(pair.Uphi0,false);
+
+            const real_function_6d& phi0=pair.phi0;
+
+            // some matrix elements
+            pair.phi0_f_phi0=inner(phi0,fphi0);
+            if (r0) printf("<phi^0 | f       | phi^0>  %12.8f\n",pair.phi0_f_phi0);
+
+            pair.phi0_f2_phi0=inner(phi0,corrfac.f2()*phi0);
+            if (r0) printf("<phi^0 | f^2     | phi^0>  %12.8f\n",pair.phi0_f2_phi0);
+
+            pair.phi0_nf_phi0=inner(phi0,corrfac.nablaf2()*phi0);
+            if (r0) printf("<phi^0 | (f')^2  | phi^0>  %12.8f\n",pair.phi0_nf_phi0);
+
+            pair.phi0_fovr_phi0=inner(phi0,corrfac.f_over_r()*phi0);
+            if (r0) printf("<phi^0 | f/r     | phi^0>  %12.8f\n",pair.phi0_fovr_phi0);
+
+            pair.phi0_fKf_phi0=inner(fphi0,pair.Kfphi0);
+            if (r0) printf("<phi^0 | f K f   | phi^0>  %12.8f\n",pair.phi0_fKf_phi0);
+
+            pair.phi0_f2K_phi0=inner(Kphi0,corrfac.f2()*phi0);
+            if (r0) printf("<phi^0 | f^2 K   | phi^0>  %12.8f\n",pair.phi0_f2K_phi0);
+
+            if (r0) printf("done with matrix elements at time %.1fs\n\n", wall_time());
+            return pair;
+        }
+
+        /// compute the first iteration of the residual equations and all intermediates
+        ElectronPair guess_mp1(const int i, const int j) const {
+
+            // the Green's function
+            const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+
+            ElectronPair pair=make_pair(i,j);
+
+            // fast return if possible
+            if (pair.constant_term.is_initialized() and pair.function.is_initialized()) return pair;
+
+            // make the term (-J + K)|phi^0>
+            const real_function_3d phi_i=hf.orbital(i);
+            const real_function_3d phi_j=hf.orbital(j);
+            const real_function_3d coulomb=hf.get_coulomb_potential();
+
+            const real_function_3d JKphi_i=-0.5*coulomb*phi_i;
+            const real_function_3d JKphi_j=-0.5*coulomb*phi_j;
+            const real_function_6d JKpair=(hartree_product(JKphi_i,phi_j) + hartree_product(phi_i,JKphi_j)).truncate();
+
+            // apply Kutzelnigg's regularized potential U_12
+            const real_function_6d Upair=pair.Uphi0;
+
+            // make the term -E^1|phi^0>
+            const double e1=pair.first_order_correction;
+            const real_function_6d epair=e1*pair.phi0;
+
+            // make the term [K,f]|phi^0> 
+            const real_function_6d K_comm=pair.KffKphi0;
+
+            // make all terms
+            real_function_6d Vpair=(JKpair+Upair-K_comm-epair).truncate();
+            real_function_6d GVpair=green(-2.0*Vpair).truncate();
+            orthogonalize(GVpair,pair.phi0);
+
+            pair.function=GVpair;
+            pair.constant_term=copy(pair.function);
+            save_function(world,GVpair,"GVpair");
+
+            return pair;
         }
 
         /// given a pair function, compute the pair energy using the Hylleraas functional
         double compute_second_order_correction_with_Hylleraas(const int i, const int j,
                 const ElectronPair& pair) const {
 
-//            const real_function_6d zo_function=zeroth_order_function(i,j);
-//            test_accuracy(zo_function,fo_function,i,j);
-//            test_accuracy(fo_function,zo_function,i,j);
-
             const double B=compute_B(i,j,pair);
-            const double V=compute_V(i,j,pair);
+            const double V=compute_V(pair);
 
             const double e=2.0*V+B;
             const double e_opt=-V*V/B;
@@ -775,7 +943,7 @@ namespace madness {
         }
 
         /// compute the V matrix for a given electron pair
-        double compute_V(const int i, const int j, const ElectronPair& pair) const {
+        double compute_V(const ElectronPair& pair) const {
 
             double V=0.0;
             const real_function_6d& phi0=pair.phi0;
@@ -800,7 +968,7 @@ namespace madness {
                     .ket(copy(phi0).get_impl())
                     .V_for_particle1(copy(coulomb).get_impl())
                     .V_for_particle2(copy(coulomb).get_impl());
-            const double a2=inner(pair.r12_phi,JKphi0);
+            const double a2=inner(pair.r12phi,JKphi0);
             if (world.rank()==0) printf("<phi^0 | (J+K) f | phi^0>  %12.8f\n",a2);
             V+=a2;
 
@@ -823,8 +991,6 @@ namespace madness {
 
 
             const double e0=zeroth_order_energy(i,j);
-            real_function_3d phi_i=hf.orbital(i);
-            real_function_3d phi_j=hf.orbital(j);
             const real_function_6d& phi0=pair.phi0;
             const real_function_6d& psi1=pair.function;
 
@@ -847,13 +1013,12 @@ namespace madness {
 
             // now the cross terms <psi^1 | (H-E) Q f12 | phi^0>
             // note the O_{12} terms all drop out due to intermediate normalization
-            const double a1=inner(psi1,pair.r12_phi);
+            const double a1=inner(psi1,pair.r12phi);
             real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
             real_function_6d vphi=CompositeFactory<double,6,3>(world)
                     .g12(eri.get_impl()).ket(copy(psi1).get_impl());
             const double a2=inner(phi0,vphi);
             const double a3=inner(psi1,pair.Uphi0);
-//            const real_function_6d Kphi=apply_K_commutator(pair);
             const real_function_6d Kphi=pair.KffKphi0;
             const double a4=inner(psi1,Kphi);
 
@@ -864,7 +1029,6 @@ namespace madness {
             tmp=e0*a1 - a2 + a3 - a4 - e0*a1;
             if (world.rank()==0) printf("B matrix of the cross term %12.8f\n",tmp);
             B+=2.0* tmp;
-//            psi1_KffK_phi0(pair);
 
             // get the terms <psi^1 | (H-E) | psi^1>
             tmp=compute_B_directly(i,j,psi1);
@@ -923,515 +1087,6 @@ namespace madness {
             return B;
         }
 
-        /// compute some matrix elements that don't change during the calculation
-        ElectronPair make_pair(const int i, const int j) const {
-
-            ElectronPair pair;
-            const bool r0=world.rank()==0;
-
-            // some functions repeatedly used
-            pair.phi0=this->zeroth_order_function(i,j);
-            pair.first_order_correction=this->compute_first_order_correction(i,j);
-
-            pair.r12_phi=corrfac.f()*pair.phi0;
-
-            const real_function_6d& fphi0=pair.r12_phi;
-            const real_function_3d& phi_i=hf.orbital(i);
-            const real_function_3d& phi_j=hf.orbital(j);
-            const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
-            const real_function_3d Kphi_j=hf.apply_exchange(phi_j);
-            const real_function_6d Kphi0=(hartree_product(Kphi_i,phi_j)
-                    + hartree_product(phi_i,Kphi_j)).truncate();
-
-            if (restart) {
-                load_function(world,pair.Kfphi0,"Kfphi0");
-                load_function(world,pair.KffKphi0,"KffKphi0");
-                load_function(world,pair.Uphi0,"Uphi0");
-
-	    } else {
-                pair.Kfphi0=apply_exchange(fphi0,hf.orbital(i),1);
-                pair.Kfphi0=pair.Kfphi0 + apply_exchange(fphi0,hf.orbital(j),2);
-                save_function(world,pair.Kfphi0,"Kfphi0");
-                pair.KffKphi0=pair.Kfphi0-corrfac.f()*Kphi0;
-                save_function(world,pair.KffKphi0,"KffKphi0");
-                pair.Uphi0=corrfac.apply_U(phi_i,phi_j);
-                save_function(world,pair.Uphi0,"Uphi0");
-	    }
-	    load_balance(pair.Uphi0,false);
-
-            const real_function_6d& phi0=pair.phi0;
-
-            // some matrix elements
-            pair.phi0_f_phi0=inner(phi0,fphi0);
-            if (r0) printf("<phi^0 | f       | phi^0>  %12.8f\n",pair.phi0_f_phi0);
-
-            pair.phi0_f2_phi0=inner(phi0,corrfac.f2()*phi0);
-            if (r0) printf("<phi^0 | f^2     | phi^0>  %12.8f\n",pair.phi0_f2_phi0);
-
-            pair.phi0_nf_phi0=inner(phi0,corrfac.nablaf2()*phi0);
-            if (r0) printf("<phi^0 | (f')^2  | phi^0>  %12.8f\n",pair.phi0_nf_phi0);
-
-            pair.phi0_fovr_phi0=inner(phi0,corrfac.f_over_r()*phi0);
-            if (r0) printf("<phi^0 | f/r     | phi^0>  %12.8f\n",pair.phi0_fovr_phi0);
-
-            pair.phi0_fKf_phi0=inner(fphi0,pair.Kfphi0);
-            if (r0) printf("<phi^0 | f K f   | phi^0>  %12.8f\n",pair.phi0_fKf_phi0);
-
-            pair.phi0_f2K_phi0=inner(Kphi0,corrfac.f2()*phi0);
-            if (r0) printf("<phi^0 | f^2 K   | phi^0>  %12.8f\n",pair.phi0_f2K_phi0);
-
-//            pair.phi0_JKf_phi0=inner(phi0,corrfac.f()*phi0);
-//            if (r0) printf("<phi^0 | (J+K) f | phi^0>  %12.8f\n",pair.phi0_JKf_phi0);
-
-            if (r0) printf("done with matrix elements at time %.1fs\n\n", wall_time());
-            return pair;
-        }
-
-        /// test the accuracy of <phi^0 | H^0 - E^0 | phi^1> = 0
-        void test_accuracy(const real_function_6d& zo_function, const real_function_6d& fo_function,
-                const int i, const int j) const {
-
-            // this will get everything but the kinetic energy
-            const real_function_6d tmp=this->multiply_with_0th_order_Hamiltonian(fo_function);
-            const double pe=inner(tmp,zo_function);
-            if (world.rank()==0) printf("pe in test_accuracy  %12.8f\n" ,pe);
-
-            // this will get the kinetic energy
-            double ke=0.0;
-            for (int axis=0; axis<6; axis++) {
-                real_derivative_6d D = free_space_derivative<double,6>(world, axis);
-                real_function_6d dfo = D(fo_function);
-                real_function_6d dzo = D(zo_function);
-                double a=0.5*inner(dfo,dzo);
-                ke += a;
-                if (world.rank()==0) print("done with axis",axis, a);
-            }
-            if (world.rank()==0) printf("ke in test_accuracy  %12.8f\n" ,ke);
-
-            // this will get the 0th order energy E^0
-            const double ovlp=inner(zo_function,fo_function);
-            const double e0=ovlp*zeroth_order_energy(i,j);
-            if (world.rank()==0) printf("e-term in test_accuracy  %12.8f\n" ,e0);
-
-            if (world.rank()==0) printf("<phi^1 | phi^0> in test_accuracy  %12.8f\n" ,ovlp);
-            if (world.rank()==0) printf("<phi^1 | H^0 - E^0 | phi^0> in test_accuracy  %12.8f\n" ,pe+ke-e0);
-
-        }
-
-        void test2(const int i, const int j) {
-
-            real_function_6d bla=apply_U(hf.orbital(i),hf.orbital(j));
-            return;
-            real_function_6d f=this->zeroth_order_function(i,j);
-
-            real_function_6d g=this->zeroth_order_function(i,j);
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
-
-//            real_function_6d::FunctionVariable ff=f(1,2);
-//            real_function_6d::FunctionVariable gg=g(1,2);
-            double a=inner(f(1,2),g(1,3),eri(2,3));
-            print(a);
-
-        }
-
-        void test4(const int i, const int j) {
-
-            real_function_6d GVpair;
-            real_function_6d r12phi;
-
-            load_function(world,GVpair,"GVpair");
-            load_function(world,r12phi,"r12phi");
-
-            const real_function_6d pair=zeroth_order_function(i,j);
-            const real_function_6d H1pair=this->multiply_with_1st_order_Hamiltonian(pair);
-
-            {
-                real_function_6d r12=copy(r12phi);
-                orthogonalize(r12,pair);
-//                this->compute_second_order_correction_with_Hylleraas(i,j,r12);
-                print("Hylleraas for f12*phi^0");
-            }
-            {
-                real_function_6d psi1=copy(GVpair);
-                orthogonalize(psi1,pair);
-//                this->compute_second_order_correction_with_Hylleraas(i,j,psi1);
-                print("Hylleraas for psi^1");
-            }
-
-            {
-                const double a=inner(pair,corrfac.f()*pair);
-                print("<phi^0 | f        | phi^0> ",a);
-            }
-            {
-                const double a=inner(pair,corrfac.f2()*pair);
-                print("<phi^0 | f^2      | phi^0> ",a);
-            }
-            {
-                const double a=inner(pair,corrfac.nablaf2()*pair);
-                print("<phi^0 | (f')^2   | phi^0> ",a);
-            }
-
-            const double a1=inner(H1pair,pair);
-            print("<phi^0 | H^1     | phi^0> ",a1);
-
-            const double a2=inner(H1pair,GVpair);
-            print("<phi^0 | H^1     | psi^1> ",a2);
-
-            const double a3=inner(H1pair,r12phi);
-            print("<phi^0 | H^1 f12 | phi^0> ",a3);
-
-            const double a4=inner(pair,r12phi);
-            print("<phi^0 | f12     | phi^0> ",a4);
-
-            const double a5=inner(GVpair,pair);
-            print("<phi^0 |         | phi^1> ",a5);
-
-            orthogonalize(r12phi,pair);
-            const double a6=inner(pair,r12phi);
-            print("<phi^0 | Q f12   | phi^0> ",a6);
-
-            const double a7=inner(H1pair,r12phi);
-            print("<phi^0 | H^1 Q f12 | phi^0> ",a7);
-
-            orthogonalize(GVpair,pair);
-            const double a8=inner(GVpair,H1pair);
-            print("<phi^0 | H^1 Q     | psi^1>   ",a8);
-
-            const real_function_6d H0r12=this->multiply_with_0th_order_Hamiltonian(r12phi);
-            const double a9=inner(r12phi,H0r12);
-            print("<phi^0 | f Q H^0 Q f | phi^0> ",a9);
-
-            const real_function_6d H0GVpair=this->multiply_with_0th_order_Hamiltonian(GVpair);
-            const double a10=inner(GVpair,H0GVpair);
-            print("<psi^1 | Q H^0 Q | psi^1>     ",a10);
-
-            const double a11=inner(GVpair,H0r12);
-            print("<psi^1 | Q H^0 Q f| phi^0>    ",a11);
-
-            const real_function_6d phi1=(GVpair+r12phi);
-            {
-                const real_function_6d H0phi1=H0GVpair+H0r12;
-                const double a12=inner(phi1,H0phi1);
-                print("<phi^1 | Q H^0 Q | phi^1>     ",a12);
-            }
-            {
-                const real_function_6d H0phi1=multiply_with_0th_order_Hamiltonian(GVpair+r12phi);
-                const double a12=inner(phi1,H0phi1);
-                print("<phi^1 | Q H^0 Q | phi^1>     ",a12);
-            }
-            {
-                const double a=inner(phi1,corrfac.f()*phi1);
-                print("<phi^1 | f        | phi^1> ",a);
-            }
-            {
-                const double a=inner(phi1,corrfac.f2()*phi1);
-                print("<phi^1 | f^2      | phi^1> ",a);
-            }
-            {
-                const double a=inner(phi1,corrfac.nablaf2()*phi1);
-                print("<phi^1 | (f')^2   | phi^1> ",a);
-            }
-
-
-            const double a13=inner(phi1,phi1);
-            print("<phi^1 |    Q    | phi^1>     ",a13);
-
-            const double a14=inner(r12phi,r12phi);
-            print("<phi^0 | f  Q  f | phi^0>     ",a14);
-
-            const double a15=inner(GVpair,GVpair);
-            print("<psi^1 |    Q    | psi^1>     ",a15);
-
-            const double a16=inner(GVpair,r12phi);
-            print("<psi^1 |    Q f  | phi^0>     ",a16);
-
-        }
-
-        void test3(const int i, const int j) {
-
-            // the Green's function
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
-
-	    ElectronPair pair=make_pair(i,j);
-
-            // make the term (-J + K)|phi^0>
-            const real_function_3d phi_i=hf.orbital(i);
-            const real_function_3d phi_j=hf.orbital(j);
-            const real_function_3d coulomb=hf.get_coulomb_potential();
-
-            const real_function_3d JKphi_i=-0.5*coulomb*phi_i;
-            const real_function_3d JKphi_j=-0.5*coulomb*phi_j;
-            const real_function_6d JKpair=(hartree_product(JKphi_i,phi_j) + hartree_product(phi_i,JKphi_j)).truncate();
-
-            // apply Kutzelnigg's regularized potential U_12
-            const real_function_6d Upair=pair.Uphi0;
-
-            // make the term -E^1|phi^0>
-            const double e1=pair.first_order_correction;
-            const real_function_6d epair=e1*pair.phi0;
-
-            // make the term [K,f]|phi^0> 
-            const real_function_6d K_comm=pair.KffKphi0;
-
-            // make all terms
-            real_function_6d Vpair=(JKpair+Upair-K_comm-epair).truncate();
-//	    load_balance(Vpair,false);
-            real_function_6d GVpair=green(-2.0*Vpair).truncate();
-            save_function(world,GVpair,"GVpair");
-        }
-
-        void test(const int i, const int j) {
-            const pairfunctionT zo_function=zeroth_order_function(i,j);
-            const real_function_6d pair=zo_function;
-
-            // 0th iteration for the residual equations (the constant term)
-//            real_function_6d GJKpair;
-//            real_function_6d GEpair;
-//            real_function_6d GUpair;
-//            real_function_6d GVpair;
-//            real_function_6d r12phi;
-
-//            load_function(world,GJKpair,"GJKpair");
-//            load_function(world,GUpair,"GUpair");
-//            load_function(world,GEpair,"GEpair");
-//            load_function(world,GVpair,"GVpair");
-//            load_function(world,GVpair,"1_it");
-//            load_function(world,r12phi,"r12phi");
-
-            ElectronPair result=make_pair(i,j);
-            real_function_6d constant_term;
-
-            // get the initial functions
-            load_function(world,result.function,"GVpair");
-            load_function(world,constant_term,"GVpair");
-//            constant_term=copy(result.function);
-
-            orthogonalize(result.function,pair);
-            orthogonalize(constant_term,pair);
-
-            compute_second_order_correction_with_Hylleraas(i,j,result);
-
-            // the Green's function depends on the zeroth order energy, which is the sum
-            // of the orbital energies of orbitals i and j
-            //  -2.0 G = (T - e_i - e_j) ^ -1
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-
-
-//	    if (world.rank()==0) print("computing iteratively");
-//            for (int ii=0; ii<20; ++ii) {
-//
-//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
-//
-//                /// apply the convolution
-//                vphi.scale(-2.0).truncate();
-//                const pairfunctionT tmp=green(vphi).truncate();
-//                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-//                result.function=(constant_term+tmp).truncate();
-//
-//                orthogonalize(result.function,zo_function);
-////                orthogonalize(result.function,result.r12_phi);
-//
-//                compute_second_order_correction_with_Hylleraas(i,j,result);
-//                const std::string name="psi1_it"+stringify(ii);
-//                save_function(world,result.function,name);
-//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-//
-//            }
-
-            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
-	    if (world.rank()==0) print("computing increments");
-            real_function_6d latest_iteration=constant_term;
-
-            for (int ii=0; ii<20; ++ii) {
-
-                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_iteration);
-	        load_balance(vphi,false);
-
-                /// apply the convolution
-                vphi.scale(-2.0).truncate();
-                latest_iteration=green(vphi).truncate();
-                latest_iteration.print_size("result of applying 0th order Hamiltonian on latest increment");
-
-                orthogonalize(latest_iteration,result.phi0); 
-		result.function=result.function+latest_iteration;
-
-                // compute the energy 
-                compute_second_order_correction_with_Hylleraas(i,j,result);
-
-                // save for possible later use
-                std::string name="psi1_it"+stringify(ii);
-                save_function(world,result.function,name);
-                name="incremental_psi1_order"+stringify(ii);
-                save_function(world,latest_iteration,name);
-
-                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-	    }
-
-
-            result.solved=true;
-
-        }
-
-        /// return the function [K,f12]| phi>, NOT orthogonalized
-        real_function_6d apply_K_commutator(const ElectronPair& pair) const {
-
-            MADNESS_ASSERT(is_helium);
-            const int i=0;
-            const int j=0;
-
-            // first the term K f12 |phi>
-            const real_function_6d kfphi=pair.Kfphi0;
-
-            // now the term f12 K |phi>
-            real_function_6d r2=apply_exchange(pair.phi0,hf.orbital(i),1);
-            r2=r2+apply_exchange(pair.phi0,hf.orbital(j),2);
-            real_function_6d fkphi=(corrfac.f()*r2).truncate();
-
-            real_function_6d diff=(kfphi-fkphi).truncate();
-
-            return diff;
-        }
-
-        /// apply K
-        void psi1_KffK_phi0(const ElectronPair& pair) const {
-            MADNESS_ASSERT(is_helium);
-            const int i=0;
-            const int j=0;
-            const real_function_6d& psi1=pair.function;
-
-            // apply K on psi^1
-            real_function_6d kpsi1=apply_exchange(psi1,hf.orbital(i),1);
-            kpsi1= kpsi1 + apply_exchange(psi1,hf.orbital(j),2);
-            const double a1=inner(pair.r12_phi,kpsi1);
-            if (world.rank()==0) printf("(<psi^1 | K) f | phi0> %12.8f\n",a1);
-
-            // apply K on fphi^0
-            const double a2=inner(pair.Kfphi0,psi1);
-            if (world.rank()==0) printf("<psi^1 | (K f | phi0>) %12.8f\n",a2);
-
-            const real_function_3d phi_i=hf.orbital(i);
-            const real_function_3d phi_j=hf.orbital(j);
-            const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
-            const real_function_3d Kphi_j=hf.apply_exchange(phi_j);
-            const real_function_6d Kphi0=(hartree_product(Kphi_i,phi_j)
-                    + hartree_product(phi_i,Kphi_j)).truncate();
-
-            const double a3=inner(Kphi0,corrfac.f()*psi1);
-            if (world.rank()==0) printf("<psi^1 | f (K | phi0>) %12.8f\n",a3);
-
-            real_function_6d fpsi1=corrfac.f()*psi1;
-            real_function_6d kfpsi1=apply_exchange(fpsi1,hf.orbital(i),1);
-            kfpsi1= kfpsi1 + apply_exchange(fpsi1,hf.orbital(j),2);
-            const double a4=inner(pair.phi0,kfpsi1);
-            if (world.rank()==0) printf("(<psi^1 | f K) | phi0> %12.8f\n",a4);
-
-
-        }
-
-        /// do some load-balancing
-        void load_balance(const real_function_6d& f, const bool leaf) const {
-
-            LoadBalanceDeux<6> lb(world);
-            if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
-            else lb.add_tree(f,LBCost(0.1,1.0));
-            FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
-            if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
-
-        }
-
-        /// solve the residual equations for orbitals i and j
-        ElectronPair solve_residual_equation(const int i, const int j) const {
-
-            const pairfunctionT zo_function=zeroth_order_function(i,j);
-
-            // 0th iteration for the residual equations (the constant term)
-            ElectronPair result=guess_mp1(i,j);
-            const real_function_6d constant_term=copy(result.function);
-            compute_second_order_correction_with_Hylleraas(i,j,result);
-
-            // the Green's function depends on the zeroth order energy, which is the sum
-            // of the orbital energies of orbitals i and j
-            //  -2.0 G = (T - e_i - e_j) ^ -1
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-
-
-            for (int ii=0; ii<20; ++ii) {
-
-                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
-
-                /// apply the convolution
-                vphi.scale(-2.0).truncate();
-                const pairfunctionT tmp=green(vphi).truncate();
-                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-                result.function=(constant_term+tmp).truncate();
-
-                orthogonalize(result.function,zo_function);
-                orthogonalize(result.function,result.r12_phi);
-
-                compute_second_order_correction_with_Hylleraas(i,j,result);
-                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-
-            }
-
-            result.solved=true;
-            return result;
-
-        }
-
-        /// test the numerics of Kutzelnigg's regularized potential
-        /// <phi | U | phi> = <phi | 1/r12 | phi>
-        void test_U() const {
-
-//            real_function_3d phi=real_factory_3d(world).f(slater);
-//            real_function_6d uphi=apply_U(phi,phi);
-//            plot_along(uphi,"uphi");
-
-            real_function_6d phi=this->zeroth_order_function(0,0);
-            real_function_6d uphi=apply_U(hf.orbital(0),hf.orbital(0));
-            const double b=inner(phi,uphi);
-            if (world.rank()==0) printf("<phi| U | phi>     %12.8f\n",b);
-
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
-            real_function_6d vphi=CompositeFactory<double,6,3>(world)
-                                             .ket(copy(phi).get_impl())
-                                             .g12(eri.get_impl());
-            const double a=inner(phi,vphi);
-
-            if (world.rank()==0) printf("<phi| 1/r12 | phi> %12.8f\n",a);
-        }
-
-    private:
-
-        /// helper function to map indices i, j to a pair index ij, with i<=j
-        int make_ij(const int i, const int j) const {
-
-            const int nocc=hf.nocc();
-            MADNESS_ASSERT(i<nocc and j<nocc and i>=0 and j>=0 and i<=j);
-
-            int ij=0;
-            for (int ii=0; ii<j; ++ii) {ij+=(ii+1);}    // column index j: will yield ij=0,1,3,6
-            ij+=i;                                      // row index i
-
-            print("i,j,ij",i,j,ij);
-            return ij;
-        }
-
-        /// orthogonalize f against function g: |f> <= |f> - |g><g|f>
-        void orthogonalize(real_function_6d& f, const real_function_6d& g) const {
-
-            const double gnorm=g.norm2();
-            const double fac=1.0/(gnorm*gnorm);
-            Projector<double,6> P(g);   // projector on g w/o any normalization
-            const real_function_6d h=(f-fac*P(f)).truncate();
-            const double ovlp=inner(h,g);
-            const double thresh=f.thresh();
-            if (ovlp>thresh and world.rank()==0) printf("ovlp in orthogonalize %12.8f\n",ovlp);
-            f=h;
-        }
-
         /// apply the exchange operator on f
 
         /// @param[in]  f   the pair function
@@ -1473,7 +1128,6 @@ namespace madness {
                                  .V_for_particle2(copy(v_total).get_impl());
 
             // make the tree
-//            vphi.get_impl()->convolute(op_mod);
             vphi.fill_tree(op_mod).truncate();
             vphi.print_size("(V_nuc + J1 + J2) |ket>:  made V tree");
 
@@ -1484,181 +1138,6 @@ namespace madness {
 
             return vphi;
         }
-
-        /// multiply the given function with the 1st order Hamiltonian, exluding the 1st order energy
-
-        /// @param[in]  f   the function we apply H^1 on
-        /// @return     the function g=H^1 f, which is NOT orthogonalized against f
-        real_function_6d multiply_with_1st_order_Hamiltonian(const real_function_6d& f) const {
-
-            // for estimating the MRA structure of V*phi
-            MADNESS_ASSERT(is_helium);
-            const int i=0;
-            const int j=0;
-
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op_mod.modified()=true;
-
-            // two-electron interaction potential
-            pairfunctionT eri=ERIFactory<double,6>(world).dcut(dcut);
-
-            functionT coulomb=-1.0*hf.get_coulomb_potential();
-
-            real_function_6d vphi=CompositeFactory<double,6,3>(world)
-                                 .ket(copy(f).get_impl())
-                                 .g12(eri.get_impl())
-                                 .V_for_particle1(copy(coulomb).get_impl())
-                                 .V_for_particle2(copy(coulomb).get_impl());
-
-            // make the tree
-//            vphi.get_impl()->convolute(op_mod);
-            vphi.fill_tree(op_mod);
-            vphi.print_size("(1/r12 - J1 - J2) |ket>:  made V tree");
-
-            // add exchange
-            vphi=vphi+apply_exchange(f,hf.orbital(i),1);
-            vphi=vphi+apply_exchange(f,hf.orbital(j),2);
-            vphi.print_size("(1/r12 - J + K) |ket>: the tree");
-
-            return vphi;
-        }
-
-        /// return the initial guess for the 1st order wave function
-
-        /// will return  |phi> = -2.0 * G (-J + K + 1/r12 -E^1) | ij>, in intermediate normalization
-        /// @param[in]  i   orbital i
-        /// @param[in]  j   orbital j
-        /// @return  result the pair struct
-        ElectronPair guess_mp1(const int i, const int j) const {
-
-            MADNESS_ASSERT(is_helium);
-            ElectronPair result;
-
-            // make the term (-J + K)|phi^0>
-            const real_function_3d phi_i=hf.orbital(i);
-            const real_function_3d phi_j=hf.orbital(j);
-            const real_function_3d coulomb=hf.get_coulomb_potential();
-
-            const real_function_3d JKphi_i=-0.5*coulomb*phi_i;
-            const real_function_3d JKphi_j=-0.5*coulomb*phi_j;
-            const real_function_6d JKpair=(hartree_product(JKphi_i,phi_j) + hartree_product(phi_i,JKphi_j)).truncate();
-
-            // apply Kutzelnigg's regularized potential U_12
-            const real_function_6d Upair=apply_U(phi_i,phi_j);
-            plot_along(Upair,"upair");
-
-            // make the term -E^1|phi^0>
-            result.first_order_correction=compute_first_order_correction(i,j);
-            real_function_6d pair=hartree_product(phi_i,phi_j);
-            const double e1=result.first_order_correction;
-            const real_function_6d epair=-e1*pair;
-
-            // get the commutator [K,f12]
-            real_function_6d K_comm=this->apply_K_commutator(result);
-
-            // finally assemble all terms, include factor -2 for convolution!
-            real_function_6d vpair=-2.0*(JKpair+Upair+epair-K_comm);
-            vpair.truncate();
-            vpair.reduce_rank();
-            plot_along(vpair,"vpair");
-
-            // the Green's function
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-
-            // the conventional part of the 1st order function
-            result.function=green(vpair).truncate();
-            save_function(world,result.function,"term1");
-
-//            // the r12-derived part of the 1st order function
-//            real_function_6d r=r12_term(i,j);
-//            save_function(world,r,"r12term");
-//            result.function=result.function+r;
-            if (world.rank()==0) print("\nleaving out the r12-derived part of the wave function guess\n");
-
-            // and the actual term r12*|phi^0>
-            result.r12_phi=r12phi(i,j);
-            save_function(world,result.r12_phi,"r12phi");
-
-            orthogonalize(result.function,pair);
-            orthogonalize(result.r12_phi,pair);
-            orthogonalize(result.function,result.r12_phi);
-
-//            plot_along(result.r12_phi,"r12_phi_ortho");
-//            plot_along(result.function,"result.function_ortho");
-
-            double ovlp=inner(result.function,pair);
-            if (world.rank()==0) printf("<psi^1 | phi^0> %12.8f\n",ovlp);
-            ovlp=inner(result.r12_phi,pair);
-            if (world.rank()==0) printf("<r12 | phi^0>   %12.8f\n",ovlp);
-            ovlp=inner(result.function,result.r12_phi);
-            if (world.rank()==0) printf("<psi^1 | r12>   %12.8f\n",ovlp);
-
-            return result;
-        }
-
-        /// return the r12-term of the mp1 guess
-        real_function_6d r12_term(const int i, const int j) const {
-
-            const real_function_3d phi_i=hf.orbital(i);
-            const real_function_3d phi_j=hf.orbital(j);
-            const real_function_3d coulomb=hf.get_coulomb_potential();
-
-            const real_function_6d pair=hartree_product(phi_i,phi_j);
-
-            // the overlap <O_12 | 1/2 r12 | phi^0>
-            MADNESS_ASSERT(is_helium);
-            real_function_6d fr12=real_factory_6d(world).functor2(corrfac).is_on_demand();   // includes factor 1/2
-            real_function_6d r12pair=fr12*pair;
-            const double ovlp=inner(pair,r12pair);
-
-            MADNESS_ASSERT(is_helium);
-            const real_function_3d v_nuc=hf.get_nuclear_potential();
-            const real_function_3d v_total=v_nuc+0.5*coulomb;
-
-            // make the source tree
-            real_function_6d vpair=CompositeFactory<double,6,3>(world)
-                                 .ket(copy(pair).get_impl())
-                                 .V_for_particle1(copy(v_total).get_impl())
-                                 .V_for_particle2(copy(v_total).get_impl());
-
-
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            op_mod.modified()=true;
-//            vpair.get_impl()->convolute(op_mod);
-            vpair.fill_tree(op_mod);
-
-            // the Green's function
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            const real_function_6d result=-ovlp*green(-2.0*vpair).truncate();
-
-            if (world.rank()==0) print("\nno strong orthogonality! don't forget to change the sign\n");
-
-            return result;
-        }
-
-        /// return f12 * |phi>
-        real_function_6d r12phi(const int i, const int j) const {
-            real_function_6d pair=this->zeroth_order_function(i,j);
-            real_function_6d fr12=real_factory_6d(world).functor2(corrfac).is_on_demand();
-            real_function_6d result=(fr12*pair).truncate();
-            return result;
-        }
-
-        /// apply the regularized 1/r12 potential U(1,2) of Kutzelnigg on a pair of orbitals
-
-        /// use a linear correlation factor: [T,0.5*r12] = U(1,2) + 0.5*r12 T
-        /// @param[in]  phi_i   orbital i
-        /// @param[in]  phi_j   orbital j
-        /// @return result  the 6D-Function U(1,2) |ij>
-        real_function_6d apply_U(const real_function_3d phi_i, const real_function_3d& phi_j) const {
-
-            real_function_6d result=corrfac.apply_U(phi_i,phi_j);
-            return result;
-        }
-
 
     };
 }
@@ -1732,16 +1211,10 @@ int main(int argc, char** argv) {
 
     CorrelationFactor f12(world,1.0);
   
-    MP2 mp2(world,hf,f12,restart);
-//    mp2.compute_first_order_correction(0,0);
-//    mp2.test3(0,0);
-    mp2.test(0,0);
-//    mp2.apply_K_commutator(0,0);
-//    mp2.test2(0,0);
-//    mp2.test_U();
+    MP2 mp2(world,hf,f12,"input");
 
 //    mp2.value(calc.molecule.get_all_coords());
-//    mp2.solve_residual_equation(0,0);
+    mp2.solve_residual_equations(0,0);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
