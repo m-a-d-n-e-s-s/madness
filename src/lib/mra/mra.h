@@ -1081,6 +1081,20 @@ namespace madness {
             return *this;
         }
 
+        /// With this being an on-demand function, fill the MRA tree according to different criteria
+
+        /// @param[in]  op  the convolution operator for screening
+        Function<T,NDIM>& fill_tree(bool fence=true) {
+            MADNESS_ASSERT(is_on_demand());
+
+            // clear what we have
+            impl->get_coeffs().clear();
+            error_leaf_op<T,NDIM> leaf_op(this->get_impl().get());
+            impl->make_Vphi(leaf_op,fence);
+            return *this;
+        }
+
+
         /// perform the hartree product of f*g, invoked by result
         template<size_t LDIM, size_t KDIM, typename opT>
         void do_hartree_product(const FunctionImpl<T,LDIM>* left, const FunctionImpl<T,KDIM>* right,
@@ -1844,7 +1858,7 @@ namespace madness {
 
             ff.nonstandard(op.doleaves, true);
             ff.print_size("ff in apply after nonstandard");
-            if ((NDIM==6) and (opT::opdim==6) and (f.world().rank()==0)) {
+            if ((NDIM==6) and (f.world().rank()==0)) {
                 ff.get_impl()->timer_filter.print("filter");
                 ff.get_impl()->timer_compress_svd.print("compress_svd");
             }

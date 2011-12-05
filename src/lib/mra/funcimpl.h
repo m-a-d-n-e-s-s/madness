@@ -265,9 +265,16 @@ namespace madness {
         typedef FunctionImpl<T,NDIM> implT;
         typedef GenTensor<T> coeffT;
         const implT* f;
+        static const bool do_error_leaf_op=true;       // no double call
 
         error_leaf_op() {}
         error_leaf_op(const implT* f) : f(f) {}
+
+        /// no pre-determination
+        bool operator()(const Key<NDIM>& key) const {return true;}
+
+        /// no post-determination
+        bool operator()(const Key<NDIM>& key, const GenTensor<T>& coeff) const {return false;}
 
         /// post-determination
 
