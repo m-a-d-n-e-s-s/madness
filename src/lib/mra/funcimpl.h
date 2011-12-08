@@ -4042,6 +4042,8 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply_kernel(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            /************** DO MORE IN PARALLEL (PREPROCESS) *******************/
+            
             typedef std::tr1::tuple<keyT&, keyT&, keyT&, double&, double&, double&, Tensor<R>&, dcT&> tuple11T;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
             //std::tr1::tuple<const keyT&, const keyT&, const keyT&, const double&, const double&, const double&, const Tensor<R>&, dcT&> t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
@@ -4063,11 +4065,11 @@ ENDt_TIMER("memcpy3");
             //print(fptr1); 
             typedef int (opT::*fooptr2)(std::vector< tuple11T >, int) const;
             fooptr2 fptr2 = &opT::template foof2<T,R>;
-            print(fptr2); 
+            //print(fptr2); 
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allComputeGPU<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPUOptnoShrink<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
@@ -4173,10 +4175,16 @@ ENDt_TIMER("memcpy3");
                             do_op_args args(key, d, dest, tol, fac, cnorm);
                             woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
                         } else {
+                            
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
                                 coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
                             }
+                            /*
+                            ProcessID where = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                            */
                         }
                     } else if (d.distsq() >= 1)
                         break; // Assumes monotonic decay beyond nearest neighbor
@@ -4240,7 +4248,7 @@ ENDt_TIMER("memcpy3");
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
+                    //print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                         woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff());
@@ -4260,7 +4268,7 @@ ENDt_TIMER("memcpy3");
                 const keyT& key = it->first;
                 const FunctionNode<R,NDIM>& node = it->second;
                 if (node.has_coeff()) {
-                    print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
+                    //print("k = ",k,"   node.coeff().dim(0) = ",node.coeff().dim(0));
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                         woT::task(p, &implT:: template do_apply1<opT,R>, &op, &f, key, node.coeff());

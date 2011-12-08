@@ -1380,8 +1380,8 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         result.set_impl(f, true);
-        print("result k = ",result.get_impl()->getK());
-        print("is per ",op.get_bc().is_periodic());
+        //print("result k = ",result.get_impl()->getK());
+        //print("is per ",op.get_bc().is_periodic());
         result.get_impl()->apply(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         return result;
     }
@@ -1393,8 +1393,8 @@ namespace madness {
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
         result.set_impl(f, true);
-        print("result k = ",result.get_impl()->getK());
-        print("is per ",op.get_bc().is_periodic());
+        //print("result k = ",result.get_impl()->getK());
+        //print("is per ",op.get_bc().is_periodic());
         result.get_impl()->apply1(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
         return result;
     }

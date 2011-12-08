@@ -830,7 +830,7 @@ void test_coulomb(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
 
     START_TIMER;
-    Function<double,3> r = apply1_only(op,f) ;
+    Function<double,3> r = apply_only(op,f) ;
     END_TIMER("apply");
 
 
