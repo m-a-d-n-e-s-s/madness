@@ -5526,6 +5526,8 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
             unsigned int fptr_off = 0;
 
             print("-----------BATCH-----------------");
+            print("k = ",k);
+            print("rank = ",rank);
 
             std::tr1::tuple<keyT, keyT, keyT,
                   double, double, double,
@@ -5673,10 +5675,6 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                           condition[i][mu] = false;
                           continue;
                         }
-                            
-                        // If all blocks are full rank we can skip the transposes
-		        doit2[mu][i] = false;
-		        for (std::size_t d=0; d<NDIM; ++d) doit2[mu][i] = doit2[mu][i] || trans[d][mu][i].VT; //move this out of the loop, calculate it in previous one
 
 		        tol1 = tol1/(Rnorm*NDIM);  // Errors are relative within here
 
@@ -5707,14 +5705,14 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
 		        }
 		        ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
 
+                            
+                        // If all blocks are full rank we can skip the transposes
+		        doit2[mu][i] = false;
+		        for (std::size_t d=0; d<NDIM; ++d) doit2[mu][i] = doit2[mu][i] || trans[d][mu][i].VT; //move this out of the loop, calculate it in previous one
 
                         //trans2
 		        if (n > 0) {
 
-			  // If all blocks are full rank we can skip the transposes
-			  doit1[mu][i] = false;
-			  for (std::size_t d=0; d<NDIM; ++d) doit1[mu][i] = doit1[mu][i] || trans2[d][mu][i].VT;
-			  
                           for (std::size_t d=0; d<NDIM; ++d) {
 			    long r1;
 			    for (r1=0; r1< k; ++r1) {
@@ -5739,6 +5737,11 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
                                 memcpy(&trans2VT_CPU[k*k * (d*rank*inArgs.size() + mu*inArgs.size() + i)], trans2[d][mu][i].VT, k*k * sizeof(Q));
 			    }
 			  }
+			  
+                          // If all blocks are full rank we can skip the transposes
+			  doit1[mu][i] = false;
+			  for (std::size_t d=0; d<NDIM; ++d) doit1[mu][i] = doit1[mu][i] || trans2[d][mu][i].VT;
+			  
 			  ////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
 			  //const Tensor<T>& f1 = f0;
                         }
@@ -5983,8 +5986,6 @@ typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT&, const keyT&, const doubl
               delete doit2[mu];
               delete doit1[mu];
             }
-            delete doit1;
-            delete doit2;
 
             for (i = 0; i < inArgs.size(); i++){
               delete condition[i];

@@ -4069,7 +4069,7 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allComputeGPUOptnoShrinkFirstTransfer<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPUOptnoShrinkSecondTransfer<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
