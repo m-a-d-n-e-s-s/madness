@@ -56,6 +56,13 @@ void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
 template <typename W>
        void GPUdelete_buffer(W* buf) ;   
 
+template <typename T>
+T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
+template <typename T>
+void  CPUSimtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
+template <typename W>
+       void GPUSimdelete_buffer(W* buf) ;   
+
 void setStream(void * GPU_stream, void * h);
 
 #endif

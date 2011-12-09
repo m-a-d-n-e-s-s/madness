@@ -698,6 +698,39 @@ template   void GPUdelete_buffer(std::complex<double>* buf);
 template   void GPUdelete_buffer(float* buf);
 template   void GPUdelete_buffer(std::complex<float>* buf);
 
+template <typename T>
+T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
+	T *GPU_buf;
+	GPU_buf = new T[offset];
+        if (copy)
+	  memcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T));
+	return GPU_buf;
+}
+template double* GPUSimtransfer_buffer(double* CPU_buf, unsigned int offset, bool copy);
+template std::complex<double>* GPUSimtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset, bool copy);
+template float* GPUSimtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
+template std::complex<float>* GPUSimtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
+
+
+template <typename T>
+void  CPUSimtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset){
+	memcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T));
+}
+template  void  CPUSimtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int offset);
+template  void  CPUSimtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
+template  void  CPUSimtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset);
+template  void  CPUSimtransfer_buffer(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset);
+
+
+template <typename W>
+       void GPUSimdelete_buffer(W* buf){
+       delete[] buf;
+}
+template   void GPUSimdelete_buffer(double* buf);
+template   void GPUSimdelete_buffer(std::complex<double>* buf);
+template   void GPUSimdelete_buffer(float* buf);
+template   void GPUSimdelete_buffer(std::complex<float>* buf);
+
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqq(long dimi, long dimj, long dimk,
                cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle)
