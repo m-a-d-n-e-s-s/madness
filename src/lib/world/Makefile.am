@@ -90,7 +90,7 @@ worldprofile_test_LDADD = libMADworld.a
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
-	worldgop.cc deferred_cleanup.cc worlddep.cc worldmutex.cc binfsar.cc \
+	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc \
 	worldmem.cc textfsar.cc \
 	$(thisinclude_HEADERS)
 
