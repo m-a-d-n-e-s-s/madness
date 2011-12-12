@@ -839,5 +839,54 @@ template <typename aT, typename bT, typename cT>
 //	cublasDestroy(handle);
 
     }
+
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmqnew(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle)
+{}
+
+  template<>   void cu_mTxmqnew(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqnew(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqnew(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+
+  template<>   void cu_mTxmqnew(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,int ndim,long tsize, void *h){}
+
+  template<>   void cu_mTxmqnew(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){
+
+       // double *ha,*hb, *hc; 
+	double one=1.0;
+	double zero=0.0;
+	//printf(" GPU Scublas code execution");
+	//sleep(100);
+	int M = (int)m;
+	int N = (int)n;
+	int K = (int)k;
+	//cublasStatus_t statt;
+	cudaError_t stat;	
+	//double *devPtrA, *devPtrB, *devPtrC;
+        cublasHandle_t *handle=(cublasHandle_t *)h;	
+//	cublasCreate(&handle);
+	//cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	//cublasSetStream(*handle, *stream);
+
+        	
+        int b;
+	b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+	if (b == CUBLAS_STATUS_INVALID_VALUE)
+	  printf("CUBLAS_STATUS_INVALID_VALUE");
+	else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+	  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+        	
+}
 #endif // MADNESS_TENSOR_CU_MTXMQ_H__INCLUDED
 
