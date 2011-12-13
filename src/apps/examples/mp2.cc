@@ -491,7 +491,7 @@ namespace madness {
         struct ElectronPair {
             real_function_6d phi0;          ///< 0th order wave function (orbital product)
             real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
-            real_function_6d constant_term; ///< first guess, constant in the residual equation
+            real_function_6d latest_increment; ///< in the iterative residual equation
             real_function_6d r12phi;       ///< orbital product multiplied with the correlation factor
 
             real_function_6d Kfphi0;        ///< the function K f12 |phi^0>
@@ -522,14 +522,14 @@ namespace madness {
         struct Intermediates {
             std::string function;      ///< pair function for a specific pair w/o correlation factor part
             std::string r12phi;       ///< orbital product multiplied with the correlation factor
-            std::string constant_term;
+            std::string latest_increment;
             std::string Kfphi0;        ///< the function K f12 |phi^0>
             std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
             std::string KffKphi0;      ///< the function [K,f12] |phi^0>
 
-            Intermediates() : r12phi(), constant_term(), Kfphi0(), Uphi0(), KffKphi0() {};
+            Intermediates() : r12phi(), latest_increment(), Kfphi0(), Uphi0(), KffKphi0() {};
 
-            Intermediates(World& world, const std::string& filename) : function(), r12phi(), constant_term(),
+            Intermediates(World& world, const std::string& filename) : function(), r12phi(), latest_increment(),
                     Kfphi0(), Uphi0(), KffKphi0() {
                 std::ifstream f(filename.c_str());
                 position_stream(f, "mp2");
@@ -539,7 +539,7 @@ namespace madness {
                     if (s == "end") break;
                     else if (s == "function") f >> function;
                     else if (s == "r12phi") f >> r12phi;
-                    else if (s == "constant_term") f >> constant_term;
+                    else if (s == "latest_increment") f >> latest_increment;
                     else if (s == "Kfphi0") f >> Kfphi0;
                     else if (s == "Uphi0") f >> Uphi0;
                     else if (s == "KffKphi0") f >> KffKphi0;
@@ -549,7 +549,7 @@ namespace madness {
                 }
             }
             template <typename Archive> void serialize (Archive& ar) {
-                ar & function & r12phi & constant_term & Kfphi0 & Uphi0 & KffKphi0;
+                ar & function & r12phi & latest_increment & Kfphi0 & Uphi0 & KffKphi0;
             }
 
         };
@@ -720,21 +720,21 @@ namespace madness {
 //            }
 
             // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
-	    if (world.rank()==0) print("computing increments");
-            real_function_6d latest_iteration=result.constant_term;
+            if (world.rank()==0) print("computing increments");
+            real_function_6d& latest_increment=result.latest_increment;
 
             for (int ii=0; ii<20; ++ii) {
 
-                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_iteration);
+                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment);
                 load_balance(vphi,false);
 
                 /// apply the convolution
                 vphi.scale(-2.0).truncate();
-                latest_iteration=green(vphi).truncate();
-                latest_iteration.print_size("result of applying 0th order Hamiltonian on latest increment");
+                latest_increment=green(vphi).truncate().reduce_rank();
+                latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
+                orthogonalize(latest_increment,result.phi0);
 
-                orthogonalize(latest_iteration,result.phi0);
-                result.function=result.function+latest_iteration;
+                result.function=(result.function+latest_increment).truncate().reduce_rank();
 
                 // compute the energy
                 compute_second_order_correction_with_Hylleraas(i,j,result);
@@ -742,8 +742,8 @@ namespace madness {
                 // save for possible later use
                 std::string name="psi1_it"+stringify(ii);
                 save_function(world,result.function,name);
-                name="incremental_psi1_order"+stringify(ii);
-                save_function(world,latest_iteration,name);
+                name="incremental_psi1_it"+stringify(ii);
+                save_function(world,latest_increment,name);
 
                 if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
 	   		}
@@ -786,7 +786,7 @@ namespace madness {
             const double gnorm=g.norm2();
             const double fac=1.0/(gnorm*gnorm);
             Projector<double,6> P(g);   // projector on g w/o any normalization
-            const real_function_6d h=(f-fac*P(f)).truncate();
+            const real_function_6d h=(f-fac*P(f)).truncate().reduce_rank();
             const double ovlp=inner(h,g);
             const double thresh=f.thresh();
             if (ovlp>thresh and world.rank()==0) printf("ovlp in orthogonalize %12.8f\n",ovlp);
@@ -847,8 +847,8 @@ namespace madness {
                 save_function(world,pair.Uphi0,"Uphi0");
             }
 
-            if (not intermediates.constant_term.empty()) {
-                load_function(world,pair.constant_term,intermediates.constant_term);
+            if (not intermediates.latest_increment.empty()) {
+                load_function(world,pair.latest_increment,intermediates.latest_increment);
             }
 
             if (not intermediates.function.empty()) {
@@ -892,7 +892,7 @@ namespace madness {
             ElectronPair pair=make_pair(i,j);
 
             // fast return if possible
-            if (pair.constant_term.is_initialized() and pair.function.is_initialized()) return pair;
+            if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
 
             // make the term (-J + K)|phi^0>
             const real_function_3d phi_i=hf.orbital(i);
@@ -919,7 +919,7 @@ namespace madness {
             orthogonalize(GVpair,pair.phi0);
 
             pair.function=GVpair;
-            pair.constant_term=copy(pair.function);
+            pair.latest_increment=copy(pair.function);
             save_function(world,GVpair,"GVpair");
 
             return pair;
@@ -929,8 +929,9 @@ namespace madness {
         double compute_second_order_correction_with_Hylleraas(const int i, const int j,
                 const ElectronPair& pair) const {
 
-            const double B=compute_B(i,j,pair);
             const double V=compute_V(pair);
+            const double B=compute_B(i,j,pair);
+//            const double B=1.0;
 
             const double e=2.0*V+B;
             const double e_opt=-V*V/B;
@@ -1100,7 +1101,8 @@ namespace madness {
 
             real_function_6d x=multiply(f,orbital,particle).truncate();
             x=op(x);
-            x=multiply(x,orbital,particle).truncate();
+            x=multiply(x,orbital,particle);
+            x.truncate().reduce_rank();
 
             return x;
         }
@@ -1134,6 +1136,7 @@ namespace madness {
             // add exchange
             vphi=vphi-apply_exchange(f,hf.orbital(i),1);
             vphi=vphi-apply_exchange(f,hf.orbital(j),2);
+            vphi.truncate().reduce_rank();
             vphi.print_size("(V_nuc + J - K) |ket>: the tree");
 
             return vphi;
