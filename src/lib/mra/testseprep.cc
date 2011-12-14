@@ -592,17 +592,17 @@ int testGenTensor_reconstruct(const long& k, const long& dim, const double& eps,
 	}
 
 	// reconstruct
-	for (int i=0; i<3; i++) {
-		Tensor<double> t0=copy(t[i]);
-		GenTensor<double> g0(t0,eps,tt);
-
-		Tensor<double> t=g0.full_tensor_copy();
-		g0.accumulate_into(t,-1.0);
-
-		norm=(t).normf();
-		print(ok(is_small(norm,eps)),"accumulate_into tensor",g0.what_am_i(),norm);
-		if (!is_small(norm,eps)) nerror++;
-	}
+//	for (int i=0; i<3; i++) {
+//		Tensor<double> t0=copy(t[i]);
+//		GenTensor<double> g0(t0,eps,tt);
+//
+//		Tensor<double> t=g0.full_tensor_copy();
+//		g0.accumulate_into(t,-1.0);
+//
+//		norm=(t).normf();
+//		print(ok(is_small(norm,eps)),"accumulate_into tensor",g0.what_am_i(),norm);
+//		if (!is_small(norm,eps)) nerror++;
+//	}
 
 #if 0
 	// reconstruct

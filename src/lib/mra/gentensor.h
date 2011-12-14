@@ -404,7 +404,6 @@ namespace madness {
 			MADNESS_EXCEPTION("no assignment with a number for GenTensor",0);
 		}
 
-
 		/// ctor w/ configs, shallow (indirectly, via vector_)
 		GenTensor(const SRConf<T>& config) : _ptr(new configT(config)) {
 		}
@@ -572,16 +571,6 @@ namespace madness {
 			return *this;
 		};
 
-		/// orthonormalize the right subspace and shift the weights to the left one
-		void right_orthonormalize(const double& thresh) {
-			if (has_no_data()) return;
-			if (tensor_type()==TT_2D) {
-				_ptr->undo_structure();
-				if (rank()==1) _ptr->normalize_and_shift_weights_to_x();
-				else _ptr->right_orthonormalize(thresh*facReduce);
-			}
-		}
-
 		/// normalize
 		void normalize() {
 			TensorType tt=tensor_type();
@@ -668,8 +657,6 @@ namespace madness {
 
 			MADNESS_ASSERT(compatible(lhs,rhs));
 			MADNESS_ASSERT(lhs.tensor_type()==rhs.tensor_type());
-			lhs._ptr->undo_structure();
-			rhs._ptr->undo_structure();
 
 			const T ovlp=overlap(*lhs._ptr,*rhs._ptr);
 			return ovlp;
@@ -682,8 +669,6 @@ namespace madness {
 	        if (h.has_no_data()) return 0.0;
 	        return inner3way(f.config(),g.config(),h.config());
 	    }
-
-
 
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
@@ -725,9 +710,9 @@ namespace madness {
 					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
 						config().divide_and_conquer_reduce(eps*facReduce);
 
-					} else if (OrthoMethod::om==sequential_) {
-					    MADNESS_EXCEPTION("flat/structure issue",1);
-						config().sequential_orthogonalization(eps*facReduce);
+//					} else if (OrthoMethod::om==sequential_) {
+//					    MADNESS_EXCEPTION("flat/structure issue",1);
+//						config().sequential_orthogonalization(eps*facReduce);
 
 					} else if (OrthoMethod::om==reconstruct_) {
                         MADNESS_EXCEPTION("flat/structure issue",1);
@@ -870,108 +855,6 @@ namespace madness {
 	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
 	    }
 
-	    /// accumulate this into t
-	    void accumulate_into(GenTensor<T>& t, const double& thresh, const double& fac) const {
-
-	    	if (has_no_data()) return;
-
-	    	// need case-by-case decision
-	    	if (tensor_type()==TT_FULL) {
-	    		if (t.has_no_data()) {
-	    			t=copy(*this);
-	    			t.full_tensor()*=fac;
-	    		} else {
-	    			t.full_tensor()+=this->full_tensor()*fac;
-	    		}
-	    	} else if (tensor_type()==TT_2D) {
-	    		if (t.tensor_type()==TT_FULL) {
-	    			accumulate_into(t.full_tensor(),fac);
-	    		} else {
-
-		    		t._ptr->undo_structure();
-		    		_ptr->undo_structure();
-		    		t.config().low_rank_add_sequential(*_ptr,thresh*facReduce,fac);
-	    		}
-	    	} else if (tensor_type()==TT_3D) {
-	    		t._ptr->undo_structure();
-	    		_ptr->undo_structure();
-	    		t._ptr->append(*this->_ptr,fac);
-	    	} else {
-	    		MADNESS_EXCEPTION("unknown tensor type in GenTensor::accumulate_into",0);
-	    	}
-	    }
-
-	    /// accumulate this into t
-	    void accumulate_into(Tensor<T>& t, const std::complex<double>& fac) const {
-	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
-	    }
-
-		/// reconstruct this to full rank, and accumulate into t
-		void accumulate_into(Tensor<T>& t, const double fac) const {
-
-			// fast return if possible
-			if (this->has_no_data()) return;	// no SRConf at all
-			if (_ptr->has_no_data()) return;	// rank==0
-
-			// fast return for full rank tensors
-			if (tensor_type()==TT_FULL) {
-				t+=this->full_tensor()*fac;
-				return;
-			}
-
-			MADNESS_ASSERT(t.iscontiguous());
-
-			// for convenience
-			const unsigned int conf_dim=this->_ptr->dim_eff();
-			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
-			const unsigned int rank=this->rank();
-			long d[TENSOR_MAXDIM];
-			MADNESS_ASSERT(conf_dim==2 or conf_dim==3);
-
-			// set up result Tensor (in configurational dimensions)
-			for (long i=0; i<conf_dim; i++) d[i] = conf_k;
-			tensorT s=t.reshape(conf_dim,d);
-
-			// flatten this
-//			_ptr->undo_structure();
-
-			if (conf_dim==2) {
-
-//                tensorT sscr=copy(_ptr->ref_vector(0)(_ptr->c0()));
-				tensorT sscr=copy(_ptr->flat_vector(0));
-				if (fac!=1.0) sscr.scale(fac);
-				for (unsigned int r=0; r<rank; r++) {
-					const double w=_ptr->weights(r);
-					for (unsigned int k=0; k<conf_k; k++) {
-						sscr(r,k)*=w;
-					}
-				}
-//                inner_result(sscr,_ptr->ref_vector(1)(_ptr->c0()),0,0,s);
-				inner_result(sscr,_ptr->flat_vector(1),0,0,s);
-
-			} else {
-
-			    MADNESS_EXCEPTION("flat/structure issue",1);
-				// include weights in first vector
-				tensorT scr1=copy(_ptr->ref_vector(0)(_ptr->c0()));
-				if (fac!=1.0) scr1.scale(fac);
-				for (unsigned int r=0; r<rank; r++) {
-					scr1(r,Slice(_))*=_ptr->weights(r);
-				}
-
-				// merge second and third vector to G(r,k1,k2)
-				tensorT scr2(rank,conf_k,conf_k);
-				for (unsigned int r=0; r<rank; r++) {
-					scr2(r,Slice(_),Slice(_))=outer(_ptr->ref_vector(1)(r,Slice(_)),
-													_ptr->ref_vector(2)(r,Slice(_)));
-				}
-
-				inner_result(scr1,scr2,0,0,s);
-
-			}
-
-		}
-
 		/// append this to rhs, shape must conform
 		void append(gentensorT& rhs, const double fac=1.0) const {
 			rhs.config().append(*this->_ptr,fac);
@@ -996,34 +879,6 @@ namespace madness {
 			return ((rhs.tensor_type()==lhs.tensor_type()) and (rhs.get_k()==lhs.get_k())
 					and (rhs.dim()==lhs.dim()));
 		};
-
-		/// compute a best one-term approximation wrt to this
-		gentensorT oneTermApprox(const double& eps, std::vector<tensorT>& B1) const {
-
-			/*
-			 * return a SepRep that represents this with only one term
-			 */
-
-			// new random SepRep of rank 1 and optimize wrt this
-			configT residual(dim(),get_k(),tensor_type());
-			configT dummy(residual);
-
-			residual.fillWithRandom();
-
-			Tensor<T> t1;
-			Tensor<T> B2;
-			//			std::vector<Tensor<T> > B2(B1);
-
-			// optimize the new SepRep wrt the residual; *this is the residual
-			// maxloop can be large because we have an additional stopping criterion
-			const unsigned int maxloop=50;
-			bool successful=residual.optimize(*this,1.0,dummy,0.0,t1,0.0,eps,maxloop,B1,B2);
-			if (not successful) {
-				std::cout << "NaNs in oneTermApprox " << std::endl;
-				MADNESS_ASSERT(0);
-			}
-			return residual;
-		}
 
 		/// transform the Legendre coefficients with the tensor
 		gentensorT transform(const Tensor<T> c) const {
@@ -1412,47 +1267,6 @@ namespace madness {
 			}
 		}
 
-		/// inplace add
-		void update_by(const gentensorT& rhs2) {
-			if (this->rank()==0) {
-				*this+=rhs2;
-				return;
-			}
-
-			if (rhs2.rank()==1) {
-				_ptr->rank_n_update_sequential(*rhs2._ptr);
-
-			} else {
-				gentensorT rhs3=copy(rhs2);
-				rhs3._ptr->undo_structure();										// 0.3 s
-
-				const long chunk_size=8;
-
-				for (unsigned int i=0; i<rhs2.rank(); i+=chunk_size) {
-					int begin=i;
-					int end=std::min(rhs2.rank()-1,i+chunk_size-1);
-
-					// very hard-wired
-					configT rhs(rhs2.dim(),rhs2.get_k(),rhs2.tensor_type());
-					rhs.weights_=rhs3._ptr->weights_(Slice(begin,end));
-					rhs.ref_vector(0)=rhs3._ptr->ref_vector(0)(Slice(begin,end),Slice(_));
-					rhs.ref_vector(1)=rhs3._ptr->ref_vector(1)(Slice(begin,end),Slice(_));
-					rhs.rank_=end-begin+1;
-					rhs.make_slices();
-
-					rhs.orthonormalize();
-
-					const tensorT a=(rhs.ref_vector(0)(rhs.c0()));
-					const tensorT b=(rhs.ref_vector(1)(rhs.c0()));
-					_ptr->rank_n_update_chunkwise(a,b,rhs.weights_(Slice(0,rhs.rank()-1)));
-				}
-			}
-
-
-		}
-
-		void finalize_accumulate() {_ptr->finalize_accumulate();}
-
 		/// reduce the separation rank of this to a near optimal value
 		/// follow section 3 in BM2005
 		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
@@ -1623,19 +1437,16 @@ namespace madness {
 			// convert SVD output to our convention
 			if (i>=0) {
 			    // copy to have contiguous and tailored singular vectors
-                this->_ptr->weights_=copy(s(Slice(0,i)));
-                this->_ptr->vector_[0]=copy(transpose(U(Slice(_),Slice(0,i))));
-                this->_ptr->vector_[1]=copy((VT(Slice(0,i),Slice(_))));
-				this->_ptr->rank_=i+1;
-				MADNESS_ASSERT(this->_ptr->kVec()==this->_ptr->vector_[0].dim(1));
-				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
-				MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->weights_.dim(0));
+				_ptr=sr_ptr(new configT(copy(s(Slice(0,i))), copy(transpose(U(_,Slice(0,i)))),
+				        copy(VT(Slice(0,i),_)), dim(), get_k()));
+                MADNESS_ASSERT(this->_ptr->get_k()==this->_ptr->vector_[0].dim(1));
+                MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->vector_[0].dim(0));
+                MADNESS_ASSERT(this->_ptr->rank()==this->_ptr->weights_.dim(0));
+
 			} else {
 				_ptr=sr_ptr(new configT(dim(),get_k(),tensor_type()));
 			}
-			this->config().make_structure();
 		}
-
 	};
 
 
