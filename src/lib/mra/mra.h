@@ -1423,9 +1423,10 @@ namespace madness {
         }
 
         /// reduce the rank of the coefficient tensors
-        void reduce_rank(const bool fence=true) {
+        Function<T,NDIM>& reduce_rank(const bool fence=true) {
             verify();
             impl->reduce_rank(impl->get_tensor_args(),fence);
+            return *this;
         }
     };
 
@@ -1817,9 +1818,19 @@ namespace madness {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-       	result.set_impl(f, true);
+        result.set_impl(f, true);
+
+        result.get_impl()->timer_accumulate.reset();
+        result.get_impl()->timer_target_driven.reset();
+
+        op.timer_full.reset();
+        op.timer_low_transf.reset();
+        op.timer_low_accumulate.reset();
+
         result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
-        if ((NDIM==6) and (opT::opdim==6) and (f.world().rank()==0)) {
+
+
+        if ((NDIM==6) and (f.world().rank()==0)) {
             result.get_impl()->timer_accumulate.print("accumulate");
             result.get_impl()->timer_target_driven.print("total target_driven");
 

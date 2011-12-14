@@ -812,7 +812,7 @@ namespace madness {
                 } else {
                     coeff().add_SVD(buffer,args.thresh);
                     buffer=copy(t);
-		}
+                }
 
 #else
                 // always do low rank
@@ -4848,14 +4848,13 @@ namespace madness {
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-            if (NDIM==6) fac=729; //100.0;
+            if (opdim==6) fac=729; //100.0;
             if (op->modified()) fac*=10.0;
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
             bool verbose=false;
             long neighbors=0;
-            long generated_terms=0;
 
 
             // for accumulation: keep slightly tighter TensorArgs
@@ -4931,7 +4930,7 @@ namespace madness {
             }
             double wall1=wall_time();
             if (verbose) {
-                print("done with source node",key,wall1-wall0, cnorm, neighbors,generated_terms,coeff.rank(),
+                print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
                         coeff_full.has_data());
             }
             return None;
@@ -4944,6 +4943,8 @@ namespace madness {
         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f,
                 const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            double cpu0=cpu_time();
 
             bool do_target_driven=(NDIM==opT::opdim);
             do_target_driven=false;
@@ -5008,6 +5009,9 @@ namespace madness {
                 }
             }
             world.gop.fence();
+            double cpu1=cpu_time();
+            if (world.rank()==0) print("done with raw convolution in",cpu1-cpu0,"seconds");
+            cpu0=cpu1;
 
             TensorArgs tight_args(targs);
             tight_args.thresh*=0.01;
@@ -5036,6 +5040,9 @@ namespace madness {
 
             if (fence)
                 world.gop.fence();
+            cpu1=cpu_time();
+            if (world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
+
         }
 
 

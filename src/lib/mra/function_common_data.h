@@ -165,6 +165,11 @@ namespace madness {
             }
         }
 
+        void reset() const {
+            map& map2=const_cast<map&>(data);
+            map2.clear();
+        }
+
         /// print timer
         void print(std::string line="") const {
 
