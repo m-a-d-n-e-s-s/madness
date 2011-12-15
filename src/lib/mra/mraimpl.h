@@ -768,7 +768,7 @@ namespace madness {
                 typename dcT::iterator it = fut.get();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-                    Future<T>(ref).set(eval_cube(key.level(), x, node.full_tensor_copy()));
+                    Future<T>(ref).set(eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
                     return None;
                 }
                 else {
@@ -801,7 +801,7 @@ namespace madness {
                 if (it != coeffs.end()) {
                     nodeT& node = it->second;
                     if (node.has_coeff()) {
-                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.full_tensor_copy()));
+                        return std::pair<bool,T>(true,eval_cube(key.level(), x, node.coeff().full_tensor_copy()));
                     }
                 }
             }
@@ -1027,7 +1027,7 @@ namespace madness {
                 typename dcT::const_iterator it = coeffs.find(cdata.key0).get();
                 if (it != coeffs.end()) {
                     const nodeT& node = it->second;
-                    if (node.has_coeff()) sum = node.full_tensor_copy()(v0);
+                    if (node.has_coeff()) sum = node.coeff().full_tensor_copy()(v0);
                 }
             }
         }
@@ -1035,7 +1035,7 @@ namespace madness {
             for (typename dcT::const_iterator it=coeffs.begin(); it!=coeffs.end(); ++it) {
                 const keyT& key = it->first;
                 const nodeT& node = it->second;
-                if (node.has_coeff()) sum += node.full_tensor_copy()(v0)*pow(0.5,NDIM*key.level()*0.5);
+                if (node.has_coeff()) sum += node.coeff().full_tensor_copy()(v0)*pow(0.5,NDIM*key.level()*0.5);
             }
         }
         return sum*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
@@ -1162,7 +1162,7 @@ namespace madness {
         const Level n = key.level();
         const Vector<Translation,NDIM>& l = key.translation();
         const double twon = pow(2.0,double(n));
-        const tensorT& coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
+        const tensorT& coeff = coeffs.find(key).get()->second.coeff().full_tensor_copy(); // Ugh!
 //        const tensorT coeff = coeffs.find(key).get()->second.full_tensor_copy(); // Ugh!
         long ind[NDIM];
         coordT x;

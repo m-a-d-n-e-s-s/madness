@@ -651,7 +651,7 @@ void compute_energy(World& world, const real_function_6d& pair,
 		    // this is a dummy convolution
             real_convolution_6d op = BSHOperator<6>(world, -0.1, 0.00001, 1e-6);
             op.modified()=true;
-            v11.get_impl()->convolute<real_convolution_6d>(op);
+            v11.fill_tree(op);
         }
 
 		double a=inner(pair,v11);
@@ -884,7 +884,7 @@ void test_recursive_application(World& world) {
             {
                 real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
                 op.modified()=true;
-                phi2.get_impl()->convolute<real_convolution_3d>(op);
+                phi2.fill_tree(op);
             }
 
             real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
@@ -990,7 +990,7 @@ void test_adaptive_tree(World& world, const bool restart, const std::string rest
         if (1) {
             real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op.modified()=true;
-            vphi.get_impl()->convolute(op);
+            vphi.fill_tree(op);
             vphi.scale(-2.0);
             vphi.print_size("vphi");
 
@@ -1087,7 +1087,7 @@ void test_compress(World& world) {
         // make the tree
         real_convolution_6d op = BSHOperator<6>(world, sqrt(1.0), 0.00001, 1e-6);
         op.modified()=true;
-        vphi.get_impl()->convolute(op);
+        vphi.fill_tree(op);
         a3=vphi;
         a3.print_size("a3");
         a3.check_symmetry();

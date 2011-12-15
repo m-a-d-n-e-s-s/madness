@@ -6,7 +6,7 @@ lib_LIBRARIES = libMADtensor.a
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h gentensor.h srconf.h
 
 test_SOURCES = test.cc
 test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
@@ -33,7 +33,7 @@ libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc
                          \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h gentensor.h srconf.h
 
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py

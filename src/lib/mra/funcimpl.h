@@ -47,7 +47,7 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include "mra/function_factory_and_interface.h"
-#include "mra/gentensor.h"
+#include "tensor/gentensor.h"
 #include <world/typestuff.h>
 #include "mra/function_common_data.h"
 
@@ -625,50 +625,9 @@ namespace madness {
             return const_cast<const coeffT&>(_coeffs);
         }
 
-
         /// Returns the number of coefficients in this node
         size_t size() const {
         	return _coeffs.size();
-        }
-
-
-        /// Returns an empty tensor if there are no coefficients.
-        Tensor<T>
-        full_tensor_copy() const {
-#if HAVE_GENTENSOR
-        	Tensor<T> result;
-        	if (this->has_coeff()) {
-				result=_coeffs.reconstruct_tensor();
-        	} else {
-        		result=Tensor<T>();
-        	}
-#else
-        	Tensor<T> result=copy(coeff());
-#endif
-
-        	return result;
-        }
-
-        /// Returns an empty tensor if there are no coefficients.
-        Tensor<T>&
-        full_tensor_reference() {
-#if HAVE_GENTENSOR
-        	MADNESS_ASSERT(_coeffs.tensor_type()==TT_FULL);
-        	return _coeffs.full_tensor();
-#else
-        	return coeff();
-#endif
-        }
-
-        /// Returns an empty tensor if there are no coefficients.
-        const Tensor<T>&
-        full_tensor_reference() const {
-#if HAVE_GENTENSOR
-        	MADNESS_ASSERT(_coeffs.type()==TT_FULL);
-        	return _coeffs.full_tensor();
-#else
-        	return coeff();
-#endif
         }
 
     public:
@@ -721,12 +680,7 @@ namespace madness {
 
         /// Clears the coefficients (has_coeff() will subsequently return false)
         void clear_coeff() {
-#if HAVE_GENTENSOR
-//        	const TensorType tt=_coeffs.tensor_type();
             coeff()=coeffT();
-#else
-            coeff() = Tensor<T>();
-#endif
         }
 
         /// Scale the coefficients of this node
@@ -807,11 +761,14 @@ namespace madness {
             if (has_coeff()) {
 
 #if 1
+                coeff().add_SVD(t,args.thresh);
                 if (buffer.rank()<coeff().rank()) {
-                    buffer.add_SVD(t,args.thresh);
-                } else {
-                    coeff().add_SVD(buffer,args.thresh);
-                    buffer=copy(t);
+                    if (buffer.has_data()) {
+                        buffer.add_SVD(coeff(),args.thresh);
+                        coeff()=coeffT();
+                    } else {
+                        buffer=copy(coeff());
+                    }
                 }
 
 #else
@@ -835,8 +792,10 @@ namespace madness {
         }
 
         Void consolidate_buffer(const TensorArgs& args) {
-            coeff().add_SVD(buffer,args.thresh);
-            buffer=coeffT();
+            if ((coeff().has_data()) and (buffer.has_data())) {
+                coeff().add_SVD(buffer,args.thresh);
+                buffer=coeffT();
+            }
             return None;
         }
 
@@ -1686,6 +1645,14 @@ namespace madness {
         }
 
         template <typename Q>
+        Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+            return transform(coeff,cdata.quad_phit).scale(scale);
+        }
+
+
+        template <typename Q>
         GenTensor<Q> values2coeffs(const keyT& key, const GenTensor<Q>& values) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
@@ -1699,6 +1666,31 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
+        }
+
+
+        /// Compute the function values for multiplication
+
+        /// Given coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        template <typename Q>
+        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            if (child.level() == parent.level()) {
+                return coeffs2values(parent, coeff);
+            }
+            else if (child.level() < parent.level()) {
+                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
+            }
+            else {
+                Tensor<double> phi[NDIM];
+                for (std::size_t d=0; d<NDIM; ++d) {
+                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
+                    phi_for_mul(parent.level(),parent.translation()[d],
+                                child.level(), child.translation()[d], phi[d]);
+                }
+                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
+            }
         }
 
 
@@ -1774,40 +1766,6 @@ namespace madness {
 
 	}
 
-#if HAVE_GENTENSOR
-
-
-        template <typename Q>
-        Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            double scale = pow(2.0,0.5*NDIM*key.level())/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-            return transform(coeff,cdata.quad_phit).scale(scale);
-        }
-
-        /// Compute the function values for multiplication
-
-        /// Given coefficients from a parent cell, compute the value of
-        /// the functions at the quadrature points of a child
-        template <typename Q>
-        Tensor<Q> fcube_for_mul(const keyT& child, const keyT& parent, const Tensor<Q>& coeff) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            if (child.level() == parent.level()) {
-                return coeffs2values(parent, coeff);
-            }
-            else if (child.level() < parent.level()) {
-                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
-            }
-            else {
-                Tensor<double> phi[NDIM];
-                for (std::size_t d=0; d<NDIM; ++d) {
-                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
-                    phi_for_mul(parent.level(),parent.translation()[d],
-                                child.level(), child.translation()[d], phi[d]);
-                }
-                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
-            }
-        }
-#endif
 
         /// Invoked as a task by mul with the actual coefficients
         template <typename L, typename R>
@@ -2153,7 +2111,7 @@ namespace madness {
 
                 Vector<Translation,NDIM> l;
                 for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
-                tensorT c = node.full_tensor_copy();
+                tensorT c = node.coeff().full_tensor_copy();
                 if (c.size()) c = copy(c.mapdim(map));
                 coeffT cc(c,f->get_tensor_args());
                 f->get_coeffs().replace(keyT(key.level(),l), nodeT(cc,node.has_children()));
@@ -2442,7 +2400,7 @@ namespace madness {
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    lc = it->second.full_tensor_copy();
+                    lc = it->second.coeff().full_tensor_copy();
             }
 
             // Loop thru RHS functions seeing if anything can be multiplied
@@ -2463,7 +2421,7 @@ namespace madness {
                     MADNESS_ASSERT(it != right->coeffs.end());
                     rnorm = it->second.get_norm_tree();
                     if (it->second.has_coeff())
-                        rc = it->second.full_tensor_copy();
+                        rc = it->second.coeff().full_tensor_copy();
                 }
                 else {
                     rnorm = rc.normf();
@@ -2538,7 +2496,7 @@ namespace madness {
                 MADNESS_ASSERT(it != left->coeffs.end());
                 lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    lc = it->second.full_tensor_copy();
+                    lc = it->second.coeff().full_tensor_copy();
             }
 
             Tensor<R> rc = rcin;
@@ -2547,7 +2505,7 @@ namespace madness {
                 MADNESS_ASSERT(it != right->coeffs.end());
                 rnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
-                    rc = it->second.full_tensor_copy();
+                    rc = it->second.coeff().full_tensor_copy();
             }
 
             // both nodes are leaf nodes: multiply and return
@@ -2613,7 +2571,7 @@ namespace madness {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
                 if (it->second.has_coeff())
-                    lc = it->second.full_tensor_copy();
+                    lc = it->second.coeff().full_tensor_copy();
             }
 
             Tensor<R> rc = rcin;
@@ -2621,7 +2579,7 @@ namespace madness {
                 riterT it = right->coeffs.find(key).get();
                 MADNESS_ASSERT(it != right->coeffs.end());
                 if (it->second.has_coeff())
-                    rc = it->second.full_tensor_copy();
+                    rc = it->second.coeff().full_tensor_copy();
             }
 
             if (rc.size() && lc.size()) { // Yipee!
@@ -2692,7 +2650,7 @@ namespace madness {
                       const FunctionImpl<Q,NDIM>* func, const opT& op) {
 
 //            const Tensor<Q>& fc = func->coeffs.find(key).get()->second.full_tensor_copy();
-        	const Tensor<Q> fc = func->coeffs.find(key).get()->second.full_tensor_copy();
+        	const Tensor<Q> fc = func->coeffs.find(key).get()->second.coeff().full_tensor_copy();
 
             if (fc.size() == 0) {
                 // Recur down
@@ -2945,7 +2903,7 @@ namespace madness {
         /// Returns true if this block of coeffs needs autorefining
         bool autorefine_square_test(const keyT& key, const nodeT& t) const {
             double lo, hi;
-            tnorm(t.full_tensor_copy(), &lo, &hi);
+            tnorm(t.coeff().full_tensor_copy(), &lo, &hi);
             double test = 2*lo*hi + hi*hi;
             //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
             return test> truncate_tol(thresh, key);
@@ -3249,22 +3207,22 @@ namespace madness {
         /// the criteria for refinement are:
         /// 1. at least a leaf node of f
         /// 2. compare to coeffs of parent node
-        template<typename leaf_opT>
+        template<typename leaf_opT, typename L, typename R>
         struct mul_op {
 
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+            typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
 
             implT* h;           ///< the result function h = f * g
-            const implT* f;     ///< the function f(1,2) that will be multiplied with g
-            const implT* g;     ///< the function g (on-demand)
-            datumT fdatum;      ///< pointing to the most-leaf node of f
+            const FunctionImpl<L,NDIM>* f;     ///< the function f(1,2) that will be multiplied with g
+            const FunctionImpl<R,NDIM>* g;     ///< the function g (on-demand)
+            datumL fdatum;      ///< pointing to the most-leaf node of f
             leaf_opT leaf_op;
             coeffT hparent;     ///< coeffs of h of the parent node
 
             mul_op() {
             };
 
-            mul_op(implT* h, const implT* f, const implT* g, const datumT& fdatum, const leaf_opT& leaf_op,
+            mul_op(implT* h, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g, const datumL& fdatum, const leaf_opT& leaf_op,
                     const coeffT& hparent)
                 : h(h), f(f), g(g), fdatum(fdatum), leaf_op(leaf_op), hparent(hparent) {
             };
@@ -3331,16 +3289,16 @@ namespace madness {
             Future<mul_op> make_child_op(const keyT& child) const {
 
                 // point to "outermost" leaf node
-                Future<datumT> fdatum1=f->outermost_child(child,fdatum);
+                Future<datumL> fdatum1=f->outermost_child(child,fdatum);
                 const coeffT hparent1=coeffT(this->coeff(child.parent()),h->get_tensor_args());
 
-                return h->world.taskq.add(*const_cast<mul_op *> (this), &mul_op<leaf_opT>::make_op,
+                return h->world.taskq.add(*const_cast<mul_op *> (this), &mul_op<leaf_opT,L,R>::make_op,
                         h,f,g,fdatum1,leaf_op,hparent1);
             }
 
             /// taskq-compatible constructor
-            mul_op make_op(implT* h, const implT* f, const implT* g,
-                    const datumT& fdatum, const leaf_opT& leaf_op, const coeffT& hparent) {
+            mul_op make_op(implT* h, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g,
+                    const datumL& fdatum, const leaf_opT& leaf_op, const coeffT& hparent) {
                 return mul_op(h,f,g,fdatum,leaf_op,hparent);
             }
 
@@ -3358,20 +3316,22 @@ namespace madness {
         /// @param[in]  f           the NDIM function f=f(1,2)
         /// @param[in]  g           the on-demand function (provides coeffs via FunctorInterface)
         /// @return     this        f * g
-        template<typename leaf_opT>
-        Void multiply(const leaf_opT& leaf_op, const implT* f, const implT* g, const bool fence) {
+        template<typename leaf_opT, typename L, typename R>
+        Void multiply(const leaf_opT& leaf_op, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g, const bool fence) {
 
             typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+            typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
 
             if (world.rank() == g->get_coeffs().owner(g->cdata.key0)) {
-                Future<datumT> datf=f->task(f->get_coeffs().owner(f->cdata.key0), &implT::find_datum,
+                Future<datumL> datf=f->task(f->get_coeffs().owner(f->cdata.key0), &FunctionImpl<L,NDIM>::find_datum,
                         f->cdata.key0,TaskAttributes::hipri());
 
                 // have to wait for this, but should be local..
-                datumT fdatum=datf.get();
+                datumL fdatum=datf.get();
 
-                typedef mul_op<leaf_opT> op_type;
-                op_type mul_op(this,f,g,fdatum,leaf_op,fdatum.second.coeff());
+                typedef mul_op<leaf_opT,L,R> op_type;
+                coeffT hparent=(fdatum.second.coeff());
+                op_type mul_op(this,f,g,fdatum,leaf_op,hparent);
 
                 ProcessID owner = coeffs.owner(cdata.key0);
                 woT::task(owner, &implT:: template recursive_op<op_type>, mul_op, cdata.key0);
@@ -3631,7 +3591,7 @@ namespace madness {
                 const fnodeT& node = it->second;
                 if (node.has_coeff()) {
                     const keyT& key = it->first;
-                    const Tensor<R>& c = node.full_tensor_copy();
+                    const Tensor<R>& c = node.coeff().full_tensor_copy();
                     woT::task(me, &implT:: template apply_1d_realspace_push_op<opT,R>,
                     		archive::archive_ptr<const opT>(&op), axis, key, c);
                 }

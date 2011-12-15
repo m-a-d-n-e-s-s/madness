@@ -41,7 +41,7 @@
 #include <mra/funcdefaults.h>
 #include "mra/electron_repulsion.h"
 //#include "mra/sepreptensor.h"
-#include "mra/gentensor.h"
+#include "tensor/gentensor.h"
 #include "world/print.h"
 
 

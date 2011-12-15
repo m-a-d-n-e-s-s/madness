@@ -68,7 +68,7 @@ int main(int argc, char** argv) {
 
             // Come up with an initial OK data map
             if (world.size() > 1) {
-                calc.set_protocol(world,1e-6);
+                calc.set_protocol<3>(world,1e-6);
                 calc.make_nuclear_potential(world);
                 calc.initial_load_bal(world);
             }

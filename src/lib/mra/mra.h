@@ -1357,18 +1357,19 @@ namespace madness {
         /// Same as \c operator* but with optional fence and no automatic reconstruction
 
         /// f or g are on-demand functions
-        void mul_on_demand(const Function<T,NDIM>& f, const Function<T,NDIM>& g, bool fence=true) {
-            const implT* fimpl=f.get_impl().get();
-            const implT* gimpl=g.get_impl().get();
+        template<typename L, typename R>
+        void mul_on_demand(const Function<L,NDIM>& f, const Function<R,NDIM>& g, bool fence=true) {
+            const FunctionImpl<L,NDIM>* fimpl=f.get_impl().get();
+            const FunctionImpl<R,NDIM>* gimpl=g.get_impl().get();
             if (fimpl->is_on_demand() and gimpl->is_on_demand()) {
                 MADNESS_EXCEPTION("can't multiply two on-demand functions",1);
             }
 
             if (fimpl->is_on_demand()) {
-                leaf_op<T,NDIM> leaf_op1(gimpl);
+                leaf_op<R,NDIM> leaf_op1(gimpl);
                 impl->multiply(leaf_op1,gimpl,fimpl,fence);
             } else {
-                leaf_op<T,NDIM> leaf_op1(fimpl);
+                leaf_op<L,NDIM> leaf_op1(fimpl);
                 impl->multiply(leaf_op1,fimpl,gimpl,fence);
             }
         }

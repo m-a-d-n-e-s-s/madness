@@ -33,7 +33,11 @@
 #ifndef MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 #define MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 
+#ifdef NO_GENTENSOR
+#define HAVE_GENTENSOR 0
+#else
 #define HAVE_GENTENSOR 1
+#endif
 
 /// \file funcdefaults.h
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation

@@ -76,6 +76,10 @@ namespace madness {
 
     template <class T> class SliceTensor;
 
+    template <class T> class GenTensor;
+
+    template <class T> class SliceGenTensor;
+
     /// Print a TensorException to the stream (for human consumption)
     std::ostream& operator <<(std::ostream& out, const TensorException& e) {
         out << "TensorException: msg='";

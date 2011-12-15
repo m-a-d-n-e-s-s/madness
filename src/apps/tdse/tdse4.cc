@@ -45,6 +45,8 @@
 
 using namespace madness;
 
+#define NO_GENTENSOR
+
 template <typename T, int NDIM>
 struct lbcost {
     double leaf_value;

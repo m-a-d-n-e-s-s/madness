@@ -45,6 +45,8 @@
 
 using namespace madness;
 
+#define NO_GENTENSOR
+
 struct InputParameters {
   static const int MAXNATOM=99;
 
