@@ -676,7 +676,7 @@ namespace madness {
             MADNESS_ASSERT(is_helium);  // scale 0.5*J, leaving out K
             functionT J=-0.5*hf.get_coulomb_potential();
 
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(1.e-6);
+            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
             real_function_6d v11=CompositeFactory<double,6,3>(world)
                    .V_for_particle1(copy(J).get_impl()).V_for_particle2(copy(J).get_impl())
                    .g12(eri.get_impl()).ket(copy(phi0).get_impl());
@@ -1182,8 +1182,8 @@ int main(int argc, char** argv) {
     }
 
     // actually set the FunctionDefaults
-    calc.set_protocol<3>(world,calc.param.econv*0.01);
     calc.set_protocol<6>(world,calc.param.econv);
+    calc.set_protocol<3>(world,calc.param.econv*0.01);
     calc.molecule.set_eprec(std::min(calc.param.econv,1.e-6));
     FunctionDefaults<6>::set_tensor_type(tt);
     FunctionDefaults<6>::set_apply_randomize(true);

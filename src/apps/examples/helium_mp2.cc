@@ -957,7 +957,6 @@ void test_adaptive_tree(World& world, const bool restart, const std::string rest
     if (world.rank()==0) print("<phi | phi>",norm2);
 
     pair=pair=symmetrize(pair,"sy_particle");
-    pair.check_symmetry();
 
     compute_energy(world,pair,pot1,pot2,ke,pe);
     eps=ke+pe;
@@ -1067,12 +1066,10 @@ void test_compress(World& world) {
 //        a1.compress();
 //        a1.reconstruct();
 //        a1.print_size("a1");
-//        a1.check_symmetry();
 //    }
     {
         a2=copy(vpair);
         a2.print_size("a2");
-        a2.check_symmetry();
     }
     {
         a3=copy(pair);
@@ -1090,7 +1087,6 @@ void test_compress(World& world) {
         vphi.fill_tree(op);
         a3=vphi;
         a3.print_size("a3");
-        a3.check_symmetry();
     }
     real_function_6d a=a3-a2;
     print("norm(a)",a.norm2());

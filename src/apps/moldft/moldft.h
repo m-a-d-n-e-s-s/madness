@@ -727,7 +727,7 @@ struct Calculation {
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
-        set_protocol<3>(world, 1e-4);
+        set_protocol<3>(world, param.econv);
     }
 
     template<std::size_t NDIM>

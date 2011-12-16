@@ -765,10 +765,10 @@ namespace madness {
                 if (buffer.rank()<coeff().rank()) {
                     if (buffer.has_data()) {
                         buffer.add_SVD(coeff(),args.thresh);
-                        coeff()=coeffT();
                     } else {
                         buffer=copy(coeff());
                     }
+                    coeff()=coeffT();
                 }
 
 #else
@@ -794,8 +794,10 @@ namespace madness {
         Void consolidate_buffer(const TensorArgs& args) {
             if ((coeff().has_data()) and (buffer.has_data())) {
                 coeff().add_SVD(buffer,args.thresh);
-                buffer=coeffT();
+            } else if (buffer.has_data()) {
+                coeff()=buffer;
             }
+            buffer=coeffT();
             return None;
         }
 
