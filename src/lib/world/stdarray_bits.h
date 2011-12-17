@@ -86,8 +86,8 @@ namespace madness {
               private:
                 // check range (may be private because it is static)
                 static void rangecheck (size_type i) {
-                    if (i >= size()) { 
-                        throw "array<>: index out of range";
+                    if (i >= size()) {
+                        throw std::out_of_range("array<>: index out of range");
                     }
                 }
             };
@@ -128,10 +128,10 @@ namespace madness {
 
                 // at() with range check
                 reference at(size_type i) {
-                    throw "array<0>: index out of range";
+                    makes_no_sense();
                 }
                 const_reference at(size_type i) const {
-                    throw "<0>: index out of range";
+                    makes_no_sense();
                 }
 
                 // size is constant
@@ -172,7 +172,7 @@ namespace madness {
                 //  assert( false ); added to make lack of support clear
                 static void makes_no_sense () {
                     //assert(true);
-                    throw "array<0>: index out of range";
+                    throw std::out_of_range("array<0>: index out of range");
                 }
             };
 
