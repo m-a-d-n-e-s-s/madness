@@ -145,98 +145,6 @@ namespace madness {
     };
 
 
-
-#if 0
-    // moved to its own file
-
-    /// FunctionCommonData holds all Function data common for given k
-
-    /// Since Function assignment and copy constructors are shallow it
-    /// greatly simplifies maintaining consistent state to have all
-    /// (permanent) state encapsulated in a single class.  The state
-    /// is shared between instances using a shared_ptr.  Also,
-    /// separating shared from instance specific state accelerates the
-    /// constructor, which is important for massive parallelism, and
-    /// permitting inexpensive use of temporaries.  The default copy
-    /// constructor and assignment operator are used but are probably
-    /// never invoked.
-    template<typename T, std::size_t NDIM>
-    class FunctionCommonData {
-    private:
-        static const FunctionCommonData<T, NDIM>* data[MAXK];
-
-        /// Private.  Initialize the twoscale coefficients
-        void
-        _init_twoscale();
-
-        /// Private.  Do first use initialization via get.
-        FunctionCommonData(int k) {
-            this->k = k;
-            npt = k;
-            for (int i = 0; i < 4; ++i)
-                s[i] = Slice(i * k, (i + 1) * k - 1);
-            s0 = std::vector<Slice>(NDIM);
-            sh = std::vector<Slice>(NDIM);
-            vk = std::vector<long>(NDIM);
-            vq = std::vector<long>(NDIM);
-            v2k = std::vector<long>(NDIM);
-            for (std::size_t i = 0; i < NDIM; ++i) {
-                s0[i] = s[0];
-                sh[i] = Slice(0, (k - 1) / 2);
-                vk[i] = k;
-                vq[i] = npt;
-                v2k[i] = 2 * k;
-            }
-            key0 = Key<NDIM> (0, Vector<Translation, NDIM> (0));
-
-            _init_twoscale();
-            _init_quadrature(k, npt, quad_x, quad_w, quad_phi, quad_phiw,
-                             quad_phit);
-        }
-
-    public:
-        typedef Tensor<T> tensorT; ///< Type of tensor used to hold coeff
-
-        int k; ///< order of the wavelet
-        int npt; ///< no. of quadrature points
-        Slice s[4]; ///< s[0]=Slice(0,k-1), s[1]=Slice(k,2*k-1), etc.
-        std::vector<Slice> s0; ///< s[0] in each dimension to get scaling coeff
-        std::vector<Slice> sh; ///< Slice(0,(k-1)/2) in each dimension for autorefine test
-        std::vector<long> vk; ///< (k,...) used to initialize Tensors
-        std::vector<long> v2k; ///< (2k,...) used to initialize Tensors
-        std::vector<long> vq; ///< (npt,...) used to initialize Tensors
-
-        Key<NDIM> key0; ///< Key for root node
-
-        Tensor<double> quad_x; ///< quadrature points
-        Tensor<double> quad_w; ///< quadrature weights
-        Tensor<double> quad_phi; ///< quad_phi(i,j) = at x[i] value of phi[j]
-        Tensor<double> quad_phit; ///< transpose of quad_phi
-        Tensor<double> quad_phiw; ///< quad_phiw(i,j) = at x[i] value of w[i]*phi[j]
-
-        Tensor<double> h0, h1, g0, g1;      ///< The separate blocks of twoscale coefficients
-        Tensor<double> h0T, h1T, g0T, g1T;  ///< The separate blocks of twoscale coefficients
-        Tensor<double> hg, hgT; ///< The full twoscale coeff (2k,2k) and transpose
-        Tensor<double> hgsonly; ///< hg[0:k,:]
-
-        static const FunctionCommonData<T, NDIM>&
-        get(int k) {
-            MADNESS_ASSERT(k > 0 && k <= MAXK);
-            if (!data[k-1]) data[k-1] = new FunctionCommonData<T,NDIM>(k);
-            return *(data[k-1]);
-        }
-
-        /// Initialize the quadrature information
-
-        /// Made public with all arguments thru interface for reuse in FunctionImpl::err_box
-        static void
-        _init_quadrature(int k, int npt, Tensor<double>& quad_x, Tensor<
-                         double>& quad_w, Tensor<double>& quad_phi,
-                         Tensor<double>& quad_phiw, Tensor<double>& quad_phit);
-    };
-#endif
-
-
     /// returns true if the function has a leaf node at key (works only locally)
     template<typename T, std::size_t NDIM>
     struct leaf_op {
@@ -1716,57 +1624,9 @@ namespace madness {
                     phi_for_mul(parent.level(),parent.translation()[d],
                                 child.level(), child.translation()[d], phi[d]);
                 }
-                return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
-            }
-        }
-
-        /// Compute the function values for multiplication
-
-        /// Given coefficients from a parent cell, compute the value of
-        /// the functions at the quadrature points of a child
-        coeffT fcube_for_mul2(const keyT& child, const std::pair<keyT,coeffT>& arg) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-
-            const keyT& parent=arg.first;
-            const coeffT& coeff=arg.second;
-
-            if (child.level() == parent.level()) {
-                return coeffs2values(parent, coeff);
-            }
-            else if (child.level() < parent.level()) {
-                MADNESS_EXCEPTION("FunctionImpl: fcube_for_mul: child-parent relationship bad?",0);
-            }
-            else {
-                Tensor<double> phi[NDIM];
-                for (size_t d=0; d<NDIM; d++) {
-                    phi[d] = Tensor<double>(cdata.k,cdata.npt);
-                    phi_for_mul(parent.level(),parent.translation()[d],
-                                child.level(), child.translation()[d], phi[d]);
-                }
                 return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));
             }
         }
-
-
-        /// Compute the function values for multiplication for child 
-
-	/// call as fcube_for_mul3(key,key); walk up the tree to find an appropriate node 
-	/// @param[in] child	the key for which we want the values
-	/// @param[in] parent	the key where we start looking for it
-	/// @param[out] 	values at the quadrature points of child
-        Future<coeffT> fcube_for_mul3(const keyT child, const keyT parent) {
-            
-	    MADNESS_ASSERT(parent.is_valid());
-            typedef std::pair<keyT,coeffT> argT;
-	    if (coeffs.probe(parent)) {
-        	const argT result= std::pair<keyT,coeffT>(parent,coeffs.find(parent).get()->second.coeff());
-		return woT::task(coeffs.owner(parent), &implT::fcube_for_mul2, child, result,TaskAttributes::hipri());
-	    } else {
-                const keyT grandparent = parent.parent();
-	        return woT::task(coeffs.owner(grandparent),&implT::fcube_for_mul3,child,grandparent,TaskAttributes::hipri());
-	    }
-
-	}
 
 
         /// Invoked as a task by mul with the actual coefficients
@@ -2865,32 +2725,6 @@ namespace madness {
         /// representable squarable polynomial is of order 2.
         void tnorm(const tensorT& t, double* lo, double* hi) const;
 
-        /// Computes norm of low/high-order polyn. coeffs for autorefinement test
-
-        /// t is a k^d tensor.  In order to screen the autorefinement
-        /// during multiplication compute the norms of
-        /// ... lo ... the block of t for all polynomials of order < k/2
-        /// ... hi ... the block of t for all polynomials of order >= k/2
-        ///
-        /// k=5   0,1,2,3,4     --> 0,1,2 ... 3,4
-        /// k=6   0,1,2,3,4,5   --> 0,1,2 ... 3,4,5
-        ///
-        /// k=number of wavelets, so k=5 means max order is 4, so max exactly
-        /// representable squarable polynomial is of order 2.
-        void tnorm(const coeffT& fcoeff, double* lo, double* hi) const {
-            if (fcoeff.has_no_data()) {
-                *lo=0.0;
-                *hi=0.0;
-            } else {
-
-                double norm=fcoeff.normf();
-                coeffT tlo=fcoeff(cdata.sh);
-                *lo=tlo.normf();
-                *hi=norm-*lo;
-            }
-        }
-
-
         // This invoked if node has not been autorefined
         Void do_square_inplace(const keyT& key);
 
@@ -3238,28 +3072,7 @@ namespace madness {
                 // pre-screen if this is a leaf (supposedly leaf_node of f)
                 bool is_leaf=leaf_op(fdatum.first);
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
-
-#if 0
-                // loop over all children, get and get the error (akin to project_refine_op)
-                tensorT r = tensorT(h->cdata.v2k);
-                for (KeyChildIterator<NDIM> it(key); it; ++it) {
-                    const keyT& child = it.key();
-                    r(h->child_patch(child)) = this->coeff(child);
-                }
-                // Filter then test difference coeffs at level n
-                tensorT d = h->filter(r);
-                tensorT hcoeff = copy(d(h->cdata.s0));
-                d(h->cdata.s0) = 0.0;
-                double dnorm = d.normf();
-#else
-//                const tensorT h_upsampled=h->upsample(key,hparent).full_tensor_copy();
                 const tensorT hcoeff=this->coeff(key);
-//                const tensorT diff=h_upsampled-hcoeff;
-//                const double dnorm=diff.normf();
-#endif
-//                is_leaf=(dnorm<h->truncate_tol(h->get_thresh(),key.level()));
-//                if (is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT(hcoeff,h->get_tensor_args()));
-//                return std::pair<bool,coeffT> (is_leaf,coeffT());
                 return std::pair<bool,coeffT> (is_leaf,coeffT(hcoeff,h->get_tensor_args()));
             }
 
@@ -4479,6 +4292,7 @@ namespace madness {
         coeffT compress_op(const keyT& key, const std::vector< Future<coeffT > >& v, bool nonstandard, bool redundant) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
+            MADNESS_ASSERT(not redundant);
             double cpu0=cpu_time();
             // Copy child scaling coeffs into contiguous block
             tensorT d(cdata.v2k);
@@ -4646,19 +4460,14 @@ namespace madness {
         Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
-            const TensorArgs args_full(0.0,TT_FULL);
-
             tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-//            coeffT result=coeffT(result_full,args_full);
             coeffT result=coeffT(result_full,apply_targs);
 
             // Screen here to reduce communication cost of negligible data
             // and also to ensure we don't needlessly widen the tree when
             // applying the operator
-            double norm;
             MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
-            if (result.tensor_type()==TT_2D) norm=result.config().svd_normf();
-            if (result.tensor_type()==TT_FULL) norm=result.normf();
+            const double norm=result.svd_normf();
             if (norm > 0.1*args.tol/args.fac) {
                 // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
@@ -4908,66 +4717,16 @@ namespace madness {
 
             double cpu0=cpu_time();
 
-            bool do_target_driven=(NDIM==opT::opdim);
-            do_target_driven=false;
-            if (do_target_driven) {
+            // looping through all the coefficients of the source f
+            typename dcT::const_iterator end = f.get_coeffs().end();
+            for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
 
-//                // make the MRA structure of the result tree
-//                typename dcT::const_iterator end = f.get_coeffs().end();
-//                for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
-//                    const keyT& key = it->first;
-//                    const coeffT& coeff = it->second.coeff();
-//
-//                    if (coeff.has_data() and (coeff.rank()!=0)) {
-//                        const double cnorm=coeff.normf();
-//                        ProcessID p = coeffs.owner(key);
-//                        woT::task(p, &implT:: template do_apply_dry_run<opT>, &op, key, cnorm);
-//                    }
-//                }
-//                world.gop.fence();
-//
-//                // consolidate the result tree
-//                typename dcT::const_iterator end2 = get_coeffs().end();
-//                for (typename dcT::const_iterator it=get_coeffs().begin(); it!=end2; ++it) {
-//                    const keyT& key = it->first;
-//                    coeffs.task(key, &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key);
-//                }
-//                world.gop.fence();
-//
-//                // run the target_driven convolution ON ALL NODES
-//                for (typename dcT::const_iterator it=get_coeffs().begin(); it!=end2; ++it) {
-//                    const keyT& key = it->first;
-//                    for (ProcessID p=0; p<world.size(); ++p) {
-//                        woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key);
-//                    }
-//                }
+                const keyT& key = it->first;
+                const coeffT& coeff = it->second.coeff();
 
-
-                const keyT key0=cdata.key0;
-                const ProcessID p=coeffs.owner(key0);
-                if (world.rank()==p) {
-                    woT::task(p, &implT:: template do_apply_target_driven<opT,R>, &op, &f, key0);
-                    std::vector<Future<bool> > has_contrib = future_vector_factory<bool>(world.size());
-                    for (int i=0; i<world.size(); ++i) has_contrib[i].set(true);
-                    woT::task(p, &implT:: template do_apply_target_driven_recursive<opT,R>,
-//                            &op, &f, key0, has_contrib, TaskAttributes::hipri());
-                            &op, &f, key0, TaskAttributes::hipri());
-                }
-
-            } else {
-
-
-                // looping through all the coefficients of the source f
-                typename dcT::const_iterator end = f.get_coeffs().end();
-                for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
-
-                    const keyT& key = it->first;
-                    const coeffT& coeff = it->second.coeff();
-
-                    if (coeff.has_data() and (coeff.rank()!=0)) {
-                        ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
-                    }
+                if (coeff.has_data() and (coeff.rank()!=0)) {
+                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+                    woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
                 }
             }
             world.gop.fence();
@@ -5005,193 +4764,6 @@ namespace madness {
             cpu1=cpu_time();
             if (world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
 
-        }
-
-
-        /// invoked by result; get the MRA structure
-
-        /// @param[in] op     the operator to act on the source function
-        /// @param[in] key    key of the source FunctionNode of f which is processed
-        /// @param[in] cnorm  norm of the coefficients of key
-        template <typename opT>
-        typename enable_if_c<NDIM==opT::opdim, Void>::type
-        do_apply_dry_run(const opT* op, const keyT& key, const double& cnorm) {
-
-            const double tol = truncate_tol(thresh, key);
-            // fac is the number of contributing neighbors (approx)
-            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-            if (NDIM==6) fac=729; //100.0;
-
-            // for accumulation: keep slightly tighter TensorArgs
-            TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.01;
-
-            const std::vector<keyT>& disp = op->get_disp(key.level());
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-
-            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const keyT dest = neighbor(key, *it, is_periodic);
-                if (dest.is_valid()) {
-                    const double opnorm = op->norm(key.level(), *it, key);
-                    if (cnorm*opnorm> tol/fac) {
-                        coeffs.replace(dest,nodeT());
-                    }
-                }
-            }
-            return None;
-        }
-
-        template <typename opT>
-        typename disable_if_c<NDIM==opT::opdim, Void>::type
-        do_apply_dry_run(const opT* op, const keyT& key, const double& cnorm) {
-            MADNESS_EXCEPTION("in dummy function do_apply_dry_run",1);
-            return None;
-        }
-
-
-        /// submit a task to apply the operator on the children iff the parent had contributions
-
-        /// invoked only on one node, but will spawn tasks on all nodes
-        /// @param[in]  f   the source function
-        /// @param[in]  key a FunctionNode that has already been processed; work on its children
-        /// @param[in]  has_contrib for each process: has the node "key" had any contributions
-        template <typename opT, typename R>
-        Void do_apply_target_driven_recursive(opT* op, const FunctionImpl<R,NDIM>* f,
-//                const keyT& key, const std::vector<Future<bool> >& has_contrib) const{
-                const keyT& key) const{
-            MADNESS_ASSERT(f->get_coeffs().probe(key));
-
-            // fast return if there is no contribution from any node
-            bool do_something=false;
-//            for (size_t i=0; i<has_contrib.size(); ++i) {
-//                if (has_contrib[i].get()) {
-//                    do_something=true;
-//                }
-//            }
-
-            do_something=f->get_coeffs().find(key).get()->second.has_children();
-//            MADNESS_ASSERT(world.size()==1);
-//            do_something=f->get_coeffs().probe(key);
-
-            if (do_something) {
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    const keyT& child = kit.key();
-
-                    ProcessID pp=f->get_coeffs().owner(child);
-                    woT::task(pp, &implT:: template do_apply_target_driven_recursive<opT,R>,
-//                            op, f, child, has_contrib2);
-                            op, f, child, TaskAttributes::hipri());
-
-//                    print("starting work on node ",child," at time",wall_time());
-                    std::vector<Future<bool> > has_contrib2 = future_vector_factory<bool>(world.size());
-                    for (ProcessID p=0; p<world.size(); ++p) {
-                        has_contrib2[p]=woT::task(p, &implT:: template do_apply_target_driven<opT,R>,
-                                op, f, child);
-                    }
-                }
-            }
-            return None;
-
-        }
-
-        /// apply an operator on all local boxes that contribute to target, then accumulate remotely
-
-        /// invoked by result, for all possible FunctionNodes by all processes
-        /// for now assume that the result function and the source function have the same tree structure
-        /// @param[in]  op      operator acting on f
-        /// @param[in]  f       the function op acts on, assuming SVD or full rank coefficients
-        /// @param[in]  target  target FunctionNode (not necessarily local!)
-        template <typename opT, typename R>
-        typename enable_if_c<NDIM==opT::opdim, bool>::type
-        do_apply_target_driven(opT* op, const FunctionImpl<R,NDIM>* f, const keyT& target) {
-
-            double cpu0=cpu_time();
-
-            // some prep stuff
-            const double tol = truncate_tol(thresh, target);
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-            // fac is the number of contributing neighbors (approx)
-            double fac=(NDIM==6) ? 729.0 : 10.0; //100.0;
-            if (op->modified()) fac*=10;
-
-            // for accumulation: keep slightly tighter TensorArgs
-            TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.01;
-
-            // here we accumulate
-            tensorT result_full(cdata.v2k);
-            coeffT result_low;
-
-            // loop over all local source FunctionNodes contributing to target
-            const std::vector<keyT>& all_disp = op->get_disp(target.level());
-            for (typename std::vector<keyT>::const_iterator it=all_disp.begin(); it != all_disp.end(); ++it) {
-
-                // need to mirror displacement: source+disp=target
-                const keyT mirror_disp(it->level(),it->translation()*(-1));
-                const keyT disp(*it);
-                const keyT source=neighbor(target, mirror_disp, is_periodic);
-
-                if (source.is_valid() and f->get_coeffs().probe(source)) {
-                    MADNESS_ASSERT(source.neighbor(disp)==target);
-
-                    const nodeT& fnode=f->get_coeffs().find(source).get()->second;
-                    const coeffT& coeff=fnode.coeff();  // this is local
-                    tensorT coeff_full;
-                    if (coeff.tensor_type()==TT_FULL) coeff_full=coeff.full_tensor();   // avoid deep copy below
-
-//                    const double cnorm=fnode.normf();
-                    const double cnorm=coeff.svd_normf();
-//                    MADNESS_ASSERT(std::abs(cnorm-cnorm2)<1.e-14);
-
-                    const double opnorm = op->norm(source.level(), disp, source);
-
-                    if (cnorm*opnorm> tol/fac) {
-
-                        double cost_ratio=op->estimate_costs(source, disp, coeff, tol/fac/cnorm, tol/fac);
-//                            cost_ratio=1.5;     // force low rank
-//                            cost_ratio=0.5;     // force full rank
-
-                        if (cost_ratio>0.0) {
-
-                            if (cost_ratio<1.0) {
-
-                                if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
-                                result_full += op->apply(source,disp,coeff_full,tol/fac/cnorm);
-
-                            } else {
-                                const coeffT result=op->apply2(source,disp,coeff,tol/fac/cnorm,tol/fac);
-                                result_low.add_SVD(result,apply_targs.thresh);
-                                if (result_low.rank()>2*k) {
-                                    result_full+=result_low.full_tensor_copy();
-                                    result_low=coeffT();
-                                }
-
-                            }
-                        }
-                    } else if (disp.distsq() >= 12) {
-                        break; // Assumes monotonic decay beyond nearest neighbor
-                    }
-                }
-            }
-
-            // now that we have all the local contributions, send them out
-            // accumulate also expects result in SVD form
-            result_low.add_SVD(coeffT(result_full,apply_targs),apply_targs.thresh);
-            Future<double> time=coeffs.task(target, &nodeT::accumulate, result_low, coeffs, target, apply_targs,
-                    TaskAttributes::hipri());
-            woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
-            double cpu1=cpu_time();
-            timer_target_driven.accumulate(cpu1-cpu0);
-
-            return (result_low.svd_normf()>tol/fac);
-        }
-
-
-        template <typename opT, typename R>
-        typename disable_if_c<NDIM==opT::opdim, bool>::type
-        do_apply_target_driven(opT* op, const FunctionImpl<R,NDIM>* f, const keyT key) {
-            MADNESS_EXCEPTION("in dummy method do_apply_target_driven",1);
-            return true;
         }
 
         /// compute the error for a (compressed) node using the wavelet coeffs
