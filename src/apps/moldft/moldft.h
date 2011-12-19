@@ -1591,7 +1591,7 @@ struct Calculation {
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
 
-    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
+    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v) const
     {
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
@@ -2583,7 +2583,7 @@ public:
 
         // Make the nuclear potential, initial orbitals, etc.
         for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
-            calc.set_protocol(world,calc.param.protocol_data[proto]);
+            calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
 

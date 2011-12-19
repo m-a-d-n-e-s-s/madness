@@ -482,23 +482,23 @@ struct true_if_n_gt_op {
          return Key<NDIM>(n,l);
      }
 
-struct true_if_close_to_nucleus {
-    typedef Vector<double,6> coordT;
-    coordT nuc;
-    true_if_close_to_nucleus() {}
-    true_if_close_to_nucleus(coordT& a) : nuc(a) {}
-    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
-        coordT simpt;
-        user_to_sim(nuc, simpt);
-        Key<6> specialkey = simpt2key(simpt, key.level());
-        return (specialkey.is_neighbor_of(key));
-    }
-
-    template <typename Archive> void serialize (Archive& ar) {
-        ar & nuc;
-    }
-
-};
+//struct true_if_close_to_nucleus {
+//    typedef Vector<double,6> coordT;
+//    coordT nuc;
+//    true_if_close_to_nucleus() {}
+//    true_if_close_to_nucleus(coordT& a) : nuc(a) {}
+//    bool operator()(FunctionImpl<double,6>* impl, const Key<6>& key, const FunctionNode<double,6>& t) const {
+//        coordT simpt;
+//        user_to_sim(nuc, simpt);
+//        Key<6> specialkey = simpt2key(simpt, key.level());
+//        return (specialkey.is_neighbor_of(key));
+//    }
+//
+//    template <typename Archive> void serialize (Archive& ar) {
+//        ar & nuc;
+//    }
+//
+//};
 
 /// iterate the helium wavefunction
 /// @param[in]      world   world

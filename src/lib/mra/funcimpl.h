@@ -3414,6 +3414,16 @@ namespace madness {
             if (fence) world.gop.fence();
         }
 
+        Void forward_do_diff1(const DerivativeBase<T,NDIM>* D,
+                      const implT* f,
+                      const keyT& key,
+                      const std::pair<keyT,coeffT>& left,
+                      const std::pair<keyT,coeffT>& center,
+                      const std::pair<keyT,coeffT>& right) {
+            return D->forward_do_diff1(f,this,key,left,center,right);
+        }
+
+
         Void do_diff1(const DerivativeBase<T,NDIM>* D,
                       const implT* f,
                       const keyT& key,
