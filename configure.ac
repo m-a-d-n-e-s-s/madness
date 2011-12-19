@@ -18,9 +18,12 @@ AC_CONFIG_HEADERS([include/madness_config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
+ACX_CRAYXE
 ACX_MAC
 ACX_IBMBGP
+ACX_IBMBGQ
 #AC_AIX
+ACX_WITH_STUBMPI
 
 # Set default thread processor-affinity
 BIND=${BIND-"-1 -1 -1"}
@@ -76,6 +79,11 @@ ACX_ENABLE_OPTIMIZATION
 
 # Set warning flags by compiler vendor
 ACX_ENABLE_WARN
+
+# Look for user choice of language standard
+ACX_ENABLE_CPP0XTR1
+
+# Selelect best compilation flags
 ACX_ENABLE_OPTIMAL
 
 # Check for boost
@@ -273,7 +281,6 @@ AC_CONFIG_FILES([
     src/Makefile
     src/lib/Makefile
        src/lib/world/Makefile
-          src/lib/world/tr1/Makefile
        src/lib/muParser/Makefile
        src/lib/misc/Makefile
        src/lib/tinyxml/Makefile

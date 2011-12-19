@@ -239,16 +239,19 @@ namespace madness {
     }
 
     QuasiNewton::QuasiNewton(const std::shared_ptr<OptimizationTargetInterface>& tar,
+                             int maxiter,
                              double tol,
                              double value_precision,
                              double gradient_precision)
         : update("BFGS")
         , target(tar)
+        , maxiter(maxiter)
         , tol(tol)
         , value_precision(value_precision)
         , gradient_precision(gradient_precision)
         , gnorm(tol*1e16)
         , n(0)
+        , printtest(true)
     {
         if (!target->provides_gradient()) throw "QuasiNewton requires the gradient";
     }
@@ -257,15 +260,20 @@ namespace madness {
         if (method == "BFGS" || method == "SR1") update=method;
         else throw "QuasiNewton: unknown update mthod";
     }
+     void QuasiNewton::set_test(const bool& test_level) {
+          printtest = test_level;
+   }
+
 
     bool QuasiNewton::optimize(Tensor<double>& x) {
-        int maxiter = 20; // !!!!!!!!! dumb
+//        int maxiter = 20; // !!!!!!!!! dumb
         if (n != x.dim(0)) {
             n = x.dim(0);
             h = Tensor<double>();
         }
 
-        target->test_gradient(x, value_precision);
+ 
+       if(printtest)  target->test_gradient(x, value_precision);
 
         bool h_is_identity = (h.size() == 0);
         if (h_is_identity) {
@@ -300,8 +308,11 @@ namespace madness {
             x += dx;
             gp = g;
         }
-        print("final hessian");
-        print(h);
+ 
+        if (printtest) {
+            print("final hessian");
+            print(h);
+        }
         return converged();
     }
 

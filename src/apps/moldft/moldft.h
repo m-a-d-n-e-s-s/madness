@@ -198,6 +198,8 @@ public:
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> {
@@ -210,6 +212,8 @@ public:
     double operator()(const coordT& x) const {
         return molecule.molecular_core_potential(x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
@@ -223,29 +227,27 @@ public:
     double operator()(const coordT& x) const {
         return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
     }
+
+    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
 };
 
 
 class AtomicBasisFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const AtomicBasisFunction aofunc;
-    std::vector<coordT> specialpt;
+
 public:
     AtomicBasisFunctor(const AtomicBasisFunction& aofunc)
         : aofunc(aofunc)
-    {
-    	double x, y, z;
-        aofunc.get_coords(x,y,z);
-        coordT r;
-        r[0]=x; r[1]=y; r[2]=z;
-        specialpt=std::vector<coordT>(1,r);
-    }
+    {}
 
     double operator()(const coordT& x) const {
         return aofunc(x[0], x[1], x[2]);
     }
 
-    std::vector<coordT> special_points() const {return specialpt;}
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,aofunc.get_coords_vec());
+    }
 };
 
 class MolecularDerivativeFunctor : public FunctionFunctorInterface<double,3> {
@@ -253,12 +255,18 @@ private:
     const Molecule& molecule;
     const int atom;
     const int axis;
+
 public:
     MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-        : molecule(molecule), atom(atom), axis(axis) {}
+        : molecule(molecule), atom(atom), axis(axis) 
+    {}
 
     double operator()(const coordT& x) const {
         return molecule.nuclear_attraction_potential_derivative(atom, axis, x[0], x[1], x[2]);
+    }
+
+    std::vector<coordT> special_points() const {
+        return std::vector<coordT>(1,molecule.get_atom(atom).get_coords());
     }
 };
 
@@ -267,6 +275,7 @@ private:
     const Molecule& molecule;
     const int atom;
     const int axis;
+    std::vector<coordT> specialpt;
 public:
     CorePotentialDerivativeFunctor(const Molecule& molecule, int atom, int axis)
         : molecule(molecule), atom(atom), axis(axis) {}
@@ -428,7 +437,15 @@ struct CalculationParameters {
     int nmo_alpha;              ///< Number of alpha spin molecular orbitals
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
-    std::string xcdata;         ///< XC input line
+    std::string xc_data;         ///< XC input line
+    std::vector<double> protocol_data;  ///< Calculation protocol
+    bool gopt;                  ///< geometry optimizer
+    double gtol;                ///< geometry tolerance
+    bool gtest;                 ///< geometry tolerance
+    double gval;                ///< value precision 
+    double gprec;               ///< gradient precision 
+    int  gmaxiter;               ///< optimization maxiter 
+    std::string algopt;         ///< algorithm used for optimization
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -436,7 +453,8 @@ struct CalculationParameters {
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
-        ar & xcdata;
+        ar & xc_data & protocol_data;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt;
     }
 
     CalculationParameters()
@@ -472,7 +490,15 @@ struct CalculationParameters {
         , nmo_alpha(0)
         , nmo_beta(0)
         , lo(1e-10) 
-        , xcdata("lda")
+        , xc_data("lda")
+        , protocol_data(madness::vector_factory(1e-4, 1e-6))
+        , gopt(false)
+        , gtol(1e-3)
+        , gtest(false)
+        , gval(1e-5)
+        , gprec(1e-4)
+        , gmaxiter(20)
+        , algopt("BFGS")
     {}
         
 
@@ -480,7 +506,8 @@ struct CalculationParameters {
         std::ifstream f(filename.c_str());
         position_stream(f, "dft");
         std::string s;
-        xcdata = "lda";
+        xc_data = "lda";
+        protocol_data = madness::vector_factory(1e-4, 1e-6);
 
         while (f >> s) {
             if (s == "end") {
@@ -531,7 +558,15 @@ struct CalculationParameters {
             else if (s == "xc") {
                 char buf[1024];
                 f.getline(buf,sizeof(buf));
-                xcdata = buf;
+                xc_data = buf;
+            }
+            else if (s == "protocol") {
+                std::string buf;
+                std::getline(f,buf);
+                protocol_data = std::vector<double>();
+                double d;
+                std::stringstream s(buf);
+                while (s >> d) protocol_data.push_back(d);
             }
             else if (s == "plotmos") {
                 f >> plotlo >> plothi;
@@ -587,6 +622,29 @@ struct CalculationParameters {
             }
             else if (s == "convonlydens") {
                 conv_only_dens = true;
+            }
+            else if (s == "gopt") {
+               gopt = true;
+            }
+            else if (s == "gtol") {
+                f >> gtol;
+            }
+            else if (s == "gtest") {
+               gtest = true;
+            }
+            else if (s == "gval") {
+                f >> gval;
+            }
+            else if (s == "gprec") {
+                f >> gprec;
+            }
+            else if (s == "gmaxiter") {
+                f >> gmaxiter;
+            }
+            else if (s == "algopt") {
+                char buf[1024];
+                f.getline(buf,sizeof(buf));
+                algopt = buf;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -647,7 +705,7 @@ struct CalculationParameters {
         madness::print(" number of electrons ", nalpha, nbeta);
         madness::print("  number of orbitals ", nmo_alpha, nmo_beta);
         madness::print("     spin restricted ", spin_restricted);
-        madness::print("       xc functional ", xcdata);
+        madness::print("       xc functional ", xc_data);
 #ifdef MADNESS_HAS_LIBXC
         madness::print("         xc libraray ", "libxc");
 #else
@@ -657,8 +715,10 @@ struct CalculationParameters {
             madness::print("           core type ", core_type);
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
+        madness::print("    compute protocol ", protocol_data);
         madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
+        madness::print("    maximum rotation ", maxrotn);
         madness::print("    polynomial order ", k);
         if (conv_only_dens)
             madness::print(" Convergence criterion is only density delta.");
@@ -685,6 +745,16 @@ struct CalculationParameters {
         if (dipole)
             madness::print("         calc dipole ");
     }
+//};
+    void gprint(World& world) const {
+        madness::print(" Optimizer parameters:           ");
+        madness::print("   Maximum iterations (gmaxiter) ", gmaxiter);
+        madness::print("                Tolerance (gtol) ", gtol);
+        madness::print("           Gradient value (gval) ", gval);
+        madness::print("      Gradient precision (gprec) ", gprec);
+        madness::print(" Optimization algorithm (algopt) ", algopt);
+        madness::print(" Gradient numerical test (gtest) ", gtest);
+    }
 };
 
 struct Calculation {
@@ -704,6 +774,7 @@ struct Calculation {
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+
     Calculation(World & world, const char *filename)
     {
         if(world.rank() == 0) {
@@ -715,6 +786,7 @@ struct Calculation {
                 param.aobasis = molecule.guess_file();
                 n_core = molecule.n_core_orb_all();
             }
+
             molecule.orient();
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
@@ -723,7 +795,7 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
-        xc.initialize(param.xcdata, !param.spin_restricted);
+        xc.initialize(param.xc_data, !param.spin_restricted);
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
@@ -734,13 +806,14 @@ struct Calculation {
     void set_protocol(World & world, double thresh)
     {
         int k;
-        if(thresh >= 1e-2)
+        // Allow for imprecise conversion of threshold
+        if(thresh >= 0.9e-2)
             k = 4;
-        else if(thresh >= 1e-4)
+        else if(thresh >= 0.9e-4)
             k = 6;
-        else if(thresh >= 1e-6)
+        else if(thresh >= 0.9e-6)
             k = 8;
-        else if(thresh >= 1e-8)
+        else if(thresh >= 0.9e-8)
             k = 10;
         else
             k = 12;
@@ -969,42 +1042,13 @@ struct Calculation {
 
         START_TIMER(world);
         ao = vecfuncT(aobasis.nbf(molecule));
-        Level initial_level = 2;
         for(int i = 0;i < aobasis.nbf(molecule);++i){
             functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-            ao[i] = factoryT(world).functor(aofunc).initial_level(initial_level).truncate_on_project().nofence();
+            ao[i] = factoryT(world).functor(aofunc).truncate_on_project().nofence().truncate_mode(1);
         }
         world.gop.fence();
-        std::vector<double> norms;
-        while(1){
-            norms = norm2s(world, ao);
-            initial_level += 2;
-            if(initial_level >= 11)
-                throw "project_ao_basis: projection failed?";
-
-            int nredone = 0;
-            for(int i = 0;i < aobasis.nbf(molecule);++i){
-                if(norms[i] < 0.25){
-                    ++nredone;
-                    functorT aofunc(new AtomicBasisFunctor(aobasis.get_atomic_basis_function(molecule, i)));
-                    ao[i] = factoryT(world).functor(aofunc).initial_level(6).truncate_on_project().nofence();
-                }
-            }
-
-            world.gop.fence();
-            if(nredone == 0)
-                break;
-
-        }
         truncate(world, ao);
-        // Don't want to renorm since some d and f functions won't be normalized to unity
-        // for(int i = 0;i < aobasis.nbf(molecule);++i){
-        //     if(world.rank() == 0 && fabs(norms[i] - 1.0) > 1e-2)
-        //         print(i, " bad ao norm?", norms[i]);
-
-        //     norms[i] = 1.0 / norms[i];
-        // }
-        // scale(world, ao, norms);
+        normalize(world, ao);
         END_TIMER(world, "project ao basis");
     }
 
@@ -1287,6 +1331,31 @@ struct Calculation {
                 print("warning: boys localization did not fully converge: ", ndone);
             }
             U = transpose(U);
+
+	    bool switched = true;
+	    while (switched) {
+	      switched = false;
+	      for (int i=0; i<nmo; i++) {
+		for (int j=i+1; j<nmo; j++) {
+		  if (set[i] == set[j]) {
+		    double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		    double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		    if (snew > sold) {
+		      tensorT tmp = copy(U(_,i));
+		      U(_,i) = U(_,j);
+		      U(_,j) = tmp;
+		      switched = true;
+		    }
+		  }
+		}
+	      }
+	    }
+
+        // Fix phases.
+        for (long i=0; i<nmo; ++i) {
+            if (U(i,i) < 0.0) U(_,i).scale(-1.0);
+        }
+
         }
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
@@ -1307,21 +1376,6 @@ struct Calculation {
         return r.scale(0.5);
     }
 
-    struct GuessDensity : public FunctionFunctorInterface<double,3>
-    {
-        const Molecule & molecule;
-        const AtomicBasisSet & aobasis;
-        double operator ()(const coordT & x) const
-        {
-            return aobasis.eval_guess_density(molecule, x[0], x[1], x[2]);
-        }
-
-        GuessDensity(const Molecule & molecule, const AtomicBasisSet & aobasis)
-            :molecule(molecule), aobasis(aobasis)
-        {
-        }
-
-    };
 
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true)
     {
@@ -1399,7 +1453,7 @@ struct Calculation {
         }
         else {
             // Use the initial density and potential to generate a better process map
-            functionT rho = factoryT(world).functor(functorT(new GuessDensity(molecule, aobasis))).truncate_on_project();
+            functionT rho = factoryT(world).functor(functorT(new MolecularGuessDensityFunctor(molecule, aobasis))).truncate_on_project();
             END_TIMER(world, "guess density");
             double nel = rho.trace();
             if(world.rank() == 0)
@@ -1412,11 +1466,6 @@ struct Calculation {
                 lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
-//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//                 world.gop.fence();
                 END_TIMER(world, "guess loadbal");
             }
 
@@ -1444,14 +1493,6 @@ struct Calculation {
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//                 vlocal = copy(vlocal, FunctionDefaults<3>::get_pmap(), false);
-//                 for(unsigned int i = 0;i < ao.size();++i){
-//                     ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-//                 }
-//                 world.gop.fence();
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
@@ -1548,12 +1589,9 @@ struct Calculation {
         lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
-//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//         world.gop.fence();
     }
 
-    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v) const
+    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
     {
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
@@ -1671,9 +1709,9 @@ struct Calculation {
     }
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int what) 
     {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc,ispin), vf);
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc,what), vf);
     }
 
     double make_dft_energy(World & world, const vecfuncT& vf)
@@ -1683,15 +1721,34 @@ struct Calculation {
     }
 
     vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
-                             const vecfuncT& vf, const functionT & vlocal, double & exc, int ispin)
+                             const vecfuncT& vf, const vecfuncT& delrho, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
         exc = 0.0;
 
-        if (xc.is_dft()) {
+        //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
+        if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf);
             vloc = vloc + make_dft_potential(world, vf, ispin);
+            //print("VLOC1", vloc.trace(), vloc.norm2());
+
+            if (xc.is_gga()) {
+                if (xc.is_spin_polarized()) {
+                    throw "not yet";
+                }
+                else {
+		  //print("VF", vf[0].trace(), vf[1].trace());
+                    real_function_3d vsig = make_dft_potential(world, vf, 1);
+                    //print("VSIG", vsig.trace(), vsig.norm2());
+                    real_function_3d vr(world);
+                    for (int axis=0; axis<3; axis++) {
+                        vr += (*gradop[axis])(vsig*delrho[axis]);
+                    }
+                    vloc = vloc - vr; // need a 2?
+                    //print("VLOC2", vloc.trace(), vloc.norm2());
+                }
+            }
             END_TIMER(world, "DFT potential");
         }
         
@@ -1863,9 +1920,14 @@ struct Calculation {
         ops.clear();
         Vpsi.clear();
         world.gop.fence();
+
+        // Thought it was a bad idea to truncate *before* computing the residual
+        // but simple tests suggest otherwise ... no more iterations and 
+        // reduced iteration time from truncating.
         START_TIMER(world);
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
+
         vecfuncT r = sub(world, psi, new_psi);
         std::vector<double> rnorm = norm2s(world, r);
         if (world.rank() == 0) print("residuals", rnorm);
@@ -1961,7 +2023,7 @@ struct Calculation {
         return expB;
     }
 
-    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, double thresh)
+    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, const tensorT & occ, double thresh)
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
@@ -1971,27 +2033,32 @@ struct Calculation {
         sygv(fock, overlap, 1, U, evals);
         END_TIMER(world, "Diagonalization");
 
-        // Fix phases.
-        long j;
-        for (long i=0; i<nmo; ++i) {
-            U(_,i).absmax(&j);
-            if (U(j,i) < 0) U(_,i).scale(-1.0);
-        }
-
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
-        // non-linear solver).  Have to run the reordering multiple
-        // times to handle multiple degeneracies.
-        for (int pass=0; pass<5; ++pass) {
-            for (long i=0; i<nmo; ++i) {
-                U(_,i).absmax(&j);
-                if (i != j) {
-                    tensorT tmp = copy(U(_,i));
-                    U(_,i) = U(_,j);
-                    U(_,j) = tmp;
-                    std::swap(evals[i],evals[j]);
-                }
-            }
+        // non-linear solver).  
+	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
+	bool switched = true;
+	while (switched) {
+	  switched = false;
+	  for (int i=0; i<nmo; i++) {
+	    for (int j=i+1; j<nmo; j++) {
+	      if (occ(i) == occ(j)) {
+		double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		if (snew > sold) {
+		  tensorT tmp = copy(U(_,i));
+		  U(_,i) = U(_,j);
+		  U(_,j) = tmp;
+		  std::swap(evals[i],evals[j]);
+		  switched = true;
+		}
+	      }
+	    }
+	  }
+	}
+        // Fix phases.
+        for (long i=0; i<nmo; ++i) {
+            if (U(i,i) < 0.0) U(_,i).scale(-1.0);
         }
 
         // Rotations between effectively degenerate states confound
@@ -2033,12 +2100,14 @@ struct Calculation {
             ilo = ihi+1;
         }
 
-        // print("Fock");
-        // print(fock);
-        // print("Evec");
-        // print(U);;
-        // print("Eval");
-        // print(evals);
+	//if (world.rank() == 0) {
+	  // print("Fock");
+	  // print(fock);
+	  //print("Evec");
+	  //print(U);;
+	  //print("Eval");
+	  //print(evals);
+	//}
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2072,41 +2141,10 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
             }
         }
+	world.gop.fence();
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
 
-//         FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
-//         vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
-//         arho = copy(arho, FunctionDefaults<3>::get_pmap(), false);
-//         if(arho_old.is_initialized())
-//             arho_old = copy(arho_old, FunctionDefaults<3>::get_pmap(), false);
-
-//         for(unsigned int i = 0;i < ao.size();++i){
-//             ao[i] = copy(ao[i], FunctionDefaults<3>::get_pmap(), false);
-//         }
-//         for(unsigned int i = 0;i < amo.size();++i){
-//             amo[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
-//         }
-//         if(param.nbeta && !param.spin_restricted){
-//             brho = copy(brho, FunctionDefaults<3>::get_pmap(), false);
-//             if(brho_old.is_initialized())
-//                 brho_old = copy(brho_old, FunctionDefaults<3>::get_pmap(), false);
-
-//             for(unsigned int i = 0;i < bmo.size();++i){
-//                 bmo[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
-//             }
-//         }
-
-//         for(unsigned int i = 0;i < subspace.size();++i){
-//             vecfuncT & v = subspace[i].first;
-//             vecfuncT & r = subspace[i].second;
-//             for(unsigned int j = 0;j < v.size();++j){
-//                 v[j] = copy(v[j], FunctionDefaults<3>::get_pmap(), false);
-//                 r[j] = copy(r[j], FunctionDefaults<3>::get_pmap(), false);
-//             }
-//         }
-
-//         world.gop.fence();
     }
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
@@ -2206,7 +2244,7 @@ struct Calculation {
         END_TIMER(world, "Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
-        } else  if(subspace.size() == param.maxsub){
+        } else if(subspace.size() == param.maxsub){
             subspace.erase(subspace.begin());
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
@@ -2331,22 +2369,21 @@ struct Calculation {
             }
 
             START_TIMER(world);
-            functionT arho = make_density(world, aocc, amo);
-            functionT brho;
-            //if(!param.spin_restricted && param.nbeta)
-            //    brho = make_density(world, bocc, bmo);
-            //else
-            //    brho = arho; // wrong with 1-electron system
+            functionT arho = make_density(world, aocc, amo), brho;
+
             if (param.nbeta) {
-                if (param.spin_restricted) brho = arho;
-                else brho = make_density(world, bocc, bmo);
+                if (param.spin_restricted) {
+                    brho = arho;
+                }
+                else {
+                    brho = make_density(world, bocc, bmo);                    
+                }
             }
             else {
                 brho = functionT(world); // zero
             }
-
-
             END_TIMER(world, "Make densities");
+
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
@@ -2360,15 +2397,24 @@ struct Calculation {
                     print("delta rho", da, db, "residuals", bsh_residual, update_residual);
 
             }
+
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
+	    //double Xrhotrace = rho.trace(); // DEBUG
             rho.truncate();
             double enuclear = inner(rho, vnuc);
+
+	    // DEBUG
+// 	    double rhotrace = rho.trace();
+// 	    double vnuctrace = vnuc.trace();
+// 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+	    // END DEBUG
+
             START_TIMER(world);
-            functionT vcoul=make_coulomb_potential(rho);
-//            functionT vcoul = apply(*coulop, rho);
+            functionT vcoul = apply(*coulop, rho);
             END_TIMER(world, "Coulomb");
+
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             functionT vlocal = vcoul + vnuc;
@@ -2376,19 +2422,35 @@ struct Calculation {
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
 
-            vecfuncT vf;
+            vecfuncT vf, delrho;
             if (xc.is_dft()) {
+                arho.reconstruct();
+                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+
                 vf.push_back(arho);
                 if (xc.is_spin_polarized()) vf.push_back(brho);
-                reconstruct(world, vf);
-                if (vf.size() > 1UL) 
+                if (xc.is_gga()) {
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
+                    if (xc.is_spin_polarized()) {
+                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+                    }
+                    world.gop.fence(); // NECESSARY
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
+                    if (xc.is_spin_polarized()) {
+                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+                    }
+                }
+                if (vf.size()) {
+                    reconstruct(world, vf);
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                }
             }
             
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, vlocal, exca, 0);
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
             vecfuncT Vpsib;
             if(!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, vlocal, excb, 1);
+                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
             }
 
             double ekina = 0.0, ekinb = 0.0;
@@ -2401,10 +2463,10 @@ struct Calculation {
                 ekinb = ekina;
 
             if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, dconv);
+                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if (!param.spin_restricted && param.nbeta) {
-                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, dconv);
+                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
@@ -2520,50 +2582,35 @@ public:
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
-        calc.set_protocol<3>(world,1e-4);
-        calc.make_nuclear_potential(world);
-        calc.project_ao_basis(world);
-
-        //calc.project(world);
-        if (calc.param.restart) {
-            calc.load_mos(world);
-        }
-        else {
-            calc.initial_guess(world);
-            calc.param.restart = true;
-        }
-
-        // If the basis for the inital guess was not sto-3g
-        // switch to sto-3g since this is needed for analysis
-        // of the MOs and orbital localization
-        if (calc.param.aobasis != "sto-3g") {
-            calc.param.aobasis = "sto-3g";
-            calc.project_ao_basis(world);
-        }
-
-        calc.solve(world);
-        calc.save_mos(world);
-
-        // successively tighten threshold
-        if (calc.param.econv<1.1e-6) {
-            calc.set_protocol<3>(world,1e-6);
+        for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
+            calc.set_protocol(world,calc.param.protocol_data[proto]);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
-            calc.project(world);
+
+            if (proto == 0) {
+                if (calc.param.restart) {
+                    calc.load_mos(world);
+                }
+                else {
+                    calc.initial_guess(world);
+                    calc.param.restart = true;
+                }
+            }
+            else {
+                calc.project(world);
+            }
+
+            // If the basis for the inital guess was not sto-3g
+            // switch to sto-3g since this is needed for analysis
+            // of the MOs and orbital localization
+            if (calc.param.aobasis != "sto-3g") {
+                calc.param.aobasis = "sto-3g";
+                calc.project_ao_basis(world);
+            }
+
             calc.solve(world);
             calc.save_mos(world);
         }
-
-//        if (calc.molecule.get_eprec() < 1e-5) {
-//            calc.set_protocol(world,1e-8);
-//            calc.make_nuclear_potential(world);
-//            calc.project_ao_basis(world);
-//            calc.project(world);
-//            calc.solve(world);
-//        }
-
-        calc.save_mos(world);
-
         return calc.current_energy;
     }
 
@@ -2611,10 +2658,27 @@ int main(int argc, char** argv) {
           calc.initial_load_bal(world);
         }
 
-        MolecularEnergy E(world, calc);
-        E.value(calc.molecule.get_all_coords().flat()); // ugh!
-        if (calc.param.derivatives) calc.derivatives(world);
-        if (calc.param.dipole) calc.dipole(world);
+        if ( calc.param.gopt) {
+          print("\n\n Geometry Optimization                      ");
+          print(" ----------------------------------------------------------\n");
+          calc.param.gprint(world);
+
+          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+                           calc.param.gmaxiter,
+                           calc.param.gtol,  //tol
+                           calc.param.gval,  //value prec
+                           calc.param.gprec); // grad prec
+          geom.set_update(calc.param.algopt);
+          geom.set_test(calc.param.gtest);
+          geom.optimize(geomcoord);
+        }
+        else {
+          MolecularEnergy E(world, calc);
+          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          if (calc.param.derivatives) calc.derivatives(world);
+          if (calc.param.dipole) calc.dipole(world);
+        }
 
         //        if (calc.param.twoint) {
         //Tensor<double> g = calc.twoint(world,calc.amo);

@@ -64,7 +64,7 @@
 #include <cfloat>
 #include <cmath>
 
-#include <mpfr.h>
+#include "mpfr.h"
 
 // Detect compiler using signatures from http://predef.sourceforge.net/
 // GNU C/C++

@@ -177,7 +177,7 @@ struct KPoint
 
 std::istream& operator >> (std::istream& is, KPoint& kpt)
 {
-  for (int i = 0; i < kpt.k.size(); i++)
+  for (unsigned int i = 0; i < kpt.k.size(); i++)
     is >> kpt.k[i];
   is >> kpt.weight;
   is >> kpt.begin;
@@ -290,6 +290,28 @@ std::istream& operator >> (std::istream& is, KPoint& kpt)
             for (int i=0; i<n; i++) dv[i].gaxpy(one, v[i], I*k.k[axis], false);
             world.gop.fence();
         }
+        c += matrix_inner(world, dv, dv, true);
+        dv.clear(); // Allow function memory to be freed
+    }
+    return c.scale(0.5);
+  }
+  //***************************************************************************
+
+  //***************************************************************************
+  template <typename Q, int NDIM>
+  ctensorT kinetic_energy_matrix2(World& world,
+                                 const std::vector< Function<std::complex<Q>,NDIM> >& v)
+  {
+    const std::complex<double>   I = std::complex<double>(0.0, 1.0);
+    const std::complex<double> one = std::complex<double>(1.0, 0.0);
+
+    int n = v.size();
+    ctensorT c(n, n);
+    std::vector< std::shared_ptr < Derivative< std::complex<Q>,NDIM> > > gradop =
+        gradient_operator<std::complex<Q>,NDIM>(world);
+    for (int axis = 0; axis < 3; axis++)  {
+        reconstruct(world, v);
+        vecfuncT dv = apply(world, *(gradop[axis]), v);
         c += matrix_inner(world, dv, dv, true);
         dv.clear(); // Allow function memory to be freed
     }

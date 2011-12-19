@@ -38,7 +38,7 @@
 #include <madness_config.h>
 #include <misc/ran.h>
 #include <world/posixmem.h>
-#include <world/sharedptr.h>
+#include <world/shared_ptr.h>
 
 #include <complex>
 #include <vector>
@@ -297,6 +297,8 @@ namespace madness {
                 TENSOR_ASSERT(_size>=0 && _size<268435456, "invalid size in new tensor",_size,0);
                 try {
 #if HAVE_IBMBGP
+#define TENSOR_ALIGNMENT 16
+#elif HAVE_IBMBGQ
 #define TENSOR_ALIGNMENT 32
 #else
 #define TENSOR_ALIGNMENT 16
@@ -2359,9 +2361,16 @@ namespace madness {
         long dimj = c.dim(1);
         long dimi = 1;
         for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
+
+#ifdef AVX_MTXMQ_TEST
+        // The new AVX code is smokin' fast and has no restrictions
+            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+            for (int n=1; n<t.ndim(); ++n) {
+                mTxmq(dimi, dimj, dimj, t1, t0, pc);
+                std::swap(t0,t1);
+            }
+#else
         long nij = dimi*dimj;
-
-
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
                 IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
             for (long i=0; i<nij; ++i) t0[i] = 0.0;
@@ -2373,12 +2382,13 @@ namespace madness {
             }
         }
         else {
-            mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
-            for (int n=1; n<t.ndim(); ++n) {
-                mTxmq(dimi, dimj, dimj, t1, t0, pc);
-                std::swap(t0,t1);
-            }
+         mTxmq(dimi, dimj, dimj, t0, t.ptr(), pc);
+         for (int n=1; n<t.ndim(); ++n) {
+             mTxmq(dimi, dimj, dimj, t1, t0, pc);
+             std::swap(t0,t1);
+         }
         }
+#endif
 
         return result;
     }

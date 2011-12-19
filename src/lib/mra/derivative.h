@@ -121,7 +121,8 @@ namespace madness {
                 }
             }
             else {
-                df->task(owner, &implT::do_diff1, this, f, key, left, center, right, TaskAttributes::hipri());
+	      df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1, 
+		       this, f, key, left, center, right, TaskAttributes::hipri());
             }
             return None;
         }
@@ -166,7 +167,7 @@ namespace madness {
 
 
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
-
+	
         /// Returns a new function with the same distribution
         Function<T,NDIM>
         operator()(const functionT& f, bool fence=true) const {

@@ -144,8 +144,14 @@ complexd PhiK::f11(double xx) const {
         if( xx > 40.3 +  0.412/(k_*k_) - 10.5*k_ + 3*k_*k_) return aForm(ZZ);
         else return conhyp(AA,BB,ZZ);
     case 2:
-        if( xx > 49.3 + 1.32/(k_*k_) - 16.3*k_ + 3.7*k_*k_) return aForm(ZZ);
-        else return conhyp(AA,BB,ZZ);
+        if( xx > 49.3 + 1.32/(k_*k_) - 16.3*k_ + 3.7*k_*k_) {
+            //std::cout << xx << "\t" << real(aForm(ZZ)) << "\t" << imag(aForm(ZZ)) << std::endl;
+            return aForm(ZZ);
+        }
+        else {
+            //std::cout << xx << "\t" << real(conhyp(AA,BB,ZZ)) << "\t" << imag(conhyp(AA,BB,ZZ)) << std::endl;
+            return conhyp(AA,BB,ZZ);
+        }
     case 3:
         if( xx > 45.9 + 2.93/(k_*k_) - 10.2*k_ + 2*k_*k_ ) return aForm(ZZ);
         else return conhyp(AA,BB,ZZ);
@@ -162,6 +168,7 @@ complexd PhiK::f11(double xx) const {
 ScatteringWF::ScatteringWF(World& world, const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
 ScatteringWF::ScatteringWF(const double Z, const double cutoff) : Z_(Z), cutoff_(cutoff) {}
 void ScatteringWF::Init(World& world) {
+    //PRINTLINE("ScatteringWF::Init()");
     one = complexd(1.0, 0.0);
     dx = 4e-3;   //Mesh spacing <- OPTIMIZE
     k_ = getk();
@@ -180,11 +187,13 @@ void ScatteringWF::Init(World& world) {
  * sqrt(3) allows us to reach the corner of the cube  sqrt(3)*V^(1/3)/2
  * kr + kDOTr brings along another factor of 2k     k*sqrt(3)*V^(1/3)
  **********************************************************************/
-    domain = k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);    
+    //domain = k_*sqrt(3)*pow(FunctionDefaults<NDIM>::get_cell_volume(),1.0/3.0);    
+    domain = 2*k_*sqrt(3)*cutoff_;    
     n = floor(domain/dx +1);
     MemberFuncPtr p1F1(this); //this level of wrapping now seems redundant
-    //World is needed for timing the length of the CubicInterpolationTable
-    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1);
+    //World for timing and parallelization
+    //PRINTLINE("domain = " << domain);
+    fit1F1 = CubicInterpolationTable<complexd>(world, 0.0, domain, n, p1F1); 
 }
 /****************************************************************
  * The asymptotic form of the hypergeometric function given by

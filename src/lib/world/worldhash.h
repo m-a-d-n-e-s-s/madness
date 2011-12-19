@@ -133,7 +133,6 @@ provide the appropriate template parameter to the hashing container.
 #include <stdint.h>
 #include <cstddef>
 #include <iterator>
-#include <world/tr1/functional.h>
 
 // Bob Jenkin's "lookup v3" hash from http://www.burtleburtle.net/bob/c/lookup3.c.
 extern "C" {

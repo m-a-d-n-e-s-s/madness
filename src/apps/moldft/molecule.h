@@ -38,6 +38,7 @@
 
 #include <moldft/corepotential.h>
 #include <moldft/atomutil.h>
+#include <world/array.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -64,6 +65,11 @@ public:
     /// Default construct makes a zero charge ghost atom at origin
     Atom()
             : x(0), y(0), z(0), q(0), atomic_number(0) {}
+
+
+    madness::Vector<double,3> get_coords() const {
+        return madness::vec(x, y, z);
+    }
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -140,8 +146,9 @@ public:
 
     madness::Tensor<double> get_all_coords() const;
 
-    void set_all_coords(const madness::Tensor<double>& newcoords);
+    std::vector< madness::Vector<double,3> > get_all_coords_vec() const;
 
+    void set_all_coords(const madness::Tensor<double>& newcoords);
 
     void set_eprec(double value);
 
@@ -172,6 +179,8 @@ public:
     double nuclear_repulsion_derivative(int i, int j) const;
 
     double nuclear_dipole(int axis) const;
+
+    double nuclear_charge_density(double x, double y, double z) const;
 
     double smallest_length_scale() const;
 

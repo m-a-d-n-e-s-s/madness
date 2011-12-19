@@ -72,7 +72,7 @@ Tensor< std::complex<Q> > tensor_real2complex(const Tensor<Q>& r)
 
 //***************************************************************************
 template <typename Q>
-Tensor<Q> tensor_real(const Tensor< std::complex<Q> >& c)
+Tensor<Q> tensor_xreal(const Tensor< std::complex<Q> >& c)
 {
   Tensor<Q> r(c.ndim(), c.dims());
   BINARY_OPTIMIZED_ITERATOR(Q, r, const std::complex<Q>, c, *_p0 = real(*_p1););
@@ -82,7 +82,7 @@ Tensor<Q> tensor_real(const Tensor< std::complex<Q> >& c)
 
 //***************************************************************************
 template <typename Q>
-Tensor<Q> tensor_imag(const Tensor< std::complex<Q> >& c)
+Tensor<Q> tensor_ximag(const Tensor< std::complex<Q> >& c)
 {
   Tensor<Q> r(c.ndim(), c.dims());
   BINARY_OPTIMIZED_ITERATOR(Q, r, const std::complex<Q>, c, *_p0 = imag(*_p1););

@@ -9,6 +9,18 @@
 
 using namespace std;
 
+// template <typename FLOAT>
+// FLOAT myexp(const FLOAT& x) {
+//     FLOAT r = exp(x);
+//     if (isnan(r)) r = numeric_limits<FLOAT>::safe_max();
+//     return r;
+//     // static const FLOAT xmax = log();
+//     // static const FLOAT xmin = -xmax;
+//     // if (x <= xmin) return 0;
+//     // else if (x >= xmax) return numeric_limits<FLOAT>::safe_max();
+//     // else return exp(x);
+// }
+
 template <typename FLOAT>
 class matrix {
     std::vector<FLOAT> v;
@@ -323,6 +335,67 @@ void LSQ(int n, const matrix<FLOAT>& a, const vector<FLOAT>& b, vector<FLOAT>& x
 //     }
 // }
 
+//#define RECIPX
+#ifdef RECIPX
+// evaluate the target function
+template <typename FLOAT>
+FLOAT target(const FLOAT& x) {
+    return 1/x;
+}
+
+// evaluate the target function and its first & second derivativse
+template <typename FLOAT>
+void target(const FLOAT& x, FLOAT& f, FLOAT& d1f, FLOAT& d2f) {
+    f = 1/x;
+    d1f = -f*f;
+    d2f = -2*f*d1f;
+}
+
+// evaluate the weight function
+template <typename FLOAT>
+FLOAT weight(const FLOAT& x) {
+    return x;
+}
+
+// evaluate the weight function and its first & second derivativse
+template <typename FLOAT>
+void weight(const FLOAT& x, FLOAT& f, FLOAT& d1f, FLOAT& d2f) {
+    f = x;
+    d1f = 1.0;
+    d2f = 0.0;
+}
+#else
+// evaluate the target function
+template <typename FLOAT>
+FLOAT target(const FLOAT& x) {
+    return 1/sqrt(x);
+}
+
+// evaluate the target function and its first & second derivativse
+template <typename FLOAT>
+void target(const FLOAT& x, FLOAT& f, FLOAT& d1f, FLOAT& d2f) {
+    f = 1/sqrt(x);
+    d1f = -0.5*f/x;
+    d2f = -1.5*d1f/x;
+}
+
+// evaluate the weight function
+template <typename FLOAT>
+FLOAT weight(const FLOAT& x) {
+    return sqrt(x);
+}
+
+// evaluate the weight function and its first & second derivativse
+template <typename FLOAT>
+void weight(const FLOAT& x, FLOAT& f, FLOAT& d1f, FLOAT& d2f) {
+    f = sqrt(x);
+    d1f = 0.5*f/x;
+    d2f = -0.5*d1f/x;
+}
+
+#endif
+
+
 // evaluate the function fitted to exponentials
 template <typename FLOAT>
 FLOAT fit(const FLOAT& x, const vector<FLOAT>& p) {
@@ -351,13 +424,14 @@ void fit(const FLOAT& x, const vector<FLOAT>& p, FLOAT& f, FLOAT& g, FLOAT& h) {
     }
 }
 
+
 template <typename FLOAT>
 void plot(int npt, const FLOAT& a, const FLOAT& b, const vector<FLOAT>& p) 
 {
     FLOAT h = pow(b/a,FLOAT(1)/(npt-1));
     FLOAT x = a;
     for (int i=0; i<npt; i++) {
-        cout << x << " " <<  (fit(x,p) - 1.0/x)*x << endl;
+        cout << x << " " <<  (fit(x,p) - target(x))*weight(x) << endl;
         x *= h;
     }
 }
@@ -397,13 +471,15 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     // make basis functions and error values at grid points
     matrix<FLOAT> g(npt,n);
     vector<FLOAT> eps(npt);
+    vector<FLOAT> w(npt);
     for (int i=0; i<npt; i++) {
         FLOAT sum = zero;
         for (int mu=0; mu<n; mu++) {
             g(i,mu) = exp(p[mu] - x[i]*p[mu+n]); // note constraint of positive coeffs
             sum += g(i,mu);
         }
-        eps[i] = (sum - f[i])/f[i]; // !!!!!!!!!!!!!!!! relative error
+        w[i] = weight(x[i]);
+        eps[i] = (sum - f[i])*w[i];
     }
 
     d0 = zero;
@@ -419,11 +495,11 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     matrix<FLOAT> deps2c(npt, n, zero); // d2/dp[mu+n]dp[mu+n]
     for (int i=0; i<npt; i++) {
         for (int mu=0; mu<n; mu++) {
-            deps1(i,mu) = g(i,mu)/f[i];
-            deps1(i,mu+n) = -x[i]*g(i,mu)/f[i];
-            deps2a(i,mu) = g(i,mu)/f[i];
-            deps2b(i,mu) = -x[i]*g(i,mu)/f[i];
-            deps2c(i,mu) = x[i]*x[i]*g(i,mu)/f[i];
+            deps1(i,mu) = g(i,mu)*w[i];
+            deps1(i,mu+n) = -x[i]*g(i,mu)*w[i];
+            deps2a(i,mu) = g(i,mu)*w[i];
+            deps2b(i,mu) = -x[i]*g(i,mu)*w[i];
+            deps2c(i,mu) = x[i]*x[i]*g(i,mu)*w[i];
         }
     }
 
@@ -474,12 +550,15 @@ public:
         vector<FLOAT> d1;
         matrix<FLOAT> d2;
         makedata(x, f, pnew, d0, d1, d2, true);
+
+        if (isnan(d0)) d0 = numeric_limits<FLOAT>::safe_max();
+
         return d0;
     }
 };
 
 template <typename FLOAT> 
-vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT>& guess, int maxiter)
+vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT>& w, const vector<FLOAT>& guess, int maxiter)
 {
     static const FLOAT zero= convert<FLOAT>("0.0");
     static const FLOAT one = convert<FLOAT>("1.0");
@@ -508,7 +587,7 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         FLOAT errprev = 0;
         FLOAT convtol = 0;
         for (unsigned int i=0; i<x.size(); i++) {
-            FLOAT err = (fit(x[i],p)-f[i])/f[i]; // !!!!!!!!!!!!!!!! relative error
+            FLOAT err = (fit(x[i],p)-f[i])*w[i];
             if (i>0 && err*errprev>0) alternating=false;
             errprev = err;
             convtol += err*err;
@@ -517,7 +596,7 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         convtol *= 1e-5 / n;
         if (print) cout << iter << " " << d0 << " " << alternating << endl;
 
-        if (d0 < convtol && alternating) {
+        if (iter > 10 && d0 < convtol && alternating) {
             cout << "\nconverged " << iter << " " << d0 << " " << convtol << endl << endl;
             break;
         }
@@ -531,10 +610,10 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         vector<FLOAT> dp(n,zero);
         FLOAT tol;
 
-        if ((iter%10) == 0) tol = e[n/3];
+        //if ((iter%10) == 0) tol = e[n/3];
         //else if ((iter%3) == 1) tol = e[2*n/3];
         //else 
-        tol = 1000.0*numeric_limits<FLOAT>::epsilon();
+            tol = 1000.0*numeric_limits<FLOAT>::epsilon();
         
         for (int k=0; k<n; k++) {
             if (e[k] < -tol) {
@@ -573,16 +652,22 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         vector<FLOAT> pnew(n);
         FLOAT s = min(one, 0.05*pnorm/dpnorm);
         FLOAT d0new;
-
+        
+        // exponents must be positive
+        for (int i=n/2; i<n; i++) {
+            if (p[i] - s*dp[i] < 0) s = min(s,p[i]/(5*dp[i]));
+        }
+        
         Func<FLOAT> func(x, f, p, dp);
 
         do  {
+            
             d0new = func(s);
             //cout << "        s " << s << "  d0 old " << d0 << "  d0 new " << d0new << endl;
 
-            if (d0new < d0) break;
+            if (d0new < d0 && !isnan(d0new)) break;
             else s *= half;
-        } while (s > 1e-6);
+        } while (s > 1e-20);
 
         FLOAT ax=0, bx=s, cx, fa=d0, fb=d0new, fc, snew;
         mnbrak(&ax, &bx, &cx, &fa, &fb, &fc, func);
@@ -620,19 +705,50 @@ vector<FLOAT> updatex(const vector<FLOAT>& x, const vector<FLOAT>& p)
     
     vector<FLOAT> xnew;
     xnew.push_back(a);
-    FLOAT f2m = fit(a,p)   - 1.0/a;
-    FLOAT f1m = fit(a*h,p) - 1.0/(a*h);
-    FLOAT xx = a*h;
+    FLOAT f2m = fit(a,p)   - target(a);
+    FLOAT f1m = fit(a*h,p) - target(a*h);
+    FLOAT xx = a*h*h;
     while (xx < b) {
-        FLOAT f0m = fit(xx,p) - 1.0/xx;
+        FLOAT f0m = (fit(xx,p) - target(xx))*weight(xx);
 
         if ( (f2m<f1m && f1m>f0m) || (f2m>f1m && f1m<f0m) ) {
-            FLOAT f, d1, d2;
+            FLOAT f, df1, df2, t, dt1, dt2, w, dw1, dw2, g, dg1, dg2;
             FLOAT yy = xx;
-            fit(yy, p, f, d1, d2); d1 += one/(yy*yy); d2 += one/(yy*yy*yy);
-            yy -= d1/d2;
-            fit(yy, p, f, d1, d2); d1 += one/(yy*yy); d2 += one/(yy*yy*yy);
-            yy -= d1/d2;
+            // Three iterations of Newton to converge
+            fit(yy, p, f, df1, df2);
+            target(yy, t, dt1, dt2);
+            weight(yy, w, dw1, dw2);
+            g = (f - t)*w;
+            dg1 = (df1 - dt1)*w + (f-t)*dw1;
+            dg2 = (df2 - dt2)*w + (f-t)*dw2 + 2*(df1 - dt1)*dw1;
+
+            //cout << "UPDATE A: " << yy << " " <<g << " " << dg1 << " " << dg2 << " " << dg1/dg2 << endl;
+
+            yy -= dg1/dg2;
+
+            fit(yy, p, f, df1, df2);
+            target(yy, t, dt1, dt2);
+            weight(yy, w, dw1, dw2);
+            g = (f - t)*w;
+            dg1 = (df1 - dt1)*w + (f-t)*dw1;
+            dg2 = (df2 - dt2)*w + (f-t)*dw2 + 2*(df1 - dt1)*dw1;
+
+            //cout << "UPDATE B: " << yy << " " <<g << " " << dg1 << " " << dg2 << " " << dg1/dg2 << endl;
+
+            yy -= dg1/dg2;
+
+            fit(yy, p, f, df1, df2);
+            target(yy, t, dt1, dt2);
+            weight(yy, w, dw1, dw2);
+            g = (f - t)*w;
+            dg1 = (df1 - dt1)*w + (f-t)*dw1;
+            dg2 = (df2 - dt2)*w + (f-t)*dw2 + 2*(df1 - dt1)*dw1;
+
+            //cout << "UPDATE C: " <<  yy << " " << g << " " << dg1 << " " << dg2 << " " << dg1/dg2 << endl;
+
+            yy -= dg1/dg2;
+
+
             xnew.push_back(yy);
         }
 
@@ -712,12 +828,13 @@ void test() {
         static const FLOAT one = 1;
         static const FLOAT pi = 4*atan(FLOAT(1));
         cout << pi << endl;
-        const FLOAT a = 1e-5;
-        const FLOAT b = 100;
-        const int nfunc = 30;
+        const FLOAT a = 1e-14;
+        const FLOAT b = 1e0;
+        const int nfunc = 20;
         const int nx = 2*nfunc + 1;
-        vector<FLOAT> x(nx), p(2*nfunc), f(nx);
+        vector<FLOAT> x(nx), p(2*nfunc), f(nx), w(nx);
         if (nx < 4) throw "nx must be >= 4";
+#ifdef RECIPX
         FLOAT rx = pow(b/a,one/(nx - 1 - 2));
         FLOAT xxx;
         x[0] = a;
@@ -730,6 +847,16 @@ void test() {
         x[nx-1] = b;
         x[nx-2] = b/pow(rx,one/3);
         x[nx-3] = b/rx;
+#else
+        FLOAT rx = pow(b/a,one/(nx - 1));
+        FLOAT xxx;
+        xxx = x[0] = a;
+        for (int i=1; i<nx-1; i++) {
+            xxx *= rx;
+            x[i] = xxx;
+        }
+        x[nx-1] = b;
+#endif
 
         // cheby points
         // for (int i=1; i<=nx; i++) {
@@ -739,7 +866,8 @@ void test() {
         //x[nx-1] = b;
 
         for (int i=0; i<nx; i++) {
-            f[i] = 1.0/x[i];
+            f[i] = target(x[i]);
+            w[i] = weight(x[i]);
         }
 
         FLOAT tmax = 2.3/(x[1]-x[0]);
@@ -747,7 +875,11 @@ void test() {
         FLOAT dt = pow(tmax/tmin,one/(nfunc-1));
         
         for (int mu=0; mu<nfunc; mu++) {
+#ifdef RECIPX
             p[mu] = log(tmin*dt);
+#else
+            p[mu] = log(tmin*dt)*0.5;
+#endif            
             p[mu+nfunc] = tmin;
             tmin *= dt;
         }
@@ -816,7 +948,7 @@ void test() {
         // cout << endl;
 
         for (int iter=0; iter<10; iter++) {
-            p = opt(x, f, p, 2000000);
+            p = opt(x, f, w, p, 2000000);
             cout << "Converged parameters" << endl;
             for (int mu=0; mu<nfunc; mu++) {
                 cout << mu << " " << p[mu] << " " << p[mu+nfunc] << endl;
@@ -827,18 +959,12 @@ void test() {
             x = updatex(x, p);
             cout << "Updated x " << x << endl;
             for (int i=0; i<nx; i++) {
-                f[i] = 1.0/x[i];
+                f[i] = target(x[i]);
+                w[i] = weight(x[i]);
             }
         }
     }
 }
-
-// template <typename FLOAT>
-// FLOAT target(const FLOAT& x) {
-//     static const FLOAT one = convert<FLOAT>("1.0");
-//     return one/x;
-// }
-
 
 int main() {
     //std::cout << "FLOAT " << endl;

@@ -106,27 +106,35 @@ public:
 
     double operator()(const coordT& x) const
     {
-        double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
+        //double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
+        double big = 2*R + 6.0*_mentity.smallest_length_scale();
         // Only one contribution at any point due to the short
         // range of the nuclear charge density
+        //printf("big: %10.8f\n\n", big);
+        double value = 0.0;
         if (periodic)
         {
             for (int xr = -1; xr <= 1; xr += 1)
             {
                 double xx = x[0] + xr*R;
+                //printf("x[0]: %10.8f     xx: %10.8f\n", x[0], xx);
                 if (xx < big && xx > -big)
                 {
                     for (int yr = -1; yr <= 1; yr += 1)
                     {
                         double yy = x[1] + yr*R;
+                        //printf("y[0]: %10.8f     yy: %10.8f\n", x[1], yy);
                         if (yy < big && yy > -big)
                         {
                             for (int zr = -1; zr <= 1; zr += 1)
                             {
                                 double zz = x[2] + zr*R;
+                                //printf("z[0]: %10.8f     zz: %10.8f\n", x[2], zz);
                                 if (zz < big && zz > -big)
                                 {
-                                    return _mentity.nuclear_charge_density(xx, yy, zz);
+                                    double t1 = _mentity.nuclear_charge_density(xx, yy, zz);
+                                    value += t1;
+                                    //printf("t1: %10.8f     value: %10.8f\n", t1, value);
                                 }
                             }
                         }
@@ -136,9 +144,9 @@ public:
         }
         else
         {
-            return _mentity.nuclear_charge_density(x[0], x[1], x[2]);
+            value = _mentity.nuclear_charge_density(x[0], x[1], x[2]);
         }
-        return 0.0;
+        return value;
     }
 };
 
@@ -160,7 +168,7 @@ private:
 public:
   AtomicBasisFunctor(const AtomicBasisFunction& aofunc, double R, 
                      bool periodic, const KPoint kpt)
-      : aofunc(aofunc), R(R), rangesq(aofunc.rangesq()), periodic(periodic), kpt(kpt)
+      : aofunc(aofunc), R(R), rangesq(aofunc.rangesq()*5), periodic(periodic), kpt(kpt)
   {
     double x, y, z;
     aofunc.get_coords(x,y,z);
@@ -197,15 +205,17 @@ public:
                             double ao = aofunc(xx*R+x[0], yy*R+x[1], zz*R+x[2]);
                             if (fabs(ao) > 1e-8) {
                                 std::complex<double> t1 = tx[xx+NTRANS]*ty[yy+NTRANS]*tz[zz+NTRANS];
-            double kx0 = kpt.k[0] * x[0];
-            double kx1 = kpt.k[1] * x[1];
-            double kx2 = kpt.k[2] * x[2];
-            std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
-                                value += t1 * t2 * ao;
-          }
-        }
-      }
-    }
+                                double kx0 = kpt.k[0] * x[0];
+                                double kx1 = kpt.k[1] * x[1];
+                                double kx2 = kpt.k[2] * x[2];
+                                std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
+//                                value += t1 * t2 * ao;
+//                                value += t1 * ao;
+                                value += ao;
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -215,6 +225,46 @@ public:
     return value;
   }
 };
+
+//std::complex<double> operator()(const coordT& x) const
+//{
+//  std::complex<double> value = 0.0;
+//  if (periodic) {
+//      for (int xx=-NTRANS; xx<=NTRANS; xx++)  {
+//          const double xxR = x[0] - r[0] - xx*R;
+//          const double xxRsq = xxR*xxR;
+//          if (xxRsq < rangesq) {
+//              for (int yy=-NTRANS; yy<=NTRANS; yy++) {
+//                  const double yyR = x[1] - r[1] - yy*R;
+//                  const double yyRsq = xxRsq + yyR*yyR;
+//                  if (yyRsq < rangesq) {
+//                      for (int zz=-NTRANS; zz<=NTRANS; zz++)  {
+//                          const double zzR = x[2] - r[2] - zz*R;
+//                          const double zzRsq = yyRsq + zzR*zzR;
+//                          if (zzRsq < rangesq) {
+//                              double ao = aofunc(x[0]-xx*R, x[1]-yy*R, x[2]-zz*R);
+//                              if (fabs(ao) > 1e-8) {
+//                                  std::complex<double> t1 = tx[xx+NTRANS]*ty[yy+NTRANS]*tz[zz+NTRANS];
+//                                  double kx0 = kpt.k[0] * x[0];
+//                                  double kx1 = kpt.k[1] * x[1];
+//                                  double kx2 = kpt.k[2] * x[2];
+//                                  std::complex<double> t2 = exp(std::complex<double>(0.0, -kx0 - kx1 - kx2));
+//                                  value += t1 * t2 * ao;
+//    //                                value += t1 * ao;
+//                              }
+//                          }
+//                      }
+//                  }
+//              }
+//          }
+//      }
+//  }
+//  else  {
+//    value = aofunc(x[0], x[1], x[2]);
+//  }
+//  return value;
+//}
+//};
 
 double rsquared(const coordT& r) {
     return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];

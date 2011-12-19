@@ -47,6 +47,7 @@
 #include <world/worldmutex.h>
 #include <world/worldexc.h>
 #include <world/worldhash.h>
+#include <world/enable_if.h>
 #include <new>
 #include <stdio.h>
 
@@ -470,22 +471,32 @@ namespace madness {
             return std::pair<iterator,bool>(iterator(this,bin,result.first),result.second);
         }
 
-        /// Returns true if new pair was inserted; false if key is already in the map
-        bool insert(accessor& result, const keyT& key) {
+        /// Returns true if new pair was inserted; false if key is already in the map and the datum was not inserted
+        bool insert(accessor& result, const datumT& datum) {
             result.release();
-            int bin = hash_to_bin(key);
-            std::pair<entryT*,bool> r = bins[bin].insert(datumT(key,valueT()),entryT::WRITELOCK);
+            int bin = hash_to_bin(datum.first);
+            std::pair<entryT*,bool> r = bins[bin].insert(datum,entryT::WRITELOCK);
+            result.set(r.first);
+            return r.second;
+        }
+
+        /// Returns true if new pair was inserted; false if key is already in the map and the datum was not inserted
+        bool insert(const_accessor& result, const datumT& datum) {
+            result.release();
+            int bin = hash_to_bin(datum.first);
+            std::pair<entryT*,bool> r = bins[bin].insert(datum,entryT::READLOCK);
             result.set(r.first);
             return r.second;
         }
 
         /// Returns true if new pair was inserted; false if key is already in the map
-        bool insert(const_accessor& result, const keyT& key) {
-            result.release();
-            int bin = hash_to_bin(key);
-            std::pair<entryT*,bool> r = bins[bin].insert(datumT(key,valueT()),entryT::READLOCK);
-            result.set(r.first);
-            return r.second;
+        inline bool insert(accessor& result, const keyT& key) {
+            return insert(result, datumT(key,valueT()));
+        }
+
+        /// Returns true if new pair was inserted; false if key is already in the map
+        inline bool insert(const_accessor& result, const keyT& key) {
+            return insert(result, datumT(key,valueT()));
         }
 
         std::size_t erase(const keyT& key) {

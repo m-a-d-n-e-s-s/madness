@@ -345,18 +345,8 @@ typedef UINT64_T uint64_t;
 // Madness world header files needed by world
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
-//#include <world/sharedptr.h>
-//#include <world/archive.h>
 #include <world/worldprofile.h>
 #include <world/worldthread.h>
-
-// Header files not needed by world.h, but are a part of Madness world
-// We really do not want these here because they introduce a lot of potentially
-// unnecessary symbols into the compile process
-//#include <world/worlddc.h>
-//#include <world/print.h>
-//#include <world/worldobj.h>
-//#include <world/worldtime.h>
 
 namespace madness {
 

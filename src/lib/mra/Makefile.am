@@ -4,7 +4,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
 bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj systolic mraplot testpdiff testdiff1Db \
-               testdiff1D testdiff2D testdiff3D testgconv testopdir testseprep test6
+               testdiff1D testdiff2D testdiff3D testgconv testopdir testseprep test6 testqm
 lib_LIBRARIES = libMADmra.a
 
 data_DATA = autocorr coeffs gaussleg
@@ -48,6 +48,8 @@ testdiff1Db_SOURCES = testdiff1Db.cc
 testdiff2D_SOURCES = testdiff2D.cc
 
 testdiff3D_SOURCES = testdiff3D.cc
+
+testqm_SOURCES = testqm.cc
 
 #testop2_SOURCES = testop2.cc
 

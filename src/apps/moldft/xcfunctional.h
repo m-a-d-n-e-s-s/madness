@@ -39,17 +39,95 @@ struct xc_lda_potential {
 /// Simplified interface to XC functionals
 class XCfunctional {
 protected:
-    bool spin_polarized;
-    double hf_coeff;
+    bool spin_polarized;        ///< True if the functional is spin polarized
+    double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
+    void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
+                         madness::Tensor<double>& rho, 
+                         madness::Tensor<double>& sigma) const;
     int nderiv;
 #endif
 
-    static double munge_rho(double r)  {
-        if(r < 1e-12)  r = 1e-12;
-        return r;
+
+    /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
+
+    /// \f[
+    ///  f(x,x_{min},x_{max}) = \left\{
+    /// \begin{array}{ll}
+    ///   x_{min} & x < x_{min}  \                                      \
+    ///   p(x,x_{min},x_{max}) &  x_{min} \leq x \leq x_{max} \         \
+    ///   x & x_{max} < x 
+    /// \end{array}
+    /// \right.
+    /// \f]
+    /// where \f$p(x)\f$ is the unique quintic polynomial that 
+    /// satisfies \f$p(x_{min})=x_{min}\f$, \f$p(x_{max})=x_{max}\f$, 
+    /// \f$dp(x_{max})/dx=1\f$, and 
+    /// \f$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0\f$.
+    static void polyn(const double x, double& p, double& dpdx) {
+        // All of the static const stuff is evaluated at compile time
+
+        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
+        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+
+        static const double xmax2 = xmax*xmax;
+        static const double xmax3 = xmax2*xmax;
+        static const double xmin2 = xmin*xmin;
+        static const double xmin3 = xmin2*xmin;
+        static const double r = 1.0/((xmax-xmin)*(-xmin3+(3.0*xmin2+(-3.0*xmin+xmax)*xmax)*xmax));
+        static const double a0 = xmax3*xmin*(xmax-4.0*xmin)*r;
+        static const double a = xmin2*(xmin2+(-4.0*xmin+18.0*xmax)*xmax)*r;
+        static const double b = -6.0*xmin*xmax*(3.0*xmax+2.0*xmin)*r;
+        static const double c = (4.0*xmin2+(20.0*xmin+6.0*xmax)*xmax)*r;
+        static const double d = -(8.0*xmax+7.0*xmin)*r;
+        static const double e = 3.0*r;
+
+        if (x > xmax) {
+            p = x;
+            dpdx = 1.0;
+        }
+        else if (x < xmin) {
+            p = xmin;
+            dpdx = 0.0;
+        }
+        else {
+            p = a0+(a+(b+(c+(d+e*x)*x)*x)*x)*x;
+            dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
+        }
+    }
+
+    static double munge(double rho) {
+        double p, dpdx;
+        polyn(rho, p, dpdx);
+        return p;
+    }
+
+    static void munge2(double& rho, double& sigma) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (sigma < 0.0) sigma = 0.0;
+        double p, dpdx;
+        polyn(rho, p, dpdx);
+        rho = p;
+        sigma *= dpdx*dpdx;
+    }
+
+    static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (saa < 0.0) saa = 0.0;
+        if (sab < 0.0) sab = 0.0;
+        if (sbb < 0.0) sbb = 0.0;
+        double pa, pb, dpadx, dpbdx;
+        polyn(rhoa, pa, dpadx);
+        polyn(rhob, pb, dpbdx);
+        rhoa = pa;
+        rhob = pb;
+        saa *= dpadx*dpadx;
+        sab *= dpadx*dpbdx;
+        sbb *= dpbdx*dpbdx;
     }
 
 public:
@@ -57,56 +135,112 @@ public:
     XCfunctional();
 
     /// Initialize the object from the user input data
+
+    /// @param[in] input_line User input line (without beginning XC keyword)
+    /// @param[in] polarized Boolean flag indicating if the calculation is spin-polarized
     void initialize(const std::string& input_line, bool polarized);
     
+    /// Destructor
     ~XCfunctional();
 
-    /// returns true if the potential is lda
+    /// Returns true if the potential is lda
     bool is_lda() const;
         
-    /// returns true if the potential is gga (needs first derivatives)
+    /// Returns true if the potential is gga (needs first derivatives)
     bool is_gga() const;
     
-    /// returns true if the potential is meta gga (needs second derivatives)
+    /// Returns true if the potential is meta gga (needs second derivatives ... not yet supported)
     bool is_meta() const;
 
-    /// returns true if there is a functional (false probably means Hatree-Fock exchange only)
+    /// Returns true if there is a DFT functional (false probably means Hatree-Fock exchange only)
     bool is_dft() const;
     
-    /// returns true if the functional is spin_polarized
+    /// Returns true if the functional is spin_polarized
     bool is_spin_polarized() const 
     {
         return spin_polarized;
     }
 
-    /// returns true if the second derivative of the functional is available
+    /// Returns true if the second derivative of the functional is available (not yet supported)
     bool has_fxc() const;
 
-    /// returns true if the third derivative of the functional is available
+    /// Returns true if the third derivative of the functional is available (not yet supported)
     bool has_kxc() const;
 
-    /// returns the value of the hf exact exchange coefficient
+    /// Returns the value of the hf exact exchange coefficient
     double hf_exchange_coefficient() const 
     {
         return hf_coeff;
     }
 
-    /// computes the energy functional at given points
+    /// Computes the energy functional at given points
 
-    /// lda     ---  t[0] = alpha density
-    /// lda-pol ---  t[0] = alpha density, t[1] = beta density
+    /// This uses the convention that the total energy is \f$ E[\rho] = \int \epsilon[\rho(x)] dx\f$
     ///
-    /// any hf exchange contribution must be separately computed.
+    /// Any HF exchange contribution must be separately computed.
+    ///
+    /// Items in the vector argument \c t are interpreted as follows
+    ///  - Spin un-polarized
+    ///    - \c t[0] = \f$ \rho_{\alpha} \f$
+    ///    - \c t[1] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+    ///  - Spin polarized
+    ///    - \c t[0] = \f$ \rho_{\alpha} \f$
+    ///    - \c t[1] = \f$ \rho_{\beta} \f$
+    ///    - \c t[2] = \f$ \sigma_{\alpha\alpha} = \nabla \rho_{\alpha}.\nabla \rho_{\alpha} \f$ (GGA only)
+    ///    - \c t[3] = \f$ \sigma_{\alpha\beta}  = \nabla \rho_{\alpha}.\nabla \rho_{\beta} \f$ (GGA only)
+    ///    - \c t[4] = \f$ \sigma_{\beta\beta}   = \nabla \rho_{\beta}.\nabla \rho_{\beta} \f$ (GGA only)
+    ///
+    /// @param t The input densities and derivatives as required by the functional
+    /// @return The exchange-correlation energy functional
     madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t) const;
     
-    /// computes the potential (derivative of the energy functional) at np points
+    /// Computes components of the potential (derivative of the energy functional) at np points
 
-    /// lda     ---  t[0] = alpha density
-    /// lda-pol ---  t[0] = alpha density, t[1] = beta density
+    /// Any HF exchange contribution must be separately computed.
     ///
-    /// any hf exchange contribution must be separately computed.
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin) const;
+    /// See the documenation of the \c exc() method for contents of the input \c t[] argument
+    ///
+    /// We define \f$ \sigma_{\mu \nu} = \nabla \rho_{\mu} . \nabla \rho_{\nu} \f$
+    /// with \f$ \mu, \nu = \alpha\f$ or \f$ \beta \f$.
+    ///
+    /// For unpolarized GGA, matrix elements of the potential are
+    /// \f$
+    ///   < \phi | \hat V | \psi > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi 
+    ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \right) \nabla \rho_{\alpha} . \nabla \left( \phi \psi \right) \right) dx
+    /// \f$
+    ///
+    /// For polarized GGA, matrix elements of the potential are
+    /// \f$
+    ///   < \phi_{\alpha} | \hat V | \psi_{\alpha} > = \int \left( \frac{\partial \epsilon}{\partial \rho_{\alpha}} \phi \psi 
+    ///                  +  \left( 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right) . \nabla \left( \phi \psi \right) \right) dx
+    /// \f$
+    ///
+    /// Integrating the above by parts and assuming free-space or periodic boundary conditions
+    /// we obtain that the local multiplicative form of the GGA potential is
+    /// \f$
+    ///    V_{\alpha} =  \frac{\partial \epsilon}{\partial \rho_{\alpha}} - \left(\nabla . \left(2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \nabla \rho_{\alpha}  + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \nabla \rho_{\beta}  \right)  \right)
+    /// \f$
+    /// 
+    /// Until we get a madness::Function operation that can produce
+    /// multiple results we need to compute components of the
+    /// functional and potential separately:
+    ///
+    /// - Spin un-polarized
+    ///   - \c what=0 \f$ \frac{\partial \epsilon}{\partial \rho_{\alpha}}\f$ 
+    ///   - \c what=1 \f$ 2 \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} + \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}}\f$ (GGA only)
+    /// - Spin polarized
+    ///   - \c what=0 \f$ \frac{\partial \epsilon}{\partial \rho_{\alpha}}\f$ 
+    ///   - \c what=1 \f$ \frac{\partial \epsilon}{\partial \rho_{\beta}}\f$ 
+    ///   - \c what=2 \f$ \frac{\partial \epsilon}{\partial \sigma_{\alpha \alpha}} \f$
+    ///   - \c what=3 \f$ \frac{\partial \epsilon}{\partial \sigma_{\alpha \beta}} \f$
+    ///   - \c what=4 \f$ \frac{\partial \epsilon}{\partial \sigma_{\beta \beta}} \f$
+    ///
+    /// @param[in] t The input densities and derivatives as required by the functional
+    /// @param[in] what Specifies which component of the potential is to be computed as described above
+    /// @return The component specified by the \c what parameter
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int what=0) const;
 
+    /// Crude function to plot the energy and potential functionals
     void plot() const {
         long npt = 1001;
         double lo=1e-6, hi=1e+1, s=std::pow(hi/lo, 1.0/(npt-1));
@@ -128,6 +262,7 @@ public:
     }
 };
 
+/// Class to compute the energy functional
 struct xc_functional {
     const XCfunctional* xc;
 
@@ -142,18 +277,19 @@ struct xc_functional {
     }
 };
 
+/// Class to compute terms of the potential
 struct xc_potential {
     const XCfunctional* xc;
-    const int ispin;
+    const int what;
     
-    xc_potential(const XCfunctional& xc, int ispin) 
-        : xc(&xc), ispin(ispin)
+    xc_potential(const XCfunctional& xc, int what) 
+        : xc(&xc), what(what)
     {}
     
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->vxc(t, ispin);
+        madness::Tensor<double> r = xc->vxc(t, what);
         return r;
     }
 };

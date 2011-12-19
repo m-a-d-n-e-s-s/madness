@@ -262,10 +262,10 @@ namespace madness {
         /// \code
         /// struct opT {
         ///     opT();
-        ///     opT(const &opT);
+        ///     opT(const opT&);
         ///     bool operator()(const rangeT::iterator& it) const;
         ///     template <typename Archive> void serialize(const Archive& ar);
-        /// }
+        /// };
         /// \endcode
         /// Note that the serialize method does not actually have to
         /// work unless you want to have the task be stealable.
@@ -287,8 +287,8 @@ namespace madness {
             } else {
                 rangeT left = range;
                 rangeT right(left,Split());
-                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op);
-                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op);
+                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op, TaskAttributes::hipri());
+                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op, TaskAttributes::hipri());
                 return add(&WorldTaskQueue::completion_status, leftsum, rightsum);
             }
         }

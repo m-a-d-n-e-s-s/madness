@@ -40,6 +40,9 @@ namespace madness {
     typedef Tensor<double> real_tensor;
     typedef Tensor<double_complex> complex_tensor;
 
+    typedef Tensor<double> tensor_real;
+    typedef Tensor<double_complex> tensor_complex;
+
     typedef Vector<double,1> coord_1d;
     typedef Vector<double,2> coord_2d;
     typedef Vector<double,3> coord_3d;
@@ -77,6 +80,13 @@ namespace madness {
     typedef std::vector<real_function_4d> vector_real_function_4d;
     typedef std::vector<real_function_5d> vector_real_function_5d;
     typedef std::vector<real_function_6d> vector_real_function_6d;
+
+    typedef std::vector<complex_function_1d> vector_complex_function_1d;
+    typedef std::vector<complex_function_2d> vector_complex_function_2d;
+    typedef std::vector<complex_function_3d> vector_complex_function_3d;
+    typedef std::vector<complex_function_4d> vector_complex_function_4d;
+    typedef std::vector<complex_function_5d> vector_complex_function_5d;
+    typedef std::vector<complex_function_6d> vector_complex_function_6d;
 
     typedef FunctionFactory<double,1> real_factory_1d;
     typedef FunctionFactory<double,2> real_factory_2d;

@@ -37,6 +37,7 @@
 
 #include <world/typestuff.h>
 #include <world/enable_if.h>
+#include <world/archive.h>
 #include <functional>
 
 namespace madness {

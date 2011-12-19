@@ -172,6 +172,17 @@ madness::Tensor<double> Molecule::get_all_coords() const {
     return c;
 }
 
+std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
+  std::vector< madness::Vector<double,3> > c(natom());
+  for (int i=0; i<natom(); ++i) {
+    const Atom atom = get_atom(i);
+    c[i][0] = atom.x;
+    c[i][1] = atom.y;
+    c[i][2] = atom.z;
+  }
+  return c;
+}
+
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
     for (int i=0; i<natom(); ++i) {
@@ -565,17 +576,19 @@ double Molecule::nuclear_attraction_potential_derivative(int atom, int axis, dou
     return dv + df;
 }
 
+double Molecule::nuclear_charge_density(double x, double y, double z) const {
+  // Only one atom will contribute due to the short range of the nuclear charge density
 
-// double Molecule::nuclear_charge_density(double x, double y, double z) const {
-//     if > 6 return 0.0
-//     double sum = 0.0;
-//     for (unsigned int i=0; i<atoms.size(); ++i) {
-//         double r = distance(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z) * rcut;
-//         //sum -= atoms[i].q/(r+1e-8);
-//         sum -= atoms[i].q * smoothed_charge_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
-//     }
-//     return sum;
-// }
+  for (unsigned int i=0; i<atoms.size(); i++) {
+      double rsq = distance_sq(atoms[i].x, atoms[i].y, atoms[i].z, x, y, z)*rcut[i]*rcut[i];
+      if (rsq < 36.0) {
+          double r = sqrt(rsq);
+          return atoms[i].q * smoothed_density(r)*rcut[i]*rcut[i]*rcut[i];
+      }
+  }
+  return 0.0;
+}
+
 
 unsigned int Molecule::n_core_orb_all() const {
     int natom = atoms.size();

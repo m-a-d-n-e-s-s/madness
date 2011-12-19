@@ -41,7 +41,7 @@
 
 // NEED TO ADD ATTRIBUTION TO SHINY ON SOURCE FORGE
 
-#if defined(ON_A_MAC) || defined(HAVE_IBMBGP)
+#if defined(ON_A_MAC) || defined(HAVE_IBMBGP) || defined(__PGI)
 #define __thread
 #endif
 

@@ -109,6 +109,10 @@ struct ElectronicStructureParams
   bool plotorbs;
   // convergence criterion for residual
   double rcriterion;
+  // do we want our crystal centered?
+  bool centered;
+  // damping factor for step restriction
+  double sd;
   
   template <typename Archive>
   void serialize(Archive& ar) {
@@ -119,7 +123,8 @@ struct ElectronicStructureParams
         maxocc & kpoints & fractional & maxsub & 
         maxrotn & canon & solver & koffset0 & koffset1 & 
         koffset2 & basis & nio & restart & ncharge & 
-        swidth & print_matrices & plotorbs & rcriterion;
+        swidth & print_matrices & plotorbs & rcriterion &
+        centered & sd;
   }
 
   ElectronicStructureParams()
@@ -158,6 +163,8 @@ struct ElectronicStructureParams
     print_matrices = true;
     plotorbs = false;
     rcriterion = 1e-4;
+    centered = true;
+    sd = 0.4;
   }
 
   void read_file(const std::string& filename)
@@ -205,77 +212,35 @@ struct ElectronicStructureParams
       {
         f >> nio;
       }
-      else if (s == "restart")
-      {
-        f >> restart;
+      else if (s == "restart") {
+        restart = true;
       }
-      else if (s == "spinpol")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
-          spinpol = true;
-        }
-        else if (tempstr == "false")
-        {
-          spinpol = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- spinpol", 0);
-        }
+      else if (s == "norestart") {
+        restart = false;
       }
-      else if (s == "canon")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
-          canon = true;
-        }
-        else if (tempstr == "false")
-        {
-          canon = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- canon", 0);
-        }
+      else if (s == "spinpol") {
+        spinpol = true;
       }
-      else if (s == "periodic")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
-          periodic = true;
-        }
-        else if (tempstr == "false")
-        {
-          periodic = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- periodic", 0);
-        }
+      else if (s == "nospinpol") {
+        spinpol = false;
       }
-      else if (s == "ispotential")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
-          ispotential = true;
-        }
-        else if (tempstr == "false")
-        {
-          ispotential = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- ispotential", 0);
-        }
+      else if (s == "canon") {
+        canon = true;
+      }
+      else if (s == "nocanon") {
+        canon = false;
+      }
+      else if (s == "periodic") {
+        periodic = true;
+      }
+      else if (s == "noperiodic") {
+        periodic = false;
+      }
+      else if (s == "usepotential") {
+        ispotential = true;
+      }
+      else if (s == "nousepotential") {
+        ispotential = false;
       }
       else if (s == "maxits")
       {
@@ -288,6 +253,10 @@ struct ElectronicStructureParams
       else if (s == "maxrotn")
       {
         f >> maxrotn;
+      }
+      else if (s == "damping")
+      {
+        f >> sd;
       }
       else if (s == "thresh")
       {
@@ -320,22 +289,11 @@ struct ElectronicStructureParams
           MADNESS_EXCEPTION("input error -- kpoints", 0);
         }
       }
-      else if (s == "fractional")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
-          fractional = true;
-        }
-        else if (tempstr == "false")
-        {
-          fractional = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- fractional", 0);
-        }
+      else if (s == "fractional") {
+        fractional = true;
+      }
+      else if (s == "nofractional") {
+        fractional = false;
       }
       else if (s == "ngridk")
       {
@@ -351,22 +309,17 @@ struct ElectronicStructureParams
       else if (s == "noprint_matrices") {
           print_matrices = false;
       }
-      else if (s == "plotorbs")
-      {
-        std::string tempstr;
-        f >> tempstr;
-        if (tempstr == "true")
-        {
+      else if (s == "center") {
+          centered = true;
+      }
+      else if (s == "nocenter") {
+          centered = false;
+      }
+      else if (s == "plotorbs") {
           plotorbs = true;
-        }
-        else if (tempstr == "false")
-        {
+      }
+      else if (s == "noplotorbs") {
           plotorbs = false;
-        }
-        else
-        {
-          MADNESS_EXCEPTION("input error -- plotorbs", 0);
-        }
       }
       else if (s == "rcriterion")
       {

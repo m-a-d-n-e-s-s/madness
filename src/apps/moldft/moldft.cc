@@ -73,18 +73,28 @@ int main(int argc, char** argv) {
                 calc.initial_load_bal(world);
             }
 
-            MolecularEnergy E(world, calc);
-            E.value(calc.molecule.get_all_coords().flat()); // ugh!
-            if (calc.param.derivatives) calc.derivatives(world);
-            if (calc.param.dipole) calc.dipole(world);
-
-            //        if (calc.param.twoint) {
-            //Tensor<double> g = calc.twoint(world,calc.amo);
-            //cout << g;
-            // }
-
+            if ( calc.param.gopt) {
+                print("\n\n Geometry Optimization                      ");
+                print(" ----------------------------------------------------------\n");
+                calc.param.gprint(world);
+  
+                Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+                QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+                                 calc.param.gmaxiter,
+                                 calc.param.gtol,  //tol
+                                 calc.param.gval,  //value prec
+                                 calc.param.gprec); // grad prec
+                geom.set_update(calc.param.algopt);
+                geom.set_test(calc.param.gtest);
+                geom.optimize(geomcoord);
+            }
+            else {
+                MolecularEnergy E(world, calc);
+                E.value(calc.molecule.get_all_coords().flat()); // ugh!
+                if (calc.param.derivatives) calc.derivatives(world);
+                if (calc.param.dipole) calc.dipole(world);
+            }
             calc.do_plots(world);
-
         }
         catch (const MPI::Exception& e) {
             //        print(e);

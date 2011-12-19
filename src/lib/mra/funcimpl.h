@@ -4443,6 +4443,14 @@ namespace madness {
                 // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate2, result, coeffs, args.dest, TaskAttributes::hipri());
                 woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
+//                //
+//                // UGLY BUT ADDED THE OPTIMIZATION BACK IN HERE EXPLICITLY/
+//                if (args.dest == world.rank()) {
+//                    coeffs.send(args.dest, &nodeT::accumulate, result, coeffs, args.dest);
+//                }
+//                else {
+//                    coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+//                }
             }
 
             return None;
@@ -5301,7 +5309,7 @@ namespace madness {
             static void load(const Archive& ar, std::shared_ptr<const FunctionImpl<T,NDIM> >& ptr) {
                 const FunctionImpl<T,NDIM>* f = NULL;
                 ArchiveLoadImpl<Archive, const FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & detail::no_delete<const FunctionImpl<T,NDIM> >);
+                ptr.reset(f, & madness::detail::no_delete<const FunctionImpl<T,NDIM> >);
             }
         };
 
@@ -5317,7 +5325,7 @@ namespace madness {
             static void load(const Archive& ar, std::shared_ptr<FunctionImpl<T,NDIM> >& ptr) {
                 FunctionImpl<T,NDIM>* f = NULL;
                 ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*>::load(ar, f);
-                ptr.reset(f, & detail::no_delete<FunctionImpl<T,NDIM> >);
+                ptr.reset(f, & madness::detail::no_delete<FunctionImpl<T,NDIM> >);
             }
         };
 

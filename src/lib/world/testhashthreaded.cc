@@ -267,7 +267,6 @@ void test_random() {
 
     double end_sum = 0.0;
     size_t end_count = 0;
-    iteratorT ppp=a.begin();
     for (iteratorT it=a.begin(); it!=a.end(); ++it) {
         end_count++;
         end_sum += it->second;
@@ -326,7 +325,6 @@ void test_thread() {
 
     double end_sum = 0.0;
     size_t end_count = 0;
-    iteratorT ppp=a.begin();
     for (iteratorT it=a.begin(); it!=a.end(); ++it) {
         end_count++;
         end_sum += it->second;

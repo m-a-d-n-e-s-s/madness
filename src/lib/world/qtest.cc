@@ -15,7 +15,7 @@
 #include <sys/sysctl.h>
 #endif
 
-#if defined(ON_A_MAC) || defined(HAVE_IBMBGP)
+#if defined(ON_A_MAC) || defined(HAVE_IBMBGP) ||  defined(__PGI)
 #define __thread
 #endif
 

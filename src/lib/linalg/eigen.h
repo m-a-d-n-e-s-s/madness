@@ -73,9 +73,12 @@ namespace madness {
     */
    template <typename T>
    void copy_mad2eigen2(long n, const T * restrict p1, T * restrict  p0){
-    for (long j=0; j<n; ++j,++p1,++p0) {
-      *p0 = *p1;
-    } 
+#ifdef HAVE_MEMMOVE
+    /* Jeff assumes that HAVE_MEMMOVE is a good approximation to HAVE_MEMCPY */
+    memcpy(p0,p1,n); /* memcpy is often significantly faster than what the compiler comes up with */
+#else
+    for (long j=0; j<n; ++j,++p1,++p0) { *p0 = *p1; } /*JEFF: Is there a reason to not use memcpy? */
+#endif
    }
     /** \brief   Compute the singluar value decomposition of an n-by-m matrix using JacobiSVD
 

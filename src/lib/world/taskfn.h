@@ -106,7 +106,7 @@
 
         template <typename fnT>
         struct task_result_type {
-            typedef typename remove_fcvr<typename result_of<fnT>::type>::type resultT;
+            typedef typename madness::remove_fcvr<typename madness::detail::result_of<fnT>::type>::type resultT;
             typedef Future<resultT> futureT;
         };
 

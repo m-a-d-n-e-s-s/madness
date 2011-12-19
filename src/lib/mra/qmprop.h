@@ -47,6 +47,9 @@ namespace madness {
     template <std::size_t NDIM>
     SeparatedConvolution<double_complex,NDIM>*
     qm_free_particle_propagatorPtr(World& world, int k, double bandlimit, double timestep);
+
+    void bandlimited_propagator_plot();
+
 }
 
 

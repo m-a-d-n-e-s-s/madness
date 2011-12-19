@@ -259,6 +259,7 @@ namespace madness {
 
         //std::cout << "n " << n << " m " << m << " lwork " << lwork << std::endl;
 	//std::cout << sizeof(long) << " " << sizeof(int) << " " << sizeof(integer) << std::endl;
+	//std::cout << sizeof(real4) << " " << sizeof(float)  << std::endl;
         dgesvd_("S","S", &n, &m, A.ptr(), &n, s.ptr(),
                 VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
                 &info, (char_len) 1, (char_len) 1);

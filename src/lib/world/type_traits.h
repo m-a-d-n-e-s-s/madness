@@ -29,36 +29,53 @@
   fax:   865-572-0680
 
 
-  $Id$
+  $Id: typestuff.h 2446 2011-07-22 15:21:22Z justus.c79@gmail.com $
 */
-
-
-#ifndef MADNESS_WORLD_TR1_TYPE_TRAITS_H__INCLUDED
-#define MADNESS_WORLD_TR1_TYPE_TRAITS_H__INCLUDED
-
-/// \file type_traits.h
-/// \brief Include C++ TR1 type traits. It imports all TR1 type traits into the
-/// std namespace.
 
 #include <madness_config.h>
 
-// Select header that contains type_traits
 #if defined(MADNESS_USE_TYPE_TRAITS)
-#include <type_traits>
+#  include <type_traits>
 #elif defined(MADNESS_USE_TR1_TYPE_TRAITS)
-#include <tr1/type_traits>
+#  include <tr1/type_traits>
 #elif defined(MADNESS_USE_BOOST_TR1_TYPE_TRAITS_HPP)
-#include <boost/tr1/type_traits.hpp>
+#  include <boost/tr1/type_traits.hpp>
 #else
-#error No acceptable include directive for type_traits was found.
-#endif // TYPE_TRAITS
+#  define MADNESS_HAS_STD_TYPE_TRAITS 1
+#  include <world/type_traits_bits.h>
+   namespace std {
+      using madness::tr1::is_void;
+      using madness::tr1::is_integral;
+      using madness::tr1::is_floating_point;
+      using madness::tr1::is_array;
+      using madness::tr1::is_pointer;
+      using madness::tr1::is_reference;
+      using madness::tr1::is_function;
+      using madness::tr1::is_member_function_pointer;
+      using madness::tr1::is_arithmetic;
+      using madness::tr1::is_fundamental;
+      using madness::tr1::is_object;
+      using madness::tr1::is_compound;
+      using madness::tr1::is_const;
+
+      using madness::tr1::is_same;
+      using madness::tr1::is_base_of;
+
+      using madness::tr1::remove_const;
+      using madness::tr1::remove_volatile;
+      using madness::tr1::remove_cv;
+      using madness::tr1::add_const;
+      using madness::tr1::remove_reference;
+      using madness::tr1::remove_pointer;
+      using madness::tr1::enable_if;
+   }
+#endif
 
 #if defined(MADNESS_HAS_STD_TR1_TYPE_TRAITS) && !defined(MADNESS_HAS_STD_TYPE_TRAITS)
 #define MADNESS_HAS_STD_TYPE_TRAITS 1
 
 // Insert the tr1 type traits into the std namespace.
 namespace std {
-
     using ::std::tr1::integral_constant;
     using ::std::tr1::true_type;
     using ::std::tr1::false_type;
@@ -115,8 +132,5 @@ namespace std {
     using ::std::tr1::remove_pointer;
     using ::std::tr1::add_pointer;
     using ::std::tr1::aligned_storage;
-
 } // namespace std
 #endif
-
-#endif // MADNESS_WORLD_TR1_TYPE_TRAITS_H__INCLUDED

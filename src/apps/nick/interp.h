@@ -34,12 +34,9 @@
 #define INTERP_H
 #include "wavef.h"
 //#include <world/world.h>
-#include <iostream>
 #include <cmath>
 using std::max;
 #include <vector>
-#include <complex>
-
 
 
 template <typename T>

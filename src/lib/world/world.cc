@@ -99,7 +99,9 @@ typedef std::complex<double> double_complex;
 
 class TestTask : public TaskInterface {
 public:
-
+#if defined(__INTEL_COMPILER) || defined(__PGI)
+  using madness::TaskInterface::run;
+#endif
     void run(World& world) {
         print("Hi, I am running!");
     }
@@ -177,7 +179,9 @@ void test5(World& world) {
     print("done with fence");
 
     world.taskq.add(TTT::fred);
+    print("MAKING MARY");
     Future<int> mary = world.taskq.add(TTT::mary);
+    print("MADE MARY");
     Future<int> carl = world.taskq.add(right,TTT::carl);
     Future<int> dave = world.taskq.add(right,TTT::dave, &world);
     Future<int> bert_input;
@@ -247,6 +251,10 @@ public:
         print("Testing barrier with nthread", attr.get_nthread());
     }
 
+#if defined(__INTEL_COMPILER) || defined(__PGI)
+  using madness::TaskInterface::run;
+#endif
+
     void run(World& world, const TaskThreadEnv& env) {
         // Using the barrier each thread takes turns to update
         // the shared counter.
@@ -277,6 +285,10 @@ public:
     {
         print("Timing barrier with nthread", attr.get_nthread());
     }
+
+#if defined(__INTEL_COMPILER) || defined(__PGI)
+  using madness::TaskInterface::run;
+#endif
 
     void run(World& world, const TaskThreadEnv& env) {
         // Barrier a zillion times

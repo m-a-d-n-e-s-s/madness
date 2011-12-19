@@ -35,7 +35,7 @@
 #ifndef MADNESS_WORLD_DEFERRED_CLEANUP_H__INCLUDED
 #define MADNESS_WORLD_DEFERRED_CLEANUP_H__INCLUDED
 
-#include <world/sharedptr.h>
+#include <world/shared_ptr.h>
 #include <world/worldmutex.h>  // For Mutex
 #include <list>
 

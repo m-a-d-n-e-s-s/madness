@@ -1,9 +1,11 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric helium_mp2 tiny mp2
-#bin_PROGRAMS = helium_mp2
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric hehf 3dharmonic testsolver helium_mp2 tiny mp2
 
 prog_only = helium_mp2_prog
+
+thisincludedir = $(includedir)/examples
+thisinclude_HEADERS = molecularmask.h  nonlinsol.h
 
 mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/xcfunctional_libxc.cc
 
@@ -13,9 +15,13 @@ helium_mp2_SOURCES = helium_mp2.cc
 
 dataloadbal_SOURCES = dataloadbal.cc
 
+testsolver_SOURCES = testsolver.cc
+
 laplace_sphere_SOURCES = laplace_sphere.cc
 
 sininteg_SOURCES = sininteg.cc
+
+3dharmonic_SOURCES = 3dharmonic.cc
 
 functionio_SOURCES = functionio.cc
 
@@ -34,6 +40,8 @@ hatom_energy_SOURCES = hatom_energy.cc
 h2_SOURCES = h2.cc
 
 he_SOURCES = he.cc
+
+hehf_SOURCES = hehf.cc
 
 tdse_SOURCES = tdse.cc
 

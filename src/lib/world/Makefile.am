@@ -1,7 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-SUBDIRS = tr1
-
 bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
                helloworld taskexample testatomicint testhashdc array_test \
                gtest_example qtest worldprofile_test worldptr_test worldref_test \
@@ -11,14 +9,16 @@ lib_LIBRARIES = libMADworld.a
 
 thisincludedir = $(includedir)/world
 thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
-	worldtask.h array.h sharedptr.h worldgop.h worldobj.h bufar.h nodefaults.h \
+	worldtask.h array.h worldgop.h worldobj.h bufar.h nodefaults.h \
 	typestuff.h enable_if.h worlddep.h worldhash.h worldref.h worldtypes.h \
 	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
 	deferred_deleter.h scopedptr.h worldreduce.h worldtask.h taskfn.h make_task.h \
-	functional.h 
+	functional.h shared_ptr.h shared_ptr_bits.h stdarray.h stdarray_bits.h \
+	type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
+	function_traits_bits.h integral_constant.h stubmpi.h
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
@@ -90,7 +90,7 @@ worldprofile_test_LDADD = libMADworld.a
 libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
-	worldgop.cc deferred_cleanup.cc worlddep.cc worldmutex.cc binfsar.cc \
+	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc \
 	worldmem.cc textfsar.cc \
 	$(thisinclude_HEADERS)
 

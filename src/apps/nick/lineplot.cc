@@ -1,5 +1,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <world/parar.h>
 #include <constants.h>
 #include <tensor/vmath.h>
 #include <mra/lbdeux.h>

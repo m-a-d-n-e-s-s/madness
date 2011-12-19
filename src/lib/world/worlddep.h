@@ -59,44 +59,74 @@ namespace madness {
     /// Provides interface for tracking dependencies
     class DependencyInterface : public CallbackInterface, private Spinlock {
     private:
-        AtomicInt ndepend;   ///< Counts dependencies
-
+        // Replaced atomic counter with critical section so that all
+        // data (callbacks and counter) were being consistently managed.
+        volatile int ndepend;   ///< Counts dependencies
+        
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
 
-        void do_callbacks() const;
-
+        // Main design point is that since a callback might destroy
+        // this object, when callbacks are invoked we cannot be
+        // holding the lock and all necessary data must be on the
+        // stack (i.e., not from the object state).
+        void do_callbacks(callbackT& cb) const {
+            while (!cb.empty()) {
+                cb.front()->notify();
+                cb.pop();
+            }
+        }
+        
     public:
-        DependencyInterface(int ndep = 0);
-
+        DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
         /// Returns the number of unsatisfied dependencies
-        int ndep() const;
+        int ndep() const {return ndepend;}
 
         /// Returns true if ndepend == 0
-        bool probe() const;
-
+        bool probe() const {return ndep() == 0;}
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
-        void notify();
-
-
-        /// Registers a callback for when ndepend=0
-
-        /// If ndepend == 0, the callback is immediately invoked.
-        void register_callback(CallbackInterface* callback);
-
+        void notify() {dec();}
+        
+        /// Registers a callback for when \c ndepend==0 , immediately invoked if \c ndepend==0
+        void register_callback(CallbackInterface* callback) {
+            callbackT cb;
+            {
+                ScopedMutex<Spinlock> obolus(this);
+                const_cast<callbackT&>(this->callbacks).push(callback);               
+                if (probe()) {
+                    cb = const_cast<callbackT&>(callbacks);
+                    const_cast<callbackT&>(callbacks).clear();
+                }
+            }
+            do_callbacks(cb);
+        }
 
         /// Increment the number of dependencies
-        void inc();
-
+        void inc() {
+            ScopedMutex<Spinlock> obolus(this);
+            ndepend++;
+        }
 
         /// Decrement the number of dependencies and invoke callback if ndepend=0
-        void dec();
+        void dec() {
+            callbackT cb;
+            {
+                ScopedMutex<Spinlock> obolus(this);
+                if (--ndepend == 0) { 
+                    cb = const_cast<callbackT&>(callbacks);
+                    const_cast<callbackT&>(callbacks).clear();
+                }
+            }
+            do_callbacks(cb);
+        }
 
+        virtual ~DependencyInterface() {
+            MADNESS_ASSERT(ndepend == 0);
+        }
 
-        virtual ~DependencyInterface();
     };
 }
 #endif // MADNESS_WORLD_WORLDDEP_H__INCLUDED
