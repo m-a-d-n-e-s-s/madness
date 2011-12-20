@@ -1283,7 +1283,7 @@ int main(int argc, char**argv) {
         //test_conv<double_complex,1>(world);
         //test_math<double_complex,1>(world);
         //test_diff<double_complex,1>(world);
-        test_op<double_complex,1>(world);
+        ////test_op<double_complex,1>(world);
         //test_plot<double_complex,1>(world);
         //test_io<double_complex,1>(world);
 
@@ -1292,7 +1292,7 @@ int main(int argc, char**argv) {
         //test_conv<double,2>(world);
         //test_math<double,2>(world);
         //test_diff<double,2>(world);
-        test_op<double,2>(world);
+        ////test_op<double,2>(world);
         //test_plot<double,2>(world);
         //test_io<double,2>(world);
 
@@ -1301,6 +1301,7 @@ int main(int argc, char**argv) {
         //test_math<double,3>(world);
         //test_diff<double,3>(world);
         test_op<double,3>(world);
+        //test_op<double,4>(world);
         //print("before fence ",world.gpu_hash.size(), world.taskq.size());
         //world.gop.fence();
         //print("after fence ",world.gpu_hash.size(), world.taskq.size());

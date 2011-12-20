@@ -65,3 +65,8 @@ extern "C" void streams_synchronize(void ** cast_streams, unsigned int streams){
     }
 
 }
+
+extern "C" void device_synchronize(void ** cast_streams, unsigned int streams){
+     cudaDeviceSynchronize();
+     printf("synchronized\n");
+}

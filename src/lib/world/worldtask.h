@@ -761,15 +761,43 @@ namespace madness {
         //}
         //objT odef(w); //this relies on objT having a constructor with a World* argument
         if (this->inObj.size() > 0){
-        this->outArgs = (this->inObj.at(0)->*memfunCompute)(this->inArgs, this->inObj);
+            std::vector<objT*> tmpObj;
+            std::vector<arg1T> tmpArgs;
 
-        printf("   %i \n", outArgs.size());
-        for (unsigned int i = 0; i < outArgs.size(); i++){  
-            objT * obj = inObj.at(i);
-            //(obj->*memfunPostprocess)(outArgs.at(i));
-            q->add(*obj, memfunPostprocess, outArgs.at(i));
-            q->decNRegistered();  
-        }
+            if (inArgs.size() > 32){
+              unsigned int j;
+              for (j = 0; j < inArgs.size(); j+=32){
+                tmpObj.clear();
+                tmpArgs.clear();
+                unsigned int k;
+                for (k = j; k < j+32 && k < inArgs.size(); k++){
+                  tmpObj.push_back(inObj.at(k));
+                  tmpArgs.push_back(inArgs.at(k));
+                }
+              
+                this->outArgs = (this->inObj.at(0)->*memfunCompute)(tmpArgs, tmpObj);
+
+                printf("   %i \n", outArgs.size());
+                for (unsigned int i = 0; i < outArgs.size(); i++){  
+                  objT * obj = tmpObj.at(i);
+                  //(obj->*memfunPostprocess)(outArgs.at(i));
+                  q->add(*obj, memfunPostprocess, outArgs.at(i));
+                  q->decNRegistered();  
+                }
+              }
+
+            }
+            else{
+                this->outArgs = (this->inObj.at(0)->*memfunCompute)(this->inArgs, this->inObj);
+
+                printf("   %i \n", outArgs.size());
+                for (unsigned int i = 0; i < outArgs.size(); i++){  
+                  objT * obj = inObj.at(i);
+                  //(obj->*memfunPostprocess)(outArgs.at(i));
+                  q->add(*obj, memfunPostprocess, outArgs.at(i));
+                  q->decNRegistered();  
+                }
+            }
         }
     }
 

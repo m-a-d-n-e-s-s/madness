@@ -38,6 +38,8 @@
 
 #include <madness_config.h>
 #define ENABLE_CUBLAS 1 
+#include <tensor/dgemm_madness_kernels.cu>
+#include <tensor/sgemm_kernel_magma.cu>
 #include <tensor/cu_mtxmq_kernels.cu>
 #include <tensor/cu_mtxmq.h>
 //#include <world/cuda_streams.h>
@@ -45,7 +47,7 @@
 #include <cublas_v2.h>
 //namespace madness {
 //#include <cublas_v2.h>
- 
+#define BLOCK_SIZE_INTEGRAL 128 
 
     /// Matrix = Matrix transpose * matrix ... reference implementation
 
@@ -888,5 +890,144 @@ template <typename aT, typename bT, typename cT>
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
         	
 }
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmq_integral(long dimi, long dimj, long dimk,                   
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,long prev_m)
+{printf("not imp");}
+                                                                              
+  template<>   void cu_mTxmq_integral(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,long prev_m){printf("not imp");}
+  template<>   void cu_mTxmq_integral(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,long prev_m){printf("not imp");}     
+                                                                              
+  template<>   void cu_mTxmq_integral(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,long prev_m){printf("not imp");}
+                                                                              
+  template<>   void cu_mTxmq_integral(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,long prev_m){printf("not imp");}                                    
+  
+  template<>   void cu_mTxmq_integral(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,long prev_dimi){                               
+
+/*int b =cudaGetLastError();
+if (b !=cudaSuccess){printf("errpr = %d",b);                                  
+exit(-1);
+        }*/
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;                       
+        dim3 threads, grid;
+        threads=dim3( BLOCK_SIZE_INTEGRAL,1,1 );                                       
+        if ((m%BLOCK_SIZE_INTEGRAL)==0)
+                grid=dim3(m/BLOCK_SIZE_INTEGRAL,1,1);                                  
+        else
+                grid=dim3(m/BLOCK_SIZE_INTEGRAL+1,1,1);
+//      STARTt_TIMER;
+        switch (k){
+        case 2:
+                                cu_mtxmq_integral_2<<<grid,threads,4*128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 4:
+                                cu_mtxmq_integral_4<<<grid,threads,4*128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 6:
+                                cu_mtxmq_integral_6<<<grid,threads,4*128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 8:
+                                cu_mtxmq_integral_8<<<grid,threads,4*128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 10:
+                                cu_mtxmq_integral_10<<<grid,threads,4*128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 12:
+                                cu_mtxmq_integral_12<<<grid,threads,2*256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 14:
+                                cu_mtxmq_integral_14<<<grid,threads,2*256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 16:
+                                cu_mtxmq_integral_16<<<grid,threads,2*256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 18:
+                                cu_mtxmq_integral_18<<<grid,threads,2*384*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 20:
+                                cu_mtxmq_integral_20<<<grid,threads,512*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 22:
+                                cu_mtxmq_integral_22<<<grid,threads,512*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 24:
+                                cu_mtxmq_integral_24<<<grid,threads,640*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 26:
+                                cu_mtxmq_integral_26<<<grid,threads,768*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        case 28:
+                                cu_mtxmq_integral_28<<<grid,threads,768*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+        break;
+        default:
+                                printf("Kernel does not exist for k=%d n=%d",k,n);
+                                exit(-1);
+        break;
+        }
+
+}
+
+template <typename T, typename Q>
+      void cu_axpy(long n, T* a,  T*  b, Q s, void *GPU_stream, void *h) {
+
+}
+
+template<> void cu_axpy(long n , double *a, double *b, double s,  void *GPU_stream, void *h) {
+
+        // alpha= reinterpret_cast<T> (s);
+        cublasHandle_t *handle=(cublasHandle_t *)h;
+//      cublasCreate(&handle);
+        //cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        //cublasSetStream(*handle, *stream);
+        cublasDaxpy(*handle,n,&s,b,1,a,1);
+cudaDeviceSynchronize();
+int  f =cudaGetLastError();
+if (f !=cudaSuccess){printf("axpy error= %d",f);
+exit(-1);
+  }
+
+
+}
+template<> void cu_axpy(long n , float *a, float *b, float s,  void *GPU_stream, void *h) {
+
+        // alpha= reinterpret_cast<T> (s);
+        cublasHandle_t *handle=(cublasHandle_t *)h;
+//      cublasCreate(&handle);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(*handle, *stream);
+        cublasSaxpy(*handle,n,&s,b,1,a,1);
+
+
+}
+
+template<> void cu_axpy(long n , std::complex<double> *a, std::complex<double> *b, std::complex<double> s,  void *GPU_stream, void *h) {
+}
+
+template<> void cu_axpy(long n , std::complex<float> *a, std::complex<float> *b, std::complex<float> s,  void *GPU_stream, void *h) {
+}
+
+void lsk(int i){
+  dim3 grid = dim3(1,1,1);
+  dim3 threads=dim3(1024,1,1);
+  for (int j = 0; j < i; j++){
+    simple_kernel<<<grid,threads>>>();
+  }
+}
+
+void lsk1(int i){
+  double A[1024];
+  dim3 grid = dim3(1,1,1);
+  dim3 threads=dim3(1024,1,1);
+
+  double * devA;
+  cudaHostAlloc((void **)&devA, 1024*8, 0);
+
+  cudaMemcpy(devA, A, 1024*8, cudaMemcpyHostToDevice);
+
+  //for (int j = 0; j < i; j++){
+    simple_kernel1<<<grid,threads>>>(devA,i);
+  //}
+}
+
 #endif // MADNESS_TENSOR_CU_MTXMQ_H__INCLUDED
 

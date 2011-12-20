@@ -57,6 +57,7 @@ static double tttt, ssss;
 
 #include<math.h>
 extern "C" void streams_synchronize(void **,unsigned int);
+extern "C" void device_synchronize(void **,unsigned int);
 namespace madness {
 
 #define IS_ODD(n) ((n)&0x1)
@@ -4069,7 +4070,7 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allComputeGPUOptnoShrinkFifthTransfer<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPUOptnoShrinkSeventhTransfer<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
@@ -4124,7 +4125,9 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply_kernel_std(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            STARTt_TIMER;
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            ENDt_TIMER("std apply");
 
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
@@ -4173,7 +4176,7 @@ ENDt_TIMER("memcpy3");
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel<opT,R>, op, c, args);
                         } else {
                             
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);

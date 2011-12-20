@@ -51,6 +51,12 @@ template <typename aT, typename bT, typename cT>
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqnew(long dimi, long dimj, long dimk,
                cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle);
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmq_integral(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream, long prev_dimi);
+
+template <typename T, typename Q>
+      void cu_axpy(long n, T* a,  T*  b, Q s, void *GPU_stream, void *h);
 
 template <typename T>
 T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
@@ -68,6 +74,8 @@ template <typename W>
 
 void setStream(void * GPU_stream, void * h);
 
+void lsk(int i);
+void lsk1(int i);
 #endif
 
     /*

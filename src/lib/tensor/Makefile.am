@@ -1,14 +1,14 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 
-bin_PROGRAMS = test  test_Zmtxmq jimkernel test_scott
+bin_PROGRAMS = test  test_Zmtxmq jimkernel test_scott kernel_launch_test
 lib_LIBRARIES = libMADtensor.a 
 
 
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h
 
 test_SOURCES = test.cc
 test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(NVCCFLAGS) 
@@ -24,13 +24,16 @@ test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
+kernel_launch_test_SOURCES = kernel_launch_test.cc
+kernel_launch_test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
+kernel_launch_test_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD) $(NVCCFLAGS)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
-libMADtensor_a_SOURCES =   cu_mtxmq.cu cu_mtxmq_kernels.cu tensor.cc  tensoriter.cc basetensor.cc mtxmq.cc vmath.cc   \
-                         \
+libMADtensor_a_SOURCES = cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madness_kernels.cu sgemm_kernel_magma.cu tensor.cc \
+                        tensoriter.cc basetensor.cc mtxmq.cc vmath.cc  \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
