@@ -7,6 +7,129 @@ using namespace madness;
 
 static double L = 6.5;
 
+typedef Vector<double,3> coordT;
+typedef Function<double,3> rfunctionT;
+typedef FunctionFactory<double,3> rfactoryT;
+typedef std::vector<rfunctionT> rvecfuncT;
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > rfunctorT;
+
+//*************************************************************************
+class MolecularNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
+private:
+    const MolecularEntity& _mentity;
+    const double R;
+    const bool periodic;
+    const std::vector<coordT> _specialpts;
+public:
+    MolecularNuclearChargeDensityFunctor(const MolecularEntity& mentity, const double& R,
+        const bool& periodic, const std::vector<coordT>& specialpts)
+      : _mentity(mentity), R(R), periodic(periodic), _specialpts(specialpts) {
+    }
+
+    virtual std::vector<coordT> special_points() const
+    {
+      return _specialpts;
+    }
+
+    virtual Level special_level()
+    {
+      return 10;
+    }
+
+    double operator()(const coordT& x) const
+    {
+        //double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
+        double big = 2*R + 6.0*_mentity.smallest_length_scale();
+        // Only one contribution at any point due to the short
+        // range of the nuclear charge density
+        //printf("big: %10.8f\n\n", big);
+        double value = 0.0;
+        if (periodic)
+        {
+            for (int xr = -1; xr <= 1; xr += 1)
+            {
+                double xx = x[0] + xr*R;
+                //printf("x[0]: %10.8f     xx: %10.8f\n", x[0], xx);
+                if (xx < big && xx > -big)
+                {
+                    for (int yr = -1; yr <= 1; yr += 1)
+                    {
+                        double yy = x[1] + yr*R;
+                        //printf("y[0]: %10.8f     yy: %10.8f\n", x[1], yy);
+                        if (yy < big && yy > -big)
+                        {
+                            for (int zr = -1; zr <= 1; zr += 1)
+                            {
+                                double zz = x[2] + zr*R;
+                                //printf("z[0]: %10.8f     zz: %10.8f\n", x[2], zz);
+                                if (zz < big && zz > -big)
+                                {
+                                    double t1 = _mentity.nuclear_charge_density(xx, yy, zz);
+                                    value += t1;
+                                    //printf("t1: %10.8f     value: %10.8f\n", t1, value);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            value = _mentity.nuclear_charge_density(x[0], x[1], x[2]);
+        }
+        return value;
+    }
+};
+//*************************************************************************
+
+//*************************************************************************
+rfunctionT make_nuclear_charge_density(World& world,
+    const MolecularEntity& mentity, double thresh)
+{
+  std::vector<coordT> specialpts;
+  for (int i = 0; i < mentity.natom(); i++)
+  {
+    coordT pt(0.0);
+    Atom atom = mentity.get_atom(i);
+    pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
+    specialpts.push_back(pt);
+//    if (world.rank() == 0) print("Special point: ", pt);
+  }
+
+  rfunctionT rhon = rfactoryT(world).functor(
+      rfunctorT(new MolecularNuclearChargeDensityFunctor(mentity, L, true, specialpts))).
+      thresh(thresh).initial_level(6).truncate_on_project();
+
+  return rhon;
+
+}
+//*************************************************************************
+
+//*************************************************************************
+rvecfuncT make_nuclear_charge_density_individual(World& world,
+            const MolecularEntity& mentity, double thresh)
+{
+  rvecfuncT ndensity;
+  for (int i = 0; i < mentity.natom(); i++)
+  {
+    // do special points for single density
+    coordT pt(0.0);
+    Atom atom = mentity.get_atom(i);
+    pt[0] = atom.x; pt[1] = atom.y; pt[2] = atom.z;
+    std::vector<coordT> specialpts;
+    specialpts.push_back(pt);
+    // create single density
+    MolecularEntity m = mentity.get_entity(i);
+    rfunctionT rho_i = rfactoryT(world).functor(
+        rfunctorT(new MolecularNuclearChargeDensityFunctor(m, L, true, specialpts))).
+        thresh(thresh).initial_level(6).truncate_on_project();
+    ndensity.push_back(rho_i);
+  }
+  return ndensity;
+}
+//*************************************************************************
+
 //*************************************************************************
 double compute_volume()
 {
@@ -200,8 +323,8 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
   {
     Atom iatom = mentity.get_atom(ia);
 //    printf("atom %d    charge: %8.4f\n",ia,iatom.q);
-//    s3 += 2.0*iatom.q*iatom.q*alpha/sqrtpi;
-    s3 += iatom.q*iatom.q*alpha*std::sqrt(8.0/TWOPI);
+    s3 += 2.0*iatom.q*iatom.q*alpha/sqrtpi;
+//    s3 += iatom.q*iatom.q*alpha*std::sqrt(8.0/TWOPI);
 //    print("update energy: ", 2.0*iatom.q*iatom.q*alpha/sqrtpi);
   }
 //  print("value: ", 2*alpha/sqrtpi);
@@ -321,27 +444,27 @@ void compute_madelung_energy(World& world, MolecularEntity mentity,
   }
 }
 
-int main(int argc, char** argv)
+void test_nuclear_potential(int argc, char** argv)
 {
-    initialize(argc, argv);
+  initialize(argc, argv);
 
-    World world(MPI::COMM_WORLD);
+  World world(MPI::COMM_WORLD);
 
-    try {
-        // Load info for MADNESS numerical routines
-        startup(world,argc,argv);
-        std::cout.precision(6);
-        FunctionDefaults<3>::set_thresh(1e-6);
-        FunctionDefaults<3>::set_k(8);
-        FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
-        FunctionDefaults<3>::set_cubic_cell(0,L);
+  try {
+      // Load info for MADNESS numerical routines
+      startup(world,argc,argv);
+      std::cout.precision(6);
+      FunctionDefaults<3>::set_thresh(1e-6);
+      FunctionDefaults<3>::set_k(8);
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
+      FunctionDefaults<3>::set_cubic_cell(0,L);
 
-        MolecularEntity mentity;
-        mentity.add_atom(0.0,0.0,0.0,7,9);
-        mentity.add_atom(L/2,L/2,L/2,1,3);
-        mentity.center();
+      MolecularEntity mentity;
+      mentity.add_atom(0.0,0.0,0.0,7,9);
+      mentity.add_atom(L/2,L/2,L/2,1,3);
+      mentity.center();
 
-        mentity.print();
+      mentity.print();
 
 //        int ntype = mentity.get_num_types();
 //        int n1 = mentity.get_num_atoms_type(9);
@@ -362,8 +485,8 @@ int main(int argc, char** argv)
 //        }
 
 //        compute_madelung_energy_PWSCF(world,mentity,1.14017543,100.0,100.0);
-        compute_madelung_energy_PWSCF(world,mentity,1.0,50.0,100.0);
-        compute_madelung_energy_PWSCF(world,mentity,0.3,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.0,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,0.3,50.0,100.0);
 
 //        for (unsigned i = 0; i < 20; i++)
 //        {
@@ -375,33 +498,128 @@ int main(int argc, char** argv)
 //        compute_madelung_energy2(world, mentity, 1.4, 100.0, 100.0);
 //        compute_madelung_energy2(world, mentity, 1.5, 100.0, 100.0);
 
-    } catch (const MPI::Exception& e) {
-        //        print(e);
-        error("caught an MPI exception");
-    } catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-    } catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-    } catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (char* s) {
-        print(s);
-        error("caught a string exception");
-    } catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-    } catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-    } catch (...) {
-        error("caught unhandled exception");
-    }
+  } catch (const MPI::Exception& e) {
+      //        print(e);
+      error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+  } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+  } catch (...) {
+      error("caught unhandled exception");
+  }
 
-    finalize();
+  finalize();
 
+
+}
+
+void test_nuclear_energy(int argc, char** argv)
+{
+  initialize(argc, argv);
+
+  World world(MPI::COMM_WORLD);
+
+  try {
+      // Load info for MADNESS numerical routines
+      startup(world,argc,argv);
+      std::cout.precision(6);
+      FunctionDefaults<3>::set_thresh(1e-6);
+      FunctionDefaults<3>::set_k(8);
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
+      FunctionDefaults<3>::set_cubic_cell(0,L);
+
+      MolecularEntity mentity;
+      mentity.add_atom(0.0,0.0,0.0,7,9);
+      mentity.add_atom(L/2,L/2,L/2,1,3);
+      mentity.center();
+
+      mentity.print();
+
+//        int ntype = mentity.get_num_types();
+//        int n1 = mentity.get_num_atoms_type(9);
+//        int n2 = mentity.get_num_atoms_type(3);
+//        printf("Number of type of atoms: %d\n", ntype);
+//        printf("F: %d\n", n1);
+//        printf("Li: %d\n", n2);
+
+//        for (unsigned int i = 0; i < mentity.atoms.size(); i++)
+//        {
+//          printf("atom %d --- (%8.4f, %8.4f, %8.4f)\n");
+//        }
+
+
+//        for (unsigned int i = 0; i < 800; i++)
+//        {
+//          compute_madelung_energy2(world, mentity, 0.05 + i*0.005);
+//        }
+
+//        compute_madelung_energy_PWSCF(world,mentity,1.14017543,100.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.2,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.25,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.3,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.35,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.4,50.0,100.0);
+      compute_madelung_energy_PWSCF(world,mentity,1.45,50.0,100.0);
+//      compute_madelung_energy_PWSCF(world,mentity,0.3,50.0,100.0);
+
+//        for (unsigned i = 0; i < 20; i++)
+//        {
+//          compute_madelung_energy2(world, mentity, 0.004, 0.0+i*50.0, 200.0);
+//        }
+
+//        compute_madelung_energy2(world, mentity, 1.2, 100.0, 100.0);
+//        compute_madelung_energy2(world, mentity, 1.3, 100.0, 100.0);
+//        compute_madelung_energy2(world, mentity, 1.4, 100.0, 100.0);
+//        compute_madelung_energy2(world, mentity, 1.5, 100.0, 100.0);
+
+  } catch (const MPI::Exception& e) {
+      //        print(e);
+      error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+  } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+  } catch (...) {
+      error("caught unhandled exception");
+  }
+
+  finalize();
+
+
+}
+
+int main(int argc, char** argv)
+{
+    test_nuclear_energy(argc,argv);
     return 0;
 }
 
