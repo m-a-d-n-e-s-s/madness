@@ -5,13 +5,228 @@
 
 using namespace madness;
 
-static double L = 6.5;
+static double L = 100.0;
 
 typedef Vector<double,3> coordT;
 typedef Function<double,3> rfunctionT;
 typedef FunctionFactory<double,3> rfactoryT;
 typedef std::vector<rfunctionT> rvecfuncT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > rfunctorT;
+
+//*************************************************************************
+double compute_volume()
+{
+  return L*L*L;
+}
+//*************************************************************************
+
+//***************************************************************************
+struct vectorLengthFunctor : public std::binary_function<Vector<double,3>, Vector<double,3>, bool>
+{
+    bool operator()( Vector<double,3> lhs, Vector<double,3> rhs)
+    {
+      double llen = sqrt(lhs[0]*lhs[0] + lhs[1]*lhs[1] + lhs[2]*lhs[2]);
+      double rlen = sqrt(rhs[0]*rhs[0] + rhs[1]*rhs[1] + rhs[2]*rhs[2]);
+      return (llen < rlen);
+    }
+};
+//***************************************************************************
+
+//*************************************************************************
+class GaussianFunctor : public FunctionFunctorInterface<double,3> {
+private:
+  double coeff;
+  double expnt;
+  std::vector<coordT> specialpts;
+
+public:
+  GaussianFunctor(double coeff, double expnt)
+        : coeff(coeff), expnt(expnt)
+  {
+    specialpts.push_back(vec(0.0,0.0,0.0));
+  }
+
+    virtual std::vector<coordT> special_points() const
+    {
+      return specialpts;
+    }
+
+    virtual Level special_level()
+    {
+      return 10;
+    }
+
+    double operator()(const coord_3d& r) const {
+        double x = r[0]; double y = r[1]; double z = r[2];
+        //return coeff*std::exp(-expnt*(x*x + y*y + z*z));
+        return coeff*std::exp(-expnt*x*x)*std::exp(-expnt*y*y)*std::exp(-expnt*z*z);
+    }
+};
+//*************************************************************************
+
+//*************************************************************************
+std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen = 50.0)
+{
+  const double t1 = L;
+
+  std::vector< Vector<double,3> > rvecs;
+
+  int rlo = -200;
+  int rhi = 201;
+  for (int ir1 = rlo; ir1 < rhi; ir1++)
+  {
+    for (int ir2 = rlo; ir2 < rhi; ir2++)
+    {
+      for (int ir3 = rlo; ir3 < rhi; ir3++)
+      {
+        double rlen = t1*std::sqrt(ir1*ir1 + ir2*ir2 + ir3*ir3);
+        if (rlen <= maxRlen)
+        {
+          Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
+          rvecs.push_back(rvec);
+        }
+      }
+    }
+  }
+  std::sort(rvecs.begin(), rvecs.end(), vectorLengthFunctor());
+//      if (_world.rank() == 0) printf("Size of vectors:  %d\n", rvecs.size());
+//      if (_world.rank() == 0)
+//        printf("\nR-vectors:\n");
+  for (unsigned int ir = 0; ir < rvecs.size(); ir++)
+  {
+    Vector<double,3> rvec = rvecs[ir];
+    double rlen = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
+//        if (world.rank() == 0)
+//          printf("%10.5f %10.5f %10.5f   %10.5f\n",rvec[0],rvec[1],rvec[2],rlen);
+  }
+
+  unsigned int rsize = rvecs.size();
+  Vector<double,3> rvec = rvecs[rsize-1];
+  double maxRlen2 = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
+  print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2);
+
+  return rvecs;
+}
+//*************************************************************************
+
+//*************************************************************************
+// generate G-vectors for a SCC in terms of the real space lattice vectors
+std::vector< Vector<double,3> > generate_G_vectors(World& world, double maxGlen = 15.0)
+{
+  const double TWO_PI = 2*constants::pi;
+  const double t1 = TWO_PI/L;
+
+  std::vector< Vector<double,3> > gvecs;
+
+  int glo = -200;
+  int ghi = 201;
+  for (int ig1 = glo; ig1 < ghi; ig1++)
+  {
+    for (int ig2 = glo; ig2 < ghi; ig2++)
+    {
+      for (int ig3 = glo; ig3 < ghi; ig3++)
+      {
+        double glen = t1*std::sqrt(ig1*ig1 + ig2*ig2 + ig3*ig3);
+        if (glen <= maxGlen)
+        {
+          Vector<double,3> gvec = vec(t1*ig1, t1*ig2, t1*ig3);
+          gvecs.push_back(gvec);
+        }
+      }
+    }
+  }
+  std::sort(gvecs.begin(), gvecs.end(), vectorLengthFunctor());
+//      if (_world.rank() == 0)
+//        printf("\nG-vectors:\n");
+  for (unsigned int ig = 0; ig < gvecs.size(); ig++)
+  {
+    Vector<double,3> gvec = gvecs[ig];
+    double glen = std::sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
+//        if (_world.rank() == 0)
+//          printf("%10.5f %10.5f %10.5f   %10.5f\n",gvec[0],gvec[1],gvec[2],glen);
+  }
+
+  unsigned int gsize = gvecs.size();
+  Vector<double,3> gvec = gvecs[gsize-1];
+  double maxGlen2 = std::sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
+  print("G-max length requested:  ", maxGlen, "    G-max length:  ", maxGlen2);
+  return gvecs;
+
+}
+//*************************************************************************
+
+//*************************************************************************
+class EwaldNuclearPotentialFunctor : public FunctionFunctorInterface<double,3> {
+private:
+  std::vector< Vector<double,3> > rvecs;
+  std::vector< Vector<double,3> > gvecs;
+  std::vector<double_complex> gsfactor;
+  double alpha;
+  MolecularEntity* mentity;
+
+public:
+  EwaldNuclearPotentialFunctor(World& world, MolecularEntity* mentity, double alpha)
+   : alpha(alpha), mentity(mentity)
+  {
+    rvecs = generate_R_vectors(world,100.0);
+    gvecs = generate_G_vectors(world,50.0);
+    unsigned int natoms = mentity->natom();
+    for (unsigned int ig = 1; ig < gvecs.size(); ig++)
+    {
+      // Get G-vector from list
+      Vector<double,3> gvec = gvecs[ig];
+      double G2 = gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2];
+      double_complex rhon = double_complex(0.0,0.0);
+      for (unsigned int ia = 0; ia < natoms; ia++)
+      {
+        Atom iatom = mentity->get_atom(ia);
+        Vector<double,3> tvec = vec(1*(-iatom.x),
+                                    1*(-iatom.y),
+                                    1*(-iatom.z));
+        double_complex t1 = std::exp(double_complex(0.0,gvec[0]*tvec[0] +
+                                     gvec[1]*tvec[1] + gvec[2]*tvec[2]));
+        rhon += iatom.q*t1;
+      }
+      gsfactor[ig] = rhon*std::exp(-G2/4.0/alpha/alpha)/G2;
+    }
+  }
+
+  double operator()(const coordT& r) const
+  {
+    // number of atoms in unit cell
+    unsigned int natoms = mentity->natom();
+    // other parameters
+    const double TWOPI = 2*constants::pi;
+    double v = compute_volume();
+
+    // RECIPROCAL SPACE SUM
+    double charge = mentity->total_nuclear_charge();
+    double_complex s1 = -charge*charge/alpha/alpha/4.0;
+    // skip G=0
+    for (unsigned int ig = 1; ig < gvecs.size(); ig++)
+    {
+      Vector<double,3> gvec = gvecs[ig];
+      double_complex t1 = double_complex(0.0,gvec[0]*r[0]+gvec[1]*r[1]+gvec[2]*r[2]);
+      s1 += gsfactor[ig]*t1;
+
+    }
+    s1 *= 2.0*TWOPI/v;
+
+    double_complex s3 = 0.0;
+    double sqrtpi = std::sqrt(constants::pi);
+    for (unsigned int ia = 0; ia < natoms; ia++)
+    {
+      Atom iatom = mentity->get_atom(ia);
+      s3 += 2.0*iatom.q*iatom.q*alpha/sqrtpi;
+    }
+
+
+    double rvalue = std::real(s1 - s3);
+    return rvalue;
+  }
+
+};
+//*************************************************************************
 
 //*************************************************************************
 class MolecularNuclearChargeDensityFunctor : public FunctionFunctorInterface<double,3> {
@@ -131,116 +346,77 @@ rvecfuncT make_nuclear_charge_density_individual(World& world,
 //*************************************************************************
 
 //*************************************************************************
-double compute_volume()
-{
-  return L*L*L;
-}
+
 //*************************************************************************
 
 //***************************************************************************
-struct vectorLengthFunctor : public std::binary_function<Vector<double,3>, Vector<double,3>, bool>
+void test_gaussian_num_coeffs(int argc, char** argv)
 {
-    bool operator()( Vector<double,3> lhs, Vector<double,3> rhs)
-    {
-      double llen = sqrt(lhs[0]*lhs[0] + lhs[1]*lhs[1] + lhs[2]*lhs[2]);
-      double rlen = sqrt(rhs[0]*rhs[0] + rhs[1]*rhs[1] + rhs[2]*rhs[2]);
-      return (llen < rlen);
-    }
-};
+  initialize(argc, argv);
+
+  World world(MPI::COMM_WORLD);
+
+  try {
+      // Load info for MADNESS numerical routines
+      startup(world,argc,argv);
+      std::cout.precision(6);
+      FunctionDefaults<3>::set_thresh(1e-6);
+      FunctionDefaults<3>::set_k(10);
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
+      FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+
+      // Create normalized gaussian function with wide ranging exponents
+      for (int in = 0; in < 20; in++)
+      {
+        int n = in - 8;
+        double expnt = std::pow(2.0, (int) n);
+        double coeff = std::pow(expnt/constants::pi, 1.5);
+        rfunctionT fexp = rfactoryT(world).functor(
+            rfunctorT(new GaussianFunctor(coeff,expnt))).truncate_on_project();
+        // how many nodes needed to represent function
+        int maxnodes = fexp.max_nodes();
+        double tr = fexp.trace();
+        // full-width half maximum
+        double fwhm = 2*std::log(2)/expnt;
+        // full-width 1/10th maximum
+        double fwtm = 2*std::log(10)/expnt;
+        if (world.rank() == 0) print("n:  ", n, "  coeff:  ", coeff, "  expnt:  ",
+            expnt, "  trace:  ", tr, "  max nodes:  ", maxnodes, "  fwhm:  ", fwhm);
+      }
+
+  } catch (const MPI::Exception& e) {
+      //        print(e);
+      error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+      print(e);
+      error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+      print(e);
+      error("caught a Tensor exception");
+  } catch (const char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (char* s) {
+      print(s);
+      error("caught a string exception");
+  } catch (const std::string& s) {
+      print(s);
+      error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+      print(e.what());
+      error("caught an STL exception");
+  } catch (...) {
+      error("caught unhandled exception");
+  }
+
+  finalize();
+
+
+}
 //***************************************************************************
 
-//*************************************************************************
-std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen = 50.0)
-{
-  const double t1 = L;
-
-  std::vector< Vector<double,3> > rvecs;
-
-  int rlo = -200;
-  int rhi = 201;
-  for (int ir1 = rlo; ir1 < rhi; ir1++)
-  {
-    for (int ir2 = rlo; ir2 < rhi; ir2++)
-    {
-      for (int ir3 = rlo; ir3 < rhi; ir3++)
-      {
-        double rlen = t1*std::sqrt(ir1*ir1 + ir2*ir2 + ir3*ir3);
-        if (rlen <= maxRlen)
-        {
-          Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
-          rvecs.push_back(rvec);
-        }
-      }
-    }
-  }
-  std::sort(rvecs.begin(), rvecs.end(), vectorLengthFunctor());
-//      if (_world.rank() == 0) printf("Size of vectors:  %d\n", rvecs.size());
-//      if (_world.rank() == 0)
-//        printf("\nR-vectors:\n");
-  for (unsigned int ir = 0; ir < rvecs.size(); ir++)
-  {
-    Vector<double,3> rvec = rvecs[ir];
-    double rlen = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
-//        if (world.rank() == 0)
-//          printf("%10.5f %10.5f %10.5f   %10.5f\n",rvec[0],rvec[1],rvec[2],rlen);
-  }
-
-  unsigned int rsize = rvecs.size();
-  Vector<double,3> rvec = rvecs[rsize-1];
-  double maxRlen2 = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
-  print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2);
-
-  return rvecs;
-}
-//*************************************************************************
 
 //*************************************************************************
-// generate G-vectors for a SCC in terms of the real space lattice vectors
-std::vector< Vector<double,3> > generate_G_vectors(World& world, double maxGlen = 15.0)
-{
-  const double TWO_PI = 2*constants::pi;
-  const double t1 = TWO_PI/L;
-
-  std::vector< Vector<double,3> > gvecs;
-
-  int glo = -200;
-  int ghi = 201;
-  for (int ig1 = glo; ig1 < ghi; ig1++)
-  {
-    for (int ig2 = glo; ig2 < ghi; ig2++)
-    {
-      for (int ig3 = glo; ig3 < ghi; ig3++)
-      {
-        double glen = t1*std::sqrt(ig1*ig1 + ig2*ig2 + ig3*ig3);
-        if (glen <= maxGlen)
-        {
-          Vector<double,3> gvec = vec(t1*ig1, t1*ig2, t1*ig3);
-          gvecs.push_back(gvec);
-        }
-      }
-    }
-  }
-  std::sort(gvecs.begin(), gvecs.end(), vectorLengthFunctor());
-//      if (_world.rank() == 0)
-//        printf("\nG-vectors:\n");
-  for (unsigned int ig = 0; ig < gvecs.size(); ig++)
-  {
-    Vector<double,3> gvec = gvecs[ig];
-    double glen = std::sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
-//        if (_world.rank() == 0)
-//          printf("%10.5f %10.5f %10.5f   %10.5f\n",gvec[0],gvec[1],gvec[2],glen);
-  }
-
-  unsigned int gsize = gvecs.size();
-  Vector<double,3> gvec = gvecs[gsize-1];
-  double maxGlen2 = std::sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
-  print("G-max length requested:  ", maxGlen, "    G-max length:  ", maxGlen2);
-  return gvecs;
-
-}
-//*************************************************************************
-
-
 void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
     double alpha = 8.5, double rmax = 100.0, double gmax = 100.0)
 {
@@ -338,7 +514,9 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
         alpha, std::real(s1-s3), std::real(s2), energy);
   }
 }
+//*************************************************************************
 
+//*************************************************************************
 void compute_madelung_energy(World& world, MolecularEntity mentity,
     double alpha = 1.5, double rmax = 200.0, double gmax = 200.0)
 {
@@ -443,7 +621,9 @@ void compute_madelung_energy(World& world, MolecularEntity mentity,
 //        alpha, energy);
   }
 }
+//*************************************************************************
 
+//*************************************************************************
 void test_nuclear_potential(int argc, char** argv)
 {
   initialize(argc, argv);
@@ -527,7 +707,9 @@ void test_nuclear_potential(int argc, char** argv)
 
 
 }
+//*************************************************************************
 
+//*************************************************************************
 void test_nuclear_energy(int argc, char** argv)
 {
   initialize(argc, argv);
@@ -616,10 +798,12 @@ void test_nuclear_energy(int argc, char** argv)
 
 
 }
+//*************************************************************************
 
 int main(int argc, char** argv)
 {
-    test_nuclear_energy(argc,argv);
-    return 0;
+//    test_nuclear_energy(argc,argv);
+  test_gaussian_num_coeffs(argc,argv);
+  return 0;
 }
 
