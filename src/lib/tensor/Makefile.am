@@ -32,7 +32,7 @@ test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD) $(NVCCFLAGS)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
-libMADtensor_a_SOURCES = cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madness_kernels.cu sgemm_kernel_magma.cu tensor.cc \
+libMADtensor_a_SOURCES = cu_axpy.cu cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madness_kernels.cu sgemm_kernel_magma.cu tensor.cc \
                         tensoriter.cc basetensor.cc mtxmq.cc vmath.cc  \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \

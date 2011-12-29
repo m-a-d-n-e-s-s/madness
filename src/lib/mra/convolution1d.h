@@ -145,6 +145,8 @@ namespace madness {
     struct ConvolutionData1D {
         Tensor<Q> R, T;  ///< R=ns, T=T part of ns
         Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
+        Q *GPUR, *GPUT;  ///< R=ns, T=T part of ns
+        Q *GPURU, *GPURVT, *GPUTU, *GPUTVT; ///< SVD approximations to R and T
         Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
         double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
 
@@ -162,10 +164,25 @@ namespace madness {
                     for (int j=0; j<k; ++j)
                         NS(i,j) = 0.0;
                 NSnormf = NS.normf();
+            
+                GPURU = GPUtransfer_buffer(const_cast<Q*>(RU.ptr()),RU.dim(0)*RU.dim(0),true);
+                GPURVT = GPUtransfer_buffer(const_cast<Q*>(RVT.ptr()),RVT.dim(0)*RVT.dim(0),true);
+                GPUTU = GPUtransfer_buffer(const_cast<Q*>(TU.ptr()),TU.dim(0)*TU.dim(0),true);
+                GPUTVT = GPUtransfer_buffer(const_cast<Q*>(TVT.ptr()),TVT.dim(0)*TVT.dim(0),true);
             }
             else {
                 Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
             }
+                //if (!this->R.onGPU){
+                  this->R.GPUptr = GPUR = GPUtransfer_buffer(const_cast<Q*>(R.ptr()),R.dim(0)*R.dim(0),true);
+                  *(this->R.onGPU) = true;
+                //}
+                //if (!this->T.onGPU){
+                  this->T.GPUptr = GPUT = GPUtransfer_buffer(const_cast<Q*>(T.ptr()),T.dim(0)*T.dim(0),true);
+                  *(this->T.onGPU) = true;
+                //}
+      
+
         }
 
         void make_approx(const Tensor<Q>& R,

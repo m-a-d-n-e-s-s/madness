@@ -760,17 +760,18 @@ namespace madness {
              //outArgs.push_back(ret1);
         //}
         //objT odef(w); //this relies on objT having a constructor with a World* argument
+        int maxc = 64;
         if (this->inObj.size() > 0){
             std::vector<objT*> tmpObj;
             std::vector<arg1T> tmpArgs;
 
-            if (inArgs.size() > 32){
+            if (inArgs.size() > maxc){
               unsigned int j;
-              for (j = 0; j < inArgs.size(); j+=32){
+              for (j = 0; j < inArgs.size(); j+=maxc){
                 tmpObj.clear();
                 tmpArgs.clear();
                 unsigned int k;
-                for (k = j; k < j+32 && k < inArgs.size(); k++){
+                for (k = j; k < j+maxc && k < inArgs.size(); k++){
                   tmpObj.push_back(inObj.at(k));
                   tmpArgs.push_back(inArgs.at(k));
                 }
