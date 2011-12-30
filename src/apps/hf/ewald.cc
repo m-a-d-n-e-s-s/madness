@@ -103,7 +103,7 @@ std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen 
   unsigned int rsize = rvecs.size();
   Vector<double,3> rvec = rvecs[rsize-1];
   double maxRlen2 = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
-  print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2);
+  if (world.rank() == 0) print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2);
 
   return rvecs;
 }
@@ -149,7 +149,7 @@ std::vector< Vector<double,3> > generate_G_vectors(World& world, double maxGlen 
   unsigned int gsize = gvecs.size();
   Vector<double,3> gvec = gvecs[gsize-1];
   double maxGlen2 = std::sqrt(gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2]);
-  print("G-max length requested:  ", maxGlen, "    G-max length:  ", maxGlen2);
+  if (world.rank() == 0) print("G-max length requested:  ", maxGlen, "    G-max length:  ", maxGlen2);
   return gvecs;
 
 }
@@ -168,8 +168,10 @@ public:
   EwaldNuclearPotentialFunctor(World& world, MolecularEntity* mentity, double alpha)
    : alpha(alpha), mentity(mentity)
   {
+    if (world.rank() == 0) print("EwaldNuclearPotentialFunctor [started]");
     rvecs = generate_R_vectors(world,100.0);
-    gvecs = generate_G_vectors(world,50.0);
+    gvecs = generate_G_vectors(world,1.0);
+    if (world.rank() == 0) print("gvecs size: ", gvecs.size());
     unsigned int natoms = mentity->natom();
     for (unsigned int ig = 1; ig < gvecs.size(); ig++)
     {
@@ -187,8 +189,9 @@ public:
                                      gvec[1]*tvec[1] + gvec[2]*tvec[2]));
         rhon += iatom.q*t1;
       }
-      gsfactor[ig] = rhon*std::exp(-G2/4.0/alpha/alpha)/G2;
+      gsfactor.push_back(rhon*std::exp(-G2/4.0/alpha/alpha)/G2);
     }
+    if (world.rank() == 0) print("EwaldNuclearPotentialFunctor [end]");
   }
 
   double operator()(const coordT& r) const
@@ -225,6 +228,7 @@ public:
     return rvalue;
   }
 
+  virtual ~EwaldNuclearPotentialFunctor() {}
 };
 //*************************************************************************
 
@@ -300,7 +304,7 @@ public:
 
 //*************************************************************************
 rfunctionT make_nuclear_charge_density(World& world,
-    const MolecularEntity& mentity, double thresh)
+    const MolecularEntity& mentity, double thresh = 1e-6)
 {
   std::vector<coordT> specialpts;
   for (int i = 0; i < mentity.natom(); i++)
@@ -388,22 +392,22 @@ void test_gaussian_num_coeffs(int argc, char** argv)
       //        print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a MADNESS exception");
   } catch (const madness::TensorException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a Tensor exception");
   } catch (const char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (const std::string& s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string (class) exception");
   } catch (const std::exception& e) {
-      print(e.what());
+      if (world.rank() == 0) print(e.what());
       error("caught an STL exception");
   } catch (...) {
       error("caught unhandled exception");
@@ -431,7 +435,7 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
   const double TWOPI = 2*constants::pi;
   double v = compute_volume();
 
-  mentity.print();
+  if (world.rank() == 0) mentity.print();
 
   // RECIPROCAL SPACE SUM
   int NG = 7;
@@ -493,7 +497,7 @@ void compute_madelung_energy_PWSCF(World& world, MolecularEntity mentity,
   s2 *= 0.5;
 //
   double_complex s3 = 0.0;
-  printf("\n");
+  if (world.rank() == 0) printf("\n");
   double sqrtpi = std::sqrt(constants::pi);
   for (unsigned int ia = 0; ia < natoms; ia++)
   {
@@ -644,60 +648,44 @@ void test_nuclear_potential(int argc, char** argv)
       mentity.add_atom(L/2,L/2,L/2,1,3);
       mentity.center();
 
-      mentity.print();
+      if (world.rank() == 0) mentity.print();
 
-//        int ntype = mentity.get_num_types();
-//        int n1 = mentity.get_num_atoms_type(9);
-//        int n2 = mentity.get_num_atoms_type(3);
-//        printf("Number of type of atoms: %d\n", ntype);
-//        printf("F: %d\n", n1);
-//        printf("Li: %d\n", n2);
+      if (world.rank() == 0) print("Making Ewald nuclear potential ...");
+      rfunctionT npot2 = rfactoryT(world).functor(
+          rfunctorT(new EwaldNuclearPotentialFunctor(world, &mentity, 0.2))).
+          thresh(1e-6).initial_level(6).truncate_on_project();
+      if (world.rank() == 0) print("Making charge density ...");
+      rfunctionT ndensity = make_nuclear_charge_density(world,mentity,1e-6);
+      SeparatedConvolution<double,3> cop =
+          CoulombOperator(world,1e-2,FunctionDefaults<3>::get_thresh() * 0.1);
+      if (world.rank() == 0) print("Making normal nuclear potential ...");
+      rfunctionT npot1 = apply(cop,ndensity);
+      if (world.rank() == 0) print("Creating difference potential ...");
+      rfunctionT npotd = npot1-npot2;
+      double nptr = npotd.trace();
+      if (world.rank() == 0) print("The trace of the difference of potentials: ", nptr);
 
-//        for (unsigned int i = 0; i < mentity.atoms.size(); i++)
-//        {
-//          printf("atom %d --- (%8.4f, %8.4f, %8.4f)\n");
-//        }
-
-
-//        for (unsigned int i = 0; i < 800; i++)
-//        {
-//          compute_madelung_energy2(world, mentity, 0.05 + i*0.005);
-//        }
-
-//        compute_madelung_energy_PWSCF(world,mentity,1.14017543,100.0,100.0);
-      compute_madelung_energy_PWSCF(world,mentity,1.0,50.0,100.0);
-      compute_madelung_energy_PWSCF(world,mentity,0.3,50.0,100.0);
-
-//        for (unsigned i = 0; i < 20; i++)
-//        {
-//          compute_madelung_energy2(world, mentity, 0.004, 0.0+i*50.0, 200.0);
-//        }
-
-//        compute_madelung_energy2(world, mentity, 1.2, 100.0, 100.0);
-//        compute_madelung_energy2(world, mentity, 1.3, 100.0, 100.0);
-//        compute_madelung_energy2(world, mentity, 1.4, 100.0, 100.0);
-//        compute_madelung_energy2(world, mentity, 1.5, 100.0, 100.0);
 
   } catch (const MPI::Exception& e) {
       //        print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a MADNESS exception");
   } catch (const madness::TensorException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a Tensor exception");
   } catch (const char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (const std::string& s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string (class) exception");
   } catch (const std::exception& e) {
-      print(e.what());
+      if (world.rank() == 0) print(e.what());
       error("caught an STL exception");
   } catch (...) {
       error("caught unhandled exception");
@@ -730,7 +718,7 @@ void test_nuclear_energy(int argc, char** argv)
       mentity.add_atom(L/2,L/2,L/2,1,3);
       mentity.center();
 
-      mentity.print();
+      if (world.rank() == 0) mentity.print();
 
 //        int ntype = mentity.get_num_types();
 //        int n1 = mentity.get_num_atoms_type(9);
@@ -773,22 +761,22 @@ void test_nuclear_energy(int argc, char** argv)
       //        print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a MADNESS exception");
   } catch (const madness::TensorException& e) {
-      print(e);
+      if (world.rank() == 0) print(e);
       error("caught a Tensor exception");
   } catch (const char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (char* s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string exception");
   } catch (const std::string& s) {
-      print(s);
+      if (world.rank() == 0) print(s);
       error("caught a string (class) exception");
   } catch (const std::exception& e) {
-      print(e.what());
+      if (world.rank() == 0) print(e.what());
       error("caught an STL exception");
   } catch (...) {
       error("caught unhandled exception");
@@ -803,7 +791,8 @@ void test_nuclear_energy(int argc, char** argv)
 int main(int argc, char** argv)
 {
 //    test_nuclear_energy(argc,argv);
-  test_gaussian_num_coeffs(argc,argv);
+  //test_gaussian_num_coeffs(argc,argv);
+  test_nuclear_potential(argc,argv);
   return 0;
 }
 
