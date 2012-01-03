@@ -237,6 +237,7 @@ static inline int get_thread_id() {
 
 struct PoolTaskInterface {
     virtual void run() = 0;
+    virtual ~PoolTaskInterface() { }
 };
 
 class ThreadPool {
