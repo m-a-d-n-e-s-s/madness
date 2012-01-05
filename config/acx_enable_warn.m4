@@ -43,7 +43,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
         acx_enable_warn_flags=""
       ;;
       Intel)
-        acx_enable_warn_flags="-Wall -diag-disable remark,279,654"
+        acx_enable_warn_flags="-Wall -diag-disable remark,279,654,1125"
       ;;
       IBM)
         acx_enable_warn_flags=""
