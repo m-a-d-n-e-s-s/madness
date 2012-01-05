@@ -362,13 +362,19 @@ typedef UINT64_T uint64_t;
 //#include <world/worldobj.h>
 //#include <world/worldtime.h>
 
+//extern "C" pthread_mutex_t * apply_mutexes;
+//extern "C" void * apply_hashmaps;
+//extern "C" void * apply_hashmaps_ru;
+//extern "C" void * apply_hashmaps_rvt;
+
 #define HAVE_GPU 0
 #define BACKTO_CPU 0
 #define SIM_GPU 0
 #define JUST_AGG 0
 #define THREE_SPLIT 1
 #define NUM_STREAMS 16
-#define GPU_MINTASKS 6 
+#define GPU_MINTASKS 6
+//#define NUM_MUTEXES 37
 namespace madness {
 
 //    void ** GPU_streams;

@@ -102,6 +102,8 @@ template <typename T, typename Q>
 template <typename T>
 T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
 template <typename T>
+T* GPUtransfer_buffernoalloc(T* GPU_buf, T* CPU_buf, unsigned int offset);
+template <typename T>
 void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset);
 template <typename W>
        void GPUdelete_buffer(W* buf) ;   

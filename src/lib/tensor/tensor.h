@@ -347,8 +347,6 @@ namespace madness {
         }
 
     public:
-        bool * onGPU;
-        T* GPUptr;
 
         /// C++ typename of this tensor.
         typedef T type;
@@ -362,8 +360,6 @@ namespace madness {
         /// Default constructor does not allocate any data and sets ndim=-1, size=0, _p=0, and id.
         Tensor() : _p(0) {
             _id = TensorTypeData<T>::id;
-             onGPU = new bool;
-             *onGPU = false;
         }
 
         /// Copy constructor is shallow (same as assignment)
@@ -400,7 +396,6 @@ namespace madness {
                     _dim[i] = t._dim[i];
                     _stride[i] = t._stride[i];
                 }
-                onGPU = t.onGPU;
             }
             return *this;
         }
@@ -419,8 +414,6 @@ namespace madness {
         explicit Tensor(int d0) : _p(0) {
             _dim[0] = d0;
             allocate(1, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 1-d tensor
@@ -429,8 +422,6 @@ namespace madness {
         explicit Tensor(long d0) : _p(0) {
             _dim[0] = d0;
             allocate(1, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 2-d tensor
@@ -440,8 +431,6 @@ namespace madness {
         explicit Tensor(long d0, long d1) : _p(0) {
             _dim[0] = d0; _dim[1] = d1;
             allocate(2, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 3-d tensor
@@ -452,8 +441,6 @@ namespace madness {
         explicit Tensor(long d0, long d1, long d2) : _p(0) {
             _dim[0] = d0; _dim[1] = d1; _dim[2] = d2;
             allocate(3, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 4-d tensor
@@ -465,8 +452,6 @@ namespace madness {
         explicit Tensor(long d0, long d1, long d2, long d3) : _p(0) {
             _dim[0] = d0; _dim[1] = d1; _dim[2] = d2; _dim[3] = d3;
             allocate(4, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 5-d tensor
@@ -479,8 +464,6 @@ namespace madness {
         explicit Tensor(long d0, long d1, long d2, long d3, long d4) : _p(0) {
             _dim[0] = d0; _dim[1] = d1; _dim[2] = d2; _dim[3] = d3; _dim[4] = d4;
             allocate(5, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and zero new 6-d tensor
@@ -494,8 +477,6 @@ namespace madness {
         explicit Tensor(long d0, long d1, long d2, long d3, long d4, long d5) {
             _dim[0] = d0; _dim[1] = d1; _dim[2] = d2; _dim[3] = d3; _dim[4] = d4; _dim[5] = d5;
             allocate(6, _dim, true);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Create and optionally zero new n-d tensor. This is the most general constructor.
@@ -504,8 +485,6 @@ namespace madness {
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
             allocate(d.size(),&(d[0]),dozero);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Politically incorrect general constructor.
@@ -515,8 +494,6 @@ namespace madness {
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(long nd, const long d[], bool dozero=true) : _p(0) {
             allocate(nd,d,dozero);
-            onGPU = new bool;
-            *onGPU = false;
         }
 
         /// Inplace fill tensor with scalar
@@ -525,7 +502,6 @@ namespace madness {
         /// @return %Reference to this tensor
         Tensor<T>& operator=(T x) {
             UNARY_OPTIMIZED_ITERATOR(T,(*this),*_p0 = x);
-            *onGPU = false;
             return *this;
         }
 
@@ -545,7 +521,6 @@ namespace madness {
         template <typename Q>
         Tensor<T>& operator+=(const Tensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, *_p0 += *_p1);
-            onGPU = false;
             return *this;
         }
 
@@ -556,7 +531,6 @@ namespace madness {
         template <typename Q>
         Tensor<T>& operator-=(const Tensor<Q>& t) {
             BINARY_OPTIMIZED_ITERATOR(T, (*this), const T, t, *_p0 -= *_p1);
-            onGPU = false;
             return *this;
         }
 
@@ -1838,7 +1812,7 @@ namespace madness {
             return theend;
         }
 
-        virtual ~Tensor() {/*if (onGPU) {delete onGPU; onGPU=0;}*/ }
+        virtual ~Tensor() { }
 
         /// Frees all memory and resests to state of default constructor
         void clear() {deallocate();}

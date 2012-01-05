@@ -671,15 +671,39 @@ template<>  void cu_mTxmq(long m, long n,long k,float *C, const float *A, const 
 template <typename T>
 T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
 	T *GPU_buf;
-	cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
-        if (copy)
-	  cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+	cudaError_t err = cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
+        if (err != cudaSuccess){
+          perror("Could not allocate GPU memory   ");
+          exit(-1);
+        }
+        if (copy){
+	  err = cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+          if (err != cudaSuccess){
+            perror("Could not memcpy to GPU memory   ");
+            exit(-1);
+          }
+        }
 	return GPU_buf;
 }
 template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset, bool copy);
 template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset, bool copy);
 template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
 template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
+
+
+template <typename T>
+T* GPUtransfer_buffernoalloc(T* GPU_buf, T* CPU_buf, unsigned int offset){
+	cudaError_t err = cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
+        if (err != cudaSuccess){
+          perror("Could not memcpy to GPU memory   ");
+          exit(-1);
+        }
+	return GPU_buf;
+}
+template double* GPUtransfer_buffernoalloc(double* GPU_buf, double* CPU_buf, unsigned int offset);
+template std::complex<double>* GPUtransfer_buffernoalloc(std::complex<double>* GPU_buf, std::complex<double>* CPU_buf, unsigned int offset);
+template float* GPUtransfer_buffernoalloc(float* GPU_buf, float* CPU_buf, unsigned int offset);
+template std::complex<float>* GPUtransfer_buffernoalloc(std::complex<float>* GPU_buf, std::complex<float>* CPU_buf, unsigned int offset);
 
 
 template <typename T>

@@ -35,6 +35,7 @@
 #include <world/world.h>
 #include <world/worldmem.h>
 #include <world/worldtime.h>
+#include <world/worldhashmap.h>
 #include <world/GPU_streams.h>
 #include <cstdlib>
 #include <sstream>
@@ -51,6 +52,10 @@
 #endif
 void ** GPU_streams;
 void * cublas_handle;
+//pthread_mutex_t * apply_mutexes;
+//void * apply_hashmaps;
+//void * apply_hashmaps_ru;
+//void * apply_hashmaps_rvt;
 //extern cudaStream_t *streams;
 extern "C" void** streams_initialize(unsigned int, void *);
 extern "C" void  streams_destroy(void **,unsigned int);
@@ -161,6 +166,16 @@ nanosleep(&t, NULL);
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
+        //apply_mutexes = new pthread_mutex_t[NUM_MUTEXES];
+        //ConcurrentHashMap<unsigned long long, void *> * temp = new ConcurrentHashMap<unsigned long long, void *>[NUM_MUTEXES];
+        //apply_hashmaps = (void *)temp;
+        //temp = new ConcurrentHashMap<unsigned long long, void *>[NUM_MUTEXES];
+        //apply_hashmaps_ru = (void *)temp;
+        //temp = new ConcurrentHashMap<unsigned long long, void *>[NUM_MUTEXES];
+        //apply_hashmaps_rvt = (void *)temp;
+        //for (int i = 0; i < NUM_MUTEXES; i++){
+          //pthread_mutex_init(&apply_mutexes[i], NULL);
+        //}
         printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,GPU_MINTASKS);
     }
 

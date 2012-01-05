@@ -34,6 +34,7 @@
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
 #include <world/array.h>
+#include <world/world.h>
 #include <mra/mra.h>
 #include <constants.h>
 #include <limits.h>
@@ -43,6 +44,10 @@
 #include <linalg/tensor_lapack.h>
 #include <algorithm>
 
+extern "C" pthread_mutex_t * apply_mutexes;                                   
+extern "C" void * apply_hashmaps;
+extern "C" void * apply_hashmaps_ru;
+extern "C" void * apply_hashmaps_rvt;
 /// \file mra/convolution1d.h
 /// \brief Compuates most matrix elements over 1D operators (including Gaussians)
 
@@ -151,6 +156,12 @@ namespace madness {
         double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
 
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
+            GPUR = 0;
+            GPUT = 0;
+            GPURU = 0;
+            GPURVT = 0;
+            GPUTU = 0;
+            GPUTVT = 0;
             Rnormf = R.normf();
             // Making the approximations is expensive ... only do it for
             // significant components
@@ -165,25 +176,106 @@ namespace madness {
                         NS(i,j) = 0.0;
                 NSnormf = NS.normf();
             
-                GPURU = GPUtransfer_buffer(const_cast<Q*>(RU.ptr()),RU.dim(0)*RU.dim(0),true);
-                GPURVT = GPUtransfer_buffer(const_cast<Q*>(RVT.ptr()),RVT.dim(0)*RVT.dim(0),true);
-                GPUTU = GPUtransfer_buffer(const_cast<Q*>(TU.ptr()),TU.dim(0)*TU.dim(0),true);
-                GPUTVT = GPUtransfer_buffer(const_cast<Q*>(TVT.ptr()),TVT.dim(0)*TVT.dim(0),true);
             }
             else {
                 Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
             }
-                //if (!this->R.onGPU){
-                  this->R.GPUptr = GPUR = GPUtransfer_buffer(const_cast<Q*>(R.ptr()),R.dim(0)*R.dim(0),true);
-                  *(this->R.onGPU) = true;
-                //}
-                //if (!this->T.onGPU){
-                  this->T.GPUptr = GPUT = GPUtransfer_buffer(const_cast<Q*>(T.ptr()),T.dim(0)*T.dim(0),true);
-                  *(this->T.onGPU) = true;
-                //}
-      
+
+          /*
+          unsigned long long addr_R = (unsigned long long)(&R);
+          unsigned long long addr_T = (unsigned long long)(&T);
+	  print(&R," ",&(this->R)," ",int(R.instanceNumber));
+	  pthread_mutex_lock(&apply_mutexes[addr_R%NUM_MUTEXES]);
+	  
+	  ConcurrentHashMap<unsigned long long, void *>::iterator it = ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_R%NUM_MUTEXES].find(addr_R);
+	  if (it != ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_R%NUM_MUTEXES].end()){ 
+	    GPUR = (Q*)(it->second);
+	    STARTt_TIMER;
+	    GPUR = GPUtransfer_buffer(const_cast<Q*>(R.ptr()),R.dim(0)*R.dim(0),true);
+	    ENDt_TIMER("R transfer");
+	  }
+	  else{
+	  GPUR = GPUtransfer_buffer(const_cast<Q*>(R.ptr()),R.dim(0)*R.dim(0),true);
+	    ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_R%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_R, (void *)GPUR));
+	  }
+	    if (Rnormf > 1e-20) {
+	      GPURU = GPUtransfer_buffer(const_cast<Q*>(RU.ptr()),RU.dim(0)*RU.dim(0),true);
+	      ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps_ru)[addr_R%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_R, (void *)GPURU));
+	      GPURVT = GPUtransfer_buffer(const_cast<Q*>(RVT.ptr()),RVT.dim(0)*RVT.dim(0),true);
+	      ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps_rvt)[addr_R%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_R, (void *)GPURVT));
+	    }
+
+	  pthread_mutex_unlock(&apply_mutexes[addr_R%NUM_MUTEXES]);
+	  print(&T," ",&(this->T)," ",T.instanceNumber);
+	  pthread_mutex_lock(&apply_mutexes[addr_T%NUM_MUTEXES]);
+
+	  it = ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_T%NUM_MUTEXES].find(addr_T);
+	  if (it != ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_T%NUM_MUTEXES].end()){ 
+	    GPUT = (Q*)(it->second);
+	    GPUT = GPUtransfer_buffer(const_cast<Q*>(T.ptr()),T.dim(0)*T.dim(0),true); 
+	  }
+	  else{
+	  GPUT = GPUtransfer_buffer(const_cast<Q*>(T.ptr()),T.dim(0)*T.dim(0),true); 
+	    ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps)[addr_T%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_T, (void *)GPUT));
+	  }
+
+	  if (Rnormf > 1e-20) {
+	      GPUTU = GPUtransfer_buffer(const_cast<Q*>(TU.ptr()),TU.dim(0)*TU.dim(0),true);
+	      ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps_ru)[addr_T%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_T, (void *)GPUTU));
+	      GPUTVT = GPUtransfer_buffer(const_cast<Q*>(TVT.ptr()),TVT.dim(0)*TVT.dim(0),true);
+	      ((ConcurrentHashMap<unsigned long long, void *> *)apply_hashmaps_rvt)[addr_T%NUM_MUTEXES].insert(std::pair<unsigned long long, void *>((unsigned long long)addr_T, (void *)GPUTVT));
+	  }
+	  
+
+	  pthread_mutex_unlock(&apply_mutexes[addr_T%NUM_MUTEXES]);
+          */
 
         }
+
+        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer) : R(R), T(T) {
+            memcpy(apply_buffer + *apply_offset, R.ptr(), R.dim(0)*R.dim(0)*sizeof(Q));
+            GPUR = GPUapply_buffer + *apply_offset;
+            *apply_offset += R.dim(0)*R.dim(0);
+            memcpy(apply_buffer + *apply_offset, T.ptr(), T.dim(0)*T.dim(0)*sizeof(Q));
+            GPUT = GPUapply_buffer + *apply_offset;
+            *apply_offset += T.dim(0)*T.dim(0);
+            GPURU = 0;
+            GPURVT = 0;
+            GPUTU = 0;
+            GPUTVT = 0;
+            Rnormf = R.normf();
+            // Making the approximations is expensive ... only do it for
+            // significant components
+            if (Rnormf > 1e-20) {
+                Tnormf = T.normf();
+                make_approx(T, TU, Ts, TVT, Tnorm);
+                make_approx(R, RU, Rs, RVT, Rnorm);
+                int k = T.dim(0);
+                Tensor<Q> NS = copy(R);
+                for (int i=0; i<k; ++i)
+                    for (int j=0; j<k; ++j)
+                        NS(i,j) = 0.0;
+                NSnormf = NS.normf();
+            
+                memcpy(apply_buffer + *apply_offset, RU.ptr(), RU.dim(0)*RU.dim(0)*sizeof(Q));
+                GPURU = GPUapply_buffer + *apply_offset;
+                *apply_offset += RU.dim(0)*RU.dim(0);
+                memcpy(apply_buffer + *apply_offset, RVT.ptr(), RVT.dim(0)*RVT.dim(0)*sizeof(Q));
+                GPURVT = GPUapply_buffer + *apply_offset;
+                *apply_offset += RVT.dim(0)*RVT.dim(0);
+                memcpy(apply_buffer + *apply_offset, TU.ptr(), TU.dim(0)*TU.dim(0)*sizeof(Q));
+                GPUTU = GPUapply_buffer + *apply_offset;
+                *apply_offset += TU.dim(0)*TU.dim(0);
+                memcpy(apply_buffer + *apply_offset, TVT.ptr(), TVT.dim(0)*TVT.dim(0)*sizeof(Q));
+                GPUTVT = GPUapply_buffer + *apply_offset;
+                *apply_offset += TVT.dim(0)*TVT.dim(0);
+            }
+            else {
+                Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
+            }
+ 
+        }
+
 
         void make_approx(const Tensor<Q>& R,
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
@@ -228,6 +320,7 @@ namespace madness {
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
+        mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cacheGPU;
 
         virtual ~Convolution1D() {};
 
@@ -367,6 +460,72 @@ namespace madness {
             ns_cache.set(n,lx,ConvolutionData1D<Q>(R,T));
 
             return ns_cache.getptr(n,lx);
+        };
+
+        /// Returns a pointer to the cached nonstandard form of the operator
+        const ConvolutionData1D<Q>* nonstandardGPU(Level n, Translation lx, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer) const {
+            const ConvolutionData1D<Q>* p = ns_cacheGPU.getptr(n,lx);
+            if (p) return p;
+
+            PROFILE_MEMBER_FUNC(Convolution1D);
+
+            Tensor<Q> R, T;
+            if (!get_issmall(n, lx)) {
+                Translation lx2 = lx*2;
+                Slice s0(0,k-1), s1(k,2*k-1);
+
+                const Tensor<Q> r0 = rnlij(n+1,lx2);
+                const Tensor<Q> rp = rnlij(n+1,lx2+1);
+                const Tensor<Q> rm = rnlij(n+1,lx2-1);
+
+                R = Tensor<Q>(2*k,2*k);
+
+//                 R(s0,s0) = r0;
+//                 R(s1,s1) = r0;
+//                 R(s1,s0) = rp;
+//                 R(s0,s1) = rm;
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nscopy);
+                    copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
+                }
+
+                //print("R ", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nstran);
+                    R = transform(R,hgT);
+                }
+
+                //print("RX", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+                {
+                    PROFILE_BLOCK(Convolution1D_trans);
+
+                    Tensor<Q> RT(2*k,2*k);
+                    fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
+                    R = RT;
+
+                    //print("RT", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+                    //T = copy(R(s0,s0));
+                    T = Tensor<Q>(k,k);
+                    copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
+                }
+
+                //print("NS", n, lx, R.normf(), T.normf());
+            }
+
+            ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer);
+            const ConvolutionData1D<Q>* p1 = ns_cache.getptr(n,lx);
+            if (!p) ns_cache.set(n,lx,cd1d);
+            ns_cacheGPU.set(n,lx,cd1d);
+
+            return ns_cacheGPU.getptr(n,lx);
         };
 
         Q phase(double R) const {
