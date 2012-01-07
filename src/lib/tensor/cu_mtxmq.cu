@@ -690,6 +690,20 @@ template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf,
 template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
 template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
 
+template <typename T>
+T* alloc_host(T** CPU_buf, unsigned int size){
+	cudaError_t err = cudaMallocHost((void **)CPU_buf,size*sizeof(T));
+        if (err != cudaSuccess){
+          perror("Could not allocate CPU host memory   ");
+          exit(-1);
+        }
+	return *CPU_buf;
+}
+template double* alloc_host(double** CPU_buf, unsigned int size);
+template std::complex<double>* alloc_host(std::complex<double>** CPU_buf, unsigned int size);
+template float* alloc_host(float** CPU_buf, unsigned int size);
+template std::complex<float>* alloc_host(std::complex<float>** CPU_buf, unsigned int size);
+
 
 template <typename T>
 T* GPUtransfer_buffernoalloc(T* GPU_buf, T* CPU_buf, unsigned int offset){
@@ -724,6 +738,15 @@ template   void GPUdelete_buffer(double* buf);
 template   void GPUdelete_buffer(std::complex<double>* buf);
 template   void GPUdelete_buffer(float* buf);
 template   void GPUdelete_buffer(std::complex<float>* buf);
+
+template <typename W>
+       void dealloc_host(W* buf){
+	cudaFreeHost(buf);
+}
+template   void dealloc_host(double* buf);
+template   void dealloc_host(std::complex<double>* buf);
+template   void dealloc_host(float* buf);
+template   void dealloc_host(std::complex<float>* buf);
 
 template <typename T>
 T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){

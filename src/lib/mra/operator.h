@@ -40,6 +40,8 @@
 
 //extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
 
+#include <pthread.h>
+
 #include <mra/mra.h>
 #include <limits.h>
 #include <mra/adquad.h>
@@ -53,6 +55,7 @@
 #include <mra/displacements.h>
 
 #include <world/GPU_streams.h>
+#include <tensor/cu_mtxmq.h>
 
 extern "C" void streams_synchronize(void **,unsigned int);
 extern "C" void device_synchronize(void **,unsigned int);
@@ -106,6 +109,7 @@ namespace madness {
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > dataGPU;
+        mutable pthread_mutex_t apply_lock;
         Q* apply_buffer;
         Q* GPUapply_buffer;
         mutable unsigned int apply_prev_offset;
@@ -360,7 +364,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
             for (std::size_t d=0; d<NDIM; ++d) {
-                op.ops[d] = ops[mu].getop(d)->nonstandardGPU(n, disp.translation()[d], apply_buffer, &apply_curr_offset, GPUapply_buffer);
+                op.ops[d] = ops[mu].getop(d)->nonstandardGPU(n, disp.translation()[d], apply_buffer, &apply_curr_offset, GPUapply_buffer, const_cast<pthread_mutex_t*>(&apply_lock));
             }
             op.norm = munorm2(n, op.ops)*std::abs(ops[mu].getfac());
 
@@ -418,7 +422,7 @@ namespace madness {
               return p;
             }
             else{
-              //print("NOT");
+              print("NOT");
             }
 
             SeparatedConvolutionData<Q,NDIM> op(rank);
@@ -479,7 +483,9 @@ namespace madness {
               this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
             }
 
-            apply_buffer = new Q[apply_buffer_maxsize];
+            pthread_mutex_init(&apply_lock, NULL);
+            //apply_buffer = new Q[apply_buffer_maxsize];
+            alloc_host(&apply_buffer,apply_buffer_maxsize);
             GPUapply_buffer = GPUtransfer_buffer(apply_buffer, apply_buffer_maxsize, false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
@@ -525,7 +531,9 @@ namespace madness {
             }
             this->process_pending();
 
-            apply_buffer = new Q[apply_buffer_maxsize];
+            pthread_mutex_init(&apply_lock, NULL);
+            //apply_buffer = new Q[apply_buffer_maxsize];
+            alloc_host(&apply_buffer,apply_buffer_maxsize);
             GPUapply_buffer = GPUtransfer_buffer(apply_buffer, apply_buffer_maxsize, false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
@@ -569,7 +577,9 @@ namespace madness {
                 }
             }
 
-            apply_buffer = new Q[apply_buffer_maxsize];
+            pthread_mutex_init(&apply_lock, NULL);
+            //apply_buffer = new Q[apply_buffer_maxsize];
+            alloc_host(&apply_buffer,apply_buffer_maxsize);
             GPUapply_buffer = GPUtransfer_buffer(apply_buffer, apply_buffer_maxsize, false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
@@ -611,14 +621,16 @@ namespace madness {
                 }
             }
 
-            apply_buffer = new Q[apply_buffer_maxsize];
+            pthread_mutex_init(&apply_lock, NULL);
+            //apply_buffer = new Q[apply_buffer_maxsize];
+            alloc_host(&apply_buffer,apply_buffer_maxsize);
             GPUapply_buffer = GPUtransfer_buffer(apply_buffer, apply_buffer_maxsize, false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
 
         }
 
-        virtual ~SeparatedConvolution() { delete[] apply_buffer; GPUdelete_buffer(GPUapply_buffer); }
+        virtual ~SeparatedConvolution() { dealloc_host(apply_buffer); GPUdelete_buffer(GPUapply_buffer); }
 
         const BoundaryConditions<NDIM>& get_bc() const {return bc;}
 
@@ -13090,6 +13102,608 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 
             delete[] w1temp;
             delete[] w1temp2;
+            delete[] w1ptr;
+            delete[] w2ptr;
+            delete[] w1ptr2;
+            delete[] w2ptr2;
+            delete[] fptr;
+            delete[] f0ptr;
+            delete[] resultptr;
+            delete[] result0ptr;
+
+            GPUdelete_buffer(rptr_arrayGPU); //GPU
+            GPUdelete_buffer(r0ptr_arrayGPU); //GPU
+            GPUdelete_buffer(f0ptr_arrayGPU); //GPU
+            GPUdelete_buffer(fptr_arrayGPU);  //GPU
+
+            delete[] args; 
+            
+            delete[] r_array;
+            delete[] r0_array;
+            delete[] argstol_array;
+            delete[] argsfac_array;
+            delete[] argsdest_array;
+            delete[] coeffs_array;
+            delete[] tol_array;
+            delete[] f_array;
+            delete[] f0_array;
+           
+            for (i = 0; i < inArgs.size(); i++){
+              unsigned int j;
+              for (j = 0; j < rank; j++){
+                delete trans[i][j];
+                delete trans2[i][j]; 
+              }
+              delete trans[i];
+              delete trans2[i];
+            }
+            delete trans;
+            delete trans2;
+
+            delete transU_CPU;
+            delete trans2U_CPU;
+            delete transVT_CPU;
+            delete trans2VT_CPU;
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete doit2[i];
+              delete doit1[i];
+            }
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete condition[i];
+            } 
+            delete condition;
+
+            delete n_array;
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete mufacs[i];
+            } 
+            delete mufacs;
+
+            return outArg;
+        }
+
+        template <typename T, typename opT>
+        std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> >
+        apply_allComputeGPUIndKernels_Cublas5(std::vector<std::tr1::tuple<keyT, keyT, keyT, 
+                                      double, double, double, 
+                                      Tensor<TENSOR_RESULT_TYPE(T,Q)>, 
+                                      WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > > > inArgs, 
+                      std::vector< SeparatedConvolution<Q,NDIM>* > inObj) const {
+
+            print("      apply_allComputeGPU              ",inArgs.size());
+            print("-----------BATCH-----------------");
+            
+           typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+	   typedef resultT R;
+	   typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+
+            unsigned int i;
+
+            STARTt_TIMER;
+            //outside S
+            //condition, doit2, doit1, trans, trans2, v2kref, vkref, f, f0 
+            //coeffs, argsdest, argstol, argsfac, n, w1,w2,w5_[off]
+
+            unsigned int* w1_offarray = new unsigned int[inArgs.size()]; //only on GPU
+            unsigned int* w2_offarray = new unsigned int[inArgs.size()]; //only on GPU
+            unsigned int* w5_offarray = new unsigned int[inArgs.size()]; //not used, because no shrink
+
+            bool** condition;
+
+            condition = new bool*[inArgs.size()];
+           
+            for (i = 0; i < inArgs.size(); i++){
+              condition[i] = new bool[rank];
+            }
+
+            //on CPU
+            Tensor<R> * r_array = new Tensor<R>[inArgs.size()];
+            Tensor<R> * r0_array = new Tensor<R>[inArgs.size()];
+            double * argstol_array = new double[inArgs.size()]; 
+            double * argsfac_array = new double[inArgs.size()]; 
+            keyT * argsdest_array = new keyT[inArgs.size()];
+            dcT ** coeffs_array = new dcT*[inArgs.size()]; 
+            double * tol_array = new double[inArgs.size()]; 
+            Tensor<T> * f_array = new Tensor<T>[inArgs.size()];
+            Tensor<T> * f0_array = new Tensor<T>[inArgs.size()];           
+ 
+            Transformation *** trans;
+            Transformation *** trans2;
+            trans = new Transformation**[inArgs.size()];
+            trans2 = new Transformation**[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+                  unsigned int j;
+                  trans[i] = new Transformation*[rank];
+                  trans2[i] = new Transformation*[rank];
+                  for (j = 0; j < rank; j++){
+                    trans[i][j] = new Transformation[NDIM];
+                    trans2[i][j] = new Transformation[NDIM];
+                  }
+            }
+
+	    const long twok = 2*k;
+	    long break_even;
+	   
+            Q* transU_CPU = new Q[twok*twok * (NDIM*rank*inArgs.size())]; 
+            Q* trans2U_CPU = new Q[k*k * (NDIM*rank*inArgs.size())]; 
+            Q* transVT_CPU = new Q[twok*twok * (NDIM*rank*inArgs.size())]; 
+            Q* trans2VT_CPU = new Q[k*k * (NDIM*rank*inArgs.size())]; 
+ 
+	    if (NDIM==1) break_even = long(0.5*twok);
+	    else if (NDIM==2) break_even = long(0.6*twok);
+	    else if (NDIM==3) break_even=long(0.65*twok);
+	    else break_even=long(0.7*twok);
+	    
+	    long break_even2;
+	    if (NDIM==1) break_even2 = long(0.5*k);
+	    else if (NDIM==2) break_even2 = long(0.6*k);
+	    else if (NDIM==3) break_even2=long(0.65*k);
+	    else break_even2=long(0.7*k);
+            
+            Level * n_array = new Level[inArgs.size()];
+
+            bool** doit2;
+            bool** doit1;
+            doit2 = new bool*[inArgs.size()];
+            doit1 = new bool*[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+              doit2[i] = new bool[rank];
+              doit1[i] = new bool[rank];
+            }
+
+            Q** mufacs = new Q*[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+              mufacs[i] = new Q[rank];
+            }
+
+            std::tr1::tuple<keyT, keyT, keyT,
+                  double, double, double,
+                  Tensor<TENSOR_RESULT_TYPE(T,Q)>,
+                  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > > ** args = new std::tr1::tuple<keyT, keyT, keyT,
+                                                                                           double, double, double,
+                                                                                           Tensor<TENSOR_RESULT_TYPE(T,Q)>,
+                                                                                           WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > > *[inArgs.size()];
+
+            std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> > outArg;
+            ENDt_TIMER("alloc & init");
+
+            //STARTt_TIMER; 
+            for (i = 0; i < inArgs.size(); i++){
+                  args[i] = &(inArgs.at(i));
+
+		  keyT& source = std::tr1::get<0>(*args[i]);
+		  keyT& shift = std::tr1::get<1>(*args[i]);
+
+	          argsdest_array[i] = std::tr1::get<2>(*args[i]);
+	          argstol_array[i] = std::tr1::get<3>(*args[i]);
+	          argsfac_array[i] = std::tr1::get<4>(*args[i]);
+	          double argscnorm = std::tr1::get<5>(*args[i]);
+	          Tensor<R>& coeff = std::tr1::get<6>(*args[i]);
+	          coeffs_array[i] = &(std::tr1::get<7>(*args[i]));
+	          const std::vector<long>& vkref = inObj.at(i)->vk;
+	          const std::vector<long>& v2kref = inObj.at(i)->v2k;
+	          const std::vector<Slice>& s0ref = inObj.at(i)->s0;
+
+	          tol_array[i] = argstol_array[i]/argsfac_array[i]/argscnorm;
+
+		  const Tensor<T>* input = &coeff;
+		  Tensor<T> dummy;
+
+		  if (coeff.dim(0) == k) {
+			// This processes leaf nodes with only scaling
+			// coefficients ... FuncImpl::apply by default does not
+			// apply the operator to these since for smoothing operators
+			// it is not necessary.  It is necessary for operators such
+			// as differentiation and time evolution and will also occur
+			// if the application of the operator widens the tree.
+			dummy = Tensor<T>(v2kref);
+			dummy(s0ref) = coeff;
+			input = &dummy;
+		  }
+		  else {
+	              MADNESS_ASSERT(coeff.dim(0)==2*k);
+		  }
+
+                  tol_array[i] = tol_array[i]/rank;
+ 
+		  const Tensor<T> f0 = copy(coeff(s0ref));
+                  f0_array[i] = f0;
+		    
+		  const Tensor<T>& f = *input;
+                  f_array[i] = f;
+	
+                  print(i);
+                  STARTt_TIMER;	
+                  const SeparatedConvolutionData<Q,NDIM>* op = getopGPU(source.level(), shift);
+                  ENDt_TIMER("op");
+		  Level n = source.level();
+
+                  n_array[i] = n;
+
+                  for (int mu=0; mu<rank ; ++mu) {
+		      const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+		      if (muop.norm > tol_array[i]) {
+                        condition[i][mu] = true;
+		        Q fac = inObj.at(i)->ops[mu].getfac(); //same for the same mu and SeparatedConvolution instance
+
+		        //glue
+		        const ConvolutionData1D<Q>* const* ops/*[NDIM]*/ = muop.ops;
+		        double tol1 = tol_array[i]/std::abs(fac);
+		        const Q mufac = fac;
+                        mufacs[i][mu] = fac;
+		     
+		        double Rnorm = 1.0;
+		        for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+		        if (Rnorm == 0.0){
+                          condition[i][mu] = false;
+                          continue;
+                        }
+
+		        tol1 = tol1/(Rnorm*NDIM);  // Errors are relative within here
+
+		        // Determine rank of SVD to use or if to use the full matrix
+		        for (std::size_t d=0; d<NDIM; ++d) {
+			  long r1;
+			  for (r1=0; r1<twok; ++r1) {
+			    if (ops[d]->Rs[r1] < tol1) break;
+			  }
+			  if (r1 >= break_even) {
+			    trans[i][mu][d].r = twok;
+			    
+                            trans[i][mu][d].U = ops[d]->GPUR;
+                            //MADNESS_ASSERT(trans[i][mu][d].U != 0);
+			    
+                            trans[i][mu][d].VT = 0;
+			  }
+			  else {
+			    r1 += (r1&1L);
+			    trans[i][mu][d].r = std::max(2L,r1);
+
+			    trans[i][mu][d].U = ops[d]->GPURU;
+                            //MADNESS_ASSERT(trans[i][mu][d].U != 0);
+
+			    trans[i][mu][d].VT = ops[d]->GPURVT;
+                            //MADNESS_ASSERT(trans[i][mu][d].VT != 0);
+			  }
+		        }
+		        ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+
+                            
+                        // If all blocks are full rank we can skip the transposes
+		        doit2[i][mu] = false;
+		        for (std::size_t d=0; d<NDIM; ++d) doit2[i][mu] = doit2[i][mu] || trans[i][mu][d].VT; //move this out of the loop, calculate it in previous one
+
+                        //trans2
+		        if (n > 0) {
+
+                          for (std::size_t d=0; d<NDIM; ++d) {
+			    long r1;
+			    for (r1=0; r1< k; ++r1) {
+				if (ops[d]->Ts[r1] < tol1) break;
+			    }
+			    if (r1 >= break_even2) {
+				trans2[i][mu][d].r = k; 
+
+				trans2[i][mu][d].U = ops[d]->GPUT;
+                                //MADNESS_ASSERT(trans[i][mu][d].U != 0);
+
+				trans2[i][mu][d].VT = 0;
+			    }
+			    else {
+				r1 += (r1&1L);
+				trans2[i][mu][d].r = std::max(2L,r1);
+
+				trans2[i][mu][d].U = ops[d]->GPUTU;
+                                //MADNESS_ASSERT(trans[i][mu][d].U != 0);
+
+				trans2[i][mu][d].VT = ops[d]->GPUTVT;
+                                //MADNESS_ASSERT(trans[i][mu][d].VT != 0);
+			    }
+			  }
+			  
+                          // If all blocks are full rank we can skip the transposes
+			  doit1[i][mu] = false;
+			  for (std::size_t d=0; d<NDIM; ++d) doit1[i][mu] = doit1[i][mu] || trans2[i][mu][d].VT;
+			  
+			  ////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+			  //const Tensor<T>& f1 = f0;
+                        }
+                      }
+                      else condition[i][mu] = false;
+                    }
+       
+            }
+            //outside E
+            //ENDt_TIMER("parallelizable");
+
+            STARTt_TIMER;
+            print("k = ",k);
+            print("rank = ",rank);
+
+            //twok = 2*k;
+	   
+            long dim2k, dimk;
+	    dim2k = twok;
+            dimk = k;
+
+            long size = 1;
+            for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
+            long dimi = size/dim2k;
+
+            long size2 = 1;
+            for (std::size_t ii=0; ii<NDIM; ++ii) size2 *= dimk;
+            long dimi2 = size2/dimk;
+
+ 
+            R* rptr_arrayCPU; //transfer to GPU
+            R* r0ptr_arrayCPU; //transfer to GPU
+            T* f0ptr_arrayCPU; //transfer to GPU
+            T* fptr_arrayCPU;  //transfer to GPU
+            R* rptr_arrayGPU; //transfer CPU <-> GPU
+            R* r0ptr_arrayGPU; //transfer CPU <-> GPU
+            T* f0ptr_arrayGPU; //transfer to GPU
+            T* fptr_arrayGPU;  //transfer to GPU
+            
+            unsigned int rptr_off = 0;
+            unsigned int r0ptr_off = 0;
+            unsigned int f0ptr_off = 0;
+            unsigned int fptr_off = 0;
+ 
+            unsigned int* rptr_offarray = new unsigned int[inArgs.size()]; //only on GPU, result gets transfered to CPU
+            unsigned int* r0ptr_offarray = new unsigned int[inArgs.size()]; //only on GPU, result gets transfered to CPU
+            unsigned int* f0ptr_offarray = new unsigned int[inArgs.size()]; //both on CPU and GPU
+            unsigned int* fptr_offarray = new unsigned int[inArgs.size()]; //both on CPU and GPU
+
+            unsigned int w1_off = 0;
+            unsigned int w2_off = 0;
+            unsigned int w5_off = 0;
+
+            for (i = 0; i < inArgs.size(); i++){
+                  T* f0ptr = const_cast<T*>(f0_array[i].ptr());
+                  T* fptr = const_cast<T*>(f_array[i].ptr());
+           
+	          const std::vector<long>& vkref = inObj.at(i)->vk;
+	          const std::vector<long>& v2kref = inObj.at(i)->v2k;
+			    
+		  Tensor<resultT> r(v2kref);
+		  Tensor<resultT> r0(vkref);
+                  r_array[i] = r;
+                  r0_array[i] = r0;
+
+                  rptr_offarray[i] = rptr_off;
+                  r0ptr_offarray[i] = r0ptr_off;
+                  f0ptr_offarray[i] = f0ptr_off;
+                  fptr_offarray[i] = fptr_off;
+
+                  rptr_off += r_array[i].size();
+                  r0ptr_off += r0_array[i].size();
+                  f0ptr_off += f0_array[i].size();
+                  fptr_off += f_array[i].size();
+		  
+                  Tensor<resultT> work1(v2kref,false), work2(v2kref,false);
+		  Tensor<Q> work5(2*k, 2*k);
+ 
+                 w1_offarray[i] = w1_off;
+                  w2_offarray[i] = w2_off;
+                  w5_offarray[i] = w5_off;
+                  
+                  w1_off += work1.size();
+                  w2_off += work2.size();
+                  w5_off += work5.size();
+            } 
+
+            fptr_arrayCPU = new T[fptr_off];
+            rptr_arrayCPU = new R[rptr_off];
+            r0ptr_arrayCPU = new R[r0ptr_off];
+            f0ptr_arrayCPU = new T[f0ptr_off];
+            
+            for (i = 0; i < inArgs.size(); i++){ 
+                  memcpy(rptr_arrayCPU + rptr_offarray[i], r_array[i].ptr(), r_array[i].size()*sizeof(R));
+                  memcpy(r0ptr_arrayCPU + r0ptr_offarray[i], r0_array[i].ptr(), r0_array[i].size()*sizeof(R));
+                  memcpy(f0ptr_arrayCPU + f0ptr_offarray[i], f0_array[i].ptr(), f0_array[i].size()*sizeof(T));
+                  memcpy(fptr_arrayCPU + fptr_offarray[i], f_array[i].ptr(), f_array[i].size()*sizeof(T));
+            }
+
+            rptr_arrayGPU = GPUtransfer_buffer(rptr_arrayCPU, rptr_off, true); //both on CPU and GPU
+            r0ptr_arrayGPU = GPUtransfer_buffer(r0ptr_arrayCPU, r0ptr_off, true); //both on CPU and GPU
+            f0ptr_arrayGPU = GPUtransfer_buffer(f0ptr_arrayCPU, f0ptr_off, true); //both on CPU and GPU
+            fptr_arrayGPU = GPUtransfer_buffer(fptr_arrayCPU, fptr_off, true); //both on CPU and GPU
+            
+            R* w1_array = 0; //allocate on GPU
+            R* w2_array = 0; //allocate GPU
+            R* w1_array2 = 0; //allocate on GPU
+            R* w2_array2 = 0; //allocate GPU
+            Q* w5_array = 0; //do not use, because no shrink
+
+            w1_array = GPUtransfer_buffer(w1_array, w1_off, false);
+            w2_array = GPUtransfer_buffer(w2_array, w2_off, false);
+            w1_array2 = GPUtransfer_buffer(w1_array2, w1_off, false);
+            w2_array2 = GPUtransfer_buffer(w2_array2, w2_off, false);
+            w5_array = GPUtransfer_buffer(w5_array, w5_off, false);
+
+            R** w1ptr = new R*[inArgs.size()];
+	    R** w2ptr = new R*[inArgs.size()];
+            R** w1ptr2 = new R*[inArgs.size()];
+	    R** w2ptr2 = new R*[inArgs.size()];
+            T** f0ptr = new T*[inArgs.size()];
+	    T** fptr = new T*[inArgs.size()];
+            R** resultptr = new R*[inArgs.size()];
+            R** result0ptr = new R*[inArgs.size()];
+           
+	    for (i = 0; i < inArgs.size(); i++){			    
+	      //if (condition[i][mu]) {
+
+		     //Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r_array[i];
+		     //Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0_array[i];
+		    w1ptr[i] = w1_array + w1_offarray[i];
+		    w2ptr[i] = w2_array + w2_offarray[i];
+		    w1ptr2[i] = w1_array2 + w1_offarray[i];
+		    w2ptr2[i] = w2_array2 + w2_offarray[i];
+		    f0ptr[i] = f0ptr_arrayGPU + f0ptr_offarray[i];
+		    fptr[i] = fptr_arrayGPU + fptr_offarray[i];
+		    resultptr[i] = rptr_arrayGPU + rptr_offarray[i];
+		    result0ptr[i] = r0ptr_arrayGPU + r0ptr_offarray[i];
+              //}
+            }
+            
+			    
+            const Q* U;
+	
+            pthread_mutex_lock(&apply_lock);
+	    if (apply_prev_offset < apply_curr_offset){
+	      GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, apply_buffer + apply_prev_offset, 
+				        apply_curr_offset - apply_prev_offset);
+	      apply_prev_offset = apply_curr_offset;
+	    }
+            pthread_mutex_unlock(&apply_lock);
+            ENDt_TIMER("transfer");	   
+
+            int conds = 0; 
+            int conds2 = 0;
+conds = 0;
+STARTt_TIMER;
+            GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
+            for (int mu=0; mu<rank; ++mu) {
+
+	        for (i = 0; i < inArgs.size(); i++){			    
+	             if (condition[i][mu]) {
+                           conds++;
+		           //const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                            U = trans[i][mu][0].U;
+
+                            ////GPU
+			    cu_mTxmqnewstream(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			    //cu_mTxmq_integralhundredOneWrite(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], dim2k);
+			    //cu_mTxmq_integral4tb(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], dim2k);
+                     }
+                 }
+	        
+	            for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu] && n_array[i] > 0){
+                            conds2++;
+                            U = trans2[i][mu][0].U;
+		            ////GPU
+                            
+		            cu_mTxmqnewstream(dimi2, dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+                        }
+                    }
+	            
+                 for (std::size_t d=1; d<NDIM; ++d) {
+		      for (i = 0; i < inArgs.size(); i++){			    
+			if (condition[i][mu]) {
+                          conds++;
+                          U = trans[i][mu][d].U;
+			  ////GPU
+			  cu_mTxmqnewstream(dimi, dim2k, dim2k, w2ptr[i], w1ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			  ////GPU
+			  std::swap(w1ptr[i],w2ptr[i]);
+			}
+		      }
+		  }
+		  
+                    for (std::size_t d=1; d<NDIM; ++d) {
+	                for (i = 0; i < inArgs.size(); i++){			 
+                            if (condition[i][mu] && n_array[i] > 0){
+                                    conds2++;
+                                    U = trans2[i][mu][d].U;
+				    ////GPU
+				    cu_mTxmqnewstream(dimi2, dimk, dimk, w2ptr2[i], w1ptr2[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+				    ////GPU
+                                    std::swap(w1ptr2[i],w2ptr2[i]);
+			    }
+                        }
+                    }
+	            
+		  for (std::size_t d=0; d<NDIM; ++d) {
+	            for (i = 0; i < inArgs.size(); i++){			    
+			if (doit2[i][mu] & condition[i][mu]) {
+			    if (trans[i][mu][d].VT) {
+                                conds++;
+                                U = trans[i][mu][d].VT;
+				////GPU
+				cu_mTxmqnewstream(dimi, dim2k, dim2k, w2ptr[i], w1ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			    }
+			    else {
+				////GPU
+				fast_transpose(dim2k, dimi, w1ptr[i], w2ptr[i]);
+			    }
+			    ////GPU
+			    std::swap(w1ptr[i],w2ptr[i]);
+			}
+                      }
+		    }
+                    
+                    for (std::size_t d=0; d<NDIM; ++d) {
+	                for (i = 0; i < inArgs.size(); i++){			 
+                            if (condition[i][mu] && doit1[i][mu] && n_array[i] > 0) {
+					if (trans2[i][mu][d].VT) {
+                                            U = trans2[i][mu][d].VT;
+                                            conds2++;
+					    ////GPU
+					    cu_mTxmqnewstream(dimi2, dimk, dimk, w2ptr2[i], w1ptr2[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+					}
+					else {
+					    ////GPU
+					    fast_transpose(dimk, dimi2, w1ptr2[i], w2ptr2[i]);
+					}
+					////GPU
+                                        std::swap(w1ptr2[i],w2ptr2[i]);
+		            }
+		         }
+                     }
+	             
+                     for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu] && n_array[i] > 0){
+				 ////GPU
+				 cu_axpystream(size2, result0ptr[i], w1ptr2[i], -mufacs[i][mu], GPU_streams[i%NUM_STREAMS], cublas_handle);
+			}
+                     }
+                    for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu]){   
+			    cu_axpystream(size, resultptr[i], w1ptr[i], mufacs[i][mu], GPU_streams[i%NUM_STREAMS], cublas_handle);
+                        }
+                    }
+
+                  }
+            device_synchronize(GPU_streams,NUM_STREAMS);  
+ENDt_TIMER("computation 1");
+print("conds = ",conds," conds2 = "," FLOP = ",((long)conds)*320000 + ((long)conds2)*20000);
+	            
+print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
+            device_synchronize(GPU_streams,NUM_STREAMS);  
+            
+            CPUtransfer_buffer(rptr_arrayCPU, rptr_arrayGPU, rptr_off);
+            CPUtransfer_buffer(r0ptr_arrayCPU, r0ptr_arrayGPU, r0ptr_off);
+
+            for (i = 0; i < inArgs.size(); i++){
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r_array[i];
+	            Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0_array[i];
+                    R* resultptr = &rptr_arrayCPU[rptr_offarray[i]];
+                    R* result0ptr = &r0ptr_arrayCPU[r0ptr_offarray[i]];
+                    memcpy(result.ptr(), resultptr, result.size()*sizeof(R));
+                    memcpy(result0.ptr(), result0ptr, result0.size()*sizeof(R));
+		    Tensor<R> * r1 = new Tensor<R>(r_array[i]); 
+		    Tensor<R> * r01 = new Tensor<R>(r0_array[i]); 
+		    std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2(r1, r01, *coeffs_array[i], argsdest_array[i], argstol_array[i], argsfac_array[i]);
+                    outArg.push_back(t2);
+            }
+
+            GPUdelete_buffer(w1_array); //GPU 
+            GPUdelete_buffer(w2_array); //GPU
+            GPUdelete_buffer(w1_array2); //GPU 
+            GPUdelete_buffer(w2_array2); //GPU
+            GPUdelete_buffer(w5_array); 
+
+            delete[] rptr_arrayCPU; //CPU
+            delete[] r0ptr_arrayCPU; //CPU
+            delete[] f0ptr_arrayCPU; //CPU
+            delete[] fptr_arrayCPU;  //CPU
+
             delete[] w1ptr;
             delete[] w2ptr;
             delete[] w1ptr2;

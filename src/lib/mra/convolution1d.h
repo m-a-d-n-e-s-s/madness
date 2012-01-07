@@ -232,13 +232,15 @@ namespace madness {
 
         }
 
-        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer) : R(R), T(T) {
+        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer, pthread_mutex_t * apply_lock) : R(R), T(T) {
+            pthread_mutex_lock(apply_lock);
             memcpy(apply_buffer + *apply_offset, R.ptr(), R.dim(0)*R.dim(0)*sizeof(Q));
             GPUR = GPUapply_buffer + *apply_offset;
             *apply_offset += R.dim(0)*R.dim(0);
             memcpy(apply_buffer + *apply_offset, T.ptr(), T.dim(0)*T.dim(0)*sizeof(Q));
             GPUT = GPUapply_buffer + *apply_offset;
             *apply_offset += T.dim(0)*T.dim(0);
+            pthread_mutex_unlock(apply_lock);
             GPURU = 0;
             GPURVT = 0;
             GPUTU = 0;
@@ -247,6 +249,7 @@ namespace madness {
             // Making the approximations is expensive ... only do it for
             // significant components
             if (Rnormf > 1e-20) {
+                print("approximate");
                 Tnormf = T.normf();
                 make_approx(T, TU, Ts, TVT, Tnorm);
                 make_approx(R, RU, Rs, RVT, Rnorm);
@@ -257,6 +260,7 @@ namespace madness {
                         NS(i,j) = 0.0;
                 NSnormf = NS.normf();
             
+                pthread_mutex_lock(apply_lock);
                 memcpy(apply_buffer + *apply_offset, RU.ptr(), RU.dim(0)*RU.dim(0)*sizeof(Q));
                 GPURU = GPUapply_buffer + *apply_offset;
                 *apply_offset += RU.dim(0)*RU.dim(0);
@@ -269,6 +273,7 @@ namespace madness {
                 memcpy(apply_buffer + *apply_offset, TVT.ptr(), TVT.dim(0)*TVT.dim(0)*sizeof(Q));
                 GPUTVT = GPUapply_buffer + *apply_offset;
                 *apply_offset += TVT.dim(0)*TVT.dim(0);
+                pthread_mutex_unlock(apply_lock);
             }
             else {
                 Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
@@ -463,7 +468,7 @@ namespace madness {
         };
 
         /// Returns a pointer to the cached nonstandard form of the operator
-        const ConvolutionData1D<Q>* nonstandardGPU(Level n, Translation lx, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer) const {
+        const ConvolutionData1D<Q>* nonstandardGPU(Level n, Translation lx, Q* apply_buffer, unsigned int * apply_offset, Q* GPUapply_buffer, pthread_mutex_t * apply_lock) const {
             const ConvolutionData1D<Q>* p = ns_cacheGPU.getptr(n,lx);
             if (p) return p;
 
@@ -520,7 +525,7 @@ namespace madness {
                 //print("NS", n, lx, R.normf(), T.normf());
             }
 
-            ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer);
+            ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer,apply_lock);
             const ConvolutionData1D<Q>* p1 = ns_cache.getptr(n,lx);
             if (!p) ns_cache.set(n,lx,cd1d);
             ns_cacheGPU.set(n,lx,cd1d);
