@@ -5,7 +5,7 @@
 
 using namespace madness;
 
-static double L = 1.0;
+static double L = 6.5;
 
 typedef Vector<double,3> coordT;
 typedef Function<double,3> rfunctionT;
@@ -204,9 +204,59 @@ public:
    : alpha(alpha), mentity(mentity)
   {
     if (world.rank() == 0) print("EwaldNuclearPotentialFunctor [started]");
-    rvecs = generate_R_vectors(world,100.0);
-    gvecs = generate_G_vectors(world,10.0);
+
+    double gthresh = 1e-6;
+    double gmax = 550.0;
+    double gmin = 0.01;
+    bool gstop = false;
+    double gval = 0.5*(gmax+gmin);
+    for (unsigned int i = 0; i < 500 && !gstop; i++)
+    {
+      gval = 0.5*(gmax+gmin);
+      double t1 = std::exp(-gval/4/alpha/alpha)/gval;
+      if (((t1 > 0.9e-10) && (t1 < 1.1e-10)) || (gmax-gmin/2) < gthresh) gstop = true;
+      if (!gstop)
+      {
+        if (t1 > 1e-10)
+        {
+          gmin = gval;
+        }
+        else
+        {
+          gmax = gval;
+        }
+      }
+      if (world.rank() == 0) print("i: ", i, "  gval: ", gval, "  t1: ", t1);
+    }
+
+    double rthresh = 1e-6;
+    double rmax = 550.0;
+    double rmin = 0.01;
+    bool rstop = false;
+    double rval = 0.5*(rmax+rmin);
+    for (unsigned int i = 0; i < 500 && !rstop; i++)
+    {
+      rval = 0.5*(rmax+rmin);
+      double t1 = erfc(alpha*rval)/rval;
+      if (((t1 > 0.9e-10) && (t1 < 1.1e-10)) || (rmax-rmin/2) < rthresh) rstop = true;
+      if (!rstop)
+      {
+        if (t1 > 1e-10)
+        {
+          rmin = rval;
+        }
+        else
+        {
+          rmax = rval;
+        }
+      }
+      if (world.rank() == 0) print("i: ", i, "  rval: ", rval, "  t1: ", t1);
+    }
+
+    rvecs = generate_R_vectors(world,rval);
+    gvecs = generate_G_vectors(world,std::sqrt(gval));
     if (world.rank() == 0) print("gvecs size: ", gvecs.size());
+    if (world.rank() == 0) print("rvecs size: ", rvecs.size());
     unsigned int natoms = mentity->natom();
     unsigned int NG = 7;
     gsfactor.push_back(0.0);
@@ -246,7 +296,7 @@ public:
     if (world.rank() == 0) print("EwaldNuclearPotentialFunctor [end]");
   }
 
-  double operator()(const coordT& r) const
+  double_complex do_G_sum_v1(const coordT& r) const
   {
     // number of atoms in unit cell
     unsigned int natoms = mentity->natom();
@@ -256,7 +306,7 @@ public:
 
     // RECIPROCAL SPACE SUM
     double charge = mentity->total_nuclear_charge();
-    double_complex s1 = -charge*charge/alpha/alpha/4.0;
+    double_complex s1 = -charge/alpha/alpha/4.0;
     // skip G=0
     for (unsigned int ig = 1; ig < gvecs.size(); ig++)
     {
@@ -265,20 +315,145 @@ public:
       s1 += gsfactor[ig]*t1;
     }
     s1 *= 2.0*TWOPI/v;
+    return s1;
+  }
+
+  double_complex do_G_sum_v2(const coordT& r) const
+  {
+    // number of atoms in unit cell
+    unsigned int natoms = mentity->natom();
+    // other parameters
+    const double TWOPI = 2*constants::pi;
+    double v = compute_volume();
+
+    // RECIPROCAL SPACE SUM
+    unsigned int NG = 7;
+    double charge = mentity->total_nuclear_charge();
+    double_complex s1 = -charge/alpha/alpha/4.0;
+    // skip G=0
+    for (unsigned int ig = 1; ig < gvecs.size(); ig++)
+//    for (unsigned int ig = 1; ig < NG; ig++)
+    {
+      Vector<double,3> gvec = gvecs[ig];
+      double G2 = gvec[0]*gvec[0] + gvec[1]*gvec[1] + gvec[2]*gvec[2];
+      for (unsigned int ia = 0; ia < natoms; ia++)
+      {
+        Atom iatom = mentity->get_atom(ia);
+        Vector<double,3> tvec = vec(iatom.x,iatom.y,iatom.z);
+        Vector<double,3> rr = vec(r[0]-tvec[0],r[1]-tvec[1],r[2]-tvec[2]);
+        double_complex t1 = std::exp(double_complex(0.0,gvec[0]*rr[0]+gvec[1]*rr[1]+gvec[2]*rr[2]));
+        s1 += iatom.q*t1*std::exp(-G2/4.0/alpha/alpha)/G2;
+      }
+    }
+    s1 *= 2.0*TWOPI/v;
+    return s1;
+  }
+
+  double_complex do_R_sum_v1(const coordT& r) const
+  {
+    // number of atoms in unit cell
+    unsigned int natoms = mentity->natom();
+    // other parameters
+    const double TWOPI = 2*constants::pi;
+    double v = compute_volume();
+
+    // REAL SPACE SUM
+    double_complex s2 = 0.0;
+    for (unsigned int ia = 0; ia < mentity->natom(); ia++)
+    {
+      Atom iatom = mentity->get_atom(ia);
+      Vector<double,3> tvec = vec(iatom.x, iatom.y, iatom.z);
+      for (unsigned int ir = 0; ir < rvecs.size(); ir++)
+      {
+        Vector<double,3> rvec = rvecs[ir];
+        Vector<double,3> tvec2 = vec(r[0]-tvec[0]-rvec[0],
+                                     r[1]-tvec[1]-rvec[1],
+                                     r[2]-tvec[1]-rvec[1]);
+        double t2 = std::sqrt(tvec2[0]*tvec2[0] +
+            tvec2[1]*tvec2[1] + tvec2[2]*tvec2[2]);
+        s2 += iatom.q*erfc(alpha*t2)/std::abs(t2);
+      }
+    }
+  }
+
+  double_complex do_const_sum(const coordT& r) const
+  {
+    // number of atoms in unit cell
+    unsigned int natoms = mentity->natom();
+    // other parameters
+    const double TWOPI = 2*constants::pi;
+    double v = compute_volume();
 
     double_complex s3 = 0.0;
     double sqrtpi = std::sqrt(constants::pi);
     for (unsigned int ia = 0; ia < natoms; ia++)
     {
       Atom iatom = mentity->get_atom(ia);
-      s3 += 2.0*iatom.q*iatom.q*alpha/sqrtpi;
+      s3 += 2.0*iatom.q*alpha/sqrtpi;
     }
-
-    double rvalue = std::real(s1 - s3);
-//    MADNESS_ASSERT(std::imag(s1) < 1e-10);
-//    double rvalue = std::real(s1);
-    return rvalue;
+    return s3;
   }
+
+  double operator()(const coordT& r) const
+  {
+    double_complex s1 = do_G_sum_v2(r);
+    double_complex s2 = do_R_sum_v1(r);
+    double_complex s3 = do_const_sum(r);
+//    print("s1:  ", std::real(s1), "  s2: ", std::real(s2), "  s3: ", std::real(s3));
+    return std::real(s1+s2);
+  }
+
+//  double operator()(const coordT& r) const
+//  {
+//    // number of atoms in unit cell
+//    unsigned int natoms = mentity->natom();
+//    // other parameters
+//    const double TWOPI = 2*constants::pi;
+//    double v = compute_volume();
+//
+//    // RECIPROCAL SPACE SUM
+//    double charge = mentity->total_nuclear_charge();
+//    double_complex s1 = -charge/alpha/alpha/4.0;
+//    // skip G=0
+//    for (unsigned int ig = 1; ig < gvecs.size(); ig++)
+//    {
+//      Vector<double,3> gvec = gvecs[ig];
+//      double_complex t1 = std::exp(double_complex(0.0,gvec[0]*r[0]+gvec[1]*r[1]+gvec[2]*r[2]));
+//      s1 += gsfactor[ig]*t1;
+//    }
+//    s1 *= 2.0*TWOPI/v;
+//
+//    // REAL SPACE SUM
+//    double_complex s2 = 0.0;
+//    for (unsigned int ia = 0; ia < mentity->natom(); ia++)
+//    {
+//      Atom iatom = mentity->get_atom(ia);
+//      Vector<double,3> tvec = vec(iatom.x, iatom.y, iatom.z);
+//      for (unsigned int ir = 0; ir < rvecs.size(); ir++)
+//      {
+//        Vector<double,3> rvec = rvecs[ir];
+//        Vector<double,3> tvec2 = vec(r[0]-tvec[0]-rvec[0],
+//                                     r[1]-tvec[1]-rvec[1],
+//                                     r[2]-tvec[1]-rvec[1]);
+//        double t2 = std::sqrt(tvec2[0]*tvec2[0] +
+//            tvec2[1]*tvec2[1] + tvec2[2]*tvec2[2]);
+//        s2 += erfc(alpha*t2)/std::abs(t2);
+//      }
+//    }
+//
+//    double_complex s3 = 0.0;
+//    double sqrtpi = std::sqrt(constants::pi);
+//    for (unsigned int ia = 0; ia < natoms; ia++)
+//    {
+//      Atom iatom = mentity->get_atom(ia);
+//      s3 += 2.0*iatom.q*alpha/sqrtpi;
+//    }
+//
+//    double rvalue = std::real(s1 - s3);
+////    MADNESS_ASSERT(std::imag(s1) < 1e-10);
+////    double rvalue = std::real(s1);
+//    return rvalue;
+//  }
 
   virtual ~EwaldNuclearPotentialFunctor() {}
 };
@@ -771,6 +946,80 @@ void test_gence(int argc, char** argv)
 {
   Tensor<double> c,e;
   gen_ce(0.0, 1e-8, 1e-12, c, e);
+  unsigned int npts = 250;
+  double LL = 100.0;
+  for (unsigned int i = 1; i < npts; i++)
+  {
+    double r = i*LL/npts;
+    double val = 0.0;
+    for (unsigned int mu = 0; mu < c.dim(0); mu++)
+    {
+      val += c[mu]*std::exp(-e[mu]*r*r);
+    }
+    double val2 = 1/r;
+    double rerr = std::abs(val-val2)/val;
+    printf("%10.5f  %15.10e  %15.10e  %15.10e\n", r, val2, val, rerr);
+  }
+}
+//*************************************************************************
+
+//*************************************************************************
+void test_nuclear_potential2(int argc, char** argv)
+{
+  initialize(argc, argv);
+
+  World world(MPI::COMM_WORLD);
+
+  try {
+      // Load info for MADNESS numerical routines
+      startup(world,argc,argv);
+      std::cout.precision(6);
+      FunctionDefaults<3>::set_thresh(1e-6);
+      FunctionDefaults<3>::set_k(8);
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_FREE));
+      FunctionDefaults<3>::set_cubic_cell(0,L);
+
+      MolecularEntity mentity;
+      mentity.add_atom(0.0,0.0,0.0,1.0,1.0);
+
+      MolecularNuclearPotentialFunctor2 npoty(world, mentity, L, 1e-8);
+      if (world.rank() == 0) mentity.print();
+
+      unsigned int npts = 150;
+      for (unsigned int ir = 1; ir < npts; ir++)
+      {
+        double rpt = ir*L/npts;
+        coordT pt(rpt);
+        double npotpt = npoty(pt);
+        if (world.rank() == 0) printf("%10.5f     %15.10e     %15.10e\n", rpt, npotpt, 1/rpt);
+      }
+
+  } catch (const MPI::Exception& e) {
+      //        print(e);
+      error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+      if (world.rank() == 0) print(e);
+      error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+      if (world.rank() == 0) print(e);
+      error("caught a Tensor exception");
+  } catch (const char* s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string exception");
+  } catch (char* s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string exception");
+  } catch (const std::string& s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+      if (world.rank() == 0) print(e.what());
+      error("caught an STL exception");
+  } catch (...) {
+      error("caught unhandled exception");
+  }
+
+  finalize();
 }
 //*************************************************************************
 
@@ -787,34 +1036,13 @@ void test_nuclear_potential(int argc, char** argv)
       std::cout.precision(6);
       FunctionDefaults<3>::set_thresh(1e-6);
       FunctionDefaults<3>::set_k(8);
-//      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
-      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_FREE));
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
       FunctionDefaults<3>::set_cubic_cell(0,L);
 
       MolecularEntity mentity;
-      mentity.add_atom(0.0,0.0,0.0,1.0,1.0);
-//      mentity.add_atom(0.0,0.0,0.0,7,9);
-//      mentity.add_atom(L/2,L/2,L/2,1,3);
-//      mentity.center();
-
-//      EwaldNuclearPotentialFunctor ewaldfx(world, &mentity, 0.2);
-
-      MolecularNuclearPotentialFunctor2 npoty(world, mentity, L, 1e-8);
-
-      if (world.rank() == 0) mentity.print();
-
-      unsigned int npts = 150;
-      for (unsigned int ir = 1; ir < npts; ir++)
-      {
-        double rpt = ir*L/npts;
-        coordT pt(rpt);
-//        double npotpt = ewaldfx(pt);
-        double npotpt = npoty(pt);
-//        if (world.rank() == 0) print(rpt, "  ", npotpt);
-        if (world.rank() == 0) printf("%10.5f     %15.10e     %15.10e\n", rpt, npotpt, 1/rpt);
-      }
-
-      MADNESS_ASSERT(false);
+      mentity.add_atom(0.0,0.0,0.0,7,9);
+      mentity.add_atom(L/2,L/2,L/2,1,3);
+      mentity.center();
 
 //      if (world.rank() == 0) print("Making Ewald nuclear potential ...");
 //      rfunctionT npot2 = rfactoryT(world).functor(
@@ -831,22 +1059,23 @@ void test_nuclear_potential(int argc, char** argv)
 //      double nptr = npotd.trace();
 //      if (world.rank() == 0) print("The trace of the difference of potentials: ", nptr);
 
-//      EwaldNuclearPotentialFunctor ewaldf(world, &mentity, 0.2);
-//      EwaldNuclearPotentialFunctor ewaldf1(world, &mentity, 0.18);
-//      EwaldNuclearPotentialFunctor ewaldf2(world, &mentity, 0.15);
-//      unsigned int npts = 100;
-//      for (unsigned int ir = 0; ir < npts; ir++)
-//      {
-//        double rpt = ir*L/npts;
-//        coordT pt(rpt);
-//        double npot1pt = npot1(pt);
-//        double npot2pt = ewaldf(pt);
-//        double npot3pt = ewaldf1(pt);
-//        double npot4pt = ewaldf2(pt);
-//        double nerror = std::abs(npot1pt-npot2pt);
-////        if (world.rank() == 0) print(rpt, npot1pt, npot2pt, nerror);
-//        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt, "  ", npot3pt, "  ", npot4pt);
-//      }
+      EwaldNuclearPotentialFunctor ewaldf(world, &mentity, 0.7);
+      EwaldNuclearPotentialFunctor ewaldf1(world, &mentity, 1.1);
+      EwaldNuclearPotentialFunctor ewaldf2(world, &mentity, 2.0);
+      unsigned int npts = 150;
+      for (unsigned int ir = 0; ir < npts; ir++)
+      {
+        double rpt = ir*L/npts;
+        coordT pt(rpt);
+        double npot1pt = npot1(pt);
+        double npot2pt = ewaldf(pt);
+        double npot3pt = ewaldf1(pt);
+        double npot4pt = ewaldf2(pt);
+        double nerror = std::abs(npot1pt-npot2pt);
+//        if (world.rank() == 0) print(rpt, npot1pt, npot2pt, nerror);
+        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt, "  ", npot3pt, "  ", npot4pt);
+//        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt, "  ", nerror);
+      }
 
   } catch (const MPI::Exception& e) {
       //        print(e);
