@@ -4124,10 +4124,158 @@ ENDt_TIMER("memcpy3");
 
 
         template <typename opT, typename R>
+        Void do_apply_kernel6(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            /************** DO MORE IN PARALLEL (PREPROCESS) *******************/
+
+            typedef typename opT::Transformation Transformation;           
+            typedef typename opT::opT Q;
+ 
+            typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
+                        bool*, bool*, Q*, Level, keyT, double, double,
+                        WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                        Tensor<T>, Tensor<T> > tuplepreprocT;
+            typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
+   
+            tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
+
+            tuplepreprocT tpreproc = op->apply_computepreprocess(t1);
+
+            typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
+            typedef Void(opT::*memfun3T)(tuple2T ) const;
+            
+            memfun2T memfun2 = &opT::template apply_allComputeGPUIndKernels_Cublas6/*OptnoShrinkSeventhTransfer_Stream*/<T,opT>;
+            //print(memfun2);
+            memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
+
+            ComputeDerived<memfun2T, memfun3T, tuplepreprocT, opT> * cd =
+                new ComputeDerived<memfun2T, memfun3T, tuplepreprocT ,opT>(memfun2, memfun3, &(this->world.taskq), &(this->world));
+
+            ComputeBase * cb = static_cast<ComputeBase *>(cd);
+
+            //const void *op1 = static_cast<const void*>(op);
+            //cb->add(const_cast<void *>(op1));
+            opT * op1 = const_cast<opT *>(op);
+            //opT * op1 = new opT(*op);
+            cb->add(op1);
+            cb->addArg(&tpreproc);
+
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            this->world.gpu_hashlock.lock();
+            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
+            if (gpu_it != gpu_end){
+                (*gpu_it).second->add(cd->inObj.at(0));
+                (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
+                delete cd;
+
+            }
+            else{
+                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
+            }
+
+            this->world.taskq.incNRegistered();
+            this->world.gpu_hashlock.unlock();
+
+            //tensorT result = op->opt_inlined_apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            ////tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+
+            //print("APPLY", key, d, opnorm, cnorm, result.normf());
+
+            // Screen here to reduce communication cost of negligible data
+            // and also to ensure we don't needlessly widen the tree when
+            // applying the operator
+            /*
+            if (result.normf()> 0.3*args.tol/args.fac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+            }
+            */
+            return None;
+        }
+
+        template <typename opT, typename R>
+        Void do_apply_kernel7(const opT* op, const Tensor<R>& c, const do_op_args& args) {
+            /************** DO MORE IN PARALLEL (PREPROCESS) *******************/
+
+            typedef typename opT::Transformation Transformation;           
+            typedef typename opT::opT Q;
+            typedef typename opT::SC SC;
+ 
+            typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
+                        bool*, bool*, Q*, Level, keyT, double, double,
+                        WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                        Tensor<T>, Tensor<T>,
+                        const SC *, bool > tuplepreprocT;
+            typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
+   
+            tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
+            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
+
+            tuplepreprocT tpreproc = op->apply_computepreprocess(t1);
+
+            typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
+            typedef Void(opT::*memfun3T)(tuple2T ) const;
+            
+            memfun2T memfun2 = &opT::template apply_allComputeGPUIndKernels_Cublas7/*OptnoShrinkSeventhTransfer_Stream*/<T,opT>;
+            //print(memfun2);
+            memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
+
+            ComputeDerived<memfun2T, memfun3T, tuplepreprocT, opT> * cd =
+                new ComputeDerived<memfun2T, memfun3T, tuplepreprocT ,opT>(memfun2, memfun3, &(this->world.taskq), &(this->world));
+
+            ComputeBase * cb = static_cast<ComputeBase *>(cd);
+
+            //const void *op1 = static_cast<const void*>(op);
+            //cb->add(const_cast<void *>(op1));
+            opT * op1 = const_cast<opT *>(op);
+            //opT * op1 = new opT(*op);
+            cb->add(op1);
+            cb->addArg(&tpreproc);
+
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            this->world.gpu_hashlock.lock();
+            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
+            if (gpu_it != gpu_end){
+                (*gpu_it).second->add(cd->inObj.at(0));
+                (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
+                delete cd;
+
+            }
+            else{
+                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
+            }
+
+            this->world.taskq.incNRegistered();
+            this->world.gpu_hashlock.unlock();
+
+            //tensorT result = op->opt_inlined_apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+            ////tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
+
+            //print("APPLY", key, d, opnorm, cnorm, result.normf());
+
+            // Screen here to reduce communication cost of negligible data
+            // and also to ensure we don't needlessly widen the tree when
+            // applying the operator
+            /*
+            if (result.normf()> 0.3*args.tol/args.fac) {
+                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+                coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, TaskAttributes::hipri());
+            }
+            */
+            return None;
+        }
+
+        template <typename opT, typename R>
         Void do_apply_kernel_std(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            STARTt_TIMER;
+            //STARTt_TIMER;
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            ENDt_TIMER("std apply");
+            //ENDt_TIMER("std apply");
 
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
@@ -4176,7 +4324,7 @@ ENDt_TIMER("memcpy3");
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel<opT,R>, op, c, args);
+                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel6<opT,R>, op, c, args);
                         } else {
                             
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);

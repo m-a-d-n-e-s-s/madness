@@ -526,8 +526,75 @@ namespace madness {
             }
 
             ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer,apply_lock);
+            //ConvolutionData1D<Q> cd1d(R,T);
             const ConvolutionData1D<Q>* p1 = ns_cache.getptr(n,lx);
-            if (!p) ns_cache.set(n,lx,cd1d);
+            if (!p1) ns_cache.set(n,lx,cd1d);
+            ns_cacheGPU.set(n,lx,cd1d);
+
+            return ns_cacheGPU.getptr(n,lx);
+        };
+
+        /*const*/ ConvolutionData1D<Q>* nonstandardGPU2(Level n, Translation lx) const {
+            /*const*/ ConvolutionData1D<Q>* p = ns_cacheGPU.getptr(n,lx);
+            if (p) return p;
+
+            PROFILE_MEMBER_FUNC(Convolution1D);
+
+            Tensor<Q> R, T;
+            if (!get_issmall(n, lx)) {
+                Translation lx2 = lx*2;
+                Slice s0(0,k-1), s1(k,2*k-1);
+
+                const Tensor<Q> r0 = rnlij(n+1,lx2);
+                const Tensor<Q> rp = rnlij(n+1,lx2+1);
+                const Tensor<Q> rm = rnlij(n+1,lx2-1);
+
+                R = Tensor<Q>(2*k,2*k);
+
+//                 R(s0,s0) = r0;
+//                 R(s1,s1) = r0;
+//                 R(s1,s0) = rp;
+//                 R(s0,s1) = rm;
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nscopy);
+                    copy_2d_patch(R.ptr(),           2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k + k, 2*k, r0.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()+2*k*k,     2*k, rp.ptr(), k, k, k);
+                    copy_2d_patch(R.ptr()       + k, 2*k, rm.ptr(), k, k, k);
+                }
+
+                //print("R ", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nstran);
+                    R = transform(R,hgT);
+                }
+
+                //print("RX", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+                {
+                    PROFILE_BLOCK(Convolution1D_trans);
+
+                    Tensor<Q> RT(2*k,2*k);
+                    fast_transpose(2*k, 2*k, R.ptr(), RT.ptr());
+                    R = RT;
+
+                    //print("RT", n, lx, R.normf(), r0.normf(), rp.normf(), rm.normf());
+
+                    //T = copy(R(s0,s0));
+                    T = Tensor<Q>(k,k);
+                    copy_2d_patch(T.ptr(), k, R.ptr(), 2*k, k, k);
+                }
+
+                //print("NS", n, lx, R.normf(), T.normf());
+            }
+
+            //ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer,apply_lock);
+            ConvolutionData1D<Q> cd1d(R,T);
+            const ConvolutionData1D<Q>* p1 = ns_cache.getptr(n,lx);
+            if (!p1) ns_cache.set(n,lx,cd1d);
             ns_cacheGPU.set(n,lx,cd1d);
 
             return ns_cacheGPU.getptr(n,lx);
