@@ -60,7 +60,15 @@ void realmain(int argc, char** argv)
 }
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+#ifdef SERIALIZE_MPI
+    int required = MPI::THREAD_SERIALIZED;
+#else
+    int required = MPI::THREAD_MULTIPLE;
+#endif
+    int provided = MPI::Init_thread(argc, argv, required);
+    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
+        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
+    }
 
     //This programming style guarantees that
     //the world instance is destroyed before
