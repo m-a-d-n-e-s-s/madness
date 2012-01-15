@@ -39,6 +39,7 @@
 #include <world/dqueue.h>
 #include <vector>
 #include <cstddef>
+#include <cstdio>
 #include <pthread.h>
 
 #ifndef _SC_NPROCESSORS_CONF
