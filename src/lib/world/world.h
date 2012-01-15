@@ -377,7 +377,7 @@ namespace madness {
     template <typename T>
     static void error(const char *msg, const T& data) {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
-        MPI_Abort(MPI_COMM_WORLD,1);
+        MPI::COMM_WORLD.Abort(1);
     }
 
     namespace detail {

@@ -185,7 +185,7 @@ namespace madness {
 
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
-        MPI_Abort(MPI_COMM_WORLD,1);
+        MPI::COMM_WORLD.Abort(1);
     }
 
     void initialize(int argc, char** argv) {
