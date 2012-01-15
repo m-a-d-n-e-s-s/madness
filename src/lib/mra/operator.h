@@ -75,7 +75,7 @@ namespace madness {
     template <typename Q, std::size_t NDIM>
     struct SeparatedConvolutionInternal {
         double norm;
-        mutable const ConvolutionData1D<Q>* ops[NDIM];
+        const ConvolutionData1D<Q>* ops[NDIM];
     };
 
     template <typename Q, std::size_t NDIM>
@@ -90,6 +90,20 @@ namespace madness {
         }
     };
 
+    template <typename Q, std::size_t NDIM>
+    struct GPUApplyBuffer {
+        Q* R;
+        Q* T;
+        Q* RU;
+        Q* TU;
+        Q* RVT;
+        Q* TVT;
+        bool * svd_done;
+
+        //~GPUApplyBuffer(){
+        //    delete svd_done;
+        //}
+    };
 
     /// Convolutions in separated form (including Gaussian)
     template <typename Q, std::size_t NDIM>
@@ -115,6 +129,7 @@ namespace madness {
 
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > data;
         mutable SimpleCache< SeparatedConvolutionData<Q,NDIM>, NDIM > dataGPU;
+        mutable SimpleCache< GPUApplyBuffer<Q,NDIM>, NDIM > GPUApplyCache;
         mutable pthread_mutex_t apply_lock;
         Q* apply_buffer;
         Q* GPUapply_buffer;
@@ -385,6 +400,7 @@ namespace madness {
             return op;
         }
 
+/*
         const SeparatedConvolutionInternal<Q,NDIM> getmuopGPU2(int mu, Level n, const Key<NDIM>& disp) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             SeparatedConvolutionInternal<Q,NDIM> op;
@@ -407,7 +423,7 @@ namespace madness {
 
             return op;
         }
-
+*/
 
 
         const SeparatedConvolutionInternal<Q,NDIM> getmuopGPU(int mu, Level n, const Key<NDIM>& disp) const {
@@ -498,6 +514,7 @@ namespace madness {
         /// Returns pointer to cached operator, together with a bool saying whether
         /// it was already in cache or not
         /// Schedules data to be transferred to the GPU, if not already in the cache
+        /*
         const std::pair<const SeparatedConvolutionData<Q,NDIM>*, bool> getopGPU2(Level n, const Key<NDIM>& d) const {
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
             const SeparatedConvolutionData<Q,NDIM>* p = dataGPU.getptr(n,d);
@@ -528,7 +545,7 @@ namespace madness {
             }
             return std::pair<const SeparatedConvolutionData<Q,NDIM>*, bool>(dataGPU.getptr(n,d),false);
         }
-
+        */
 
         void check_cubic() {
             // !!! NB ... cell volume obtained from global defaults
@@ -1449,7 +1466,7 @@ namespace madness {
         std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, const SeparatedConvolutionData<Q,NDIM>*, bool> 
+                        Tensor<T>, Tensor<T>, SC*, keyT > 
         apply_computepreprocess2(std::tr1::tuple<keyT, keyT, keyT, 
                                       double, double, double, 
                                       Tensor<TENSOR_RESULT_TYPE(T,Q)>, 
@@ -1494,9 +1511,7 @@ namespace madness {
 
             tol = tol/rank; // Error is per separated term
 
-            std::pair<const SeparatedConvolutionData<Q,NDIM>*, bool> opb = getopGPU2(source.level(), shift);
-            const SeparatedConvolutionData<Q,NDIM>* op = opb.first;
-            bool before = opb.second;              
+            const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift);
             
 
             //print("sepop",source,shift,op->norm,tol);
@@ -1737,10 +1752,10 @@ namespace madness {
             std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, const SeparatedConvolutionData<Q,NDIM>*, bool > 
+                        Tensor<T>, Tensor<T>, SC*, keyT> 
                                                   t2(condition, trans, trans2,
                                                   doit2, doit1, mufacs, n, argsdest, argstol, argsfac, 
-                                                  coeffs, f, f0, op, before);
+                                                  coeffs, f, f0, const_cast<SC*>(op), shift);
             return t2;
         }
 
@@ -15006,14 +15021,24 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             return outArg;
         }
 
+        //Need a separate cache, which keeps 6 contiguous buffers of GPUR,GPURU,GPURVT,GPUT,GPUTU,GPUTV, and a bool for Rnormf
+        //resulted from the same getop
+        //Preprocess first checks this cache and, if the pair is in cache, sets trans/trans2 to the GPU values
+        //obtained from that cache (setting them here is optional, since they'll be overwritten with the GPU
+        //pointer anyways)
+        //If the pair is not in cache, do getop, and, if they're not already there, put the elements in the 
+        //original cache and optionally set trans, then, in the ever running task, for each i check 
+        //the separate cache and, if still the pair is not in the separate cache, access op, set the 6
+        //contiguous buffers and bool for Rnormf (use memcpy for the 6 contiguous buffers) and
+        //transfer them to the GPU buffer, create the struct with 6 pointers and values of bool for Rnormf
+        //and put it in separate cache   
         template <typename T, typename opT>
         std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
                          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> >
         apply_allComputeGPUIndKernels_Cublas7(std::vector<std::tr1::tuple<bool*, Transformation**, Transformation**,
                                                           bool*, bool*, Q*, Level, keyT, double, double,
                                                           WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                                                          Tensor<T>, Tensor<T>,
-                                                          const SeparatedConvolutionData<Q, NDIM> *, bool > > inArgs, 
+                                                          Tensor<T>, Tensor<T>, SC*, keyT> > inArgs, 
                                               std::vector< SeparatedConvolution<Q,NDIM>* > inObj) const {
 
             print("      apply_allComputeGPU              ",inArgs.size());
@@ -15028,12 +15053,10 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             std::tr1::tuple<bool*, Transformation**, Transformation**,
                   bool*, bool*, Q*, Level, keyT, double, double, 
                   WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                  Tensor<T>, Tensor<T>,
-                  const SeparatedConvolutionData<Q, NDIM> *, bool > ** args = new std::tr1::tuple<bool*, Transformation**, Transformation**,
+                  Tensor<T>, Tensor<T>, SC*, keyT> ** args = new std::tr1::tuple<bool*, Transformation**, Transformation**,
                                                                        bool*, bool*, Q*, Level, keyT, double, double, 
                                                                        WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                                                                       Tensor<T>, Tensor<T>,
-                                                                       const SeparatedConvolutionData<Q, NDIM> *, bool > *[inArgs.size()];
+                                                                       Tensor<T>, Tensor<T>, SC*, keyT> *[inArgs.size()];
 
             for (i = 0; i < inArgs.size(); i++){
                   args[i] = &(inArgs.at(i));
@@ -15098,7 +15121,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             ENDt_TIMER("alloc & init");
 
             SeparatedConvolutionData<Q, NDIM> ** op_data = new SeparatedConvolutionData<Q, NDIM> *[inArgs.size()];
-            bool* before = new bool[inArgs.size()];
+            keyT* shifts = new keyT[inArgs.size()];
            
             //STARTt_TIMER; 
             for (i = 0; i < inArgs.size(); i++){
@@ -15111,8 +15134,8 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	          coeffs_array[i] = &(std::tr1::get<10>(*args[i]));
                   f_array[i] = std::tr1::get<11>(*args[i]);
                   f0_array[i] = std::tr1::get<12>(*args[i]);
-                  op_data[i] = const_cast<SC*>(std::tr1::get<13>(*args[i]));
-                  before[i] = std::tr1::get<14>(*args[i]);  
+                  op_data[i] = (std::tr1::get<13>(*args[i]));
+                  shifts[i] = std::tr1::get<14>(*args[i]);  
             }
             //outside E
             //ENDt_TIMER("parallelizable");
@@ -15249,7 +15272,117 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             
 			    
             const Q* U;
-	
+
+            unsigned int twok = 2*k;
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int ksq = k*k;
+            unsigned int twokbytes = twok*twok*sizeof(Q);
+            unsigned int kbytes = k*k*sizeof(Q);
+             
+            GPUApplyBuffer<Q,NDIM> GPUab;
+            GPUApplyBuffer<Q,NDIM>* GPUab1;
+            for (i = 0; i < inArgs.size(); i++){
+                const GPUApplyBuffer<Q,NDIM>* p = GPUApplyCache.getptr(n_array[i],shifts[i]);
+                bool* localSVD = new bool[rank*NDIM];
+                unsigned int c = 0;
+                if (!p){
+                    unsigned int numR = rank*NDIM;
+                    unsigned int numSVD = 0;
+                    Q* localR = R_buffer;
+                    Q* localT = T_buffer;
+                    Q* localRU = RU_buffer;
+                    Q* localTU = TU_buffer;
+                    Q* localRVT = RVT_buffer;
+                    Q* localTVT = TVT_buffer;
+                    for (int mu = 0; mu < rank; mu++){
+                        for (int d = 0; d < NDIM; d++){
+                            memcpy(localR + c*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
+                            memcpy(localT + c*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
+                            c++;
+                            if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
+                                localSVD[c] = true;
+                                memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
+                                memcpy(localTU + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TU.ptr(), kbytes);
+                                memcpy(localRVT + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RVT.ptr(), twokbytes);
+                                memcpy(localTVT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TVT.ptr(), kbytes);
+                                numSVD++;
+                            }
+                            else{
+                                localSVD[c] = false;
+                            }
+                        }
+                    }
+
+                     //GPUab.svd_done = localSVD;
+                     GPUab.R = GPUapply_buffer + apply_prev_offset;
+                     GPUab.T = GPUapply_buffer + apply_prev_offset + c*twoksq;
+                     GPUab.RU = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq);
+                     GPUab.TU = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*twoksq;
+                     GPUab.RVT = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*(twoksq + ksq);
+                     GPUab.TVT = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*(twoksq + ksq + twoksq);
+
+	            //if (apply_prev_offset < apply_curr_offset){
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localR, c*twokbytes);
+	                apply_prev_offset += c*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localT, c*kbytes);
+	                apply_prev_offset += c*ksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localRU, numSVD*twokbytes);
+	                apply_prev_offset += numSVD*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTU, numSVD*kbytes);
+	                apply_prev_offset += numSVD*ksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localRVT, numSVD*twokbytes);
+	                apply_prev_offset += numSVD*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTVT, numSVD*kbytes);
+	                apply_prev_offset += numSVD*ksq;
+                    //}
+
+                     GPUApplyCache.set(n_array[i],shifts[i], GPUab);
+                     GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(GPUApplyCache.getptr(n_array[i],shifts[i]));
+                }
+                else{
+                    GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(p);
+                    for (int mu = 0; mu < rank; mu++){
+                        for (int d = 0; d < NDIM; d++){
+                            c++;
+                            if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
+                                localSVD[c] = true;
+                            }
+                            else{
+                                localSVD[c] = false;
+                            }
+                        }
+                    }
+                }
+
+	        unsigned int temp = 0;
+	        unsigned int temp2 = 0;
+	        for (int mu = 0; mu < rank; mu++){
+		    for (int d = 0; d < NDIM; d++){
+			
+		        if (trans[i][mu][d].VT == 0){
+			    trans[i][mu][d].U = GPUab1->R + temp*twoksq;
+		        }
+		        else{
+			    trans[i][mu][d].U = GPUab1->RU + temp2*twoksq;  
+			    trans[i][mu][d].VT = GPUab1->RVT + temp2*twoksq;
+		        }
+
+		        if (trans2[i][mu][d].VT == 0){
+			    trans2[i][mu][d].U = GPUab1->T + temp*ksq;
+		        }
+		        else{
+			    trans2[i][mu][d].U = GPUab1->TU + temp2*ksq;  
+			    trans2[i][mu][d].VT = GPUab1->TVT + temp2*ksq;
+		        }
+
+                        if (localSVD[temp]) temp2++;
+		        temp++;
+		     }
+	         } 
+
+            }
+
+            /*	
             pthread_mutex_lock(&apply_lock);	
 	    if (apply_prev_offset < apply_curr_offset){
 	      GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, apply_buffer + apply_prev_offset, 
@@ -15324,6 +15457,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 		TVTprev_offset = TVTcurr_offset;
             }
             ENDt_TIMER("transfer");	   
+            */
 
             int conds = 0; 
             int conds2 = 0;
@@ -15520,7 +15654,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             } 
             delete mufacs;
 
-            delete op_data; delete before;
+            delete op_data; delete shifts;
 
             return outArg;
         }

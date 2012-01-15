@@ -527,15 +527,19 @@ namespace madness {
 
             ConvolutionData1D<Q> cd1d(R,T,apply_buffer,apply_offset,GPUapply_buffer,apply_lock);
             //ConvolutionData1D<Q> cd1d(R,T);
+            //pthread_mutex_lock(apply_lock);
             const ConvolutionData1D<Q>* p1 = ns_cache.getptr(n,lx);
             if (!p1) ns_cache.set(n,lx,cd1d);
-            ns_cacheGPU.set(n,lx,cd1d);
+            /*const ConvolutionData1D<Q>* p2 = ns_cacheGPU.getptr(n,lx);*/
+            /*if (!p2) */ns_cacheGPU.set(n,lx,cd1d);
+            //pthread_mutex_unlock(apply_lock);
 
             return ns_cacheGPU.getptr(n,lx);
         };
 
-        /*const*/ ConvolutionData1D<Q>* nonstandardGPU2(Level n, Translation lx) const {
-            /*const*/ ConvolutionData1D<Q>* p = ns_cacheGPU.getptr(n,lx);
+        /*
+        const ConvolutionData1D<Q>* nonstandardGPU2(Level n, Translation lx) const {
+            const ConvolutionData1D<Q>* p = ns_cacheGPU.getptr(n,lx);
             if (p) return p;
 
             PROFILE_MEMBER_FUNC(Convolution1D);
@@ -599,6 +603,7 @@ namespace madness {
 
             return ns_cacheGPU.getptr(n,lx);
         };
+        */
 
         Q phase(double R) const {
         	return 1.0;

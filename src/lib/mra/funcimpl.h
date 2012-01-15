@@ -4207,14 +4207,13 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>,
-                        const SC *, bool > tuplepreprocT;
+                        Tensor<T>, Tensor<T>, SC*, keyT> tuplepreprocT;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
    
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
             typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
 
-            tuplepreprocT tpreproc = op->apply_computepreprocess(t1);
+            tuplepreprocT tpreproc = op->apply_computepreprocess2(t1);
 
             typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
             typedef Void(opT::*memfun3T)(tuple2T ) const;
@@ -4324,7 +4323,7 @@ ENDt_TIMER("memcpy3");
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel6<opT,R>, op, c, args);
+                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel7<opT,R>, op, c, args);
                         } else {
                             
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);
