@@ -105,9 +105,11 @@ std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen 
   const double t1 = L;
 
   std::vector< Vector<double,3> > rvecs;
+  std::vector< Vector<double,3> > rvecs2;
+  double maxRlen20 = 1.2*maxRlen;
 
-  int rlo = -200;
-  int rhi = 201;
+  int rlo = -500;
+  int rhi = 501;
   for (int ir1 = rlo; ir1 < rhi; ir1++)
   {
     for (int ir2 = rlo; ir2 < rhi; ir2++)
@@ -120,25 +122,42 @@ std::vector< Vector<double,3> > generate_R_vectors(World& world, double maxRlen 
           Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
           rvecs.push_back(rvec);
         }
+        else if (rlen < maxRlen20)
+        {
+          Vector<double,3> rvec = vec(t1*ir1, t1*ir2, t1*ir3);
+          rvecs2.push_back(rvec);
+        }
       }
     }
   }
   std::sort(rvecs.begin(), rvecs.end(), vectorLengthFunctor());
+  std::sort(rvecs2.begin(), rvecs2.end(), vectorLengthFunctor());
+
 //      if (_world.rank() == 0) printf("Size of vectors:  %d\n", rvecs.size());
 //      if (_world.rank() == 0)
 //        printf("\nR-vectors:\n");
-  for (unsigned int ir = 0; ir < rvecs.size(); ir++)
-  {
-    Vector<double,3> rvec = rvecs[ir];
-    double rlen = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
+
+//  for (unsigned int ir = 0; ir < rvecs.size(); ir++)
+//  {
+//    Vector<double,3> rvec = rvecs[ir];
+//    double rlen = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
+//
 //        if (world.rank() == 0)
 //          printf("%10.5f %10.5f %10.5f   %10.5f\n",rvec[0],rvec[1],rvec[2],rlen);
-  }
+//  }
 
+  // Get size info
   unsigned int rsize = rvecs.size();
   Vector<double,3> rvec = rvecs[rsize-1];
   double maxRlen2 = std::sqrt(rvec[0]*rvec[0] + rvec[1]*rvec[1] + rvec[2]*rvec[2]);
-  if (world.rank() == 0) print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2);
+  unsigned int rsize2 = rvecs2.size();
+  if (world.rank() == 0) print("rsize:  ", rsize, "rsize2:  ", rsize2);
+  Vector<double,3> rvec2 = rvecs2[0];
+  double maxRlen20_2 = std::sqrt(rvec2[0]*rvec2[0] + rvec2[1]*rvec2[1] + rvec2[2]*rvec2[2]);
+
+  if (world.rank() == 0)
+    print("R-max length requested:  ", maxRlen, "    R-max length:  ", maxRlen2,
+        "    R-max length (120%):  ", maxRlen20_2);
 
   return rvecs;
 }
@@ -153,8 +172,8 @@ std::vector< Vector<double,3> > generate_G_vectors(World& world, double maxGlen 
 
   std::vector< Vector<double,3> > gvecs;
 
-  int glo = -200;
-  int ghi = 201;
+  int glo = -500;
+  int ghi = 501;
   for (int ig1 = glo; ig1 < ghi; ig1++)
   {
     for (int ig2 = glo; ig2 < ghi; ig2++)
@@ -225,24 +244,24 @@ public:
     double gmax = 550.0;
     double gmin = 0.01;
     bool gstop = false;
-    double gval = 0.5*(gmax+gmin);
+    double gval2 = 0.5*(gmax+gmin);
     for (unsigned int i = 0; i < 500 && !gstop; i++)
     {
-      gval = 0.5*(gmax+gmin);
-      double t1 = std::exp(-gval/4/alpha/alpha)/gval;
+      gval2 = 0.5*(gmax+gmin);
+      double t1 = std::exp(-gval2/4/alpha/alpha)/gval2;
       if (((t1 > 0.9e-10) && (t1 < 1.1e-10)) || (gmax-gmin/2) < gthresh) gstop = true;
       if (!gstop)
       {
         if (t1 > 1e-10)
         {
-          gmin = gval;
+          gmin = gval2;
         }
         else
         {
-          gmax = gval;
+          gmax = gval2;
         }
       }
-      if (world.rank() == 0) print("i: ", i, "  gval: ", gval, "  t1: ", t1);
+      if (world.rank() == 0) print("i: ", i, "  gval: ", std::sqrt(gval2), "  t1: ", t1);
     }
 
     double rthresh = 1e-6;
@@ -270,8 +289,8 @@ public:
     }
 
     const double TWOPI = 2.0*constants::pi;
-    rvecs = generate_R_vectors(world,std::max(rval,1.5*L));
-    gvecs = generate_G_vectors(world,std::max(std::sqrt(gval),1.5*TWOPI/L));
+    rvecs = generate_R_vectors(world,std::max(rval,10*L));
+    gvecs = generate_G_vectors(world,std::max(std::sqrt(gval2),10*TWOPI/L));
     if (world.rank() == 0) print("gvecs size: ", gvecs.size());
     if (world.rank() == 0) print("rvecs size: ", rvecs.size());
     unsigned int natoms = mentity->natom();
@@ -481,6 +500,18 @@ public:
 //*************************************************************************
 
 //*************************************************************************
+double nuclear_potential(const Tensor<double>& c, const Tensor<double>& e, double r)
+{
+  double val = 0.0;
+  for (unsigned int mu = 0; mu < c.dim(0); mu++)
+  {
+    val += c[mu]*std::exp(-e[mu]*r*r);
+  }
+  return val;
+}
+//*************************************************************************
+
+//*************************************************************************
 class MolecularNuclearPotentialFunctor2 : public FunctionFunctorInterface<double,3> {
 private:
   MolecularEntity mentity;
@@ -492,7 +523,7 @@ private:
 
 public:
   MolecularNuclearPotentialFunctor2(World& world, const MolecularEntity& mentity,
-      const double& R, double eps) : mentity(mentity)
+      const double& R, double eps, double lo=1e-12) : mentity(mentity)
   {
     bc=FunctionDefaults<3>::get_bc();
     if (bc(0,0) == BC_PERIODIC)
@@ -505,26 +536,28 @@ public:
     }
     const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
     double hi = cell_width.normf(); // Diagonal width of cell
-    if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+    if (bc(0,0) == BC_PERIODIC) hi *= 100;
+    else hi *= 5; // Extend range for periodic summation
     const double pi = constants::pi;
 
-    gen_ce(0.0,1e-5,eps,coeff,expnt);
+    print("hi:  ", hi);
+
+//    gen_ce(0.0,1e-5,eps,coeff,expnt);
 
     // bsh_fit generates representation for 1/4Pir but we want 1/r
     // so have to scale eps by 1/4Pi
-//    double lo = 1e-8;
-//    bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
-//
-//    if (bc(0,0) == BC_PERIODIC) {
-//        truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
-//    }
-//    coeff.scale(4.0*pi);
+    bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
 
-//    for (unsigned int i = 0; i < coeff.dim(0); i++)
-//    {
-//      coeff[i] = coeff[i]*R;
-//      expnt[i] = expnt[i]*R*R;
-//    }
+    if (bc(0,0) == BC_PERIODIC) {
+        truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+    }
+    coeff.scale(4.0*pi);
+
+    for (unsigned int i = 0; i < coeff.dim(0); i++)
+    {
+      coeff[i] = coeff[i]*R;
+      expnt[i] = expnt[i]*R*R;
+    }
 
 //    for (unsigned int i = 0; i < coeff.dim(0); i++)
 //    {
@@ -539,31 +572,51 @@ public:
 //    }
   }
 
+//  double operator()(const coordT& r) const
+//  {
+//    double rval = 0.0;
+//    for (unsigned int ia = 0; ia < mentity.natom(); ia++)
+//    {
+//      Atom iatom = mentity.get_atom(ia);
+//      for (unsigned int mu = 0; mu < coeff.dim(0); mu++)
+//      {
+//        for (unsigned int ir = 0; ir < rvecs.size(); ir++)
+//        {
+//          Vector<double,3> rvec = rvecs[ir];
+//          Vector<double,3> tvec = vec(r[0]-iatom.x-rvec[0],
+//                                      r[1]-iatom.y-rvec[1],
+//                                      r[2]-iatom.z-rvec[2]);
+//          double T2 = tvec[0]*tvec[0] + tvec[1]*tvec[1] + tvec[2]*tvec[2];
+//          rval += std::exp(-expnt[mu]*T2);
+//        }
+//        rval *= coeff[mu];
+//      }
+//      rval *= iatom.q;
+//    }
+//    return rval;
+//  }
+
   double operator()(const coordT& r) const
   {
     double rval = 0.0;
     for (unsigned int ia = 0; ia < mentity.natom(); ia++)
     {
       Atom iatom = mentity.get_atom(ia);
-      Vector<double,3> tvec = vec(iatom.x,iatom.y, iatom.z);
-      for (unsigned int mu = 0; mu < coeff.dim(0); mu++)
+      for (unsigned int ir = 0; ir < rvecs.size(); ir++)
       {
-        for (unsigned int ir = 0; ir < rvecs.size(); ir++)
-        {
-          Vector<double,3> rvec = rvecs[ir];
-          Vector<double,3> tvec2 = vec(r[0],r[1],r[2]);
-          tvec2[0] -= tvec[0]+rvec[0];
-          tvec2[1] -= tvec[1]+rvec[1];
-          tvec2[2] -= tvec[2]+rvec[2];
-          double T2 = tvec2[0]*tvec2[0] + tvec2[1]*tvec2[1] + tvec2[2]*tvec2[2];
-          rval += std::exp(-expnt[mu]*T2);
-        }
-        rval *= coeff[mu];
+        Vector<double,3> rvec = rvecs[ir];
+        Vector<double,3> tvec = vec(r[0]-iatom.x-rvec[0],
+                                    r[1]-iatom.y-rvec[1],
+                                    r[2]-iatom.z-rvec[2]);
+        double t1 = std::sqrt(tvec[0]*tvec[0] + tvec[1]*tvec[1] + tvec[2]*tvec[2]);
+        rval += -iatom.q*nuclear_potential(coeff,expnt,t1);
       }
-      rval *= iatom.q;
     }
     return rval;
   }
+
+  Tensor<double> get_coeff() {return coeff;}
+  Tensor<double> get_expnt() {return expnt;}
 };
 //*************************************************************************
 
@@ -596,8 +649,8 @@ public:
 
     double operator()(const coordT& x) const
     {
-        //double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
-        double big = 2*R + 6.0*_mentity.smallest_length_scale();
+        double big = 0.5*R + 6.0*_mentity.smallest_length_scale();
+//        double big = 2*R + 6.0*_mentity.smallest_length_scale();
         // Only one contribution at any point due to the short
         // range of the nuclear charge density
         //printf("big: %10.8f\n\n", big);
@@ -990,6 +1043,42 @@ void test_gence(int argc, char** argv)
 //*************************************************************************
 
 //*************************************************************************
+void test_gence2(int argc, char** argv)
+{
+  Tensor<double> c,e;
+//  gen_ce(0.0, 1e-8, 1e-12, c, e);
+  // bsh_fit generates representation for 1/4Pir but we want 1/r
+  // so have to scale eps by 1/4Pi
+  double lo = 1e-8;
+  double eps = 1e-12;
+  bsh_fit(0.0, lo, 100.0*L, eps/(4.0*constants::pi), &c, &e, false);
+
+//  if (bc(0,0) == BC_PERIODIC) {
+//      truncate_periodic_expansion(c, e, cell_width.max(), true);
+//  }
+  c.scale(4.0*constants::pi);
+
+  for (unsigned int i = 0; i < c.dim(0); i++)
+  {
+    c[i] = c[i]*L;
+    e[i] = e[i]*L*L;
+  }
+
+
+  unsigned int npts = 250;
+  double LL = 100.0;
+  for (unsigned int i = 1; i < npts; i++)
+  {
+    double r = i*LL/npts;
+    double val = nuclear_potential(c, e, r);
+    double val2 = 1/r;
+    double rerr = std::abs(val-val2)/val;
+    printf("%10.5f  %15.10e  %15.10e  %15.10e\n", r, val2, val, rerr);
+  }
+}
+//*************************************************************************
+
+//*************************************************************************
 void test_nuclear_potential2(int argc, char** argv)
 {
   initialize(argc, argv);
@@ -1003,21 +1092,28 @@ void test_nuclear_potential2(int argc, char** argv)
       FunctionDefaults<3>::set_thresh(1e-6);
       FunctionDefaults<3>::set_k(8);
       FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_FREE));
-      FunctionDefaults<3>::set_cubic_cell(0,L);
+      FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
 
       MolecularEntity mentity;
       mentity.add_atom(0.0,0.0,0.0,1.0,1.0);
+      mentity.center();
 
-      MolecularNuclearPotentialFunctor2 npoty(world, mentity, L, 1e-8);
+      MolecularNuclearPotentialFunctor2 npoty(world, mentity, L, 1e-16);
       if (world.rank() == 0) mentity.print();
 
-      unsigned int npts = 150;
+      Tensor<double> c = npoty.get_coeff();
+      Tensor<double> e = npoty.get_expnt();
+
+      unsigned int npts = 153;
       for (unsigned int ir = 1; ir < npts; ir++)
       {
-        double rpt = ir*L/npts;
+        double rpt = ir*L/npts-L/2;
         coordT pt(rpt);
         double npotpt = npoty(pt);
-        if (world.rank() == 0) printf("%10.5f     %15.10e     %15.10e\n", rpt, npotpt, 1/rpt);
+        rpt *= std::sqrt(3);
+        double npotpt2 = -1/std::abs(rpt);
+        double nerror = std::abs((npotpt-npotpt2)/npotpt2);
+        if (world.rank() == 0) printf("%10.5f     %15.10e     %15.10e     %15.10e\n", rpt, npotpt, npotpt2, nerror);
       }
 
   } catch (const MPI::Exception& e) {
@@ -1093,9 +1189,20 @@ void test_nuclear_potential(int argc, char** argv)
 //      double nptr = npotd.trace();
 //      if (world.rank() == 0) print("The trace of the difference of potentials: ", nptr);
 
-      EwaldNuclearPotentialFunctor ewaldf(world, &mentity, 0.7);
-      EwaldNuclearPotentialFunctor ewaldf1(world, &mentity, 1.1);
-      EwaldNuclearPotentialFunctor ewaldf2(world, &mentity, 2.0);
+//      if (world.rank() == 0) print("Making *new* nuclear potential ...");
+//      rfunctionT vnuc2 = rfactoryT(world).functor(
+//          rfunctorT(new MolecularNuclearPotentialFunctor2(world, mentity, L, 1e-8))).
+//          truncate_on_project();
+//      if (world.rank() == 0) print("Done making normal nuclear potential ...");
+
+
+      //      EwaldNuclearPotentialFunctor ewaldf(world, &mentity, 0.7);
+      //      EwaldNuclearPotentialFunctor ewaldf1(world, &mentity, 1.1);
+      //      EwaldNuclearPotentialFunctor ewaldf2(world, &mentity, 2.0);
+      EwaldNuclearPotentialFunctor ewaldf(world, &mentity, 0.05);
+      EwaldNuclearPotentialFunctor ewaldf1(world, &mentity, 0.2);
+      EwaldNuclearPotentialFunctor ewaldf2(world, &mentity, 0.4);
+      MolecularNuclearPotentialFunctor2 mnpotf(world, mentity, L , 1e-7, 1e-2);
       unsigned int npts = 250;
       for (unsigned int ir = 0; ir < npts; ir++)
       {
@@ -1105,13 +1212,113 @@ void test_nuclear_potential(int argc, char** argv)
         double npot2pt = ewaldf(pt);
         double npot3pt = ewaldf1(pt);
         double npot4pt = ewaldf2(pt);
+        double npot5pt = mnpotf(pt);
         double nerror2 = std::abs(npot1pt-npot2pt);
         double nerror3 = std::abs(npot1pt-npot3pt);
         double nerror4 = std::abs(npot1pt-npot4pt);
-//        if (world.rank() == 0) print(rpt, npot1pt, npot2pt, nerror);
-        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt,
-            "  ", npot3pt, "  ", npot4pt, "  ", nerror2, nerror3, nerror4);
-//        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt, "  ", nerror);
+        double nerror5 = std::abs(npot1pt-npot5pt);
+//        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt,
+//            "  ", npot3pt, "  ", npot4pt, "  ", nerror2, nerror3, nerror4);
+//        if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot3pt, "  ",
+//            npot5pt, "  ", nerror3, "  ", nerror5);
+        if (world.rank() == 0)
+          printf("%10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e\n",
+            rpt, npot1pt, npot2pt, npot3pt, npot4pt, npot5pt,
+            nerror2, nerror3, nerror4, nerror5);
+      }
+
+  } catch (const MPI::Exception& e) {
+      //        print(e);
+      error("caught an MPI exception");
+  } catch (const madness::MadnessException& e) {
+      if (world.rank() == 0) print(e);
+      error("caught a MADNESS exception");
+  } catch (const madness::TensorException& e) {
+      if (world.rank() == 0) print(e);
+      error("caught a Tensor exception");
+  } catch (const char* s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string exception");
+  } catch (char* s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string exception");
+  } catch (const std::string& s) {
+      if (world.rank() == 0) print(s);
+      error("caught a string (class) exception");
+  } catch (const std::exception& e) {
+      if (world.rank() == 0) print(e.what());
+      error("caught an STL exception");
+  } catch (...) {
+      error("caught unhandled exception");
+  }
+
+  finalize();
+
+
+}
+//*************************************************************************
+
+//*************************************************************************
+void test_nuclear_potential3(int argc, char** argv)
+{
+  initialize(argc, argv);
+
+  World world(MPI::COMM_WORLD);
+
+  try {
+      // Load info for MADNESS numerical routines
+      startup(world,argc,argv);
+      std::cout.precision(6);
+      FunctionDefaults<3>::set_thresh(1e-6);
+      FunctionDefaults<3>::set_k(8);
+      FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
+      FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
+
+      MolecularEntity mentity;
+      mentity.add_atom(0.0,0.0,0.0,7,9);
+      mentity.add_atom(L/2,L/2,L/2,1,3);
+      mentity.center();
+
+      if (world.rank() == 0) print("Making charge density ...");
+      rfunctionT ndensity2 = make_nuclear_charge_density(world,mentity,1e-2);
+      rfunctionT ndensity4 = make_nuclear_charge_density(world,mentity,1e-4);
+      rfunctionT ndensity6 = make_nuclear_charge_density(world,mentity,1e-6);
+      rfunctionT ndensity8 = make_nuclear_charge_density(world,mentity,1e-8);
+
+      if (world.rank() == 0) print("Making normal nuclear potential (1e-2) ...");
+      SeparatedConvolution<double,3> cop2 =
+          CoulombOperator(world,1e-2,1e-2);
+      rfunctionT npot2 = apply(cop2,ndensity2);
+      if (world.rank() == 0) print("Making normal nuclear potential (1e-4) ...");
+      SeparatedConvolution<double,3> cop4 =
+          CoulombOperator(world,1e-2,1e-4);
+      rfunctionT npot4 = apply(cop4,ndensity4);
+      if (world.rank() == 0) print("Making normal nuclear potential (1e-6) ...");
+      SeparatedConvolution<double,3> cop6 =
+          CoulombOperator(world,1e-2,1e-6);
+      rfunctionT npot6 = apply(cop6,ndensity6);
+      if (world.rank() == 0) print("Making normal nuclear potential (1e-8) ...");
+      SeparatedConvolution<double,3> cop8 =
+          CoulombOperator(world,1e-2,1e-8);
+      rfunctionT npot8 = apply(cop8,ndensity8);
+
+      unsigned int npts = 250;
+      for (unsigned int ir = 0; ir < npts; ir++)
+      {
+        double rpt = ir*L/npts-L/2;
+        coordT pt(rpt);
+        double npot2pt = npot2(pt);
+        double npot4pt = npot4(pt);
+        double npot6pt = npot6(pt);
+        double npot8pt = npot8(pt);
+        double nerror2 = std::abs(npot8pt-npot2pt);
+        double nerror4 = std::abs(npot8pt-npot4pt);
+        double nerror6 = std::abs(npot8pt-npot6pt);
+        double nerror8 = std::abs(npot8pt-npot8pt);
+        if (world.rank() == 0)
+          printf("%10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e  %10.7e\n",
+            rpt, npot2pt, npot4pt, npot6pt, npot8pt,
+            nerror2, nerror4, nerror6, nerror8);
       }
 
   } catch (const MPI::Exception& e) {
@@ -1372,8 +1579,8 @@ int main(int argc, char** argv)
 {
 //    test_nuclear_energy(argc,argv);
   //test_gaussian_num_coeffs(argc,argv);
-  test_nuclear_potential(argc,argv);
-//  test_gence(argc,argv);
+  test_nuclear_potential3(argc,argv);
+  //test_gence2(argc,argv);
   //test_G_R_vectors(argc,argv);
   return 0;
 }
