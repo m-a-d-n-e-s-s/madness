@@ -62,6 +62,26 @@ extern "C" void device_synchronize(void **,unsigned int);
 extern "C" void** streams_initialize(unsigned int, void *);
 namespace madness {
 
+    template<typename Q>
+    double xorhash(Tensor<Q> t){
+        double hash = 1;
+        for (int i = 0; i < t.size(); i++){
+           hash += (300000*t.ptr()[i]);
+        }
+        return hash;
+    }
+
+    template<typename Q>
+    double xorhash(const Q* t, int size){
+        Q* temp = new Q[size];
+        CPUtransfer_buffer(temp, const_cast<Q*>(t), size);
+        double hash = 1;
+        for (int i = 0; i < size; i++){
+           hash += temp[i];
+        }
+        delete temp;
+        return hash;
+    }
 
     extern void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
       double L, bool discardG0);
@@ -159,9 +179,9 @@ namespace madness {
         mutable unsigned int RVTcurr_offset;
         mutable unsigned int TVTprev_offset;
         mutable unsigned int TVTcurr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*10;
-        static const unsigned int R_maxsize = 1024*1024*10;
-        static const unsigned int T_maxsize = 1024*1024*2;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*20;
+        static const unsigned int R_maxsize = 1024*1024*2;
+        static const unsigned int T_maxsize = 1024*1024*1;
 
         template <typename T, typename R>
         void apply_transformation1(Level n, long dimk,
@@ -1756,6 +1776,7 @@ namespace madness {
                                                   t2(condition, trans, trans2,
                                                   doit2, doit1, mufacs, n, argsdest, argstol, argsfac, 
                                                   coeffs, f, f0, const_cast<SC*>(op), shift);
+            //print(n,shift);
             return t2;
         }
 
@@ -15081,11 +15102,17 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
  
             Transformation *** trans;
             Transformation *** trans2;
+            Transformation *** transtemp;
+            Transformation *** trans2temp;
             trans = new Transformation**[inArgs.size()];
             trans2 = new Transformation**[inArgs.size()];
+            transtemp = new Transformation**[inArgs.size()];
+            trans2temp = new Transformation**[inArgs.size()];
             for (i = 0; i < inArgs.size(); i++){
                 trans[i] = std::tr1::get<1>(*args[i]);
                 trans2[i] = std::tr1::get<2>(*args[i]);
+                transtemp[i] = std::tr1::get<1>(*args[i]);
+                trans2temp[i] = std::tr1::get<2>(*args[i]);
             }
 
             bool** doit2;
@@ -15298,7 +15325,6 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                         for (int d = 0; d < NDIM; d++){
                             memcpy(localR + c*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
                             memcpy(localT + c*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
-                            c++;
                             if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
                                 localSVD[c] = true;
                                 memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
@@ -15310,6 +15336,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                             else{
                                 localSVD[c] = false;
                             }
+                            c++;
                         }
                     }
 
@@ -15322,10 +15349,13 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                      GPUab.TVT = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*(twoksq + ksq + twoksq);
 
 	            //if (apply_prev_offset < apply_curr_offset){
+                    if (c > 0){
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localR, c*twokbytes);
 	                apply_prev_offset += c*twoksq;
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localT, c*kbytes);
 	                apply_prev_offset += c*ksq;
+                    }
+                    if (numSVD > 0){
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localRU, numSVD*twokbytes);
 	                apply_prev_offset += numSVD*twoksq;
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTU, numSVD*kbytes);
@@ -15334,7 +15364,10 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	                apply_prev_offset += numSVD*twoksq;
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTVT, numSVD*kbytes);
 	                apply_prev_offset += numSVD*ksq;
+                    }
                     //}
+
+                        MADNESS_ASSERT(apply_prev_offset < apply_buffer_maxsize);
 
                      GPUApplyCache.set(n_array[i],shifts[i], GPUab);
                      GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(GPUApplyCache.getptr(n_array[i],shifts[i]));
@@ -15343,13 +15376,13 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                     GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(p);
                     for (int mu = 0; mu < rank; mu++){
                         for (int d = 0; d < NDIM; d++){
-                            c++;
                             if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
                                 localSVD[c] = true;
                             }
                             else{
                                 localSVD[c] = false;
                             }
+                            c++;
                         }
                     }
                 }
@@ -15461,6 +15494,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 
             int conds = 0; 
             int conds2 = 0;
+            device_synchronize(GPU_streams,NUM_STREAMS);  
 conds = 0;
 STARTt_TIMER;
             GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
@@ -15583,6 +15617,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                     R* result0ptr = &r0ptr_arrayCPU[r0ptr_offarray[i]];
                     memcpy(result.ptr(), resultptr, result.size()*sizeof(R));
                     memcpy(result0.ptr(), result0ptr, result0.size()*sizeof(R));
+                    //print(WorldObject< SeparatedConvolution<Q,NDIM> >::world.rank()," hash(f) = ",xorhash(f_array[i])," hash(f0) = ",xorhash(f0_array[i]), " hash(r) = ",xorhash(r_array[i])," hash(r0) = ",xorhash(r0_array[i]), "hash(trans) = ",xorhash(trans[i][0][0].U, twoksq), n_array[i], shifts[i]);
 		    Tensor<R> * r1 = new Tensor<R>(r_array[i]); 
 		    Tensor<R> * r01 = new Tensor<R>(r0_array[i]); 
 		    std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2(r1, r01, *coeffs_array[i], argsdest_array[i], argstol_array[i], argsfac_array[i]);
@@ -15636,6 +15671,8 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             }
             delete trans;
             delete trans2;
+            delete transtemp;
+            delete trans2temp;
 
             for (i = 0; i < inArgs.size(); i++){
               delete doit2[i];

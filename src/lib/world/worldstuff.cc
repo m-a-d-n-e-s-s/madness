@@ -108,7 +108,7 @@ namespace madness {
 /* other code */
 
 t.tv_sec = 0.0;
-t.tv_nsec = 20000;
+t.tv_nsec = 2000000;
 nanosleep(&t, NULL);
            
             w->gpu_hashlock.lock();

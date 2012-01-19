@@ -4070,7 +4070,7 @@ ENDt_TIMER("memcpy3");
 
             //Registry<R, opT>::memfun2T memfun2 = &opT:: template apply_allCompute<T, R>;
             //Registry<R, opT>::memfun3T memfun3 = &opT:: template apply_postprocess<T>;
-            memfun2T memfun2 = &opT::template apply_allComputeGPUIndKernels_Cublas5/*OptnoShrinkSeventhTransfer_Stream*/<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPUIndKernels_Cublas2/*OptnoShrinkSeventhTransfer_Stream*/<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
 
@@ -4213,6 +4213,7 @@ ENDt_TIMER("memcpy3");
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
             typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
 
+            //print("shift = ",args.d);
             tuplepreprocT tpreproc = op->apply_computepreprocess2(t1);
 
             typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
@@ -4323,7 +4324,7 @@ ENDt_TIMER("memcpy3");
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template /*do_apply_kernel_std*/ do_apply_kernel7<opT,R>, op, c, args);
+                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
                         } else {
                             
                             tensorT result = op->apply(key, d, c, tol/fac/cnorm);

@@ -679,7 +679,7 @@ T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
         if (copy){
 	  err = cudaMemcpy((void*)GPU_buf,(void*)CPU_buf,offset*sizeof(T),cudaMemcpyHostToDevice);
           if (err != cudaSuccess){
-            perror("Could not memcpy to GPU memory   ");
+            perror("Could not memcpy to just allocated GPU memory   ");
             exit(-1);
           }
         }
@@ -964,8 +964,8 @@ template <typename aT, typename bT, typename cT>
 	//double *devPtrA, *devPtrB, *devPtrC;
         cublasHandle_t *handle=(cublasHandle_t *)h;	
 //	cublasCreate(&handle);
-	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-	cublasSetStream(*handle, *stream);
+	////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	////cublasSetStream(*handle, *stream);
 
         	
         int b;
@@ -1950,9 +1950,23 @@ template<> void cu_axpystream(long n , double *a, double *b, double s,  void *GP
         // alpha= reinterpret_cast<T> (s);
         cublasHandle_t *handle=(cublasHandle_t *)h;
 //      cublasCreate(&handle);
-        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        cublasSetStream(*handle, *stream);
-        cublasDaxpy(*handle,n,&s,b,1,a,1);
+        ////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        ////cublasSetStream(*handle, *stream);
+        int b1 = cublasDaxpy(*handle,n,&s,b,1,a,1);
+	if (b1 == CUBLAS_STATUS_INVALID_VALUE)
+	  printf("CUBLAS_STATUS_INVALID_VALUE");
+	else if (b1 == CUBLAS_STATUS_ARCH_MISMATCH)
+	  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b1 ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b1 ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b1 ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b1 ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b1 ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
 cudaDeviceSynchronize();
 int  f =cudaGetLastError();
 if (f !=cudaSuccess){printf("axpy error= %d",f);
@@ -1971,6 +1985,7 @@ template<> void cu_axpy(long n , float *a, float *b, float s,  void *GPU_stream,
         //cublasSetStream(*handle, *stream);
         cublasSaxpy(*handle,n,&s,b,1,a,1);
 
+        printf("Shouldn't be here!");
 
 }
 template<> void cu_axpystream(long n , float *a, float *b, float s,  void *GPU_stream, void *h) {
@@ -1978,10 +1993,11 @@ template<> void cu_axpystream(long n , float *a, float *b, float s,  void *GPU_s
         // alpha= reinterpret_cast<T> (s);
         cublasHandle_t *handle=(cublasHandle_t *)h;
 //      cublasCreate(&handle);
-        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        cublasSetStream(*handle, *stream);
+        ////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        ////cublasSetStream(*handle, *stream);
         cublasSaxpy(*handle,n,&s,b,1,a,1);
 
+        printf("Shouldn't be here!");
 
 }
 
