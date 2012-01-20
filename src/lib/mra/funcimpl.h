@@ -3221,19 +3221,14 @@ namespace madness {
                 const unsigned int maxk=result->get_k();
                 MADNESS_ASSERT(maxk==coeff1.dim(0));
 
-                // normalize
                 Tensor<double> weights(1);
                 weights=1.0;
-                double norm1=coeff1.normf();
-                double norm2=coeff2.normf();
-                weights*=norm1*norm2;
-                coeff1.scale(1.0/norm1);
-                coeff2.scale(1.0/norm2);
 
                 // need full_tensor_copy() here, b/c coeff1/2 are in NS form
                 const SRConf<T> srconf(weights,coeff1.full_tensor_copy().reshape(1,maxk*maxk*maxk),
                         coeff2.full_tensor_copy().reshape(1,maxk*maxk*maxk),dim,maxk);
-                const coeffT coeff(srconf);
+                coeffT coeff(srconf);
+                coeff.normalize();
 
                 // no post-determination
 //                is_leaf=leaf_op(key,coeff);
@@ -5027,7 +5022,7 @@ namespace madness {
         template<size_t LDIM>
         void project_out(const FunctionImpl<T,LDIM+NDIM>* f, const FunctionImpl<T,LDIM>* g, const int dim) {
 
-            typedef typename FunctionImpl<T,LDIM>::dcT::const_iterator giterator;
+            typedef std::pair< keyT,coeffT > pairT;
             typedef typename FunctionImpl<T,NDIM+LDIM>::dcT::const_iterator fiterator;
 
             // loop over all nodes of hi-dim f, compute the inner products with all
@@ -5036,7 +5031,7 @@ namespace madness {
             for (fiterator it=f->get_coeffs().begin(); it!=end; ++it) {
                 const Key<LDIM+NDIM> key=it->first;
                 const FunctionNode<T,LDIM+NDIM> fnode=it->second;
-                const coeffT fcoeff=fnode.coeff();
+                const coeffT& fcoeff=fnode.coeff();
 
                 if (fnode.is_leaf() and fcoeff.has_data()) {
 
@@ -5047,11 +5042,17 @@ namespace madness {
                     key.break_apart(key1,key2);
 
                     if (dim==0) {
-                        const Future<giterator> git=g->coeffs.find(key1);
-                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,git,key2,dim);
+                        Future<pairT> result;
+//                        sock_it_to_me(key1, result.remote_ref(world));
+                        g->task(coeffs.owner(key1), &implT::sock_it_to_me, key1, result.remote_ref(world), TaskAttributes::hipri());
+                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,result,key1,key2,dim);
+
                     } else if (dim==1) {
-                        const Future<giterator> git=g->coeffs.find(key2);
-                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,git,key1,dim);
+                        Future<pairT> result;
+//                        sock_it_to_me(key2, result.remote_ref(world));
+                        g->task(coeffs.owner(key2), &implT::sock_it_to_me, key2, result.remote_ref(world), TaskAttributes::hipri());
+                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,result,key2,key1,dim);
+
                     } else {
                         MADNESS_EXCEPTION("confused dim in project_out",1);
                     }
@@ -5066,14 +5067,15 @@ namespace madness {
 
         /// invoked by result
         /// @param[in]  fcoeff  coefficients of high dimension LDIM+NDIM
-        /// @param[in]  git     iterator to node with coeffs of low dimension LDIM
+        /// @param[in]  gpair   key and coeffs of low dimension LDIM (possibly a parent node)
+        /// @param[in]  gkey    key of actual low dim node (possibly the same as gpair.first, iff gnode exists)
         /// @param[in]  dest    destination node for the result
         /// @param[in]  dim     which dimensions should be contracted: 0..LDIM-1 or LDIM..NDIM+LDIM-1
         template<size_t LDIM>
-        Void do_project_out(const coeffT& fcoeff, const typename FunctionImpl<T,LDIM>::dcT::const_iterator git,
+        Void do_project_out(const coeffT& fcoeff, const std::pair<keyT,coeffT> gpair, const keyT& gkey,
                 const Key<NDIM>& dest, const int dim) const {
 
-            const coeffT gcoeff=git->second.coeff();
+            const coeffT gcoeff=parent_to_child(gpair.second,gpair.first,gkey);
 
             // fast return if possible
             if (fcoeff.has_no_data() or gcoeff.has_no_data()) return None;
@@ -5085,11 +5087,14 @@ namespace madness {
             tensorT result(cdata.vk);
 
             const int otherdim=(dim+1)%2;
+            const int k=fcoeff.dim(0);
+            std::vector<Slice> s(fcoeff.config().dim_per_vector()+1,_);
 
             // do the actual contraction
             for (int r=0; r<fcoeff.rank(); ++r) {
-                const tensorT& contracted_tensor=fcoeff.config().ref_vector(dim);
-                const tensorT& other_tensor=fcoeff.config().ref_vector(otherdim);
+                s[0]=Slice(r,r);
+                const tensorT contracted_tensor=fcoeff.config().ref_vector(dim)(s).reshape(k,k,k);
+                const tensorT other_tensor=fcoeff.config().ref_vector(otherdim)(s).reshape(k,k,k);
                 const double ovlp= gtensor.trace_conj(contracted_tensor);
                 const double fac=ovlp * fcoeff.config().weights(r);
                 result+=fac*other_tensor;

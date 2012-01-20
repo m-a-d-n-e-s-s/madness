@@ -1220,7 +1220,7 @@ namespace madness {
 
             FunctionFactory<resultT,KDIM> factory=FunctionFactory<resultT,KDIM>(world())
                     .k(this->k()).thresh(this->thresh());
-            Function<resultT,KDIM> result=factory.empty();
+            Function<resultT,KDIM> result=factory;      // no empty() here!
 
             FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
 
