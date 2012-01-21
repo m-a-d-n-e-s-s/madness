@@ -831,17 +831,60 @@ namespace madness {
         //}
         //printf("this->inArgs.size() = %i \n",this->inArgs.size());
         if (this->inArgs.size() >= GPU_MINTASKS){
-            objT odef; //this relies on objT having a default constructor
-            this->outArgs = (odef.*memfunCompute)(this->inArgs, this->inObj);
+            //objT odef; //this relies on objT having a default constructor
+          int maxc = 64;
+          if (this->inObj.size() > 0){
+            std::vector<objT*> tmpObj;
+            std::vector<arg1T> tmpArgs;
 
+            if (inArgs.size() > maxc){
+              unsigned int j;
+              for (j = 0; j < inArgs.size(); j+=maxc){
+                tmpObj.clear();
+                tmpArgs.clear();
+                unsigned int k;
+                for (k = j; k < j+maxc && k < inArgs.size(); k++){
+                  tmpObj.push_back(inObj.at(k));
+                  tmpArgs.push_back(inArgs.at(k));
+                }
+              
+                this->outArgs = (inObj.at(0)->*memfunCompute)(tmpArgs, this->inObj);
+
+                printf("   %i \n", outArgs.size());
+                for (unsigned int i = 0; i < outArgs.size(); i++){  
+                  objT * obj = tmpObj.at(i);
+                  //(obj->*memfunPostprocess)(outArgs.at(i));
+                  q->add(*obj, memfunPostprocess, outArgs.at(i));
+                  q->decNRegistered();  
+                }
+              }
+
+            }
+            else{
+                this->outArgs = (this->inObj.at(0)->*memfunCompute)(this->inArgs, this->inObj);
+
+                printf("   %i \n", outArgs.size());
+                for (unsigned int i = 0; i < outArgs.size(); i++){  
+                  objT * obj = inObj.at(i);
+                  //(obj->*memfunPostprocess)(outArgs.at(i));
+                  q->add(*obj, memfunPostprocess, outArgs.at(i));
+                  q->decNRegistered();  
+                }
+            }
+          }
+            /*
             for (unsigned int i = 0; i < outArgs.size(); i++){  
                 objT * obj = inObj.at(i);
                 //(obj->*memfunPostprocess)(outArgs.at(i));
                 q->add(*obj, memfunPostprocess, outArgs.at(i));
                 q->decNRegistered();  
             }
+            */
         }
         else{
+
+            print("Sending ",inArgs.size()," apply tasks back to CPU");
+
             for (unsigned int i = 0; i < inArgs.size(); i++){
                 objT * obj = inObj.at(i);
                 q->add(*obj, memfunBacktoCPU, inArgs.at(i));

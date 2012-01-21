@@ -157,6 +157,8 @@ namespace madness {
         Q* GPUR_buffer;
         Q* T_buffer;
         Q* GPUT_buffer;
+        long* r_buffer;
+        long* GPUr_buffer;
         Q* RU_buffer;
         Q* GPURU_buffer;
         Q* TU_buffer;
@@ -339,7 +341,7 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
-            apply_transformation1(n, twok, trans, f, work1, work2, work5, mufac, result);
+            apply_transformation/*1*/(n, twok, trans, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -363,7 +365,7 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
-                apply_transformation1(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation/*1*/(n, k, trans, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -622,6 +624,8 @@ namespace madness {
             GPUT_buffer = GPUtransfer_buffer(T_buffer, T_maxsize, false);
             Tprev_offset = 0;
             Tcurr_offset = 0;
+            alloc_host(&r_buffer,rank*NDIM);
+            GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -694,6 +698,8 @@ namespace madness {
             GPUT_buffer = GPUtransfer_buffer(T_buffer, T_maxsize, false);
             Tprev_offset = 0;
             Tcurr_offset = 0;
+            alloc_host(&r_buffer,rank*NDIM);
+            GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -763,6 +769,8 @@ namespace madness {
             GPUT_buffer = GPUtransfer_buffer(T_buffer, T_maxsize, false);
             Tprev_offset = 0;
             Tcurr_offset = 0;
+            alloc_host(&r_buffer,rank*NDIM);
+            GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -831,6 +839,8 @@ namespace madness {
             GPUT_buffer = GPUtransfer_buffer(T_buffer, T_maxsize, false);
             Tprev_offset = 0;
             Tcurr_offset = 0;
+            alloc_host(&r_buffer,rank*NDIM);
+            GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -854,7 +864,8 @@ namespace madness {
             dealloc_host(R_buffer); GPUdelete_buffer(GPUR_buffer); 
             dealloc_host(RU_buffer); GPUdelete_buffer(GPURU_buffer); 
             dealloc_host(RVT_buffer); GPUdelete_buffer(GPURVT_buffer); 
-            dealloc_host(T_buffer); GPUdelete_buffer(GPUT_buffer); 
+            dealloc_host(T_buffer); GPUdelete_buffer(GPUT_buffer);
+            dealloc_host(r_buffer); GPUdelete_buffer(GPUr_buffer); 
             dealloc_host(TU_buffer); GPUdelete_buffer(GPUTU_buffer); 
             dealloc_host(TVT_buffer); GPUdelete_buffer(GPUTVT_buffer); }
 
@@ -1745,7 +1756,7 @@ namespace madness {
 			            dimi = size/trans[d].r;
                                     ////GPU
 				    mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
-				    size = dimk*size/trans[d].r;
+				   size = dimk*size/trans[d].r;
 				}
 				else {
                                     ////GPU
@@ -1778,6 +1789,154 @@ namespace madness {
                                                   coeffs, f, f0, const_cast<SC*>(op), shift);
             //print(n,shift);
             return t2;
+        }
+
+        template <typename T>
+        Void apply_backToCPU(std::tr1::tuple<bool*, Transformation**, Transformation**,
+                        bool*, bool*, Q*, Level, keyT, double, double,
+                        WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                        Tensor<T>, Tensor<T>, SC*, keyT> t) const{
+            
+          typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+          typedef resultT R;
+          typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+
+            bool* condition = std::tr1::get<0>(t);
+ 
+            Transformation ** trans = std::tr1::get<1>(t);
+            Transformation ** trans2 = std::tr1::get<2>(t);
+
+            bool* doit2 = std::tr1::get<3>(t);
+            bool* doit1 = std::tr1::get<4>(t);
+
+            Q* mufacs = std::tr1::get<5>(t);
+            Level n = std::tr1::get<6>(t);
+            keyT argsdest = std::tr1::get<7>(t);
+            double argstol = std::tr1::get<8>(t);
+            double argsfac = std::tr1::get<9>(t);
+            dcT * coeffs = &(std::tr1::get<10>(t)); 
+            Tensor<T> f = std::tr1::get<11>(t);
+            Tensor<T> f0 = std::tr1::get<12>(t);          
+
+            //SeparatedConvolutionData<Q, NDIM> * op_data = std::tr1::get<13>(*args[i]);
+            keyT shift = std::tr1::get<14>(t);  
+           
+            Tensor<resultT> r(v2k);
+            Tensor<resultT> r0(vk);
+            Tensor<resultT> work1(v2k,false), work2(v2k,false);
+            Tensor<Q> work5(2*k,2*k);
+
+            R* restrict w1=work1.ptr();
+            R* restrict w2=work2.ptr();
+	    Q* restrict w3=work5.ptr();
+
+	    long dimk = 2*k;
+	   
+	    long size = 1;
+	    for (std::size_t i=0; i<NDIM; ++i) size *= dimk;
+	    long dimi = size/dimk;
+
+	    long dimk2 = k;
+	   
+	    long size2 = 1;
+	    for (std::size_t i=0; i<NDIM; ++i) size2 *= dimk2;
+	    long dimi2 = size2/dimk2;
+
+            const Q* U;
+            const Q* U1;
+            for (int mu=0; mu<rank; ++mu) {
+              if (condition[mu]){
+		    U = (trans[mu][0].r == dimk) ? trans[mu][0].U : shrink(dimk,dimk,trans[mu][0].r,trans[mu][0].U,w3);
+                    ////GPU
+		    mTxmq(dimi, trans[mu][0].r, dimk, w1, f.ptr(), U);
+		    size = trans[mu][0].r * size / dimk;
+		    dimi = size/dimk;
+		    for (std::size_t d=1; d<NDIM; ++d) {
+			U = (trans[mu][d].r == dimk) ? trans[mu][d].U : shrink(dimk,dimk,trans[mu][d].r,trans[mu][d].U,w3);
+                        ////GPU
+			mTxmq(dimi, trans[mu][d].r, dimk, w2, w1, U);
+			size = trans[mu][d].r * size / dimk;
+			dimi = size/dimk;
+                        ////GPU
+			std::swap(w1,w2);
+		    }
+
+                    if (doit2[mu]){
+			    for (std::size_t d=0; d<NDIM; ++d) {
+				if (trans[mu][d].VT) {
+				    dimi = size/trans[mu][d].r;
+				    ////GPU
+				    mTxmq(dimi, dimk, trans[mu][d].r, w2, w1, trans[mu][d].VT);
+				    size = dimk*size/trans[mu][d].r;
+				 }
+				 else {
+				    ////GPU
+				    fast_transpose(dimk, dimi, w1, w2);
+				 }
+				 ////GPU
+				 std::swap(w1,w2);
+			    }
+                    }
+		    // Assuming here that result is contiguous and aligned
+                    ////GPU
+		    aligned_axpy(size, r.ptr(), w1, mufacs[mu]);
+
+                    if (n > 0){
+			    U1 = (trans2[mu][0].r == dimk2) ? trans2[mu][0].U : shrink(dimk2,dimk2,trans2[mu][0].r,trans2[mu][0].U,w3);
+			    ////GPU
+			    mTxmq(dimi2, trans2[mu][0].r, dimk2, w1, f0.ptr(), U1);
+			    size2 = trans2[mu][0].r * size2 / dimk2;
+			    dimi2 = size2/dimk2;
+			    for (std::size_t d=1; d<NDIM; ++d) {
+				U1 = (trans2[mu][d].r == dimk2) ? trans2[mu][d].U : shrink(dimk2,dimk2,trans2[mu][d].r,trans2[mu][d].U,w3);
+				////GPU
+				mTxmq(dimi2, trans2[mu][d].r, dimk2, w2, w1, U1);
+				size2 = trans2[mu][d].r * size2 / dimk2;
+				dimi2 = size2/dimk2;
+				////GPU
+				std::swap(w1,w2);
+			    }
+
+			    if (doit1[mu]) {
+				for (std::size_t d=0; d<NDIM; ++d) {
+				    if (trans2[mu][d].VT) {
+					dimi2 = size2/trans2[mu][d].r;
+					////GPU
+					mTxmq(dimi2, dimk2, trans2[mu][d].r, w2, w1, trans2[mu][d].VT);
+					size2 = dimk2*size2/trans2[mu][d].r;
+				    }
+				    else {
+					////GPU
+					fast_transpose(dimk2, dimi2, w1, w2);
+				    }
+				    ////GPU
+				    std::swap(w1,w2);
+				}
+			     }
+			     // Assuming here that result is contiguous and aligned
+			     ////GPU
+			     aligned_axpy(size2, r0.ptr(), w1, -mufacs[mu]);
+                     }
+              }
+            }
+
+            delete condition;
+            for (int mu = 0; mu < rank; mu++){
+                delete trans[mu];
+                delete trans2[mu];
+            }
+            delete trans;
+            delete trans2;
+            delete doit2;
+            delete doit1;
+            delete mufacs;
+            
+            r(s0).gaxpy(1.0,r0,1.0);
+            if (r.normf()> 0.3*argstol/argsfac) {
+                coeffs->task(argsdest, &FunctionNode<T,NDIM>::accumulate, r, *coeffs, argsdest, TaskAttributes::hipri());
+            }
+        
+            return None;
         }
 
         //op->opt_inlined_apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
@@ -15102,17 +15261,11 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
  
             Transformation *** trans;
             Transformation *** trans2;
-            Transformation *** transtemp;
-            Transformation *** trans2temp;
             trans = new Transformation**[inArgs.size()];
             trans2 = new Transformation**[inArgs.size()];
-            transtemp = new Transformation**[inArgs.size()];
-            trans2temp = new Transformation**[inArgs.size()];
             for (i = 0; i < inArgs.size(); i++){
                 trans[i] = std::tr1::get<1>(*args[i]);
                 trans2[i] = std::tr1::get<2>(*args[i]);
-                transtemp[i] = std::tr1::get<1>(*args[i]);
-                trans2temp[i] = std::tr1::get<2>(*args[i]);
             }
 
             bool** doit2;
@@ -15296,7 +15449,9 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 		    result0ptr[i] = r0ptr_arrayGPU + r0ptr_offarray[i];
               //}
             }
-            
+
+        
+            long ** rank_buf = new long*[inArgs.size()];            
 			    
             const Q* U;
 
@@ -15392,6 +15547,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	        for (int mu = 0; mu < rank; mu++){
 		    for (int d = 0; d < NDIM; d++){
 			
+                        memcpy(r_buffer+temp*sizeof(long), &trans[i][mu][d].r, sizeof(long));
 		        if (trans[i][mu][d].VT == 0){
 			    trans[i][mu][d].U = GPUab1->R + temp*twoksq;
 		        }
@@ -15411,7 +15567,10 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                         if (localSVD[temp]) temp2++;
 		        temp++;
 		     }
-	         } 
+	         }
+ 
+                rank_buf[i] = GPUr_buffer + i*rank*NDIM;
+		GPUtransfer_buffernoalloc(GPUr_buffer + i*rank*NDIM, r_buffer, rank*NDIM);
 
             }
 
@@ -15650,7 +15809,9 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             GPUdelete_buffer(fptr_arrayGPU);  //GPU
 
             delete[] args; 
-            
+
+            delete[] rank_buf;           
+ 
             delete[] r_array;
             delete[] r0_array;
             delete[] argstol_array;
@@ -15669,29 +15830,29 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
               delete trans[i];
               delete trans2[i];
             }
-            delete trans;
-            delete trans2;
-            delete transtemp;
-            delete trans2temp;
+            delete[] trans;
+            delete[] trans2;
 
             for (i = 0; i < inArgs.size(); i++){
               delete doit2[i];
               delete doit1[i];
             }
+            delete[] doit2;
+            delete[] doit1;
 
             for (i = 0; i < inArgs.size(); i++){
               delete condition[i];
             } 
-            delete condition;
+            delete[] condition;
 
-            delete n_array;
+            delete[] n_array;
 
             for (i = 0; i < inArgs.size(); i++){
               delete mufacs[i];
             } 
-            delete mufacs;
+            delete[] mufacs;
 
-            delete op_data; delete shifts;
+            delete[] op_data; delete[] shifts;
 
             return outArg;
         }

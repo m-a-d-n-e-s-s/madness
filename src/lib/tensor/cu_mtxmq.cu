@@ -689,6 +689,7 @@ template double* GPUtransfer_buffer(double* CPU_buf, unsigned int offset, bool c
 template std::complex<double>* GPUtransfer_buffer(std::complex<double>* CPU_buf, unsigned int offset, bool copy);
 template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool copy);
 template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
+template long* GPUtransfer_buffer(long* CPU_buf, unsigned int offset, bool copy);
 
 template <typename T>
 T* alloc_host(T** CPU_buf, unsigned int size){
@@ -703,6 +704,7 @@ template double* alloc_host(double** CPU_buf, unsigned int size);
 template std::complex<double>* alloc_host(std::complex<double>** CPU_buf, unsigned int size);
 template float* alloc_host(float** CPU_buf, unsigned int size);
 template std::complex<float>* alloc_host(std::complex<float>** CPU_buf, unsigned int size);
+template long* alloc_host(long** CPU_buf, unsigned int size);
 
 
 template <typename T>
@@ -718,6 +720,7 @@ template double* GPUtransfer_buffernoalloc(double* GPU_buf, double* CPU_buf, uns
 template std::complex<double>* GPUtransfer_buffernoalloc(std::complex<double>* GPU_buf, std::complex<double>* CPU_buf, unsigned int offset);
 template float* GPUtransfer_buffernoalloc(float* GPU_buf, float* CPU_buf, unsigned int offset);
 template std::complex<float>* GPUtransfer_buffernoalloc(std::complex<float>* GPU_buf, std::complex<float>* CPU_buf, unsigned int offset);
+template long* GPUtransfer_buffernoalloc(long* GPU_buf, long* CPU_buf, unsigned int offset);
 
 
 template <typename T>
@@ -738,6 +741,7 @@ template   void GPUdelete_buffer(double* buf);
 template   void GPUdelete_buffer(std::complex<double>* buf);
 template   void GPUdelete_buffer(float* buf);
 template   void GPUdelete_buffer(std::complex<float>* buf);
+template   void GPUdelete_buffer(long* buf);
 
 template <typename W>
        void dealloc_host(W* buf){
@@ -747,6 +751,7 @@ template   void dealloc_host(double* buf);
 template   void dealloc_host(std::complex<double>* buf);
 template   void dealloc_host(float* buf);
 template   void dealloc_host(std::complex<float>* buf);
+template   void dealloc_host(long* buf);
 
 template <typename T>
 T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
@@ -964,8 +969,8 @@ template <typename aT, typename bT, typename cT>
 	//double *devPtrA, *devPtrB, *devPtrC;
         cublasHandle_t *handle=(cublasHandle_t *)h;	
 //	cublasCreate(&handle);
-	////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-	////cublasSetStream(*handle, *stream);
+	cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	cublasSetStream(*handle, *stream);
 
         	
         int b;
@@ -1950,8 +1955,8 @@ template<> void cu_axpystream(long n , double *a, double *b, double s,  void *GP
         // alpha= reinterpret_cast<T> (s);
         cublasHandle_t *handle=(cublasHandle_t *)h;
 //      cublasCreate(&handle);
-        ////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        ////cublasSetStream(*handle, *stream);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(*handle, *stream);
         int b1 = cublasDaxpy(*handle,n,&s,b,1,a,1);
 	if (b1 == CUBLAS_STATUS_INVALID_VALUE)
 	  printf("CUBLAS_STATUS_INVALID_VALUE");
@@ -1993,8 +1998,8 @@ template<> void cu_axpystream(long n , float *a, float *b, float s,  void *GPU_s
         // alpha= reinterpret_cast<T> (s);
         cublasHandle_t *handle=(cublasHandle_t *)h;
 //      cublasCreate(&handle);
-        ////cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        ////cublasSetStream(*handle, *stream);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(*handle, *stream);
         cublasSaxpy(*handle,n,&s,b,1,a,1);
 
         printf("Shouldn't be here!");
