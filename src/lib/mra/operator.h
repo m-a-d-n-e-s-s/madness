@@ -15858,6 +15858,574 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
         }
 
         template <typename T, typename opT>
+        std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> >
+        apply_allComputeGPU_OneKernel(std::vector<std::tr1::tuple<bool*, Transformation**, Transformation**,
+                                                          bool*, bool*, Q*, Level, keyT, double, double,
+                                                          WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                                                          Tensor<T>, Tensor<T>, SC*, keyT> > inArgs, 
+                                              std::vector< SeparatedConvolution<Q,NDIM>* > inObj) const {
+
+            print("      apply_allComputeGPU              ",inArgs.size());
+            print("-----------BATCH-----------------");
+            
+           typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+	   typedef resultT R;
+	   typedef  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> > dcT;
+
+            unsigned int i;
+
+            std::tr1::tuple<bool*, Transformation**, Transformation**,
+                  bool*, bool*, Q*, Level, keyT, double, double, 
+                  WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                  Tensor<T>, Tensor<T>, SC*, keyT> ** args = new std::tr1::tuple<bool*, Transformation**, Transformation**,
+                                                                       bool*, bool*, Q*, Level, keyT, double, double, 
+                                                                       WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
+                                                                       Tensor<T>, Tensor<T>, SC*, keyT> *[inArgs.size()];
+
+            for (i = 0; i < inArgs.size(); i++){
+                  args[i] = &(inArgs.at(i));
+            }
+
+            STARTt_TIMER;
+            //outside S
+            //condition, doit2, doit1, trans, trans2, v2kref, vkref, f, f0 
+            //coeffs, argsdest, argstol, argsfac, n, w1,w2,w5_[off]
+
+            unsigned int* w1_offarray = new unsigned int[inArgs.size()]; //only on GPU
+            unsigned int* w2_offarray = new unsigned int[inArgs.size()]; //only on GPU
+            unsigned int* w5_offarray = new unsigned int[inArgs.size()]; //not used, because no shrink
+
+            bool** condition;
+
+            condition = new bool*[inArgs.size()];
+           
+            for (i = 0; i < inArgs.size(); i++){
+              condition[i] = std::tr1::get<0>(*args[i]);;
+            }
+ 
+            Transformation *** trans;
+            Transformation *** trans2;
+            trans = new Transformation**[inArgs.size()];
+            trans2 = new Transformation**[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+                trans[i] = std::tr1::get<1>(*args[i]);
+                trans2[i] = std::tr1::get<2>(*args[i]);
+            }
+
+            bool** doit2;
+            bool** doit1;
+            doit2 = new bool*[inArgs.size()];
+            doit1 = new bool*[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+                doit2[i] = std::tr1::get<3>(*args[i]);
+                doit1[i] = std::tr1::get<4>(*args[i]);
+            }
+
+            Q** mufacs = new Q*[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+              mufacs[i] = std::tr1::get<5>(*args[i]);
+            }
+
+            
+
+            //on CPU
+            Tensor<R> * r_array = new Tensor<R>[inArgs.size()];
+            Tensor<R> * r0_array = new Tensor<R>[inArgs.size()];
+            double * argstol_array = new double[inArgs.size()]; 
+            double * argsfac_array = new double[inArgs.size()]; 
+            keyT * argsdest_array = new keyT[inArgs.size()];
+            dcT ** coeffs_array = new dcT*[inArgs.size()]; 
+            Tensor<T> * f_array = new Tensor<T>[inArgs.size()];
+            Tensor<T> * f0_array = new Tensor<T>[inArgs.size()];           
+
+            Level * n_array = new Level[inArgs.size()];
+
+            std::vector< std::tr1::tuple< Tensor<TENSOR_RESULT_TYPE(T,Q)> *, Tensor<TENSOR_RESULT_TYPE(T,Q)> *,
+                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >, keyT, double, double> > outArg;
+            ENDt_TIMER("alloc & init");
+
+            SeparatedConvolutionData<Q, NDIM> ** op_data = new SeparatedConvolutionData<Q, NDIM> *[inArgs.size()];
+            keyT* shifts = new keyT[inArgs.size()];
+           
+            //STARTt_TIMER; 
+            for (i = 0; i < inArgs.size(); i++){
+                  args[i] = &(inArgs.at(i));
+
+                  n_array[i] = std::tr1::get<6>(*args[i]);
+	          argsdest_array[i] = std::tr1::get<7>(*args[i]);
+	          argstol_array[i] = std::tr1::get<8>(*args[i]);
+	          argsfac_array[i] = std::tr1::get<9>(*args[i]);
+	          coeffs_array[i] = &(std::tr1::get<10>(*args[i]));
+                  f_array[i] = std::tr1::get<11>(*args[i]);
+                  f0_array[i] = std::tr1::get<12>(*args[i]);
+                  op_data[i] = (std::tr1::get<13>(*args[i]));
+                  shifts[i] = std::tr1::get<14>(*args[i]);  
+            }
+            //outside E
+            //ENDt_TIMER("parallelizable");
+
+            STARTt_TIMER;
+            print("k = ",k);
+            print("rank = ",rank);
+
+            //twok = 2*k;
+	   
+            long dim2k, dimk;
+	    dim2k = 2*k;
+            dimk = k;
+
+            long size = 1;
+            for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
+            long dimi = size/dim2k;
+
+            long size2 = 1;
+            for (std::size_t ii=0; ii<NDIM; ++ii) size2 *= dimk;
+            long dimi2 = size2/dimk;
+
+ 
+            R* rptr_arrayCPU; //transfer to GPU
+            R* r0ptr_arrayCPU; //transfer to GPU
+            T* f0ptr_arrayCPU; //transfer to GPU
+            T* fptr_arrayCPU;  //transfer to GPU
+            R* rptr_arrayGPU; //transfer CPU <-> GPU
+            R* r0ptr_arrayGPU; //transfer CPU <-> GPU
+            T* f0ptr_arrayGPU; //transfer to GPU
+            T* fptr_arrayGPU;  //transfer to GPU
+            
+            unsigned int rptr_off = 0;
+            unsigned int r0ptr_off = 0;
+            unsigned int f0ptr_off = 0;
+            unsigned int fptr_off = 0;
+ 
+            unsigned int* rptr_offarray = new unsigned int[inArgs.size()]; //only on GPU, result gets transfered to CPU
+            unsigned int* r0ptr_offarray = new unsigned int[inArgs.size()]; //only on GPU, result gets transfered to CPU
+            unsigned int* f0ptr_offarray = new unsigned int[inArgs.size()]; //both on CPU and GPU
+            unsigned int* fptr_offarray = new unsigned int[inArgs.size()]; //both on CPU and GPU
+
+            unsigned int w1_off = 0;
+            unsigned int w2_off = 0;
+            unsigned int w5_off = 0;
+
+            for (i = 0; i < inArgs.size(); i++){
+                  T* f0ptr = const_cast<T*>(f0_array[i].ptr());
+                  T* fptr = const_cast<T*>(f_array[i].ptr());
+           
+	          const std::vector<long>& vkref = inObj.at(i)->vk;
+	          const std::vector<long>& v2kref = inObj.at(i)->v2k;
+			    
+		  Tensor<resultT> r(v2kref);
+		  Tensor<resultT> r0(vkref);
+                  r_array[i] = r;
+                  r0_array[i] = r0;
+
+                  rptr_offarray[i] = rptr_off;
+                  r0ptr_offarray[i] = r0ptr_off;
+                  f0ptr_offarray[i] = f0ptr_off;
+                  fptr_offarray[i] = fptr_off;
+
+                  rptr_off += r_array[i].size();
+                  r0ptr_off += r0_array[i].size();
+                  f0ptr_off += f0_array[i].size();
+                  fptr_off += f_array[i].size();
+		   
+                  Tensor<resultT> work1(v2kref,false), work2(v2kref,false);
+                  Tensor<Q> work5(2*k, 2*k);
+
+                 w1_offarray[i] = w1_off;
+                  w2_offarray[i] = w2_off;
+                  w5_offarray[i] = w5_off;
+                  
+                  w1_off += work1.size();
+                  w2_off += work2.size();
+                  w5_off += work5.size();
+            } 
+
+            fptr_arrayCPU = new T[fptr_off];
+            rptr_arrayCPU = new R[rptr_off];
+            r0ptr_arrayCPU = new R[r0ptr_off];
+            f0ptr_arrayCPU = new T[f0ptr_off];
+            
+            for (i = 0; i < inArgs.size(); i++){ 
+                  memcpy(rptr_arrayCPU + rptr_offarray[i], r_array[i].ptr(), r_array[i].size()*sizeof(R));
+                  memcpy(r0ptr_arrayCPU + r0ptr_offarray[i], r0_array[i].ptr(), r0_array[i].size()*sizeof(R));
+                  memcpy(f0ptr_arrayCPU + f0ptr_offarray[i], f0_array[i].ptr(), f0_array[i].size()*sizeof(T));
+                  memcpy(fptr_arrayCPU + fptr_offarray[i], f_array[i].ptr(), f_array[i].size()*sizeof(T));
+            }
+
+            rptr_arrayGPU = GPUtransfer_buffer(rptr_arrayCPU, rptr_off, true); //both on CPU and GPU
+            r0ptr_arrayGPU = GPUtransfer_buffer(r0ptr_arrayCPU, r0ptr_off, true); //both on CPU and GPU
+            f0ptr_arrayGPU = GPUtransfer_buffer(f0ptr_arrayCPU, f0ptr_off, true); //both on CPU and GPU
+            fptr_arrayGPU = GPUtransfer_buffer(fptr_arrayCPU, fptr_off, true); //both on CPU and GPU
+            
+            R* w1_array = 0; //allocate on GPU
+            R* w2_array = 0; //allocate GPU
+            R* w1_array2 = 0; //allocate on GPU
+            R* w2_array2 = 0; //allocate GPU
+            Q* w5_array = 0; //do not use, because no shrink
+
+            w1_array = GPUtransfer_buffer(w1_array, w1_off, false);
+            w2_array = GPUtransfer_buffer(w2_array, w2_off, false);
+            w1_array2 = GPUtransfer_buffer(w1_array2, w1_off, false);
+            w2_array2 = GPUtransfer_buffer(w2_array2, w2_off, false);
+            w5_array = GPUtransfer_buffer(w5_array, w5_off, false);
+
+            R** w1ptr = new R*[inArgs.size()];
+	    R** w2ptr = new R*[inArgs.size()];
+            R** w1ptr2 = new R*[inArgs.size()];
+	    R** w2ptr2 = new R*[inArgs.size()];
+            T** f0ptr = new T*[inArgs.size()];
+	    T** fptr = new T*[inArgs.size()];
+            R** resultptr = new R*[inArgs.size()];
+            R** result0ptr = new R*[inArgs.size()];
+           
+	    for (i = 0; i < inArgs.size(); i++){			    
+	      //if (condition[i][mu]) {
+
+		     //Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r_array[i];
+		     //Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0_array[i];
+		    w1ptr[i] = w1_array + w1_offarray[i];
+		    w2ptr[i] = w2_array + w2_offarray[i];
+		    w1ptr2[i] = w1_array2 + w1_offarray[i];
+		    w2ptr2[i] = w2_array2 + w2_offarray[i];
+		    f0ptr[i] = f0ptr_arrayGPU + f0ptr_offarray[i];
+		    fptr[i] = fptr_arrayGPU + fptr_offarray[i];
+		    resultptr[i] = rptr_arrayGPU + rptr_offarray[i];
+		    result0ptr[i] = r0ptr_arrayGPU + r0ptr_offarray[i];
+              //}
+            }
+
+        
+            long ** rank_buf = new long*[inArgs.size()];            
+			    
+            const Q* U;
+
+            unsigned int twok = 2*k;
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int ksq = k*k;
+            unsigned int twokbytes = twok*twok*sizeof(Q);
+            unsigned int kbytes = k*k*sizeof(Q);
+             
+            GPUApplyBuffer<Q,NDIM> GPUab;
+            GPUApplyBuffer<Q,NDIM>* GPUab1;
+            GPUApplyBuffer<Q,NDIM>** GPUab_array = new GPUApplyBuffer<Q,NDIM>*[inArgs.size()];
+            for (i = 0; i < inArgs.size(); i++){
+                const GPUApplyBuffer<Q,NDIM>* p = GPUApplyCache.getptr(n_array[i],shifts[i]);
+                bool* localSVD = new bool[rank*NDIM];
+                unsigned int c = 0;
+                if (!p){
+                    unsigned int numR = rank*NDIM;
+                    unsigned int numSVD = 0;
+                    Q* localR = R_buffer;
+                    Q* localT = T_buffer;
+                    Q* localRU = RU_buffer;
+                    Q* localTU = TU_buffer;
+                    Q* localRVT = RVT_buffer;
+                    Q* localTVT = TVT_buffer;
+                    for (int mu = 0; mu < rank; mu++){
+                        for (int d = 0; d < NDIM; d++){
+                            memcpy(localR + c*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
+                            memcpy(localT + c*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
+                            if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
+                                localSVD[c] = true;
+                                memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
+                                memcpy(localTU + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TU.ptr(), kbytes);
+                                memcpy(localRVT + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RVT.ptr(), twokbytes);
+                                memcpy(localTVT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TVT.ptr(), kbytes);
+                            }
+                            ////}
+                            else{
+                                localSVD[c] = false;
+                            }
+                                numSVD++;
+                            c++;
+                        }
+                    }
+
+                     //GPUab.svd_done = localSVD;
+                     GPUab.R = GPUapply_buffer + apply_prev_offset;
+                     GPUab.T = GPUapply_buffer + apply_prev_offset + c*twoksq;
+                     GPUab.RU = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq);
+                     GPUab.TU = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*twoksq;
+                     GPUab.RVT = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*(twoksq + ksq);
+                     GPUab.TVT = GPUapply_buffer + apply_prev_offset + c*(twoksq + ksq) + numSVD*(twoksq + ksq + twoksq);
+
+	            //if (apply_prev_offset < apply_curr_offset){
+                    if (c > 0){
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localR, c*twokbytes);
+	                apply_prev_offset += c*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localT, c*kbytes);
+	                apply_prev_offset += c*ksq;
+                    }
+                    if (numSVD > 0){
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localRU, numSVD*twokbytes);
+	                apply_prev_offset += numSVD*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTU, numSVD*kbytes);
+	                apply_prev_offset += numSVD*ksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localRVT, numSVD*twokbytes);
+	                apply_prev_offset += numSVD*twoksq;
+	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTVT, numSVD*kbytes);
+	                apply_prev_offset += numSVD*ksq;
+                    }
+                    //}
+
+                        MADNESS_ASSERT(apply_prev_offset < apply_buffer_maxsize);
+
+                     GPUApplyCache.set(n_array[i],shifts[i], GPUab);
+                     GPUab_array[i] = GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(GPUApplyCache.getptr(n_array[i],shifts[i]));
+                }
+                else{
+                    GPUab_array[i] = GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(p);
+                    for (int mu = 0; mu < rank; mu++){
+                        for (int d = 0; d < NDIM; d++){
+                            if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
+                                localSVD[c] = true;
+                            }
+                            else{
+                                localSVD[c] = false;
+                            }
+                            c++;
+                        }
+                    }
+                }
+
+	        unsigned int temp = 0;
+	        unsigned int temp2 = 0;
+	        for (int mu = 0; mu < rank; mu++){
+		    for (int d = 0; d < NDIM; d++){
+			
+                        memcpy(r_buffer+temp*sizeof(long), &trans[i][mu][d].r, sizeof(long));
+		        if (trans[i][mu][d].VT == 0){
+			    trans[i][mu][d].U = GPUab1->R + temp*twoksq;
+		        }
+		        else{
+			    trans[i][mu][d].U = GPUab1->RU + temp2*twoksq;  
+			    trans[i][mu][d].VT = GPUab1->RVT + temp2*twoksq;
+		        }
+
+		        if (trans2[i][mu][d].VT == 0){
+			    trans2[i][mu][d].U = GPUab1->T + temp*ksq;
+		        }
+		        else{
+			    trans2[i][mu][d].U = GPUab1->TU + temp2*ksq;  
+			    trans2[i][mu][d].VT = GPUab1->TVT + temp2*ksq;
+		        }
+
+                        /*if (localSVD[temp])*/ temp2++;
+		        temp++;
+		     }
+	         }
+ 
+                rank_buf[i] = GPUr_buffer + i*rank*NDIM;
+		GPUtransfer_buffernoalloc(GPUr_buffer + i*rank*NDIM, r_buffer, rank*NDIM);
+
+            }
+
+            bool* big_doit2;
+            bool* big_doit1;
+            Q* big_mufacs;
+            alloc_host(&big_doit2, inArgs.size()*rank);
+            alloc_host(&big_doit1, inArgs.size()*rank);
+            alloc_host(&big_mufacs, inArgs.size()*rank);
+            for (i = 0; i < inArgs.size(); i++){
+                memcpy(big_doit2 + i*rank, doit2[i], rank*sizeof(bool));
+                memcpy(big_doit1 + i*rank, doit1[i], rank*sizeof(bool));
+                memcpy(big_mufacs + i*rank, mufacs[i], rank*sizeof(Q));
+            }
+
+            bool* doit1_GPU=GPUtransfer_buffer(big_doit1,rank*inArgs.size(),true);
+            bool* doit2_GPU=GPUtransfer_buffer(big_doit2,rank*inArgs.size(),true);
+            
+	    Q* mufacs_GPU=GPUtransfer_buffer(big_mufacs,rank*inArgs.size(),true);
+
+            //GPUtransfer_buffer(doit2_GPU, big_doit2, inArgs.size()*rank);
+            //GPUtransfer_buffer(doit1_GPU, big_doit1, inArgs.size()*rank);
+            //GPUtransfer_buffer(mufacs_GPU, big_mufacs, inArgs.size()*rank);
+
+		cu_memset();//does cudaMemset of count
+            int conds = 0; 
+            int conds2 = 0;
+            device_synchronize(GPU_streams,NUM_STREAMS);  
+conds = 0;
+STARTt_TIMER;
+
+            for (i = 0; i < inArgs.size(); i++){
+                  //R* resultptr;
+
+                  //R* w1ptr;
+                  //R* w2ptr;
+		 // R* temp;
+                 // Q* w3ptr;
+                  //T* fptr;
+                  
+		    //w1ptr = w1_array+w1_offarray[i];
+		    //w2ptr = w2_array+w2_offarray[i];
+		    //fptr = fptr_arrayGPU+fptr_offarrayCPU[i];
+		    //resultptr = rptr_arrayGPU+rptr_offarrayCPU[i];
+		    
+		    long dim2k, dimk;
+		    dim2k = twok;
+		    dimk = k;
+
+		    long size = 1;
+		    for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
+		    long dimi = size/dim2k;
+		    
+		    const Q *U,*RU,*VT;
+		    Q *mufac_GPU;
+		    bool *doitt_GPU;
+		   // U = transU_GPU+pad_twok * (i*NDIM*rank ) ;
+		    U = GPUab_array[i]->R;
+		    RU = GPUab_array[i]->RU;
+		    VT= GPUab_array[i]->RVT;
+		    mufac_GPU= mufacs_GPU+i*rank ;
+		    doitt_GPU = doit2_GPU+i*rank ;
+		    long * trans2r = rank_buf[i] + i*NDIM*rank;
+//void cu_mTxmq_integralop(long dimi, long dimj, long dimk,
+//               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, bool *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU);
+//../../../src/lib/mra/operator.h:16284: error: no matching function for call to ‘cu_mTxmq_integralop(long int&, long int&, long int&, R*&, double*&, double*, void*&, unsigned int, double*, bool*&, double*&, R*&, long int*&, long int*&, double*)’
+		    cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
+}
+		device_synchronize(GPU_streams,NUM_STREAMS);
+ENDt_TIMER("comp 1");
+		//CPUtransfer_buffer(rptr_arrayCPU, rptr_arrayGPU, rptr_off,GPU_streams[0]);
+STARTt_TIMER;
+            for (i = 0; i < inArgs.size(); i++){
+                  //R* result0ptr;
+
+                  //R* w1ptr;
+                  //T* f0ptr;
+                            //w1ptr = w1_array+w1_offarray[i];
+                            //f0ptr = f0ptr_arrayGPU+f0ptr_offarrayCPU[i];
+                            //result0ptr = r0ptr_arrayGPU+r0ptr_offarrayCPU[i];
+			    
+			    long  dimk;
+			    dimk = k;
+
+              if (n_array[i] > 0){
+			    int size = 1;
+		            for (std::size_t ii=0; ii<NDIM; ++ii) size *= dimk;
+		            long dimi = size/dimk;
+			    
+			    const Q *U,*VT,*TU;
+			    Q *mufac_GPU;
+			    bool *doitt_GPU;
+			    U = GPUab_array[i]->T;
+			    VT = GPUab_array[i]->TVT;
+                            TU = GPUab_array[i]->TU;
+			    mufac_GPU= mufacs_GPU+i*rank;
+			    doitt_GPU = doit1_GPU+i*rank;
+			    long * transr = rank_buf[i]+ i*NDIM*rank;
+                            ////GPU
+			    cu_mTxmq_integralop(dimi,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
+		    }
+		}
+		device_synchronize(GPU_streams,NUM_STREAMS);
+		//CPUtransfer_buffer(f0ptr_arrayCPU, r0ptr_arrayGPU, r0ptr_off,GPU_streams[0]);
+		//streams_synchronize(GPU_streams,NUM_STREAMS);
+ENDt_TIMER("computation 2");
+            //device_synchronize(GPU_streams,NUM_STREAMS);  
+            
+            CPUtransfer_buffer(rptr_arrayCPU, rptr_arrayGPU, rptr_off);
+            CPUtransfer_buffer(r0ptr_arrayCPU, r0ptr_arrayGPU, r0ptr_off);
+
+            for (i = 0; i < inArgs.size(); i++){
+                    Tensor<TENSOR_RESULT_TYPE(T,Q)>& result = r_array[i];
+	            Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0 = r0_array[i];
+                    R* resultptr = &rptr_arrayCPU[rptr_offarray[i]];
+                    R* result0ptr = &r0ptr_arrayCPU[r0ptr_offarray[i]];
+                    memcpy(result.ptr(), resultptr, result.size()*sizeof(R));
+                    memcpy(result0.ptr(), result0ptr, result0.size()*sizeof(R));
+                    //print(WorldObject< SeparatedConvolution<Q,NDIM> >::world.rank()," hash(f) = ",xorhash(f_array[i])," hash(f0) = ",xorhash(f0_array[i]), " hash(r) = ",xorhash(r_array[i])," hash(r0) = ",xorhash(r0_array[i]), "hash(trans) = ",xorhash(trans[i][0][0].U, twoksq), n_array[i], shifts[i]);
+		    Tensor<R> * r1 = new Tensor<R>(r_array[i]); 
+		    Tensor<R> * r01 = new Tensor<R>(r0_array[i]); 
+		    std::tr1::tuple<Tensor<R>*, Tensor<R>*, dcT, keyT, double, double> t2(r1, r01, *coeffs_array[i], argsdest_array[i], argstol_array[i], argsfac_array[i]);
+                    outArg.push_back(t2);
+            }
+
+            GPUdelete_buffer(w1_array); //GPU 
+            GPUdelete_buffer(w2_array); //GPU
+            GPUdelete_buffer(w1_array2); //GPU 
+            GPUdelete_buffer(w2_array2); //GPU
+            GPUdelete_buffer(w5_array); 
+
+            delete[] rptr_arrayCPU; //CPU
+            delete[] r0ptr_arrayCPU; //CPU
+            delete[] f0ptr_arrayCPU; //CPU
+            delete[] fptr_arrayCPU;  //CPU
+
+            delete[] w1ptr;
+            delete[] w2ptr;
+            delete[] w1ptr2;
+            delete[] w2ptr2;
+            delete[] fptr;
+            delete[] f0ptr;
+            delete[] resultptr;
+            delete[] result0ptr;
+
+            GPUdelete_buffer(rptr_arrayGPU); //GPU
+            GPUdelete_buffer(r0ptr_arrayGPU); //GPU
+            GPUdelete_buffer(f0ptr_arrayGPU); //GPU
+            GPUdelete_buffer(fptr_arrayGPU);  //GPU
+
+            delete[] args; 
+
+            delete[] GPUab_array;
+
+            delete[] rank_buf;           
+            dealloc_host(big_doit2);
+            dealloc_host(big_doit1);
+            dealloc_host(big_mufacs);
+            GPUdelete_buffer(doit2_GPU);
+            GPUdelete_buffer(doit1_GPU);
+            GPUdelete_buffer(mufacs_GPU);
+ 
+            delete[] r_array;
+            delete[] r0_array;
+            delete[] argstol_array;
+            delete[] argsfac_array;
+            delete[] argsdest_array;
+            delete[] coeffs_array;
+            delete[] f_array;
+            delete[] f0_array;
+           
+            for (i = 0; i < inArgs.size(); i++){
+              unsigned int j;
+              for (j = 0; j < rank; j++){
+                delete trans[i][j];
+                delete trans2[i][j]; 
+              }
+              delete trans[i];
+              delete trans2[i];
+            }
+            delete[] trans;
+            delete[] trans2;
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete doit2[i];
+              delete doit1[i];
+            }
+            delete[] doit2;
+            delete[] doit1;
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete condition[i];
+            } 
+            delete[] condition;
+
+            delete[] n_array;
+
+            for (i = 0; i < inArgs.size(); i++){
+              delete mufacs[i];
+            } 
+            delete[] mufacs;
+
+            delete[] op_data; delete[] shifts;
+
+            return outArg;
+        }
+
+        template <typename T, typename opT>
         std::vector<int>
         apply_allComputetry(std::vector<std::tr1::tuple<keyT, keyT, keyT, 
                                       double, double, double, 

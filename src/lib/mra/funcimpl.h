@@ -4292,7 +4292,7 @@ ENDt_TIMER("memcpy3");
             typedef Void(opT::*memfun3T)(tuple2T ) const;
             typedef Void (opT::*memfun4T)(tuplepreprocT) const;
             
-            memfun2T memfun2 = &opT::template apply_allComputeGPUIndKernels_Cublas7/*OptnoShrinkSeventhTransfer_Stream*/<T,opT>;
+            memfun2T memfun2 = &opT::template apply_allComputeGPU_OneKernel/*apply_allComputeGPUIndKernels_Cublas*/<T,opT>;
             //print(memfun2);
             memfun3T memfun3 = &opT::template apply_postprocesspt<T>;
             memfun4T memfun4 = &opT::template apply_backToCPU<T>; 

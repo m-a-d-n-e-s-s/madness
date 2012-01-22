@@ -39,7 +39,7 @@ libMADtensor_a_SOURCES = cu_axpy.cu cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madnes
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
 
 .cu.o:  
-	$(NVCC)  -arch=sm_20 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
+	$(NVCC) -Xptxas -dlcm=cg -arch=sm_20 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
 
 	
 if USE_X86_64_ASM

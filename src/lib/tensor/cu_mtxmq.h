@@ -94,11 +94,16 @@ template <typename aT, typename bT, typename cT>
     void cu_mTxmq_integralbatch3(long dimi, long dimj, long dimk,
                cT* restrict c,  aT* a,  bT* b, cT* restrict c1,  aT* a1,  bT* b1, cT* restrict c2,  aT* a2,  bT* b2, void *GPU_stream, long prev_dimi);
 
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmq_integralop(long dimi, long dimj, long dimk,
+               cT* /*restrict*/ c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, bool *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU);
+
 template <typename T, typename Q>
       void cu_axpy(long n, T* a,  T*  b, Q s, void *GPU_stream, void *h);
 template <typename T, typename Q>
       void cu_axpystream(long n, T* a,  T*  b, Q s, void *GPU_stream, void *h);
 
+void  cu_memset();
 template <typename T>
 T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy);
 template <typename T>
