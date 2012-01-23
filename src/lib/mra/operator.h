@@ -1656,6 +1656,7 @@ namespace madness {
 			    trans[mu][d].U = ops[d]->RU.ptr();
 			    trans[mu][d].VT = ops[d]->RVT.ptr();
 			}
+                    //print("CPUr_buffer[",mu,d,"] = ",trans[mu][d].r);
 		    }
 		    ////apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
 
@@ -1728,6 +1729,7 @@ namespace madness {
 				trans2[mu][d].U = ops[d]->TU.ptr();
 				trans2[mu][d].VT = ops[d]->TVT.ptr();
 			    }
+                        //print("CPUr_buffer[",mu,d,"] = ",trans2[mu][d].r);
 			}
 			////apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
 		        dimk = k;
@@ -16209,6 +16211,8 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 			
                         memcpy(r_buffer+temp, &trans[i][mu][d].r, sizeof(long));
                         memcpy(r2_buffer+temp, &trans2[i][mu][d].r, sizeof(long));
+                        //print("CPUr_buffer[",mu,d,"] = ",trans[i][mu][d].r);
+                        //print("CPUr2_buffer[",mu,d,"] = ",trans2[i][mu][d].r);
 		        if (trans[i][mu][d].VT == 0){
                             //MADNESS_ASSERT(trans[i][mu][d].r == twok);
 			    trans[i][mu][d].U = GPUab1->R + temp*twoksq;
@@ -16268,15 +16272,27 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 		cu_memset();//does cudaMemset of count
             int conds = 0; 
             int conds2 = 0;
-            device_synchronize(GPU_streams,NUM_STREAMS); 
+            //device_synchronize(GPU_streams,NUM_STREAMS); 
 
+            /*
             long * CPUr_buffer = new long[inArgs.size()*rank*NDIM]; 
             long * CPUr2_buffer = new long[inArgs.size()*rank*NDIM];
+            unsigned int temp = 0;
             CPUtransfer_buffer(CPUr_buffer, GPUr_buffer, inArgs.size()*rank*NDIM);
-            CPUtransfer_buffer(CPUr2_buffer, GPUr2_buffer, inArgs.size()*rank*NDIM); 
+            CPUtransfer_buffer(CPUr2_buffer, GPUr2_buffer, inArgs.size()*rank*NDIM);
+            for (i = 0; i < inArgs.size(); i++){
+              for (int mu = 0; mu < rank; mu++){
+                for (int d = 0; d < NDIM; d++){
+                  //print("CPUr_buffer[",i,mu,d,"] = ",CPUr_buffer[temp]);
+                  //print("CPUr2_buffer[",i,mu,d,"] = ",CPUr2_buffer[temp]);
+                  temp++;
+                }
+              }
+            } 
+            */
 conds = 0;
 STARTt_TIMER;
-/*
+
             for (i = 0; i < inArgs.size(); i++){
                   //R* resultptr;
 
@@ -16351,7 +16367,7 @@ STARTt_TIMER;
 		device_synchronize(GPU_streams,NUM_STREAMS);
 		//CPUtransfer_buffer(f0ptr_arrayCPU, r0ptr_arrayGPU, r0ptr_off,GPU_streams[0]);
 		//streams_synchronize(GPU_streams,NUM_STREAMS);
-*/
+/*
             GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
             for (int mu=0; mu<rank; ++mu) {
 
@@ -16470,6 +16486,7 @@ STARTt_TIMER;
 
                   }
             device_synchronize(GPU_streams,NUM_STREAMS);  
+*/
 ENDt_TIMER("computation 2");
             //device_synchronize(GPU_streams,NUM_STREAMS);  
             
@@ -16510,8 +16527,10 @@ ENDt_TIMER("computation 2");
             delete[] resultptr;
             delete[] result0ptr;
 
+            /*
             delete[] CPUr_buffer;
             delete[] CPUr2_buffer;
+            */
 
             GPUdelete_buffer(rptr_arrayGPU); //GPU
             GPUdelete_buffer(r0ptr_arrayGPU); //GPU

@@ -2073,7 +2073,7 @@ exit(-1);
 //	STARTt_TIMER;
 	switch (k){
 	case 10:
-				threads=dim3( BLOCK_SIZE,1,1 );
+				threads=dim3( 128,1,1 );
 				grid=dim3(1,1,1);
 				//cu_mtxmq_integral_101<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr);
 				cu_mtxmq_integral_110<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr, BU);
@@ -2093,11 +2093,11 @@ exit(-1);
 	break;
 	}
 
-cudaDeviceSynchronize();
-int  b =cudaGetLastError();
-if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
-exit(-1);
-  }
+//cudaDeviceSynchronize();
+//int  b =cudaGetLastError();
+//if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
+//exit(-1);
+//  }
 }
 
 
