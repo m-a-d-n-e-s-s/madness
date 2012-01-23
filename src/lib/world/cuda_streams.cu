@@ -22,6 +22,7 @@ extern "C" void cublashandle_destroy(void * h){
 extern "C" void ** streams_initialize(unsigned int streams, void * h){
     unsigned int i;
     cudaSetDevice(0);
+    cudaDeviceSetCacheConfig(cudaFuncCachePreferShared);
     cublasHandle_t * handle = (cublasHandle_t *)h;
     void ** cast_streams = new void*[streams];
     for (i = 0; i < streams; i++){

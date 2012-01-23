@@ -158,7 +158,9 @@ namespace madness {
         Q* T_buffer;
         Q* GPUT_buffer;
         long* r_buffer;
+        long* r2_buffer;
         long* GPUr_buffer;
+        long* GPUr2_buffer;
         Q* RU_buffer;
         Q* GPURU_buffer;
         Q* TU_buffer;
@@ -181,8 +183,8 @@ namespace madness {
         mutable unsigned int RVTcurr_offset;
         mutable unsigned int TVTprev_offset;
         mutable unsigned int TVTcurr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*20;
-        static const unsigned int R_maxsize = 1024*1024*2;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*80;
+        static const unsigned int R_maxsize = 1024*1024*4;
         static const unsigned int T_maxsize = 1024*1024*1;
 
         template <typename T, typename R>
@@ -626,6 +628,8 @@ namespace madness {
             Tcurr_offset = 0;
             alloc_host(&r_buffer,rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
+            alloc_host(&r2_buffer,rank*NDIM);
+            GPUr2_buffer = GPUtransfer_buffer(r2_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -700,6 +704,8 @@ namespace madness {
             Tcurr_offset = 0;
             alloc_host(&r_buffer,rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
+            alloc_host(&r2_buffer,rank*NDIM);
+            GPUr2_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -771,6 +777,8 @@ namespace madness {
             Tcurr_offset = 0;
             alloc_host(&r_buffer,rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
+            alloc_host(&r2_buffer,rank*NDIM);
+            GPUr2_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -841,6 +849,8 @@ namespace madness {
             Tcurr_offset = 0;
             alloc_host(&r_buffer,rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
+            alloc_host(&r2_buffer,rank*NDIM);
+            GPUr2_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&RU_buffer,R_maxsize);
             GPURU_buffer = GPUtransfer_buffer(RU_buffer, R_maxsize, false);
             RUprev_offset = 0;
@@ -865,7 +875,8 @@ namespace madness {
             dealloc_host(RU_buffer); GPUdelete_buffer(GPURU_buffer); 
             dealloc_host(RVT_buffer); GPUdelete_buffer(GPURVT_buffer); 
             dealloc_host(T_buffer); GPUdelete_buffer(GPUT_buffer);
-            dealloc_host(r_buffer); GPUdelete_buffer(GPUr_buffer); 
+            dealloc_host(r_buffer); GPUdelete_buffer(GPUr_buffer);
+            dealloc_host(r_buffer); GPUdelete_buffer(GPUr2_buffer); 
             dealloc_host(TU_buffer); GPUdelete_buffer(GPUTU_buffer); 
             dealloc_host(TVT_buffer); GPUdelete_buffer(GPUTVT_buffer); }
 
@@ -1600,6 +1611,7 @@ namespace madness {
             for (int mu=0; mu<rank; ++mu) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
                 //print("muop",source, shift, mu, muop.norm);
+                mufacs[mu] = 0.0;
                 if (muop.norm > tol) {
                     Q fac = ops[mu].getfac();
                     condition[mu] = true;
@@ -16097,6 +16109,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 
         
             long ** rank_buf = new long*[inArgs.size()];            
+            long ** rank2_buf = new long*[inArgs.size()];            
 			    
             const Q* U;
 
@@ -16194,19 +16207,24 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	        for (int mu = 0; mu < rank; mu++){
 		    for (int d = 0; d < NDIM; d++){
 			
-                        memcpy(r_buffer+temp*sizeof(long), &trans[i][mu][d].r, sizeof(long));
+                        memcpy(r_buffer+temp, &trans[i][mu][d].r, sizeof(long));
+                        memcpy(r2_buffer+temp, &trans2[i][mu][d].r, sizeof(long));
 		        if (trans[i][mu][d].VT == 0){
+                            //MADNESS_ASSERT(trans[i][mu][d].r == twok);
 			    trans[i][mu][d].U = GPUab1->R + temp*twoksq;
 		        }
 		        else{
+                            //MADNESS_ASSERT(trans[i][mu][d].r < twok);
 			    trans[i][mu][d].U = GPUab1->RU + temp2*twoksq;  
 			    trans[i][mu][d].VT = GPUab1->RVT + temp2*twoksq;
 		        }
 
 		        if (trans2[i][mu][d].VT == 0){
+                            //MADNESS_ASSERT(trans2[i][mu][d].r == k);
 			    trans2[i][mu][d].U = GPUab1->T + temp*ksq;
 		        }
 		        else{
+                            //MADNESS_ASSERT(trans2[i][mu][d].r < k);
 			    trans2[i][mu][d].U = GPUab1->TU + temp2*ksq;  
 			    trans2[i][mu][d].VT = GPUab1->TVT + temp2*ksq;
 		        }
@@ -16219,6 +16237,9 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                 rank_buf[i] = GPUr_buffer + i*rank*NDIM;
 		GPUtransfer_buffernoalloc(GPUr_buffer + i*rank*NDIM, r_buffer, rank*NDIM);
 
+ 
+                rank2_buf[i] = GPUr2_buffer + i*rank*NDIM;
+		GPUtransfer_buffernoalloc(GPUr2_buffer + i*rank*NDIM, r2_buffer, rank*NDIM);
             }
 
             bool* big_doit2;
@@ -16242,13 +16263,20 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             //GPUtransfer_buffer(doit1_GPU, big_doit1, inArgs.size()*rank);
             //GPUtransfer_buffer(mufacs_GPU, big_mufacs, inArgs.size()*rank);
 
+            print("The Right Kernel");
+
 		cu_memset();//does cudaMemset of count
             int conds = 0; 
             int conds2 = 0;
-            device_synchronize(GPU_streams,NUM_STREAMS);  
+            device_synchronize(GPU_streams,NUM_STREAMS); 
+
+            long * CPUr_buffer = new long[inArgs.size()*rank*NDIM]; 
+            long * CPUr2_buffer = new long[inArgs.size()*rank*NDIM];
+            CPUtransfer_buffer(CPUr_buffer, GPUr_buffer, inArgs.size()*rank*NDIM);
+            CPUtransfer_buffer(CPUr2_buffer, GPUr2_buffer, inArgs.size()*rank*NDIM); 
 conds = 0;
 STARTt_TIMER;
-
+/*
             for (i = 0; i < inArgs.size(); i++){
                   //R* resultptr;
 
@@ -16280,7 +16308,7 @@ STARTt_TIMER;
 		    VT= GPUab_array[i]->RVT;
 		    mufac_GPU= mufacs_GPU+i*rank ;
 		    doitt_GPU = doit2_GPU+i*rank ;
-		    long * trans2r = rank_buf[i] + i*NDIM*rank;
+		    long * trans2r = rank_buf[i];
 //void cu_mTxmq_integralop(long dimi, long dimj, long dimk,
 //               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, bool *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU);
 //../../../src/lib/mra/operator.h:16284: error: no matching function for call to ‘cu_mTxmq_integralop(long int&, long int&, long int&, R*&, double*&, double*, void*&, unsigned int, double*, bool*&, double*&, R*&, long int*&, long int*&, double*)’
@@ -16315,7 +16343,7 @@ STARTt_TIMER;
                             TU = GPUab_array[i]->TU;
 			    mufac_GPU= mufacs_GPU+i*rank;
 			    doitt_GPU = doit1_GPU+i*rank;
-			    long * transr = rank_buf[i]+ i*NDIM*rank;
+			    long * transr = rank2_buf[i];
                             ////GPU
 			    cu_mTxmq_integralop(dimi,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
 		    }
@@ -16323,6 +16351,125 @@ STARTt_TIMER;
 		device_synchronize(GPU_streams,NUM_STREAMS);
 		//CPUtransfer_buffer(f0ptr_arrayCPU, r0ptr_arrayGPU, r0ptr_off,GPU_streams[0]);
 		//streams_synchronize(GPU_streams,NUM_STREAMS);
+*/
+            GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
+            for (int mu=0; mu<rank; ++mu) {
+
+	        for (i = 0; i < inArgs.size(); i++){			    
+	             if (condition[i][mu]) {
+                           conds++;
+		           //const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
+                            //U = trans[i][mu][0].U;
+                            if (CPUr_buffer[i*rank*NDIM + mu*NDIM] == twok) U = GPUab_array[i]->R + (mu*NDIM)*twoksq;
+                            else U = GPUab_array[i]->RU + mu*NDIM*twoksq;
+
+                            ////GPU
+			    cu_mTxmqnewstream(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			    //cu_mTxmq_integralhundredOneWrite(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], dim2k);
+			    //cu_mTxmq_integral4tb(dimi, dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], dim2k);
+                     }
+                 }
+	        
+	            for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu] && n_array[i] > 0){
+                            if (CPUr2_buffer[i*rank*NDIM + mu*NDIM] == k) U = GPUab_array[i]->T + mu*NDIM*ksq;
+                            else U = GPUab_array[i]->TU + (mu*NDIM)*ksq;
+                            conds2++;
+                            //U = trans2[i][mu][0].U;
+		            ////GPU
+                            
+		            cu_mTxmqnewstream(dimi2, dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+                        }
+                    }
+	            
+                 for (std::size_t d=1; d<NDIM; ++d) {
+		      for (i = 0; i < inArgs.size(); i++){			    
+			if (condition[i][mu]) {
+                          conds++;
+                          //U = trans[i][mu][d].U;
+                            if (CPUr_buffer[i*rank*NDIM + mu*NDIM + d] == twok) U = GPUab_array[i]->R + (mu*NDIM + d)*twoksq;
+                            else U = GPUab_array[i]->RU + (mu*NDIM + d)*twoksq;
+			  ////GPU
+			  cu_mTxmqnewstream(dimi, dim2k, dim2k, w2ptr[i], w1ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			  ////GPU
+			  std::swap(w1ptr[i],w2ptr[i]);
+			}
+		      }
+		  }
+		  
+                    for (std::size_t d=1; d<NDIM; ++d) {
+	                for (i = 0; i < inArgs.size(); i++){			 
+                            if (condition[i][mu] && n_array[i] > 0){
+                                    conds2++;
+                                    //U = trans2[i][mu][d].U;
+                                   if (CPUr2_buffer[i*rank*NDIM + mu*NDIM + d] == k) U = GPUab_array[i]->T + (mu*NDIM + d)*ksq;
+                                   else U = GPUab_array[i]->TU + (mu*NDIM + d)*ksq;
+				    ////GPU
+				    cu_mTxmqnewstream(dimi2, dimk, dimk, w2ptr2[i], w1ptr2[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+				    ////GPU
+                                    std::swap(w1ptr2[i],w2ptr2[i]);
+			    }
+                        }
+                    }
+	            
+		  for (std::size_t d=0; d<NDIM; ++d) {
+	            for (i = 0; i < inArgs.size(); i++){			    
+			if (doit2[i][mu] & condition[i][mu]) {
+			    if (trans[i][mu][d].VT) {
+                                conds++;
+                                //U = trans[i][mu][d].VT;
+                            if (CPUr_buffer[i*rank*NDIM + mu*NDIM + d] == twok) U = 0;
+                            else U = GPUab_array[i]->RVT + (mu*NDIM + d)*twoksq;
+                            MADNESS_ASSERT(U);
+				////GPU
+				cu_mTxmqnewstream(dimi, dim2k, dim2k, w2ptr[i], w1ptr[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+			    }
+			    else {
+				////GPU
+				fast_transpose(dim2k, dimi, w1ptr[i], w2ptr[i]);
+			    }
+			    ////GPU
+			    std::swap(w1ptr[i],w2ptr[i]);
+			}
+                      }
+		    }
+                    
+                    for (std::size_t d=0; d<NDIM; ++d) {
+	                for (i = 0; i < inArgs.size(); i++){			 
+                            if (condition[i][mu] && doit1[i][mu] && n_array[i] > 0) {
+					if (trans2[i][mu][d].VT) {
+                                            //U = trans2[i][mu][d].VT;
+                            if (CPUr2_buffer[i*rank*NDIM + mu*NDIM + d] == k) U = 0;
+                            else U = GPUab_array[i]->TVT + (mu*NDIM + d)*ksq;
+                            MADNESS_ASSERT(U);
+                                            conds2++;
+					    ////GPU
+					    cu_mTxmqnewstream(dimi2, dimk, dimk, w2ptr2[i], w1ptr2[i], const_cast<Q*>(U), GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle);
+					}
+					else {
+					    ////GPU
+					    fast_transpose(dimk, dimi2, w1ptr2[i], w2ptr2[i]);
+					}
+					////GPU
+                                        std::swap(w1ptr2[i],w2ptr2[i]);
+		            }
+		         }
+                     }
+	             
+                     for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu] && n_array[i] > 0){
+				 ////GPU
+				 cu_axpystream(size2, result0ptr[i], w1ptr2[i], -mufacs[i][mu], GPU_streams[i%NUM_STREAMS], cublas_handle);
+			}
+                     }
+                    for (i = 0; i < inArgs.size(); i++){			 
+                        if (condition[i][mu]){   
+			    cu_axpystream(size, resultptr[i], w1ptr[i], mufacs[i][mu], GPU_streams[i%NUM_STREAMS], cublas_handle);
+                        }
+                    }
+
+                  }
+            device_synchronize(GPU_streams,NUM_STREAMS);  
 ENDt_TIMER("computation 2");
             //device_synchronize(GPU_streams,NUM_STREAMS);  
             
@@ -16363,6 +16510,9 @@ ENDt_TIMER("computation 2");
             delete[] resultptr;
             delete[] result0ptr;
 
+            delete[] CPUr_buffer;
+            delete[] CPUr2_buffer;
+
             GPUdelete_buffer(rptr_arrayGPU); //GPU
             GPUdelete_buffer(r0ptr_arrayGPU); //GPU
             GPUdelete_buffer(f0ptr_arrayGPU); //GPU
@@ -16373,6 +16523,7 @@ ENDt_TIMER("computation 2");
             delete[] GPUab_array;
 
             delete[] rank_buf;           
+            delete[] rank2_buf;           
             dealloc_host(big_doit2);
             dealloc_host(big_doit1);
             dealloc_host(big_mufacs);

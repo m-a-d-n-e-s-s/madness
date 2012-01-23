@@ -733,6 +733,7 @@ template  void  CPUtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int
 template  void  CPUtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
 template  void  CPUtransfer_buffer(float* CPU_buf, float *GPU_buf,unsigned int offset);
 template  void  CPUtransfer_buffer(std::complex<float>* CPU_buf, std::complex<float> *GPU_buf,unsigned int offset);
+template  void  CPUtransfer_buffer(long* CPU_buf, long *GPU_buf,unsigned int offset);
 
 
 template <typename W>
@@ -2092,11 +2093,11 @@ exit(-1);
 	break;
 	}
 
-/*cudaDeviceSynchronize();
+cudaDeviceSynchronize();
 int  b =cudaGetLastError();
 if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
 exit(-1);
-  }*/
+  }
 }
 
 

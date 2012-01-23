@@ -1263,9 +1263,9 @@ int main(int argc, char**argv) {
         //test_conv<double,1>(world);
         //test_math<double,1>(world);
         //test_diff<double,1>(world);
-        test_op<double,1>(world);
+        ////test_op<double,1>(world);
         //test_plot<double,1>(world);
-        test_apply_push_1d<double,1>(world);
+        ////test_apply_push_1d<double,1>(world);
 
         //test_io<double,1>(world);
 
