@@ -731,7 +731,7 @@ namespace madness {
     		// return if we already have a valid eri
     		if (this->_eri) return this->_eri;
 
-    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
+//    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
 
     		// construction of the functor is const in spirit, but non-const in sad reality..
     		const_cast< std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >& >(this->_eri)=

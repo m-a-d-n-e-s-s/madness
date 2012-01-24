@@ -1627,7 +1627,14 @@ struct Calculation {
         return ops;
     }
 
-    vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f)
+    /// apply the HF exchange on a set of orbitals
+
+    /// @param[in]  world   the world
+    /// @param[in]  occ     occupation numbers
+    /// @param[in]  psi     the orbitals in the exchange operator
+    /// @param[in]  f       the orbitals |i> that the operator is applied on
+    /// @return     a vector of orbitals  K| i>
+    vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f) const
     {
         const bool same = (&psi == &f);
         int nocc = psi.size();
@@ -1968,7 +1975,7 @@ struct Calculation {
 
     /// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
     /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
-    Tensor<double> twoint(World& world, const vecfuncT& psi) {
+    Tensor<double> twoint(World& world, const vecfuncT& psi) const {
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
         reconstruct(world, psi);
         norm_tree(world, psi);

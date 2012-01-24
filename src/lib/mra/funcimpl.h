@@ -3720,7 +3720,6 @@ namespace madness {
                         ? ket->task(ket->get_coeffs().owner(key0),
                                 &implT::find_datum,key0,TaskAttributes::hipri())
                         : Future<datumT>(datumT());
-                print("using walker for make_Vphi");
                 if (eri) MADNESS_ASSERT(eri->is_on_demand());
 
                 // have to wait for this..
@@ -4052,7 +4051,7 @@ namespace madness {
         void trickle_down(bool fence) {
             MADNESS_ASSERT(is_redundant());
             nonstandard = compressed = redundant = false;
-            this->print_size("in trickle_down");
+//            this->print_size("in trickle_down");
             if (world.rank() == coeffs.owner(cdata.key0))
                 woT::task(world.rank(), &implT::trickle_down_op, cdata.key0,coeffT());
             if (fence)
