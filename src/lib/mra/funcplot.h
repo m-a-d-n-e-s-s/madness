@@ -507,15 +507,6 @@ namespace madness {
     }
 
 
-    /// some tools for plotting MRA ranks of low order tensors
-
-    // return a hue number [0,0.7] according to the rank in relation to maxrank,
-    static double hueCode(const int rank) {
-            const double maxrank=40.0;
-            double hue=0.7-(0.7/maxrank)*(rank);
-            return std::max(0.0,hue);
-    }
-
     template<typename T>
     static std::string stringify(T arg) {
     	std::ostringstream o;
@@ -525,48 +516,8 @@ namespace madness {
     }
 
 
-    // print a dot of hue color at (x,y) in file f
-    static void print_psdot(FILE *f, double x, double y, double color) {
-    	fprintf(f,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
-//    	std::string line="\\psdot[linecolor=mycolor]("+stringify(x)+","+stringify(y)+")\n";
-//    	fprintf(f,line.c_str());
-        fprintf(f,"\\psdot[linecolor=mycolor](%12.8f,%12.8f)\n",x,y);
-    }
-
     typedef Vector<double,3> coord_3d;
     typedef Vector<double,6> coord_6d;
-
-    static coord_3d circle2(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
-    	double stepsize=constants::pi * 2.0 / npt;
-    	double phi=ipt*stepsize;
-
-    	// in the xz plane
-    	coord_3d coord(0.0);
-    	coord[0]=radius * sin(phi);
-    	coord[1]=radius * cos(phi);
-    	return coord;
-
-    }
-
-
-    static coord_6d circle_6d(const coord_6d& lo, const coord_6d& hi, double radius, coord_3d el2, long npt, long ipt) {
-    	double stepsize=constants::pi * 2.0 / npt;
-
-    	// start at phi=1.0
-    	double phi=1.0+constants::pi+ipt*stepsize;
-
-    	// in the xz plane
-    	coord_6d coord(0.0);
-    	coord[0]=radius * sin(phi);
-    	coord[1]=radius * cos(phi);
-    	coord[2]=0.0;
-    	coord[3]=el2[0];
-    	coord[4]=el2[1];
-    	coord[5]=el2[2];
-
-    	return coord;
-
-    }
 
     // plot along this trajectory
     template<size_t NDIM>
@@ -582,6 +533,55 @@ namespace madness {
     	coord_3d el2;
     	coordT (*curve)(const coordT& lo, const coordT& hi, double radius, coord_3d el2, long npt, long ipt);
 
+    	/// some tools for plotting MRA ranks of low order tensors
+
+    	// return a hue number [0,0.7] according to the rank in relation to maxrank,
+    	static double hueCode(const int rank) {
+    			const double maxrank=40.0;
+    			double hue=0.7-(0.7/maxrank)*(rank);
+    			return std::max(0.0,hue);
+    	}
+
+
+        // print a dot of hue color at (x,y) in file f
+        static void print_psdot(FILE *f, double x, double y, double color) {
+        	fprintf(f,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
+            fprintf(f,"\\psdot[linecolor=mycolor](%12.8f,%12.8f)\n",x,y);
+        }
+
+
+        static coord_3d circle2(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+        	double stepsize=constants::pi * 2.0 / npt;
+        	double phi=ipt*stepsize;
+
+        	// in the xz plane
+        	coord_3d coord(0.0);
+        	coord[0]=radius * sin(phi);
+        	coord[1]=radius * cos(phi);
+        	return coord;
+
+        }
+
+        static coord_6d circle_6d(const coord_6d& lo, const coord_6d& hi, double radius, coord_3d el2, long npt, long ipt) {
+        	double stepsize=constants::pi * 2.0 / npt;
+
+        	// start at phi=1.0
+        	double phi=1.0+constants::pi+ipt*stepsize;
+
+        	// in the xz plane
+        	coord_6d coord(0.0);
+        	coord[0]=radius * sin(phi);
+        	coord[1]=radius * cos(phi);
+        	coord[2]=0.0;
+        	coord[3]=el2[0];
+        	coord[4]=el2[1];
+        	coord[5]=el2[2];
+
+        	return coord;
+
+        }
+
+
     //	typedef Vector<double,NDIM> (trajectory::circle_6d)(double lo, double hi, double radius, long npt, long ipt) const;
 
     	trajectory() {}
@@ -590,11 +590,11 @@ namespace madness {
 //    	}
 
     	// ctor for circle
-    	trajectory(double radius, long npt) : radius(radius), npt(npt), curve(circle2) {
+    	trajectory(double radius, long npt) : radius(radius), npt(npt), curve(this->circle2) {
     	}
 
     	// ctor for circle with electron 2 fixed at coord_3d
-    	trajectory(double radius, coord_3d el2, long npt) : radius(radius), npt(npt), el2(el2), curve(circle_6d) {
+    	trajectory(double radius, coord_3d el2, long npt) : radius(radius), npt(npt), el2(el2), curve(this->circle_6d) {
     	}
 
 
@@ -658,7 +658,7 @@ namespace madness {
     			 Vector<double,NDIM> coord=traj(ipt);
     			 if (psdot) {
     			     long rank=function.evalR(coord);
-    			     print_psdot(f,ipt,function(coord),hueCode(rank));
+    			     trajectory<NDIM>::print_psdot(f,ipt,function(coord),trajectory<NDIM>::hueCode(rank));
     			 } else {
     			     fprintf(f,"%4i %12.6f\n",ipt, function(coord));
     			 }
@@ -702,7 +702,7 @@ namespace madness {
     			 if (psdot) {
                      // no hue code here
     			     //           long rank=ff.evalR(coord);
-                     print_psdot(f,ipt,ff(coord),hueCode(0));
+                     trajectory<NDIM>::print_psdot(f,ipt,ff(coord),trajectory<NDIM>::hueCode(0));
     			 } else {
     			     fprintf(f,"%4i %12.6f\n",ipt, ff(coord));
     			 }

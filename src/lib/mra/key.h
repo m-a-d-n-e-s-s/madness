@@ -308,7 +308,7 @@ namespace madness {
 
         	// it's sufficient if one single dimension is out
         	bool contains=true;
-        	const int twotoN = std::pow(2,n);
+        	const int twotoN = std::pow(2.0,double(n));
         	MADNESS_ASSERT(dim0<NDIM and dim1<NDIM);
 
         	for (unsigned int i=0; i<NDIM; i++ ) {
@@ -333,7 +333,7 @@ namespace madness {
             MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
             Vector<Translation, LDIM> l1;
             Vector<Translation, KDIM> l2;
-            for (size_t i=0; i<LDIM; ++i) {
+            for (int i=0; i<LDIM; ++i) {
                 l1[i]=l[i];
             }
             for (size_t i=LDIM; i<NDIM; ++i) {
@@ -347,8 +347,8 @@ namespace madness {
         template<std::size_t LDIM>
         Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
             Vector<Translation,NDIM+LDIM> t;
-            for (size_t i=0; i<NDIM; ++i) t[i]     =this->l[i];
-            for (size_t i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
+            for (int i=0; i<NDIM; ++i) t[i]     =this->l[i];
+            for (int i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 

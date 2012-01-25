@@ -106,7 +106,7 @@ namespace madness {
                             TaskAttributes::hipri());
                 }
                 else if (!right.second.has_data()) {
-                    task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key,
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key,
                     		left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
                 }
                 // Boundary node
@@ -219,7 +219,7 @@ namespace madness {
             return true;
         }
 
-        Key<NDIM> neighbor(const keyT& key, int step) const {
+        keyT neighbor(const keyT& key, int step) const {
             Vector<Translation,NDIM> l = key.translation();
             l[axis] += step;
             if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
@@ -295,7 +295,7 @@ namespace madness {
             //left boundary
             if (l[this->axis] == 0) {
 
-                coeffT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,-1));
+                coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,-1));
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
 
                 d= transform_dir(tensor_right,left_rmt,this->axis);
@@ -317,7 +317,7 @@ namespace madness {
             }
             else {
 
-                coeffT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1));
+                coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
 
                 d= transform_dir(tensor_left,right_rpt,this->axis);
@@ -438,9 +438,9 @@ namespace madness {
             return None;
 
 #else
-        	coeffT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1));
+        	coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
             coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
-            coeffT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,1));
+            coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,1));
 
             coeffT d= transform_dir(tensor_left,rpt,this->axis);
             d+=transform_dir(tensor_center,r0t,this->axis);

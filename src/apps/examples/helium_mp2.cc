@@ -508,7 +508,7 @@ struct true_if_n_gt_op {
 void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double& eps) {
 
     LoadBalanceDeux<6> lb(world);
-    double ncoeff=std::pow(FunctionDefaults<6>::get_k(),6);
+    double ncoeff=std::pow(double(FunctionDefaults<6>::get_k()),double(6));
     lb.add_tree(Vpsi,LBCost(1.0,ncoeff));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
     if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());

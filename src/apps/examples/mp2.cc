@@ -363,7 +363,7 @@ namespace madness {
 
         /// project f on p: |result> =  | p><p | f>
         template<std::size_t FDIM>
-        typename enable_if_c<NDIM==FDIM, Function<T,FDIM>>::type
+        typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
 
             const double ovlp=inner(f,p_[0]);
@@ -378,7 +378,7 @@ namespace madness {
 
         /// project p out of f: |result(1,2)> = sum_p | p(1)><p(1) | f(1,2)>
         template<std::size_t FDIM>
-        typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM>>::type
+        typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
             real_function_6d sum=real_factory_6d(p_.begin()->world());
             for (unsigned int i=0; i<p_.size(); ++i) {
@@ -599,8 +599,6 @@ namespace madness {
 
         Intermediates intermediates;
         real_convolution_3d poisson;
-
-        static const double dcut=1.e-6;
 
     public:
         MP2(World& world, const HartreeFock& hf, const CorrelationFactor& corrfac, const std::string& input)
@@ -1553,7 +1551,7 @@ namespace madness {
         }
 
     };
-}
+};
 
 int main(int argc, char** argv) {
     initialize(argc, argv);

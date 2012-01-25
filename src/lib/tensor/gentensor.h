@@ -273,13 +273,10 @@ namespace madness {
 		sr_ptr _ptr;
 
 		/// the machine precision
-		static const double machinePrecision=1.e-14;
-
-		/// sqrt of the machine precision
-		static const double sqrtMachinePrecision=1.e-7;
+		static double machinePrecision() {return 1.e-14;}
 
 		/// safety for rank reduction
-		static const double facReduce=1.e-3;
+		static double facReduce() {return 1.e-3;}
 
 	public:
 
@@ -728,11 +725,11 @@ namespace madness {
 				if (ratio>1.0) {
 
 					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
-						config().divide_and_conquer_reduce(eps*facReduce);
+						config().divide_and_conquer_reduce(eps*facReduce());
 
 //					} else if (OrthoMethod::om==sequential_) {
 //					    MADNESS_EXCEPTION("flat/structure issue",1);
-//						config().sequential_orthogonalization(eps*facReduce);
+//						config().sequential_orthogonalization(eps*facReduce());
 
 					} else if (OrthoMethod::om==reconstruct_) {
                         MADNESS_EXCEPTION("flat/structure issue",1);
@@ -931,7 +928,7 @@ namespace madness {
 		SRConf<T>& config() {return *_ptr;}
 
 		/// return the additional safety for rank reduction
-		static double fac_reduce() {return facReduce;};
+		static double fac_reduce() {return facReduce();};
 
 	private:
 
@@ -1033,7 +1030,7 @@ namespace madness {
 			MADNESS_ASSERT(B2[0].dim(1)==rG2);
 
 			// for controlling the condition number, sec. (3.2) of BM2005
-			const double alpha=machinePrecision;
+			const double alpha=machinePrecision();
 			Tensor<T> unity(trial.rank(),trial.rank());
 			for (unsigned int i=0; i<trial.rank(); i++) {
 				unity(i,i)=alpha;
@@ -1335,7 +1332,7 @@ namespace madness {
 			 */
 
 			// the threshold
-			const double threshold=eps*facReduce;
+			const double threshold=eps*facReduce();
 
 			// what we expect the trial rank might be (engineering problem)
 			const unsigned int maxTrialRank=300;
@@ -1432,7 +1429,7 @@ namespace madness {
 			MADNESS_ASSERT(this->tensor_type()==TT_2D);
 
 			// fast return if possible
-			if (values_eff.normf()<eps*facReduce) {
+			if (values_eff.normf()<eps*facReduce()) {
 				_ptr=sr_ptr(new configT(_ptr->dim(),_ptr->get_k(),tensor_type()));
 				return;
 			}
@@ -1446,7 +1443,7 @@ namespace madness {
 
 			// find the maximal singular value that's supposed to contribute
 			// singular values are ordered (largest first)
-			const double threshold=eps*eps*facReduce*facReduce;
+			const double threshold=eps*eps*facReduce()*facReduce();
 			double residual=0.0;
 			long i;
 			for (i=s.dim(0)-1; i>=0; i--) {

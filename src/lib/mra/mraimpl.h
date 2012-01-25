@@ -284,7 +284,7 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    Tensor<T> fcube(const Key<NDIM>& key, T (*f)(const Vector<T,NDIM>&), const Tensor<double>& qx) {
+    Tensor<T> fcube(const Key<NDIM>& key, T (*f)(const Vector<double,NDIM>&), const Tensor<double>& qx) {
 //      fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
         std::vector<long> npt(NDIM,qx.dim(0));
         Tensor<T> fval(npt);

@@ -1200,15 +1200,15 @@ namespace madness {
         struct do_convert_to_color {
             double limit;
             bool log;
-            static const double lower=1.e-10;
+            static double lower() {return 1.e-10;};
             do_convert_to_color() {};
             do_convert_to_color(const double limit, const bool log) : limit(limit), log(log) {}
             double operator()(double val) const {
                 double color=0.0;
 
                 if (log) {
-                    double val2=log10(val) - log10(lower);        // will yield >0.0
-                    double upper=log10(limit) -log10(lower);;
+                    double val2=log10(val) - log10(lower());        // will yield >0.0
+                    double upper=log10(limit) -log10(lower());
                     val2=0.7-(0.7/upper)*val2;
                     color= std::max(0.0,val2);
                     color= std::min(0.7,color);
@@ -3168,8 +3168,6 @@ namespace madness {
             typedef FunctionNode<T,LDIM> nodeL;
             typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
             typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-
-            static const double safety=1.0;
 
             const FunctionImpl<T,NDIM>* result;       ///< where to construct the pair function
             impl_and_arg<T,LDIM> p1;
@@ -5197,7 +5195,7 @@ namespace madness {
             int dim=NDIM/2;
             int k0=k;
             if (is_compressed()) k0=2*k;
-            Tensor<long> n(int(std::pow(k0,dim)+1));
+            Tensor<long> n(int(std::pow(double(k0),double(dim))+1));
             long n_full=0;
             long n_large=0;
 

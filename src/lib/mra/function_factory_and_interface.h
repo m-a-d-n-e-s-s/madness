@@ -76,7 +76,7 @@ namespace madness {
     class CompositeFactory;
 
     template<typename T, std::size_t NDIM>
-    Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<T,NDIM>&), const Tensor<double>&);
+    Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
 }
 
 
@@ -109,7 +109,7 @@ namespace madness {
 			return coeffT();
 		}
 
-        virtual coeffT values(const keyT&, const tensorT&) const {
+        virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
             MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
             return coeffT();
         }
@@ -693,7 +693,7 @@ namespace madness {
     	/// cutoff radius for 1/r12, aka regularization
     	double _dcut;
         BoundaryConditions<NDIM> _bc;
-        int _k;
+//        int _k;
 
     public:
     	ERIFactory(World& world)
@@ -701,7 +701,6 @@ namespace madness {
     		, _eri()
     		, _dcut(FunctionDefaults<NDIM>::get_thresh())
     		, _bc(FunctionDefaults<NDIM>::get_bc())
-    		, _k(FunctionDefaults<NDIM>::get_k())
     	{
     		this->_is_on_demand=true;
     		MADNESS_ASSERT(NDIM==6);
@@ -719,11 +718,11 @@ namespace madness {
 			return *this;
 		}
 
-    	ERIFactory&
-		k(double k) {
-			this->_k = k;
-			return *this;
-		}
+//    	ERIFactory&
+//		k(double k) {
+//			this->_k = k;
+//			return *this;
+//		}
 
     	// access to the functor *only* via this
     	std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
@@ -737,7 +736,7 @@ namespace madness {
     		const_cast< std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >& >(this->_eri)=
     				std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >(
     				new ElectronRepulsionInterface<double,NDIM>(this->_world,_dcut,this->_thresh,
-    		                _bc,_k));
+    		                _bc,this->_k));
 
     		return this->_eri;
     	}

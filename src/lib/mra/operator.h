@@ -606,7 +606,7 @@ namespace madness {
 
             // finalize with the factorial
             double factorial=1.0;
-            for (size_t i=1; i<NDIM-1; ++i) factorial*=double(i);
+            for (int i=1; i<NDIM-1; ++i) factorial*=double(i);
             dff*=factorial;
             duu*=factorial;
 
@@ -1251,7 +1251,7 @@ namespace madness {
                     // get maximum rank of coeff to contribute:
                     //  delta(g)  <  eps  <  || T || * delta(f)
                     //  delta(coeff) * || T || < tol2
-                    const int r_max=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                    const int r_max=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
                     //                	print("r_max",coeff.config().weights(r_max));
 
                     if (r_max>0) {
@@ -1318,7 +1318,7 @@ namespace madness {
 
                 // delta(g)  <  delta(T) * || f ||
                 if (muop.norm > tol) {
-                    long nterms=max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                    long nterms=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
 
                     // take only the first overlap computation of rank reduction into account
                     low_cost+=nterms*low_operator_cost + 2.0*nterms*nterms*low_reduction_cost;

@@ -44,14 +44,6 @@
 
 namespace madness {
 
-	/// return the number of vectors (i.e. dim_eff) according to the TensorType
-	static unsigned int compute_nvec(const TensorType& tt) {
-		if (tt==TT_FULL) return 1;
-		if (tt==TT_2D) return 2;
-		if (tt==TT_3D) return 3;
-		print("unknown TensorType",tt);
-		MADNESS_ASSERT(0);
-	}
 
 	enum orthoMethod {ortho3_, ortho5_, ortho6_, reconstruct_, sequential_};
 
@@ -75,26 +67,6 @@ namespace madness {
     	return s;
     }
 
-	/// return the index of the last singular vector/value to meet the threshold
-
-	/// given a matrix A in SVD form, truncate the singular values such that the
-	/// accuracy threshold is still met.
-	/// @param[in]	thresh	the threshold eps: || A(svd) - A(truncated) || < eps
-	/// @param[in] 	rank	the number of singular values in w
-	/// @paran[in]	w		the weights/singular values of A(svd)
-	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
-	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
-
-		// find the maximal singular value that's supposed to contribute
-		// singular values are ordered (largest first)
-		double residual=0.0;
-		long i;
-		for (i=rank-1; i>=0; i--) {
-			residual+=w(i)*w(i);
-			if (residual>thresh*thresh) break;
-		}
-		return i;
-	}
 
 
 
@@ -104,6 +76,15 @@ namespace madness {
 
 	template <typename T>
 	class SRConf {
+
+		/// return the number of vectors (i.e. dim_eff) according to the TensorType
+		static unsigned int compute_nvec(const TensorType& tt) {
+			if (tt==TT_FULL) return 1;
+			if (tt==TT_2D) return 2;
+			if (tt==TT_3D) return 3;
+			print("unknown TensorType",tt);
+			MADNESS_ASSERT(0);
+		}
 
 	public:
 
@@ -144,6 +125,28 @@ namespace madness {
 
 		
 	public:
+
+    	/// return the index of the last singular vector/value to meet the threshold
+
+    	/// given a matrix A in SVD form, truncate the singular values such that the
+    	/// accuracy threshold is still met.
+    	/// @param[in]	thresh	the threshold eps: || A(svd) - A(truncated) || < eps
+    	/// @param[in] 	rank	the number of singular values in w
+    	/// @paran[in]	w		the weights/singular values of A(svd)
+    	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
+    	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
+
+    		// find the maximal singular value that's supposed to contribute
+    		// singular values are ordered (largest first)
+    		double residual=0.0;
+    		long i;
+    		for (i=rank-1; i>=0; i--) {
+    			residual+=w(i)*w(i);
+    			if (residual>thresh*thresh) break;
+    		}
+    		return i;
+    	}
+
 
 		/// default ctor
 		SRConf() : dim_(0), rank_(0), maxk_(0), s_(), tensortype_(TT_NONE) {
