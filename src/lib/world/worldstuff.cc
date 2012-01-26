@@ -112,12 +112,12 @@ t.tv_nsec = 2000000;
 nanosleep(&t, NULL);
            
             w->gpu_hashlock.lock();
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
 
             gpu_it = w->gpu_hash.begin();
             while (gpu_it != w->gpu_hash.end()){
                 (*gpu_it).second->run();
-                ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator temp_it = gpu_it;
+                ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator temp_it = gpu_it;
                 gpu_it++;
                 w->gpu_hash.erase(temp_it);
             }
@@ -136,7 +136,7 @@ nanosleep(&t, NULL);
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
             , gop(* (new WorldGopInterface(*this)))
-            , gpu_hash(* (new ConcurrentHashMap<unsigned long long, ComputeBase*>()))
+            , gpu_hash(* (new ConcurrentHashMap<HashValAgg, ComputeBase*>()))
             , myrand_next(0)
     {
         worlds.push_back(this);

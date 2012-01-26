@@ -6,7 +6,6 @@ geometry
   be 0 0 0
 end
 
-
 geometry 
   units angstrom
   eprec 1e-5

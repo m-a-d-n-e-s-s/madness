@@ -1918,13 +1918,13 @@ ENDt_TIMER("memcpy3");
         Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
 
             if (HAVE_GPU & BACKTO_CPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
             else if (HAVE_GPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
             else if (SIM_GPU)
-                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
             else if (JUST_AGG)
-                dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
+                dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
             else if (THREE_SPLIT)
                 dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
             /*
@@ -2083,13 +2083,14 @@ ENDt_TIMER("memcpy3");
               this->parent = p;
               this->set = true;
               if (tensor_keys.size() == max){
+                int z = 0;
                 //dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
                 if (HAVE_GPU)
-                  dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allComputeGPU, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                  dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allComputeGPU, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), z);
                 else if (SIM_GPU)
-                  dc.local_updateGPU(key, &nodeT::compressop_preprocess, &nodeT::compressop_allCompute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                  dc.local_updateGPU(key, &nodeT::compressop_preprocess, &nodeT::compressop_allCompute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), 0);
                 else if (JUST_AGG)
-                  dc.local_updateJustAgg(key, &nodeT::compressop_preprocess, &nodeT::compressopComputePostprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
+                  dc.local_updateJustAgg(key, &nodeT::compressop_preprocess, &nodeT::compressopComputePostprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), 0);
                 else if (THREE_SPLIT)
                   dc.local_update(key, &nodeT::compressop_preprocess, &nodeT::compressop_compute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
                 else
@@ -4086,11 +4087,11 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&t1);
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            ConcurrentHashMap<std::pair<unsigned long long, int>, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<std::pair<unsigned long long, int>, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
+            gpu_it = this->world.gpu_hash.find(std::pair<unsigned long long, int>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), op->getHashVal()));
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4098,7 +4099,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
+                this->world.gpu_hash.insert(std::pair<std::pair<unsigned long long, int>, ComputeBase *>(std::pair<unsigned long long, int>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), op->getHashVal), cb));
             }
 
             this->world.taskq.incNRegistered();
@@ -4207,7 +4208,7 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT> tuplepreprocT;
+                        Tensor<T>, Tensor<T>, SC*, keyT, int, int> tuplepreprocT;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
    
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
@@ -4232,11 +4233,15 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&tpreproc);
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            HashValAgg hva;
+            hva.address = (unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun4));
+            hva.hashVal = op->getHashVal();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun4)));
+            gpu_it = this->world.gpu_hash.find(hva);
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4244,7 +4249,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun4)), cb));
+                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva , cb));
             }
 
             this->world.taskq.incNRegistered();
@@ -4314,11 +4319,15 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&tpreproc);
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            HashValAgg hva;
+            hva.address = (unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2));
+            hva.hashVal = (const_cast<opT*>(op))->getHashVal();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)));
+            gpu_it = this->world.gpu_hash.find(hva);
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4326,7 +4335,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2)), cb));
+                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
             }
 
             this->world.taskq.incNRegistered();

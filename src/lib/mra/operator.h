@@ -183,7 +183,7 @@ namespace madness {
         mutable unsigned int RVTcurr_offset;
         mutable unsigned int TVTprev_offset;
         mutable unsigned int TVTcurr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*20;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*5;
         static const unsigned int R_maxsize = 1024*1024*1;
         static const unsigned int T_maxsize = 1024*1024*1;
 
@@ -581,6 +581,9 @@ namespace madness {
         }
 
     public:
+        int getHashVal(){
+            return 1000*rank+k;
+        }
         // Default constructor for invoking compute member functions on aggregate arguments
         // BAD Constructor: it does NOT call process_pending()
         SeparatedConvolution(World * w) :WorldObject<SeparatedConvolution<Q,NDIM> >(*w), k(0), rank(0) {
@@ -15996,7 +15999,8 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                   f_array[i] = std::tr1::get<11>(*args[i]);
                   f0_array[i] = std::tr1::get<12>(*args[i]);
                   op_data[i] = (std::tr1::get<13>(*args[i]));
-                  shifts[i] = std::tr1::get<14>(*args[i]);  
+                  shifts[i] = std::tr1::get<14>(*args[i]); 
+                  //print("shift[",i,"] =",shifts[i]); 
                   ranks[i] = std::tr1::get<15>(*args[i]);
                   ks[i] = std::tr1::get<16>(*args[i]);
             }
@@ -16289,6 +16293,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                 print("done.");
             }
 
+            MADNESS_ASSERT(sizeof(Q) == sizeof(R));
             bool* big_doit2;
             bool* big_doit1;
             Q* big_mufacs;
@@ -16313,7 +16318,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             int conds = 0; 
             int conds2 = 0;
             sum_ranks = 0;
-            GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
+            //GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
 conds = 0;
 STARTt_TIMER;
             unsigned int twok_sum = 0;

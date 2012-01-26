@@ -823,6 +823,7 @@ namespace madness {
 
      template <typename memfunComputeT, typename memfunPostprocessT, typename memfunBacktoCPUT, typename arg1T, typename objT> 
      void ComputeDerivedBacktoCPU<memfunComputeT, memfunPostprocessT, memfunBacktoCPUT, arg1T, objT>::run(){
+       /*
        if (this->inArgs.size() >= GPU_MINTASKS){
             //objT odef; //this relies on objT having a default constructor
           int maxc = 64;
@@ -865,14 +866,14 @@ namespace madness {
                 }
             }
           }
-            /*
-            for (unsigned int i = 0; i < outArgs.size(); i++){  
-                objT * obj = inObj.at(i);
-                //(obj->*memfunPostprocess)(outArgs.at(i));
-                q->add(*obj, memfunPostprocess, outArgs.at(i));
-                q->decNRegistered();  
-            }
-            */
+            
+            //for (unsigned int i = 0; i < outArgs.size(); i++){  
+            //    objT * obj = inObj.at(i);
+            //    //(obj->*memfunPostprocess)(outArgs.at(i));
+            //    q->add(*obj, memfunPostprocess, outArgs.at(i));
+            //    q->decNRegistered();  
+            //}
+            
         }
         else{
 
@@ -884,6 +885,7 @@ namespace madness {
                 q->decNRegistered();  
             }
         }
+        */
 
         //for (unsigned int i = 0; i < inArgs.size(); i++){
              //objT * obj = inObj.at(i);
@@ -892,7 +894,7 @@ namespace madness {
              //outArgs.push_back(ret1);
         //}
         //printf("this->inArgs.size() = %i \n",this->inArgs.size());
-        /*
+        
         if (this->inArgs.size() >= GPU_MINTASKS){
             //objT odef; //this relies on objT having a default constructor
             
@@ -970,7 +972,7 @@ namespace madness {
                 q->decNRegistered();  
             }
         }
-        */
+        
     }
 
 

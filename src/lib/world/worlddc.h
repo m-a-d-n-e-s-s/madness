@@ -531,11 +531,11 @@ namespace madness {
         */
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename memfun4T, typename arg1T>
         Void
-        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, arg1T arg1){
+        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, arg1T arg1, int hashval){
             ProcessID dest = owner(key);
             if (dest != me){
                print("send task");
-               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, memfun4T, arg1T>, key, memfun1, memfun2, memfun3, memfun4, arg1);
+               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, memfun4T, arg1T>, key, memfun1, memfun2, memfun3, memfun4, arg1, hashval);
  
                return None;
             }
@@ -568,11 +568,15 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-            
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            HashValAgg hva;
+            hva.address = (unsigned long long)(reinterpret_cast<void *>(memfun2));            
+            hva.hashVal = hashval;
+
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((unsigned long long)((void *)memfun2));
+            gpu_it = this->world.gpu_hash.find(hva);
             //gpu_it = this->world.gpu_hash.find(0);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
@@ -581,7 +585,7 @@ namespace madness {
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>((unsigned long long)((void *)memfun2), cb));
+                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
             }
 
@@ -597,11 +601,11 @@ namespace madness {
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
         Void
-        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, arg1T arg1){
+        __local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, arg1T arg1, int hashval){
             ProcessID dest = owner(key);
             if (dest != me){
                print("send task");
-               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, arg1T>, key, memfun1, memfun2, memfun3, arg1);
+               worldobjT::task(dest, &implT:: template __local_updateGPU<memfun1T, memfun2T, memfun3T, arg1T>, key, memfun1, memfun2, memfun3, arg1, hashval);
  
                return None;
             }
@@ -633,13 +637,16 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
             unsigned long long addr;
-             
+            
+            HashValAgg hva;
+            hva.address = (unsigned long long)(reinterpret_cast<void *>(memfun2));
+            hva.hashVal = hashval; 
            
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find((unsigned long long)(reinterpret_cast<void *>(memfun2)));
+            gpu_it = this->world.gpu_hash.find(hva);
             //gpu_it = this->world.gpu_hash.find(0);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
@@ -648,7 +655,7 @@ namespace madness {
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase*>((unsigned long long)(reinterpret_cast<void *>(memfun2)), cb));
+                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase*>(hva, cb));
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
             }
 
@@ -664,11 +671,11 @@ namespace madness {
 
         template <typename memfun1T, typename memfun2T, typename arg1T>
         Void
-        __local_updateJustAgg(const keyT& key, memfun1T memfun1, memfun2T memfun2, arg1T arg1){
+        __local_updateJustAgg(const keyT& key, memfun1T memfun1, memfun2T memfun2, arg1T arg1, int hashval){
             ProcessID dest = owner(key);
             if (dest != me){
                print("send task");
-               worldobjT::task(dest, &implT:: template __local_updateJustAgg<memfun1T, memfun2T, arg1T>, key, memfun1, memfun2, arg1);
+               worldobjT::task(dest, &implT:: template __local_updateJustAgg<memfun1T, memfun2T, arg1T>, key, memfun1, memfun2, arg1, hashval);
  
                return None;
             }
@@ -699,12 +706,16 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<unsigned long long, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-            
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
+
+            HashValAgg hva;
+            hva.address = 0;
+            hva.hashVal = 0;           
+ 
             this->world.gpu_hashlock.lock();
             //gpu_it = this->world.gpu_hash.find((long)(&memfun2));
-            gpu_it = this->world.gpu_hash.find(0);
+            gpu_it = this->world.gpu_hash.find(hva);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -713,7 +724,7 @@ namespace madness {
             }
             else{
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
-                this->world.gpu_hash.insert(std::pair<unsigned long long, ComputeBase *>(0, cb));
+                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
             }
 
             this->world.taskq.incNRegistered(); 
@@ -1483,30 +1494,30 @@ namespace madness {
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename memfun4T, typename arg1T>
         Void
-        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, memfun4T memfun4, const arg1T& arg1, int hashval, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
-            p->__local_updateGPU(key, memfun1, memfun2, memfun3, memfun4, arg1);
+            p->__local_updateGPU(key, memfun1, memfun2, memfun3, memfun4, arg1, hashval);
             
             return None;
         }
 
         template <typename memfun1T, typename memfun2T, typename memfun3T, typename arg1T>
         Void
-        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+        local_updateGPU(const keyT& key, memfun1T memfun1, memfun2T memfun2, memfun3T memfun3, const arg1T& arg1, int hashval, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
-            p->__local_updateGPU(key, memfun1, memfun2, memfun3, arg1);
+            p->__local_updateGPU(key, memfun1, memfun2, memfun3, arg1, hashval);
             
             return None;
         }
 
         template <typename memfun1T, typename memfun2T, typename arg1T>
         Void
-        local_updateJustAgg(const keyT& key, memfun1T memfun1, memfun2T memfun2, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
+        local_updateJustAgg(const keyT& key, memfun1T memfun1, memfun2T memfun2, const arg1T& arg1, int hashval, const TaskAttributes& attr = TaskAttributes()) {
             check_initialized();
             typedef REMFUTURE(arg1T) a1T;
-            p->__local_updateJustAgg(key, memfun1, memfun2, arg1);
+            p->__local_updateJustAgg(key, memfun1, memfun2, arg1, hashval);
             
             return None;
         }

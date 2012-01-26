@@ -373,11 +373,11 @@ typedef UINT64_T uint64_t;
 #define JUST_AGG 0
 #define THREE_SPLIT 1
 #define NUM_STREAMS 16
-#define GPU_MINTASKS 6
+#define GPU_MINTASKS 20
 
 #define APPLY_GPU 1
 #define APPLY_JUST_AGG 0
-#define APPLY_BACKTO_CPU 0
+#define APPLY_BACKTO_CPU 1
 //#define NUM_MUTEXES 37
 namespace madness {
 
@@ -412,6 +412,23 @@ namespace madness {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
         MPI_Abort(MPI_COMM_WORLD,1);
     }
+
+    class HashValAgg{
+    public:    
+
+        unsigned long long address;
+        int hashVal;
+
+        madness::hashT hash() const {
+            hashT result = (address + hashVal) % 2000000000; 
+            return result;
+        }
+
+        bool operator==(const HashValAgg& other) const {
+            return address == other.address && hashVal == other.hashVal;
+        }
+
+    };
 
     namespace detail {
         // These  functions are here to eliminate cyclic compile time dependencies
@@ -731,7 +748,7 @@ namespace madness {
         WorldGopInterface& gop;  ///< Global operations
 
         pthread_t gpu_thread;
-        ConcurrentHashMap<unsigned long long, ComputeBase*>& gpu_hash;
+        ConcurrentHashMap<HashValAgg, ComputeBase*>& gpu_hash;
         Spinlock gpu_hashlock;
         
     private:
