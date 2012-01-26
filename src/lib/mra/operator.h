@@ -1516,7 +1516,7 @@ namespace madness {
         std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT, int, int > 
+                        Tensor<T>, Tensor<T>, SC*, keyT > 
         apply_computepreprocess2(std::tr1::tuple<keyT, keyT, keyT, 
                                       double, double, double, 
                                       Tensor<TENSOR_RESULT_TYPE(T,Q)>, 
@@ -1819,10 +1819,10 @@ namespace madness {
             std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT, int, int> 
+                        Tensor<T>, Tensor<T>, SC*, keyT > 
                                                   t2(condition, trans, trans2,
                                                   doit2, doit1, mufacs, n, argsdest, argstol, argsfac, 
-                                                  coeffs, f, f0, const_cast<SC*>(op), shift, rank, k);
+                                                  coeffs, f, f0, const_cast<SC*>(op), shift );
             //print(n,shift);
             return t2;
         }
@@ -1831,7 +1831,7 @@ namespace madness {
         Void apply_backToCPU(std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT, int, int> t) const{
+                        Tensor<T>, Tensor<T>, SC*, keyT  > t) const{
             
           typedef TENSOR_RESULT_TYPE(T,Q) resultT;
           typedef resultT R;
@@ -15899,7 +15899,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
         apply_allComputeGPU_OneKernel(std::vector<std::tr1::tuple<bool*, Transformation**, Transformation**,
                                                           bool*, bool*, Q*, Level, keyT, double, double,
                                                           WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                                                          Tensor<T>, Tensor<T>, SC*, keyT, int, int> > inArgs, 
+                                                          Tensor<T>, Tensor<T>, SC*, keyT> > inArgs, 
                                               std::vector< SeparatedConvolution<Q,NDIM>* > inObj) const {
 
             print("      apply_allComputeGPU              ",inArgs.size());
@@ -15914,10 +15914,10 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             std::tr1::tuple<bool*, Transformation**, Transformation**,
                   bool*, bool*, Q*, Level, keyT, double, double, 
                   WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                  Tensor<T>, Tensor<T>, SC*, keyT, int, int> ** args = new std::tr1::tuple<bool*, Transformation**, Transformation**,
+                  Tensor<T>, Tensor<T>, SC*, keyT> ** args = new std::tr1::tuple<bool*, Transformation**, Transformation**,
                                                                        bool*, bool*, Q*, Level, keyT, double, double, 
                                                                        WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                                                                       Tensor<T>, Tensor<T>, SC*, keyT, int, int> *[inArgs.size()];
+                                                                       Tensor<T>, Tensor<T>, SC*, keyT> *[inArgs.size()];
 
             for (i = 0; i < inArgs.size(); i++){
                   args[i] = &(inArgs.at(i));
@@ -15983,10 +15983,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 
             SeparatedConvolutionData<Q, NDIM> ** op_data = new SeparatedConvolutionData<Q, NDIM> *[inArgs.size()];
             keyT* shifts = new keyT[inArgs.size()];
-
-            int * ranks =  new int[inArgs.size()];
-            int * ks = new int[inArgs.size()];
-           
+ 
             //STARTt_TIMER; 
             for (i = 0; i < inArgs.size(); i++){
                   args[i] = &(inArgs.at(i));
@@ -16001,32 +15998,12 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                   op_data[i] = (std::tr1::get<13>(*args[i]));
                   shifts[i] = std::tr1::get<14>(*args[i]); 
                   //print("shift[",i,"] =",shifts[i]); 
-                  ranks[i] = std::tr1::get<15>(*args[i]);
-                  ks[i] = std::tr1::get<16>(*args[i]);
             }
             //outside E
             //ENDt_TIMER("parallelizable");
 
             STARTt_TIMER;
      
-            /*
-            print("k = ",k);
-            print("rank = ",rank);
-
-            //twok = 2*k;
-	   
-            long dim2k, dimk;
-	    dim2k = 2*k;
-            dimk = k;
-
-            long size = 1;
-            for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
-            long dimi = size/dim2k;
-
-            long size2 = 1;
-            for (std::size_t ii=0; ii<NDIM; ++ii) size2 *= dimk;
-            long dimi2 = size2/dimk;
-            */
 
  
             R* rptr_arrayCPU; //transfer to GPU
@@ -16075,7 +16052,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                   fptr_off += f_array[i].size();
 		   
                   Tensor<resultT> work1(v2kref,false), work2(v2kref,false);
-                  Tensor<Q> work5(2*ks[i], 2*ks[i]);
+                  Tensor<Q> work5(2*k, 2*k);
 
                  w1_offarray[i] = w1_off;
                   w2_offarray[i] = w2_off;
@@ -16150,25 +16127,36 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             long ** rank2_buf = new long*[inArgs.size()];            
 			    
             const Q* U;
+            unsigned int twok = 2*k;
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int ksq = k*k;
+            unsigned int twokbytes = twok*twok*sizeof(Q);
+            unsigned int kbytes = k*k*sizeof(Q);
+
+            long dim2k, dimk;
+	    dim2k = 2*k;
+	    dimk = k;
+
+	    long size = 1;
+	    for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
+	    long dimi = size/dim2k;
+
+	    long size2 = 1;
+	    for (std::size_t ii=0; ii<NDIM; ++ii) size2 *= dimk;
+	    long dimi2 = size2/dimk;
+
 
             GPUApplyBuffer<Q,NDIM> GPUab;
             GPUApplyBuffer<Q,NDIM>* GPUab1;
             GPUApplyBuffer<Q,NDIM>** GPUab_array = new GPUApplyBuffer<Q,NDIM>*[inArgs.size()];
-            int sum_ranks = 0;
             for (i = 0; i < inArgs.size(); i++){
-
-                unsigned int twok = 2*ks[i];
-                unsigned int twoksq = 2*ks[i]*2*ks[i];
-                unsigned int ksq = ks[i]*ks[i];
-                unsigned int twokbytes = twok*twok*sizeof(Q);
-                unsigned int kbytes = ks[i]*ks[i]*sizeof(Q);
  
 
                 const GPUApplyBuffer<Q,NDIM>* p = GPUApplyCache.getptr(n_array[i],shifts[i]);
-                bool* localSVD = new bool[ranks[i]*NDIM];
+                bool* localSVD = new bool[rank*NDIM];
                 unsigned int c = 0;
                 if (!p){
-                    unsigned int numR = ranks[i]*NDIM;
+                    unsigned int numR = rank*NDIM;
                     unsigned int numSVD = 0;
                     Q* localR = R_buffer;
                     Q* localT = T_buffer;
@@ -16176,7 +16164,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                     Q* localTU = TU_buffer;
                     Q* localRVT = RVT_buffer;
                     Q* localTVT = TVT_buffer;
-                    for (int mu = 0; mu < ranks[i]; mu++){
+                    for (int mu = 0; mu < rank; mu++){
                         for (int d = 0; d < NDIM; d++){
                             memcpy(localR + c*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
                             memcpy(localT + c*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
@@ -16223,7 +16211,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	                GPUtransfer_buffernoalloc(GPUapply_buffer + apply_prev_offset, localTVT, numSVD*kbytes);
 	                apply_prev_offset += numSVD*ksq;
                     }
-                    print(c*twokbytes);
+                    //print(c*twokbytes);
                     print("done.");
                     //}
 
@@ -16234,7 +16222,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
                 }
                 else{
                     GPUab_array[i] = GPUab1 = const_cast<GPUApplyBuffer<Q,NDIM>*>(p);
-                    for (int mu = 0; mu < ranks[i]; mu++){
+                    for (int mu = 0; mu < rank; mu++){
                         for (int d = 0; d < NDIM; d++){
                             if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
                                 localSVD[c] = true;
@@ -16249,7 +16237,7 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 
 	        unsigned int temp = 0;
 	        unsigned int temp2 = 0;
-	        for (int mu = 0; mu < ranks[i]; mu++){
+	        for (int mu = 0; mu < rank; mu++){
 		    for (int d = 0; d < NDIM; d++){
 			
                         memcpy(r_buffer+temp, &trans[i][mu][d].r, sizeof(long));
@@ -16282,14 +16270,12 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
 	         }
  
                 print("Transferring ranks");
-                print(sum_ranks);
-                rank_buf[i] = GPUr_buffer + sum_ranks*NDIM;
-		GPUtransfer_buffernoalloc(GPUr_buffer + sum_ranks*NDIM, r_buffer, ranks[i]*NDIM);
+                rank_buf[i] = GPUr_buffer + i*rank*NDIM;
+		GPUtransfer_buffernoalloc(GPUr_buffer + i*rank*NDIM, r_buffer, rank*NDIM);
 
  
-                rank2_buf[i] = GPUr2_buffer + sum_ranks*NDIM;
-		GPUtransfer_buffernoalloc(GPUr2_buffer + sum_ranks*NDIM, r2_buffer, ranks[i]*NDIM);
-                sum_ranks += ranks[i];
+                rank2_buf[i] = GPUr2_buffer + i*rank*NDIM;
+		GPUtransfer_buffernoalloc(GPUr2_buffer + i*rank*NDIM, r2_buffer, rank*NDIM);
                 print("done.");
             }
 
@@ -16297,55 +16283,32 @@ print("conds2 = ",conds2," FLOP = ",((long)conds2)*20000);
             bool* big_doit2;
             bool* big_doit1;
             Q* big_mufacs;
-            alloc_host(&big_doit2, sum_ranks);
-            alloc_host(&big_doit1, sum_ranks);
-            alloc_host(&big_mufacs, sum_ranks);
-            sum_ranks = 0;
+            alloc_host(&big_doit2, inArgs.size()*rank);
+            alloc_host(&big_doit1, inArgs.size()*rank);
+            alloc_host(&big_mufacs, inArgs.size()*rank);
             for (i = 0; i < inArgs.size(); i++){
-                memcpy(big_doit2 + sum_ranks, doit2[i], ranks[i]*sizeof(bool));
-                memcpy(big_doit1 + sum_ranks, doit1[i], ranks[i]*sizeof(bool));
-                memcpy(big_mufacs + sum_ranks, mufacs[i], ranks[i]*sizeof(Q));
-                sum_ranks += ranks[i];
+                memcpy(big_doit2 + i*rank, doit2[i], rank*sizeof(bool));
+                memcpy(big_doit1 + i*rank, doit1[i], rank*sizeof(bool));
+                memcpy(big_mufacs + i*rank, mufacs[i], rank*sizeof(Q));
             }
 
-            bool* doit1_GPU=GPUtransfer_buffer(big_doit1,sum_ranks,true);
-            bool* doit2_GPU=GPUtransfer_buffer(big_doit2,sum_ranks,true);
+            bool* doit1_GPU=GPUtransfer_buffer(big_doit1,inArgs.size()*rank,true);
+            bool* doit2_GPU=GPUtransfer_buffer(big_doit2,inArgs.size()*rank,true);
             
-	    Q* mufacs_GPU=GPUtransfer_buffer(big_mufacs,sum_ranks,true);
+	    Q* mufacs_GPU=GPUtransfer_buffer(big_mufacs,inArgs.size()*rank,true);
 
             cu_memset();//does cudaMemset of count
             ENDt_TIMER("trans2");
             int conds = 0; 
             int conds2 = 0;
-            sum_ranks = 0;
             //GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
 conds = 0;
 STARTt_TIMER;
-            unsigned int twok_sum = 0;
-            unsigned int k_sum = 0;
-            unsigned int twoksq_sum = 0;
-            unsigned int ksq_sum = 0;
             for (i = 0; i < inArgs.size(); i++){
 		    
-                unsigned int twok = 2*ks[i];
-                unsigned int twoksq = 2*ks[i]*2*ks[i];
-                unsigned int ksq = ks[i]*ks[i];
-                unsigned int twokbytes = twok*twok*sizeof(Q);
-                unsigned int kbytes = ks[i]*ks[i]*sizeof(Q);
 
-		long dim2k, dimk;
-		dim2k = 2*ks[i];
-		dimk = ks[i];
 
-		long size = 1;
-		for (std::size_t ii=0; ii<NDIM; ++ii) size *= dim2k;
-		long dimi = size/dim2k;
-
-		long size2 = 1;
-		for (std::size_t ii=0; ii<NDIM; ++ii) size2 *= dimk;
-		long dimi2 = size2/dimk;
-
-              if (NDIM == 3 && (ks[i] == 10 || ks[i] == 20)){
+              if (NDIM == 3 && k == 10){
 		    
 		    const Q *U,*RU,*VT;
 		    Q *mufac_GPU;
@@ -16353,14 +16316,14 @@ STARTt_TIMER;
 		    U = GPUab_array[i]->R;
 		    RU = GPUab_array[i]->RU;
 		    VT= GPUab_array[i]->RVT;
-		    mufac_GPU= mufacs_GPU+sum_ranks ;
-		    doitt_GPU = doit2_GPU+sum_ranks ;
+		    mufac_GPU= mufacs_GPU+i*rank ;
+		    doitt_GPU = doit2_GPU+i*rank ;
 		    long * trans2r = rank_buf[i];
-		    cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], ranks[i], trans2r, const_cast<Q*>(RU));
+		    cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
               }
               else{
 
-               for (int mu=0; mu<ranks[i]; ++mu) {
+               for (int mu=0; mu<rank; ++mu) {
 
 	             if (condition[i][mu]) {
                            conds++;
@@ -16376,7 +16339,7 @@ STARTt_TIMER;
                      }
 	        
                         if (condition[i][mu] && n_array[i] > 0){
-                            if (trans2[i][mu][0].r == ks[i]) U = GPUab_array[i]->T + mu*NDIM*ksq;
+                            if (trans2[i][mu][0].r == k) U = GPUab_array[i]->T + mu*NDIM*ksq;
                             else U = GPUab_array[i]->TU + mu*NDIM*ksq;
                             conds2++;
                             //U = trans2[i][mu][0].U;
@@ -16461,22 +16424,17 @@ STARTt_TIMER;
 
                   }
              }
-             sum_ranks += ranks[i];
-             twok_sum += ranks[i]*NDIM*twok;
-             k_sum += ranks[i]*NDIM*ks[i];
-             twoksq_sum += ranks[i]*NDIM*twoksq;
-             ksq_sum += ranks[i]*NDIM*ksq;
+           
           }
          device_synchronize(GPU_streams,NUM_STREAMS);
-         sum_ranks = 0;
 ENDt_TIMER("comp 1");
 
 STARTt_TIMER;
             for (i = 0; i < inArgs.size(); i++){
-              if (NDIM == 3 && (ks[i] == 20 || ks[i] == 10)){
+              if (NDIM == 3 && k == 10){
 			    
 			    long  dimk;
-			    dimk = ks[i];
+			    dimk = k;
 
                 if (n_array[i] > 0){
 			    int size = 1;
@@ -16489,14 +16447,13 @@ STARTt_TIMER;
 			    U = GPUab_array[i]->T;
 			    VT = GPUab_array[i]->TVT;
                             TU = GPUab_array[i]->TU;
-			    mufac_GPU= mufacs_GPU+sum_ranks;
-			    doitt_GPU = doit1_GPU+sum_ranks;
+			    mufac_GPU= mufacs_GPU+i*rank;
+			    doitt_GPU = doit1_GPU+i*rank;
 			    long * transr = rank2_buf[i];
                             ////GPU
-			    cu_mTxmq_integralop(dimi,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], ranks[i], transr, const_cast<Q*>(TU));
+			    cu_mTxmq_integralop(dimi,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
 		 }
                }
-               sum_ranks += ranks[i];
              }
 		device_synchronize(GPU_streams,NUM_STREAMS);
 ENDt_TIMER("computation 2");
@@ -16547,8 +16504,6 @@ ENDt_TIMER("computation 2");
 
             delete[] GPUab_array;
 
-            delete[] ks;
-
             delete[] rank_buf;           
             delete[] rank2_buf;           
             dealloc_host(big_doit2);
@@ -16569,7 +16524,7 @@ ENDt_TIMER("computation 2");
            
             for (i = 0; i < inArgs.size(); i++){
               unsigned int j;
-              for (j = 0; j < ranks[i]; j++){
+              for (j = 0; j < rank; j++){
                 delete trans[i][j];
                 delete trans2[i][j]; 
               }
@@ -16592,7 +16547,6 @@ ENDt_TIMER("computation 2");
             delete[] condition;
 
             delete[] n_array;
-            delete[] ranks;
 
             for (i = 0; i < inArgs.size(); i++){
               delete mufacs[i];

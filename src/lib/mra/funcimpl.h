@@ -4208,7 +4208,7 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT, int, int> tuplepreprocT;
+                        Tensor<T>, Tensor<T>, SC*, keyT > tuplepreprocT;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
    
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
@@ -4238,7 +4238,7 @@ ENDt_TIMER("memcpy3");
 
             HashValAgg hva;
             hva.address = (unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun4));
-            hva.hashVal = op->getHashVal();
+            hva.hashVal = (const_cast<opT*>(op))->getHashVal();
 
             this->world.gpu_hashlock.lock();
             gpu_it = this->world.gpu_hash.find(hva);
@@ -4284,7 +4284,7 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple<bool*, Transformation**, Transformation**,
                         bool*, bool*, Q*, Level, keyT, double, double,
                         WorldContainer<Key<NDIM> , FunctionNode<T, NDIM> >,
-                        Tensor<T>, Tensor<T>, SC*, keyT, int, int> tuplepreprocT;
+                        Tensor<T>, Tensor<T>, SC*, keyT > tuplepreprocT;
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
    
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
