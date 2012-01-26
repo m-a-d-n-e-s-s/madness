@@ -333,7 +333,7 @@ namespace madness {
             MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
             Vector<Translation, LDIM> l1;
             Vector<Translation, KDIM> l2;
-            for (int i=0; i<LDIM; ++i) {
+            for (int i=0; i<static_cast<int>(LDIM); ++i) {
                 l1[i]=l[i];
             }
             for (size_t i=LDIM; i<NDIM; ++i) {
@@ -347,8 +347,8 @@ namespace madness {
         template<std::size_t LDIM>
         Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
             Vector<Translation,NDIM+LDIM> t;
-            for (int i=0; i<NDIM; ++i) t[i]     =this->l[i];
-            for (int i=0; i<LDIM; ++i) t[NDIM+i]=rhs.translation()[i];
+            for (int i=0; i<static_cast<int>(NDIM); ++i) t[i]     =this->l[i];
+            for (int i=0; i<static_cast<int>(LDIM); ++i) t[NDIM+i]=rhs.translation()[i];
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 

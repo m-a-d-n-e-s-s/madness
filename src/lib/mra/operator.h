@@ -606,7 +606,7 @@ namespace madness {
 
             // finalize with the factorial
             double factorial=1.0;
-            for (int i=1; i<NDIM-1; ++i) factorial*=double(i);
+            for (int i=1; i<static_cast<int>(NDIM)-1; ++i) factorial*=double(i);
             dff*=factorial;
             duu*=factorial;
 
@@ -1199,6 +1199,7 @@ namespace madness {
             typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 
             MADNESS_ASSERT(coeff.ndim()==NDIM);
+            MADNESS_ASSERT(coeff.tensor_type()==TT_2D);	// we use the rank below
 //            MADNESS_EXCEPTION("no apply2",1);
             const TensorType tt=coeff.tensor_type();
 
