@@ -36,6 +36,8 @@
   \defgroup examplesh2hf Hartree-Fock equations for the hydrogen molecule
   \ingroup examples
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/functionio.cc>h2.cc</a>.
+
   The Hartree-Fock wave function is computed for the hydrogen molecule
   in three dimensions without using symmetry.
 

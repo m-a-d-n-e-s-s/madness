@@ -38,6 +38,8 @@
   \defgroup sininteg First example from getting started guide
   \ingroup examples
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/sininteg.cc>here</a>.
+
   Computes the integral 
   \f[
      \int_0^{10} sin(x) dx

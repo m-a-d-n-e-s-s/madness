@@ -53,6 +53,8 @@ using namespace madness;
   - Line and surface plots
   - Use of Coulomb Green's function
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/laplace_sphere.cc>here</a>.
+
   \par Background
   This example solves Laplace's equation on the interior and exterior of a sphere with
   Dirichlet boundary conditions.  Specifically, we solve

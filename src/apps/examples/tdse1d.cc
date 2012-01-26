@@ -144,8 +144,10 @@ using namespace madness;
 static const double L = 100.0; // Simulation in [-L,L]
 static const double x0 = -L + 10.0; // Initial position of the atom
 static const double energy_exact = -6.188788775728796797594788; // From Maple
+
 static const long k = 20;        // wavelet order
-static const double thresh = 1e-8; // precision
+static const double thresh = 1e-12; // precision
+
 static const double velocity = 3.0;
 //static const double eshift = energy_exact - 0.5*velocity*velocity; // Use this value to remove rotating phase
 static const double eshift = 0.0;
