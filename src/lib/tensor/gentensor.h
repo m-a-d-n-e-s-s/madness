@@ -647,6 +647,12 @@ namespace madness {
 			return 0;
 		};
 
+		/// returns the number of coefficients (might return zero, although tensor exists)
+		size_t real_size() const {
+			if (_ptr) return _ptr->real_size();
+			return 0;
+		};
+
 		/// returns the Frobenius norm
 		double normf() const {
 			if (has_no_data()) return 0.0;

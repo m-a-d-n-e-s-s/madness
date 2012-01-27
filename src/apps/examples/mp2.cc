@@ -45,8 +45,6 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-#include <mra/operator.h>
-#include <mra/funcplot.h>
 #include <mra/lbdeux.h>
 #include <moldft/moldft.h>
 
@@ -55,7 +53,7 @@
 static const bool is_helium=true;
 static const double dcut=1.e-6;
 
-
+using namespace madness;
 
 template<size_t NDIM>
 void save_function(World& world, const Function<double,NDIM>& pair, const std::string& name) {
@@ -397,7 +395,7 @@ namespace madness {
         mutable double E; //< Current energy
 
         // save the Coulomb potential
-        mutable functionT coulomb;
+        mutable real_function_3d coulomb;
 
     public:
         HartreeFock(World& world, Calculation& calc)
@@ -817,6 +815,18 @@ namespace madness {
 
         void test(const int i, const int j) {
 
+            const double eps=zeroth_order_energy(i,j);
+        	real_function_6d Vpair;
+//            load_function(world,Vpair,"Vpair");
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+//            Vpair.nonstandard(green.doleaves, true);
+            load_function(world,Vpair,"Vpair_ns");
+            Vpair.get_impl()->print_stats();
+        	real_function_6d result;
+
+//        	real_function_6d GVpair=green(-2.0*Vpair).truncate().reduce_rank();
+        	result=apply_only(green,Vpair,true);
+        	return;
 
             real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
             const real_function_3d coulomb=hf.get_coulomb_potential();
@@ -1128,14 +1138,15 @@ namespace madness {
                 const real_function_6d OO2=compute_O1O2(pair);
 
                 if (world.rank()==0) print("including the O1/O2 terms in make_pair");
-                Vpair=(Upair-JKpair-K_comm-epair-OO1+OO2).truncate();
+                Vpair=(Upair-JKpair-K_comm-epair).truncate().reduce_rank();
+                Vpair=(Vpair-OO1+OO2).truncate().reduce_rank();
             } else {
                 MADNESS_ASSERT(is_helium);  // missing O1O2 term
                 if (world.rank()==0) print("leaving the O1/O2 terms out of make_pair");
                 Vpair=(Upair-JKpair-K_comm-epair).truncate();
             }
 
-            real_function_6d GVpair=green(-2.0*Vpair).truncate();
+            real_function_6d GVpair=green(-2.0*Vpair).truncate().reduce_rank();
             if (include_O1O2) {
                 GVpair=Q12(GVpair);
             } else {
@@ -1310,9 +1321,9 @@ namespace madness {
 
             // V_nuc, J, and K
             MADNESS_ASSERT(is_helium);
-            functionT coulomb=hf.get_coulomb_potential();
-            functionT v_nuc=hf.get_nuclear_potential();
-            functionT v_total=v_nuc+coulomb;
+            real_function_3d coulomb=hf.get_coulomb_potential();
+            real_function_3d v_nuc=hf.get_nuclear_potential();
+            real_function_3d v_total=v_nuc+coulomb;
 
             real_function_6d v11=CompositeFactory<double,6,3>(world)
                     .ket(copy(fo_function).get_impl())
@@ -1528,7 +1539,7 @@ namespace madness {
             real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
             op_mod.modified()=true;
 
-            functionT v_total=hf.get_nuclear_potential()+hf.get_coulomb_potential();
+            real_function_3d v_total=hf.get_nuclear_potential()+hf.get_coulomb_potential();
 
             real_function_6d vphi=CompositeFactory<double,6,3>(world)
                                  .ket(copy(f).get_impl())

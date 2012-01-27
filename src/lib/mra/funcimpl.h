@@ -4467,7 +4467,7 @@ namespace madness {
         /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
         /// @return     nothing, but accumulate the result tensor into the destination node
         template <typename opT, typename R, size_t OPDIM>
-        Void do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args,
+        double do_apply_kernel2(const opT* op, const Tensor<R>& c, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
             tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
@@ -4485,7 +4485,7 @@ namespace madness {
                         TaskAttributes::hipri());
                 woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
             }
-            return None;
+            return norm;
         }
 
 
@@ -4497,7 +4497,7 @@ namespace madness {
         /// @param[in]  apply_targs TensorArgs with tightened threshold for accumulation
         /// @return     nothing, but accumulate the result tensor into the destination node
         template <typename opT, typename R, size_t OPDIM>
-        Void do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args<OPDIM>& args,
+        double do_apply_kernel3(const opT* op, const GenTensor<R>& coeff, const do_op_args<OPDIM>& args,
                 const TensorArgs& apply_targs) {
 
             coeffT result;
@@ -4516,7 +4516,7 @@ namespace madness {
                 woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
 
             }
-            return None;
+            return result_norm;
 
         }
 
@@ -4629,7 +4629,8 @@ namespace madness {
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-            if (opdim==6) fac=729; //100.0;
+//            if (opdim==6) fac=729; //100.0;
+            if (opdim==6) fac=100; //100.0;
             if (op->modified()) fac*=10.0;
             double cnorm = coeff.normf();
 
@@ -4693,14 +4694,14 @@ namespace madness {
 
                                 if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
 
-                                woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
+                                Future<double> act=woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
                                         args,apply_targs,TaskAttributes::hipri());
 
 //                                world.taskq.add(*this,&implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
 //                                        args,apply_targs,TaskAttributes::hipri());
 
                             } else {
-                                woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
+                                Future<double> act=woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
                                         args,apply_targs,TaskAttributes::hipri());
                             }
                         }
@@ -4717,6 +4718,10 @@ namespace madness {
             return None;
         }
 
+        Void print_norm(const long& disp, const double est, const double act) const {
+        	print("displacement, estimated and actual norm",disp,est,act);
+        	return None;
+        }
 
 
         /// similar to apply, but for low rank coeffs
@@ -4734,7 +4739,13 @@ namespace madness {
                 const keyT& key = it->first;
                 const coeffT& coeff = it->second.coeff();
 
-                if (coeff.has_data() and (coeff.rank()!=0)) {
+                Vector<Translation, NDIM> l(Translation(3));
+//                l[0]=2; l[1]=3; l[2]=3;
+                keyT key1(3,l);
+                bool doit=((NDIM==3) or (opT::opdim==3) or (key==key1));
+                doit=true;
+                if (coeff.has_data() and (coeff.rank()!=0) and doit) {
+
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                     woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
                 }
@@ -5178,14 +5189,29 @@ namespace madness {
             return sum;
         }
 
+        /// Returns the number of coefficients in the function ... collective global sum
+        std::size_t real_size() const {
+            std::size_t sum = 0;
+            typename dcT::const_iterator end = coeffs.end();
+            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+                const nodeT& node = it->second;
+                if (node.has_coeff())
+                    sum+=node.coeff().real_size();
+            }
+            world.gop.sum(sum);
+            return sum;
+        }
+
+
         /// print tree size and size
         void print_size(const std::string name) const {
             const size_t tsize=this->tree_size();
             const size_t size=this->size();
+            const size_t rsize=this->real_size();
             const double wall=wall_time();
             if (this->world.rank()==0) {
-                printf("%s at time %.1fs: treesize: %zu, size: %6.3f GByte\n",(name.c_str()),wall,
-                        tsize,double(size)/(1024*1024*128));
+                printf("%s at time %.1fs: treesize: %zu, real size: %6.3f and size: %6.3f GByte\n",(name.c_str()),wall,
+                        tsize,double(rsize)/(1024*1024*128),double(size)/(1024*1024*128));
             }
         }
 

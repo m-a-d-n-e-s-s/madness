@@ -832,6 +832,17 @@ namespace madness {
 			return this->dim_eff()*this->kVec()*this->rank();
 		};
 
+		/// return the real size of this
+		size_t real_size() const {
+			size_t n=0;
+			for (size_t i=0; i<vector_.size(); ++i) {
+				n+=vector_[i].size();
+			}
+			n+=weights_.size();
+			MADNESS_ASSERT(subspace_vec_.size()==0);
+			return n;
+		}
+
 		/// calculate the Frobenius inner product (tested)
 		template<typename Q>
 		friend TENSOR_RESULT_TYPE(T,Q) overlap(const SRConf<T>& rhs, const SRConf<Q>& lhs) {
