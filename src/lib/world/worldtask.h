@@ -760,7 +760,7 @@ namespace madness {
              //outArgs.push_back(ret1);
         //}
         //objT odef(w); //this relies on objT having a constructor with a World* argument
-        int maxc = 64;
+        int maxc = MAX_AGG;
         if (this->inObj.size() > 0){
             std::vector<objT*> tmpObj;
             std::vector<arg1T> tmpArgs;
@@ -913,7 +913,7 @@ namespace madness {
               someArgs.push_back(inArgs.at(i));
           }
 
-          int maxc = 64;
+          int maxc = MAX_AGG;
           if (someObj.size() > 0){
             std::vector<objT*> tmpObj;
             std::vector<arg1T> tmpArgs;
