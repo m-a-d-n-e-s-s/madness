@@ -747,9 +747,9 @@ namespace madness {
         WorldAmInterface& am;    ///< AM interface
         WorldTaskQueue& taskq;   ///< Task queue
         WorldGopInterface& gop;  ///< Global operations
-
         pthread_t gpu_thread;
-        ConcurrentHashMap<HashValAgg, ComputeBase*>& gpu_hash;
+        ConcurrentHashMap<HashValAgg, ComputeBase*> gpu_hash[2];
+        int active;
         Spinlock gpu_hashlock;
         
     private:

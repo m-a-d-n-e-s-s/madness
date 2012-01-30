@@ -4233,15 +4233,14 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&tpreproc);
 
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-
             HashValAgg hva;
             hva.address = (unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun4));
             hva.hashVal = (const_cast<opT*>(op))->getHashVal();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find(hva);
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash[1 - this->world.active].end();
+            gpu_it = this->world.gpu_hash[1 - this->world.active].find(hva);
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4249,7 +4248,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva , cb));
+                this->world.gpu_hash[1 - this->world.active].insert(std::pair<HashValAgg, ComputeBase *>(hva , cb));
             }
 
             this->world.taskq.incNRegistered();
@@ -4291,7 +4290,9 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
 
             //print("shift = ",args.d);
+            STARTt_TIMER;
             tuplepreprocT tpreproc = op->apply_computepreprocess2(t1);
+            ENDt_TIMER("preprocess");
 
             typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
             typedef Void(opT::*memfun3T)(tuple2T ) const;
@@ -4319,15 +4320,14 @@ ENDt_TIMER("memcpy3");
             cb->add(op1);
             cb->addArg(&tpreproc);
 
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-
             HashValAgg hva;
             hva.address = (unsigned long long)(/*(void *)*/reinterpret_cast<void *>(memfun2));
             hva.hashVal = (const_cast<opT*>(op))->getHashVal();
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find(hva);
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash[1 - this->world.active].end();
+            gpu_it = this->world.gpu_hash[1 - this->world.active].find(hva);
             if (gpu_it != gpu_end){
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -4335,7 +4335,7 @@ ENDt_TIMER("memcpy3");
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
+                this->world.gpu_hash[1 - this->world.active].insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
             }
 
             this->world.taskq.incNRegistered();

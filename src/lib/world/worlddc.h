@@ -568,15 +568,14 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-
             HashValAgg hva;
             hva.address = (unsigned long long)(reinterpret_cast<void *>(memfun2));            
             hva.hashVal = hashval;
 
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find(hva);
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash[1 - this->world.active].end();
+            gpu_it = this->world.gpu_hash[1 - this->world.active].find(hva);
             //gpu_it = this->world.gpu_hash.find(0);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
@@ -585,7 +584,7 @@ namespace madness {
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
+                this->world.gpu_hash[1 - this->world.active].insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
             }
 
@@ -637,8 +636,6 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
             unsigned long long addr;
             
             HashValAgg hva;
@@ -646,7 +643,9 @@ namespace madness {
             hva.hashVal = hashval; 
            
             this->world.gpu_hashlock.lock();
-            gpu_it = this->world.gpu_hash.find(hva);
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash[1 - this->world.active].end();
+            gpu_it = this->world.gpu_hash[1 - this->world.active].find(hva);
             //gpu_it = this->world.gpu_hash.find(0);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
@@ -655,7 +654,7 @@ namespace madness {
 
             }
             else{
-                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase*>(hva, cb));
+                this->world.gpu_hash[1 - this->world.active].insert(std::pair<HashValAgg, ComputeBase*>(hva, cb));
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>(0, cb));
             }
 
@@ -706,16 +705,15 @@ namespace madness {
             ////(acc_gpu->second->aggregateParams(cb));
                //Need to change this to not overwrite the object, but add to its vector 
 
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
-            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash.end();
-
             HashValAgg hva;
             hva.address = 0;
             hva.hashVal = 0;           
  
             this->world.gpu_hashlock.lock();
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_end = this->world.gpu_hash[1 - this->world.active].end();
             //gpu_it = this->world.gpu_hash.find((long)(&memfun2));
-            gpu_it = this->world.gpu_hash.find(hva);
+            gpu_it = this->world.gpu_hash[1 - this->world.active].find(hva);
             if (gpu_it != gpu_end){ 
                 (*gpu_it).second->add(cd->inObj.at(0));
                 (*gpu_it).second->addArg(&(cd->inArgs.at(0)));
@@ -724,7 +722,7 @@ namespace madness {
             }
             else{
                 //this->world.gpu_hash.insert(std::pair<long, ComputeBase *>((long)(&memfun2), cb));
-                this->world.gpu_hash.insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
+                this->world.gpu_hash[1 - this->world.active].insert(std::pair<HashValAgg, ComputeBase *>(hva, cb));
             }
 
             this->world.taskq.incNRegistered(); 

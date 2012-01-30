@@ -111,17 +111,18 @@ t.tv_sec = 0.0;
 t.tv_nsec = 2000000;
 nanosleep(&t, NULL);
            
-            w->gpu_hashlock.lock();
             ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
 
-            gpu_it = w->gpu_hash.begin();
-            while (gpu_it != w->gpu_hash.end()){
+            gpu_it = w->gpu_hash[w->active].begin();
+            while (gpu_it != w->gpu_hash[w->active].end()){
                 (*gpu_it).second->run();
                 ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator temp_it = gpu_it;
                 gpu_it++;
-                w->gpu_hash.erase(temp_it);
+                w->gpu_hash[w->active].erase(temp_it);
             }
 
+            w->gpu_hashlock.lock();
+            w->active = 1 - w->active;
             w->gpu_hashlock.unlock(); 
           }
           streams_destroy(GPU_streams,NUM_STREAMS);
@@ -136,7 +137,7 @@ nanosleep(&t, NULL);
             , am(* (new WorldAmInterface(*this)))
             , taskq(*(new WorldTaskQueue(*this)))
             , gop(* (new WorldGopInterface(*this)))
-            , gpu_hash(* (new ConcurrentHashMap<HashValAgg, ComputeBase*>()))
+            //, gpu_hash(* (new ConcurrentHashMap<HashValAgg, ComputeBase*>()))
             , myrand_next(0)
     {
         worlds.push_back(this);
@@ -165,6 +166,8 @@ nanosleep(&t, NULL);
         //MADNESS_ASSERT(World::worlds.begin() != World::worlds.end());
         //EverRunningTask * ert = new EverRunningTask(this);
         //ThreadPool::add(ert);
+        //gpu_hash = new ConcurrentHashMap<HashValAgg, ComputeBase*>[2];
+        active = 0;
         int ret = pthread_create( &gpu_thread, NULL, &madness::everRunningTask, this);
         //apply_mutexes = new pthread_mutex_t[NUM_MUTEXES];
         //ConcurrentHashMap<unsigned long long, void *> * temp = new ConcurrentHashMap<unsigned long long, void *>[NUM_MUTEXES];
@@ -268,6 +271,7 @@ nanosleep(&t, NULL);
         worlds.remove(this);
         delete &taskq;
         delete &gop;
+        //delete[] gpu_hash;
         delete &am;
         delete &mpi;
     }
