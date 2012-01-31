@@ -1854,10 +1854,10 @@ namespace madness {
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-    	ff.print_size("ff in apply on entry");
+    	if (NDIM==6) ff.print_size("ff in apply on entry");
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
-        ff.print_size("ff in apply after reconstruct");
+        if (NDIM==6) ff.print_size("ff in apply after reconstruct");
 
     	if (op.modified()) {
 
@@ -1881,7 +1881,7 @@ namespace madness {
             ff.standard();
 
     	}
-        result.print_size("result after reconstruction");
+        if (NDIM==6) result.print_size("result after reconstruction");
         return result;
     }
 

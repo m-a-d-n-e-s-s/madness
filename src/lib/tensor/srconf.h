@@ -836,9 +836,11 @@ namespace madness {
 		size_t real_size() const {
 			size_t n=0;
 			for (size_t i=0; i<vector_.size(); ++i) {
-				n+=vector_[i].size();
+				n+=vector_[i].size()*sizeof(T);
 			}
-			n+=weights_.size();
+			n+=weights_.size()*sizeof(double);
+			n+=sizeof(*this);
+			n+=s_.size()*sizeof(Slice);
 			MADNESS_ASSERT(subspace_vec_.size()==0);
 			return n;
 		}

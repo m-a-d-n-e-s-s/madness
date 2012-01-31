@@ -4752,7 +4752,7 @@ namespace madness {
             }
             world.gop.fence();
             double cpu1=cpu_time();
-            if (world.rank()==0) print("done with raw convolution in",cpu1-cpu0,"seconds");
+            if (NDIM==6 and world.rank()==0) print("done with raw convolution in",cpu1-cpu0,"seconds");
             cpu0=cpu1;
 
             TensorArgs tight_args(targs);
@@ -4783,7 +4783,7 @@ namespace madness {
             if (fence)
                 world.gop.fence();
             cpu1=cpu_time();
-            if (world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
+            if (NDIM==6 and world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
 
         }
 
@@ -5195,8 +5195,9 @@ namespace madness {
             typename dcT::const_iterator end = coeffs.end();
             for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
                 const nodeT& node = it->second;
+                sum+=sizeof(keyT);
                 if (node.has_coeff())
-                    sum+=node.coeff().real_size();
+                    sum+=node.coeff().real_size()+sizeof(nodeT);
             }
             world.gop.sum(sum);
             return sum;
@@ -5209,9 +5210,12 @@ namespace madness {
             const size_t size=this->size();
             const size_t rsize=this->real_size();
             const double wall=wall_time();
+            const double d=sizeof(T);
+            const double fac=1024*1024*1024;
+
             if (this->world.rank()==0) {
                 printf("%s at time %.1fs: treesize: %zu, real size: %6.3f and size: %6.3f GByte\n",(name.c_str()),wall,
-                        tsize,double(rsize)/(1024*1024*128),double(size)/(1024*1024*128));
+                		tsize,double(rsize)/fac,double(size)/fac*d);
             }
         }
 

@@ -649,7 +649,7 @@ namespace madness {
 
 		/// returns the number of coefficients (might return zero, although tensor exists)
 		size_t real_size() const {
-			if (_ptr) return _ptr->real_size();
+			if (_ptr) return _ptr->real_size()+sizeof(*this);
 			return 0;
 		};
 
