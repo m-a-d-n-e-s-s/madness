@@ -178,6 +178,7 @@ namespace madness {
             
             }
             else {
+                //MADNESS_ASSERT(R.ptr() != 0);
                 Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
             }
 

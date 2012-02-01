@@ -49,10 +49,12 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include <world/GPU_streams.h>
+#include <stdlib.h>
 //#include <world/cuda_streams.h>
 static double tttt, ssss;
 #define STARTt_TIMER  tttt=wall_time(); ssss=cpu_time()
 #define ENDt_TIMER(msg) tttt=wall_time()-tttt; ssss=cpu_time()-ssss;  printf("timer: %20.20s %8.10fs %8.10fs\n", msg, ssss, tttt)
+#define CURRENT_TIMER(msg) tttt=wall_time(); ssss = cpu_time();  printf("timer: %20.20s %8.10fs %8.10fs\n", msg, ssss, tttt)
 
 
 #include<math.h>
@@ -4290,9 +4292,9 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
 
             //print("shift = ",args.d);
-            STARTt_TIMER;
+            //STARTt_TIMER;
             tuplepreprocT tpreproc = op->apply_computepreprocess2(t1);
-            ENDt_TIMER("preprocess");
+            //ENDt_TIMER("preprocess");
 
             typedef std::vector<tuple2T> (opT::*memfun2T)(std::vector< tuplepreprocT >, std::vector<opT*> ) const;
             typedef Void(opT::*memfun3T)(tuple2T ) const;
@@ -4382,16 +4384,18 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
+            //PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             //const long lmax = 1L << (key.level()-1);
 
+            //print("start do_apply");
             const std::vector<keyT>& disp = op->get_disp(key.level());
 
             static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
+            int upto = 0;
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
 
@@ -4420,11 +4424,30 @@ ENDt_TIMER("memcpy3");
                             woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
                             #endif
                         } else {
-                            
-                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                            if (result.normf()> 0.3*tol/fac) {
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+ 
+                            upto++;                        
+                            ProcessID where = world.rank();
+                            do_op_args args(key, d, dest, tol, fac, cnorm);
+                            #if APPLY_GPU > 0
+                            if (upto < 200){
+                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
                             }
+                            else{
+                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            }
+                            #elif APPLY_JUST_AGG > 0
+                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernelAgg<opT,R>, op, c, args);
+                            #else
+                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            #endif
+                            //}
+                            //else{
+                            //woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            //}
+                            //tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            //if (result.normf()> 0.3*tol/fac) {
+                            //    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            //}
                             /*
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
@@ -4488,6 +4511,7 @@ ENDt_TIMER("memcpy3");
         void apply(const/* */ opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             typename dcT::const_iterator end = f.coeffs.end();
+            CURRENT_TIMER("start apply");
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
                 // looping through all the coefficients in the source
                 const keyT& key = it->first;
@@ -4502,6 +4526,7 @@ ENDt_TIMER("memcpy3");
             }
             if (fence)
                 world.gop.fence();
+            CURRENT_TIMER("end apply");
         }
 
         template <typename opT, typename R>

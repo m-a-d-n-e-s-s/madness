@@ -2100,6 +2100,40 @@ exit(-1);
 //  }
 }
 
+template <typename T>
+void fast_cutrans(long dimk, long dimi, T* mat_out, T* mat_in, void * GPU_stream){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, float * mat_out, float * mat_in, void * GPU_stream){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, std::complex<double> * mat_out, std::complex<double> * mat_in, void * GPU_stream){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, std::complex<float> * mat_out, std::complex<float> * mat_in, void * GPU_stream){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, double * mat_out, double * mat_in, void * GPU_stream){
+    cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+    dim3 threads;
+    dim3 grid;
+    switch (dimk){
+        case 20: 
+          threads = dim3(256, 1, 1);
+          grid = dim3(2, 1, 1);
+          cu_transpose_21<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          break;
+        case 10: 
+          threads = dim3(128, 1, 1);
+          grid = dim3(1, 1, 1);
+          cu_transpose_11<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          break;
+        default:
+          printf("Only 10 and 20 are supported now for transpose \n");
+          exit(-1);
+          break;
+    }
+}
 
 void  cu_memset(){
 

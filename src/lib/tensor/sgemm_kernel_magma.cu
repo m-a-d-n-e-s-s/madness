@@ -3527,3 +3527,57 @@ if (threadIdx.x<lda)
                 __syncthreads();
 
 }
+
+__global__ void cu_transpose_11(double *odata, const double  *idata){
+double AL[10];
+__shared__ double  AS[1000];
+
+if (threadIdx.x<100){
+#pragma unroll 
+        for ( int i =0;i<10;i++)
+                AL[i]=idata[threadIdx.x+i*100];
+}
+        __syncthreads();
+
+if (threadIdx.x<100){
+#pragma unroll 
+        for ( int i =0;i<10;i++)
+
+AS[threadIdx.x*10+i] = AL[i];
+
+}
+        __syncthreads();
+
+for (int i=0;i<10;i++){
+int index = threadIdx.x + i*128;
+if (index<1000)
+odata[index]=AS[index];
+}
+}
+__global__ void cu_transpose_21(double *odata, const double  *idata){
+double AL[20];
+__shared__ double  AS[4000];
+
+if (threadIdx.x<200){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+                AL[i]=idata[blockIdx.x*200+threadIdx.x+i*400];
+}
+        __syncthreads();
+
+if (threadIdx.x<200){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+
+AS[threadIdx.x*20+i] = AL[i];
+
+}
+        __syncthreads();
+
+for (int i=0;i<20;i++){
+int index = threadIdx.x + i*256;
+if (index<4000)
+odata[blockIdx.x*4000+index]=AS[index];
+}
+
+}
