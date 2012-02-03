@@ -400,7 +400,7 @@ int main(int argc, char**argv) {
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
 //    test(world,k,thresh);
-//    error+=test_hartree_product(world,k,thresh);
+    error+=test_hartree_product(world,k,thresh);
 //    error+=test_multiply(world,k,thresh);
     error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);

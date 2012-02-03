@@ -1811,6 +1811,61 @@ namespace madness {
 
 
 
+    /// Apply operator on a hartree product of two low-dimensional functions
+
+    /// Supposed to be something like result= G( f(1)*f(2))
+    /// the hartree product is never constructed explicitly, but its coeffs are
+    /// constructed on the fly and processed immediately.
+    /// @param[in]	op	the operator
+    /// @param[in]	f1	function of particle 1
+    /// @param[in]	f2	function of particle 2
+    /// @param[in]	fence if we shall fence
+    /// @return		a function of dimension NDIM=LDIM+LDIM
+    template <typename opT, typename T, std::size_t LDIM>
+    Function<TENSOR_RESULT_TYPE(typename opT::opT,T), LDIM+LDIM>
+    apply(const opT& op, const Function<T,LDIM>& f1, const Function<T,LDIM>& f2, bool fence=true) {
+
+        typedef TENSOR_RESULT_TYPE(T,typename opT::opT) resultT;
+
+    	Function<T,LDIM>& ff1 = const_cast< Function<T,LDIM>& >(f1);
+    	Function<T,LDIM>& ff2 = const_cast< Function<T,LDIM>& >(f2);
+
+    	bool same=(ff1.get_impl()==ff2.get_impl());
+
+    	// keep the leaves! They are assumed to be there later
+		if (not same) ff1.nonstandard(true,false);
+		ff2.nonstandard(true,true);
+
+
+        FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(f1.world())
+                .k(f1.k()).thresh(FunctionDefaults<LDIM+LDIM>::get_thresh());
+    	Function<resultT,LDIM+LDIM> result=factory.empty().fence();
+    	Function<resultT,LDIM+LDIM> r1=factory.empty().fence();		// this is a dummy function
+
+    	result.get_impl()->timer_accumulate.reset();
+        result.get_impl()->timer_target_driven.reset();
+        op.timer_full.reset();
+        op.timer_low_transf.reset();
+        op.timer_low_accumulate.reset();
+
+        result.get_impl()->recursive_apply(op, f1.get_impl().get(),
+        		f2.get_impl().get(), r1.get_impl().get(),true);			// will fence here
+
+        if (result.world().rank()==0) {
+            result.get_impl()->timer_accumulate.print("accumulate");
+            result.get_impl()->timer_target_driven.print("total target_driven");
+
+            op.timer_full.print("op full tensor       ");
+            op.timer_low_transf.print("op low rank transform");
+            op.timer_low_accumulate.print("op low rank addition ");
+        }
+
+		if (not same) ff1.standard(false);
+		ff2.standard(false);
+		result.get_impl()->finalize_apply(fence);	// implicitly fences
+		return result;
+    }
+
 
     /// Apply operator ONLY in non-standard form - required other steps missing !!
     template <typename opT, typename R, std::size_t NDIM>
@@ -1854,7 +1909,6 @@ namespace madness {
     	Function<R,NDIM>& ff = const_cast< Function<R,NDIM>& >(f);
     	Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
 
-    	if (NDIM==6) ff.print_size("ff in apply on entry");
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
         if (NDIM==6) ff.print_size("ff in apply after reconstruct");
@@ -1869,13 +1923,12 @@ namespace madness {
     	} else {
 
             ff.nonstandard(op.doleaves, true);
-            ff.print_size("ff in apply after nonstandard");
+            if (NDIM==6) ff.print_size("ff in apply after nonstandard");
             if ((NDIM==6) and (f.world().rank()==0)) {
                 ff.get_impl()->timer_filter.print("filter");
                 ff.get_impl()->timer_compress_svd.print("compress_svd");
             }
             result = apply_only(op, ff, fence);
-            result.print_size("result after apply");
             result.reconstruct();
 
             ff.standard();

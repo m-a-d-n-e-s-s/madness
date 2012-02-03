@@ -423,6 +423,7 @@ struct CalculationParameters {
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
+    bool no_compute;            ///< If true use orbitals on disk, set value to computed
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
@@ -450,7 +451,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & no_compute & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -478,6 +479,7 @@ struct CalculationParameters {
         , localize(true)
         , localize_pm(false)
         , restart(false)
+    	, no_compute(false)
         , maxsub(8)
         , npt_plot(101)
         , aobasis("6-31g")
@@ -605,6 +607,9 @@ struct CalculationParameters {
             }
             else if (s == "restart") {
                 restart = true;
+            }
+            else if (s == "no_compute") {
+                no_compute = true;
             }
             else if (s == "maxsub") {
                 f >> maxsub;

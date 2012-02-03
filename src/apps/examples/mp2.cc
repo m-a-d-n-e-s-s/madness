@@ -183,6 +183,9 @@ namespace madness {
                 if (world.rank()==0) print("done with fill_tree");
 
                 result=result+(tmp1-tmp2).truncate();
+                tmp1.clear();
+                tmp2.clear();
+                world.gop.fence();
                 result.truncate().reduce_rank();
 
                 if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
@@ -410,7 +413,7 @@ namespace madness {
             calc.project_ao_basis(world);
 
             //calc.project(world);
-            if (calc.param.restart) {
+            if (calc.param.restart or calc.param.no_compute) {
                 calc.load_mos(world);
             }
             else {
@@ -418,29 +421,30 @@ namespace madness {
                 calc.param.restart = true;
             }
 
-            // If the basis for the inital guess was not sto-3g
-            // switch to sto-3g since this is needed for analysis
-            // of the MOs and orbital localization
-            if (calc.param.aobasis != "sto-3g") {
-                calc.param.aobasis = "sto-3g";
-                calc.project_ao_basis(world);
+            if (not calc.param.no_compute) {
+				// If the basis for the inital guess was not sto-3g
+				// switch to sto-3g since this is needed for analysis
+				// of the MOs and orbital localization
+				if (calc.param.aobasis != "sto-3g") {
+					calc.param.aobasis = "sto-3g";
+					calc.project_ao_basis(world);
+				}
+
+				calc.solve(world);
+				calc.save_mos(world);
+
+				// successively tighten threshold
+				if (calc.param.econv<1.1e-6) {
+					calc.set_protocol<3>(world,1e-6);
+					calc.make_nuclear_potential(world);
+					calc.project_ao_basis(world);
+					calc.project(world);
+					calc.solve(world);
+					calc.save_mos(world);
+				}
+
+				calc.save_mos(world);
             }
-
-            calc.solve(world);
-            calc.save_mos(world);
-
-            // successively tighten threshold
-            if (calc.param.econv<1.1e-6) {
-                calc.set_protocol<3>(world,1e-6);
-                calc.make_nuclear_potential(world);
-                calc.project_ao_basis(world);
-                calc.project(world);
-                calc.solve(world);
-                calc.save_mos(world);
-            }
-
-            calc.save_mos(world);
-
             return calc.current_energy;
         }
 
@@ -826,50 +830,102 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-            const double eps=zeroth_order_energy(i,j);
-        	real_function_6d Vpair;
-//            load_function(world,Vpair,"Vpair");
+        	const double eps=zeroth_order_energy(i,j);
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
-//            Vpair.nonstandard(green.doleaves, true);
-            load_function(world,Vpair,"Vpair_ns");
-            Vpair.get_impl()->print_stats();
-        	real_function_6d result;
+            real_convolution_3d op = BSHOperator<3>(world, sqrt(-2.0*hf.orbital_energy(i)), 0.00001, 1e-6);
 
-//        	real_function_6d GVpair=green(-2.0*Vpair).truncate().reduce_rank();
-        	result=apply_only(green,Vpair,true);
-        	return;
+        	Vector<Translation, 6> l(Translation(1));
+        	l[1]=0;
+            Key<6> key(1,l);
+            Key<3> key1,key2;
+            key.break_apart(key1,key2);
+            double a;
 
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
-            const real_function_3d coulomb=hf.get_coulomb_potential();
+        	const real_function_3d phi_i=hf.orbital(i);
+        	const real_function_3d phi_j=hf.orbital(j);
 
-            for (int i=0; i<hf.nocc(); ++i) {
-                if (world.rank()==0) printf("zeroth order energy %2d: %12.8f\n", i,hf.orbital_energy(i));
-                const real_function_3d& phi_i=hf.orbital(i);
-                const real_function_3d Jphi_i=coulomb*phi_i;
-                const real_function_3d Kphi_i=hf.apply_exchange(phi_i);
+        	real_function_3d vloc=hf.get_coulomb_potential()+hf.get_nuclear_potential();
+            real_function_3d Kphi=hf.apply_exchange(phi_i);
+            const real_function_3d JKVphi_i=vloc*phi_i - Kphi;
+            const real_function_3d JKVphi_j=copy(JKVphi_i);
 
-                const double J=2.0*inner(phi_i,Jphi_i);
-                const double K=2.0*inner(phi_i,Kphi_i);
-                if (world.rank()==0) printf("2.0 * <i | J | i>:  i=%d %12.8f\n",i,J);
-                if (world.rank()==0) printf("2.0 * <i | K | i>:  i=%d %12.8f\n",i,K);
+        	real_function_6d result=hartree_product(phi_i,phi_j);
+//        	real_function_6d phi0=hartree_product(JKVphi_i,JKVphi_j);
 
-                double e1=(-J+K);
 
-                for (int j=0; j<hf.nocc(); ++j) {
-                    ElectronPair pair;
-                    pair.i=i;
-                    pair.j=j;
-                    real_function_6d ij=zeroth_order_function(i,j);
-                    real_function_6d ijji=(2.0*zeroth_order_function(i,j)-zeroth_order_function(j,i)).truncate().reduce_rank();
+        	real_function_6d phi1, phi0;
+        	real_function_6d result1, result2;
+        	real_function_6d source1;
+        	real_function_6d diff;
 
-                    real_function_6d tmp5=CompositeFactory<double,6,3>(world)
-                                .g12(eri.get_impl()).ket(copy(ijji).get_impl());
+        	// make the new source tree
+        	if (0) {
+//				source1=apply_hartree_product(green,phi_i,phi_j);
+				source1=green(phi_i,phi_j);
+				save_function(world,source1,"source1_ns");
+        	}
 
-                    const double g=inner(ij,tmp5);  // g12
-                    if (world.rank()==0) printf("<phi0 | g12    | phi0>  %2d %2d: %12.8f\n", i,j,g);
-                    e1+=g;
-                }
-            }
+        	// make the old source tree
+        	if (0) {
+        		phi0=hartree_product(phi_i,phi_j);
+        		phi0.nonstandard(false,true);
+        		save_function(world,phi0,"phi0_ns");
+        	}
+
+//        	load_function(world,phi0,"phi0_ns");
+//        	load_function(world,source1,"source1_ns");
+
+        	// compare the sources
+        	if (0) {
+        		phi0.standard(true);
+        		phi0.reconstruct(true);
+        		source1.standard(true);
+        		source1.reconstruct(true);
+        		diff=(phi0-source1);
+            	a=diff.norm2();
+            	if (world.rank()==0) print("norm(diff)",a);
+
+        	}
+
+        	// convolute both trees, compare
+        	if (0) {
+            	phi1=green(phi0);
+            	result1=green(source1);
+            	world.gop.fence();
+            	diff=(phi1-result1);
+            	a=diff.norm2();
+            	if (world.rank()==0) print("norm(result1)",a);
+
+        	}
+
+
+        	// do the full comparison
+        	if (1) {
+
+//        		result1=apply_hartree_product(green,sqrt2*JKVphi_i,sqrt2*JKVphi_j);
+        		result1=-2.0*green(JKVphi_i,phi_j).truncate().reduce_rank();
+        		result1=result1-2.0*green(phi_i,JKVphi_j).truncate().reduce_rank();
+//        		phi1=green(phi0);
+            	world.gop.fence();
+            	a=result1.norm2();
+            	if (world.rank()==0) print("norm(green(JKVphi,JKVphi))",a);
+
+
+//            	diff=(phi1-result1);
+//            	a=diff.norm2();
+//            	if (world.rank()==0) print("norm(old-new)",a);
+
+            	diff=(result-result1);
+            	a=diff.norm2();
+            	if (world.rank()==0) print("norm(result-result1)",a);
+
+        		real_function_3d r3=op(-2.0*JKVphi_i);
+        		real_function_3d d3=r3-phi_i;
+        		a=d3.norm2();
+            	if (world.rank()==0) print("norm(op(JKVphi)-phi_i)",a);
+
+
+        	}
         }
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
@@ -1178,8 +1234,8 @@ namespace madness {
         double compute_V(const ElectronPair& pair) const {
 
             double V=0.0;
-            const double a11=inner(JK1phi0_on_demand(pair.i,pair.j),pair.function)
-            				+inner(JK2phi0_on_demand(pair.i,pair.j),pair.function);
+            const double a11=inner(pair.function,JK1phi0_on_demand(pair.i,pair.j))
+            				+inner(pair.function,JK2phi0_on_demand(pair.i,pair.j));
             if (world.rank()==0) printf("V2: <phi^0 | J-K        | psi^1>  %12.8f\n",a11);
             V-=a11;
 

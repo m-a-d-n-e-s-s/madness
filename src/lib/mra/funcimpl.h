@@ -253,19 +253,13 @@ namespace madness {
             return true;
         }
 
-        /// post-determination:
-        /// return true if f is a leaf and the result is well-represented
+        /// post-determination: true if f is a leaf and the result is well-represented
 
         /// @param[in]  key the hi-dimensional key (breaks into keys for f and g)
         /// @param[in]  fcoeff coefficients of f of its appropriate key in NS form
         /// @param[in]  gcoeff coefficients of g of its appropriate key in NS form
-        bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
-//        bool operator()(const Key<NDIM>& key, const GenTensor<T>& coeff) const {
+        bool operator()(const Key<NDIM>& key, const Tensor<T>& fcoeff, const Tensor<T>& gcoeff) const {
 
-            // we expect coeffs that are a direct product of the two orbital coefficients
-//            MADNESS_ASSERT(coeff.rank()==1);
-//            const GenTensor<T> fcoeff=GenTensor<T>(coeff.config().ref_vector(0).reshape(k,k,k),0.0,TT_FULL);
-//            const GenTensor<T> gcoeff=GenTensor<T>(coeff.config().ref_vector(1).reshape(k,k,k),0.0,TT_FULL);
             Slice s = Slice(0,k-1);
             std::vector<Slice> s0(NDIM/2,s);
 
@@ -276,10 +270,8 @@ namespace madness {
             const double gnorm=gcoeff.normf();
 
             // norm of the scaling function coefficients
-            const GenTensor<T> s1=fcoeff(s0);
-            const GenTensor<T> s2=gcoeff(s0);
-            const double sfnorm=s1.normf();
-            const double sgnorm=s2.normf();
+            const double sfnorm=fcoeff(s0).normf();
+            const double sgnorm=gcoeff(s0).normf();
 
             // if the final norm is small, perform the hartree product and return
             const double norm=fnorm*gnorm;  // computing the outer product
@@ -361,21 +353,15 @@ namespace madness {
             return true;
         }
 
-        /// post-determination:
-        /// return true if f is a leaf and the result is well-represented
+        /// post-determination: true if f is a leaf and the result is well-represented
 
         /// @param[in]  key the hi-dimensional key (breaks into keys for f and g)
         /// @param[in]  fcoeff coefficients of f of its appropriate key in NS form
         /// @param[in]  gcoeff coefficients of g of its appropriate key in NS form
-        bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
+        bool operator()(const Key<NDIM>& key, const Tensor<T>& fcoeff, const Tensor<T>& gcoeff) const {
 //        bool operator()(const Key<NDIM>& key, const GenTensor<T>& coeff) const {
 
             if (key.level()<2) return false;
-            // we expect coeffs that are a direct product of the two orbital coefficients
-//            MADNESS_ASSERT(coeff.rank()==1);
-//            const long k=f->get_k();
-//            const GenTensor<T> fcoeff=GenTensor<T>(coeff.config().ref_vector(0).reshape(2*k,2*k,2*k),0.0,TT_FULL);
-//            const GenTensor<T> gcoeff=GenTensor<T>(coeff.config().ref_vector(1).reshape(2*k,2*k,2*k),0.0,TT_FULL);
 
             const double tol=f->get_thresh();
             const double thresh=f->truncate_tol(tol, key);
@@ -384,10 +370,8 @@ namespace madness {
             const double gnorm=gcoeff.normf();
 
             // norm of the scaling function coefficients
-            const GenTensor<T> s1=fcoeff(g->get_cdata().s0);
-            const GenTensor<T> s2=gcoeff(g->get_cdata().s0);
-            const double sfnorm=s1.normf();
-            const double sgnorm=s2.normf();
+            const double sfnorm=fcoeff(g->get_cdata().s0).normf();
+            const double sgnorm=gcoeff(g->get_cdata().s0).normf();
 
             // if the final norm is small, perform the hartree product and return
             const double norm=fnorm*gnorm;  // computing the outer product
@@ -753,6 +737,7 @@ namespace madness {
         }
     };
 
+    /// impl_and_arg is a bookkeeping helper, consisting of a function and a pointer to a node
     template<typename T, size_t NDIM>
     struct impl_and_arg {
         typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
@@ -3199,7 +3184,7 @@ namespace madness {
 
                 const coeffT fcoeff=p1.datum.second.coeff();
                 const coeffT gcoeff=p2.datum.second.coeff();
-                bool is_leaf=leaf_op(key,fcoeff,gcoeff);
+                bool is_leaf=leaf_op(key,fcoeff.full_tensor(),gcoeff.full_tensor());
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
                 // break key into particles (these are the child keys, with datum1/2 come the parent keys)
@@ -3214,19 +3199,7 @@ namespace madness {
                 coeffT coeff2=p2.impl->parent_to_child(s2,p2.datum.first,key2);
 
                 // new coeffs are simply the hartree/kronecker/outer product --
-                // construct the new 6D SVD tensors directly
-                const unsigned int dim=6;
-                const unsigned int maxk=result->get_k();
-                MADNESS_ASSERT(maxk==coeff1.dim(0));
-
-                Tensor<double> weights(1);
-                weights=1.0;
-
-                // need full_tensor_copy() here, b/c coeff1/2 are in NS form
-                const SRConf<T> srconf(weights,coeff1.full_tensor_copy().reshape(1,maxk*maxk*maxk),
-                        coeff2.full_tensor_copy().reshape(1,maxk*maxk*maxk),dim,maxk);
-                coeffT coeff(srconf);
-                coeff.normalize();
+                coeffT coeff=outer(coeff1,coeff2);
 
                 // no post-determination
 //                is_leaf=leaf_op(key,coeff);
@@ -3457,7 +3430,7 @@ namespace madness {
         /// find_me. Called by diff_bdry to get coefficients of boundary function
         Future< std::pair<keyT,coeffT> > find_me(const keyT& key) const;
 
-        /// return the a Future to a std::pair<key, node>, which MUST exist
+        /// return the a std::pair<key, node>, which MUST exist
         std::pair<Key<NDIM>,ShallowNode<T,NDIM> > find_datum(keyT key) const {
         	MADNESS_ASSERT(coeffs.probe(key));
         	ShallowNode<T,NDIM> snode(coeffs.find(key).get()->second);
@@ -3594,19 +3567,6 @@ namespace madness {
 
                 // add 2-particle contribution
                 if (val_eri.has_data()) coeff_v+=val_eri;
-
-                // check for need of refinement
-                bool needs_refinement=false;
-                if (coeff_v.has_data()) {
-
-                    double lo_ket, hi_ket, lo_pot, hi_pot;
-                    result.impl->tnorm(val_ket, &lo_ket, &hi_ket);
-                    result.impl->tnorm(coeff_v, &lo_pot, &hi_pot);
-                    double test = lo_ket*hi_pot + lo_pot*hi_ket + hi_ket*hi_pot;
-                    //print("autoreftest",key,thresh,truncate_tol(thresh, key),lo,hi,test);
-                    needs_refinement= (test> result.impl->truncate_tol(result.impl->get_thresh(), key));
-
-                }
 
                 // multiply potential with ket
                 if (coeff_v.has_data()) {
@@ -4610,8 +4570,9 @@ namespace madness {
         /// @param[in] op     the operator to act on the source function
         /// @param[in] key    key of the source FunctionNode of f which is processed (see "source")
         /// @param[in] coeff  coeffs of FunctionNode being processed
+        /// @return		the norm of the operator applied on the null-displacement
         template <typename opT, typename R>
-        Void do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
+        double do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
 
@@ -4646,6 +4607,8 @@ namespace madness {
 
             // for the kernel it may be more efficient to do the convolution in full rank
             tensorT coeff_full;
+            // the norm of the result of the null-displacment
+            double kernel_norm;
 
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
@@ -4681,29 +4644,31 @@ namespace madness {
                         double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
 //                        cost_ratio=1.5;     // force low rank
 //                        cost_ratio=0.5;     // force full rank
+                        ProcessID here = world.rank();
+//                        ProcessID there =  world.random_proc();
+//                        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
 
                         if (cost_ratio>0.0) {
 
-                            ProcessID here = world.rank();
-//                            ProcessID there =  world.random_proc();
-//                            ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
                             do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
-
-                            // Most expensive part is the kernel ... do it in a separate task -- full rank
-                            if (cost_ratio<1.0) {
-
-                                if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
-
-                                Future<double> act=woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
-                                        args,apply_targs,TaskAttributes::hipri());
-
-//                                world.taskq.add(*this,&implT:: template do_apply_kernel2<opT,R>, op, coeff_full,
-//                                        args,apply_targs,TaskAttributes::hipri());
-
-                            } else {
-                                Future<double> act=woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
-                                        args,apply_targs,TaskAttributes::hipri());
-                            }
+                        	// Most expensive part is the kernel ... do it in a separate task -- full rank
+                        	if (d.distsq()==0) {
+                                if (cost_ratio<1.0) {
+                                    if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
+                                    kernel_norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
+                                } else {
+                                    kernel_norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                                }
+                        	} else {
+								if (cost_ratio<1.0) {
+									if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
+									woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
+											args,apply_targs);
+								} else {
+									woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
+											args,apply_targs);
+								}
+                        	}
                         }
                     } else if (d.distsq() >= 12) {
                         break; // Assumes monotonic decay beyond nearest neighbor
@@ -4715,7 +4680,7 @@ namespace madness {
                 print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
                         coeff_full.has_data());
             }
-            return None;
+            return kernel_norm;
         }
 
         Void print_norm(const long& disp, const double est, const double act) const {
@@ -4786,6 +4751,202 @@ namespace madness {
             if (NDIM==6 and world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
 
         }
+
+
+        /// after apply we need to do some cleanup;
+        void finalize_apply(const bool fence=true) {
+            TensorArgs tight_args(targs);
+            tight_args.thresh*=0.01;
+            flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
+
+            // reduce the rank of the final nodes, leave full tensors unchanged
+            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
+            flo_unary_op_node_inplace(do_reduce_rank(targs),true);
+
+            // change TT_FULL to low rank
+            flo_unary_op_node_inplace(do_change_tensor_type(targs),true);
+
+            // truncate leaf nodes to avoid excessive tree refinement
+            flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
+
+            this->compressed=true;
+            this->nonstandard=true;
+            this->redundant=false;
+            // maybe we don't need this fence??
+            if (fence) world.gop.fence();
+
+            this->reconstruct(true);
+
+        }
+
+        /// traverse a non-existing tree, make its coeffs and apply an operator
+
+        /// invoked by result
+        /// here we use the fact that the hi-dim NS coefficients on all scales are exactly
+        /// the outer product of the underlying low-dim functions (also in NS form),
+        /// so we don't need to construct the full hi-dim tree and then turn it into NS form.
+        /// @param[in]	op		the operator acting on the NS tree
+        /// @param[in]	fimpl	the funcimpl of the function of particle 1
+        /// @param[in]	gimpl	the funcimpl of the function of particle 2
+        /// @param[in]	rimpl	a dummy function for recursive_op to insert data
+        template<typename opT, std::size_t LDIM>
+        void recursive_apply(opT& apply_op, const FunctionImpl<T,LDIM>* fimpl,
+        		const FunctionImpl<T,LDIM>* gimpl, FunctionImpl<T,NDIM>* rimpl, const bool fence) {
+
+            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
+
+            const keyT& key0=cdata.key0;
+
+            if (world.rank() == coeffs.owner(key0)) {
+
+            	print("truncate_tol",this->truncate_tol(this->get_thresh(),key0));
+
+            	// prepare the impl_and_arg, both of which must be local
+                impl_and_arg<T,LDIM> iaf(fimpl,fimpl->find_datum(fimpl->cdata.key0));
+                impl_and_arg<T,LDIM> iag(gimpl,gimpl->find_datum(gimpl->cdata.key0));
+
+                typedef recursive_apply_op<opT,LDIM> op_type;
+//                op_type op(this,iaf,iag,&apply_op);
+                op_type op(this,iaf,iag,&apply_op);
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+                rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+            }
+            if (fence) world.gop.fence();
+        }
+
+        /// recursive part of recursive_apply
+        template<typename opT, std::size_t LDIM>
+        struct recursive_apply_op {
+
+        	typedef recursive_apply_op<opT,LDIM> this_type;
+
+            implT* result;
+            impl_and_arg<T,LDIM> iaf;
+            impl_and_arg<T,LDIM> iag;
+            opT* apply_op;
+
+            // ctor
+            recursive_apply_op() {}
+            recursive_apply_op(implT* result,
+            		const impl_and_arg<T,LDIM>& iaf, const impl_and_arg<T,LDIM>& iag,
+                    const opT* apply_op) : result(result), iaf(iaf), iag(iag), apply_op(apply_op)
+            {
+                MADNESS_ASSERT(LDIM+LDIM==NDIM);
+            }
+            recursive_apply_op(const recursive_apply_op& other) : result(other.result), iaf(other.iaf),
+            		iag(other.iag), apply_op(other.apply_op) {}
+
+            /// make the right NS coeffs
+
+            /// iterators point to nodes in nonstandard representation; if we are below its
+            /// leaves construct the NS coeffs by "adding" zero wavelet coeffs.
+            /// @param[in]	key1	the actual lo-dim key we are working on
+            /// @param[in]	key2	the (leaf) key of the lo-dim function
+            /// @param[in]	coeff	the (leaf) coeffs of the lo-dim function
+            /// @return 	coeffs in NS form
+            tensorT get_coeffs(const Key<LDIM>& key1, const Key<LDIM>& key2, const coeffT& coeff) const {
+
+            	const FunctionImpl<T,LDIM>* f=iaf.impl;
+            	MADNESS_ASSERT(coeff.tensor_type()==TT_FULL);
+            	tensorT t;
+
+            	// if the node for key1 is existent in f, and it is an internal node, we
+            	// automatically have the NS form; if it is a leaf node, we only have the
+            	// sum coeffs, so we take zero difference coeffs
+            	if (key1==key2) {
+            		if (coeff.dim(0)==2*f->get_k()) t=coeff.full_tensor_copy();		// internal node
+            		else if (coeff.dim(0)==f->get_k()) {				// leaf node
+            			t=tensorT(f->cdata.v2k);
+            			t(f->cdata.s0)=coeff.full_tensor();
+            		} else {
+            			MADNESS_EXCEPTION("confused k in recursive_apply_op",1);
+            		}
+            	} else if (key1.level()<key2.level()) {
+
+            		// key2 and coeff should refer to a leaf node with sum coeffs only
+            		MADNESS_ASSERT(coeff.dim(0)==f->get_k());
+                    const coeffT coeff1=f->parent_to_child(coeff,key2,key1);
+            		t=tensorT(f->cdata.v2k);
+        			t(f->cdata.s0)=coeff1.full_tensor();
+            	} else {
+            		MADNESS_EXCEPTION("confused keys in recursive_apply_op",1);
+            	}
+            	return t;
+            }
+
+            /// make the NS-coefficients and send off the application of the operator
+
+            /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+//            	World& world=result->world;
+                // break key into particles (these are the child keys, with datum1/2 come the parent keys)
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+
+                const tensorT fcoeff=get_coeffs(key1,iaf.datum.first,iaf.datum.second.coeff());
+                const tensorT gcoeff=get_coeffs(key2,iag.datum.first,iag.datum.second.coeff());
+
+                // would this be a leaf op? If so, then its sum coeffs have already been
+                // processed by the parent node's wavelet coeffs. Therefore we won't
+                // process it any more.
+                hartree_leaf_op<T,NDIM> leaf_op(result,result->get_k());
+                bool is_leaf=leaf_op(key,fcoeff,gcoeff);
+
+                if (not is_leaf) {
+					// new coeffs are simply the hartree/kronecker/outer product --
+                	const coeffT coeff=outer_low_rank(fcoeff,gcoeff);
+
+                // now send off the application
+//                ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
+//                		? world.random_proc() : result->coeffs.owner(key);
+//                Future<double> kernel_norm=
+//                        result->task(p, &implT:: template do_apply_source_driven<opT,T>, apply_op, key, coeff);
+//
+//                // and finalize
+//                return world.taskq.add(*const_cast<this_type *> (this), &this_type::finalize,kernel_norm,key);
+					double kernel_norm=result->do_apply_source_driven<opT,T>(apply_op, key, coeff);
+					return finalize(kernel_norm,key,coeff);
+
+                } else {
+                	return std::pair<bool,coeffT> (is_leaf,coeffT());
+                }
+            }
+
+            /// sole purpose is to wait for the kernel norm, wrap it and send it back to caller
+            std::pair<bool,coeffT> finalize(const double kernel_norm, const keyT& key,
+            		const coeffT& coeff) const {
+            	const double thresh=result->get_thresh()*0.1;
+            	bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
+            	if (key.level()<2) is_leaf=false;
+            	print("key,is_leaf",key,is_leaf,kernel_norm);
+            	return std::pair<bool,coeffT> (is_leaf,coeff);
+            }
+
+            Future<recursive_apply_op> make_child_op(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+
+                // point to "outermost" leaf node
+                Future<impl_and_arg<T,LDIM> > iaff=iaf.make_child(key1);
+                Future<impl_and_arg<T,LDIM> > iagg=iag.make_child(key2);
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::make_op,result,iaff,iagg,apply_op);
+            }
+
+            this_type make_op(implT* rr, const impl_and_arg<T,LDIM>& iaff,
+            		const impl_and_arg<T,LDIM>& iagg, const opT* op) {
+                return this_type(rr,iaff,iagg,op);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & result & iaf & iag & apply_op;
+            }
+        };
 
         /// compute the error for a (compressed) node using the wavelet coeffs
 

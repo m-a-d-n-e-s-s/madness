@@ -1009,6 +1009,17 @@ namespace madness {
             return madness::apply(*this, f);
         }
 
+        /// apply this operator on a separable function f(1,2) = f(1) f(2)
+
+        /// @param[in]  f1   a function of dim LDIM
+        /// @param[in]  f2   a function of dim LDIM
+        /// @return     the result function of dim NDIM=2*LDIM: g(1,2) = G(1,1',2,2') f(1',2')
+        template <typename T, size_t LDIM>
+        typename enable_if_c<NDIM==LDIM+LDIM, Function<TENSOR_RESULT_TYPE(T,Q),NDIM> >::type
+        operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
+            return madness::apply(*this, f1, f2);
+        }
+
 
         /// apply this operator on coefficients in full rank form
 
@@ -1252,10 +1263,11 @@ namespace madness {
                     // get maximum rank of coeff to contribute:
                     //  delta(g)  <  eps  <  || T || * delta(f)
                     //  delta(coeff) * || T || < tol2
-                    const int r_max=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                	const int r_max=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
                     //                	print("r_max",coeff.config().weights(r_max));
 
-                    if (r_max>0) {
+                	// note that max_sigma is inclusive!
+                    if (r_max>=0) {
                         const GenTensor<resultT> chunk=input->get_configs(0,r_max);
                         const GenTensor<resultT> chunk0=f0.get_configs(0,r_max);
 
@@ -1311,15 +1323,16 @@ namespace madness {
             const double low_operator_cost=pow(coeff.dim(0),NDIM/2+1);
             const double low_reduction_cost=pow(coeff.dim(0),NDIM/2);
 
-            double full_cost=0;
-            double low_cost=0;
+            double full_cost=0.0;
+            double low_cost=0.0;
 
             for (int mu=0; mu<rank; ++mu) {
                 const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
 
                 // delta(g)  <  delta(T) * || f ||
                 if (muop.norm > tol) {
-                    long nterms=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_);
+                	// note that max_sigma is inclusive: it returns a slice w(Slice(0,i))
+                    long nterms=SRConf<T>::max_sigma(tol2/muop.norm,coeff.rank(),coeff.config().weights_)+1;
 
                     // take only the first overlap computation of rank reduction into account
                     low_cost+=nterms*low_operator_cost + 2.0*nterms*nterms*low_reduction_cost;
@@ -1329,7 +1342,7 @@ namespace madness {
             }
 
             double ratio=-1.0;
-            if (low_cost>0) ratio=full_cost/low_cost;
+            if (low_cost>0.0) ratio=full_cost/low_cost;
 //            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);
             return ratio;
 
