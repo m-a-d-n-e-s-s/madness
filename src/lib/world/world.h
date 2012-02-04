@@ -371,12 +371,13 @@ typedef UINT64_T uint64_t;
 #define BACKTO_CPU 0
 #define SIM_GPU 0
 #define JUST_AGG 0
-#define THREE_SPLIT 1
-#define MAX_AGG 64
+#define THREE_SPLIT 0
+#define COMPRESS_CPS 1
+#define MAX_AGG 98
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 20
 
-#define APPLY_GPU 1
+#define APPLY_GPU 0
 #define APPLY_JUST_AGG 0
 #define APPLY_BACKTO_CPU 0
 //#define NUM_MUTEXES 37

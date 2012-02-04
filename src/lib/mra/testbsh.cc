@@ -220,6 +220,124 @@ void test_bsh(World& world) {
 
 }
 
+template <typename T>
+void test_bsh4(World& world) {
+    double mu = 1.0;
+    std::vector<long> npt(4,201);
+    typedef Vector<double,4> coordT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,4> > functorT;
+
+    if (world.rank() == 0)
+        print("Test BSH operation, type =",
+              archive::get_type_name<T>(),", ndim =",4);
+
+    FunctionDefaults<4>::set_cubic_cell(-100,100);
+    FunctionDefaults<4>::set_k(10);
+    FunctionDefaults<4>::set_thresh(1e-8);
+    FunctionDefaults<4>::set_initial_level(5);
+    FunctionDefaults<4>::set_refine(true);
+    FunctionDefaults<4>::set_autorefine(true);
+    FunctionDefaults<4>::set_truncate_mode(0);
+    FunctionDefaults<4>::set_truncate_on_project(false);
+
+    const coordT origin(0.0);
+    const double expnt = 100.0;
+    aa = expnt;
+    const double coeff = pow(expnt/constants::pi,1.5);
+
+    Function<T,4> f = FunctionFactory<T,4>(world).functor(functorT(new Gaussian<T,4>(origin, expnt, coeff)));
+    f.truncate();
+    f.reconstruct();
+
+    double norm = f.trace();
+    double ferr = f.err(Gaussian<T,4>(origin, expnt, coeff));
+    if (world.rank() == 0) print("norm of initial function", norm, ferr);
+
+
+    // expnt=100 err=1e-9 use lo=2e-2 = .2/sqrt(expnt) and eps=5e-9
+
+    // expnt=100 err=1e-7 use lo=2e-2 and eps=5e-7
+
+    // expnt=100 err=1e-5 use lo=2e-e and eps=5e-5
+
+    // expnt=100 err=1e-3 use lo=2e-2 and eps=5e-3
+
+
+    SeparatedConvolution<T,4> op = BSHOperator<4>(world, mu, 1e-4, 1e-8);
+    std::cout.precision(8);
+
+    Function<T,4> ff = copy(f);
+    if (world.rank() == 0) print("applying - 1");
+    double start = cpu_time();
+    Function<T,4> opf = op(ff);
+    if (world.rank() == 0) print("done",cpu_time()-start);
+    ff.clear();
+    opf.verify_tree();
+    double opferr = opf.err(Qfunc());
+     if (world.rank() == 0) print("err in opf", opferr);
+
+    return;
+
+    Function<double,4> qf = FunctionFactory<T,4>(world).functor(functorT(new Qfunc()));
+    print("qf norm ", qf.norm2());
+    print("opf norm", opf.norm2());
+
+    opf.reconstruct();
+//     for (int i=0; i<nn; ++i) {
+//         double z=lo + i*range/double(nn-1);
+
+//         double r = fabs(z)*sqrt(3.0);
+//         coordT p(z);
+// //         double r = z;
+// //         coordT p(0.0); p[0] = z;
+
+//         print(z, opf(p),q(r),opf(p)-q(r));
+//     }
+
+//     plotdx(opf, "opf.dx", FunctionDefaults<3>::get_cell(), npt);
+
+    opf.truncate();
+    Function<T,4> opinvopf = opf*(mu*mu);
+    for (int axis=0; axis<4; ++axis) {
+        //print("diffing",axis);
+        //opinvopf.gaxpy(1.0,diff(diff(opf,axis),axis).compress(),-1.0);
+    }
+
+//     plotdx(opinvopf, "opinvopf.dx", FunctionDefaults<3>::get_cell(), npt);
+
+    print("norm of (-del^2+mu^2)*G*f", opinvopf.norm2());
+    Function<T,4> error = (f-opinvopf);
+    print("error",error.norm2());
+
+//     error.reconstruct();
+//     plotdx(error, "err.dx", FunctionDefaults<3>::get_cell(), npt);
+
+
+//     opinvopf.reconstruct();
+//     f.reconstruct();
+//     error.reconstruct();
+
+// //     for (int i=0; i<101; ++i) {
+// //         double z=-4 + 0.08*i;
+// //         coordT p(z);
+// //         print(z, opinvopf(p), f(p), opinvopf(p)/f(p), error(p));
+// //     }
+
+    opf.clear();
+    opinvopf.clear();
+
+    Function<T,4> g = (mu*mu)*f;
+    for (int axis=0; axis<4; ++axis) {
+        //g = g - diff(diff(f,axis),axis);
+    }
+    g = op(g);
+    print("norm of G*(-del^2+mu^2)*f",g.norm2());
+    print("error",(g-f).norm2());
+
+    world.gop.fence();
+
+}
+
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
@@ -228,7 +346,7 @@ int main(int argc, char**argv) {
     try {
         startup(world,argc,argv);
 
-        test_bsh<double>(world);
+        test_bsh4<double>(world);
 
     }
     catch (const MPI::Exception& e) {

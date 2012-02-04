@@ -691,6 +691,7 @@ template float* GPUtransfer_buffer(float* CPU_buf, unsigned int offset, bool cop
 template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, unsigned int offset, bool copy);
 template long* GPUtransfer_buffer(long* CPU_buf, unsigned int offset, bool copy);
 template bool* GPUtransfer_buffer(bool* CPU_buf, unsigned int offset, bool copy);
+template char* GPUtransfer_buffer(char* CPU_buf, unsigned int offset, bool copy);
 
 template <typename T>
 T* alloc_host(T** CPU_buf, unsigned int size){
@@ -707,6 +708,7 @@ template float* alloc_host(float** CPU_buf, unsigned int size);
 template std::complex<float>* alloc_host(std::complex<float>** CPU_buf, unsigned int size);
 template long* alloc_host(long** CPU_buf, unsigned int size);
 template bool* alloc_host(bool** CPU_buf, unsigned int size);
+template char* alloc_host(char** CPU_buf, unsigned int size);
 
 
 template <typename T>
@@ -746,6 +748,7 @@ template   void GPUdelete_buffer(float* buf);
 template   void GPUdelete_buffer(std::complex<float>* buf);
 template   void GPUdelete_buffer(long* buf);
 template   void GPUdelete_buffer(bool* buf);
+template   void GPUdelete_buffer(void* buf);
 
 template <typename W>
        void dealloc_host(W* buf){
@@ -757,6 +760,7 @@ template   void dealloc_host(float* buf);
 template   void dealloc_host(std::complex<float>* buf);
 template   void dealloc_host(long* buf);
 template   void dealloc_host(bool* buf);
+template   void dealloc_host(void* buf);
 
 template <typename T>
 T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){

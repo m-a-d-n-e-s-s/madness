@@ -1834,11 +1834,12 @@ ENDt_TIMER("memcpy3");
         }
 
         std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > compressop_allCompute(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
-            std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > outArg(inArgs.size(),inObj.at(0)->compressop_compute(inArgs.at(0)));
+            std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> > outArg;//(inArgs.size(),inObj.at(0)->compressop_compute(inArgs.at(0)));
             //print("inArgs.size() = ",inArgs.size());
             for (unsigned int i = 0; i < inArgs.size(); i++){
                 std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> temp = inObj.at(i)->compressop_compute(inArgs.at(i));
-                outArg[i] = temp;
+                //outArg[i] = temp;
+                outArg.push_back(temp);
             }
 
             return outArg;
@@ -1949,9 +1950,9 @@ ENDt_TIMER("memcpy3");
 		    for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
 			d(child_patch(kit.key(),cdata)) = tk[kit.key()];
 		    }
-                    STARTt_TIMER;
+                    //STARTt_TIMER;
 		    d = filter(d,cdata);
-                    ENDt_TIMER("fil");
+                    //ENDt_TIMER("fil");
 
 		    if (this->has_coeff()) {
 			const tensorT& c = this->coeff();
@@ -3888,9 +3889,13 @@ ENDt_TIMER("memcpy3");
             tensorContainerT tensorTree(world,coeffs.get_pmap());
             world.gop.fence();
             if (world.rank() == coeffs.owner(cdata.key0)){
-                //compress_spawn(cdata.key0, nonstandard, keepleaves);
-                print("com_dc");
-                coeffs.update(cdata.key0, &nodeT::top_down, tensorTree, nonstandard, keepleaves, cdata.key0, cdata.k);
+                if (COMPRESS_CPS){
+                    print("com_dc");
+                    coeffs.update(cdata.key0, &nodeT::top_down, tensorTree, nonstandard, keepleaves, cdata.key0, cdata.k);
+                }
+                else{
+                    compress_spawn(cdata.key0, nonstandard, keepleaves);
+                }
             }
             if (fence)
                 world.gop.fence();
@@ -4289,7 +4294,7 @@ ENDt_TIMER("memcpy3");
             typedef std::tr1::tuple<keyT, keyT, keyT, double, double, double, Tensor<R>, dcT> tuple1T;
    
             tuple1T t1(args.key, args.d, args.dest, args.tol, args.fac, args.cnorm, c, coeffs);
-            typedef std::tr1::tuple< Tensor<R> *, Tensor<R> *,dcT, keyT, double, double> tuple2T;     
+            typedef std::tr1::tuple< Tensor<R> /***/, Tensor<R> /***/,dcT, keyT, double, double> tuple2T;     
 
             //print("shift = ",args.d);
             //STARTt_TIMER;
@@ -4363,9 +4368,9 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply_kernel_std(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            //STARTt_TIMER;
+            STARTt_TIMER;
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            //ENDt_TIMER("std apply");
+            ENDt_TIMER("std apply");
 
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 
@@ -4428,26 +4433,26 @@ ENDt_TIMER("memcpy3");
                             upto++;                        
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            #if APPLY_GPU > 0
-                            if (upto < 200){
-                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
-                            }
-                            else{
-                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
-                            }
-                            #elif APPLY_JUST_AGG > 0
-                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernelAgg<opT,R>, op, c, args);
-                            #else
-                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
-                            #endif
+                            ////#if APPLY_GPU > 0
+                            ////if (upto < 0){
+                            ////woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
+                            ////}
+                            ////else{
+                            ////woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            ////}
+                            ////#elif APPLY_JUST_AGG > 0
+                            ////woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernelAgg<opT,R>, op, c, args);
+                            ////#else
+                            ////woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            ////#endif
                             //}
                             //else{
                             //woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
                             //}
-                            //tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                            //if (result.normf()> 0.3*tol/fac) {
-                            //    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
-                            //}
+                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            if (result.normf()> 0.3*tol/fac) {
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            }
                             /*
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
