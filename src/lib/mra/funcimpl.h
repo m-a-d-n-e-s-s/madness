@@ -746,6 +746,12 @@ namespace madness {
         datumT datum;
 
         impl_and_arg() : impl() {}
+
+        /// ctor takes funcimpl, which might be a null pointer, and finds the head node
+        impl_and_arg(const implT* impl) : impl(impl) {
+        	if (impl) datum=impl->find_datum(impl->key0());
+        }
+
         impl_and_arg(const implT* impl, const datumT& datum)
             : impl(impl), datum(datum) {}
         impl_and_arg(const impl_and_arg<T,NDIM>& other) : impl(other.impl), datum(other.datum) {}
@@ -3149,41 +3155,24 @@ namespace madness {
         struct hartree_op {
 
             typedef hartree_op<LDIM,leaf_opT> this_type;
-            typedef FunctionImpl<T,LDIM> implL;
-            typedef FunctionNode<T,LDIM> nodeL;
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+            typedef impl_and_arg<T,LDIM> iaT;
 
-            const FunctionImpl<T,NDIM>* result;       ///< where to construct the pair function
-            impl_and_arg<T,LDIM> p1;
-            impl_and_arg<T,LDIM> p2;
-            leaf_opT leaf_op;                   ///< determine if a given node will be a leaf node
+            const implT* result; 	    ///< where to construct the pair function
+            iaT p1;						///< keep track of the tree of particle 1
+            iaT p2;						///< keep track of the tree of particle 2
+            leaf_opT leaf_op;           ///< determine if a given node will be a leaf node
 
             // ctor
             hartree_op() {}
-            hartree_op(const implT* result, const implL* p1, const implL* p2,
-                    const datumL& datum1, const datumL& datum2, const leaf_opT& leaf_op)
-                 : result(result)
-                 , p1(impl_and_arg<T,LDIM>(p1,datum1))
-                 , p2(impl_and_arg<T,LDIM>(p2,datum2))
-                 , leaf_op(leaf_op)
-            {
-                MADNESS_ASSERT(LDIM+LDIM==NDIM);
-            }
-            hartree_op(const implT* result, const impl_and_arg<T,LDIM>& p1, const impl_and_arg<T,LDIM>& p2,
-                    const leaf_opT& leaf_op)
-                : result(result)
-                , p1(p1)
-                , p2(p2)
-                , leaf_op(leaf_op)
-            {
+            hartree_op(const implT* result, const iaT& p1, const iaT& p2, const leaf_opT& leaf_op)
+                : result(result), p1(p1), p2(p2), leaf_op(leaf_op) {
                 MADNESS_ASSERT(LDIM+LDIM==NDIM);
             }
 
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-                const coeffT fcoeff=p1.datum.second.coeff();
-                const coeffT gcoeff=p2.datum.second.coeff();
+                const coeffT& fcoeff=p1.datum.second.coeff();
+                const coeffT& gcoeff=p2.datum.second.coeff();
                 bool is_leaf=leaf_op(key,fcoeff.full_tensor(),gcoeff.full_tensor());
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
@@ -3192,11 +3181,11 @@ namespace madness {
                 key.break_apart(key1,key2);
 
                 // iterators point to nodes in nonstandard representation: get the sum coeffs
-                const coeffT s1=p1.datum.second.coeff()(p1.impl->cdata.s0);
-                const coeffT s2=p2.datum.second.coeff()(p2.impl->cdata.s0);
+                const coeffT s1=fcoeff(p1.impl->cdata.s0);
+                const coeffT s2=gcoeff(p2.impl->cdata.s0);
 
-                coeffT coeff1=p1.impl->parent_to_child(s1,p1.datum.first,key1);
-                coeffT coeff2=p2.impl->parent_to_child(s2,p2.datum.first,key2);
+                const coeffT coeff1=p1.impl->parent_to_child(s1,p1.datum.first,key1);
+                const coeffT coeff2=p2.impl->parent_to_child(s2,p2.datum.first,key2);
 
                 // new coeffs are simply the hartree/kronecker/outer product --
                 coeffT coeff=outer(coeff1,coeff2);
@@ -3213,20 +3202,18 @@ namespace madness {
                 child.break_apart(key1,key2);
 
                 // point to "outermost" leaf node
-                Future<impl_and_arg<T,LDIM> > p11=p1.make_child(key1);
-                Future<impl_and_arg<T,LDIM> > p22=p2.make_child(key2);
+                Future<iaT> p11=p1.make_child(key1);
+                Future<iaT> p22=p2.make_child(key2);
                 return result->world.taskq.add(*const_cast<hartree_op *> (this),
-                        &hartree_op<LDIM,leaf_opT>::make_op,
-                        result,p11,p22,leaf_op);
+                        &hartree_op<LDIM,leaf_opT>::make_op,result,p11,p22,leaf_op);
             }
 
-            this_type make_op(const implT* result, const impl_and_arg<T,LDIM>& p11, const impl_and_arg<T,LDIM>& p22,
+            this_type make_op(const implT* result, const iaT& p11, const iaT& p22,
                     const leaf_opT& leaf_op) {
                 return hartree_op(result,p11,p22,leaf_op);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
-//                ar & result & p1 & p2 & datum1 & datum2 & leaf_op;
                 ar & result & p1 & p2 & leaf_op;
             }
         };
@@ -3284,17 +3271,13 @@ namespace madness {
             typedef FunctionImpl<T,LDIM> implL;
 
             if (world.rank() == p1->get_coeffs().owner(p1->cdata.key0)) {
-                Future<datumL> dat1=p1->task(p1->get_coeffs().owner(p1->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
-                        p1->cdata.key0,TaskAttributes::hipri());
-                Future<datumL> dat2=p2->task(p2->get_coeffs().owner(p2->cdata.key0), &FunctionImpl<T,LDIM>::find_datum,
-                        p2->cdata.key0,TaskAttributes::hipri());
 
-                // have to wait for this, but should be local..
-                datumL datum1=dat1.get();
-                datumL datum2=dat2.get();
+            	// prepare the impl_and_arg, both of which must be local
+                impl_and_arg<T,LDIM> iap1(p1,p1->find_datum(p1->cdata.key0));
+                impl_and_arg<T,LDIM> iap2(p2,p2->find_datum(p2->cdata.key0));
 
                 typedef hartree_op<LDIM,leaf_opT> op_type;
-                op_type hartree_op(this,p1,p2,datum1,datum2,leaf_op);
+                op_type hartree_op(this,iap1,iap2,leaf_op);
 
                 ProcessID owner = coeffs.owner(cdata.key0);
                 woT::task(owner, &implT:: template recursive_op<op_type>, hartree_op, cdata.key0);
@@ -3454,8 +3437,6 @@ namespace madness {
 
             typedef Vphi_op<opT,LDIM> this_type;
             typedef FunctionImpl<T,LDIM> implL;
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
             typedef impl_and_arg<T,NDIM> iaT;
             typedef impl_and_arg<T,LDIM> iaL;
 
@@ -3471,36 +3452,13 @@ namespace madness {
 
             // ctor
             Vphi_op() {}
-
-            Vphi_op(const iaT& result, const opT& leaf_op, const implT* ket, const implT* eri,
-                    const implL* p1, const implL* p2, const implL* v1, const implL* v2,
-                    const datumL& datum_p1, const datumL& datum_p2,
-                    const datumL& datum_v1, const datumL& datum_v2,
-                    const datumT& datum_ket)
-                : result(result)
-                , leaf_op(leaf_op)
-                , iaket(ket,datum_ket)
-                , iap1(p1,datum_p1)
-                , iap2(p2,datum_p2)
-                , iav1(v1,datum_v1)
-                , iav2(v2,datum_v2)
-                , eri(eri) {
-            }
-
             Vphi_op(const iaT& result, const opT& leaf_op, const impl_and_arg<T,NDIM>& iaket,
                     const impl_and_arg<T,LDIM>& iap1, const impl_and_arg<T,LDIM>& iap2,
                     const impl_and_arg<T,LDIM>& iav1, const impl_and_arg<T,LDIM>& iav2,
                     const implT* eri)
-                : result(result)
-                , leaf_op(leaf_op)
-                , iaket(iaket)
-                , iap1(iap1)
-                , iap2(iap2)
-                , iav1(iav1)
-                , iav2(iav2)
-                , eri(eri) {
+                : result(result), leaf_op(leaf_op), iaket(iaket), iap1(iap1), iap2(iap2)
+                , iav1(iav1), iav2(iav2), eri(eri) {
             }
-
 
             /// assemble the coefficients
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
@@ -3508,76 +3466,98 @@ namespace madness {
                 // pre-determination: fast return if possible
                 bool is_leaf=leaf_op(key);
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+                coeffT coeff_ket;
 
+                // take a shortcut if we don't need to resort to function values
+                bool ket_only=(not (iav1.impl or iav2.impl or eri));
+                if (ket_only) {
 
-                // break key into particles (these are the child keys, with datum1/2 come the parent keys)
-                Key<LDIM> key1, key2;
-                key.break_apart(key1,key2);
+                    if (iaket.impl) {
+                        const coeffT& coeff1=iaket.datum.second.coeff();
+                        coeff_ket=iaket.impl->parent_to_child(coeff1,iaket.datum.first,key);
+                    } else {
+						MADNESS_ASSERT(iap1.impl and iap2.impl);
+						// break key into particles (these are the child keys, with datum1/2 come the parent keys)
+						Key<LDIM> key1, key2;
+						key.break_apart(key1,key2);
 
-                // values for ket: get it from its function, or construct it using orbitals
-                tensorT val_ket;
-                if (iaket.impl) {
-                    val_ket=iaket.impl->fcube_for_mul(key,iaket.datum.first,
-                            iaket.datum.second.coeff()).full_tensor_copy();
+						const coeffT& coeff1=iap1.datum.second.coeff();
+                        const coeffT c1=iap1.impl->parent_to_child(coeff1,iap1.datum.first,key1);
+                        const coeffT& coeff2=iap2.datum.second.coeff();
+                        const coeffT c2=iap2.impl->parent_to_child(coeff2,iap2.datum.first,key2);
+                        coeff_ket=outer(c1,c2);
+                    }
+
                 } else {
-                    MADNESS_ASSERT(iap1.impl and iap2.impl);
-                    hartree_leaf_op<T,NDIM> hlop(result.impl,result.impl->get_k());
-                    hartree_op<LDIM,hartree_leaf_op<T,NDIM> > op(result.impl,iap1,iap2,hlop);
-                    const coeffT coeff_ket=op(key).second;
-                    val_ket=result.impl->coeffs2values(key,coeff_ket).full_tensor_copy();
+
+					// break key into particles (these are the child keys, with datum1/2 come the parent keys)
+					Key<LDIM> key1, key2;
+					key.break_apart(key1,key2);
+
+					// values for ket: get it from its function, or construct it using orbitals
+					tensorT val_ket;
+					if (iaket.impl) {
+						val_ket=iaket.impl->fcube_for_mul(key,iaket.datum.first,
+								iaket.datum.second.coeff()).full_tensor_copy();
+					} else {
+						MADNESS_ASSERT(iap1.impl and iap2.impl);
+						hartree_leaf_op<T,NDIM> hlop(result.impl,result.impl->get_k());
+						hartree_op<LDIM,hartree_leaf_op<T,NDIM> > op(result.impl,iap1,iap2,hlop);
+						const coeffT coeff_ket=op(key).second;
+						val_ket=result.impl->coeffs2values(key,coeff_ket).full_tensor_copy();
+					}
+					MADNESS_ASSERT(val_ket.has_data());
+
+					// values for 1e-potentials
+					const coeffT val_pot1= (iav1.impl)
+							? iav1.impl->fcube_for_mul(key1,iav1.datum.first,iav1.datum.second.coeff())
+							: coeffT();
+					const coeffT val_pot2= (iav2.impl)
+							? iav2.impl->fcube_for_mul(key2,iav2.datum.first,iav2.datum.second.coeff())
+							: coeffT();
+
+					// values for eri
+					tensorT val_eri=tensorT();
+					if (eri and eri->get_functor()->provides_coeff()) {
+						val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
+					} else if (eri) {
+						val_eri=tensorT(result.impl->cdata.vk);
+						result.impl->fcube(key, *(eri->get_functor()), eri->cdata.quad_x, val_eri);
+					}
+
+					// assemble all contributions
+					tensorT coeff_v;
+					if (eri or iav1.impl or iav2.impl) coeff_v=tensorT(result.impl->cdata.vk);      // 6D, all addends
+
+					// include the one-electron potential
+					if (val_pot1.has_data() and val_pot2.has_data()) {
+
+						FunctionCommonData<T,LDIM> cdataL=iav1.impl->cdata;
+						Tensor<T> identity=Tensor<double>(cdataL.vk,false);
+						identity=1.0;
+
+						// direct product: V(1) * E(2) + E(1) * V(2)
+						coeff_v = outer(val_pot1.full_tensor_copy(),identity)
+										   + outer(identity,val_pot2.full_tensor_copy());
+					} else if (val_pot1.has_data()) {
+
+						MADNESS_ASSERT(LDIM==NDIM);
+						coeff_v = (val_pot1.full_tensor_copy());
+					}
+
+					// add 2-particle contribution
+					if (val_eri.has_data()) coeff_v+=val_eri;
+
+					// multiply potential with ket
+					if (coeff_v.has_data()) {
+						tensorT tcube(result.impl->cdata.vk,false);
+						TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
+						val_ket=tcube;
+					}
+
+					const TensorArgs& targs=result.impl->get_tensor_args();
+					coeff_ket=coeffT(result.impl->values2coeffs(key,val_ket),targs);
                 }
-                MADNESS_ASSERT(val_ket.has_data());
-
-                // values for 1e-potentials
-                const coeffT val_pot1= (iav1.impl)
-                        ? iav1.impl->fcube_for_mul(key1,iav1.datum.first,iav1.datum.second.coeff())
-                        : coeffT();
-                const coeffT val_pot2= (iav2.impl)
-                        ? iav2.impl->fcube_for_mul(key2,iav2.datum.first,iav2.datum.second.coeff())
-                        : coeffT();
-
-                // values for eri
-                tensorT val_eri=tensorT();
-                if (eri and eri->get_functor()->provides_coeff()) {
-                    val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
-                } else if (eri) {
-                    val_eri=tensorT(result.impl->cdata.vk);
-                    result.impl->fcube(key, *(eri->get_functor()), eri->cdata.quad_x, val_eri);
-                }
-
-                // assemble all contributions
-                tensorT coeff_v;
-                if (eri or iav1.impl or iav2.impl) coeff_v=tensorT(result.impl->cdata.vk);      // 6D, all addends
-
-                // include the one-electron potential
-                if (val_pot1.has_data() and val_pot2.has_data()) {
-
-                    FunctionCommonData<T,LDIM> cdataL=iav1.impl->cdata;
-                    Tensor<T> identity=Tensor<double>(cdataL.vk,false);
-                    identity=1.0;
-
-                    // direct product: V(1) * E(2) + E(1) * V(2)
-                    coeff_v = outer(val_pot1.full_tensor_copy(),identity)
-                                       + outer(identity,val_pot2.full_tensor_copy());
-                } else if (val_pot1.has_data()) {
-
-                    MADNESS_ASSERT(LDIM==NDIM);
-                    coeff_v = (val_pot1.full_tensor_copy());
-                }
-
-                // add 2-particle contribution
-                if (val_eri.has_data()) coeff_v+=val_eri;
-
-                // multiply potential with ket
-                if (coeff_v.has_data()) {
-                    tensorT tcube(result.impl->cdata.vk,false);
-                    TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
-                    val_ket=tcube;
-                }
-
-                const TensorArgs& targs=result.impl->get_tensor_args();
-                const coeffT coeff_ket=coeffT(result.impl->values2coeffs(key,val_ket),targs);
-
                 // post-determination
                 is_leaf=leaf_op(key,coeff_ket);
 
@@ -3596,14 +3576,13 @@ namespace madness {
             Future<Vphi_op> make_child_op(const keyT& child) const {
 
                 // break key into particles
-                Key<LDIM> key1, key2;
-                child.break_apart(key1,key2);
+            	Key<LDIM> key1, key2;
+            	child.break_apart(key1,key2);
 
-                Future<iaT> result_= (leaf_op.do_error_leaf_op) 
-		    	? result.make_child(child.parent())
-			: Future<iaT>(result);
-                Future<iaT> iaket_=iaket.make_child(child);
-                Future<iaL> iap1_=iap1.make_child(key1);
+            	Future<iaT> result_= (leaf_op.do_error_leaf_op)
+		    			? result.make_child(child.parent()) : Future<iaT>(result);
+            	Future<iaT> iaket_=iaket.make_child(child);
+            	Future<iaL> iap1_=iap1.make_child(key1);
                 Future<iaL> iap2_=iap2.make_child(key2);
                 Future<iaL> iav1_=iav1.make_child(key1);
                 Future<iaL> iav2_=iav2.make_child(key2);
@@ -3657,47 +3636,27 @@ namespace madness {
             const FunctionImpl<T,LDIM>* p2=func->impl_p2.get();
 
             if (world.rank() == coeffs.owner(key0)) {
-                Future<datumL> dat1= (v1)
-                        ? v1->task(v1->get_coeffs().owner(v1->cdata.key0),
-                                &FunctionImpl<T,LDIM>::find_datum,v1->cdata.key0,TaskAttributes::hipri())
-                        : Future<datumL>(datumL());
-                Future<datumL> dat2= (v2)
-                        ? v2->task(v2->get_coeffs().owner(v2->cdata.key0),
-                                &FunctionImpl<T,LDIM>::find_datum,v2->cdata.key0,TaskAttributes::hipri())
-                        : Future<datumL>(datumL());
-                Future<datumL> datp1= (p1)
-                        ? p1->task(p1->get_coeffs().owner(p1->cdata.key0),
-                                &FunctionImpl<T,LDIM>::find_datum,p1->cdata.key0,TaskAttributes::hipri())
-                        : Future<datumL>(datumL());
-                Future<datumL> datp2= (p2)
-                        ? p2->task(p2->get_coeffs().owner(p2->cdata.key0),
-                                &FunctionImpl<T,LDIM>::find_datum,p2->cdata.key0,TaskAttributes::hipri())
-                        : Future<datumL>(datumL());
 
-                Future<datumT> dat_ket= (ket)
-                        ? ket->task(ket->get_coeffs().owner(key0),
-                                &implT::find_datum,key0,TaskAttributes::hipri())
-                        : Future<datumT>(datumT());
+            	// prepare the impl_and_arg, all head nodes must be local
+                impl_and_arg<T,NDIM> iaket(ket);
+                impl_and_arg<T,LDIM> iap1(p1);
+                impl_and_arg<T,LDIM> iap2(p2);
+                impl_and_arg<T,LDIM> iav1(v1);
+                impl_and_arg<T,LDIM> iav2(v2);
+
                 if (eri) MADNESS_ASSERT(eri->is_on_demand());
-
-                // have to wait for this..
-                datumL datum1=dat1.get();
-                datumL datum2=dat2.get();
-                datumL datum_p1=datp1.get();
-                datumL datum_p2=datp2.get();
-                datumT datum_ket=dat_ket.get();
 
                 // insert an empty internal node for comparison
                 this->coeffs.replace(key0,nodeT(coeffT(),true));
                 impl_and_arg<T,NDIM> iaresult(this,this->find_datum(key0));
 
                 typedef Vphi_op<opT,LDIM> op_type;
-                op_type op(iaresult,leaf_op,ket,eri,p1,p2,v1,v2,datum_p1,datum_p2,datum1,datum2,datum_ket);
+                op_type op(iaresult,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
 
                 ProcessID owner = coeffs.owner(cdata.key0);
                 woT::task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
-
             }
+
             world.gop.fence();
 
             // remove internal coefficients
@@ -4793,14 +4752,9 @@ namespace madness {
         void recursive_apply(opT& apply_op, const FunctionImpl<T,LDIM>* fimpl,
         		const FunctionImpl<T,LDIM>* gimpl, FunctionImpl<T,NDIM>* rimpl, const bool fence) {
 
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-
             const keyT& key0=cdata.key0;
 
             if (world.rank() == coeffs.owner(key0)) {
-
-            	print("truncate_tol",this->truncate_tol(this->get_thresh(),key0));
 
             	// prepare the impl_and_arg, both of which must be local
                 impl_and_arg<T,LDIM> iaf(fimpl,fimpl->find_datum(fimpl->cdata.key0));
@@ -4863,7 +4817,7 @@ namespace madness {
             		} else {
             			MADNESS_EXCEPTION("confused k in recursive_apply_op",1);
             		}
-            	} else if (key1.level()<key2.level()) {
+            	} else if (key1.level()>key2.level()) {
 
             		// key2 and coeff should refer to a leaf node with sum coeffs only
             		MADNESS_ASSERT(coeff.dim(0)==f->get_k());

@@ -570,8 +570,6 @@ namespace madness {
         Projector<double,6> O12;                ///< projector on all pairs
         bool solved;                            ///< flag if the residual equations are already solved
 
-    public:
-        bool include_O1O2;
     private:
         struct Intermediates {
             std::string function;      ///< pair function for a specific pair w/o correlation factor part
@@ -620,7 +618,6 @@ namespace madness {
             , hf(hf)
             , corrfac(corrfac)
             , solved(false)
-            , include_O1O2(false)
             , intermediates()
             , poisson(CoulombOperator(world,0.0001,hf.get_calc().param.econv)) {
 
@@ -803,11 +800,7 @@ namespace madness {
                 vphi.scale(-2.0).truncate();
                 latest_increment=green(vphi).truncate().reduce_rank();
                 latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
-                if (include_O1O2) {
-                    latest_increment=Q12(latest_increment);
-                } else {
-                    orthogonalize(latest_increment,result.phi0);
-                }
+                latest_increment=Q12(latest_increment);
 
                 result.function=(result.function+latest_increment).truncate().reduce_rank();
 
@@ -828,7 +821,7 @@ namespace madness {
 
         }
 
-        void test(const int i, const int j) {
+        void test1(const int i, const int j) {
 
         	const double eps=zeroth_order_energy(i,j);
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
@@ -851,53 +844,22 @@ namespace madness {
 
         	real_function_6d result=hartree_product(phi_i,phi_j);
 //        	real_function_6d phi0=hartree_product(JKVphi_i,JKVphi_j);
+            real_function_6d tmp1=CompositeFactory<double,6,3>(world)
+                                 .ket(copy(result).get_impl());
+
+        	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
+
+//        	double aa=inner(result,this->JK1phi0_on_demand(i,j));
+        	double aa=inner(result,tmp1);
 
 
+            if(world.rank() == 0) printf("\ndone at time %.1fs\n", wall_time());
+        	if (world.rank()==0) print("inner(phi0,JKphi0)",aa);
+        	return;
         	real_function_6d phi1, phi0;
         	real_function_6d result1, result2;
         	real_function_6d source1;
         	real_function_6d diff;
-
-        	// make the new source tree
-        	if (0) {
-//				source1=apply_hartree_product(green,phi_i,phi_j);
-				source1=green(phi_i,phi_j);
-				save_function(world,source1,"source1_ns");
-        	}
-
-        	// make the old source tree
-        	if (0) {
-        		phi0=hartree_product(phi_i,phi_j);
-        		phi0.nonstandard(false,true);
-        		save_function(world,phi0,"phi0_ns");
-        	}
-
-//        	load_function(world,phi0,"phi0_ns");
-//        	load_function(world,source1,"source1_ns");
-
-        	// compare the sources
-        	if (0) {
-        		phi0.standard(true);
-        		phi0.reconstruct(true);
-        		source1.standard(true);
-        		source1.reconstruct(true);
-        		diff=(phi0-source1);
-            	a=diff.norm2();
-            	if (world.rank()==0) print("norm(diff)",a);
-
-        	}
-
-        	// convolute both trees, compare
-        	if (0) {
-            	phi1=green(phi0);
-            	result1=green(source1);
-            	world.gop.fence();
-            	diff=(phi1-result1);
-            	a=diff.norm2();
-            	if (world.rank()==0) print("norm(result1)",a);
-
-        	}
-
 
         	// do the full comparison
         	if (1) {
@@ -911,9 +873,67 @@ namespace madness {
             	if (world.rank()==0) print("norm(green(JKVphi,JKVphi))",a);
 
 
-//            	diff=(phi1-result1);
-//            	a=diff.norm2();
-//            	if (world.rank()==0) print("norm(old-new)",a);
+            	diff=(result-result1);
+            	a=diff.norm2();
+            	if (world.rank()==0) print("norm(result-result1)",a);
+
+        		real_function_3d r3=op(-2.0*JKVphi_i);
+        		real_function_3d d3=r3-phi_i;
+        		a=d3.norm2();
+            	if (world.rank()==0) print("norm(op(JKVphi)-phi_i)",a);
+
+
+        	}
+        }
+
+
+        void test(const int i, const int j) {
+
+        	const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+            real_convolution_3d op = BSHOperator<3>(world, sqrt(-2.0*hf.orbital_energy(i)), 0.00001, 1e-6);
+
+            double a;
+
+        	const real_function_3d phi_i=hf.orbital(i);
+        	const real_function_3d phi_j=hf.orbital(j);
+
+        	real_function_3d vloc=hf.get_coulomb_potential();
+            real_function_3d Kphi=hf.apply_exchange(phi_i);
+            const real_function_3d JKVphi_i=vloc*phi_i - Kphi;
+            const real_function_3d JKVphi_j=copy(JKVphi_i);
+
+        	real_function_6d result=hartree_product(phi_i,phi_j);
+//        	real_function_6d phi0=hartree_product(JKVphi_i,JKVphi_j);
+            real_function_6d tmp1=CompositeFactory<double,6,3>(world)
+            					.g12(corrfac.f().get_impl())
+            					.ket(copy(result).get_impl());
+
+        	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
+
+//        	double aa=inner(result,this->JK1phi0_on_demand(i,j));
+        	double aa=inner(result,tmp1);
+
+
+            if(world.rank() == 0) printf("\ndone at time %.1fs\n", wall_time());
+        	if (world.rank()==0) print("inner(phi0,JKphi0)",aa);
+        	return;
+        	real_function_6d phi1, phi0;
+        	real_function_6d result1, result2;
+        	real_function_6d source1;
+        	real_function_6d diff;
+
+        	// do the full comparison
+        	if (1) {
+
+//        		result1=apply_hartree_product(green,sqrt2*JKVphi_i,sqrt2*JKVphi_j);
+        		result1=-2.0*green(JKVphi_i,phi_j).truncate().reduce_rank();
+        		result1=result1-2.0*green(phi_i,JKVphi_j).truncate().reduce_rank();
+//        		phi1=green(phi0);
+            	world.gop.fence();
+            	a=result1.norm2();
+            	if (world.rank()==0) print("norm(green(JKVphi,JKVphi))",a);
+
 
             	diff=(result-result1);
             	a=diff.norm2();
@@ -927,6 +947,7 @@ namespace madness {
 
         	}
         }
+
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
 
@@ -1164,6 +1185,9 @@ namespace madness {
             const double eps=zeroth_order_energy(i,j);
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
 
+            const real_function_3d& phi_i=hf.orbital(i);
+            const real_function_3d& phi_j=hf.orbital(j);
+
             ElectronPair pair=make_pair(i,j);
 
             // fast return if possible
@@ -1192,10 +1216,18 @@ namespace madness {
 			pair.Uphi0.clear();
 			pair.KffKphi0.clear();
 
+
+			// make the terms with J and K
+			const real_function_3d jkphi_i=(J(phi_i)-K(phi_i)).truncate();
+			const real_function_3d jkphi_j=(J(phi_j)-K(phi_j)).truncate();
+			real_function_6d gjk1=green(jkphi_i,-2.0*phi_j).truncate().reduce_rank();
+			real_function_6d gjk2=green(-2.0*phi_i,jkphi_j).truncate().reduce_rank();
+			tmp1=(tmp1-gjk1-gjk2).truncate().reduce_rank();
+			gjk1.clear();
+			gjk2.clear();
+
 			// make the terms with low ranks and largish trees
-			real_function_6d JKphi0=make_JKphi0(i,j);
-			real_function_6d Vpair2=(OO2-JKphi0-epair-OO1).truncate().reduce_rank();
-			JKphi0.clear();
+			real_function_6d Vpair2=(OO2-epair-OO1).truncate().reduce_rank();
 			load_balance(Vpair2,true);
 			real_function_6d tmp2=green(-2.0*Vpair2).truncate().reduce_rank();
             save_function(world,tmp2,"GVpair2");
@@ -1659,7 +1691,6 @@ int main(int argc, char** argv) {
     // get parameters form input file
     Calculation calc(world,"input");
     TensorType tt=TT_2D;
-    bool include_O1O2=true;
 
 	// find the pair to compute
     std::ifstream f("input");
@@ -1683,7 +1714,6 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="no_include_O1O2") include_O1O2=false;               // usage: size=10
         if (key=="size") calc.param.L=atof(val.c_str());               // usage: size=10
         if (key=="k") calc.param.k=atoi(val.c_str());                  // usage: k=5
         if (key=="i") i=atoi(val.c_str());                  // usage: k=5
@@ -1737,11 +1767,10 @@ int main(int argc, char** argv) {
     if(world.rank() == 0) printf("\ncomputing pair (%d,%d)\n\n", i,j);
 
     MP2 mp2(world,hf,f12,"input");
-    mp2.include_O1O2=include_O1O2;
 
 //    mp2.value(calc.molecule.get_all_coords());
-//    mp2.test(0,0);
-    mp2.solve_residual_equations(i,j);
+    mp2.test(0,0);
+//    mp2.solve_residual_equations(i,j);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();
