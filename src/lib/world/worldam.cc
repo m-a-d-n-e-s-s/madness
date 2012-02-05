@@ -65,11 +65,16 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        for (int i=0; i<NSEND; ++i) {
-            while (!send_req[i].Test()) {
-                myusleep(100);
+        if(MPI::Is_finalized()) {
+            for (int i=0; i<NSEND; ++i)
+                free_managed_send_buf(i);
+        } else {
+            for (int i=0; i<NSEND; ++i) {
+                while (!send_req[i].Test()) {
+                    myusleep(100);
+                }
+                free_managed_send_buf(i);
             }
-            free_managed_send_buf(i);
         }
     }
 
