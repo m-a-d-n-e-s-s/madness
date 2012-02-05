@@ -45,6 +45,12 @@
 #include <windows.h>
 #endif
 
+#define MPI_THREAD_STRING(level) \
+        ( level==MPI_THREAD_SERIALIZED ? "MPI_THREAD_SERIALIZED" : \
+            ( level==MPI_THREAD_MULTIPLE ? "MPI_THREAD_MULTIPLE" : \
+                ( level==MPI_THREAD_FUNNELED ? "MPI_THREAD_FUNNELED" : \
+                    ( level==MPI_THREAD_SINGLE ? "MPI_THREAD_SINGLE" : "WTF" ) ) ) )
+
 namespace madness {
 
 
@@ -224,8 +230,10 @@ namespace madness {
 #endif
         int provided = MPI::Init_thread(argc, argv, required);
         int me = MPI::COMM_WORLD.Get_rank();
-        if (provided < required && me == 0) {
-            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
+        if (provided < required && me == 0 ) {
+            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " 
+                      << MPI_THREAD_STRING(required) 
+                      << " (" << MPI_THREAD_STRING(provided) << ")" << std::endl;
         }
 
         ThreadPool::begin();        // Must have thread pool before any AM arrives
