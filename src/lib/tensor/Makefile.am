@@ -1,7 +1,10 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-
+if HAVE_CUDA
 bin_PROGRAMS = test  test_Zmtxmq jimkernel test_scott kernel_launch_test
+else
+bin_PROGRAMS = test  test_Zmtxmq jimkernel test_scott
+endif
 lib_LIBRARIES = libMADtensor.a 
 
 
@@ -24,14 +27,17 @@ test_scott_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 
+if HAVE_CUDA
 kernel_launch_test_SOURCES = kernel_launch_test.cc
 kernel_launch_test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)  $(NVCCFLAGS)
 kernel_launch_test_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
+endif
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD) $(NVCCFLAGS)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
+if HAVE_CUDA
 libMADtensor_a_SOURCES = cu_axpy.cu cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madness_kernels.cu sgemm_kernel_magma.cu tensor.cc \
                         tensoriter.cc basetensor.cc mtxmq.cc vmath.cc  \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
@@ -40,6 +46,13 @@ libMADtensor_a_SOURCES = cu_axpy.cu cu_mtxmq.cu cu_mtxmq_kernels.cu dgemm_madnes
 
 .cu.o:  
 	$(NVCC) -Xptxas -dlcm=cg -arch=sm_20 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
+else
+libMADtensor_a_SOURCES = tensor.cc \
+                        tensoriter.cc basetensor.cc mtxmq.cc vmath.cc  \
+                        aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
+                        basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h cu_mtxmq.h 
+endif
 
 	
 if USE_X86_64_ASM

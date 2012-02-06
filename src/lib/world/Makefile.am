@@ -80,13 +80,18 @@ testhashthreaded_LDADD = libMADworld.a  $(NVCCFLAGS)
 qtest_SOURCES = qtest.cc 
 qtest_LDADD = libMADworld.a $(NVCCFLAGS)
 
-
+if HAVE_CUDA
 world_SOURCES = world.cc cuda_streams.cu
+else
+world_SOURCES = world.cc
+endif
+
 world_LDADD = libMADworld.a $(NVCCFLAGS)
 
 worldprofile_test_SOURCES = worldprofile_test.cc
 worldprofile_test_LDADD = libMADworld.a $(NVCCFLAGS)
 
+if HAVE_CUDA
 libMADworld_a_SOURCES =cuda_streams.cu  worldstuff.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
@@ -97,4 +102,13 @@ libMADworld_a_SOURCES =cuda_streams.cu  worldstuff.cc redirectio.cc archive_type
 .cu.o: cuda_stream.cu
 	$(NVCC)  -arch=sm_20 --compiler-options="-DHAVE_CONFIG_H   -I../../../include -I../../../src/lib  -I../../../src/apps -I../../../include  -g -Wall -Wno-strict-aliasing -Wno-deprecated  -ffast-math -march=native -mfpmath=sse -msse -mpc64" $(NVCCFLAGS) $(AM_CPPFLAGS) -c  -o $@ $<
 libraries:	$(lib_LIBRARIES)
+else
+libMADworld_a_SOURCES =worldstuff.cc redirectio.cc archive_type_names.cc \
+	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
+	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
+	worldgop.cc deferred_cleanup.cc worlddep.cc worldmutex.cc binfsar.cc \
+	worldmem.cc textfsar.cc \
+	$(thisinclude_HEADERS)
+endif
+
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

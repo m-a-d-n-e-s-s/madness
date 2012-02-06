@@ -109,7 +109,7 @@ namespace madness {
 
 t.tv_sec = 0.0;
 t.tv_nsec = 2000000;
-nanosleep(&t, NULL);
+//nanosleep(&t, NULL);
            
             ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
 

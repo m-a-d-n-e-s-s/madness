@@ -41,6 +41,7 @@
 #include <iostream>
 #include <map>
 #include <tr1/tuple>
+#include <tr1/functional>
 #include <world/world.h>
 #include <world/print.h>
 #include <world/scopedptr.h>
@@ -1920,15 +1921,15 @@ ENDt_TIMER("memcpy3");
 
         Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
 
-            if (HAVE_GPU & BACKTO_CPU)
+            #if HAVE_GPU > 0 && BACKTO_CPU > 0
                 dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
-            else if (HAVE_GPU)
+            #elif HAVE_GPU > 0
                 dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
-            else if (SIM_GPU)
+            #elif SIM_GPU > 0
                 dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_allCompute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
-            else if (JUST_AGG)
+            #elif JUST_AGG > 0
                 dc.local_updateJustAgg(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressopComputePostprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
-            else if (THREE_SPLIT)
+            #elif THREE_SPLIT
                 dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
             /*
             * RESTORE THIS
@@ -1941,7 +1942,7 @@ ENDt_TIMER("memcpy3");
             * RESTORE THIS
             dc.update(key, &FunctionNode<T,NDIM>::compressop_postprocess, t2);
             */
-            else{
+            #else
 		    // Copy child scaling coeffs into contiguous block
 		    FunctionCommonData<T,NDIM> cdata = FunctionCommonData<T,NDIM>::get(k);
 		    std::map<keyT, tensorT>& tk = const_cast<std::map<keyT, tensorT>&>(tensor_keys);
@@ -1974,7 +1975,7 @@ ENDt_TIMER("memcpy3");
 		    if (key.level() > 0){
 		      ct.update(parent, &TensorNode<T, NDIM>::update_map, dc, key, s, nonstandard, k);
 		    }
-            }
+            #endif
             
             return None;
 
@@ -2088,16 +2089,19 @@ ENDt_TIMER("memcpy3");
               if (tensor_keys.size() == max){
                 int z = 0;
                 //dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
-                if (HAVE_GPU)
+                #if HAVE_GPU > 0 && BACKTO_CPU > 0
+                dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
+                #elif HAVE_GPU > 0
                   dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allComputeGPU, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), z);
-                else if (SIM_GPU)
+                #elif SIM_GPU > 0
                   dc.local_updateGPU(key, &nodeT::compressop_preprocess, &nodeT::compressop_allCompute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), 0);
-                else if (JUST_AGG)
+                #elif JUST_AGG > 0
                   dc.local_updateJustAgg(key, &nodeT::compressop_preprocess, &nodeT::compressopComputePostprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), 0);
-                else if (THREE_SPLIT)
+                #elif THREE_SPLIT > 0
                   dc.local_update(key, &nodeT::compressop_preprocess, &nodeT::compressop_compute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent));
-                else
+                #else
                   dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
+                #endif
               }
             ready.unlock();
 
@@ -3889,13 +3893,12 @@ ENDt_TIMER("memcpy3");
             tensorContainerT tensorTree(world,coeffs.get_pmap());
             world.gop.fence();
             if (world.rank() == coeffs.owner(cdata.key0)){
-                if (COMPRESS_CPS){
+                #if COMPRESS_CPS > 0
                     print("com_dc");
                     coeffs.update(cdata.key0, &nodeT::top_down, tensorTree, nonstandard, keepleaves, cdata.key0, cdata.k);
-                }
-                else{
+                #else
                     compress_spawn(cdata.key0, nonstandard, keepleaves);
-                }
+                #endif
             }
             if (fence)
                 world.gop.fence();

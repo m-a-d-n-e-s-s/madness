@@ -5944,9 +5944,9 @@ STARTt_TIMER;
             GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
 conds = 0;
 
-if (NDIM == 3 && k == 10){
+if (NDIM == 3 && k == 11){
 /*************************************** DUPLICATE WORK FOR FLOPS COUNT ***********************/
-               
+              
 STARTt_TIMER;
             for (i = 0; i < inArgs.size(); i++){
 	
@@ -5990,6 +5990,7 @@ STARTt_TIMER;
 		device_synchronize(GPU_streams,NUM_STREAMS);
 ENDt_TIMER("fast comp");
             
+#if APPLY_TEST_FLOPS > 0 
             rptr_arrayGPU = (R*)GPURgeneric_buffer;
             fptr_arrayGPU = (R*)GPUTgeneric_buffer;
             GPUtransfer_buffernoalloc(rptr_arrayGPU, rptr_arrayCPU, rptr_off + r0ptr_off); //both on CPU and GPU
@@ -6127,6 +6128,7 @@ STARTt_TIMER;
 		device_synchronize(GPU_streams,NUM_STREAMS);
 print("OP = ",(((unsigned long)conds)*2*2*k*2*k*2*k*2*k) + (((unsigned long)conds)*2*k*k*k*k));          
 ENDt_TIMER("comp 1");
+#endif
 }
 else{
                unsigned int * c_array = new unsigned int[inArgs.size()];

@@ -74,7 +74,10 @@ if test  "$cudaval" = "yes"; then
     AC_SUBST(NVCC)
     AC_SUBST(NVCCFLAGS)
     AC_DEFINE([HAVE_CUDA],[1],[Defined if CUDA should be used])
-   
+    AM_CONDITIONAL([HAVE_CUDA], [true])
+else
+    AC_DEFINE([HAVE_CUDA],[0],[Defined if CUDA should be used])
+    AM_CONDITIONAL([HAVE_CUDA], [false])
 fi
 #=================================================
 
