@@ -4436,26 +4436,32 @@ ENDt_TIMER("memcpy3");
                             upto++;                        
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
-                            ////#if APPLY_GPU > 0
-                            ////if (upto < 0){
-                            ////woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
-                            ////}
-                            ////else{
+                            #if APPLY_GPU > 0
+                            if (upto < 0){
+                            woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
+                            }
+                            else{
+                                //tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                                //if (result.normf()> 0.3*tol/fac) {
+                                //    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                                //}
+                                woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            }
                             ////woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
                             ////}
                             ////#elif APPLY_JUST_AGG > 0
                             ////woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernelAgg<opT,R>, op, c, args);
-                            ////#else
-                            ////woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
-                            ////#endif
-                            //}
-                            //else{
                             //woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            #else
                             //}
-                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                            if (result.normf()> 0.3*tol/fac) {
-                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
-                            }
+                            ////else{
+                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            //}
+                            //tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            //if (result.normf()> 0.3*tol/fac) {
+                            //    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            //}
+                            #endif
                             /*
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);

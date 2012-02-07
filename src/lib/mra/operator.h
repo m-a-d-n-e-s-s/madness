@@ -326,7 +326,7 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
-            apply_transformation1(n, twok, trans, f, work1, work2, work5, mufac, result);
+            apply_transformation/*1*/(n, twok, trans, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -350,7 +350,7 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
-                apply_transformation1(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation/*1*/(n, k, trans, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -5792,9 +5792,9 @@ STARTt_TIMER;
                 c = 0;
                 
                 for (int mu = 0; mu < rank; mu++){
-                    if (condition[i][mu] || doit2[mu] || doit1[mu]){
+                //    if (condition[i][mu] || doit2[mu] || doit1[mu]){
                         c++;
-                    }
+                //    }
                 }
                 //GPUab.svd_done = localSVD;
                 
@@ -5818,7 +5818,7 @@ STARTt_TIMER;
                     Q* localTVT = apply_buffer + apply_prev_offset - apply_init_offset + c*NDIM*(3*twoksq + 2*ksq);
                     for (int mu = 0; mu < rank; mu++){
                         for (int d = 0; d < NDIM; d++){
-                            if (condition[i][mu] || doit2[mu] || doit1[mu]){
+                            //if (condition[i][mu] || doit2[mu] || doit1[mu]){
                                 memcpy(localR + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
                                 memcpy(localT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
                                 memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
@@ -5826,7 +5826,7 @@ STARTt_TIMER;
                                 memcpy(localRVT + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RVT.ptr(), twokbytes);
                                 memcpy(localTVT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TVT.ptr(), kbytes);
                                 numSVD++;
-                            }
+                            //}
                         }
                     }
                     apply_prev_offset += c*NDIM*(3*twoksq + 3*ksq);
@@ -6255,7 +6255,8 @@ else{
                         }
                  
                         for (i = 0; i < inArgs.size(); i++){
-                            if (condition[i][mu] || doit2[mu] || doit1[mu]) c_array[i]++;
+                            //if (condition[i][mu] || doit2[mu] || doit1[mu]) i
+                            c_array[i]++;
                         }
                   }
                   delete[] c_array;
