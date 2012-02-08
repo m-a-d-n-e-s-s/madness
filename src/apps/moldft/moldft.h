@@ -38,6 +38,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/function_factory_and_interface.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
 #include <linalg/solvers.h>

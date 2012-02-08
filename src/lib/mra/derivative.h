@@ -36,18 +36,32 @@
 #define MADNESS_DERIVATIVE_H__INCLUDED
 
 #include <world/world.h>
+#include <world/worlddc.h>
 #include <iostream>
 #include <world/print.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
+#include <tensor/gentensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
-#include <mra/funcimpl.h>
-#include <mra/loadbal.h>
+//#include <mra/funcimpl.h>
+//#include <mra/loadbal.h>
 
 /// \file mra/derivative.h
 /// \brief Declaration and initialization of tree traversal functions and generic derivative
 /// \ingroup mra
+
+namespace madness {
+
+	template<typename T, std::size_t NDIM>
+	class FunctionNode;
+
+    template<typename T, std::size_t NDIM>
+    class Function;
+
+}
+
+
 
 namespace madness {
 

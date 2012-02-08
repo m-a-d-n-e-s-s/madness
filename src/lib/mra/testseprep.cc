@@ -626,11 +626,43 @@ int testGenTensor_reconstruct(const long& k, const long& dim, const double& eps,
 }
 
 
+int testGenTensor_deepcopy(const long& k, const long& dim, const double& eps, const TensorType& tt) {
+
+	print("entering deep copy");
+	// set up three tensors (zeros, rank 2, full rank)
+	std::vector<long> d(dim,k);
+	std::vector<Tensor<double> > t(3);
+
+	t[0]=Tensor<double>(d);
+	t[1]=Tensor<double>(d).fillindex();
+	t[2]=Tensor<double>(d).fillrandom();
+
+	std::vector<Slice> s0(dim,Slice(0,k-2));
+
+	double norm=0.0;
+	int nerror=0;
+
+	// reconstruct
+	for (int i=0; i<3; i++) {
+		Tensor<double> t0=copy(t[i]);
+
+		GenTensor<double> g0(t0,eps,tt);
+		GenTensor<double> g1=copy(g0);
+		GenTensor<double> g2=copy(g0(s0));
+		norm=0.0;
+		print(ok(is_small(norm,eps)),"deep copy",g0.what_am_i(),norm);
+		if (!is_small(norm,eps)) nerror++;
+	}
+
+	print("all done\n");
+	return nerror;
+
+}
 
 int main(int argc, char**argv) {
 
-    initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+//    initialize(argc,argv);
+//    World world(MPI::COMM_WORLD);
     srand(time(NULL));
 
     // the parameters
@@ -640,227 +672,6 @@ int main(int argc, char**argv) {
     print("k    ",k);
     print("eps  ",eps);
 
-    // some test
-#if 0
-
-	int nloop=3*30;
-	print("nloop",nloop);
-	long k3=2*k*2*k*2*k;
-	Tensor<double> s(k3,k3);
-	Tensor<double> v, e;
-	Tensor<double> ss(2*k,k3*2*k*2*k);
-	Tensor<double> t(2*k,2*k);
-	s.fillrandom();
-	s=inner(s,s,1,1);
-    double cpu0, cpu1;
-    cpu0=wall_time();
-
-    for (int i=0; i<nloop; i++) {
-//        syev(s,v,e);
-//        cholesky(s);
-//        v=inner(s,s,1,1);
-        v=inner(t,ss);
-    }
-
-	cpu1=wall_time();
-	if(world.rank() == 0) print("chunk Brand at time ", cpu1-cpu0);
-	return 0;
-
-#endif
-
-
-
-#if 0
-
-    // do some benchmarking
-	long nloop=1.e5;
-
-    print("benchmarking with k ",k);
-    print("dimensions          ",dim);
-    print("nloop               ",nloop);
-
-   	for (int R=4; R<16; R+=4) {
-   	    for (int r=4; r<16; r+=4) {
-
-   	    	// do some prep
-   	    	print("r",r);
-    		print("R",R);
-    		double cpu0, cpu1;
-    		GenTensor<double> g0(TT_2D,k,dim);
-    		GenTensor<double> g1(TT_2D,k,dim);
-    		GenTensor<double> g2(TT_2D,k,dim);
-    		Tensor<double> t0(k,k,k,k,k,k);
-
-    		g0.fillrandom(r);
-    		g1.fillrandom(R);
-    		g2.fillrandom(r+R);
-
-    		// start benchmark
-    		cpu0=wall_time();
-    		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g0;
-    			GenTensor<double> g11=g1;
-    		}
-
-    		cpu1=wall_time();
-    		if(world.rank() == 0) print("baseline at time ", cpu1-cpu0);
-//    		cpu0=wall_time();
-//
-//    		for (int i=0; i<nloop; i++) {
-//    			GenTensor<double> g00=g0;
-//    			g00.accumulate_into(t0);
-//    		}
-//
-//    		cpu1=wall_time();
-//    		if(world.rank() == 0) print("accumulate_into tensor at time ", cpu1-cpu0);
-//    		cpu0=wall_time();
-//
-////			GenTensor<double> g00=g0;
-////   			GenTensor<double> g11=g1;
-//   			g1.config().right_orthonormalize();
-//    		for (int i=0; i<nloop; i++) {
-//    			GenTensor<double> g00=g0;
-//    			GenTensor<double> g11=g1;
-//    			g00.accumulate_into(g11);
-//    		}
-//
-//    		cpu1=wall_time();
-//    		if(world.rank() == 0) print("accumulate_into gentensor at time ", cpu1-cpu0);
-
-
-    		cpu0=wall_time();
-    		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g2;
-//    			g00.config().rank_revealing_modified_gram_schmidt2(eps);
-    		}
-    		cpu1=wall_time();
-    		if(world.rank() == 0) print("RR/MGS at time ", cpu1-cpu0);
-
-
-    		cpu0=wall_time();
-    		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g2;
-    			g00.config().right_orthonormalize(eps);
-    		}
-    		cpu1=wall_time();
-    		if(world.rank() == 0) print("right_orthonormalize at time ", cpu1-cpu0);
-
-    		cpu0=wall_time();
-    		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g2;
-    			g00.config().sequential_orthogonalization(eps);
-    		}
-    		cpu1=wall_time();
-    		if(world.rank() == 0) print("RR/LRT add at time ", cpu1-cpu0);
-
-    		cpu0=wall_time();
-    		for (int i=0; i<nloop; i++) {
-    			GenTensor<double> g00=g2;
-    			g00.config().orthonormalize(eps);
-    		}
-    		cpu1=wall_time();
-    		if(world.rank() == 0) print("orthonormalize at time ", cpu1-cpu0);
-
-   	    }
-    }
-
-
-
-#if 0
-
-	Tensor<double> t0=Tensor<double>(k,k,k,k,k,k);
-	Tensor<double> t1=Tensor<double>(k,k,k,k,k,k);
-
-	t0.fillindex();
-	t0=2.5;
-	t1=2.3;
-	GenTensor<double> g1(t1,eps,TT_2D);
-	g1.fillrandom();
-	SepRep<double> sr0(TT_2D,k,dim);
-	SepRep<double> sr1(TT_2D,k,dim);
-	double tim=wall_time();
-
-    if(world.rank() == 0) print("starting at time", wall_time()-tim);
-    for (unsigned int i=0; i<nloop; i++) {
-//		GenTensor<double> g0(t0,eps,TT_2D);
-//    	g1.fillrandom(4);
-    	sr1.fillrandom(4);
-
-    }
-    if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
-    double base1=wall_time()-tim;
-    tim=wall_time();
-
-    if(world.rank() == 0) print("starting at time", wall_time()-tim);
-    for (unsigned int i=0; i<nloop; i++) {
-//		GenTensor<double> g0(t0,eps,TT_2D);
-      	sr1.fillrandom(8);
-  }
-    if(world.rank() == 0) print("baseline at time  ", wall_time()-tim);
-    double base2=wall_time()-tim;
-    tim=wall_time();
-
-    for (unsigned int i=0; i<nloop; i++) {
-    	sr1.fillrandom(4);
-    	sr1.config().ortho3();
-//		g0.finalize_accumulate();
-    }
-    if(world.rank() == 0) print("ortho3/4 at time  ", wall_time()-tim-base1);
-    tim=wall_time();
-
-    for (unsigned int i=0; i<nloop; i++) {
-    	sr1.fillrandom(8);
-    	sr1.config().ortho3();
-//		g0.finalize_accumulate();
-    }
-    if(world.rank() == 0) print("ortho3/8 at time  ", wall_time()-tim-base2);
-    tim=wall_time();
-
-//    for (unsigned int i=0; i<nloop; i++) {
-//    	sr1.fillrandom(16);
-//    	sr1.config().ortho3();
-////		g0.finalize_accumulate();
-//    }
-//    if(world.rank() == 0) print("ortho3/16 at time  ", wall_time()-tim-base2);
-//    tim=wall_time();
-
-
-    sr0.fillrandom(10);
-	sr1.fillrandom(1);
-    for (unsigned int i=0; i<nloop; i++) {
-		sr0.update_by(sr1);
-    }
-    if(world.rank() == 0) print("update_by/1 at time  ", wall_time()-tim);
-    tim=wall_time();
-
-	sr1.fillrandom(4);
-    for (unsigned int i=0; i<nloop; i++) {
-		sr0.update_by(sr1);
-    }
-    if(world.rank() == 0) print("update_by/4 at time  ", wall_time()-tim);
-    tim=wall_time();
-
-    GenTensor<double> g0(t0,eps,TT_2D);
-    for (int i=0; i<8; i++) g1+=g1;
-    for (unsigned int i=0; i<nloop; i++) {
-//    	g1.fillrandom();
-		g1.accumulate_into(t0,1.0);
-    }
-    if(world.rank() == 0) print("accumulate_into at time  ", wall_time()-tim);
-    tim=wall_time();
-#endif
-
-//    GenTensor<double> g2(t0,eps,TT_2D);
-//    GenTensor<double> g3(t1,eps,TT_2D);
-//    for (unsigned int i=0; i<nloop; i++) {
-//    	g1.fillrandom();
-//    	g2+=g3;
-//    }
-//    if(world.rank() == 0) print("inplace_add at time  ", wall_time()-tim);
-//    tim=wall_time();
-
-//    MADNESS_EXCEPTION("end benchmark",0);
-#endif
 
     int error=0;
     print("hello world");
@@ -869,31 +680,35 @@ int main(int argc, char**argv) {
 //    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
-    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+////    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
+//
+//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+////    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
-    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
-
-    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);
-    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+//    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
 
 //    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_transform(k,dim,eps,TT_3D);
 //    error+=testGenTensor_transform(k,dim,eps,TT_2D);
 
-    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_reconstruct(k,dim,eps,TT_3D);
-    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+//    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+
+//    error+=testGenTensor_deepcopy(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_deepcopy(k,dim,eps,TT_3D);
+//    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 #endif
 
-    world.gop.fence();
-    finalize();
+//    world.gop.fence();
+//    finalize();
 
     return 0;
 }

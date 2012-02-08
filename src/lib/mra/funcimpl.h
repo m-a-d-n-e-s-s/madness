@@ -2961,6 +2961,7 @@ namespace madness {
                 coeffT gcoeff=g->parent_to_child(gdatum.second.coeff(),gdatum.first,key);
                 coeffT hcoeff=copy(fcoeff);
                 hcoeff.gaxpy(alpha,gcoeff,beta);
+                hcoeff.reduceRank(f->get_tensor_args().thresh);
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
 
@@ -4650,12 +4651,10 @@ namespace madness {
 
         /// similar to apply, but for low rank coeffs
         template <typename opT, typename R>
-        void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f,
-                const std::vector<bool>& is_periodic, bool fence) {
+        void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-            double cpu0=cpu_time();
-
+            MADNESS_ASSERT(not op.modified());
             // looping through all the coefficients of the source f
             typename dcT::const_iterator end = f.get_coeffs().end();
             for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
@@ -4663,51 +4662,13 @@ namespace madness {
                 const keyT& key = it->first;
                 const coeffT& coeff = it->second.coeff();
 
-                Vector<Translation, NDIM> l(Translation(3));
-//                l[0]=2; l[1]=3; l[2]=3;
-                keyT key1(3,l);
-                bool doit=((NDIM==3) or (opT::opdim==3) or (key==key1));
-                doit=true;
-                if (coeff.has_data() and (coeff.rank()!=0) and doit) {
+                if (coeff.has_data() and (coeff.rank()!=0)) {
 
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                     woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
                 }
             }
-            world.gop.fence();
-            double cpu1=cpu_time();
-            if (NDIM==6 and world.rank()==0) print("done with raw convolution in",cpu1-cpu0,"seconds");
-            cpu0=cpu1;
-
-            TensorArgs tight_args(targs);
-            tight_args.thresh*=0.01;
-            flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
-
-
-            // reduce the rank of the final nodes, leave full tensors unchanged
-            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
-            flo_unary_op_node_inplace(do_reduce_rank(targs),true);
-
-            // change TT_FULL to low rank
-            flo_unary_op_node_inplace(do_change_tensor_type(targs),true);
-
-            // truncate leaf nodes to avoid excessive tree refinement
-            flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
-
-            if (op.modified()) {
-                this->compressed=false;
-                this->nonstandard=false;
-                this->redundant=true;
-            } else {
-                this->compressed=true;
-                this->nonstandard=true;
-                this->redundant=false;
-            }
-
-            if (fence)
-                world.gop.fence();
-            cpu1=cpu_time();
-            if (NDIM==6 and world.rank()==0) print("done with other funny stuff in",cpu1-cpu0,"seconds");
+            if (fence) world.gop.fence();
 
         }
 
@@ -4875,7 +4836,6 @@ namespace madness {
             	const double thresh=result->get_thresh()*0.1;
             	bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
             	if (key.level()<2) is_leaf=false;
-            	print("key,is_leaf",key,is_leaf,kernel_norm);
             	return std::pair<bool,coeffT> (is_leaf,coeff);
             }
 

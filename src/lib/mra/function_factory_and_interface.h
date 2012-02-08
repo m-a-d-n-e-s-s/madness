@@ -36,13 +36,9 @@
 #define MADNESS_MRA_FUNCTION_FACTORY_AND_INTERFACE_H__INCLUDED
 
 #include <tensor/tensor.h>
-#include <mra/convolution1d.h>
-#include <mra/key.h>
-#include <mra/funcdefaults.h>
-#include "mra/electron_repulsion.h"
-//#include "mra/sepreptensor.h"
 #include "tensor/gentensor.h"
-#include "world/print.h"
+#include <mra/key.h>
+#include "mra/electron_repulsion.h"
 
 
 /// Holds machinery to set up Functions/FuncImpls using various Factories and Interfaces
@@ -50,7 +46,6 @@
 /// We provide an abstract base class FunctionFunctorInterface, of which we derive
 /// (as of now) the following classes:
 ///  - ElementaryInterface (formerly FunctorInterfaceWrapper) to wrap elementary functions
-///  - FunctionInterface to wrap a FuncImpl (TBD)
 ///  - ElectronRepulsionInterface to provide 1/r12, which is not elementarily accessible
 ///  - CompositeFunctionInterface to provide on-demand coefficients of pair functions
 ///
@@ -61,13 +56,10 @@
 namespace madness {
 
 	template<typename T, std::size_t NDIM>
-	class FunctionImpl;
+	class Function;
 
 	template<typename T, std::size_t NDIM>
-	class FunctionNode;
-
-    template<typename T, std::size_t NDIM>
-    class FunctionCommonData;
+	class FunctionImpl;
 
     template<typename T, std::size_t NDIM>
     class FunctionFactory;
@@ -149,16 +141,7 @@ namespace madness {
 	template<typename T, std::size_t NDIM, std::size_t MDIM>
 	class CompositeFunctorInterface : public FunctionFunctorInterface<T,NDIM> {
 
-	public:
-		typedef FunctionNode<T,NDIM> nodeT;
-		typedef GenTensor<T> coeffT;
-		typedef Tensor<T> tensorT;
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-		typedef Key<NDIM> keyN;
-		typedef Key<MDIM> keyM;
-		typedef WorldContainer<keyN,nodeT> dcT; ///< Type of container holding the coefficients
-
-	private:
 
 		World& world;
 
@@ -173,15 +156,6 @@ namespace madness {
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p1;	///< supposedly orbital 1
 		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p2;	///< supposedly orbital 2
 
-		/// muster tree for the result
-		std::shared_ptr< FunctionImpl<T,NDIM> > muster_impl;
-
-		/// common data
-		const FunctionCommonData<T,NDIM>& cdataN;
-		const FunctionCommonData<T,MDIM>& cdataM;
-
-		static const int nk=2;
-
 	public:
 
 		/// constructor takes its Factory
@@ -193,27 +167,11 @@ namespace madness {
 			, impl_m2(factory._v2)
 			, impl_p1(factory._particle1)
 			, impl_p2(factory._particle2)
-//			, this_impl()
-			, muster_impl(factory._tree)
-//			, this_impl(new FunctionImpl<T,NDIM>(static_cast<const FunctionFactory<T,NDIM>& > (factory)))
-			, cdataN(FunctionCommonData<T,NDIM>::get(factory.get_k()))
-			, cdataM(FunctionCommonData<T,MDIM>::get(factory.get_k()))
 		{
 
-
 			// some consistency checks
-
 			// either a pair ket is provided, or two particles (tba)
 			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
-
-			// initialize this_impl; need to remove the functor to avoid an infinite loop
-//			FunctionFactory<T,NDIM> this_factory(static_cast<const FunctionFactory<T,NDIM>& > (factory));
-//			this_impl=std::shared_ptr< FunctionImpl<T,NDIM> >(new FunctionImpl<T,NDIM>(this_factory.no_functor()));
-
-
-			// initialize auxiliary function of polynomial order 2k to call its member functions
-//			impl_nk=std::shared_ptr< FunctionImpl<T,NDIM> >
-//						(new FunctionImpl<T,NDIM>(this_factory.no_functor().k(nk*this_impl->get_k())));
 
 			// prepare base functions that make this function
 			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
@@ -239,16 +197,6 @@ namespace madness {
 
 		bool provides_coeff() const {
 			return false;
-		}
-
-		coeffT eri_values(const Key<NDIM>& key) const {
-		    return impl_eri->coeffs2values(key,impl_eri->get_functor()->coeff(key));
-		}
-
-
-		/// return the muster tree
-		std::shared_ptr< FunctionImpl<T,NDIM> > get_muster() const {
-			return muster_impl;
 		}
 
 	};
@@ -579,7 +527,6 @@ namespace madness {
     	std::shared_ptr<FunctionImpl<T,MDIM> > _v2; 		///< supposedly a potential for particle 2
     	std::shared_ptr<FunctionImpl<T,MDIM> > _particle1; 	///< supposedly particle 1
     	std::shared_ptr<FunctionImpl<T,MDIM> > _particle2; 	///< supposedly particle 2
-    	std::shared_ptr<FunctionImpl<T,NDIM> > _tree;	 	///< future tree structure
 
     private:
     	std::shared_ptr<CompositeFunctorInterface<T, NDIM, MDIM> > _func;
@@ -587,6 +534,7 @@ namespace madness {
     	friend class CompositeFunctorInterface<T, NDIM, MDIM>;
 
     public:
+
     	CompositeFactory(World& world)
     		: FunctionFactory<T,NDIM>(world)
     		, _ket()
@@ -595,62 +543,54 @@ namespace madness {
     		, _v2()
     		, _particle1()
 			, _particle2()
-			, _tree()
 			, _func() {
 
     		// there are certain defaults that make only sense here
     		this->_is_on_demand=true;
     	}
 
-
     	/// provide directly the NDIM (6D) pair function ket
         CompositeFactory&
-        ket(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
-        	_ket = f;
+//        ket(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
+        ket(const Function<T, NDIM>& f) {
+        	_ket = f.get_impl();
         	return *this;
         }
 
         /// g12 is the interaction potential (6D)
         CompositeFactory&
-        g12(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
-        	_g12 = f;
+        g12(const Function<T, NDIM>& f) {
+        	_g12 = f.get_impl();
         	return *this;
         }
 
         /// a one-particle potential, acting on particle 1
         CompositeFactory&
-        V_for_particle1(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	_v1 = f;
+        V_for_particle1(const Function<T, MDIM>& f) {
+        	_v1 = f.get_impl();
         	return *this;
         }
 
         /// a one-particle potential, acting on particle 2
         CompositeFactory&
-        V_for_particle2(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	_v2 = f;
+        V_for_particle2(const Function<T, MDIM>& f) {
+        	_v2 = f.get_impl();
         	return *this;
         }
 
         /// provide particle 1, used with particle 2 to set up a pair function by
         /// direct product
         CompositeFactory&
-        particle1(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	_particle1 = f;
+        particle1(const Function<T, MDIM>& f) {
+        	_particle1 = f.get_impl();
         	return *this;
         }
 
         /// provide particle 2, used with particle 1 to set up a pair function by
         /// direct product
         CompositeFactory&
-        particle2(const std::shared_ptr<FunctionImpl<T, MDIM> >& f) {
-        	_particle2 = f;
-        	return *this;
-        }
-
-        /// provide a function as tree structure
-        CompositeFactory&
-        muster(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
-        	_tree=f;
+        particle2(const Function<T, MDIM>& f) {
+        	_particle2 = f.get_impl();
         	return *this;
         }
 
@@ -676,8 +616,6 @@ namespace madness {
     		return this->_func;
     	}
 
-
-
     };
 
 
@@ -693,7 +631,6 @@ namespace madness {
     	/// cutoff radius for 1/r12, aka regularization
     	double _dcut;
         BoundaryConditions<NDIM> _bc;
-//        int _k;
 
     public:
     	ERIFactory(World& world)
@@ -717,12 +654,6 @@ namespace madness {
 			this->_dcut = dcut;
 			return *this;
 		}
-
-//    	ERIFactory&
-//		k(double k) {
-//			this->_k = k;
-//			return *this;
-//		}
 
     	// access to the functor *only* via this
     	std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {

@@ -33,7 +33,6 @@
 #ifndef MADNESS_MRA_IBDEUX_H__INCLUDED
 #define MADNESS_MRA_IBDEUX_H__INCLUDED
 
-#include <mra/mra.h>
 #include <madness_config.h>
 #include <map>
 #include <queue>

@@ -74,6 +74,7 @@ namespace madness {
 #include <world/worlddc.h>
 #include <mra/funcdefaults.h>
 #include <mra/derivative.h>
+#include <mra/function_factory_and_interface.h>
 #include <mra/lbdeux.h>
 
 // some forward declarations
@@ -108,6 +109,9 @@ namespace madness {
 
     template<typename T, std::size_t NDIM, typename opT>
     struct op_leaf_op;
+
+    template<typename T, std::size_t NDIM>
+    struct error_leaf_op;
 
     template<typename T, std::size_t NDIM>
     struct noop;
@@ -151,7 +155,7 @@ namespace madness {
         typedef FunctionImpl<T,NDIM> implT;
         typedef FunctionNode<T,NDIM> nodeT;
         typedef FunctionFactory<T,NDIM> factoryT;
-        typedef typename implT::coordT coordT; ///< Type of vector holding coordinates
+        typedef Vector<double,NDIM> coordT; ///< Type of vector holding coordinates
 
         /// Asserts that the function is initialized
         inline void verify() const {
@@ -1883,10 +1887,10 @@ namespace madness {
         op.timer_low_transf.reset();
         op.timer_low_accumulate.reset();
 
-        result.get_impl()->apply_source_driven(op, *f.get_impl(), op.get_bc().is_periodic(), fence);
-
+        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
 
         if ((NDIM==6) and (f.world().rank()==0)) {
+
             result.get_impl()->timer_accumulate.print("accumulate");
             result.get_impl()->timer_target_driven.print("total target_driven");
 
@@ -1894,6 +1898,8 @@ namespace madness {
             op.timer_low_transf.print("op low rank transform");
             op.timer_low_accumulate.print("op low rank addition ");
         }
+		result.get_impl()->finalize_apply(fence);	// implicitly fences
+
         return result;
     }
 
@@ -2235,5 +2241,6 @@ namespace madness {
 #include <mra/operator.h>
 #include <mra/functypedefs.h>
 #include <mra/vmra.h>
+#include <mra/mraimpl.h>
 
 #endif // MADNESS_MRA_MRA_H__INCLUDED

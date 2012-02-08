@@ -38,6 +38,8 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/funcimpl.h>
+#include <mra/loadbal.h>
 #include <mra/function_common_data.h>
 #include <world/worldhashmap.h>
 #include <math.h>

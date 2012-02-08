@@ -640,10 +640,10 @@ void compute_energy(World& world, const real_function_6d& pair,
 
 
 		real_function_6d v11=CompositeFactory<double,6,3>(world)
-				.ket(copy(pair).get_impl())
-				.g12(eri.get_impl())
-				.V_for_particle1(copy(pot1).get_impl())
-				.V_for_particle2(copy(pot2).get_impl())
+				.ket(copy(pair))
+				.g12(eri)
+				.V_for_particle1(copy(pot1))
+				.V_for_particle2(copy(pot2))
 				;
 
 		// make the tree (optional!)
@@ -692,11 +692,10 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 		real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
 
 		real_function_6d vphi=CompositeFactory<double,6,3>(world)
-							.ket(copy(pair).get_impl())
-							.g12(eri.get_impl())
-							.V_for_particle1(copy(pot1).get_impl())
-							.V_for_particle2(copy(pot2).get_impl())
-							.muster(copy(pair).get_impl())
+							.ket(copy(pair))
+							.g12(eri)
+							.V_for_particle1(copy(pot1))
+							.V_for_particle2(copy(pot2))
 							;
 //		vphi.get_impl()->make_Vphi();
 		MADNESS_EXCEPTION("fix solve in helium_mp2",1);
@@ -877,9 +876,8 @@ void test_recursive_application(World& world) {
             real_function_3d two_phi=orbital.scale(-2.0);
 
             real_function_3d phi2=CompositeFactory<double,3,3>(world)
-                                .ket(copy(two_phi).get_impl())
-                                .V_for_particle1(copy(pot1).get_impl())
-                                .muster(copy(two_phi).get_impl())
+                                .ket(copy(two_phi))
+                                .V_for_particle1(copy(pot1))
                                 ;
             {
                 real_convolution_3d op = BSHOperator<3>(world, sqrt(-2*eps), 0.00001, 1e-6);
@@ -978,11 +976,10 @@ void test_adaptive_tree(World& world, const bool restart, const std::string rest
         real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
 
         real_function_6d vphi=CompositeFactory<double,6,3>(world)
-                                            .ket(copy(pair).get_impl())
-                                            .g12(eri.get_impl())
-                                            .V_for_particle1(copy(pot1).get_impl())
-                                            .V_for_particle2(copy(pot2).get_impl())
-                                            .muster(copy(pair).get_impl())
+                                            .ket(copy(pair))
+                                            .g12(eri)
+                                            .V_for_particle1(copy(pot1))
+                                            .V_for_particle2(copy(pot2))
                                             ;
 
         // make the tree
@@ -1074,11 +1071,10 @@ void test_compress(World& world) {
     {
         a3=copy(pair);
         real_function_6d vphi=CompositeFactory<double,6,3>(world)
-                                            .ket(copy(a3).get_impl())
+                                            .ket(copy(a3))
 //                                            .g12(eri.get_impl())
-                                            .V_for_particle1(copy(pot1).get_impl())
-                                            .V_for_particle2(copy(pot1).get_impl())
-                                            .muster(copy(a3).get_impl())
+                                            .V_for_particle1(copy(pot1))
+                                            .V_for_particle2(copy(pot1))
                                             ;
 
         // make the tree
