@@ -119,10 +119,6 @@ namespace madness {
 		/// how will this be represented
 		TensorType tensortype_;
 
-		/// stupid legacy dummy @#$
-        std::vector<tensorT> subspace_vec_;
-        bool updating_;
-
 		
 	public:
 
@@ -320,16 +316,12 @@ namespace madness {
 		}
 
 		/// dtor
-		virtual ~SRConf() {
-			vector_.clear();
-			weights_.clear();
-			s_.clear();
-		}
+		~SRConf() {}
 
         template <typename Archive>
         void serialize(Archive& ar) {
               	int i=int(tensortype_);
-              	ar & dim_ & weights_ & vector_ & subspace_vec_ & rank_ & maxk_ & i & updating_;
+              	ar & dim_ & weights_ & vector_ & rank_ & maxk_ & i;
               	tensortype_=TensorType(i);
               	make_slices();
                 MADNESS_ASSERT(has_structure());
@@ -537,7 +529,6 @@ namespace madness {
 			if (lhs.has_no_data()) lhs.make_structure(true);
 			MADNESS_ASSERT(lhs.has_structure() or (lhs.has_no_data()));
 			MADNESS_ASSERT(rhs.has_structure());
-//			MADNESS_ASSERT(not updating_ or rhs2.updating_);
 
 			// conflicts with lhs_s ??
 			MADNESS_ASSERT(alpha==1.0);
@@ -600,8 +591,6 @@ namespace madness {
 
 			// if rhs is non-existent simply construct a new SRConf
 			if (rhs.has_no_data()) return SRConf<T>(rhs.dim(),rhs.get_k(),rhs.type());
-
-//			MADNESS_ASSERT(not rhs.updating_);
 
 			if (rhs.type()==TT_FULL) return SRConf<T>(copy(rhs.ref_vector(0)));
 
@@ -758,15 +747,21 @@ namespace madness {
 	        	// loop over all dimensions
 	        	for (unsigned int idim=0; idim<dim_eff(); idim++) {
 
-	        		Tensor<T> config=this->ref_vector(idim)(s);
+//	        		Tensor<T> config=this->ref_vector(idim)(s);
+//	        		const double norm=config.normf();
+//	        		const double fac=norm;
+//	        		double oofac=1.0/fac;
+//	        		if (fac<1.e-13) oofac=0.0;
+//	        		weights_(r)*=fac;
+//	        		config.scale(oofac);
 
-	        		const double norm=config.normf();
+	        		const double norm=this->ref_vector(idim)(s).normf();
 	        		const double fac=norm;
 	        		double oofac=1.0/fac;
 	        		if (fac<1.e-13) oofac=0.0;
-
 	        		weights_(r)*=fac;
-	        		config.scale(oofac);
+	        		this->ref_vector(idim)(s).scale(oofac);
+
 	        	}
 	        }
             MADNESS_ASSERT(has_structure());
@@ -836,12 +831,11 @@ namespace madness {
 		size_t real_size() const {
 			size_t n=0;
 			for (size_t i=0; i<vector_.size(); ++i) {
-				n+=vector_[i].size()*sizeof(T);
+				n+=vector_[i].size()*sizeof(T) + sizeof(tensorT);
 			}
-			n+=weights_.size()*sizeof(double);
+			n+=weights_.size()*sizeof(double) + sizeof(Tensor<double>);
 			n+=sizeof(*this);
 			n+=s_.size()*sizeof(Slice);
-			MADNESS_ASSERT(subspace_vec_.size()==0);
 			return n;
 		}
 

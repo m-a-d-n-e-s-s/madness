@@ -179,6 +179,7 @@ namespace madness {
         bool has_no_data() const {return not has_data();};
 		long rank() const {return -1;}
 		double svd_normf() const {return this->normf();}
+		size_t real_size() const {return this->size();}
 
         void reduceRank(const double& eps) {return;};
         void right_orthonormalize(const double& eps) {return;};
@@ -204,6 +205,24 @@ namespace madness {
 		static double fac_reduce() {return -1.0;};
 
 	};
+
+
+    /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+
+    /// \ingroup tensor
+    template <class T>
+    GenTensor<T> outer(const GenTensor<T>& left, const GenTensor<T>& right) {
+        return madness::outer(static_cast<Tensor<T> >(left),static_cast<Tensor<T> >(right));
+    }
+
+    /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
+
+     /// \ingroup tensor
+     template <class T>
+     GenTensor<T> outer_low_rank(const Tensor<T>& left, const Tensor<T>& right) {
+         return madness::outer(left,right);
+     }
+
 
 	namespace archive {
 	/// Serialize a tensor
@@ -1626,6 +1645,39 @@ namespace madness {
 		};
     };
 
+    /// outer product of two Tensors, yielding a low rank tensor
+     template <class T, class Q>
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
+     	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
+     }
+
+     /// outer product of two Tensors, yielding a low rank tensor
+     template <class T, class Q>
+     GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
+
+     	typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+
+     	// srconf is shallow, do deep copy here
+     	const Tensor<T> lhs=copy(lhs2);
+     	const Tensor<Q> rhs=copy(rhs2);
+
+     	const long k=lhs.dim(0);
+     	const long dim=lhs.ndim()+rhs.ndim();
+     	long size=1;
+     	for (int i=0; i<lhs.ndim(); ++i) size*=k;
+     	MADNESS_ASSERT(size==lhs.size());
+     	MADNESS_ASSERT(size==rhs.size());
+     	MADNESS_ASSERT(lhs.size()==rhs.size());
+
+ 		Tensor<double> weights(1);
+ 		weights=1.0;
+
+ 		SRConf<resultT> srconf(weights,lhs.reshape(1,lhs.size()),rhs.reshape(1,rhs.size()),dim,k);
+ 		GenTensor<resultT> coeff(srconf);
+ 		coeff.normalize();
+ 		return coeff;
+     }
+
     #endif /* HAVE_GENTENSOR */
 
     /// change representation to targ.tt
@@ -1672,38 +1724,7 @@ namespace madness {
         return t.general_transform(c);
     }
 
-    /// outer product of two Tensors, yielding a low rank tensor
-    template <class T, class Q>
-    GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer(const GenTensor<T>& lhs2, const GenTensor<Q>& rhs2) {
-    	return outer_low_rank(lhs2.full_tensor(),rhs2.full_tensor());
-    }
 
-    /// outer product of two Tensors, yielding a low rank tensor
-    template <class T, class Q>
-    GenTensor<TENSOR_RESULT_TYPE(T,Q)> outer_low_rank(const Tensor<T>& lhs2, const Tensor<Q>& rhs2) {
-
-    	typedef TENSOR_RESULT_TYPE(T,Q) resultT;
-
-    	// srconf is shallow, do deep copy here
-    	const Tensor<T> lhs=copy(lhs2);
-    	const Tensor<Q> rhs=copy(rhs2);
-
-    	const long k=lhs.dim(0);
-    	const long dim=lhs.ndim()+rhs.ndim();
-    	long size=1;
-    	for (int i=0; i<lhs.ndim(); ++i) size*=k;
-    	MADNESS_ASSERT(size==lhs.size());
-    	MADNESS_ASSERT(size==rhs.size());
-    	MADNESS_ASSERT(lhs.size()==rhs.size());
-
-		Tensor<double> weights(1);
-		weights=1.0;
-
-		SRConf<resultT> srconf(weights,lhs.reshape(1,lhs.size()),rhs.reshape(1,rhs.size()),dim,k);
-		GenTensor<resultT> coeff(srconf);
-		coeff.normalize();
-		return coeff;
-    }
 
 
 }
