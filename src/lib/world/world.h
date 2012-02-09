@@ -369,10 +369,10 @@ typedef UINT64_T uint64_t;
 
 #define HAVE_GPU 0
 #define BACKTO_CPU 0
-#define SIM_GPU 1
-#define JUST_AGG 1
-#define THREE_SPLIT 1
-#define COMPRESS_CPS 0
+#define SIM_GPU 0
+#define JUST_AGG 0
+#define THREE_SPLIT 0
+#define COMPRESS_CPS 1
 #define MAX_AGG 98
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 20

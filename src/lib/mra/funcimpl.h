@@ -653,8 +653,8 @@ namespace madness {
            const double *pc=c->ptr();
            resultT *t0=workspace->ptr(), *t1=result->ptr();
            if (t.ndim()&1) {
-             t0 = result->ptr();
-             t1 = workspace->ptr();
+             ////t0 = result->ptr();
+             ////t1 = workspace->ptr();
            }
 
            long dimj = c->dim(1);
@@ -662,7 +662,7 @@ namespace madness {
            for (int n=1; n<t.ndim(); ++n) dimi *= dimj;
            //long nij = dimi*dimj;
 
-           std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,resultT*,resultT*,tensorT*,tensorT*,const double*> tu1(d,k1,key,ct,nonstandard1,parent1,dc,dimi,dimj,c,t0,t1,result,workspace,pc);
+           std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,resultT*,resultT*,tensorT*,tensorT*,const double*> tu1(d,k1,key,ct,nonstandard1,parent/*1*/,dc,dimi,dimj,c,t0,t1,result,workspace,pc);
 
            return tu1;
         //return fast_transform(d,cdata.hgT,r,w);
@@ -1468,7 +1468,7 @@ STARTt_TIMER;
 	   }
 
             //synchronize streams
-            streams_synchronize(GPU_streams,NUM_STREAMS);
+            device_synchronize(GPU_streams,NUM_STREAMS);
 ENDt_TIMER("sTREAMS");
 
 STARTt_TIMER;
@@ -1884,7 +1884,7 @@ ENDt_TIMER("memcpy3");
         Void compressop_postprocessGPU(std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> in){
           //  std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT> in = in1.get();
           tensorT* result = std::tr1::get<0>(in);
-          tensorT d(*result); delete result;
+          tensorT d = copy(*result); delete result;
           int k = std::tr1::get<1>(in);
           FunctionCommonData<T, NDIM> cdata = FunctionCommonData<T, NDIM>::get(k);
           keyT key = std::tr1::get<2>(in); 
@@ -3760,11 +3760,11 @@ ENDt_TIMER("memcpy3");
             //world.gop.fence();
             nonstandard = compressed = false;
             if (world.rank() == coeffs.owner(cdata.key0)){
-                //world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
+                world.taskq.add(*this, &implT::reconstruct_op, cdata.key0,tensorT());
                 //world.taskq.add(*this, &implT::reconstruct_update, cdata.key0,tensorT());
                 //print("rec_dc");
                 //coeffs.update(cdata.key0, &FunctionNode<T,NDIM>::reconstruct_dc_task, tensorT(), cdata.k);
-                world.taskq.add(*this,&FunctionImpl<T,NDIM>::reconstruct_dc_tasknoupdate, cdata.key0, coeffs, tensorT());
+                //world.taskq.add(*this,&FunctionImpl<T,NDIM>::reconstruct_dc_tasknoupdate, cdata.key0, coeffs, tensorT());
             }
                 //reconstruct_update(cdata.key0,tensorT());
             if (fence)
@@ -3902,6 +3902,7 @@ ENDt_TIMER("memcpy3");
             }
             if (fence)
                 world.gop.fence();
+            //print_tree();
         }
 
         // Invoked on node where key is local
@@ -4437,7 +4438,7 @@ ENDt_TIMER("memcpy3");
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
                             #if APPLY_GPU > 0
-                            if (upto < 0){
+                            if (0){
                             woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
                             }
                             else{

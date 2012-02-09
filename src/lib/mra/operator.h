@@ -5872,7 +5872,7 @@ STARTt_TIMER;
                         memcpy(r2_buffer + i*rank*NDIM + temp, &trans2[i][mu][d].r, sizeof(long));
                         //print("CPUr_buffer[",mu,d,"] = ",trans[i][mu][d].r);
                         //print("CPUr2_buffer[",mu,d,"] = ",trans2[i][mu][d].r);
-                        if (condition[i][mu] || doit2[mu] || doit1[mu]){
+                        //if (condition[i][mu] || doit2[mu] || doit1[mu]){
 		            if (trans[i][mu][d].VT == 0){
                                 //MADNESS_ASSERT(trans[i][mu][d].r == twok);
 			        trans[i][mu][d].U = GPUab1->R + temp*twoksq;
@@ -5894,7 +5894,7 @@ STARTt_TIMER;
 		            }
 
 		            temp++;
-                        }
+                        //}
 		     }
 	         }
  
@@ -5944,7 +5944,7 @@ STARTt_TIMER;
             GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
 conds = 0;
 
-if (NDIM == 3 && k == 11){
+if (NDIM == 3 && k == 10){
 /*************************************** DUPLICATE WORK FOR FLOPS COUNT ***********************/
               
 STARTt_TIMER;
