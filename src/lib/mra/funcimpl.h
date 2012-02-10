@@ -749,7 +749,13 @@ namespace madness {
 
         /// ctor takes funcimpl, which might be a null pointer, and finds the head node
         impl_and_arg(const implT* impl) : impl(impl) {
-        	if (impl) datum=impl->find_datum(impl->key0());
+        	if (impl) {
+//        		datum=impl->find_datum(impl->key0());
+                // have to wait for this, but should be local..
+        		ProcessID owner=impl->get_coeffs().owner(impl->key0());
+                Future<datumT> dat1=impl->task(owner, &implT::find_datum,impl->key0(),TaskAttributes::hipri());
+                datum=dat1.get();
+        	}
         }
 
         impl_and_arg(const implT* impl, const datumT& datum)
