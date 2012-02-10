@@ -43,6 +43,9 @@
 #ifdef __cplusplus
 
 template <typename aT, typename bT, typename cT>
+    void cu_mTxmq_integrallop(long dimi, long dimj, long dimk,
+               cT* /*restrict*/ c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, int8_t *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU);
+template <typename aT, typename bT, typename cT>
     void cu_mTxmq(long dimi, long dimj, long dimk,
                cT* restrict c,const  aT* a, const bT* b, void *GPU_stream,int ndim,long tsize);
 template <typename aT, typename bT, typename cT>

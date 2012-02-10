@@ -5791,6 +5791,12 @@ STARTt_TIMER;
 
             unsigned int apply_init_offset = apply_prev_offset;
 
+            int8_t* big_doit2;
+            int8_t* big_doit1;
+            Q* big_mufacs;
+            alloc_host(&big_doit2, inArgs.size()*rank);
+            alloc_host(&big_doit1, inArgs.size()*rank);
+            alloc_host(&big_mufacs, inArgs.size()*rank);
             GPUApplyBuffer<Q,NDIM> GPUab;
             unsigned int newSVD = 0;
             GPUApplyBuffer<Q,NDIM>* GPUab1;
@@ -5911,6 +5917,8 @@ STARTt_TIMER;
 	        unsigned int temp = 0;
 	        unsigned int temp2 = 0;
 	        for (int mu = 0; mu < rank; mu++){
+			big_doit1[i*rank+mu]=0;
+			big_doit2[i*rank+mu]=0;
 		    for (int d = 0; d < NDIM; d++){
 			
                         memcpy(r_buffer + i*rank*NDIM + temp, &trans[i][mu][d].r, sizeof(long));
@@ -5923,6 +5931,7 @@ STARTt_TIMER;
 			        trans[i][mu][d].U = GPUab1->R + temp*twoksq;
 		            }
 		            else{
+				big_doit2[i*rank+mu]=big_doit2[i*rank+mu] | (1<<d);
                                 //MADNESS_ASSERT(trans[i][mu][d].r < twok);
 			        trans[i][mu][d].U = GPUab1->RU + temp*twoksq;  
 			        trans[i][mu][d].VT = GPUab1->RVT + temp*twoksq;
@@ -5933,6 +5942,7 @@ STARTt_TIMER;
 			        trans2[i][mu][d].U = GPUab1->T + temp*ksq;
 		            }
 		            else{
+				big_doit1[i*rank+mu]=big_doit1[i*rank+mu] | (1<<d);
                                 //MADNESS_ASSERT(trans2[i][mu][d].r < k);
 			        trans2[i][mu][d].U = GPUab1->TU + temp*ksq;  
 			        trans2[i][mu][d].VT = GPUab1->TVT + temp*ksq;
@@ -5962,26 +5972,20 @@ STARTt_TIMER;
                         MADNESS_ASSERT(apply_prev_offset  < apply_buffer_maxsize);
             if (apply_prev_offset > apply_init_offset)
                 GPUtransfer_buffernoalloc(GPUapply_buffer + apply_init_offset, apply_buffer, apply_prev_offset - apply_init_offset);
-            if (transfer_new > 0)
-                GPUtransfer_buffernoalloc(GPUsecond_buffer, second_buffer, transfer_new*rank*NDIM*(3*twoksq + 3*ksq));
+            if (transfer_new > 0){print("size= ",transfer_new*rank*NDIM*(3*twoksq + 3*ksq));
+                GPUtransfer_buffernoalloc(GPUsecond_buffer, second_buffer, transfer_new*rank*NDIM*(3*twoksq + 3*ksq));}
             ENDt_TIMER("apply buffer transfer");
 
             STARTt_TIMER;
             MADNESS_ASSERT(sizeof(Q) == sizeof(R));
-            bool* big_doit2;
-            bool* big_doit1;
-            Q* big_mufacs;
-            alloc_host(&big_doit2, inArgs.size()*rank);
-            alloc_host(&big_doit1, inArgs.size()*rank);
-            alloc_host(&big_mufacs, inArgs.size()*rank);
             for (i = 0; i < inArgs.size(); i++){
-                memcpy(big_doit2 + i*rank, doit2[i], rank*sizeof(bool));
-                memcpy(big_doit1 + i*rank, doit1[i], rank*sizeof(bool));
+//                memcpy(big_doit2 + i*rank, doit2[i], rank*sizeof(bool));
+  //              memcpy(big_doit1 + i*rank, doit1[i], rank*sizeof(bool));
                 memcpy(big_mufacs + i*rank, mufacs[i], rank*sizeof(Q));
             }
 
-            bool* doit1_GPU=GPUtransfer_buffer(big_doit1,inArgs.size()*rank,true);
-            bool* doit2_GPU=GPUtransfer_buffer(big_doit2,inArgs.size()*rank,true);
+            int8_t* doit1_GPU=GPUtransfer_buffer(big_doit1,inArgs.size()*rank,true);
+            int8_t* doit2_GPU=GPUtransfer_buffer(big_doit2,inArgs.size()*rank,true);
             
 	    Q* mufacs_GPU=GPUtransfer_buffer(big_mufacs,inArgs.size()*rank,true);
 
@@ -6001,14 +6005,15 @@ STARTt_TIMER;
  
 		    const Q *U,*RU,*VT;
 		    Q *mufac_GPU;
-		    bool *doitt_GPU;
+		    int8_t *doitt_GPU;
 		    U = GPUab_array[i]->R;
 		    RU = GPUab_array[i]->RU;
 		    VT= GPUab_array[i]->RVT;
 		    mufac_GPU= mufacs_GPU+i*rank ;
 		    doitt_GPU = doit2_GPU+i*rank ;
 		    long * trans2r = rank_buf[i];
-		    cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
+		    //cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),(bool*)doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
+		    cu_mTxmq_integrallop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%5],i%5,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
               }
          device_synchronize(GPU_streams,NUM_STREAMS);
 
@@ -6024,7 +6029,7 @@ STARTt_TIMER;
 			    
 			    const Q *U,*VT,*TU;
 			    Q *mufac_GPU;
-			    bool *doitt_GPU;
+			    int8_t *doitt_GPU;
 			    U = GPUab_array[i]->T;
 			    VT = GPUab_array[i]->TVT;
                             TU = GPUab_array[i]->TU;
@@ -6032,7 +6037,8 @@ STARTt_TIMER;
 			    doitt_GPU = doit1_GPU+i*rank;
 			    long * transr = rank2_buf[i];
                             ////GPU
-			    cu_mTxmq_integralop(dimi2,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
+			    //cu_mTxmq_integralop(dimi2,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),(bool*)doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
+			    cu_mTxmq_integrallop(dimi2,dimk, dimk, w1ptr2[i], f0ptr[i], const_cast<Q*>(U),GPU_streams[i%NUM_STREAMS],dimk,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,result0ptr[i], rank, transr, const_cast<Q*>(TU));
 		 }
                }
 		device_synchronize(GPU_streams,NUM_STREAMS);

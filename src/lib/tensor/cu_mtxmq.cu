@@ -692,6 +692,7 @@ template std::complex<float>* GPUtransfer_buffer(std::complex<float>* CPU_buf, u
 template long* GPUtransfer_buffer(long* CPU_buf, unsigned int offset, bool copy);
 template bool* GPUtransfer_buffer(bool* CPU_buf, unsigned int offset, bool copy);
 template char* GPUtransfer_buffer(char* CPU_buf, unsigned int offset, bool copy);
+template int8_t* GPUtransfer_buffer(int8_t* CPU_buf, unsigned int offset, bool copy);
 
 template <typename T>
 T* alloc_host(T** CPU_buf, unsigned int size){
@@ -708,6 +709,7 @@ template float* alloc_host(float** CPU_buf, unsigned int size);
 template std::complex<float>* alloc_host(std::complex<float>** CPU_buf, unsigned int size);
 template long* alloc_host(long** CPU_buf, unsigned int size);
 template bool* alloc_host(bool** CPU_buf, unsigned int size);
+template int8_t* alloc_host(int8_t** CPU_buf, unsigned int size);
 template char* alloc_host(char** CPU_buf, unsigned int size);
 
 
@@ -725,6 +727,7 @@ template std::complex<double>* GPUtransfer_buffernoalloc(std::complex<double>* G
 template float* GPUtransfer_buffernoalloc(float* GPU_buf, float* CPU_buf, unsigned int offset);
 template std::complex<float>* GPUtransfer_buffernoalloc(std::complex<float>* GPU_buf, std::complex<float>* CPU_buf, unsigned int offset);
 template long* GPUtransfer_buffernoalloc(long* GPU_buf, long* CPU_buf, unsigned int offset);
+template int8_t* GPUtransfer_buffernoalloc(int8_t* GPU_buf, int8_t* CPU_buf, unsigned int offset);
 
 
 template <typename T>
@@ -749,6 +752,7 @@ template   void GPUdelete_buffer(std::complex<float>* buf);
 template   void GPUdelete_buffer(long* buf);
 template   void GPUdelete_buffer(bool* buf);
 template   void GPUdelete_buffer(void* buf);
+template   void GPUdelete_buffer(int8_t* buf);
 
 template <typename W>
        void dealloc_host(W* buf){
@@ -761,6 +765,7 @@ template   void dealloc_host(std::complex<float>* buf);
 template   void dealloc_host(long* buf);
 template   void dealloc_host(bool* buf);
 template   void dealloc_host(void* buf);
+template   void dealloc_host(int8_t* buf);
 
 template <typename T>
 T* GPUSimtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
@@ -2152,5 +2157,60 @@ exit(-1);
   	}
 }
 	
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmq_integrallop(long dimi, long dimj, long dimk,
+               cT* /*restrict*/ c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, int8_t *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU)
+{}
+
+  template<>   void cu_mTxmq_integrallop(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,long prev_m,std::complex<double>* b1, int8_t *doit, std::complex<double>* mufac,std::complex<double>* result, int rank, long *transr, std::complex<double> *BU){}
+  template<>   void cu_mTxmq_integrallop(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,long prev_m,double* b1, int8_t *doit,double *mufac, double *result, int rank, long *transr, double *BU ){}
+
+  template<>   void cu_mTxmq_integrallop(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,long prev_m,std::complex<float>* b1, int8_t *doit,  std::complex<float> *mufac,  std::complex<float> *result, int rank, long *transr, std::complex<float> *BU){}
+
+  template<>   void cu_mTxmq_integrallop(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,long prev_m,float* b1, int8_t *doit, float *mufac, float *result, int rank, long *transr, float *BU){}
+  
+  template<>   void cu_mTxmq_integrallop(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,long prev_dimi,double* BVT, int8_t *doit, double *mufac, double *result, int rank, long *transr, double *BU){
+
+
+/*int b =cudaGetLastError();
+if (b !=cudaSuccess){printf("errpr = %d",b);
+exit(-1);
+  	}*/
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+	dim3 threads, grid;
+	/*threads=dim3( BLOCK_SIZE,1,1 );
+	if ((m%BLOCK_SIZE)==0)
+		grid=dim3(m/BLOCK_SIZE,1,1);
+	else
+		grid=dim3(m/BLOCK_SIZE+1,1,1);*/
+//	STARTt_TIMER;
+	switch (k){
+	case 10:
+				threads=dim3( 128,1,1 );
+				grid=dim3(1,1,1);
+				//cu_mtxmq_integral_101<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr);
+				cu_mtxmq_integral_113<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr, BU);
+	break;
+        case 20:
+				//cu_mtxmq_integral_20<<<grid,threads,512*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
+				threads=dim3(160,1,1 );
+				grid=dim3(3,1,1);
+				//cu_mtxmq_integral_201<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank);
+			//	threads=dim3(128,1,1 );
+			//	grid=dim3(2,1,1);
+				cu_mtxmq_integral_204<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
+	break;
+	default:
+				printf("Kernel does not exist for k=%d n=%d",k,n);
+				exit(-1);
+	break;
+	}
+
+/*cudaDeviceSynchronize();
+int  b =cudaGetLastError();
+if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
+exit(-1);
+  }*/
+}
 #endif // MADNESS_TENSOR_CU_MTXMQ_H__INCLUDED
 

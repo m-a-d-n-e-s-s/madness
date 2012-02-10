@@ -4438,7 +4438,7 @@ ENDt_TIMER("memcpy3");
                             ProcessID where = world.rank();
                             do_op_args args(key, d, dest, tol, fac, cnorm);
                             #if APPLY_GPU > 0
-                            if (0){
+                            if (1){
                             woT::task(where, &implT:: template /*do_apply_kernel*/ do_apply_kernel7<opT,R>, op, c, args);
                             }
                             else{
