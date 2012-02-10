@@ -293,7 +293,10 @@ namespace madness {
         /// functor for the local potential (\nabla f)^2
         struct nablaf2_ {
             double gamma;
-            nablaf2_(double gamma) : gamma(gamma) {MADNESS_ASSERT(gamma>0.0);}
+            nablaf2_(double gamma) : gamma(gamma) {
+            	MADNESS_ASSERT(gamma>0.0);
+            	MADNESS_ASSERT(gamma=1.0);	// I don't think this is right
+            }
             double operator()(const coord_6d& r) const {
                 const double rr=r12(r);
                 const double f=exp(-2.0*gamma*rr)/(4.0*gamma*gamma);
@@ -528,14 +531,13 @@ namespace madness {
             double phi0_f2K_phi0;           ///< <phi^0 | f12^2 K | phi^0>
             double phi0_JKf_phi0;           ///< <phi^0 | (J+K) f12 | phi^0>
             double phi0_JKOf_phi0;          ///< <phi^0 | (J+K) (O1 + O2) f12 | phi^0>
-            double phi0_gOf_phi0;           ///< <phi^0 | g12 (O1 + O2) f12 | phi^0>
             double phi0_H1OOf_phi0;         ///< <phi^0 | (g12 - J+K) O1O2 f12 | phi^0>
             double phi0_gQf_phi0;           ///< <phi^0 | g12 Q12 f12 | phi^0>
             bool solved;                    ///< has the residual equation been solved for this pair?
 
             template <typename Archive> void serialize (Archive& ar) {
                 ar & phi0_f_phi0 & phi0_f2_phi0 & phi0_nf_phi0 & phi0_fovr_phi0 & phi0_fKf_phi0 &
-                	phi0_f2K_phi0 & phi0_JKf_phi0 & phi0_JKOf_phi0 & phi0_gOf_phi0 & phi0_H1OOf_phi0 &
+                	phi0_f2K_phi0 & phi0_JKf_phi0 & phi0_JKOf_phi0 & phi0_H1OOf_phi0 &
                 	phi0_gQf_phi0 & solved;
             }
 
@@ -739,7 +741,7 @@ namespace madness {
 
             // the term <phi0 | -J + K | phi0>
             double e1=-inner(pair.phi0,JK1phi0_on_demand(pair.i,pair.j))
-            		  +inner(pair.phi0,JK2phi0_on_demand(pair.i,pair.j));
+            		  -inner(pair.phi0,JK2phi0_on_demand(pair.i,pair.j));
 
             // the term <phi0 | g12 | phi0>
             real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
@@ -756,10 +758,7 @@ namespace madness {
         void solve_residual_equations(const int i, const int j) {
 
             ElectronPair result=guess_mp1(i,j);
-//            compute_second_order_correction_with_Hylleraas(i,j,result);
             compute_V(result);
-            compute_second_order_correction_with_Hylleraas(i,j,result);
-
 
             // the Green's function depends on the zeroth order energy, which is the sum
             // of the orbital energies of orbitals i and j
@@ -816,9 +815,11 @@ namespace madness {
                 save_function(world,latest_increment,name);
 
                 if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+                const double residual_norm=latest_increment.norm2();
+                if (residual_norm<result.function.thresh()*0.01) break;
 	   		}
 	   		
-            compute_second_order_correction_with_Hylleraas(i,j,result);
+            compute_second_order_correction_with_Hylleraas(result);
             result.solved=true;
 
         }
@@ -895,8 +896,6 @@ namespace madness {
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
 
-        /// @param[in]	i	orbital number i
-        /// @param[in]	j	orbital number j
         /// @return 	the matrix element
         double compute_gQf(const ElectronPair& pair) const {
 
@@ -1083,7 +1082,7 @@ namespace madness {
             	pair.load_matrix_elements(world);
             	if (r0) {
             		print("loading matrix elements");
-            		printf("<phi^0 | H^1 Q12 f12    | phi^0>  %12.8f\n",pair.phi0_gOf_phi0);
+            		printf("<phi^0 | H^1 Q12 f12    | phi^0>  %12.8f\n",pair.phi0_gQf_phi0);
             	}
             } else {
 				// some matrix elements
@@ -1122,8 +1121,8 @@ namespace madness {
 				pair.phi0_f2K_phi0+=inner(f2phi,k2);
 				if (r0) printf("<phi^0 | f^2 K          | phi^0>  %12.8f\n",pair.phi0_f2K_phi0);
 
-				pair.phi0_gOf_phi0=compute_gQf(pair);
-				if (r0) printf("<phi^0 | H^1 Q12 f12    | phi^0>  %12.8f\n",pair.phi0_gOf_phi0);
+				pair.phi0_gQf_phi0=compute_gQf(pair);
+				if (r0) printf("<phi^0 | H^1 Q12 f12    | phi^0>  %12.8f\n",pair.phi0_gQf_phi0);
 
 				pair.save_matrix_elements(world);
             }
@@ -1144,6 +1143,10 @@ namespace madness {
 
             ElectronPair pair=make_pair(i,j);
 
+            pair.Uphi0=make_Uphi0(i,j);
+			pair.KffKphi0=make_KffKphi0(pair);
+
+
             // fast return if possible
             if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
 
@@ -1154,8 +1157,6 @@ namespace madness {
 
 			if (world.rank()==0) print("including the O1/O2 terms in make_pair");
 
-			pair.Uphi0=make_Uphi0(i,j);
-			pair.KffKphi0=make_KffKphi0(pair);
 
 			// make the terms with high ranks and smallish trees
 			real_function_6d Vpair1=(pair.Uphi0-pair.KffKphi0).truncate().reduce_rank();
@@ -1198,73 +1199,11 @@ namespace madness {
             return pair;
         }
 
-
-        /// compute the first iteration of the residual equations and all intermediates
-        ElectronPair guess_mp1_1(const int i, const int j) const {
-
-            // the Green's function
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
-
-            ElectronPair pair=make_pair(i,j);
-
-            // fast return if possible
-            if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
-
-            // get the term (J - K)|phi^0>
-            pair.JKphi0=make_JKphi0(i,j);
-            const real_function_6d JKpair=pair.JKphi0;
-
-            // apply Kutzelnigg's regularized potential U_12
-            pair.Uphi0=make_Uphi0(i,j);
-            const real_function_6d Upair=pair.Uphi0;
-
-            // make the term -E^1|phi^0>
-            const double e1=pair.first_order_correction;
-            const real_function_6d epair=e1*pair.phi0;
-
-            // make the term [K,f]|phi^0>
-            pair.KffKphi0=make_KffKphi0(pair);
-            const real_function_6d K_comm=pair.KffKphi0;
-
-            real_function_6d Vpair;
-            // make all terms
-            bool include_O1O2=true;
-            if (include_O1O2) {
-
-                // make the terms with the single projectors: (O1 + O2)(-1/r12 + U -K) |phi^0>
-                const real_function_6d OO1=(OUKphi0(pair) - Og12phi0(i,j)).truncate().reduce_rank();
-                const real_function_6d OO2=compute_O1O2(pair);
-
-                if (world.rank()==0) print("including the O1/O2 terms in make_pair");
-                Vpair=(Upair-JKpair-K_comm-epair-OO1+OO2).truncate();
-            } else {
-                MADNESS_ASSERT(is_helium);  // missing O1O2 term
-                if (world.rank()==0) print("leaving the O1/O2 terms out of make_pair");
-                Vpair=(Upair-JKpair-K_comm-epair).truncate();
-            }
-
-            real_function_6d GVpair=green(-2.0*Vpair).truncate();
-            if (include_O1O2) {
-                GVpair=Q12(GVpair);
-            } else {
-                orthogonalize(GVpair,pair.phi0);
-            }
-
-            pair.function=GVpair;
-            pair.latest_increment=copy(pair.function);
-            save_function(world,GVpair,"GVpair");
-
-            return pair;
-        }
-
-
-        /// given a pair function, compute the pair energy using the Hylleraas functional
-        double compute_second_order_correction_with_Hylleraas(const int i, const int j,
-                const ElectronPair& pair) const {
+       /// given a pair function, compute the pair energy using the Hylleraas functional
+        double compute_second_order_correction_with_Hylleraas(const ElectronPair& pair) const {
 
             const double V=compute_V(pair);
-            const double B=compute_B(i,j,pair);
+            const double B=compute_B_with_U(pair);
 //            const double B=1.0;
 
             const double e=2.0*V+B;
@@ -1272,7 +1211,7 @@ namespace madness {
 
             if (world.rank()==0) {
                 printf("V, B, and (%2d %2d) pair energy : %12.8f %12.8f %12.8f %12.8f\n\n",
-                        i,j,V,B,e,e_opt);
+                        pair.i,pair.j,V,B,e,e_opt);
             }
             return e_opt;
         }
@@ -1296,8 +1235,8 @@ namespace madness {
             V+=a12;
             if (world.rank()==0) printf("V2: <phi^0 | H^1        | psi^1>  %12.8f\n",V);
 
-            if (world.rank()==0) printf("V2: <phi^0 | H^1 Q12 f  | phi^0>  %12.8f\n",pair.phi0_gOf_phi0);
-            V+=pair.phi0_gOf_phi0;
+            if (world.rank()==0) printf("V2: <phi^0 | H^1 Q12 f  | phi^0>  %12.8f\n",pair.phi0_gQf_phi0);
+            V+=pair.phi0_gQf_phi0;
             if (world.rank()==0) printf("V2: <phi^0 | V          | phi^1>  %12.8f\n",V);
 
             return V;
@@ -1307,7 +1246,7 @@ namespace madness {
         /// compute the B matrix for a given electron pair
         double compute_B(const int i, const int j, const ElectronPair& pair) const {
 
-//            MADNESS_EXCEPTION("no compute_B for the time being",1);
+            MADNESS_EXCEPTION("no compute_B for the time being",1);
             const double e0=zeroth_order_energy(i,j);
             const real_function_6d& phi0=pair.phi0;
             const real_function_6d& psi1=pair.function;
@@ -1411,22 +1350,54 @@ namespace madness {
 
         /// if the residual equation is solved the following relation holds:
         /// \f[ H_{12}^0 |\psi\rangle = -(U -[K,f] -J + K -E)|\phi^{(0)}\rangle\f]
-        /// therefore the B matrix is easily expressed as
-        /// \f[ <\psi^1 | H^0 | \psi^1> = - <\psi^1 | (U-[K,f] -J +K -E)\phi^0> \f]
         /// @param[in]	pair	the electron pair
         /// @return		the matrix element <psi^1 | H^0 | psi^1>
         double compute_B_with_U(const ElectronPair& pair) const {
-        	double B=0.0;
-			const real_function_6d OO1=(OUKphi0(pair) - Og12phi0(pair.i,pair.j)).truncate().reduce_rank();
-			const real_function_6d OO2=compute_O1O2(pair);
 
-        	B+=inner(pair.function,pair.Uphi0);
-        	B-=inner(pair.function,pair.KffKphi0);
-        	B-=inner(pair.function,OO1);
-        	B+=inner(pair.function,OO2);
-        	B-=inner(pair.function,JK1phi0_on_demand(pair.i,pair.j));
-        	B-=inner(pair.function,JK2phi0_on_demand(pair.i,pair.j));
-        	B*=-1.0;
+        	double B=0.0;
+        	const bool r0=(world.rank()==0);
+
+        	// the first term
+        	B-=pair.phi0_gQf_phi0;
+			if (r0) printf("<phi^0 | f Q g           | phi^0>  %12.8f\n",pair.phi0_gQf_phi0);
+
+        	// the second term
+        	const real_function_6d OO1=OUKphi0(pair);
+			double b1=inner(pair.r12phi,pair.Uphi0);
+			if (r0) printf("<phi^0 | f U             | phi^0>  %12.8f\n",b1);
+			double b2=inner(pair.r12phi,pair.KffKphi0);
+			if (r0) printf("<phi^0 | f [K,f]         | phi^0>  %12.8f\n",b2);
+        	double b3=inner(pair.r12phi,OO1);
+			if (r0) printf("<phi^0 | f (O1+O2) (U-[K,f]) | phi^0>  %12.8f\n",b3);
+
+			double b4=0.0;
+            for (int k=0; k<hf.nocc(); ++k) {
+                for (int l=0; l<hf.nocc(); ++l) {
+
+                    // the function | kl>, which is only a orbital product, NOT antisymmetrized
+                    real_function_6d kl=CompositeFactory<double,6,3>(world)
+                                         .particle1(hf.orbital(k))
+                                         .particle2(hf.orbital(l));
+
+                    // the matrix element <kl | f12 | ij>
+                    const double f_ijkl=inner(pair.r12phi,kl);
+                    const double U_ijkl=inner(pair.Uphi0,kl);
+                    const double K_ijkl=inner(pair.KffKphi0,kl);
+                    b4+=f_ijkl*(U_ijkl-K_ijkl);
+                }
+            }
+			if (r0) printf("<phi^0 | f O1O2 (U-[K,f])| phi^0>  %12.8f\n",b4);
+        	B-=(b1-b2-b3+b4);
+
+        	// the third term < psi^1 | U - [K,f] | phi^0 >
+        	double c1=inner(pair.function,pair.Uphi0);
+			if (r0) printf("<psi^1 | U               | phi^0>  %12.8f\n",c1);
+        	double c2=inner(pair.function,pair.KffKphi0);
+			if (r0) printf("<psi^1 | [K,f]           | phi^0>  %12.8f\n",c2);
+        	B-=c1-c2;
+
+			if (r0) printf("<phi^1 | f Q H Q f       | phi^1>  %12.8f\n",B);
+
         	return B;
         }
 

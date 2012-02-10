@@ -4804,7 +4804,7 @@ namespace madness {
                 const tensorT fcoeff=get_coeffs(key1,iaf.datum.first,iaf.datum.second.coeff());
                 const tensorT gcoeff=get_coeffs(key2,iag.datum.first,iag.datum.second.coeff());
 
-                // would this be a leaf op? If so, then its sum coeffs have already been
+                // would this be a leaf node? If so, then its sum coeffs have already been
                 // processed by the parent node's wavelet coeffs. Therefore we won't
                 // process it any more.
                 hartree_leaf_op<T,NDIM> leaf_op(result,result->get_k());
