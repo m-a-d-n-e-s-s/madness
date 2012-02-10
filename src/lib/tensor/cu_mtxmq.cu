@@ -732,7 +732,11 @@ template int8_t* GPUtransfer_buffernoalloc(int8_t* GPU_buf, int8_t* CPU_buf, uns
 
 template <typename T>
 void  CPUtransfer_buffer(T* CPU_buf, T *GPU_buf,unsigned int offset){
-	cudaMemcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost);
+	cudaError_t err = cudaMemcpy((void*)CPU_buf,(void*)GPU_buf,offset*sizeof(T),cudaMemcpyDeviceToHost);
+         if (err != cudaSuccess){
+          perror("Could not memcpy from GPU memory to CPU host memory   ");
+          exit(-1);
+        }
 }
 template  void  CPUtransfer_buffer(double* CPU_buf, double *GPU_buf,unsigned int offset);
 template  void  CPUtransfer_buffer(std::complex<double>* CPU_buf, std::complex<double> *GPU_buf,unsigned int offset);
@@ -743,7 +747,11 @@ template  void  CPUtransfer_buffer(long* CPU_buf, long *GPU_buf,unsigned int off
 
 template <typename W>
        void GPUdelete_buffer(W* buf){
-	cudaFree(buf);
+	cudaError_t err = cudaFree(buf);
+         if (err != cudaSuccess){
+          perror("Could not free GPU memory   ");
+          exit(-1);
+        }
 }
 template   void GPUdelete_buffer(double* buf);
 template   void GPUdelete_buffer(std::complex<double>* buf);
@@ -756,7 +764,11 @@ template   void GPUdelete_buffer(int8_t* buf);
 
 template <typename W>
        void dealloc_host(W* buf){
-	cudaFreeHost(buf);
+	 cudaError_t err = cudaFreeHost(buf);
+         if (err != cudaSuccess){
+          perror("Could not free GPU memory   ");
+          exit(-1);
+        }
 }
 template   void dealloc_host(double* buf);
 template   void dealloc_host(std::complex<double>* buf);

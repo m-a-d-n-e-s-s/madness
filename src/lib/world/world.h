@@ -373,7 +373,7 @@ typedef UINT64_T uint64_t;
 #define JUST_AGG 0
 #define THREE_SPLIT 0
 #define COMPRESS_CPS 1
-#define MAX_AGG 20
+#define MAX_AGG 60
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 20
 

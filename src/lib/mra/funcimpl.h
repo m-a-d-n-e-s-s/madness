@@ -4372,9 +4372,9 @@ ENDt_TIMER("memcpy3");
 
         template <typename opT, typename R>
         Void do_apply_kernel_std(const opT* op, const Tensor<R>& c, const do_op_args& args) {
-            STARTt_TIMER;
+            //STARTt_TIMER;
             tensorT result = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            ENDt_TIMER("std apply");
+            //ENDt_TIMER("std apply");
 
             //print("APPLY", key, d, opnorm, cnorm, result.normf());
 

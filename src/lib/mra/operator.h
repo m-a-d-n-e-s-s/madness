@@ -167,7 +167,7 @@ namespace madness {
         long* GPUr2_buffer;
         mutable unsigned int apply_prev_offset;
         mutable unsigned int apply_curr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*2;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*60;
         static const unsigned int R_maxsize = 1024*1024*1;
         static const unsigned int T_maxsize = 1024*1024*1;
         #endif
@@ -328,7 +328,7 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
-            apply_transformation/*1*/(n, twok, trans, f, work1, work2, work5, mufac, result);
+            apply_transformation1(n, twok, trans, f, work1, work2, work5, mufac, result);
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -352,7 +352,7 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
-                apply_transformation/*1*/(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                apply_transformation1(n, k, trans, f0, work1, work2, work5, -mufac, result0);
             }
         }
 
@@ -5839,13 +5839,15 @@ STARTt_TIMER;
                     for (int mu = 0; mu < rank; mu++){
                         for (int d = 0; d < NDIM; d++){
                             //if (condition[i][mu] || doit2[mu] || doit1[mu]){
+                            if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
                                 memcpy(localR + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
                                 memcpy(localT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
                                 memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
                                 memcpy(localTU + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TU.ptr(), kbytes);
                                 memcpy(localRVT + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RVT.ptr(), twokbytes);
                                 memcpy(localTVT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TVT.ptr(), kbytes);
-                                numSVD++;
+                            }
+                            numSVD++;
                             //}
                         }
                     }
@@ -5896,13 +5898,15 @@ STARTt_TIMER;
                          Q* localTVT = second_buffer + transfer_new*c*NDIM*(3*twoksq + 3*ksq) + c*NDIM*(3*twoksq + 2*ksq);
                          for (int mu = 0; mu < rank; mu++){
                              for (int d = 0; d < NDIM; d++){
+                               if (op_data[i]->muops[mu].ops[d]->Rnormf > 0){
                                  memcpy(localR + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->R.ptr(), twokbytes);
                                  memcpy(localT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->T.ptr(), kbytes);
                                  memcpy(localRU + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RU.ptr(), twokbytes);
                                  memcpy(localTU + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TU.ptr(), kbytes);
                                  memcpy(localRVT + numSVD*twoksq, op_data[i]->muops[mu].ops[d]->RVT.ptr(), twokbytes);
                                  memcpy(localTVT + numSVD*ksq, op_data[i]->muops[mu].ops[d]->TVT.ptr(), kbytes);
-                                 numSVD++;
+                               }
+                               numSVD++;
                              }
                          }
                          
