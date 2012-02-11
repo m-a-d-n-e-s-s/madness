@@ -158,7 +158,7 @@ which merely blows instead of sucking.
 
     private:
         static const int MAXCALLBACKS = 4;
-        typedef std::stack<CallbackInterface*> callbackT;
+        typedef std::stack<CallbackInterface*, std::vector<CallbackInterface*> > callbackT;
         typedef Stack<std::shared_ptr< FutureImpl<T> >,MAXCALLBACKS> assignmentT;
         volatile callbackT callbacks;
         volatile mutable assignmentT assignments;
@@ -183,7 +183,7 @@ which merely blows instead of sucking.
         /// Private:  invoked locally by set routine after assignment
         inline void set_assigned() {
             // Assume that whoever is invoking this routine is holding
-            // a copy of our shared pointer on its *stack* so that 
+            // a copy of our shared pointer on its *stack* so that
             // if this future is destroyed as a result of a callback
             // the destructor of this object is not invoked until
             // we return.
@@ -195,7 +195,7 @@ which merely blows instead of sucking.
 
             assignmentT& as = const_cast<assignmentT&>(assignments);
             callbackT& cb = const_cast<callbackT&>(callbacks);
-            
+
             while (!as.empty()) {
                 MADNESS_ASSERT(as.front());
                 as.top()->set(const_cast<T&>(t));
@@ -231,7 +231,7 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(0)
                 , remote_ref()
-                , t() 
+                , t()
         { }
 
 
@@ -242,7 +242,7 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(0)
                 , remote_ref()
-                , t(t) 
+                , t(t)
         { set_assigned(); }
 
 
@@ -253,7 +253,7 @@ which merely blows instead of sucking.
                 , assigned(false)
                 , world(& remote_ref.get_world())
                 , remote_ref(remote_ref)
-                , t() 
+                , t()
         { }
 
 
