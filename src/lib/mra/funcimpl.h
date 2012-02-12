@@ -4660,7 +4660,8 @@ namespace madness {
         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-            print("f.do_new", f.do_new);
+            bool do_new=true;
+            print("f.do_new", do_new);
 
             MADNESS_ASSERT(not op.modified());
             // looping through all the coefficients of the source f
@@ -4673,7 +4674,7 @@ namespace madness {
                 if (coeff.has_data() and (coeff.rank()!=0)) {
 
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                    if (f.do_new) {
+                    if (do_new) {
                     	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff);
                     } else {
                     	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
@@ -4687,7 +4688,7 @@ namespace madness {
 
         /// @return 	the number of neighbors in a given shell (=displacement.distsq())
         template<typename opT>
-        int nneigh(const opT* op, const int shell) {
+        int nneigh(const opT* op, const unsigned int shell) {
             typedef typename opT::keyT opkeyT;
 
         	int n=0;
@@ -4754,7 +4755,7 @@ namespace madness {
         ///								>0.0	max contribution to this shell
         template<typename opT, typename R>
         double do_apply_shell(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff,
-        		 Tensor<R>& coeff_full, const int shell) {
+        		 Tensor<R>& coeff_full, const unsigned int shell) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
 
@@ -4818,7 +4819,7 @@ namespace madness {
 //                    if (1) {
 
                         double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
-                        cost_ratio=1.5;     // force low rank
+//                        cost_ratio=1.5;     // force low rank
 //                        cost_ratio=0.5;     // force full rank
 
                         if (cost_ratio>0.0) {
