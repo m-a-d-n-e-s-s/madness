@@ -891,6 +891,29 @@ namespace madness {
 
 
         void test(const int i, const int j) {
+        	const double eps=zeroth_order_energy(i,j);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, FunctionDefaults<6>::get_thresh()*0.1);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1.e-6);
+            real_function_6d f;
+        	f=hartree_product(hf.orbital(i),hf.orbital(j));
+//        	f.nonstandard(false);
+        	save_function(world,f,"f");
+        	load_function(world,f,"f");
+        	f.get_impl().get()->do_new=false;
+        	real_function_6d g;
+//        	g=green(f);
+//        	save_function(world,g,"g");
+        	load_function(world,g,"g");
+
+        	load_function(world,f,"f");
+        	f.get_impl().get()->do_new=true;
+        	real_function_6d gg=green(f);
+
+        	real_function_6d diff=(g-gg);
+        	double error=diff.norm2();
+        	print("error", error);
+
+
         }
 
 
@@ -1776,8 +1799,8 @@ int main(int argc, char** argv) {
     MP2 mp2(world,hf,f12,"input");
 
 //    mp2.value(calc.molecule.get_all_coords());
-//    mp2.test(0,0);
-    mp2.solve_residual_equations(i,j);
+    mp2.test(0,0);
+//    mp2.solve_residual_equations(i,j);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

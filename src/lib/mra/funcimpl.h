@@ -854,6 +854,7 @@ namespace madness {
         Timer timer_filter;
         Timer timer_compress_svd;
         Timer timer_target_driven;
+        bool do_new;
 
         /// Initialize function impl from data in factory
         FunctionImpl(const FunctionFactory<T,NDIM>& factory)
@@ -3618,8 +3619,7 @@ namespace madness {
 
         /// this function must have been constructed using the CompositeFunctorInterface.
         /// The interface provides one- and two-electron potentials, and the ket, which are
-        /// assembled to give V*phi. The MRA structure of the result is the same as the
-        /// MRA structure of ket as given by the functor.
+        /// assembled to give V*phi.
         /// @param[in]  leaf_op  operator to decide if a given node is a leaf node
         /// @param[in]  fence   global fence
         template<typename opT>
@@ -4660,6 +4660,8 @@ namespace madness {
         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
+            print("f.do_new", f.do_new);
+
             MADNESS_ASSERT(not op.modified());
             // looping through all the coefficients of the source f
             typename dcT::const_iterator end = f.get_coeffs().end();
@@ -4671,13 +4673,179 @@ namespace madness {
                 if (coeff.has_data() and (coeff.rank()!=0)) {
 
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                    woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+                    if (f.do_new) {
+                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff);
+                    } else {
+                    	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+                    }
+
                 }
             }
             if (fence) world.gop.fence();
 
         }
 
+        /// @return 	the number of neighbors in a given shell (=displacement.distsq())
+        template<typename opT>
+        int nneigh(const opT* op, const int shell) {
+            typedef typename opT::keyT opkeyT;
+
+        	int n=0;
+            const std::vector<opkeyT>& disp = op->get_disp(0);
+            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+                const opkeyT& d = *it;
+                if (d.distsq()<shell) continue;
+                if (d.distsq()>shell) break;
+                ++n;
+            }
+            return n;
+        }
+
+        /// apply the convolution operator one shell at a time, to facilitate screening
+
+        /// @return the resultant norm of the 0-displacement
+        template<typename opT, typename R>
+        double apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff) {
+
+        	/*
+        	example in 6d for operator application: estimates and actual results
+
+        	d max est     max actual    #neigh  accum.est accum.est_opt   accum.act
+        	0 0.0258306   0.000270722     1     0.0250        0.0250      0.00027
+        	1 0.00337100  6.13745e-05    12     0.0396        0.0032      0.00046
+        	2 0.000491831 1.57511e-05    60     0.0295        0.0037      0.00031
+        	3 7.78085e-05 4.02905e-06   160     0.0123        0.0024      0.00012
+        	4 1.32076e-05 1.10838e-06   240     0.0031        0.0009      0.00003
+
+        	max est:
+        	opnorm*cnorm
+
+        	accumulative estimate:
+        	take the maximum estimated norm of this shell and multiply with the number of neighbors
+
+        	accumulative estimate optimal:
+        	take the maximum actual norm of the inner-next shell and multiply with the number of neighbors
+        	assuming that the maximum actual norm decays with each shell (emphasis on maximum)
+        	 */
+        	Tensor<R> coeff_full;
+        	int shell=0;
+        	double tol=truncate_tol(thresh,key);
+        	const double norm0=do_apply_shell(op, key, coeff, coeff_full, shell);
+            double max_norm=norm0;
+            while (1) {
+            	++shell;
+            	const double accum_norm=max_norm*nneigh(op,shell);
+            	if (accum_norm<tol) break;
+            	max_norm=do_apply_shell(op, key, coeff, coeff_full, shell);
+            	MADNESS_ASSERT(shell<20);		// emergency break
+            }
+            return norm0;
+        }
+
+        /// apply in shells
+
+        /// @param[in]	op			the operator
+        /// @param[in]	key			the current source key
+        /// @param[in]	coeff		the source coeffs in low rank corresponding to key
+        /// @param[inout]	coeff_full	the source coeffs in full rank
+        /// @param[in]	shell		the shell we apply, i.e. shell==displacement.distsq()
+        /// @return 				largest norm of a result tensor in this shell
+        ///								 0.0	no contributions to this shell
+        ///								>0.0	max contribution to this shell
+        template<typename opT, typename R>
+        double do_apply_shell(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff,
+        		 Tensor<R>& coeff_full, const int shell) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            // insert timer here
+
+            typedef typename opT::keyT opkeyT;
+            static const size_t opdim=opT::opdim;
+            Key<NDIM-opdim> nullkey(key.level());
+
+            // source is that part of key that corresponds to those dimensions being processed
+            opkeyT source;
+            Key<NDIM-opdim> dummykey;
+            if (op->particle()==1) key.break_apart(source,dummykey);
+            if (op->particle()==2) key.break_apart(dummykey,source);
+
+             // fac is the number of contributing neighbors (approx)
+            const double tol = truncate_tol(thresh, key);
+
+            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+//            if (opdim==6) fac=729; //100.0;
+            if (opdim==6) fac=100; //100.0;
+            if (op->modified()) fac*=10.0;
+            fac=10.0;
+            double cnorm = coeff.normf();
+
+            double wall0=wall_time();
+            bool verbose=false;
+            long neighbors=0;
+
+
+            // for accumulation: keep slightly tighter TensorArgs
+            TensorArgs apply_targs(targs);
+            apply_targs.thresh=tol/fac*0.01;
+
+            double max_norm=0.0;
+
+            const std::vector<opkeyT>& disp = op->get_disp(key.level());
+
+            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            double opnorm_old=100.0;
+            double opnorm=100.0;
+
+            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+                const opkeyT& d = *it;
+                if (d.distsq()<shell) continue;
+                if (d.distsq()>shell) break;
+
+                neighbors++;
+
+                keyT disp1;
+                if (op->particle()==1) disp1=it->merge_with(nullkey);
+                if (op->particle()==2) disp1=nullkey.merge_with(*it);
+
+                keyT dest = neighbor(key, disp1, is_periodic);
+
+                if (dest.is_valid()) {
+                    opnorm_old=opnorm;
+                    opnorm = op->norm(key.level(), d, source);
+//                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
+
+
+                    if (cnorm*opnorm> tol/fac) {
+//                    if (1) {
+
+                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
+                        cost_ratio=1.5;     // force low rank
+//                        cost_ratio=0.5;     // force full rank
+
+                        if (cost_ratio>0.0) {
+
+                            do_op_args<opdim> args(source, d, dest, tol, fac*10.0, cnorm);
+                            double norm=0.0;
+                            if (cost_ratio<1.0) {
+                            	if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
+                            	norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
+                            } else {
+                            	norm=do_apply_kernel3(op,coeff,args,apply_targs);
+                            }
+                            max_norm=std::max(max_norm,norm);
+                        }
+                    }
+                }
+            }
+            double wall1=wall_time();
+            if (verbose) {
+                print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
+                        coeff_full.has_data());
+            }
+//            print("shell, #neighbors, max_norm",shell,neighbors,max_norm);
+            if (neighbors==0) max_norm=100.0;	// large number so we continue with the next shell
+            return max_norm;
+
+        }
 
         /// after apply we need to do some cleanup;
         void finalize_apply(const bool fence=true) {
@@ -4828,7 +4996,9 @@ namespace madness {
 //
 //                // and finalize
 //                return world.taskq.add(*const_cast<this_type *> (this), &this_type::finalize,kernel_norm,key);
-					double kernel_norm=result->do_apply_source_driven<opT,T>(apply_op, key, coeff);
+//					double kernel_norm=result->do_apply_source_driven<opT,T>(apply_op, key, coeff);
+					double kernel_norm=result->apply_shells<opT,T>(apply_op, key, coeff);
+
 					return finalize(kernel_norm,key,coeff);
 
                 } else {
@@ -5134,13 +5304,13 @@ namespace madness {
                         Future<pairT> result;
 //                        sock_it_to_me(key1, result.remote_ref(world));
                         g->task(coeffs.owner(key1), &implT::sock_it_to_me, key1, result.remote_ref(world), TaskAttributes::hipri());
-                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,result,key1,key2,dim);
+                        woT::task(world.rank(),&implT:: template do_project_out<LDIM>,fcoeff,result,key1,key2,dim);
 
                     } else if (dim==1) {
                         Future<pairT> result;
 //                        sock_it_to_me(key2, result.remote_ref(world));
                         g->task(coeffs.owner(key2), &implT::sock_it_to_me, key2, result.remote_ref(world), TaskAttributes::hipri());
-                        woT::task(world.rank(),&implT::do_project_out<LDIM>,fcoeff,result,key2,key1,dim);
+                        woT::task(world.rank(),&implT:: template do_project_out<LDIM>,fcoeff,result,key2,key1,dim);
 
                     } else {
                         MADNESS_EXCEPTION("confused dim in project_out",1);

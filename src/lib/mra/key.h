@@ -308,7 +308,7 @@ namespace madness {
 
         	// it's sufficient if one single dimension is out
         	bool contains=true;
-        	const int twotoN = std::pow(2.0,double(n));
+        	const double twotoN = std::pow(2.0,double(n));
         	MADNESS_ASSERT(dim0<NDIM and dim1<NDIM);
 
         	for (unsigned int i=0; i<NDIM; i++ ) {
