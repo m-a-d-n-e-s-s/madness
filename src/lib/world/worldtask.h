@@ -944,7 +944,7 @@ namespace madness {
             else{
                 this->outArgs = (this->inObj.at(0)->*memfunCompute)(someArgs, someObj);
 
-                printf("   %i \n", someArgs.size());
+                printf("Sending   %i tasks back to CPU \n", someArgs.size());
                 for (unsigned int i = 0; i < someArgs.size(); i++){  
                   objT * obj = someObj.at(i);
                   //(obj->*memfunPostprocess)(outArgs.at(i));

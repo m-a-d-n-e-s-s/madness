@@ -4456,12 +4456,12 @@ ENDt_TIMER("memcpy3");
                             #else
                             //}
                             ////else{
-                            woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
+                            ////woT::task(where, &implT:: template do_apply_kernel_std<opT,R>, op, c, args);
                             //}
-                            //tensorT result = op->apply(key, d, c, tol/fac/cnorm);
-                            //if (result.normf()> 0.3*tol/fac) {
-                            //    coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
-                            //}
+                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            if (result.normf()> 0.3*tol/fac) {
+                                coeffs.task(dest, &nodeT::accumulate, result, coeffs, dest, TaskAttributes::hipri());
+                            }
                             #endif
                             /*
                             ProcessID where = world.rank();
