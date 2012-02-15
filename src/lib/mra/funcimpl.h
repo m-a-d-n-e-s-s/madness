@@ -851,10 +851,13 @@ namespace madness {
 
     public:
         Timer timer_accumulate;
+        Timer timer_lr_result;
         Timer timer_filter;
         Timer timer_compress_svd;
         Timer timer_target_driven;
         bool do_new;
+        AtomicInt small;
+        AtomicInt large;
 
         /// Initialize function impl from data in factory
         FunctionImpl(const FunctionFactory<T,NDIM>& factory)
@@ -4397,16 +4400,27 @@ namespace madness {
                 const TensorArgs& apply_targs) {
 
             tensorT result_full = op->apply(args.key, args.d, c, args.tol/args.fac/args.cnorm);
-            coeffT result=coeffT(result_full,apply_targs);
+            const double norm=result_full.normf();
 
-            // Screen here to reduce communication cost of negligible data
-            // and also to ensure we don't needlessly widen the tree when
-            // applying the operator
-            MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
-            const double norm=result.svd_normf();
+			// Screen here to reduce communication cost of negligible data
+			// and also to ensure we don't needlessly widen the tree when
+			// applying the operator
+            // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
+            // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
             if (norm > 0.1*args.tol/args.fac) {
-                // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
-                // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
+
+            	// check norm of the wavelet coeffs
+            	double s_norm=result_full(cdata.s0).normf();
+            	double d_norm=sqrt(norm*norm-s_norm*s_norm);
+            	if (d_norm<apply_targs.thresh) small++;
+            	else large++;
+
+				double cpu0=cpu_time();
+				coeffT result=coeffT(result_full,apply_targs);
+				MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
+				double cpu1=cpu_time();
+				timer_lr_result.accumulate(cpu1-cpu0);
+
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
                         TaskAttributes::hipri());
                 woT::task(world.rank(),&implT::accumulate_timer,time,TaskAttributes::hipri());
@@ -4662,6 +4676,8 @@ namespace madness {
 
             bool do_new=true;
             print("f.do_new", do_new);
+            small=0;
+            large=0;
 
             MADNESS_ASSERT(not op.modified());
             // looping through all the coefficients of the source f
@@ -4675,14 +4691,29 @@ namespace madness {
 
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                     if (do_new) {
-                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff);
+                    	tensorT coeff_full;
+                    	Future<double> norm0=woT::task(p,&implT:: template do_apply_shell<opT,R>, &op, key, coeff, coeff_full, 0);
+                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff, norm0);
                     } else {
-                    	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+//                    	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
+                    	tensorT coeff_full;
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,0);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,1);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,2);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,3);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,4);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,5);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,6);
+                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,7);
                     }
 
                 }
             }
             if (fence) world.gop.fence();
+            if (world.rank()==0) {
+            	print("small wavelet coeffs",small);
+            	print("large wavelet coeffs",large);
+            }
 
         }
 
@@ -4706,7 +4737,7 @@ namespace madness {
 
         /// @return the resultant norm of the 0-displacement
         template<typename opT, typename R>
-        double apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff) {
+        double apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
 
         	/*
         	example in 6d for operator application: estimates and actual results
@@ -4731,7 +4762,7 @@ namespace madness {
         	Tensor<R> coeff_full;
         	int shell=0;
         	double tol=truncate_tol(thresh,key);
-        	const double norm0=do_apply_shell(op, key, coeff, coeff_full, shell);
+//        	const double norm0=do_apply_shell(op, key, coeff, coeff_full, shell);
             double max_norm=norm0;
             while (1) {
             	++shell;
@@ -4817,14 +4848,15 @@ namespace madness {
 
                     if (cnorm*opnorm> tol/fac) {
 //                    if (1) {
+                    	double fac2=fac*10.0;
 
-                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
+                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac2/cnorm, tol/fac2);
 //                        cost_ratio=1.5;     // force low rank
 //                        cost_ratio=0.5;     // force full rank
 
                         if (cost_ratio>0.0) {
 
-                            do_op_args<opdim> args(source, d, dest, tol, fac*10.0, cnorm);
+                            do_op_args<opdim> args(source, d, dest, tol, fac2, cnorm);
                             double norm=0.0;
                             if (cost_ratio<1.0) {
                             	if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
@@ -4998,9 +5030,15 @@ namespace madness {
 //                // and finalize
 //                return world.taskq.add(*const_cast<this_type *> (this), &this_type::finalize,kernel_norm,key);
 //					double kernel_norm=result->do_apply_source_driven<opT,T>(apply_op, key, coeff);
-					double kernel_norm=result->apply_shells<opT,T>(apply_op, key, coeff);
+//					double kernel_norm=result->apply_shells<opT,T>(apply_op, key, coeff);
+                    tensorT coeff_full;
+                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? result->world.random_proc() : result->coeffs.owner(key);
+                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>, apply_op, key, coeff, coeff_full, 0);
+                    result->task(p,&implT:: template apply_shells<opT,T>, apply_op, key, coeff, norm0);
 
-					return finalize(kernel_norm,key,coeff);
+                    return finalize(norm0.get(),key,coeff);
+
+//					return finalize(kernel_norm,key,coeff);
 
                 } else {
                 	return std::pair<bool,coeffT> (is_leaf,coeffT());

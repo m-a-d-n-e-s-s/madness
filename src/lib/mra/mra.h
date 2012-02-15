@@ -1848,6 +1848,7 @@ namespace madness {
 
     	result.get_impl()->timer_accumulate.reset();
         result.get_impl()->timer_target_driven.reset();
+        result.get_impl()->timer_lr_result.reset();
         op.timer_full.reset();
         op.timer_low_transf.reset();
         op.timer_low_accumulate.reset();
@@ -1858,6 +1859,7 @@ namespace madness {
         if (result.world().rank()==0) {
             result.get_impl()->timer_accumulate.print("accumulate");
             result.get_impl()->timer_target_driven.print("total target_driven");
+            result.get_impl()->timer_lr_result.print("result2low_rank");
 
             op.timer_full.print("op full tensor       ");
             op.timer_low_transf.print("op low rank transform");
@@ -1882,6 +1884,7 @@ namespace madness {
 
         result.get_impl()->timer_accumulate.reset();
         result.get_impl()->timer_target_driven.reset();
+        result.get_impl()->timer_lr_result.reset();
 
         op.timer_full.reset();
         op.timer_low_transf.reset();
@@ -1893,6 +1896,7 @@ namespace madness {
 
             result.get_impl()->timer_accumulate.print("accumulate");
             result.get_impl()->timer_target_driven.print("total target_driven");
+            result.get_impl()->timer_lr_result.print("result2low_rank");
 
             op.timer_full.print("op full tensor       ");
             op.timer_low_transf.print("op low rank transform");
