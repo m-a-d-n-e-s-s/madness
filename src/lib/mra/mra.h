@@ -1868,7 +1868,8 @@ namespace madness {
 
 		if (not same) ff1.standard(false);
 		ff2.standard(false);
-		result.get_impl()->finalize_apply(fence);	// implicitly fences
+		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
+		result.reconstruct();
 		return result;
     }
 
@@ -1879,8 +1880,10 @@ namespace madness {
     apply_only(const opT& op, const Function<R,NDIM>& f, bool fence=true) {
         PROFILE_FUNC;
         Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> result;
+        Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> r1;
 
         result.set_impl(f, true);
+        r1.set_impl(f, true);
 
         result.get_impl()->timer_accumulate.reset();
         result.get_impl()->timer_target_driven.reset();
@@ -1890,7 +1893,10 @@ namespace madness {
         op.timer_low_transf.reset();
         op.timer_low_accumulate.reset();
 
-        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
+//        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
+        result.get_impl()->recursive_apply(op, f.get_impl().get(),
+        		r1.get_impl().get(),true);			// will fence here
+
 
         if ((NDIM==6) and (f.world().rank()==0)) {
 
@@ -1902,7 +1908,7 @@ namespace madness {
             op.timer_low_transf.print("op low rank transform");
             op.timer_low_accumulate.print("op low rank addition ");
         }
-		result.get_impl()->finalize_apply(fence);	// implicitly fences
+		result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
 
         return result;
     }

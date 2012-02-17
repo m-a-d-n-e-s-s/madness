@@ -371,7 +371,7 @@ namespace madness {
                 real_function_6d tmp;
                 if (particle_==0) tmp=hartree_product(p_[i],pf2);
                 else tmp=hartree_product(pf2,p_[i]);
-                sum=(sum+tmp).truncate().reduce_rank();
+                sum=(sum+tmp).truncate();
             }
             return sum;
         }
@@ -570,7 +570,6 @@ namespace madness {
         std::vector<ElectronPair> pairs;        ///< pair functions and energies
         Projector<double,3> O1;                 ///< projector on occupied orbitals, electron 1
         Projector<double,3> O2;                 ///< projector on occupied orbitals, electron 2
-        Projector<double,6> O12;                ///< projector on all pairs
         bool solved;                            ///< flag if the residual equations are already solved
 
     private:
@@ -632,16 +631,8 @@ namespace madness {
             if (world.rank()==0) intermediates=Intermediates(world,input);
             world.gop.broadcast_serializable(intermediates, 0);
 
-            std::vector<real_function_6d> all_pairs;
-            for (int i=0; i<hf.nocc(); ++i) {
-                for (int j=0; j<hf.nocc(); ++j) {
-                    all_pairs.push_back(zeroth_order_function(i,j));
-                    all_pairs.back().print_size("ij");
-                }
-            }
             O1=Projector<double,3>(hf.get_calc().amo,0);
             O2=Projector<double,3>(hf.get_calc().amo,1);
-            O12=Projector<double,6>(all_pairs);
 
         }
 
@@ -686,13 +677,13 @@ namespace madness {
 
         /// plot the MRA structure
         void plot_plane(const real_function_6d& f, const std::string filename,
-                const std::string plane) const {
+                const std::string plane="xy") const {
 
             coord_6d fix_coord(0.0);
             // electron 2:
             fix_coord[4]=0.1;
 
-            f.get_impl()->print_plane(filename,"xy",fix_coord);
+            f.get_impl()->print_plane(filename,plane,fix_coord);
 
         }
 
@@ -757,42 +748,50 @@ namespace madness {
         /// solve the residual equation for electron pair (i,j)
         void solve_residual_equations(const int i, const int j) {
 
-            ElectronPair result=guess_mp1(i,j);
+            ElectronPair result=guess_mp1_1(i,j);
             compute_V(result);
+            if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", 0, wall_time());
 
             // the Green's function depends on the zeroth order energy, which is the sum
             // of the orbital energies of orbitals i and j
             //  -2.0 G = (T - e_i - e_j) ^ -1
             const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
 
 
-//	    if (world.rank()==0) print("computing iteratively");
-//            for (int ii=0; ii<20; ++ii) {
-//
-//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function);
-//
-//                /// apply the convolution
-//                vphi.scale(-2.0).truncate();
-//                const pairfunctionT tmp=green(vphi).truncate();
-//                tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-//                result.function=(constant_term+tmp).truncate();
-//
-//                orthogonalize(result.function,zo_function);
-////                orthogonalize(result.function,result.r12phi);
-//
-//                compute_second_order_correction_with_Hylleraas(i,j,result);
-//                const std::string name="psi1_it"+stringify(ii);
-//                save_function(world,result.function,name);
-//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-//
-//            }
+            if (1) {
+				if (world.rank()==0) print("computing iteratively");
+				real_function_6d constant_term;
+				load_function(world,constant_term,"GVpair");
+				for (int ii=0; ii<20; ++ii) {
+
+					real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
+
+						/// apply the convolution
+					vphi.scale(-2.0).truncate();
+	                load_balance(vphi,false);
+					const real_function_6d tmp=green(vphi).truncate();
+					tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+					result.function=(constant_term+tmp).truncate();
+					result.function=Q12(result.function);
+
+					compute_V(result);
+
+					const std::string name="psi1_it"+stringify(ii);
+					save_function(world,result.function,name);
+					if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+
+				}
+            } else {
+
 
             // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
             if (world.rank()==0) print("computing increments");
             real_function_6d& latest_increment=result.latest_increment;
 
-            for (int ii=0; ii<20; ++ii) {
+            for (int ii=1; ii<20; ++ii) {
 
                 real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment,i,j);
                 load_balance(vphi,false);
@@ -818,7 +817,8 @@ namespace madness {
                 const double residual_norm=latest_increment.norm2();
                 if (residual_norm<result.function.thresh()*0.01) break;
 	   		}
-	   		
+            }
+
             compute_second_order_correction_with_Hylleraas(result);
             result.solved=true;
 
@@ -889,33 +889,11 @@ namespace madness {
         	}
         }
 
-
         void test(const int i, const int j) {
-        	const double eps=zeroth_order_energy(i,j);
-//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, FunctionDefaults<6>::get_thresh()*0.1);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1.e-6);
-            real_function_6d f;
-        	f=hartree_product(hf.orbital(i),hf.orbital(j));
-//        	f.nonstandard(false);
-        	save_function(world,f,"f");
-        	load_function(world,f,"f");
-        	f.get_impl().get()->do_new=false;
-        	real_function_6d g;
-//        	g=green(f);
-//        	save_function(world,g,"g");
-        	load_function(world,g,"g");
 
-        	load_function(world,f,"f");
-        	f.get_impl().get()->do_new=true;
-        	real_function_6d gg=green(f);
-
-        	real_function_6d diff=(g-gg);
-        	double error=diff.norm2();
-        	print("error", error);
 
 
         }
-
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
 
@@ -1028,7 +1006,41 @@ namespace madness {
 
         /// apply the strong orthogonality operator Q12 on a function f
         real_function_6d Q12(const real_function_6d& f) const {
-            return (f-O1(f)-O2(f)+O12(f)).truncate().reduce_rank();
+//            return (f-O1(f)-O2(f)+O12(f)).truncate().reduce_rank();
+
+        	// note no (kl) symmetry here!
+        	Tensor<double> g_kl(hf.nocc()*hf.nocc());
+        	for (int k=0; k<hf.nocc(); ++k) {
+        		for (int l=0; l<hf.nocc(); ++l) {
+    	            real_function_6d kl=CompositeFactory<double,6,3>(world)
+    	            		.particle1(copy(hf.orbital(k))).particle2(copy(hf.orbital(l)));
+        			g_kl(k,l)=inner(f,kl);
+        		}
+        	}
+
+        	// project out the mainly first particle: O1 (1 - 1/2 O2)
+        	real_function_6d r1=real_factory_6d(world);
+        	for (int k=0; k<hf.nocc(); ++k) {
+        		real_function_3d h2=f.project_out(hf.orbital(k),0);
+            	for (int l=0; l<hf.nocc(); ++l) {
+            		h2-=0.5*g_kl(k,l)*hf.orbital(l);
+            	}
+            	r1=(r1-hartree_product(hf.orbital(k),h2));
+        	}
+        	r1.truncate().reduce_rank();
+
+        	// project out the mainly second particle: O2 (1 - 1/2 O1)
+        	real_function_6d r2=real_factory_6d(world);
+        	for (int l=0; l<hf.nocc(); ++l) {
+        		real_function_3d h1=f.project_out(hf.orbital(l),1);
+            	for (int k=0; k<hf.nocc(); ++k) {
+            		h1-=0.5*g_kl(k,l)*hf.orbital(k);			// ordering g(k,l) is correct
+            	}
+            	r2=(r2-hartree_product(h1,hf.orbital(l)));
+        	}
+        	r2.truncate().reduce_rank();
+        	real_function_6d result=(f+r1+r2).truncate().reduce_rank();
+        	return result;
         }
 
         /// return the function Uphi0; load from disk if available
@@ -1159,7 +1171,9 @@ namespace madness {
 
             // the Green's function
             const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
 
             const real_function_3d& phi_i=hf.orbital(i);
             const real_function_3d& phi_j=hf.orbital(j);
@@ -1222,7 +1236,76 @@ namespace madness {
             return pair;
         }
 
-       /// given a pair function, compute the pair energy using the Hylleraas functional
+        /// compute the first iteration of the residual equations and all intermediates
+        ElectronPair guess_mp1_1(const int i, const int j) const {
+
+        	if (world.rank()==0) print("using SO in the residual equations");
+            // the Green's function
+            const double eps=zeroth_order_energy(i,j);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
+
+            ElectronPair pair=make_pair(i,j);
+
+            pair.Uphi0=make_Uphi0(i,j);
+			pair.KffKphi0=make_KffKphi0(pair);
+
+            // fast return if possible
+            if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
+
+			// make the terms with high ranks and smallish trees
+			real_function_6d Vpair1=(pair.Uphi0-pair.KffKphi0).truncate().reduce_rank();
+			Vpair1=(Vpair1-O1(Vpair1)-O2(Vpair1)).truncate().reduce_rank();
+			plot_plane(Vpair1,"Vpair1");
+			load_balance(Vpair1,true);
+			real_function_6d GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
+			Vpair1.clear(true);
+            save_function(world,GVpair,"GVpair1");
+
+			// make the terms with the single projectors: (O1 + O2)(U -K) |phi^0>
+//			const real_function_6d OO1=OUKphi0(pair);
+
+			// make the terms with the double projector O1O2 (U-K) | phi0>
+			real_function_6d OO2=real_factory_6d(world);
+            for (int k=0; k<hf.nocc(); ++k) {
+                for (int l=0; l<hf.nocc(); ++l) {
+
+                    // the function | kl>, which is only a orbital product, NOT antisymmetrized
+                    real_function_6d kl=hartree_product(hf.orbital(k),hf.orbital(l));
+                    const double norm=kl.norm2();
+                    kl.scale(1.0/norm);
+
+                    // the matrix element <kl | U - [K,f] | ij>
+                    const double a=inner(kl,pair.Uphi0)-inner(kl,pair.KffKphi0);
+                    print("<ij| U-K|kl>",a);
+
+                    OO2=(OO2+a*kl).truncate().reduce_rank();
+                }
+            }
+
+//			pair.Uphi0.clear();
+//			pair.KffKphi0.clear();
+
+//			real_function_6d Vpair2=(OO2-OO1).truncate().reduce_rank();
+			real_function_6d Vpair2=OO2;
+			load_balance(Vpair2,true);
+			real_function_6d tmp2=green(-2.0*Vpair2).truncate().reduce_rank();
+            save_function(world,tmp2,"GVpair2");
+			Vpair2.clear();
+
+			GVpair=(GVpair+tmp2).truncate().reduce_rank();
+
+
+			GVpair=Q12(GVpair);
+            pair.function=GVpair;
+            pair.latest_increment=copy(pair.function);
+            save_function(world,GVpair,"GVpair");
+
+            return pair;
+        }
+
+        /// given a pair function, compute the pair energy using the Hylleraas functional
         double compute_second_order_correction_with_Hylleraas(const ElectronPair& pair) const {
 
             const double V=compute_V(pair);
@@ -1717,6 +1800,7 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
     int i=0,j=0;
+    bool do_test=false;
 
     // get parameters form input file
     Calculation calc(world,"input");
@@ -1744,6 +1828,7 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
+        if (key=="test") do_test=true;               // usage: size=10
         if (key=="size") calc.param.L=atof(val.c_str());               // usage: size=10
         if (key=="k") calc.param.k=atoi(val.c_str());                  // usage: k=5
         if (key=="i") i=atoi(val.c_str());                  // usage: k=5
@@ -1799,8 +1884,8 @@ int main(int argc, char** argv) {
     MP2 mp2(world,hf,f12,"input");
 
 //    mp2.value(calc.molecule.get_all_coords());
-    mp2.test(0,0);
-//    mp2.solve_residual_equations(i,j);
+    if (do_test) mp2.test(i,j);
+    else mp2.solve_residual_equations(i,j);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

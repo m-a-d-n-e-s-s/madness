@@ -4734,10 +4734,8 @@ namespace madness {
         }
 
         /// apply the convolution operator one shell at a time, to facilitate screening
-
-        /// @return the resultant norm of the 0-displacement
         template<typename opT, typename R>
-        double apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
+        Void apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
 
         	/*
         	example in 6d for operator application: estimates and actual results
@@ -4771,7 +4769,7 @@ namespace madness {
             	max_norm=do_apply_shell(op, key, coeff, coeff_full, shell);
             	MADNESS_ASSERT(shell<20);		// emergency break
             }
-            return norm0;
+            return None;
         }
 
         /// apply in shells
@@ -4899,11 +4897,7 @@ namespace madness {
             this->compressed=true;
             this->nonstandard=true;
             this->redundant=false;
-            // maybe we don't need this fence??
             if (fence) world.gop.fence();
-
-            this->reconstruct(true);
-
         }
 
         /// traverse a non-existing tree, make its coeffs and apply an operator
@@ -5021,24 +5015,15 @@ namespace madness {
 					// new coeffs are simply the hartree/kronecker/outer product --
                 	const coeffT coeff=outer_low_rank(fcoeff,gcoeff);
 
-                // now send off the application
-//                ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
-//                		? world.random_proc() : result->coeffs.owner(key);
-//                Future<double> kernel_norm=
-//                        result->task(p, &implT:: template do_apply_source_driven<opT,T>, apply_op, key, coeff);
-//
-//                // and finalize
-//                return world.taskq.add(*const_cast<this_type *> (this), &this_type::finalize,kernel_norm,key);
-//					double kernel_norm=result->do_apply_source_driven<opT,T>(apply_op, key, coeff);
-//					double kernel_norm=result->apply_shells<opT,T>(apply_op, key, coeff);
+                	// now send off the application
                     tensorT coeff_full;
-                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? result->world.random_proc() : result->coeffs.owner(key);
-                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>, apply_op, key, coeff, coeff_full, 0);
+                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
+                    		? result->world.random_proc() : result->coeffs.owner(key);
+                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
+                    		apply_op, key, coeff, coeff_full, 0);
                     result->task(p,&implT:: template apply_shells<opT,T>, apply_op, key, coeff, norm0);
 
                     return finalize(norm0.get(),key,coeff);
-
-//					return finalize(kernel_norm,key,coeff);
 
                 } else {
                 	return std::pair<bool,coeffT> (is_leaf,coeffT());
@@ -5076,6 +5061,104 @@ namespace madness {
                 ar & result & iaf & iag & apply_op;
             }
         };
+
+
+
+        /// traverse an existing tree and apply an operator
+
+        /// invoked by result
+        /// @param[in]	op		the operator acting on the NS tree
+        /// @param[in]	fimpl	the funcimpl of the source function
+        /// @param[in]	rimpl	a dummy function for recursive_op to insert data
+        template<typename opT>
+        void recursive_apply(opT& apply_op, const implT* fimpl, implT* rimpl, const bool fence) {
+
+            const keyT& key0=cdata.key0;
+
+            if (world.rank() == coeffs.owner(key0)) {
+
+                typedef recursive_apply_op2<opT> op_type;
+                op_type op(this,fimpl,&apply_op);
+
+                ProcessID owner = coeffs.owner(cdata.key0);
+                rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+            }
+            if (fence) world.gop.fence();
+        }
+
+        /// recursive part of recursive_apply
+        template<typename opT>
+        struct recursive_apply_op2 {
+
+        	typedef recursive_apply_op2<opT> this_type;
+
+            implT* result;
+            const implT* fimpl;
+            const opT* apply_op;
+
+            // ctor
+            recursive_apply_op2() {}
+            recursive_apply_op2(implT* result, const implT* fimpl, const opT* apply_op)
+            	: result(result), fimpl(fimpl), apply_op(apply_op) {}
+
+            recursive_apply_op2(const recursive_apply_op2& other) : result(other.result),
+            		fimpl(other.fimpl), apply_op(other.apply_op) {}
+
+
+            /// send off the application of the operator
+
+            /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+            	MADNESS_ASSERT(fimpl->coeffs.probe(key));
+            	const nodeT& node=fimpl->get_coeffs().find(key).get()->second;
+
+                if (node.coeff().has_data()) {
+					// new coeffs are simply the hartree/kronecker/outer product --
+                	const coeffT& coeff=node.coeff();
+
+                	// now send off the application
+                    tensorT coeff_full;
+                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
+                    		? result->world.random_proc() : result->coeffs.owner(key);
+                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
+                    		apply_op, key, coeff, coeff_full, 0);
+
+                    result->task(result->world.rank(),&implT:: template forward_apply_shells<opT,T>,
+                    		apply_op, key, coeff, norm0);
+
+                    return finalize(norm0.get(),key,coeff);
+
+                } else {
+                	const bool is_leaf=true;
+                	return std::pair<bool,coeffT> (is_leaf,coeffT());
+                }
+            }
+
+            /// sole purpose is to wait for the kernel norm, wrap it and send it back to caller
+            std::pair<bool,coeffT> finalize(const double kernel_norm, const keyT& key,
+            		const coeffT& coeff) const {
+            	const double thresh=result->get_thresh()*0.1;
+            	bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
+            	if (key.level()<2) is_leaf=false;
+            	return std::pair<bool,coeffT> (is_leaf,coeff);
+            }
+
+            /// this is very simple here, since we don't need to find appropriate coeffs; nice..
+            Future<recursive_apply_op2<opT> > make_child_op(const keyT& child) const {
+                return Future<this_type>(*this);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & result & fimpl & apply_op;
+            }
+        };
+
+        template<typename opT, typename R>
+        Void forward_apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
+            woT::task(world.rank(),&implT:: template apply_shells<opT,R>, op, key, coeff, norm0);
+            return None;
+        }
 
         /// compute the error for a (compressed) node using the wavelet coeffs
 
