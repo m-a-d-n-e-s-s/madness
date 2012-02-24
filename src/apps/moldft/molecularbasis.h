@@ -135,6 +135,7 @@ public:
                 bf[2] =  R*z;
                 break;
             case 2:
+              { // braces need by some compilers to limit scope of fac
                 static const double fac = 1.0; //sqrt(3.0);
                 bf[0] = R*x*x;
                 bf[1] = R*x*y*fac;
@@ -142,6 +143,7 @@ public:
                 bf[3] = R*y*y;
                 bf[4] = R*y*z*fac;
                 bf[5] = R*z*z;
+              }
                 break;
             case 3:
                 bf[0] = R*x*x*x;
