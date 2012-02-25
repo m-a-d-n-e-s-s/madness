@@ -349,8 +349,6 @@ namespace madness {
         const std::vector< Function<R,NDIM> >& g;
         long jtop;
 
-        using PoolTaskInterface::run;
-
         MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
                         const Function<T,NDIM>& f,
                         const std::vector< Function<R,NDIM> >& g,
