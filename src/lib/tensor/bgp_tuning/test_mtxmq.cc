@@ -238,9 +238,9 @@ int main(int argc, char **argv) {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for ( m=2; m<=30;  m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=30;  m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=20;  m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
 
     HPM_Print();
     HPM_Print_Flops();

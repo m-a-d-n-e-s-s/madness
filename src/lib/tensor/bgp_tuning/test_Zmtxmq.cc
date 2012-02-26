@@ -250,9 +250,9 @@ int main(int argc, char **argv) {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for ( m=1; m<=30;  m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for ( m=1; m<=30;  m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for ( m=1; m<=20;  m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for (m=1; m<=30; m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for (m=1; m<=30; m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for (m=1; m<=20; m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
 
     HPM_Print();
     HPM_Print_Flops();
