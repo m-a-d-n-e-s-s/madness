@@ -9,7 +9,9 @@ thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h 
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
 
 test_SOURCES = test.cc
-test_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADtensor.a $(LIBMISC) $(LIBWORLD) 
 
 oldtest_SOURCES = oldtest.cc
 oldtest_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
