@@ -38,7 +38,7 @@
 #include <tensor/tensor.h>
 #include <world/print.h>
 
-#ifdef HAVE_GOOGLE_TEST
+#ifdef MADNESS_HAS_GOOGLE_TEST
 
 // The test code deliberately uses only the dumb ITERATOR macros
 // in order to test the optimized iterators used by the implementation.
