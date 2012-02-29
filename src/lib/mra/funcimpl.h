@@ -192,6 +192,7 @@ namespace madness {
         /// @return is the FunctionNode of key a leaf node?
         bool operator()(const Key<NDIM>& key, const coeffT& coeff, const coeffT& parent) const {
             if (parent.has_no_data()) return false;
+            if (key.level()<2) return false;
             coeffT upsampled=f->upsample(key,parent);
             upsampled.scale(-1.0);
             upsampled+=coeff;
@@ -5092,7 +5093,7 @@ namespace madness {
 
         	typedef recursive_apply_op2<opT> this_type;
 
-            implT* result;
+            mutable implT* result;
             const implT* fimpl;
             const opT* apply_op;
 
@@ -5121,13 +5122,14 @@ namespace madness {
                     tensorT coeff_full;
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
                     		? result->world.random_proc() : result->coeffs.owner(key);
-                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
-                    		apply_op, key, coeff, coeff_full, 0);
+//                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
+//                    		apply_op, key, coeff, coeff_full, 0);
+                    double norm0=result->do_apply_shell<opT,T>(apply_op, key, coeff, coeff_full, 0);
 
-                    result->task(result->world.rank(),&implT:: template forward_apply_shells<opT,T>,
+                    result->task(p,&implT:: template forward_apply_shells<opT,T>,
                     		apply_op, key, coeff, norm0);
 
-                    return finalize(norm0.get(),key,coeff);
+                    return finalize(norm0,key,coeff);
 
                 } else {
                 	const bool is_leaf=true;
@@ -5141,6 +5143,7 @@ namespace madness {
             	const double thresh=result->get_thresh()*0.1;
             	bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
             	if (key.level()<2) is_leaf=false;
+//            	if (NDIM==6) print("key,is_leaf,kernel_norm",key,is_leaf,kernel_norm);
             	return std::pair<bool,coeffT> (is_leaf,coeff);
             }
 
