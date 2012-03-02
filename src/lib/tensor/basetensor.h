@@ -39,6 +39,17 @@
 /// \file basetensor.h
 /// \brief Declares BaseTensor
 
+#include <complex>
+
+typedef std::complex<float> float_complex;
+typedef std::complex<double> double_complex;
+
+// These probably have to be included in this order
+#include <tensor/tensor_macros.h>
+#include <tensor/type_data.h>
+#include <tensor/slice.h>
+#include <tensor/vector_factory.h>
+
 #include <madness_config.h>
 #include <tensor/slice.h>
 #include <tensor/tensor_macros.h>

@@ -47,21 +47,12 @@
 
 #include <world/archive.h>
 
-typedef std::complex<float> float_complex;
-typedef std::complex<double> double_complex;
-
-// These probably have to be included in this order
-#include <tensor/tensor_macros.h>
-#include <tensor/type_data.h>
-#include <tensor/slice.h>
-#include <tensor/vector_factory.h>
 #include <tensor/basetensor.h>
-#include <tensor/tensoriter.h>
-#include <tensor/tensorexcept.h>
 #include <tensor/aligned.h>
 #include <tensor/mxm.h>
 #include <tensor/mtxmq.h>
-
+#include <tensor/tensorexcept.h>
+#include <tensor/tensoriter.h>
 
 /*!
   \file tensor.h
@@ -478,7 +469,7 @@ namespace madness {
         /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vcector size.
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
-            allocate(d.size(),&(d[0]),dozero);
+	  allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);
         }
 
         /// Politically incorrect general constructor.
@@ -1331,7 +1322,7 @@ namespace madness {
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         Tensor<T> reshape(const std::vector<long>& d) {
-            return reshape(d.size(), &d[0]);
+	  return reshape(d.size(), d.size() ? &d[0] : 0);
         }
 
         /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
@@ -1339,7 +1330,7 @@ namespace madness {
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         const Tensor<T> reshape(const std::vector<long>& d) const {
-            return reshape(d.size(), &d[0]);
+            return reshape(d.size(), d.size() ? &d[0] : 0);
         }
 
         /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension
