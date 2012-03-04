@@ -1103,19 +1103,6 @@ namespace madness {
         	functor.reset();
         }
 
-        /// if this function is an on-demand function and its functor provides
-        /// a muster, return that muster
-        std::shared_ptr<FunctionImpl<T,NDIM> > get_muster() {
-
-        	MADNESS_ASSERT(is_on_demand());
-        	MADNESS_ASSERT(functor);
-            CompositeFunctorInterface<T,NDIM,3>* func=
-            		dynamic_cast<CompositeFunctorInterface<T,NDIM,3>* >(&(*functor));
-            MADNESS_ASSERT(func);
-            return func->get_muster();
-
-        }
-
         bool& is_on_demand() {return on_demand;};
         const bool& is_on_demand() const {return on_demand;};
 
@@ -3542,6 +3529,23 @@ namespace madness {
 					if (eri or iav1.impl or iav2.impl) coeff_v=tensorT(result.impl->cdata.vk);      // 6D, all addends
 
 					// include the one-electron potential
+					if (val_pot1.has_data()) {
+						Tensor<T> identity=Tensor<double>(iav1.impl->cdata.vk,false);
+						identity=1.0;
+						// direct product: V(1) * E(2) + E(1) * V(2)
+						coeff_v += outer(val_pot1.full_tensor_copy(),identity);
+					}
+
+					if (val_pot2.has_data()) {
+						Tensor<T> identity=Tensor<double>(iav2.impl->cdata.vk,false);
+						identity=1.0;
+						// direct product: V(1) * E(2) + E(1) * V(2)
+						coeff_v += outer(identity,val_pot2.full_tensor_copy());
+					}
+
+
+#if 0
+					// include the one-electron potential
 					if (val_pot1.has_data() and val_pot2.has_data()) {
 
 						FunctionCommonData<T,LDIM> cdataL=iav1.impl->cdata;
@@ -3556,6 +3560,7 @@ namespace madness {
 						MADNESS_ASSERT(LDIM==NDIM);
 						coeff_v = (val_pot1.full_tensor_copy());
 					}
+#endif
 
 					// add 2-particle contribution
 					if (val_eri.has_data()) coeff_v+=val_eri;

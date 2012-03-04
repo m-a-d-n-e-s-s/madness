@@ -96,7 +96,7 @@ namespace madness {
 
 		virtual ~FunctionFunctorInterface() {}
 
-		virtual coeffT coeff(const keyT&, const bool NS=false) const {
+		virtual coeffT coeff(const keyT&) const {
 			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
 			return coeffT();
 		}
@@ -106,24 +106,9 @@ namespace madness {
             return coeffT();
         }
 
-		virtual coeffT eri_values(const keyT& key) const {
-		    MADNESS_EXCEPTION("your functor hasn't implemented eri_values",1);
-		    return coeffT();
-		}
-
 		/// does this functor directly provide sum coefficients? or only function values?
 		virtual bool provides_coeff() const {
 			return false;
-		}
-
-		virtual Void fill_coeff(FunctionImpl<T,NDIM>* impl, const Key<NDIM>& key,
-		        const bool do_refine) const {
-			MADNESS_EXCEPTION("implement fill_coeff for FunctionFunctorInterface",0);
-		}
-
-		/// override this to return the muster tree
-		virtual std::shared_ptr< FunctionImpl<T,NDIM> > get_muster() const {
-			MADNESS_EXCEPTION("no method get_muster provided for this FunctionFunctorInterface",0);
 		}
 
 	};
@@ -252,17 +237,12 @@ namespace madness {
 	template<typename T, std::size_t NDIM>
 	class ElectronRepulsionInterface : public FunctionFunctorInterface<T,NDIM> {
 
-	public:
 		typedef GenTensor<T> coeffT;
 		typedef Tensor<T> tensorT;
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-//		typedef Key<NDIM> keyN;
-
-	private:
 
 		/// the class computing the coefficients
 		ElectronRepulsion<NDIM> eri;
-
 
 	public:
 
@@ -271,13 +251,12 @@ namespace madness {
 		ElectronRepulsionInterface(World& world,double lo,double eps,
                 const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                 int k=FunctionDefaults<NDIM>::get_k())
-			: eri(ElectronRepulsion<NDIM>(world,eps,eps,bc,k)) {
+			: eri(ElectronRepulsion<NDIM>(world,eps,eps,0.0,bc,k)) {
 		}
 
 		bool provides_coeff() const {
 			return true;
 		}
-
 
 		/// return value at point x; fairly inefficient
 		T operator()(const coordT& x) const {
@@ -288,15 +267,59 @@ namespace madness {
 
 
 		/// return sum coefficients for imagined node at key
-		coeffT coeff(const Key<NDIM>& key, const bool NS=false) const {
-			MADNESS_ASSERT(not NS);
-//			return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
-//					FunctionDefaults<NDIM>::get_tensor_type());
+		coeffT coeff(const Key<NDIM>& key) const {
             return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
                     TT_FULL);
 		}
 
 	};
+
+	/// FGIntegralInterface implements the two-electron integral (1-exp(-gamma*r12))/r12
+
+	/// this is essentially just a wrapper around ElectronRepulsion
+	/// The integral expressed as:   1/r12 - exp(-gamma*r12)/r12
+	/// which can be expressed with an eri and a bsh
+	template<typename T, std::size_t NDIM>
+	class FGIntegralInterface : public FunctionFunctorInterface<T,NDIM> {
+
+		typedef GenTensor<T> coeffT;
+		typedef Tensor<T> tensorT;
+		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
+
+		/// the class computing the coefficients
+		ElectronRepulsion<NDIM> eri;
+		ElectronRepulsion<NDIM> bsh;
+
+	public:
+
+		/// constructor takes the same parameters as the Coulomb operator
+		/// which it uses to compute the coefficients
+		FGIntegralInterface(World& world, double lo, double eps, double gamma,
+                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
+                int k=FunctionDefaults<NDIM>::get_k())
+			: eri(ElectronRepulsion<NDIM>(world,eps,eps,0.0,bc,k))
+			, bsh(ElectronRepulsion<NDIM>(world,eps,eps,gamma,bc,k)) {
+		}
+
+		bool provides_coeff() const {
+			return true;
+		}
+
+		/// return value at point x; fairly inefficient
+		T operator()(const coordT& x) const {
+			print("there is no operator()(coordT&) in FGIntegralInterface, for good reason");
+			MADNESS_ASSERT(0);
+			return T(0);
+		};
+
+		/// return sum coefficients for imagined node at key
+		coeffT coeff(const Key<NDIM>& key) const {
+			tensorT e_b=eri.coeff(key)-bsh.coeff(key);
+            return coeffT(e_b,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
+		}
+
+	};
+
 
 	/// FunctionInterface implements a wrapper around any class with the operator()()
 	template<typename T, size_t NDIM, typename opT>
@@ -674,6 +697,63 @@ namespace madness {
 
     };
 
+
+    /// Factory to set up an ElectronRepulsion Function
+    template<typename T, std::size_t NDIM>
+    class FGFactory : public FunctionFactory<T, NDIM> {
+
+    private:
+    	std::shared_ptr<FGIntegralInterface<T, NDIM> > _fg;
+
+    public:
+
+    	/// cutoff radius for 1/r12, aka regularization
+    	double _dcut;
+    	double _gamma;
+        BoundaryConditions<NDIM> _bc;
+
+    public:
+        FGFactory(World& world, double gamma)
+    		: FunctionFactory<T,NDIM>(world)
+    		, _fg()
+    		, _dcut(FunctionDefaults<NDIM>::get_thresh())
+    		, _gamma(gamma)
+    		, _bc(FunctionDefaults<NDIM>::get_bc())
+    	{
+    		this->_is_on_demand=true;
+    		MADNESS_ASSERT(NDIM==6);
+    	}
+
+        FGFactory&
+		thresh(double thresh) {
+			this->_thresh = thresh;
+			return *this;
+		}
+
+        FGFactory&
+		dcut(double dcut) {
+			this->_dcut = dcut;
+			return *this;
+		}
+
+    	// access to the functor *only* via this
+    	std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
+
+    		// return if we already have a valid eri
+    		if (this->_fg) return this->_fg;
+
+//    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
+
+    		// construction of the functor is const in spirit, but non-const in sad reality..
+    		const_cast< std::shared_ptr<FGIntegralInterface<T, NDIM> >& >(this->_fg)=
+    				std::shared_ptr<FGIntegralInterface<T, NDIM> >(
+    				new FGIntegralInterface<double,NDIM>(this->_world,_dcut,this->_thresh,
+    		                _gamma,_bc,this->_k));
+
+    		return this->_fg;
+    	}
+
+    };
 
 }
 

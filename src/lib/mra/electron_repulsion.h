@@ -66,7 +66,7 @@ namespace madness {
         BoundaryConditions<6> bc;
         int rank;
         int k;
-        double thresh;
+//        double thresh;
 
     public:
 
@@ -74,10 +74,15 @@ namespace madness {
         ElectronRepulsion() {}
 
     	/// constructor: cf the Coulomb kernel
-    	ElectronRepulsion(World& world,double lo,double eps,
+
+        /// @param[in]	world	the world
+        /// @param[in]	lo		the smallest length scale to be resolved
+        /// @param[in]	eps		the accuracy threshold
+        /// @param[in]	mu		the exponent of the BSH/inverse Laplacian
+    	ElectronRepulsion(World& world,double lo,double eps, double mu=0.0,
                 const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
-                int kk=FunctionDefaults<NDIM>::get_k())
-    		: thresh(eps) {
+                int kk=FunctionDefaults<NDIM>::get_k()) {
+//    		: thresh(eps) {
 
     		// don't think anything else makes sense..
     		MADNESS_ASSERT(NDIM==6);
@@ -97,7 +102,7 @@ namespace madness {
             // bsh_fit generates representation for 1/4Pir but we want 1/r
             // so have to scale eps by 1/4Pi
             Tensor<double> coeff, expnt;
-            flo_bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+            flo_bsh_fit(mu, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
             coeff.scale(4.0*pi);
 
             // set some parameters
