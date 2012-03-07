@@ -41,7 +41,7 @@ namespace madness {
 
 
     WorldAmInterface::WorldAmInterface(World& world)
-            : world(world)
+            : worldid(world.id())
             , rank(world.mpi.Get_rank())
             , nproc(world.mpi.Get_size())
             , cur_msg(0)
@@ -78,16 +78,8 @@ namespace madness {
         }
     }
 
-    void AmArg::set_world(World* world) const {
-        worldid = world->id();
-    }
-
-    World* AmArg::get_world() const {
-        return World::world_from_id(worldid);
-    }
-
-    void WorldAmInterface::increment_worldam_nrecv(World* world) {
-        world->am.nrecv++;
+    void WorldAmInterface::increment_worldam_nrecv(unsigned long id) {
+        World::world_from_id(id)->am.nrecv++;
     }
 
 } // namespace madness
