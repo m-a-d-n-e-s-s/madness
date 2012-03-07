@@ -39,6 +39,31 @@
 
 using namespace madness;
 
+static std::string df_repo_functionals[] = {
+"lda_x", 
+"lda_c_vwn_rpa", 
+"lda_c_vwn", 
+"lda_c_pz", 
+"lda_c_pw", 
+"hyb_gga_xc_b3lyp", 
+"gga_xc_hcth_93", 
+"gga_xc_hcth_407", 
+"gga_xc_hcth_147", 
+"gga_xc_hcth_120", 
+"gga_xc_edf1", 
+"gga_xc_b97_2", 
+"gga_xc_b97_1", 
+"gga_xc_b97", 
+"gga_x_pw91", 
+"gga_x_pbe", 
+"gga_x_ft97_b", 
+"gga_x_b88", 
+"gga_c_pw91", 
+"gga_c_pbe", 
+"gga_c_p86", 
+"gga_c_lyp"};
+
+
 struct xcfunc_data_point
 {
   double rhoa, rhob;
@@ -55,9 +80,7 @@ std::vector<xcfunc_data_point> read_test_data(const std::string& dfname,
   std::ifstream fstr(dfname.c_str());
   char buffer[120];
   fstr.getline(buffer, 120);
-  printf("%s\n\n",buffer);
   fstr.getline(buffer, 120);
-  printf("%s\n\n",buffer);
 
   std::string tmpstr;
 
@@ -103,45 +126,132 @@ std::vector<xcfunc_data_point> read_test_data(const std::string& dfname,
 void test_xcfunctional()
 {
   bool spin_polarized = false;
-  XCfunctional xcfunc;
-  xcfunc.initialize("GGA_C_PBE 1.0",spin_polarized);
 
-  std::vector<xcfunc_data_point> dps = read_test_data("df_repo/gga_c_pbe.data",spin_polarized);
+  for (int istr = 6; istr < 22; istr++)
+  {
+    XCfunctional xcfunc;
+    std::string xcfuncstr = df_repo_functionals[istr];
+    std::cout << "Testing exchange-correlation functional:  "<< xcfuncstr << std::endl;
 
-  Tensor<double> rhoa_t((long)dps.size());
-  Tensor<double> rhob_t((long)dps.size());
-  Tensor<double> sigmaaa_t((long)dps.size());
-  Tensor<double> sigmaab_t((long)dps.size());
-  Tensor<double> sigmabb_t((long)dps.size());
-  std::vector<Tensor<double> > xc_args;
-  for (unsigned int idp = 0; idp < dps.size(); idp++)
-  {
-    rhoa_t(idp) = dps[idp].rhoa;
-    rhob_t(idp) = dps[idp].rhob;
-    sigmaaa_t(idp) = dps[idp].sigmaaa;
-    sigmaab_t(idp) = dps[idp].sigmaab;
-    sigmabb_t(idp) = dps[idp].sigmabb;
-  }
-  if (spin_polarized)
-  {
-    xc_args.push_back(rhoa_t);
-    xc_args.push_back(rhob_t);
-    xc_args.push_back(sigmaaa_t);
-    xc_args.push_back(sigmaab_t);
-    xc_args.push_back(sigmabb_t);
-  }
-  else
-  {
-    xc_args.push_back(rhoa_t);
-    xc_args.push_back(sigmaaa_t);
-  }
-  Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+    xcfuncstr += " 1.0";
+    xcfunc.initialize(xcfuncstr,spin_polarized);
 
-  for (unsigned int idp = 0; idp < dps.size(); idp++)
+    std::string fpath("df_repo/");
+    fpath += df_repo_functionals[istr];
+    fpath += ".data";
+    std::vector<xcfunc_data_point> dps = read_test_data(fpath.c_str(),spin_polarized);
+
+    Tensor<double> rhoa_t((long)dps.size());
+    Tensor<double> rhob_t((long)dps.size());
+    Tensor<double> sigmaaa_t((long)dps.size());
+    Tensor<double> sigmaab_t((long)dps.size());
+    Tensor<double> sigmabb_t((long)dps.size());
+    std::vector<Tensor<double> > xc_args;
+    for (unsigned int idp = 0; idp < dps.size(); idp++)
+    {
+      rhoa_t(idp) = dps[idp].rhoa;
+      rhob_t(idp) = dps[idp].rhob;
+      sigmaaa_t(idp) = dps[idp].sigmaaa;
+      sigmaab_t(idp) = dps[idp].sigmaab;
+      sigmabb_t(idp) = dps[idp].sigmabb;
+    }
+    if (spin_polarized)
+    {
+      xc_args.push_back(rhoa_t);
+      xc_args.push_back(rhob_t);
+      xc_args.push_back(sigmaaa_t);
+      xc_args.push_back(sigmaab_t);
+      xc_args.push_back(sigmabb_t);
+    }
+    else
+    {
+      xc_args.push_back(rhoa_t);
+      xc_args.push_back(sigmaaa_t);
+    }
+    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+
+    for (unsigned int idp = 0; idp < dps.size(); idp++)
+    {
+      printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
+          rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[idp],
+          std::abs(dps[idp].vrhoa - vr[idp]));
+    }
+    print("\n\n");
+  }
+
+  spin_polarized = true;
+
+  std::cout << "Testing spin-polarized case: " << std::endl << std::endl;
+
+  for (int istr = 6; istr < 22; istr++)
   {
-    printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
-        rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[idp],
-        std::abs(dps[idp].vrhoa - vr[idp]));
+    XCfunctional xcfunc;
+    std::string xcfuncstr = df_repo_functionals[istr];
+    std::cout << "Testing exchange-correlation functional:  "<< xcfuncstr << std::endl;
+
+    xcfuncstr += " 1.0";
+    xcfunc.initialize(xcfuncstr,spin_polarized);
+
+    std::string fpath("df_repo/");
+    fpath += df_repo_functionals[istr];
+    fpath += ".data";
+    std::vector<xcfunc_data_point> dps = read_test_data(fpath.c_str(),spin_polarized);
+
+    Tensor<double> rhoa_t((long)dps.size());
+    Tensor<double> rhob_t((long)dps.size());
+    Tensor<double> sigmaaa_t((long)dps.size());
+    Tensor<double> sigmaab_t((long)dps.size());
+    Tensor<double> sigmabb_t((long)dps.size());
+    std::vector<Tensor<double> > xc_args;
+    for (unsigned int idp = 0; idp < dps.size(); idp++)
+    {
+      rhoa_t(idp) = dps[idp].rhoa;
+      rhob_t(idp) = dps[idp].rhob;
+      sigmaaa_t(idp) = dps[idp].sigmaaa;
+      sigmaab_t(idp) = dps[idp].sigmaab;
+      sigmabb_t(idp) = dps[idp].sigmabb;
+    }
+    if (spin_polarized)
+    {
+      xc_args.push_back(rhoa_t);
+      xc_args.push_back(rhob_t);
+      if (xcfunc.is_gga())
+      {
+        xc_args.push_back(sigmaaa_t);
+        xc_args.push_back(sigmaab_t);
+        xc_args.push_back(sigmabb_t);
+      }
+    }
+    else
+    {
+      xc_args.push_back(rhoa_t);
+      if (xcfunc.is_gga())
+      {
+        xc_args.push_back(sigmaaa_t);
+      }
+    }
+    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+
+    if (xcfunc.is_spin_polarized())
+    {
+      for (unsigned int idp = 0; idp < dps.size(); idp++)
+      {
+        printf("%25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e %25.12e\n",
+            rhoa_t[idp], rhob_t[idp], sigmaaa_t[idp], sigmaab_t[idp], sigmabb_t[idp],
+            dps[idp].vrhoa, vr[idp],
+            std::abs(dps[idp].vrhoa - vr[idp]));
+      }
+    }
+    else
+    {
+      for (unsigned int idp = 0; idp < dps.size(); idp++)
+      {
+        printf("%25.12e %25.12e  %25.12e %25.12e   %25.12e\n",
+            rhoa_t[idp], sigmaaa_t[idp], dps[idp].vrhoa, vr[idp],
+            std::abs(dps[idp].vrhoa - vr[idp]));
+      }
+    }
+    print("\n\n");
   }
 
 }
