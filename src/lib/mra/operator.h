@@ -1015,7 +1015,7 @@ namespace madness {
         /// @param[in]  f2   a function of dim LDIM
         /// @return     the result function of dim NDIM=2*LDIM: g(1,2) = G(1,1',2,2') f(1',2')
         template <typename T, size_t LDIM>
-        typename enable_if_c<NDIM==LDIM+LDIM, Function<TENSOR_RESULT_TYPE(T,Q),NDIM> >::type
+        Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
             return madness::apply(*this, f1, f2);
         }
@@ -1141,7 +1141,7 @@ namespace madness {
             GenTensor<resultT> final=copy(coeff);
             GenTensor<resultT> final0=copy(f0);
 
-            tol = tol/rank; // Error is per separated term
+            tol = tol/rank*0.01; // Error is per separated term
             tol2= tol2/rank;
 
             for (int r=0; r<coeff.rank(); ++r) {
@@ -1165,22 +1165,21 @@ namespace madness {
                 for (int mu=0; mu<rank; ++mu) {
                     const SeparatedConvolutionInternal<Q,NDIM>& muop =  op->muops[mu];
 
-                    if (muop.norm > tol*weight) {
+//                    if (muop.norm > tol2*std::abs(weight)) {
 
                         Q fac = ops[mu].getfac();
                         muopxv_fast(at, muop.ops, chunk, chunk0, result, result0,
                                 tol/std::abs(fac), fac, work1, work2, work5);
 
-                    }
+//                    }
                 }
 
 
                 // reinsert the transformed terms into result, leaving the other particle unchanged
-                if (final.config().is_flat()) result=result.reshape(8*k*k*k);
+                MADNESS_ASSERT(final.config().has_structure());
                 final.config().ref_vector(particle()-1)(s)=result;
 
                 if (source.level()>0) {
-                    if (final0.config().is_flat()) result0=result0.reshape(k*k*k);
                     final0.config().ref_vector(particle()-1)(s)=result0;
                 } else {
                     final0.config().ref_vector(0)(s)=0.0;
