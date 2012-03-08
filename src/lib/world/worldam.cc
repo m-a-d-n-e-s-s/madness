@@ -78,8 +78,8 @@ namespace madness {
         }
     }
 
-    void WorldAmInterface::increment_worldam_nrecv(unsigned long id) {
-        World::world_from_id(id)->am.nrecv++;
+    void WorldAmInterface::increment_worldam_nrecv(World* world) {
+        world->am.nrecv++;
     }
 
 } // namespace madness

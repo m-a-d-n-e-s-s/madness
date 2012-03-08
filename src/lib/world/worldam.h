@@ -330,7 +330,7 @@ namespace madness {
         }
 
         // Not inline in order to keep World opaque
-        static void increment_worldam_nrecv(unsigned long id);
+        static void increment_worldam_nrecv(World* world);
 
         /// This handles all incoming RMI messages for all instances
         static void handler(void *buf, std::size_t nbyte) {
@@ -344,7 +344,7 @@ namespace madness {
             MADNESS_ASSERT(func);
             func(*arg);
             //world->am.nrecv++;  // Must be AFTER execution of the function
-            increment_worldam_nrecv(arg->get_worldid());  // Must be AFTER execution of the function
+            increment_worldam_nrecv(arg->get_world());  // Must be AFTER execution of the function
         }
 
         /// Sends a non-blocking active message
