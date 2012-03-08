@@ -413,6 +413,8 @@ namespace madness {
             for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
 
             if (at.t_term and (Tnorm>0.0)) {
+                tol = tol/(Tnorm*NDIM);  // Errors are relative within here
+
                 long break_even;
                 if (NDIM==1) break_even = long(0.5*k);
                 else if (NDIM==2) break_even = long(0.6*k);
@@ -467,37 +469,45 @@ namespace madness {
             for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops_1d[d]->Rnorm;
             if (Rnorm == 0.0) return;
 
-            tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+            if (Rnorm > 1.e-20) {
 
-            // Determine rank of SVD to use or if to use the full matrix
-            long twok = 2*k;
-            if (modified()) twok=k;
-            long break_even;
-            if (NDIM==1) break_even = long(0.5*twok);
-            else if (NDIM==2) break_even = long(0.6*twok);
-            else if (NDIM==3) break_even=long(0.65*twok);
-            else break_even=long(0.7*twok);
-            for (std::size_t d=0; d<NDIM; ++d) {
-                long r;
-                for (r=0; r<twok; ++r) {
-                    if (ops_1d[d]->Rs[r] < tol) break;
-                }
-                if (r >= break_even) {
-                    trans[d].r = twok;
-                    trans[d].U = ops_1d[d]->R.ptr();
-                    trans[d].VT = 0;
-                }
-                else {
-                    r += (r&1L);
-                    trans[d].r = std::max(2L,r);
-                    trans[d].U = ops_1d[d]->RU.ptr();
-                    trans[d].VT = ops_1d[d]->RVT.ptr();
-                }
-                trans2[d]=ops_1d[d]->R;
+				tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+
+				// Determine rank of SVD to use or if to use the full matrix
+				long twok = 2*k;
+				if (modified()) twok=k;
+				long break_even;
+				if (NDIM==1) break_even = long(0.5*twok);
+				else if (NDIM==2) break_even = long(0.6*twok);
+				else if (NDIM==3) break_even=long(0.65*twok);
+				else break_even=long(0.7*twok);
+				for (std::size_t d=0; d<NDIM; ++d) {
+					long r;
+					for (r=0; r<twok; ++r) {
+						if (ops_1d[d]->Rs[r] < tol) break;
+					}
+					if (r >= break_even) {
+						trans[d].r = twok;
+						trans[d].U = ops_1d[d]->R.ptr();
+						trans[d].VT = 0;
+					}
+					else {
+						r += (r&1L);
+						trans[d].r = std::max(2L,r);
+						trans[d].U = ops_1d[d]->RU.ptr();
+						trans[d].VT = ops_1d[d]->RVT.ptr();
+					}
+					trans2[d]=ops_1d[d]->R;
+				}
+				apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
             }
-            apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
 
-            if (n > 0) {
+            double Tnorm = 1.0;
+            for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
+
+            if (n > 0 and (Tnorm>1.e-20)) {
+				long break_even;
+
                 if (NDIM==1) break_even = long(0.5*k);
                 else if (NDIM==2) break_even = long(0.6*k);
                 else if (NDIM==3) break_even=long(0.65*k);

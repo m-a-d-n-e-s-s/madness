@@ -1837,8 +1837,9 @@ namespace madness {
     	bool same=(ff1.get_impl()==ff2.get_impl());
 
     	// keep the leaves! They are assumed to be there later
-		if (not same) ff1.nonstandard(true,false);
-		ff2.nonstandard(true,true);
+    	// even for modified op we need NS form for the hartree_leaf_op
+    	if (not same) ff1.nonstandard(true,false);
+    	ff2.nonstandard(true,true);
 
 
         FunctionFactory<T,LDIM+LDIM> factory=FunctionFactory<resultT,LDIM+LDIM>(f1.world())
@@ -1866,10 +1867,16 @@ namespace madness {
             op.timer_low_accumulate.print("op low rank addition ");
         }
 
-		if (not same) ff1.standard(false);
-		ff2.standard(false);
 		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
-		result.reconstruct();
+
+        if (op.modified()) {
+            result.get_impl()->trickle_down(true);
+        } else {
+    		result.reconstruct();
+        }
+    	if (not same) ff1.standard(false);
+    	ff2.standard(false);
+
 		return result;
     }
 

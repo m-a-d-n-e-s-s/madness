@@ -261,6 +261,7 @@ namespace madness {
         /// @param[in]  gcoeff coefficients of g of its appropriate key in NS form
         bool operator()(const Key<NDIM>& key, const Tensor<T>& fcoeff, const Tensor<T>& gcoeff) const {
 
+        	if (key.level()<2) return false;
             Slice s = Slice(0,k-1);
             std::vector<Slice> s0(NDIM/2,s);
 
@@ -411,6 +412,18 @@ namespace madness {
 
     };
 
+
+    template<size_t NDIM>
+    struct true_op {
+
+    	template<typename T>
+        bool operator()(const Key<NDIM>& key, const T& t) const {return true;}
+
+    	template<typename T, typename R>
+        bool operator()(const Key<NDIM>& key, const T& t, const R& r) const {return true;}
+        template <typename Archive> void serialize (Archive& ar) {}
+
+    };
 
     /// FunctionNode holds the coefficients, etc., at each node of the 2^NDIM-tree
     template<typename T, std::size_t NDIM>
@@ -3500,8 +3513,8 @@ namespace madness {
 								iaket.datum.second.coeff()).full_tensor_copy();
 					} else {
 						MADNESS_ASSERT(iap1.impl and iap2.impl);
-						hartree_leaf_op<T,NDIM> hlop(result.impl,result.impl->get_k());
-						hartree_op<LDIM,hartree_leaf_op<T,NDIM> > op(result.impl,iap1,iap2,hlop);
+						true_op<NDIM> hlop;
+						hartree_op<LDIM,true_op<NDIM> > op(result.impl,iap1,iap2,hlop);
 						const coeffT coeff_ket=op(key).second;
 						val_ket=result.impl->coeffs2values(key,coeff_ket).full_tensor_copy();
 					}
@@ -3982,7 +3995,7 @@ namespace madness {
 
         /// sum all the contributions from all scales after applying an operator in mod-NS form
         void trickle_down(bool fence) {
-            MADNESS_ASSERT(is_redundant());
+//            MADNESS_ASSERT(is_redundant());
             nonstandard = compressed = redundant = false;
 //            this->print_size("in trickle_down");
             if (world.rank() == coeffs.owner(cdata.key0))
@@ -5019,17 +5032,22 @@ namespace madness {
 
                 if (not is_leaf) {
 					// new coeffs are simply the hartree/kronecker/outer product --
-                	const coeffT coeff=outer_low_rank(fcoeff,gcoeff);
+                	const std::vector<Slice>& s0=iaf.impl->cdata.s0;
+                	const coeffT coeff = (apply_op->modified())
+                			? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)))
+                			: outer_low_rank(fcoeff,gcoeff);
 
                 	// now send off the application
                     tensorT coeff_full;
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
                     		? result->world.random_proc() : result->coeffs.owner(key);
-                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
-                    		apply_op, key, coeff, coeff_full, 0);
+//                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
+//                    		apply_op, key, coeff, coeff_full, 0);
+                    double norm0=result->do_apply_shell<opT,T>(apply_op, key, coeff, coeff_full, 0);
+
                     result->task(p,&implT:: template apply_shells<opT,T>, apply_op, key, coeff, norm0);
 
-                    return finalize(norm0.get(),key,coeff);
+                    return finalize(norm0,key,coeff);
 
                 } else {
                 	return std::pair<bool,coeffT> (is_leaf,coeffT());
@@ -5134,6 +5152,7 @@ namespace madness {
                     result->task(p,&implT:: template forward_apply_shells<opT,T>,
                     		apply_op, key, coeff, norm0);
 
+                    if (node.is_leaf()) return std::pair<bool,coeffT> (true,coeff);
                     return finalize(norm0,key,coeff);
 
                 } else {

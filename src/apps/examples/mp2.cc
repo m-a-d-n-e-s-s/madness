@@ -197,12 +197,11 @@ namespace madness {
 
             // include the purely local potential that (partially) cancels 1/r12
             if (_gamma>0.0) {
-                real_function_6d pair=hartree_product(phi_i,phi_j);
                 real_function_6d fg3=real_factory_6d(world).functor2(fg_(_gamma)).is_on_demand();
                 real_function_6d mul=CompositeFactory<double,6,3>(world)
-                            .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
-                mul.fill_tree().truncate();
-                mul.print_size("mul truncated");
+                                    .g12(fg3).particle1(copy(phi_i)).particle2(copy(phi_j));
+                mul.fill_tree(op_mod).truncate();
+                mul.print_size("mul");
 
                 result=result+mul;
             }
@@ -752,8 +751,9 @@ namespace madness {
         void solve_residual_equations(const int i, const int j) {
 
             ElectronPair result=guess_mp1_2(i,j);
-            compute_V(result);
-            if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", 0, wall_time());
+            double energy=compute_V(result);
+            if (world.rank()==0) printf("finished with prep step at time %6.1fs with energy %12.8f\n\n",
+            		wall_time(),energy);
 
             // the Green's function depends on the zeroth order energy, which is the sum
             // of the orbital energies of orbitals i and j
@@ -763,12 +763,11 @@ namespace madness {
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
             		FunctionDefaults<6>::get_thresh()*0.1);
 
-
-            if (0) {
+            if (1) {
 				if (world.rank()==0) print("computing iteratively");
 				real_function_6d constant_term;
 				load_function(world,constant_term,"GVpair");
-				for (int ii=0; ii<20; ++ii) {
+				for (int ii=1; ii<20; ++ii) {
 
 					real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
 
@@ -780,11 +779,14 @@ namespace madness {
 					result.function=(constant_term+tmp).truncate();
 					result.function=Q12(result.function);
 
-					compute_V(result);
+					double old_energy=energy;
+					energy=compute_V(result);
 
 					const std::string name="psi1_it"+stringify(ii);
 					save_function(world,result.function,name);
-					if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+					if (world.rank()==0) printf("finished iteration %2d at time %6.1fs with energy %12.8f\n\n",
+							ii, wall_time(),energy);
+					if (std::abs(old_energy-energy)<result.function.thresh()*0.01) break;
 
 				}
             } else {
@@ -894,55 +896,37 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-            // some functions repeatedly used
         	ElectronPair pair;
         	pair.i=i; pair.j=j;
-            pair.phi0=this->zeroth_order_function(i,j);
+        	const int particle=1;
 
-            const double gamma=corrfac.gamma();
+            const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
+            real_function_3d phi=hf.orbital(i);
 
-            real_convolution_3d p=CoulombOperator(world,0.00001,hf.get_calc().param.econv);
-            real_convolution_3d b=BSHOperator<3>(world,gamma,0.00001,hf.get_calc().param.econv);
+        	green.doleaves=false;
+        	real_function_6d gvmod, gvns;
+        	{
+            	green.modified()=true;
+        		gvmod=green(phi,phi);
+        		gvmod.print_size("gvmod");
+        		print("modified norm",gvmod.norm2());
+                if (world.rank()==0) printf("finished at time %.1fs\n\n", wall_time());
+        	}
+        	{
+            	green.modified()=false;
+        		gvns=green(phi,phi);
+//        		save_function(world,gvns,"gvphi_non_mod");
+//        		load_function(world,gvns,"gvphi_non_mod");
+        		print("non-modified norm",gvns.norm2());
+                if (world.rank()==0) printf("finished at time %.1fs\n\n", wall_time());
+        	}
+        	real_function_6d diff=gvmod-gvns;
+        	double d=diff.norm2();
+    		print("diff norm",d);
 
-            real_function_3d ij=hf.orbital(i)*hf.orbital(j);
-            real_function_3d f=p(ij)-b(ij)*4*constants::pi;
-            double a2=inner(ij,f)/(2.0*gamma);
-            if (world.rank()==0) printf("< phi0 | fg      | phi0 > w/ convolution %12.8f\n",a2);
 
-
-            real_function_6d fg=FGFactory<double,6>(world,gamma).dcut(dcut);
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
-            real_function_6d tmp1=CompositeFactory<double,6,3>(world)
-                                    .g12(fg).ket(copy(pair.phi0));
-
-            double a1=inner(pair.phi0,tmp1)/(2.0*gamma);
-            if (world.rank()==0) printf("< phi0 | fg      | phi0 >  %12.8f\n",a1);
-
-
-
-
-//			real_function_6d Kphi0=K(pair.phi0);
-//			double a1=inner(pair.phi0,Kphi0);
-//            if (world.rank()==0) printf("< phi0 | K     | phi0 >  %12.8f\n",a1);
-//
-//            double a2=inner(hf.orbital(i),K(hf.orbital(j)));
-//            if (world.rank()==0) printf("< i    | K     | j >  %12.8f\n",a2);
-//
-//            pair.r12phi=CompositeFactory<double,6,3>(world).g12(corrfac.f()).ket(copy(pair.phi0));
-//            pair.r12phi.fill_tree().truncate().reduce_rank();
-//
-//        	load_balance(pair.r12phi,true);
-//
-//        	const real_function_6d Kfphi0=K(pair.r12phi);
-//        	const real_function_6d Kphi0=make_Kphi0(i,j);
-//			real_function_6d fKphi0=CompositeFactory<double,6,3>(world).g12(corrfac.f()).ket(Kphi0);
-//
-//			const double a=inner(pair.phi0,Kfphi0) - inner(pair.phi0,fKphi0);
-//        	if (world.rank()==0) printf("<ij | Kf - fK | ij>      %12.8f\n",a);
-//
-//        	const real_function_6d KffKphi0=this->make_KffKphi0(pair);
-//			const double b=inner(pair.phi0,KffKphi0);
-//        	if (world.rank()==0) printf("<ij | [K,f]   | ij>      %12.8f\n",b);
 
         }
 
@@ -1039,7 +1023,7 @@ namespace madness {
 
             LoadBalanceDeux<6> lb(world);
             if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
-            else lb.add_tree(f,LBCost(0.1,1.0));
+            else lb.add_tree(f,LBCost(0.001,1.0));
             FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
             if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
 
@@ -1418,7 +1402,7 @@ namespace madness {
 			real_function_6d Vpair1=(pair.Uphi0-pair.KffKphi0).truncate().reduce_rank();
 			Vpair1=Q12(Vpair1).truncate().reduce_rank();
 			plot_plane(Vpair1,"Vpair1");
-			load_balance(Vpair1,true);
+			load_balance(Vpair1,false);
 			real_function_6d GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
 
@@ -1942,12 +1926,6 @@ namespace madness {
             vphi.fill_tree(op_mod).truncate();
             vphi.print_size("(V_nuc + J1 + J2) |ket>:  made V tree");
 
-            // add exchange
-//            for (int k=0; k<hf.nocc(); ++k) {
-//                vphi=vphi-apply_exchange(f,hf.orbital(k),1);
-//                vphi=vphi-apply_exchange(f,hf.orbital(k),2);
-//                vphi.truncate().reduce_rank();
-//            }
             vphi=(vphi-K(f)).truncate().reduce_rank();
             vphi.print_size("(V_nuc + J - K) |ket>: the tree");
 
