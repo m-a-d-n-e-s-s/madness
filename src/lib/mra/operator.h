@@ -1161,7 +1161,7 @@ namespace madness {
                 s[0]=Slice(r,r);
                 const Tensor<T> chunk=coeff.config().ref_vector(particle()-1)(s).reshape(2*k,2*k,2*k);
                 const Tensor<T> chunk0=f0.config().ref_vector(particle()-1)(s).reshape(k,k,k);
-                const double weight=coeff.config().weights(r);
+//                const double weight=coeff.config().weights(r);
 
                 // accumulate all terms of the operator for a specific term of the function
                 Tensor<resultT> result(v2k), result0(vk);

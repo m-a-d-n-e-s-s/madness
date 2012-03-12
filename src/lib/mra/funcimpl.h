@@ -2943,6 +2943,7 @@ namespace madness {
         /// add two functions f and g: result=alpha * f  +  beta * g
         struct add_op {
 
+        	bool randomize() const {return false;}
             typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
 
             const implT* f;     ///< first addend
@@ -3049,7 +3050,9 @@ namespace madness {
         template<typename leaf_opT, typename L, typename R>
         struct mul_op {
 
-            typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
+        	bool randomize() const {return false;}
+
+        	typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
 
             implT* h;           ///< the result function h = f * g
             const FunctionImpl<L,NDIM>* f;     ///< the function f(1,2) that will be multiplied with g
@@ -3165,6 +3168,7 @@ namespace madness {
         /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
         template<size_t LDIM, typename leaf_opT>
         struct hartree_op {
+        	bool randomize() const {return false;}
 
             typedef hartree_op<LDIM,leaf_opT> this_type;
             typedef impl_and_arg<T,LDIM> iaT;
@@ -3232,41 +3236,76 @@ namespace madness {
 
 
 
-        /// walk down the tree and perform an operation on each node
+//        /// walk down the tree and perform an operation on each node
+//
+//        /// might or might not insert coefficients into the tree, depending
+//        /// on the leaf_op
+//        /// @param[in]  op  the operator that creates the coefficients,
+//        ///                 and determines if they are leaf nodes
+//        /// @param[in]  key current FunctionNode we are working on
+//        /// @return nothing, but will insert (non-) empty coefficients in this' tree
+//        template<typename opT>
+//        Void recursive_op(const opT& op, const keyT& key) {
+//
+//            // op returns <is_leaf, coeff>
+//            std::pair<bool,coeffT> datum=op(key);
+//            const bool is_leaf=datum.first;
+//            const coeffT& coeff=datum.second;
+//
+//            // insert result into this' tree
+//            const bool has_children=(not is_leaf);
+//            coeffs.replace(key,nodeT(coeff,has_children));
+//
+//            // descend if needed
+//            if (has_children) {
+//                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+//                    const keyT& child = kit.key();
+//                    Future<opT> child_op=op.make_child_op(child);
+//                    woT::task(world.rank(), &implT:: template forward_op<opT>, child_op, child);
+//                }
+//            }
+//            return None;
+//        }
 
-        /// might or might not insert coefficients into the tree, depending
-        /// on the leaf_op
-        /// @param[in]  op  the operator that creates the coefficients,
-        ///                 and determines if they are leaf nodes
-        /// @param[in]  key current FunctionNode we are working on
-        /// @return nothing, but will insert (non-) empty coefficients in this' tree
         template<typename opT>
         Void recursive_op(const opT& op, const keyT& key) {
 
-            // op returns <is_leaf, coeff>
-            std::pair<bool,coeffT> datum=op(key);
-            const bool is_leaf=datum.first;
-            const coeffT& coeff=datum.second;
+         	typedef std::pair<bool,coeffT> argT;
 
-            // insert result into this' tree
-            const bool has_children=(not is_leaf);
-            coeffs.replace(key,nodeT(coeff,has_children));
+             // op returns <is_leaf, coeff>
+             Future<argT> arg(op(key));
+             world.taskq.add(*this, &implT:: template spawn_op<opT>, op, key, arg);
+             return None;
+         }
 
-            // descend if needed
-            if (has_children) {
-                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    const keyT& child = kit.key();
-                    Future<opT> child_op=op.make_child_op(child);
-                    woT::task(world.rank(), &implT:: template forward_op<opT>, child_op, child);
-                }
-            }
-            return None;
-        }
+         template<typename opT>
+         Void spawn_op(const opT op, const keyT& key, std::pair<bool,coeffT>& arg) {
+
+        	 const bool is_leaf=arg.first;
+        	 const coeffT& coeff=arg.second;
+
+             // insert result into this' tree
+             const bool has_children=(not is_leaf);
+             coeffs.replace(key,nodeT(coeff,has_children));
+
+             // descend if needed
+             if (has_children) {
+                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                     const keyT& child = kit.key();
+                     Future<opT> child_op=op.make_child_op(child);
+                     woT::task(world.rank(), &implT:: template forward_op<opT>, child_op, child);
+                 }
+             }
+             return None;
+         }
+
 
         /// walk down the tree and perform an operation on each node
         template<typename opT>
         Void forward_op(const opT& op, const keyT& key) {
-            woT::task(coeffs.owner(key), &implT:: template recursive_op<opT>, op, key);
+            ProcessID p = op.randomize() ? world.random_proc() : coeffs.owner(key);
+//        	ProcessID p = coeffs.owner(key);
+            woT::task(p, &implT:: template recursive_op<opT>, op, key);
             return None;
         }
 
@@ -3446,6 +3485,8 @@ namespace madness {
         /// given a ket and the 1- and 2-electron potentials, construct the function V phi
         template<typename opT, size_t LDIM>
         struct Vphi_op {
+
+        	bool randomize() const {return false;}
 
             typedef Vphi_op<opT,LDIM> this_type;
             typedef FunctionImpl<T,LDIM> implL;
@@ -4954,6 +4995,7 @@ namespace madness {
         /// recursive part of recursive_apply
         template<typename opT, std::size_t LDIM>
         struct recursive_apply_op {
+        	bool randomize() const {return true;}
 
         	typedef recursive_apply_op<opT,LDIM> this_type;
 
@@ -5039,8 +5081,9 @@ namespace madness {
 
                 	// now send off the application
                     tensorT coeff_full;
-                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
-                    		? result->world.random_proc() : result->coeffs.owner(key);
+                    ProcessID p=result->world.rank();
+//                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
+//                    		? result->world.random_proc() : result->coeffs.owner(key);
 //                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
 //                    		apply_op, key, coeff, coeff_full, 0);
                     double norm0=result->do_apply_shell<opT,T>(apply_op, key, coeff, coeff_full, 0);
@@ -5113,20 +5156,23 @@ namespace madness {
         /// recursive part of recursive_apply
         template<typename opT>
         struct recursive_apply_op2 {
+        	bool randomize() const {return true;}
 
         	typedef recursive_apply_op2<opT> this_type;
+        	typedef impl_and_arg<T,NDIM> iaT;
 
             mutable implT* result;
-            const implT* fimpl;
+//            const implT* fimpl;
+            iaT iaf;			/// need this for randomization
             const opT* apply_op;
 
             // ctor
             recursive_apply_op2() {}
-            recursive_apply_op2(implT* result, const implT* fimpl, const opT* apply_op)
-            	: result(result), fimpl(fimpl), apply_op(apply_op) {}
+            recursive_apply_op2(implT* result, const iaT& iaf, const opT* apply_op)
+            	: result(result), iaf(iaf), apply_op(apply_op) {}
 
             recursive_apply_op2(const recursive_apply_op2& other) : result(other.result),
-            		fimpl(other.fimpl), apply_op(other.apply_op) {}
+            		iaf(other.iaf), apply_op(other.apply_op) {}
 
 
             /// send off the application of the operator
@@ -5134,26 +5180,22 @@ namespace madness {
             /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-            	MADNESS_ASSERT(fimpl->coeffs.probe(key));
-            	const nodeT& node=fimpl->get_coeffs().find(key).get()->second;
+            	const coeffT& coeff=iaf.datum.second.coeff();
 
-                if (node.coeff().has_data()) {
-					// new coeffs are simply the hartree/kronecker/outer product --
-                	const coeffT& coeff=node.coeff();
+                if (coeff.has_data()) {
 
                 	// now send off the application
                     tensorT coeff_full;
-                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
-                    		? result->world.random_proc() : result->coeffs.owner(key);
-//                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
-//                    		apply_op, key, coeff, coeff_full, 0);
-                    double norm0=result->do_apply_shell<opT,T>(apply_op, key, coeff, coeff_full, 0);
+                    ProcessID p=result->world.rank();
+                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
+                    		apply_op, key, coeff, coeff_full, 0);
 
-                    result->task(p,&implT:: template forward_apply_shells<opT,T>,
-                    		apply_op, key, coeff, norm0);
+                    result->task(result->world.rank(),&implT:: template forward_apply_shells<opT,T>,
+                    		apply_op, key, coeff, norm0, p);
 
-                    if (node.is_leaf()) return std::pair<bool,coeffT> (true,coeff);
-                    return finalize(norm0,key,coeff);
+                    if (iaf.datum.second.is_leaf()) return std::pair<bool,coeffT> (true,coeff);
+                    return result->world.taskq.add(*const_cast<this_type*> (this), &this_type::finalize,
+                            norm0,key,coeff);
 
                 } else {
                 	const bool is_leaf=true;
@@ -5171,19 +5213,31 @@ namespace madness {
             	return std::pair<bool,coeffT> (is_leaf,coeff);
             }
 
-            /// this is very simple here, since we don't need to find appropriate coeffs; nice..
-            Future<recursive_apply_op2<opT> > make_child_op(const keyT& child) const {
-                return Future<this_type>(*this);
+            Future<recursive_apply_op2> make_child_op(const keyT& child) const {
+
+                // point to "outermost" leaf node
+                Future<iaT> iaff=iaf.make_child(child);
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::make_op,result,iaff,apply_op);
             }
 
+            this_type make_op(implT* rr, const iaT& iaff, const opT* op) {
+                return this_type(rr,iaff,op);
+            }
+
+//            /// this is very simple here, since we don't need to find appropriate coeffs; nice..
+//            Future<recursive_apply_op2<opT> > make_child_op(const keyT& child) const {
+//                return Future<this_type>(*this);
+//            }
+
             template <typename Archive> void serialize(const Archive& ar) {
-                ar & result & fimpl & apply_op;
+                ar & result & iaf & apply_op;
             }
         };
 
         template<typename opT, typename R>
-        Void forward_apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
-            woT::task(world.rank(),&implT:: template apply_shells<opT,R>, op, key, coeff, norm0);
+        Void forward_apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0, const ProcessID& p) {
+            woT::task(p,&implT:: template apply_shells<opT,R>, op, key, coeff, norm0);
             return None;
         }
 

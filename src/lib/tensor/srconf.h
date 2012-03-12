@@ -808,7 +808,14 @@ namespace madness {
 		unsigned int get_k() const {return maxk_;};
 
 		/// return the length of the vector (dim_pv*maxk)
-		unsigned int kVec() const {return pow(this->get_k(),this->dim_per_vector());};
+		unsigned int kVec() const {
+			const int dimpv=this->dim_per_vector();
+			int kv=1;
+			for (int i=0; i<dimpv; ++i) kv*=this->get_k();
+//			const int kv1= pow(this->get_k(),this->dim_per_vector());
+//			MADNESS_ASSERT(kv==kv1);
+			return kv;
+		}
 
 		/// return the tensor type
 		TensorType type() const {return tensortype_;};

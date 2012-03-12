@@ -750,7 +750,7 @@ namespace madness {
         /// solve the residual equation for electron pair (i,j)
         void solve_residual_equations(const int i, const int j) {
 
-            ElectronPair result=guess_mp1_2(i,j);
+            ElectronPair result=guess_mp1_3(i,j);
             double energy=compute_V(result);
             if (world.rank()==0) printf("finished with prep step at time %6.1fs with energy %12.8f\n\n",
             		wall_time(),energy);
@@ -770,9 +770,12 @@ namespace madness {
 				for (int ii=1; ii<20; ++ii) {
 
 					real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
+					double fnorm=result.function.norm2();
 
 						/// apply the convolution
 					vphi.scale(-2.0).truncate();
+					double vnorm=vphi.norm2();
+					if (world.rank()==0) printf("function.norm2(), vphi.norm2() %12.8f %12.8f\n",fnorm,vnorm);
 	                load_balance(vphi,false);
 					const real_function_6d tmp=green(vphi).truncate();
 					tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
@@ -904,10 +907,11 @@ namespace madness {
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
             		FunctionDefaults<6>::get_thresh()*0.1);
             real_function_3d phi=hf.orbital(i);
+            real_function_6d pair1=hartree_product(phi,phi);
 
         	green.doleaves=false;
         	real_function_6d gvmod, gvns;
-        	{
+        	if (0) {
             	green.modified()=true;
         		gvmod=green(phi,phi);
         		gvmod.print_size("gvmod");
@@ -917,6 +921,7 @@ namespace madness {
         	{
             	green.modified()=false;
         		gvns=green(phi,phi);
+        		gvns=green(pair1);
 //        		save_function(world,gvns,"gvphi_non_mod");
 //        		load_function(world,gvns,"gvphi_non_mod");
         		print("non-modified norm",gvns.norm2());
@@ -1384,6 +1389,7 @@ namespace madness {
         ElectronPair guess_mp1_2(const int i, const int j) const {
 
         	if (world.rank()==0) print("using SO in and Q12 the residual equations");
+        	if (world.rank()==0) print("in guess_mp1_2");
             // the Green's function
             const double eps=zeroth_order_energy(i,j);
 //            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
@@ -1392,11 +1398,11 @@ namespace madness {
 
             ElectronPair pair=make_pair(i,j);
 
-            pair.Uphi0=make_Uphi0(i,j);
-			pair.KffKphi0=make_KffKphi0(pair);
-
             // fast return if possible
             if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
+
+            pair.Uphi0=make_Uphi0(i,j);
+			pair.KffKphi0=make_KffKphi0(pair);
 
 			// make the terms with high ranks and smallish trees
 			real_function_6d Vpair1=(pair.Uphi0-pair.KffKphi0).truncate().reduce_rank();
@@ -1406,6 +1412,86 @@ namespace madness {
 			real_function_6d GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
 
+			GVpair=Q12(GVpair);
+            pair.function=GVpair;
+            pair.latest_increment=copy(pair.function);
+            save_function(world,GVpair,"GVpair");
+
+            return pair;
+        }
+
+        /// compute the first iteration of the residual equations and all intermediates
+        ElectronPair guess_mp1_3(const int i, const int j) const {
+
+        	if (world.rank()==0) print("using SO in and Q12 the residual equations");
+        	if (world.rank()==0) print("in guess_mp1_3");
+            // the Green's function
+            const double eps=zeroth_order_energy(i,j);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
+
+            ElectronPair pair=make_pair(i,j);
+
+            // fast return if possible
+            if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
+
+            pair.Uphi0=make_Uphi0(i,j);
+			pair.KffKphi0=make_KffKphi0(pair);
+
+			std::vector<real_function_3d> phi_k_UK_phi0;
+			std::vector<real_function_3d> phi_l_UK_phi0;
+			for (int k=0; k<hf.nocc(); ++k) {
+				phi_k_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(i),0) - pair.KffKphi0.project_out(hf.orbital(i),0));
+				phi_l_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(i),1) - pair.KffKphi0.project_out(hf.orbital(i),1));
+			}
+
+			// make the terms with high ranks and smallish trees
+			load_balance(pair.Uphi0,true);
+			real_function_6d Vpair1=(pair.Uphi0-pair.KffKphi0).truncate().reduce_rank();
+			pair.Uphi0.clear();
+			pair.KffKphi0.clear();
+			plot_plane(Vpair1,"Vpair1");
+			load_balance(Vpair1,false);
+			real_function_6d GVpair;
+			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
+			Vpair1.clear(true);
+			save_function(world,GVpair,"GVpair1");
+//			load_function(world,GVpair,"GVpair1");
+
+			// make the terms with low ranks and largish trees: G (- O1 - O2 + O1O2) (U-K) |phi0>
+			real_function_6d tmp=real_factory_6d(world);
+			for (int k=0; k<hf.nocc(); ++k) {
+				tmp=tmp-green(-2.0*hf.orbital(k),phi_l_UK_phi0[k]);
+				tmp=tmp-green(phi_k_UK_phi0[k],-2.0*hf.orbital(k));
+				tmp.truncate().reduce_rank();
+			}
+			for (int k=0; k<hf.nocc(); ++k) {
+				for (int l=0; l<hf.nocc(); ++l) {
+
+		            real_function_6d kl=CompositeFactory<double,6,3>(world)
+		                    .particle1(copy(hf.orbital(k))).particle2(copy(hf.orbital(l)));
+
+		            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+		            real_function_6d kl_g12=CompositeFactory<double,6,3>(world)
+							.g12(eri).particle1(copy(hf.orbital(k))).particle2(copy(hf.orbital(l)));
+
+
+		            // the matrix element <kl | f12 | ij>
+                    const double f_ijkl=inner(pair.r12phi,kl);
+                    const double g_ijkl=inner(pair.phi0,kl_g12);
+                    const double e_kl=zeroth_order_energy(k,l);
+                    const double e_ij=zeroth_order_energy(i,j);
+
+                    const double fac=f_ijkl*(e_kl-e_ij)+g_ijkl;
+                    if (std::abs(fac)>1.e-10) {
+                    	tmp=tmp+fac*green(hf.orbital(k),-2.0*hf.orbital(l));
+    					tmp.truncate().reduce_rank();
+                    }
+				}
+			}
+
+			GVpair=(GVpair+tmp).truncate().reduce_rank();
 			GVpair=Q12(GVpair);
             pair.function=GVpair;
             pair.latest_increment=copy(pair.function);
