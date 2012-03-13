@@ -39,6 +39,7 @@
 
 #include <world/worldreduce.h>
 #include <world/deferred_deleter.h>
+#include <world/world.h>
 #include <gtest/gtest.h>
 
 madness::World* pworld;

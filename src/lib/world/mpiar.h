@@ -36,8 +36,8 @@
 #ifndef MADNESS_WORLD_MPIAR_H__INCLUDED
 #define MADNESS_WORLD_MPIAR_H__INCLUDED
 
-#include <world/world.h>
 #include <world/archive.h>
+#include <world/worldfwd.h>
 #include <world/vecar.h>
 
 namespace madness {

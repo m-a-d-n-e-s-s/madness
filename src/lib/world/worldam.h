@@ -40,6 +40,7 @@
 
 #include <world/bufar.h>
 #include <world/worldrmi.h>
+#include <world/worldfwd.h>
 #include <vector>
 #include <cstddef>
 
@@ -70,12 +71,7 @@ namespace madness {
       an active message.
      */
 
-    class World;
     template <class Derived> class WorldObject;
-
-    namespace detail {
-        World* world_from_id(unsigned int id);
-    }  // namespace detail
 
     class AmArg;
     /// Type of AM handler functions
@@ -156,7 +152,7 @@ namespace madness {
 
         // This is not inline in order to keep World opaque.
         /// For incoming AM gives the associated world
-        World* get_world() const { return detail::world_from_id(worldid); }
+        World* get_world() const { return World::world_from_id(worldid); }
 
         /// Return the world id
         unsigned long get_worldid() const { return worldid; }
@@ -269,6 +265,7 @@ namespace madness {
     /// Implements AM interface
     class WorldAmInterface : private SCALABLE_MUTEX_TYPE {
         friend class WorldGopInterface;
+        friend class World;
     public:
         static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
     private:
@@ -329,9 +326,6 @@ namespace madness {
             return result;
         }
 
-        // Not inline in order to keep World opaque
-        static void increment_worldam_nrecv(World* world);
-
         /// This handles all incoming RMI messages for all instances
         static void handler(void *buf, std::size_t nbyte) {
             // It will be singled threaded since only the RMI receiver
@@ -339,12 +333,13 @@ namespace madness {
             // be read by the main thread during fence operations.
             AmArg* arg = static_cast<AmArg*>(buf);
             am_handlerT func = arg->get_func();
+            World* w = arg->get_world();
             MADNESS_ASSERT(arg->size() + sizeof(AmArg) == nbyte);
-            MADNESS_ASSERT(detail::world_from_id(arg->get_worldid()));
+            MADNESS_ASSERT(w);
             MADNESS_ASSERT(func);
             func(*arg);
             //world->am.nrecv++;  // Must be AFTER execution of the function
-            increment_worldam_nrecv(arg->get_world());  // Must be AFTER execution of the function
+            w->am.nrecv++;  // Must be AFTER execution of the function
         }
 
         /// Sends a non-blocking active message

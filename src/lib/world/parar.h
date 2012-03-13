@@ -38,7 +38,7 @@
 
 #include <world/archive.h>
 #include <world/binfsar.h>
-#include <world/world.h>
+#include <world/worldfwd.h>
 
 #include <unistd.h>
 #include <cstring>
