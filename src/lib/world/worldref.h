@@ -199,7 +199,22 @@ namespace madness {
             /// Here we check that the pimpl has been initialized, and if so, we
             /// release the current reference. If the count drops to zero, then
             /// this is the last reference to the pimpl and it should be deleted.
-            void destroy();
+            void destroy() {
+                if(pimpl_.is_local()) {
+                    if(pimpl_->release()) {
+                        // No one else is referencing this pointer.
+                        // We can safely dispose of it.
+
+#ifdef MADNESS_REMOTE_REFERENCE_DEBUG
+                        print(">>> RemoteCounter::unregister_ptr_: key=", pimpl_->key(), ", value=", pimpl_);
+#endif
+                        unregister_ptr_(pimpl_->key());
+                        delete pimpl_.get();
+                    }
+                }
+
+                pimpl_ = WorldPtr<implT>();
+            }
 
             /// Register a local shared pointer
 
@@ -280,7 +295,18 @@ namespace madness {
 
             ~RemoteCounter() { destroy(); }
 
-            RemoteCounter& operator=(const RemoteCounter& other);
+            RemoteCounter& operator=(const RemoteCounter& other) {
+                WorldPtr<implT> temp = other.pimpl_;
+
+                if(pimpl_ != temp) {
+                    if(temp)
+                        temp->add_ref();
+                    destroy();
+                    pimpl_ = temp;
+                }
+
+                return *this;
+            }
 
             /// Counter accessor
 

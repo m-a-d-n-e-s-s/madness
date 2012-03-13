@@ -734,13 +734,29 @@ namespace madness {
             WorldTaskQueue* tq;
             double start;
             ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
-            bool operator()() const;
+            bool operator()() const {
+                if (cpu_time()-start > 1200) {
+                    for (int loop = 0; loop<3; ++loop) {
+                        std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
+                        std::cout.flush();
+                        myusleep(1000000);
+                    }
+                    MADNESS_ASSERT(cpu_time()-start < 1200);
+                }
+                return (tq->size() == 0);
+            }
         };
 
         /// Returns after all local tasks have completed
 
         /// While waiting the calling thread will run tasks.
-        void fence();
+        void fence()  {
+            ProbeAllDone tester(this);
+            do {
+                world.await(tester);
+            }
+            while (nregistered);
+        }
     };
 
 
