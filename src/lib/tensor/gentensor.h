@@ -746,8 +746,8 @@ namespace madness {
 			} else if (this->tensor_type()==TT_2D) {
 
 				// determine what is faster: reconstruction or direct rank reduction
-				const double ratio=(_ptr->kVec())/(2.0*rank());
-				if (ratio>1.0) {
+//				const double ratio=(_ptr->kVec())/(2.0*rank());
+//				if (ratio>1.0) {
 
 					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
 						config().divide_and_conquer_reduce(eps*facReduce());
@@ -763,9 +763,9 @@ namespace madness {
 					} else {
 						MADNESS_EXCEPTION("confused about orthogonalization method??",0);
 					}
-				} else {
-					reconstruct_and_decompose(eps);
-				}
+//				} else {
+//					reconstruct_and_decompose(eps);
+//				}
 			} else {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor::reduceRank()",0);
 			}

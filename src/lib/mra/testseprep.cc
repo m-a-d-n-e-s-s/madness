@@ -680,29 +680,29 @@ int main(int argc, char**argv) {
 //    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
     error+=testGenTensor_ctor(k,dim,eps,TT_2D);
 
-//    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
-//    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
-//
-//    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
-////    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
-//    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+    error+=testGenTensor_assignment(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_assignment(k,dim,eps,TT_3D);
+    error+=testGenTensor_assignment(k,dim,eps,TT_2D);
 
-//    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
+    error+=testGenTensor_algebra(k,dim,eps,TT_FULL);
+//    error+=testGenTensor_algebra(k,dim,eps,TT_3D);
+    error+=testGenTensor_algebra(k,dim,eps,TT_2D);
+
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_rankreduce(k,dim,eps,TT_3D);
-//    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
+    error+=testGenTensor_rankreduce(k,dim,eps,TT_2D);
 
 //    error+=testGenTensor_transform(k,dim,eps,TT_FULL);
-//    error+=testGenTensor_transform(k,dim,eps,TT_3D);
+////    error+=testGenTensor_transform(k,dim,eps,TT_3D);
 //    error+=testGenTensor_transform(k,dim,eps,TT_2D);
 
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_reconstruct(k,dim,eps,TT_3D);
-//    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
+    error+=testGenTensor_reconstruct(k,dim,eps,TT_2D);
 
-//    error+=testGenTensor_deepcopy(k,dim,eps,TT_FULL);
+    error+=testGenTensor_deepcopy(k,dim,eps,TT_FULL);
 //    error+=testGenTensor_deepcopy(k,dim,eps,TT_3D);
-//    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
+    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 #endif

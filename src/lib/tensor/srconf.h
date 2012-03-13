@@ -37,6 +37,8 @@
 #ifndef SRCONF_H_
 #define SRCONF_H_
 
+#define BENCH 0
+
 #include "tensor/tensor.h"
 #include "mra/funcdefaults.h"
 #include <linalg/clapack.h>
@@ -67,6 +69,7 @@ namespace madness {
     	return s;
     }
 
+	static double time_[30];
 
 
 
@@ -87,6 +90,8 @@ namespace madness {
 		}
 
 	public:
+
+		static double& time(int i) {return time_[i];}
 
 		typedef Tensor<T> tensorT;
 
@@ -434,18 +439,43 @@ namespace madness {
 				normalize();
 				return;
 			}
-			vector_[0]=copy(vector_[0](c0()));
-			vector_[1]=copy(vector_[1](c0()));
-			weights_=weights_(Slice(0,rank()-1));
+#ifdef BENCH
+			double cpu0=wall_time();
+#endif
+//			vector_[0]=copy(vector_[0](c0()));
+//			vector_[1]=copy(vector_[1](c0()));
+//			weights_=weights_(Slice(0,rank()-1));
             normalize();
-
-            this->undo_structure();
-			ortho3(vector_[0],vector_[1],weights_,thresh);
+#ifdef BENCH
+			double cpu1=wall_time();
+#endif
+//            this->undo_structure();
+			weights_=weights_(Slice(0,rank()-1));
+//			ortho3(vector_[0],vector_[1],weights_,thresh);
+            tensorT v0=flat_vector(0);
+            tensorT v1=flat_vector(1);
+#ifdef BENCH
+			double cpu2=wall_time();
+#endif
+			ortho3(v0,v1,weights_,thresh);
+            std::swap(vector_[0],v0);
+            std::swap(vector_[1],v1);
+#ifdef BENCH
+			double cpu3=wall_time();
+#endif
 			rank_=weights_.size();
 			MADNESS_ASSERT(rank_>=0);
 			this->make_structure();
 			make_slices();
             MADNESS_ASSERT(has_structure());
+#ifdef BENCH
+			double cpu4=wall_time();
+			SRConf<T>::time(21)+=cpu1-cpu0;
+			SRConf<T>::time(22)+=cpu2-cpu1;
+			SRConf<T>::time(23)+=cpu3-cpu2;
+			SRConf<T>::time(24)+=cpu4-cpu3;
+			SRConf<T>::time(20)+=cpu4-cpu0;
+#endif
 
 		}
 
@@ -487,7 +517,9 @@ namespace madness {
 
 		/// add two orthonormal configurations, yielding an optimal SVD decomposition
 		void add_SVD(const SRConf<T>& rhs, const double& thresh) {
-
+#ifdef BENCH
+			double cpu0=wall_time();
+#endif
 			if (rhs.has_no_data()) return;
 			if (has_no_data()) {
 				*this=rhs;
@@ -498,12 +530,16 @@ namespace madness {
             if (check_orthonormality) rhs.check_right_orthonormality();
 
             this->undo_structure();
-            ortho4(ref_vector(0),ref_vector(1),weights_,
+            ortho5(ref_vector(0),ref_vector(1),weights_,
 					rhs.flat_vector(0),rhs.flat_vector(1),rhs.weights_,thresh);
 			rank_=weights_.size();
 			make_structure();
 			make_slices();
             MADNESS_ASSERT(has_structure());
+#ifdef BENCH
+			double cpu1=wall_time();
+			time(25)+=cpu1-cpu0;
+#endif
 		}
 
 		/// alpha * this(lhs_s) + beta * rhs(rhs_s)
@@ -704,6 +740,12 @@ namespace madness {
 		    return vector_[idim](c0()).reshape(rank(),kVec());
 		}
 
+		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
+		Tensor<T> flat_vector(const unsigned int& idim) {
+		    MADNESS_ASSERT(rank()>0);
+		    return vector_[idim](c0()).reshape(rank(),kVec());
+		}
+
 
 		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const unsigned int& rank=1) {
@@ -738,6 +780,7 @@ namespace madness {
 	        // for convenience
 	        const unsigned int rank=this->rank();
 	        std::vector<Slice> s(dim_per_vector()+1,_);
+//	        std::vector<Slice> s(2,_);
 
 	        // we calculate the norm sum_i < F^r_i | F^r_i > for each dimension for each r
 
@@ -755,12 +798,15 @@ namespace madness {
 //	        		weights_(r)*=fac;
 //	        		config.scale(oofac);
 
-	        		const double norm=this->ref_vector(idim)(s).normf();
+//	        		const double norm=this->ref_vector(idim)(s).normf();
+	        		const double norm=this->vector_[idim](s).normf();
 	        		const double fac=norm;
 	        		double oofac=1.0/fac;
 	        		if (fac<1.e-13) oofac=0.0;
 	        		weights_(r)*=fac;
-	        		this->ref_vector(idim)(s).scale(oofac);
+//	        		this->ref_vector(idim)(s).scale(oofac);
+//	        		this->flat_vector(idim)(s).scale(oofac);
+	        		vector_[idim](s).scale(oofac);
 
 	        	}
 	        }
@@ -1090,6 +1136,9 @@ namespace madness {
 	template<typename T>
 	void ortho3(Tensor<T>& x, Tensor<T>& y, Tensor<double>& weights, const double& thresh) {
 
+#ifdef BENCH
+		double cpu0=wall_time();
+#endif
 		typedef Tensor<T> tensorT;
 
 		const long rank=x.dim(0);
@@ -1099,6 +1148,10 @@ namespace madness {
 		// overlap of 1 and 2
 		tensorT S1=inner(x,x,1,1);
 		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
+#ifdef BENCH
+		double cpu1=wall_time();
+		SRConf<T>::time(1)+=(cpu1-cpu0);
+#endif
 
 //	    print("norm(S1)",S1.normf());
 //	    print("norm(S2)",S2.normf());
@@ -1108,7 +1161,10 @@ namespace madness {
 		Tensor<double> e1, e2;
 	    syev(S1,U1,e1);
 	    syev(S2,U2,e2);										// 2.3 / 4.0
-
+#ifdef BENCH
+		double cpu3=wall_time();
+		SRConf<T>::time(3)+=cpu3-cpu1;
+#endif
 
 	    const double e1_max=e1.absmax();
 	    const double e2_max=e2.absmax();
@@ -1147,6 +1203,10 @@ namespace madness {
 
 	    MADNESS_ASSERT(sqrt_e1.size()==rank1);
 	    MADNESS_ASSERT(sqrt_e2.size()==rank2);
+#ifdef BENCH
+		double cpu4=wall_time();
+		SRConf<T>::time(4)+=cpu4-cpu3;
+#endif
 
 
 	    // set up overlap M; include X+
@@ -1177,11 +1237,19 @@ namespace madness {
 //	    		if (sqrt_e2(r)<thresh) throw;
 	    	}
 	    }													// 0.2 / 0.6
+#ifdef BENCH
+		double cpu5=wall_time();
+		SRConf<T>::time(5)+=cpu5-cpu4;
+#endif
 
 	    // decompose M
 		tensorT Up,VTp;
 		Tensor<double> Sp;
 		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
+#ifdef BENCH
+		double cpu6=wall_time();
+		SRConf<T>::time(6)+=cpu6-cpu5;
+#endif
 
 		// make transformation matrices
 		Up=inner(Up,U1,0,1);
@@ -1195,6 +1263,10 @@ namespace madness {
 			residual+=Sp(i)*Sp(i);
 			if (residual>thresh*thresh) break;
 		}
+#ifdef BENCH
+		double cpu7=wall_time();
+		SRConf<T>::time(7)+=cpu7-cpu6;
+#endif
 
 //		i=std::min(i,long(0));
 
@@ -1215,7 +1287,11 @@ namespace madness {
 			y.clear();
 			weights.clear();
 		}
-
+#ifdef BENCH
+		double cpu8=wall_time();
+		SRConf<T>::time(8)+=cpu8-cpu7;
+		SRConf<T>::time(0)+=cpu8-cpu0;
+#endif
 		return;
 	}
 
@@ -1233,6 +1309,7 @@ namespace madness {
 				const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<double>& w2,
 				const double& thresh) {
 
+		double cpu0=wall_time();
 
 		typedef Tensor<T> tensorT;
 
@@ -1251,6 +1328,8 @@ namespace madness {
 		// the overlap of 1 and 1, and 2 and 2 is assumed to be the identity matrix
 		tensorT Sx12=inner(x1,x2,1,1);
 		tensorT Sy12=inner(y1,y2,1,1);
+		double cpu1=wall_time();
+		SRConf<T>::time(11)+=cpu1-cpu0;
 
 		tensorT Sx(rank,rank);
 		tensorT Sy(rank,rank);
@@ -1268,12 +1347,16 @@ namespace madness {
 		// overlap of 1 and 2
 //		tensorT S1=inner(x,x,1,1);
 //		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
+		double cpu2=wall_time();
+		SRConf<T>::time(12)+=cpu2-cpu1;
 
 		// diagonalize
 		tensorT U1, U2;
 		Tensor<double> e1, e2;
 	    syev(Sx,U1,e1);
 	    syev(Sy,U2,e2);										// 2.3 / 4.0
+		double cpu3=wall_time();
+		SRConf<T>::time(13)+=cpu3-cpu2;
 
 //	    print("norm(Sx)",Sx.normf());
 //	    print("norm(Sy)",Sy.normf());
@@ -1345,16 +1428,22 @@ namespace madness {
 //	    		if (sqrt_e2(r)<thresh) throw;
 	    	}
 	    }													// 0.2 / 0.6
+		double cpu4=wall_time();
+		SRConf<T>::time(14)+=cpu4-cpu3;
 
 
 	    // decompose M
 		tensorT Up,VTp;
 		Tensor<double> Sp;
 		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
+		double cpu5=wall_time();
+		SRConf<T>::time(15)+=cpu5-cpu4;
 
 		// make transformation matrices
 		Up=inner(Up,U1,0,1);
 		VTp=inner(VTp,U2,1,1);
+		double cpu6=wall_time();
+		SRConf<T>::time(16)+=cpu6-cpu5;
 
 		// find the maximal singular value that's supposed to contribute
 		// singular values are ordered (largest first)
@@ -1387,8 +1476,215 @@ namespace madness {
 			w1.clear();
 		}
 
+		double cpu7=wall_time();
+		SRConf<T>::time(17)+=cpu7-cpu6;
+		SRConf<T>::time(10)+=cpu7-cpu0;
 		return;
 	}
+
+	/// specialized version of ortho3
+
+	/// does the same as ortho3, but takes two bi-orthonormal configs as input
+	/// and saves on the inner product. Result will be written onto the first config
+	///
+	/// @param[in/out]	x1	left subspace, will hold the result on exit
+	/// @param[in/out]	y1	right subspace, will hold the result on exit
+	/// @param[in]		x2	left subspace, will be accumulated onto x1
+	/// @param[in]		y2	right subspace, will be accumulated onto y1
+	template<typename T>
+	void ortho5(Tensor<T>& x1, Tensor<T>& y1, Tensor<double>& w1,
+				const Tensor<T>& x2, const Tensor<T>& y2, const Tensor<double>& w2,
+				const double& thresh) {
+
+#ifdef BENCH
+		double cpu0=wall_time();
+#endif
+		typedef Tensor<T> tensorT;
+
+		const long rank1=x1.dim(0);
+		const long rank2=x2.dim(0);
+		const long rank=rank1+rank2;
+
+		// for convenience: blocks of the matrices
+		const Slice s0(0,rank1-1), s1(rank1,rank-1);
+
+		const double w_max=std::max(w1.absmax(),w2.absmax());
+		const double norm_max=w_max*rank;		// max Frobenius norm
+
+		// the overlap between 1 and 2;
+		// the overlap of 1 and 1, and 2 and 2 is assumed to be the identity matrix
+		tensorT Sx12=inner(x1,x2,1,1);
+		tensorT Sy12=inner(y1,y2,1,1);
+#ifdef BENCH
+		double cpu1=wall_time();
+		SRConf<T>::time(11)+=cpu1-cpu0;
+#endif
+
+		tensorT Sx(rank,rank);
+		tensorT Sy(rank,rank);
+
+		// the identity matrix (half of it)
+		for (long i=0; i<rank; i++) {
+			Sx(i,i)=0.5;
+			Sy(i,i)=0.5;
+		}
+		Sx(s0,s1)=Sx12;
+		Sy(s0,s1)=Sy12;
+		Sx+=transpose(Sx);
+		Sy+=transpose(Sy);
+
+		// overlap of 1 and 2
+//		tensorT S1=inner(x,x,1,1);
+//		tensorT S2=inner(y,y,1,1);	// 0.5 / 2.1
+#ifdef BENCH
+		double cpu2=wall_time();
+		SRConf<T>::time(12)+=cpu2-cpu1;
+#endif
+
+		// diagonalize
+		tensorT U1, U2;
+		Tensor<double> e1, e2;
+	    syev(Sx,U1,e1);
+	    syev(Sy,U2,e2);										// 2.3 / 4.0
+#ifdef BENCH
+		double cpu3=wall_time();
+		SRConf<T>::time(13)+=cpu3-cpu2;
+#endif
+
+//	    print("norm(Sx)",Sx.normf());
+//	    print("norm(Sy)",Sy.normf());
+
+	    const double e1_max=e1.absmax();
+	    const double e2_max=e2.absmax();
+
+		// fast return if possible
+		if ((e1_max*norm_max<thresh) or (e2_max*norm_max<thresh)) {
+			x1.clear();
+			y1.clear();
+			w1.clear();
+			return;
+		}
+
+	    // remove small negative eigenvalues
+	    e1.screen(1.e-13);
+	    e2.screen(1.e-13);
+	    Tensor<double> sqrt_e1(rank), sqrt_e2(rank);
+
+
+	    // shrink U1, U2
+	    int lo1=0;
+	    int lo2=0;
+	    for (unsigned int r=0; r<rank; r++) {
+	    	if (e1(r)<thresh/norm_max) lo1=r+1;
+	    	else sqrt_e1(r)=sqrt(std::abs(e1(r)));
+	    	if (e2(r)<thresh/norm_max) lo2=r+1;
+	    	else sqrt_e2(r)=sqrt(std::abs(e2(r)));
+	    }
+
+	    U1=U1(Slice(_),Slice(lo1,-1));
+	    U2=U2(Slice(_),Slice(lo2,-1));
+	    sqrt_e1=sqrt_e1(Slice(lo1,-1));
+	    sqrt_e2=sqrt_e2(Slice(lo2,-1));
+	    unsigned int rank_x=rank-lo1;
+	    unsigned int rank_y=rank-lo2;						// 0.0 / 0.0
+
+
+//	    MADNESS_ASSERT(sqrt_e1.size()==rank_x);
+//	    MADNESS_ASSERT(sqrt_e2.size()==rank_y);
+
+	    // set up overlap M; include X+
+
+//	    for (unsigned int i=0; i<rank_x; ++i) U(i,_)*=sqrt_e1(i);
+//	    for (unsigned int i=0; i<rank_y; ++i) U(i,_)*=sqrt_e2(i);
+
+	    tensorT UU1=copy(U1);
+	    for (unsigned int i=0; i<rank1; ++i) UU1(i,_)*=w1(i);
+	    for (unsigned int i=rank1; i<rank; ++i) UU1(i,_)*=w2(i-rank1);
+
+	    tensorT M=inner(UU1,U2,0,0);
+	    tensorT ee=outer(sqrt_e1,sqrt_e2);
+	    M.emul(ee);
+
+	    // include X-
+    	for (unsigned int r=0; r<rank_x; r++) {
+    		double fac=1.0/sqrt_e1(r);
+    		U1(_,r)*=fac;
+//    		for (unsigned int t=0; t<rank; t++) {
+//	    		U1(t,r)*=fac;
+////	    		if (sqrt_e1(r)<thresh) throw;
+//    		}
+    	}
+
+	   	for (unsigned int r=0; r<rank_y; r++) {
+    		double fac=1.0/sqrt_e2(r);
+    		U2(_,r)*=fac;
+//    		for (unsigned int t=0; t<rank; t++) {
+//	    		U2(t,r)*=fac;
+////	    		if (sqrt_e2(r)<thresh) throw;
+//	    	}
+	    }													// 0.2 / 0.6
+#ifdef BENCH
+		double cpu4=wall_time();
+		SRConf<T>::time(14)+=cpu4-cpu3;
+#endif
+
+
+	    // decompose M
+		tensorT Up,VTp;
+		Tensor<double> Sp;
+		svd(M,Up,Sp,VTp);									// 1.5 / 3.0
+#ifdef BENCH
+		double cpu5=wall_time();
+		SRConf<T>::time(15)+=cpu5-cpu4;
+#endif
+
+		// make transformation matrices
+		Up=inner(Up,U1,0,1);
+		VTp=inner(VTp,U2,1,1);
+#ifdef BENCH
+		double cpu6=wall_time();
+		SRConf<T>::time(16)+=cpu6-cpu5;
+#endif
+
+		// find the maximal singular value that's supposed to contribute
+		// singular values are ordered (largest first)
+		double residual=0.0;
+		long i;
+		for (i=Sp.dim(0)-1; i>=0; i--) {
+			residual+=Sp(i)*Sp(i);
+			if (residual>thresh*thresh) break;
+		}
+
+		// convert SVD output to our convention
+		if (i>=0) {
+
+			// make it contiguous
+		    tensorT Up1=transpose(Up(Slice(0,i),s0));
+		    tensorT Up2=transpose(Up(Slice(0,i),s1));
+		    tensorT VTp1=transpose(VTp(Slice(0,i),s0));
+		    tensorT VTp2=transpose(VTp(Slice(0,i),s1));
+
+			// transform 1 and 2
+		    x1=inner(Up1,x1,0,0);
+		    inner_result(Up2,x2,0,0,x1);
+		    y1=inner(VTp1,y1,0,0);
+		    inner_result(VTp2,y2,0,0,y1);
+		    w1=Sp(Slice(0,i));
+
+		} else {
+			x1.clear();
+			y1.clear();
+			w1.clear();
+		}
+#ifdef BENCH
+		double cpu7=wall_time();
+		SRConf<T>::time(17)+=cpu7-cpu6;
+		SRConf<T>::time(10)+=cpu7-cpu0;
+#endif
+		return;
+	}
+
+
 
 	/// orthonormalize and truncate right subspace (y) using symmetric orthogonalization
 	template<typename T>

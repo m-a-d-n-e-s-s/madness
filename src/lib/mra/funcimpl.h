@@ -2804,6 +2804,8 @@ namespace madness {
         template<size_t LDIM>
         struct multiply_op {
 
+        	static bool randomize() {return false;}
+
             typedef FunctionImpl<T,LDIM> implL;
             typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
             typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
@@ -4979,8 +4981,8 @@ namespace madness {
             if (world.rank() == coeffs.owner(key0)) {
 
             	// prepare the impl_and_arg, both of which must be local
-                impl_and_arg<T,LDIM> iaf(fimpl,fimpl->find_datum(fimpl->cdata.key0));
-                impl_and_arg<T,LDIM> iag(gimpl,gimpl->find_datum(gimpl->cdata.key0));
+                impl_and_arg<T,LDIM> iaf(fimpl);
+                impl_and_arg<T,LDIM> iag(gimpl);
 
                 typedef recursive_apply_op<opT,LDIM> op_type;
 //                op_type op(this,iaf,iag,&apply_op);
@@ -5160,6 +5162,7 @@ namespace madness {
 
         	typedef recursive_apply_op2<opT> this_type;
         	typedef impl_and_arg<T,NDIM> iaT;
+        	typedef std::pair<bool,coeffT> argT;
 
             mutable implT* result;
 //            const implT* fimpl;
@@ -5178,7 +5181,7 @@ namespace madness {
             /// send off the application of the operator
 
             /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
-            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+            Future<argT> operator()(const Key<NDIM>& key) const {
 
             	const coeffT& coeff=iaf.datum.second.coeff();
 
@@ -5193,24 +5196,24 @@ namespace madness {
                     result->task(result->world.rank(),&implT:: template forward_apply_shells<opT,T>,
                     		apply_op, key, coeff, norm0, p);
 
-                    if (iaf.datum.second.is_leaf()) return std::pair<bool,coeffT> (true,coeff);
+                    if (iaf.datum.second.is_leaf()) return Future<argT> (argT(true,coeff));
                     return result->world.taskq.add(*const_cast<this_type*> (this), &this_type::finalize,
-                            norm0,key,coeff);
+                            norm0,key,coeff,result);
 
                 } else {
                 	const bool is_leaf=true;
-                	return std::pair<bool,coeffT> (is_leaf,coeffT());
+                	return Future<argT> (argT(is_leaf,coeffT()));
                 }
             }
 
             /// sole purpose is to wait for the kernel norm, wrap it and send it back to caller
-            std::pair<bool,coeffT> finalize(const double kernel_norm, const keyT& key,
-            		const coeffT& coeff) const {
-            	const double thresh=result->get_thresh()*0.1;
-            	bool is_leaf=(kernel_norm<result->truncate_tol(thresh,key));
+            argT finalize(const double kernel_norm, const keyT& key,
+            		const coeffT& coeff, const implT* r) const {
+            	const double thresh=r->get_thresh()*0.1;
+            	bool is_leaf=(kernel_norm<r->truncate_tol(thresh,key));
             	if (key.level()<2) is_leaf=false;
 //            	if (NDIM==6) print("key,is_leaf,kernel_norm",key,is_leaf,kernel_norm);
-            	return std::pair<bool,coeffT> (is_leaf,coeff);
+            	return argT(is_leaf,coeff);
             }
 
             Future<recursive_apply_op2> make_child_op(const keyT& child) const {

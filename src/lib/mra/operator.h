@@ -1248,7 +1248,7 @@ namespace madness {
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
 
-            GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt);
+            GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt), result0(vk,tt);
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
             GenTensor<Q> work5(v2k,tt);
 
@@ -1289,17 +1289,21 @@ namespace madness {
                         timer_low_transf.accumulate(cpu1-cpu0);
                         cpu0=cpu1;
 
-                        r(s0)+=r0;
-                        r.reduceRank(tol2*0.5);				// reduce 1
-                        MADNESS_ASSERT(OrthoMethod::om==ortho3_);
+                        r.reduceRank(tol2);
+                        r0.reduceRank(tol2);
                         result.add_SVD(r,tol2);
+                        result0.add_SVD(r0,tol2);
+
                         cpu1=cpu_time();
                         timer_low_accumulate.accumulate(cpu1-cpu0);
-
                     }
                 }
             }
-
+            double cpu0=cpu_time();
+            result(s0)+=result0;
+            result.reduceRank(tol2*rank);
+            double cpu1=cpu_time();
+            timer_low_accumulate.accumulate(cpu1-cpu0);
             return result;
         }
 
