@@ -30,7 +30,7 @@
 
   $Id$
 */
-#include <world/world.h>
+#include <world/print.h>
 
 namespace madness {
 
