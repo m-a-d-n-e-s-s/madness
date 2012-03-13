@@ -31,6 +31,7 @@
   $Id$
 */
 #include <world/print.h>
+#include <cstring>
 
 namespace madness {
 
