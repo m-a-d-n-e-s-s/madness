@@ -39,6 +39,7 @@
 #include <world/archive.h>
 #include <world/binfsar.h>
 #include <world/worldfwd.h>
+#include <world/worldgop.h>
 
 #include <unistd.h>
 #include <cstring>
