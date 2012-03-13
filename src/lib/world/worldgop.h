@@ -44,7 +44,7 @@
 
 #include <world/worldtypes.h>
 #include <world/bufar.h>
-#include <world/worldmpi.h>
+#include <world/worldfwd.h>
 #include <world/deferred_cleanup.h>
 
 
@@ -143,31 +143,36 @@ namespace madness {
     /// If native AM interoperates with MPI we probably should map these to MPI.
     class WorldGopInterface {
     private:
-        WorldMpiInterface& mpi; ///< MPI interface
-        WorldAmInterface& am;   ///< AM interface
-        WorldTaskQueue& taskq;  ///< Task queue interface
+        World& world; ///< MPI interface
         std::shared_ptr<detail::DeferredCleanup> deferred; ///< Deferred cleanup object.
         bool debug;             ///< Debug mode
 
         friend class detail::DeferredCleanup;
 
-        static void await(SafeMPI::Request& req);
-        ProcessID rank() const { return mpi.rank(); }
-        int size() const { return mpi.size(); }
-
     public:
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
-        WorldGopInterface(World& world);
+        WorldGopInterface(World& world)
+            : world(world)
+            , deferred(new detail::DeferredCleanup())
+            , debug(false)
+        { }
 
-        ~WorldGopInterface();
+        ~WorldGopInterface() {
+            deferred->destroy(true);
+            deferred->do_cleanup();
+        }
 
 
         /// Set debug flag to new value and return old value
         bool set_debug(bool value);
 
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
-        void barrier();
+        void barrier() {
+            long i = world.rank();
+            sum(i);
+            if (i != world.size()*(world.size()-1)/2) error("bad value after sum in barrier");
+        }
 
 
         /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
@@ -215,7 +220,7 @@ namespace madness {
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
-            if (rank() == root) {
+            if (world.rank() == root) {
                 archive::BufferOutputArchive count;
                 count & obj;
                 BUFLEN = count.size();
@@ -223,12 +228,12 @@ namespace madness {
             broadcast(BUFLEN, root);
 
             unsigned char* buf = new unsigned char[BUFLEN];
-            if (rank() == root) {
+            if (world.rank() == root) {
                 archive::BufferOutputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             broadcast(buf, BUFLEN, root);
-            if (rank() != root) {
+            if (world.rank() != root) {
                 archive::BufferInputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
@@ -242,21 +247,21 @@ namespace madness {
         void reduce(T* buf, size_t nelem, opT op) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
-            mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = mpi.unique_tag();
+            world.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world.mpi.unique_tag();
 
             T* buf0 = new T[nelem];
             T* buf1 = new T[nelem];
 
-            if (child0 != -1) req0 = mpi.Irecv(buf0, nelem*sizeof(T), MPI::BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = mpi.Irecv(buf1, nelem*sizeof(T), MPI::BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world.mpi.Irecv(buf0, nelem*sizeof(T), MPI::BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv(buf1, nelem*sizeof(T), MPI::BYTE, child1, gsum_tag);
 
             if (child0 != -1) {
-                await(req0);
+                World::await(req0);
                 for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf0[i]);
             }
             if (child1 != -1) {
-                await(req1);
+                World::await(req1);
                 for (long i=0; i<(long)nelem; ++i) buf[i] = op(buf[i],buf1[i]);
             }
 
@@ -264,8 +269,8 @@ namespace madness {
             delete [] buf1;
 
             if (parent != -1) {
-                req0 = mpi.Isend(buf, nelem*sizeof(T), MPI::BYTE, parent, gsum_tag);
-                await(req0);
+                req0 = world.mpi.Isend(buf, nelem*sizeof(T), MPI::BYTE, parent, gsum_tag);
+                World::await(req0);
             }
 
             broadcast(buf, nelem, 0);
@@ -355,23 +360,23 @@ namespace madness {
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
-            mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = mpi.unique_tag();
+            world.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world.mpi.unique_tag();
 
             unsigned char* buf0 = new unsigned char[bufsz];
             unsigned char* buf1 = new unsigned char[bufsz];
 
-            if (child0 != -1) req0 = mpi.Irecv(buf0, bufsz, MPI::BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = mpi.Irecv(buf1, bufsz, MPI::BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world.mpi.Irecv(buf0, bufsz, MPI::BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv(buf1, bufsz, MPI::BYTE, child1, gsum_tag);
 
             std::vector<T> left, right;
             if (child0 != -1) {
-                await(req0);
+                World::await(req0);
                 archive::BufferInputArchive ar(buf0, bufsz);
                 ar & left;
             }
             if (child1 != -1) {
-                await(req1);
+                World::await(req1);
                 archive::BufferInputArchive ar(buf1, bufsz);
                 ar & right;
                 for (unsigned int i=0; i<right.size(); ++i) left.push_back(right[i]);
@@ -382,8 +387,8 @@ namespace madness {
             if (parent != -1) {
                 archive::BufferOutputArchive ar(buf0, bufsz);
                 ar & left;
-                req0 = mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
-                await(req0);
+                req0 = world.mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
+                World::await(req0);
             }
 
             delete [] buf0;
