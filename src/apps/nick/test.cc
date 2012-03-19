@@ -33,8 +33,11 @@
  * Trying to isolate a memory error
  *********************/
 #include <string>
+using std::string;
+#include <sstream>
 #include <fstream>
 using std::ofstream;
+using std::ios;
 #include <stdlib.h>
 #include <iomanip>
 #include <time.h>
@@ -53,9 +56,25 @@ typedef FunctionFactory<complexd,NDIM> complex_factoryT;
 typedef FunctionFactory<double,NDIM> factoryT;
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 const char* wave_function_filename(int step);
-bool wave_function_exists(World& world, int step);
-void wave_function_store(World& world, int step, const complex_functionT& psi);
-complex_functionT wave_function_load(World& world, int step);
+
+const char* wave_function_filename(int step) {
+    static char fname[1024];
+    sprintf(fname, "%s-%5.5d", prefix.c_str(), step);
+    return fname;
+}
+bool wave_function_exists(World& world, int step) {
+    return archive::ParallelInputArchive::exists(world, wave_function_filename(step));
+}
+void wave_function_store(World& world, int step, const complex_functionT& psi) {
+    archive::ParallelOutputArchive ar(world, wave_function_filename(step), nIOProcessors);
+    ar & psi;
+}
+complex_functionT wave_function_load(World& world, int step) {
+    complex_functionT psi;
+    archive::ParallelInputArchive ar(world, wave_function_filename(step));
+    ar & psi;
+    return psi;
+}
 
 struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
     PhiK& phik;
@@ -175,18 +194,32 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
     f.close();
 }
 
+string toString(int& i) {
+    std::stringstream ss;
+    ss << i;
+    return ss.str();
+}
+
+
 int main(int argc, char** argv) {
     initialize(argc,argv);
     World world(MPI::COMM_WORLD);
     startup(world, argc, argv);
     // Setup defaults for numerical functions
-    int    nPhoton = 5;
-    int    k = 12;
+    double thresh = 1e-3;
+    int    k  = 12;
     double L = M_PI;
     double Z = 1.0;
-    double thresh = 1e-3;
     double cutoff = L;
-    loadParameters(world,thresh, k, L, Z, nPhoton, cutoff);
+    int    nGrid = 5;
+    double th = M_PI;
+    double phi = 1.0;
+    int    wf = 0;
+    double kMomentum = 1.0;
+    int    lMAX  = 12;
+    int    nPhoton = 2;
+    loadParameters(world, thresh, k, L, Z, nPhoton, cutoff);
+    loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
     FunctionDefaults<NDIM>::set_cubic_cell(-L, L);
@@ -198,37 +231,38 @@ int main(int argc, char** argv) {
     //FunctionDefaults<NDIM>::set_pmap(pmapT(new LevelPmap(world)));
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try{
-        double before = 0.0;
-        double after = 0.0;
-        if(world.rank()==0) before = wall_time();
-        double arr[3] = {0, 0, k};
-        const vector3D kVec(arr);
-        const double constCutoff = L;
-        PRINTLINE("    PhiK phik = PhiK(world, Z, kVec, constCutoff);");
-        PhiK phik = PhiK(world, Z, kVec, constCutoff);
-        PRINTLINE("    phik.Init(world);");
-        phik.Init(world);
-        PRINTLINE("    complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));");
-        complex_functionT phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
-        if(world.rank()==0) after = wall_time();
-        PRINT(" took " << after - before << " seconds ");
-        // const int n = 9;
-        // std::vector<int> a(n);
-        // for(int i=0; i<n; i++) {
-        //     a[i] = 0;
-        // }
-        // for(int i=world.rank(); i<n; i+=world.size()) {
-        //     a[i] = 2*i + 1;
-        // }
-        // world.gop.sum(&a[0], n);
-        // world.gop.fence();
-        // if( world.rank()==0 ){
-        //     int total = 0;
-        //     for(int i=0; i<n; i++) {
-        //         total += a[i];
-        //     }
-        //     std::cout << total << std::endl;
-        // }
+        //Load Function
+        complex_functionT psiT;
+        int maxStep = 10;
+        PRINTLINE("cutoff = " << cutoff);
+        for(int i=0; i<maxStep+1; i+=10) {
+            ofstream fout( ("wf" + toString(i) + ".dat").c_str(), ios::out );
+            //ofstream fout( "file" + boost::lexical_cast<std::string>(i) + ".dat".c_str(), ios::out );
+            if( !wave_function_exists(world, wf) ) {
+                PRINTLINE("Function " << wf << " not found");
+                exit(1);
+            } else {
+                psiT = wave_function_load(world, wf);
+                PRINTLINE("phi(T=" << i << ",x,z)");
+            }
+            // Compute grid
+            int n = 2*nGrid + 1;
+            const double dr = cutoff/n;
+            PRINT( std::scientific << std::setprecision(8));
+            for( int i=0; i<n; i++ ) {
+                const double x = i*dr - cutoff;
+                for( int j=0; j<n; j++ ) {
+                    const double z = j*dr - cutoff;
+                    const double r[3] = {x, 0, z};
+                    const vector3D rVec(r);
+                    double psiA = real(psiT(rVec));
+                    fout << std::scientific << std::setprecision(8) << psiA << "\t";
+                    //const double b[3] = {r*std::sin(th)*std::sin(phi), r*std::sin(th)*std::cos(phi), r};
+                }
+                fout << std::endl;
+            }
+            fout.close();
+        }
     } catch (const MPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
