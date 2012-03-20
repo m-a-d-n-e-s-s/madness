@@ -185,7 +185,11 @@ namespace madness {
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
             recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
             int nada=0;
+#ifdef USE_BSEND_ACKS
+            comm.Bsend(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+#else
             comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+#endif
         }
     }
 

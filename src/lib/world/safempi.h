@@ -152,6 +152,14 @@ namespace SafeMPI {
             comm.Send(buf,count,datatype,dest,tag);
         }
         
+#ifdef USE_BSEND_ACKS
+        void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+            SAFE_MPI_GLOBAL_MUTEX;
+            if (count>10 || datatype!=MPI::BYTE) MADNESS_EXCEPTION("Bsend: this protocol is only for 1-byte acks", count );
+            comm.Bsend(buf,count,datatype,dest,tag);
+        }
+#endif
+        
         void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
             SAFE_MPI_GLOBAL_MUTEX;
             comm.Recv(buf,count,datatype,source,tag,status);
