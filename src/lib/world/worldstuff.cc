@@ -55,8 +55,10 @@
                     ( level==MPI_THREAD_SINGLE ? "MPI_THREAD_SINGLE" : "WTF" ) ) ) )
 
 #ifdef USE_BSEND_ACKS
+namespace {
     const int mpi_buffer_size = 1000;
     void * mpi_buffer;
+}
 #endif
 
 namespace madness {
@@ -180,7 +182,7 @@ namespace madness {
         mpi_buffer = malloc(mpi_buffer_size);
         if (mpi_buffer==NULL)
             MADNESS_EXCEPTION("world initialize: cannot allocate MPI buffer", 1);
-        MPI_Buffer_attach(mpi_buffer, mpi_buffer_size);
+        MPI::Attach_buffer(mpi_buffer, mpi_buffer_size);
 #endif
     }
 
@@ -188,7 +190,8 @@ namespace madness {
         RMI::end();
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
 #ifdef USE_BSEND_ACKS
-        MPI_Buffer_detach(mpi_buffer, mpi_buffer_size);
+        MPI::Detach_buffer(mpi_buffer);
+        free(mpi_buffer);
 #endif
         MPI::Finalize();
         finalizestate = 1;
