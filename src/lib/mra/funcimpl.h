@@ -3521,126 +3521,104 @@ namespace madness {
                 // pre-determination: fast return if possible
                 bool is_leaf=leaf_op(key);
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
-                coeffT coeff_ket;
+                coeffT coeff_ket, coeff_result;
 
-                // take a shortcut if we don't need to resort to function values
+				// break key into particles (these are the child keys, with datum1/2 come the parent keys)
+				Key<LDIM> key1, key2;
+				key.break_apart(key1,key2);
+
+				// get the ket
+				if (iaket.impl) {
+					const coeffT& coeff1=iaket.datum.second.coeff();
+					coeff_ket=iaket.impl->parent_to_child(coeff1,iaket.datum.first,key);
+				} else {
+					MADNESS_ASSERT(iap1.impl and iap2.impl);
+
+					const coeffT& coeff1=iap1.datum.second.coeff();
+					const coeffT c1=iap1.impl->parent_to_child(coeff1,iap1.datum.first,key1);
+					const coeffT& coeff2=iap2.datum.second.coeff();
+					const coeffT c2=iap2.impl->parent_to_child(coeff2,iap2.datum.first,key2);
+					coeff_ket=outer(c1,c2);
+				}
+
+				// take a shortcut if we don't need to resort to function values
                 bool ket_only=(not (iav1.impl or iav2.impl or eri));
                 if (ket_only) {
-
-                    if (iaket.impl) {
-                        const coeffT& coeff1=iaket.datum.second.coeff();
-                        coeff_ket=iaket.impl->parent_to_child(coeff1,iaket.datum.first,key);
-                    } else {
-						MADNESS_ASSERT(iap1.impl and iap2.impl);
-						// break key into particles (these are the child keys, with datum1/2 come the parent keys)
-						Key<LDIM> key1, key2;
-						key.break_apart(key1,key2);
-
-						const coeffT& coeff1=iap1.datum.second.coeff();
-                        const coeffT c1=iap1.impl->parent_to_child(coeff1,iap1.datum.first,key1);
-                        const coeffT& coeff2=iap2.datum.second.coeff();
-                        const coeffT c2=iap2.impl->parent_to_child(coeff2,iap2.datum.first,key2);
-                        coeff_ket=outer(c1,c2);
-                    }
+                	coeff_result=coeff_ket;
 
                 } else {
 
-					// break key into particles (these are the child keys, with datum1/2 come the parent keys)
-					Key<LDIM> key1, key2;
-					key.break_apart(key1,key2);
+                	// switch to values instead of coefficients
+					const coeffT val_ket=result.impl->coeffs2values(key,coeff_ket);
+					coeffT val_result;
 
-					// values for ket: get it from its function, or construct it using orbitals
-					tensorT val_ket;
-					if (iaket.impl) {
-						val_ket=iaket.impl->fcube_for_mul(key,iaket.datum.first,
-								iaket.datum.second.coeff()).full_tensor_copy();
-					} else {
-						MADNESS_ASSERT(iap1.impl and iap2.impl);
-						true_op<NDIM> hlop;
-						hartree_op<LDIM,true_op<NDIM> > op(result.impl,iap1,iap2,hlop);
-						const coeffT coeff_ket=op(key).second;
-						val_ket=result.impl->coeffs2values(key,coeff_ket).full_tensor_copy();
-					}
-					MADNESS_ASSERT(val_ket.has_data());
-
-					// values for 1e-potentials
-					const coeffT val_pot1= (iav1.impl)
-							? iav1.impl->fcube_for_mul(key1,iav1.datum.first,iav1.datum.second.coeff())
-							: coeffT();
-					const coeffT val_pot2= (iav2.impl)
-							? iav2.impl->fcube_for_mul(key2,iav2.datum.first,iav2.datum.second.coeff())
-							: coeffT();
-
-					// values for eri
-					tensorT val_eri=tensorT();
-					if (eri and eri->get_functor()->provides_coeff()) {
-						val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
-					} else if (eri) {
-						val_eri=tensorT(result.impl->cdata.vk);
-						result.impl->fcube(key, *(eri->get_functor()), eri->cdata.quad_x, val_eri);
+					// potential for particle 1
+					if (iav1.impl) {
+						const coeffT val_pot1=iav1.impl->fcube_for_mul(key1,iav1.datum.first,
+								iav1.datum.second.coeff());
+						val_result+=multiply(val_ket,val_pot1,0);
 					}
 
-					// assemble all contributions
-					tensorT coeff_v;
-					if (eri or iav1.impl or iav2.impl) coeff_v=tensorT(result.impl->cdata.vk);      // 6D, all addends
-
-					// include the one-electron potential
-					if (val_pot1.has_data()) {
-						Tensor<T> identity=Tensor<double>(iav1.impl->cdata.vk,false);
-						identity=1.0;
-						// direct product: V(1) * E(2) + E(1) * V(2)
-						coeff_v += outer(val_pot1.full_tensor_copy(),identity);
+					// potential for particle 2
+					if (iav2.impl) {
+						const coeffT val_pot2=iav2.impl->fcube_for_mul(key2,iav2.datum.first,
+								iav2.datum.second.coeff());
+						val_result+=multiply(val_ket,val_pot2,1);
 					}
 
-					if (val_pot2.has_data()) {
-						Tensor<T> identity=Tensor<double>(iav2.impl->cdata.vk,false);
-						identity=1.0;
-						// direct product: V(1) * E(2) + E(1) * V(2)
-						coeff_v += outer(identity,val_pot2.full_tensor_copy());
-					}
+					// values for eri: this must be done in full rank...
+					if (eri) {
+						tensorT val_eri;
+						if (eri->get_functor()->provides_coeff()) {
+							val_eri=eri->coeffs2values(key,eri->get_functor()->coeff(key)).full_tensor();
+						} else {
+							val_eri=tensorT(result.impl->cdata.vk);
+							result.impl->fcube(key, *(eri->get_functor()), eri->cdata.quad_x, val_eri);
+						}
 
-
-#if 0
-					// include the one-electron potential
-					if (val_pot1.has_data() and val_pot2.has_data()) {
-
-						FunctionCommonData<T,LDIM> cdataL=iav1.impl->cdata;
-						Tensor<T> identity=Tensor<double>(cdataL.vk,false);
-						identity=1.0;
-
-						// direct product: V(1) * E(2) + E(1) * V(2)
-						coeff_v = outer(val_pot1.full_tensor_copy(),identity)
-										   + outer(identity,val_pot2.full_tensor_copy());
-					} else if (val_pot1.has_data()) {
-
-						MADNESS_ASSERT(LDIM==NDIM);
-						coeff_v = (val_pot1.full_tensor_copy());
-					}
-#endif
-
-					// add 2-particle contribution
-					if (val_eri.has_data()) coeff_v+=val_eri;
-
-					// multiply potential with ket
-					if (coeff_v.has_data()) {
+						// multiply potential with ket
 						tensorT tcube(result.impl->cdata.vk,false);
-						TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket, T, coeff_v, *_p0 = *_p1 * *_p2;);
-						val_ket=tcube;
+						tensorT val_ket2=val_ket.full_tensor_copy();
+						TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket2, T, val_eri, *_p0 = *_p1 * *_p2;);
+
+						// accumulate everything in full rank
+						if (val_result.has_data()) tcube+=val_result.full_tensor_copy();
+						coeff_result=coeffT(result.impl->values2coeffs(key,tcube),result.impl->get_tensor_args());
+
+					} else {
+						MADNESS_ASSERT(val_result.has_data());
+						coeff_result=result.impl->values2coeffs(key,val_result);
+						coeff_result.reduceRank(result.impl->get_tensor_args().thresh);
 					}
 
-					const TensorArgs& targs=result.impl->get_tensor_args();
-					coeff_ket=coeffT(result.impl->values2coeffs(key,val_ket),targs);
                 }
                 // post-determination
-                is_leaf=leaf_op(key,coeff_ket);
+                is_leaf=leaf_op(key,coeff_result);
 
                 // compare to parent
                 if (leaf_op.do_error_leaf_op) {
                     error_leaf_op<T,NDIM> elop(result.impl);
-                    is_leaf=is_leaf or elop(key,coeff_ket,result.datum.second.coeff());
+                    is_leaf=is_leaf or elop(key,coeff_result,result.datum.second.coeff());
                 }
 
-                return std::pair<bool,coeffT> (is_leaf,coeff_ket);
+                return std::pair<bool,coeffT> (is_leaf,coeff_result);
+            }
+
+            /// multiply the ket with a one-electron potential rr(1,2)= f(1,2)*g(1)
+            coeffT multiply(const coeffT& val_ket, const coeffT& val_pot, int particle) const {
+            	MADNESS_ASSERT(val_pot.tensor_type()==TT_FULL);
+            	MADNESS_ASSERT(val_ket.tensor_type()==TT_2D);
+            	MADNESS_ASSERT(particle==0 or particle==1);
+
+            	coeffT rr=copy(val_ket);
+            	// loop over all individual terms in val_ket
+                std::vector<Slice> s(rr.config().dim_per_vector()+1,_);
+                for (int r=0; r<rr.rank(); ++r) {
+                    s[0]=Slice(r,r);
+                    tensorT chunk=rr.config().ref_vector(particle)(s);
+                	chunk.emul(val_pot.full_tensor());
+                }
+                return rr;
             }
 
             /// given the current operator, construct the child operator, which means

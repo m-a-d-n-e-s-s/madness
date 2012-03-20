@@ -1099,7 +1099,9 @@ namespace madness {
         }
 
         /// return the function Uphi0; load from disk if available
-        real_function_6d make_Uphi0(const int i, const int j) const {
+        real_function_6d make_Uphi0(ElectronPair& pair) const {
+        	const int i=pair.i;
+        	const int j=pair.j;
         	real_function_6d Uphi0;
             if (not intermediates.Uphi0.empty()) {
                 load_function(world,Uphi0,intermediates.Uphi0);
@@ -1107,7 +1109,7 @@ namespace madness {
                 Uphi0=corrfac.apply_U(hf.orbital(i),hf.orbital(j));
                 save_function(world,Uphi0,"Uphi0");
             }
-            const double a=inner(zeroth_order_function(i,j),Uphi0);
+            const double a=inner(pair.phi0,Uphi0);
             if (world.rank()==0) printf("< phi0 | U     | phi0 >  %12.8f\n",a);
             return Uphi0;
         }
@@ -1133,7 +1135,9 @@ namespace madness {
 				fKphi0.fill_tree().truncate().reduce_rank();
 				double a2=inner(pair.phi0,fKphi0);
 	            if (world.rank()==0) printf("< phi0 | f K    | phi0 >  %12.8f\n",a2);
-				KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
+//				KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
+	            if (world.rank()==0) print("leaving out Kfphi0");
+	            KffKphi0=fKphi0;
 				save_function(world,KffKphi0,"KffKphi0");
 			}
             const double a=inner(pair.phi0,KffKphi0);
@@ -1241,7 +1245,7 @@ namespace madness {
 
             ElectronPair pair=make_pair(i,j);
 
-            pair.Uphi0=make_Uphi0(i,j);
+            pair.Uphi0=make_Uphi0(pair);
 			pair.KffKphi0=make_KffKphi0(pair);
 
 
@@ -1310,7 +1314,7 @@ namespace madness {
 
             ElectronPair pair=make_pair(i,j);
 
-            pair.Uphi0=make_Uphi0(i,j);
+            pair.Uphi0=make_Uphi0(pair);
 			pair.KffKphi0=make_KffKphi0(pair);
 
             // fast return if possible
@@ -1412,7 +1416,7 @@ namespace madness {
             // fast return if possible
             if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
 
-            pair.Uphi0=make_Uphi0(i,j);
+            pair.Uphi0=make_Uphi0(pair);
 			pair.KffKphi0=make_KffKphi0(pair);
 
 			// make the terms with high ranks and smallish trees
@@ -1447,7 +1451,7 @@ namespace madness {
             // fast return if possible
             if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
 
-            pair.Uphi0=make_Uphi0(i,j);
+            pair.Uphi0=make_Uphi0(pair);
 			pair.KffKphi0=make_KffKphi0(pair);
 
 			OUKphi0(pair);
@@ -1761,6 +1765,7 @@ namespace madness {
                 real_function_6d x=CompositeFactory<double,6,3>(world)
     						.ket(copy(f)).V_for_particle1(copy(orbital));
                 x.fill_tree().truncate();
+                load_balance(x,false);
                 x=op(x).truncate();
                 real_function_6d x2=CompositeFactory<double,6,3>(world)
     						.ket(copy(x)).V_for_particle1(copy(orbital));
@@ -1772,6 +1777,7 @@ namespace madness {
                 real_function_6d x=CompositeFactory<double,6,3>(world)
     						.ket(copy(f)).V_for_particle2(copy(orbital));
                 x.fill_tree().truncate();
+                load_balance(x,false);
                 x=op(x).truncate();
                 real_function_6d x2=CompositeFactory<double,6,3>(world)
     						.ket(copy(x)).V_for_particle2(copy(orbital));

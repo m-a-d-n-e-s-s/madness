@@ -540,6 +540,10 @@ namespace madness {
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
 		    if (rhs.has_no_data()) return *this;
+		    if (this->has_no_data()) {
+		    	*this=copy(rhs);
+		    	return *this;
+		    }
 //			rhs.accumulate_into(*this,1.0);
 			if (tensor_type()==TT_FULL) {
 				if (not rhs.tensor_type()==TT_FULL)

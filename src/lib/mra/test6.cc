@@ -129,11 +129,24 @@ int test_multiply(World& world, const long& k, const double thresh) {
     real_function_3d phisq=phi*phi;
 
     real_function_6d ij=hartree_product(phi,phi);
-    real_function_6d iij2=multiply(ij,phi,1);
+    real_function_6d iij=hartree_product(phisq,phi);
+    real_function_6d iij2=multiply(copy(ij),phi,1);
 
-    double err=iij2.err(r2r);
+//    double err=iij2.err(r2r);
+    double err=(iij-iij2).norm2();
     good=is_small(err,thresh);
     print(ok(good), "multiply f(1,2)*g(1) error:",err);
+
+
+    real_function_6d iij3=CompositeFactory<double,6,3>(world)
+    	    	.ket(copy(ij)).V_for_particle1(copy(phi));
+    iij3.fill_tree();
+
+    double err2=(iij-iij3).norm2();
+    good=is_small(err2,thresh);
+    print(ok(good), "multiply f(1,2)*g(1) error:",err2);
+
+
     if (not good) nerror++;
 
     print("all done\n");
@@ -400,11 +413,11 @@ int main(int argc, char**argv) {
     if (world.rank()==0) printf("phi2.norm2()  %12.8f\n",norm);
 
 //    test(world,k,thresh);
-    error+=test_hartree_product(world,k,thresh);
-//    error+=test_multiply(world,k,thresh);
-    error+=test_add(world,k,thresh);
+//    error+=test_hartree_product(world,k,thresh);
+    error+=test_multiply(world,k,thresh);
+//    error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);
-    error+=test_inner(world,k,thresh);
+//    error+=test_inner(world,k,thresh);
 
 
     print(ok(error==0),error,"finished test suite\n");
