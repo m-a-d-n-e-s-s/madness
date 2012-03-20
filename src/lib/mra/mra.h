@@ -1223,14 +1223,20 @@ namespace madness {
             static const size_t KDIM=NDIM-LDIM;
 
             FunctionFactory<resultT,KDIM> factory=FunctionFactory<resultT,KDIM>(world())
-                    .k(this->k()).thresh(this->thresh());
+                    .k(g.k()).thresh(g.thresh());
             Function<resultT,KDIM> result=factory;      // no empty() here!
+
+            FunctionFactory<resultT,NDIM> factory2=FunctionFactory<resultT,NDIM>(world())
+                    .k(this->k()).thresh(this->thresh());
+            Function<resultT,NDIM> r1=factory2.empty().fence();		// this is a dummy function
+        	FunctionImpl<resultT,NDIM>* rimpl=r1.get_impl().get();
 
             FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
 
             this->reconstruct();
             gimpl->make_redundant(true);
-            result.get_impl()->project_out(this->get_impl().get(),gimpl,dim);
+            this->get_impl()->project_out(result.get_impl().get(),gimpl,rimpl,dim,true);
+//            result.get_impl()->project_out2(this->get_impl().get(),gimpl,dim);
             result.world().gop.fence();
             result.get_impl()->trickle_down(true);
             gimpl->undo_redundant(true);
@@ -1945,16 +1951,18 @@ namespace madness {
 
     	} else {
 
-            ff.nonstandard(op.doleaves, true);
-            if (NDIM==6) ff.print_size("ff in apply after nonstandard");
+    		// saves the standard() step, which is very expensive in 6D
+    		Function<R,NDIM> fff=copy(ff);
+            fff.nonstandard(op.doleaves, true);
+            if (NDIM==6) fff.print_size("ff in apply after nonstandard");
             if ((NDIM==6) and (f.world().rank()==0)) {
-                ff.get_impl()->timer_filter.print("filter");
-                ff.get_impl()->timer_compress_svd.print("compress_svd");
+                fff.get_impl()->timer_filter.print("filter");
+                fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
-            result = apply_only(op, ff, fence);
+            result = apply_only(op, fff, fence);
             result.reconstruct();
-
-            ff.standard();
+            fff.clear();
+//            ff.standard();
 
     	}
         if (NDIM==6) result.print_size("result after reconstruction");

@@ -4737,7 +4737,7 @@ namespace madness {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             bool do_new=true;
-            print("f.do_new", do_new);
+            if (world.rank()==0) print("f.do_new", do_new);
             small=0;
             large=0;
 
@@ -4755,7 +4755,8 @@ namespace madness {
                     if (do_new) {
                     	tensorT coeff_full;
                     	Future<double> norm0=woT::task(p,&implT:: template do_apply_shell<opT,R>, &op, key, coeff, coeff_full, 0);
-                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff, norm0);
+//                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff, norm0);
+                        woT::task(world.rank(),&implT:: template forward_apply_shells<opT,T>, &op, key, coeff, norm0, p);
                     } else {
 //                    	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
                     	tensorT coeff_full;
@@ -5479,13 +5480,135 @@ namespace madness {
 
         /// project the low-dim function g on the hi-dim function f: this(x) = <f(x,y) | g(y)>
 
+        /// invoked by the hi-dim function, a function of NDIM
+        /// @param[in]  f   hi-dim function of LDIM+NDIM
+        /// @param[in]  g   lo-dim function of LDIM
+        /// @param[in]	rimpl	a dummy function..
+        /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
+        /// @return this, with contributions on all scales
+        template<size_t LDIM>
+        void project_out(FunctionImpl<T,LDIM>* result, const FunctionImpl<T,LDIM>* gimpl,
+        		FunctionImpl<T,NDIM>* rimpl, const int dim, const bool fence) const {
+
+        	const keyT& key0=cdata.key0;
+
+        	if (world.rank() == coeffs.owner(key0)) {
+
+        		// prepare the impl_and_arg, both of which must be local
+        		impl_and_arg<T,LDIM> iag(gimpl);
+
+        		typedef project_out_op<LDIM> op_type;
+        		op_type op(this,result,iag,dim);
+
+        		ProcessID owner = coeffs.owner(cdata.key0);
+        		rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+        	}
+    		if (fence) world.gop.fence();
+        }
+
+        template<size_t LDIM>
+        struct project_out_op {
+        	bool randomize() const {return false;}
+
+        	typedef project_out_op<LDIM> this_type;
+        	typedef impl_and_arg<T,LDIM> iaL;
+        	typedef FunctionImpl<T,LDIM> implL;
+        	typedef std::pair<bool,coeffT> argT;
+
+            const implT* fimpl;			//< the hi dim function f
+            mutable implL* result;	//< the low dim result function
+            iaL iag;				//< the low dim function g
+            int dim;				//< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
+
+            // ctor
+            project_out_op() {}
+            project_out_op(const implT* fimpl, implL* result, const iaL& iag, const int dim)
+            		: fimpl(fimpl), result(result), iag(iag), dim(dim) {}
+            project_out_op(const project_out_op& other)
+            		: fimpl(other.fimpl), result(other.result), iag(other.iag), dim(other.dim) {}
+
+
+            /// do the actual contraction
+            Future<argT> operator()(const Key<NDIM>& key) const {
+
+            	Key<LDIM> key1,key2,dest;
+            	key.break_apart(key1,key2);
+
+            	// make the right coefficients
+                coeffT gcoeff;
+                if (dim==0) {
+                	gcoeff=iag.impl->parent_to_child(iag.datum.second.coeff(),iag.datum.first,key1);
+                	dest=key2;
+                }
+                if (dim==1) {
+                	gcoeff=iag.impl->parent_to_child(iag.datum.second.coeff(),iag.datum.first,key2);
+                	dest=key1;
+                }
+
+                MADNESS_ASSERT(fimpl->get_coeffs().probe(key));		// must be local!
+                const nodeT& fnode=fimpl->get_coeffs().find(key).get()->second;
+                const coeffT& fcoeff=fnode.coeff();
+
+                // fast return if possible
+                if (fcoeff.has_no_data() or gcoeff.has_no_data())
+                	return Future<argT> (argT(fnode.is_leaf(),coeffT()));;
+
+                // let's specialize for the time being on SVD tensors for f and full tensors of half dim for g
+                MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
+                MADNESS_ASSERT(fcoeff.tensor_type()==TT_2D);
+                const tensorT gtensor=gcoeff.full_tensor();
+                tensorT final(result->cdata.vk);
+
+                const int otherdim=(dim+1)%2;
+                const int k=fcoeff.dim(0);
+                std::vector<Slice> s(fcoeff.config().dim_per_vector()+1,_);
+
+                // do the actual contraction
+                for (int r=0; r<fcoeff.rank(); ++r) {
+                    s[0]=Slice(r,r);
+                    const tensorT contracted_tensor=fcoeff.config().ref_vector(dim)(s).reshape(k,k,k);
+                    const tensorT other_tensor=fcoeff.config().ref_vector(otherdim)(s).reshape(k,k,k);
+                    const double ovlp= gtensor.trace_conj(contracted_tensor);
+                    const double fac=ovlp * fcoeff.config().weights(r);
+                    final+=fac*other_tensor;
+                }
+
+                // accumulate the result
+                result->coeffs.task(dest, &FunctionNode<T,LDIM>::accumulate2, final, result->coeffs, dest, TaskAttributes::hipri());
+
+                return Future<argT> (argT(fnode.is_leaf(),coeffT()));
+            }
+
+            Future<project_out_op> make_child_op(const keyT& child) const {
+            	Key<LDIM> key1,key2;
+            	child.break_apart(key1,key2);
+            	const Key<LDIM> gkey = (dim==0) ? key1 : key2;
+                // point to "outermost" leaf node
+                Future<iaL> iagg=iag.make_child(gkey);
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::make_op,fimpl,result,iagg,dim);
+            }
+
+            this_type make_op(const implT* ff, implL* rr, const iaL& iagg, const int ddim) {
+                return this_type(ff,rr,iagg,ddim);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & result & iag & fimpl & dim;
+            }
+
+        };
+
+
+        /// project the low-dim function g on the hi-dim function f: this(x) = <f(x,y) | g(y)>
+
         /// invoked by result, a function of NDIM
         /// @param[in]  f   hi-dim function of LDIM+NDIM
         /// @param[in]  g   lo-dim function of LDIM
         /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
         /// @return this, with contributions on all scales
         template<size_t LDIM>
-        void project_out(const FunctionImpl<T,LDIM+NDIM>* f, const FunctionImpl<T,LDIM>* g, const int dim) {
+        void project_out2(const FunctionImpl<T,LDIM+NDIM>* f, const FunctionImpl<T,LDIM>* g, const int dim) {
 
             typedef std::pair< keyT,coeffT > pairT;
             typedef typename FunctionImpl<T,NDIM+LDIM>::dcT::const_iterator fiterator;
@@ -5502,18 +5625,22 @@ namespace madness {
 
                     // break key into particle: over key1 will be summed, over key2 will be
                     // accumulated, or vice versa, depending on dim
-                    Key<NDIM> key1;
-                    Key<LDIM> key2;
-                    key.break_apart(key1,key2);
-
                     if (dim==0) {
+                    	Key<NDIM> key1;
+                    	Key<LDIM> key2;
+                    	key.break_apart(key1,key2);
+
                         Future<pairT> result;
 //                        sock_it_to_me(key1, result.remote_ref(world));
                         g->task(coeffs.owner(key1), &implT::sock_it_to_me, key1, result.remote_ref(world), TaskAttributes::hipri());
                         woT::task(world.rank(),&implT:: template do_project_out<LDIM>,fcoeff,result,key1,key2,dim);
 
                     } else if (dim==1) {
-                        Future<pairT> result;
+                    	Key<LDIM> key1;
+                    	Key<NDIM> key2;
+                    	key.break_apart(key1,key2);
+
+                    	Future<pairT> result;
 //                        sock_it_to_me(key2, result.remote_ref(world));
                         g->task(coeffs.owner(key2), &implT::sock_it_to_me, key2, result.remote_ref(world), TaskAttributes::hipri());
                         woT::task(world.rank(),&implT:: template do_project_out<LDIM>,fcoeff,result,key2,key1,dim);

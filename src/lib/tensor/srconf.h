@@ -37,7 +37,7 @@
 #ifndef SRCONF_H_
 #define SRCONF_H_
 
-#define BENCH 0
+//#define BENCH 0
 
 #include "tensor/tensor.h"
 #include "mra/funcdefaults.h"

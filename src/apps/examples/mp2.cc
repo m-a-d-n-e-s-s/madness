@@ -134,6 +134,18 @@ namespace madness {
         }
     };
 
+    /// do some load-balancing
+
+    /// @param[in]	f		the function we want to distribute evenly
+    /// @param[in]	leaf	if true: weigh leaf nodes only; if false: weigh internal nodes only
+    void load_balance(const real_function_6d& f, const bool leaf) {
+        LoadBalanceDeux<6> lb(f.world());
+        if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
+        else lb.add_tree(f,LBCost(0.001,1.0));
+        FunctionDefaults<6>::redistribute(f.world(), lb.load_balance(2.0,false));
+        if(f.world().rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
+    }
+
 
     /// a class holding the correlation factor for R12 theory
     class CorrelationFactor {
@@ -194,6 +206,8 @@ namespace madness {
                 if (world.rank()==0) printf("done with multiplication with U at ime %.1f\n",wall_time());
                 result.print_size("result");
             }
+
+            load_balance(result,true);
 
             // include the purely local potential that (partially) cancels 1/r12
             if (_gamma>0.0) {
@@ -520,6 +534,8 @@ namespace madness {
             real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
             real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
             real_function_6d JKphi0;
+            std::vector<real_function_3d> phi_k_UK_phi0;	///< < k(1) | U-K | phi^0(1,2)>
+            std::vector<real_function_3d> phi_l_UK_phi0;	///< < l(2) | U-K | phi^0(1,2)>
 
             double first_order_correction;  ///< this plus orbital energies will yield the HF energy
             double second_order_correction; ///< this plus the HF energy will yield the MP2 correlation energy
@@ -583,6 +599,7 @@ namespace madness {
             std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
             std::string KffKphi0;      ///< the function [K,f12] |phi^0>
             std::string matrix_elements; ///< the matrix elements of a pair
+            std::string OUKphi0;		///< < k(1) | U-K | phi^0(1,2) >
 
             Intermediates() : r12phi(), latest_increment(), Kfphi0(), Uphi0(), KffKphi0() {};
 
@@ -787,7 +804,7 @@ namespace madness {
 
 					const std::string name="psi1_it"+stringify(ii);
 					save_function(world,result.function,name);
-					if (world.rank()==0) printf("finished iteration %2d at time %6.1fs with energy %12.8f\n\n",
+					if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
 							ii, wall_time(),energy);
 					if (std::abs(old_energy-energy)<result.function.thresh()*0.01) break;
 
@@ -827,7 +844,7 @@ namespace madness {
 	   		}
             }
 
-            compute_second_order_correction_with_Hylleraas(result);
+//            compute_second_order_correction_with_Hylleraas(result);
             result.solved=true;
 
         }
@@ -907,7 +924,8 @@ namespace madness {
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
             		FunctionDefaults<6>::get_thresh()*0.1);
             real_function_3d phi=hf.orbital(i);
-            real_function_6d pair1=hartree_product(phi,phi);
+            real_function_6d pair1;
+            load_function(world,pair1,"r12phi");
 
         	green.doleaves=false;
         	real_function_6d gvmod, gvns;
@@ -920,8 +938,12 @@ namespace madness {
         	}
         	{
             	green.modified()=false;
-        		gvns=green(phi,phi);
+//        		gvns=green(phi,phi);
+//            	pair1.nonstandard(false,true);
+//            	save_function(world,pair1,"pair1_ns");
+            	load_function(world,pair1,"pair1_ns");
         		gvns=green(pair1);
+        		for (int i=0; i<30; i++) printf("time %d  %12.8f\n",i,SRConf<double>::time(i));
 //        		save_function(world,gvns,"gvphi_non_mod");
 //        		load_function(world,gvns,"gvphi_non_mod");
         		print("non-modified norm",gvns.norm2());
@@ -1023,17 +1045,6 @@ namespace madness {
             return ij;
         }
 
-        /// do some load-balancing
-        void load_balance(const real_function_6d& f, const bool leaf) const {
-
-            LoadBalanceDeux<6> lb(world);
-            if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
-            else lb.add_tree(f,LBCost(0.001,1.0));
-            FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
-            if(world.rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
-
-        }
-
         /// orthogonalize f against function g: |f> <= |f> - |g><g|f>
         void orthogonalize(real_function_6d& f, const real_function_6d& g) const {
 
@@ -1094,7 +1105,6 @@ namespace madness {
                 load_function(world,Uphi0,intermediates.Uphi0);
             } else {
                 Uphi0=corrfac.apply_U(hf.orbital(i),hf.orbital(j));
-                Uphi0.truncate().reduce_rank();
                 save_function(world,Uphi0,"Uphi0");
             }
             const double a=inner(zeroth_order_function(i,j),Uphi0);
@@ -1162,7 +1172,7 @@ namespace madness {
 
             const real_function_6d& phi0=pair.phi0;
 
-            pair.first_order_correction=this->compute_first_order_correction(pair);
+//            pair.first_order_correction=this->compute_first_order_correction(pair);
 
             if (not intermediates.matrix_elements.empty()) {
             	pair.load_matrix_elements(world);
@@ -1189,8 +1199,8 @@ namespace madness {
 //				pair.phi0_nf_phi0=inner(phi0,corrfac.nablaf2()*phi0);
 //				if (r0) printf("<phi^0 | (f')^2         | phi^0>  %12.8f\n",pair.phi0_nf_phi0);
 //
-				pair.phi0_fovr_phi0=inner(phi0,corrfac.f_over_r()*phi0);
-				if (r0) printf("<phi^0 | f/r            | phi^0>  %12.8f\n",pair.phi0_fovr_phi0);
+//				pair.phi0_fovr_phi0=inner(phi0,corrfac.f_over_r()*phi0);
+//				if (r0) printf("<phi^0 | f/r            | phi^0>  %12.8f\n",pair.phi0_fovr_phi0);
 //
 //				pair.phi0_fKf_phi0=inner(fphi0,pair.Kfphi0);
 //				if (r0) printf("<phi^0 | f K f          | phi^0>  %12.8f\n",pair.phi0_fKf_phi0);
@@ -1265,7 +1275,8 @@ namespace madness {
 
 
 			// make the terms with the single projectors: (O1 + O2)(-1/r12 + U -K) |phi^0>
-			const real_function_6d OO1=(OUKphi0(pair) - Og12phi0(i,j)).truncate().reduce_rank();
+			MADNESS_EXCEPTION("no OO1 in guess_mp1",1);
+			const real_function_6d OO1;//=(OUKphi0(pair) - Og12phi0(i,j)).truncate().reduce_rank();
 			const real_function_6d OO2=compute_O1O2(pair);
 //			pair.Uphi0.clear();
 //			pair.KffKphi0.clear();
@@ -1439,12 +1450,13 @@ namespace madness {
             pair.Uphi0=make_Uphi0(i,j);
 			pair.KffKphi0=make_KffKphi0(pair);
 
-			std::vector<real_function_3d> phi_k_UK_phi0;
-			std::vector<real_function_3d> phi_l_UK_phi0;
-			for (int k=0; k<hf.nocc(); ++k) {
-				phi_k_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(i),0) - pair.KffKphi0.project_out(hf.orbital(i),0));
-				phi_l_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(i),1) - pair.KffKphi0.project_out(hf.orbital(i),1));
-			}
+			OUKphi0(pair);
+//			std::vector<real_function_3d> phi_k_UK_phi0;
+//			std::vector<real_function_3d> phi_l_UK_phi0;
+//			for (int k=0; k<hf.nocc(); ++k) {
+//				phi_k_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(k),0) - pair.KffKphi0.project_out(hf.orbital(k),0));
+//				phi_l_UK_phi0.push_back(pair.Uphi0.project_out(hf.orbital(k),1) - pair.KffKphi0.project_out(hf.orbital(k),1));
+//			}
 
 			// make the terms with high ranks and smallish trees
 			load_balance(pair.Uphi0,true);
@@ -1462,8 +1474,8 @@ namespace madness {
 			// make the terms with low ranks and largish trees: G (- O1 - O2 + O1O2) (U-K) |phi0>
 			real_function_6d tmp=real_factory_6d(world);
 			for (int k=0; k<hf.nocc(); ++k) {
-				tmp=tmp-green(-2.0*hf.orbital(k),phi_l_UK_phi0[k]);
-				tmp=tmp-green(phi_k_UK_phi0[k],-2.0*hf.orbital(k));
+				tmp=tmp-green(-2.0*hf.orbital(k),pair.phi_l_UK_phi0[k]);
+				tmp=tmp-green(pair.phi_k_UK_phi0[k],-2.0*hf.orbital(k));
 				tmp.truncate().reduce_rank();
 			}
 			for (int k=0; k<hf.nocc(); ++k) {
@@ -1664,7 +1676,8 @@ namespace madness {
 			if (r0) printf("<phi^0 | f Q g           | phi^0>  %12.8f\n",pair.phi0_gQf_phi0);
 
         	// the second term
-        	const real_function_6d OO1=OUKphi0(pair);
+			MADNESS_EXCEPTION("no OUKphi0 in compute_B_with_U",1);
+        	const real_function_6d OO1;//OUKphi0(pair);
 			double b1=inner(pair.r12phi,pair.Uphi0);
 			if (r0) printf("<phi^0 | f U             | phi^0>  %12.8f\n",b1);
 			double b2=inner(pair.r12phi,pair.KffKphi0);
@@ -1831,13 +1844,40 @@ namespace madness {
             return result;
         }
 
-        /// compute the term (O_1 + O_2) (U - [K,f]) |phi0>
-        real_function_6d OUKphi0(const ElectronPair& pair) const {
-            pair.Uphi0.verify();
-            pair.KffKphi0.verify();
-            const real_function_6d UK=(pair.Uphi0 - pair.KffKphi0).truncate().reduce_rank();
-            const real_function_6d result=(O1(UK) + O2(UK)).truncate().reduce_rank();
-            return result;
+        /// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>
+        void OUKphi0(ElectronPair& pair) const {
+
+			std::vector<real_function_3d> phi_k_UK_phi0;
+			std::vector<real_function_3d> phi_l_UK_phi0;
+
+        	if (not intermediates.OUKphi0.empty()) {
+        		const std::string root=intermediates.OUKphi0;
+        		for (int k=0; k<hf.nocc(); ++k) {
+        			real_function_3d tmp;
+        			load_function(world,tmp,root+"_k_"+stringify(k));
+    				phi_k_UK_phi0.push_back(tmp);
+        			load_function(world,tmp,root+"_l_"+stringify(k));
+    				phi_l_UK_phi0.push_back(tmp);
+    			}
+        	} else {
+
+				pair.Uphi0.verify();
+				pair.KffKphi0.verify();
+        		const std::string root="OUKphi0";
+
+        		for (int k=0; k<hf.nocc(); ++k) {
+					real_function_3d tmp;
+					tmp=pair.Uphi0.project_out(hf.orbital(k),0) - pair.KffKphi0.project_out(hf.orbital(k),0);
+					save_function(world,tmp,root+"_k_"+stringify(k));
+					phi_k_UK_phi0.push_back(tmp);
+
+					tmp=pair.Uphi0.project_out(hf.orbital(k),1) - pair.KffKphi0.project_out(hf.orbital(k),1);
+					save_function(world,tmp,root+"_l_"+stringify(k));
+					phi_l_UK_phi0.push_back(tmp);
+				}
+        	}
+        	pair.phi_k_UK_phi0=phi_k_UK_phi0;
+        	pair.phi_l_UK_phi0=phi_l_UK_phi0;
         }
 
         /// compute the term  O1O2[H^0,f12]|phi0>  =  |kl >< kl | f12 | ij> (e_kl - e_ij)
