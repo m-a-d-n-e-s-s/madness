@@ -1135,8 +1135,8 @@ namespace madness {
 				fKphi0.fill_tree().truncate().reduce_rank();
 				double a2=inner(pair.phi0,fKphi0);
 	            if (world.rank()==0) printf("< phi0 | f K    | phi0 >  %12.8f\n",a2);
-//				KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
-	            if (world.rank()==0) print("leaving out Kfphi0");
+				KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
+//	            if (world.rank()==0) print("leaving out Kfphi0");
 	            KffKphi0=fKphi0;
 				save_function(world,KffKphi0,"KffKphi0");
 			}
