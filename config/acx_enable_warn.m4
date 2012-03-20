@@ -46,7 +46,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
         acx_enable_warn_flags="-Wall -diag-disable remark,279,654,1125"
       ;;
       IBM)
-        acx_enable_warn_flags=""
+        acx_enable_warn_flags="-qflag=w:w"
       ;;
       *)
         AC_MSG_WARN([Warning flags not set for $acx_enable_optimal_compile compiler])
