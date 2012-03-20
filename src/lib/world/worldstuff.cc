@@ -54,6 +54,11 @@
                 ( level==MPI_THREAD_FUNNELED ? "MPI_THREAD_FUNNELED" : \
                     ( level==MPI_THREAD_SINGLE ? "MPI_THREAD_SINGLE" : "WTF" ) ) ) )
 
+#ifdef USE_BSEND_ACKS
+    const int mpi_buffer_size = 1000;
+    void * mpi_buffer;
+#endif
+
 namespace madness {
 
     static double start_cpu_time;
@@ -170,11 +175,21 @@ namespace madness {
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
+
+#ifdef USE_BSEND_ACKS
+        mpi_buffer = malloc(mpi_buffer_size);
+        if (mpi_buffer==NULL)
+            MADNESS_EXCEPTION("world initialize: cannot allocate MPI buffer", 1);
+        MPI_Buffer_attach(mpi_buffer, mpi_buffer_size);
+#endif
     }
 
     void finalize() {
         RMI::end();
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
+#ifdef USE_BSEND_ACKS
+        MPI_Buffer_detach(mpi_buffer, mpi_buffer_size);
+#endif
         MPI::Finalize();
         finalizestate = 1;
     }
