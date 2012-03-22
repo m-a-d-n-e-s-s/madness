@@ -15,10 +15,6 @@
 #include <sys/sysctl.h>
 #endif
 
-#if defined(ON_A_MAC) || defined(HAVE_IBMBGP) ||  defined(__PGI)
-#define __thread
-#endif
-
 using namespace std;
 using namespace madness;
 
@@ -188,7 +184,7 @@ public:
 
 pthread_key_t idkey; // Must be external
 
-static __thread int my_thread_id;
+static thread_local int my_thread_id;
 
 static int __num_hw_processors() {
 #ifdef _SC_NPROCESSORS_CONF
