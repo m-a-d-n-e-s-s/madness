@@ -35,21 +35,21 @@ AC_DEFUN([ACX_CHECK_TLS],[
     )
   fi
   
-    # Check for the key word __declspec(thread)
-  if test "$acx_check_tls" = no; then
-    AC_LINK_IFELSE(
-      [
-        AC_LANG_PROGRAM(
-          [[__declspec(thread) int i = 0;]],
-          [[i = 1;]]
-        )
-      ],
-      [
-        acx_check_tls="__declspec(thread)"
-        AC_DEFINE([thread_local],[__declspec(thread)],[Define the thread_local key word.])
-      ]
-    )
-  fi
+   # Check for the key word __declspec(thread)
+#  if test "$acx_check_tls" = no; then
+#    AC_LINK_IFELSE(
+#      [
+#        AC_LANG_PROGRAM(
+#          [[__declspec(thread) int i = 0;]],
+#          [[i = 1;]]
+#        )
+#      ],
+#      [
+#        acx_check_tls="__declspec(thread)"
+#        AC_DEFINE([thread_local],[__declspec(thread)],[Define the thread_local key word.])
+#      ]
+#    )
+#  fi
   
   if test "$acx_check_tls" = no; then
     AC_DEFINE([thread_local],[],[Define the thread_local key word.])
