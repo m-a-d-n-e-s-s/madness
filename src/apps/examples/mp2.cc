@@ -916,45 +916,6 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-        	ElectronPair pair;
-        	pair.i=i; pair.j=j;
-        	const int particle=1;
-
-            const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
-            		FunctionDefaults<6>::get_thresh()*0.1);
-            real_function_3d phi=hf.orbital(i);
-            real_function_6d pair1;
-            load_function(world,pair1,"r12phi");
-
-        	green.doleaves=false;
-        	real_function_6d gvmod, gvns;
-        	if (0) {
-            	green.modified()=true;
-        		gvmod=green(phi,phi);
-        		gvmod.print_size("gvmod");
-        		print("modified norm",gvmod.norm2());
-                if (world.rank()==0) printf("finished at time %.1fs\n\n", wall_time());
-        	}
-        	{
-            	green.modified()=false;
-//        		gvns=green(phi,phi);
-//            	pair1.nonstandard(false,true);
-//            	save_function(world,pair1,"pair1_ns");
-            	load_function(world,pair1,"pair1_ns");
-        		gvns=green(pair1);
-//        		for (int i=0; i<30; i++) printf("time %d  %12.8f\n",i,SRConf<double>::time(i));
-//        		save_function(world,gvns,"gvphi_non_mod");
-//        		load_function(world,gvns,"gvphi_non_mod");
-        		print("non-modified norm",gvns.norm2());
-                if (world.rank()==0) printf("finished at time %.1fs\n\n", wall_time());
-        	}
-        	real_function_6d diff=gvmod-gvns;
-        	double d=diff.norm2();
-    		print("diff norm",d);
-
-
-
         }
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
