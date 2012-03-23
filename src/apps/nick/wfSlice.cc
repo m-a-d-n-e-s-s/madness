@@ -242,7 +242,6 @@ int main(int argc, char** argv) {
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try{
         //LOAD Psi(t) -> psiIT
-        cutoff = 0.01;
         PRINTLINE("cutoff = " << cutoff);
         std::ifstream f("wf.num");
         if( !f.is_open() ) {
@@ -259,26 +258,26 @@ int main(int argc, char** argv) {
                     string fileName ="wf" + step + ".bin";
                     FILE* pFile;
                     pFile = fopen(fileName.c_str(), "wb");
-                    ofstream TXTout( ("wf" + step + ".dat").c_str());
+                    //ofstream TXTout( ("wf" + step + ".dat").c_str());
                     // Compute grid
-                    int n = 2*nGrid + 1;
-                    float buffer[n];
-                    const double dr = cutoff/nGrid;
-                    for( int i=0; i<n; i++ ) {
-                        const double x = i*dr - cutoff;
-                        for( int j=0; j<n; j++ ) {
-                            const double z = j*dr - cutoff;
-                            const double r[3] = {x, 0, z};
-                            const vector3D         rVec(r);
-                            float psiA   = (float) real(psiT(rVec));
-                            buffer[j]    =         psiA;
-                            TXTout << psiA << " ";
+                    if( world.rank() == 0 ) {
+                        int n = 2*nGrid + 1;
+                        const double dr = cutoff/nGrid;
+                        float buffer[n];
+                        for( int i=0; i<n; i++ ) {
+                            const double x = i*dr - cutoff;
+                            for( int j=0; j<n; j++ ) {
+                                const double z = j*dr - cutoff;
+                                const double r[3] = {x, 0, z};
+                                const vector3D         rVec(r);
+                                buffer[j]    =  (float) real(psiT(rVec));
+                            }
+                            fwrite(buffer, sizeof(float), n, pFile);
+                            //TXTout << std::endl;
                         }
-                        fwrite(buffer, sizeof(float), n, pFile);
-                        TXTout << std::endl;
+                        fclose(pFile);
+                        //TXTout.close();
                     }
-                    fclose(pFile);
-                    TXTout.close();
                 }
             }// done loading wf.num
         }
