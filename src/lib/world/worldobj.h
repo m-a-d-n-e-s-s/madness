@@ -538,7 +538,7 @@ namespace madness {
                     return true;
                 }
             }
-            arg.set_pending();
+            const_cast<AmArg&>(arg).set_pending();
             const_cast<pendingT&>(pending).push_back(detail::PendingMsg(id, ptr, arg));
             pending_mutex.unlock(); // END CRITICAL SECTION
 

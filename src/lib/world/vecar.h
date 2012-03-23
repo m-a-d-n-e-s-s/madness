@@ -40,6 +40,7 @@
 /// \brief Implements archive wrapping an STL vector
 
 #include <vector>
+#include <cstring>
 #include <world/archive.h>
 
 

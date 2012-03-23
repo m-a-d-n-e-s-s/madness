@@ -120,7 +120,7 @@
   exponent sufficiently large as to appear as a point charge (delta
   function) on the scale of interest (we pick \f$\xi=100\f$)
   \f[
-     \rho(r) = \pi^{-3/2} e^{-\xi |r|^2}
+     \rho(r) = \left(\pi \xi \right)^{-3/2} e^{-\xi |r|^2}
   \f]
 
   Starting from an initial guess we could try to iterate
@@ -138,7 +138,10 @@
   optimal direction and length of the step to take.  Such a 
   solver is provided by nonlinsol.h.  Each iteration we pass
   the current solution and corresponding residual to the solver
-  and it provides the next trial vector.
+  and it provides the next trial vector. 
+
+  In the code you can switch between using the solver or simple iteration
+  by changing the value of \c USE_SOLVER .
 
   One final point is how to compute the reciprocal of the
   permittivity.  This operation is not provided explicity by MADNESS,

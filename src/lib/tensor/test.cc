@@ -38,7 +38,7 @@
 #include <tensor/tensor.h>
 #include <world/print.h>
 
-#ifdef HAVE_GOOGLE_TEST
+#ifdef MADNESS_HAS_GOOGLE_TEST
 
 // The test code deliberately uses only the dumb ITERATOR macros
 // in order to test the optimized iterators used by the implementation.
@@ -56,13 +56,13 @@ namespace {
         return ((double) x)*x;
     }
 
-    template <> double mynorm<float_complex>(float_complex x) {
-        return (double) std::norm(x);
-    }
-
-    template <> double mynorm<double_complex>(double_complex x) {
-        return (double) std::norm(x);
-    }
+//    template <> double mynorm<float_complex>(float_complex x) {
+//        return (double) std::norm(x);
+//    }
+//
+//    template <> double mynorm<double_complex>(double_complex x) {
+//        return (double) std::norm(x);
+//    }
 
     template <typename T, typename Q>
     inline
@@ -121,10 +121,10 @@ namespace {
                     ASSERT_EQ(empty.size(),0);
                     ASSERT_EQ(empty.ptr(),(TypeParam*)0);
                     ASSERT_EQ(empty.ndim(),-1);
-                    ASSERT_EQ(empty.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(empty.id()),int(madness::TensorTypeData<TypeParam>::id));
 
                     madness::Tensor<TypeParam> d(dim);
-                    ASSERT_EQ(d.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(d.id()),int(madness::TensorTypeData<TypeParam>::id));
                     ASSERT_EQ(d.ndim(),ndim);
                     ASSERT_EQ(d.size(),nelem);
                     ASSERT_NE(d.ptr(),(TypeParam*)0);
@@ -144,9 +144,9 @@ namespace {
                     ITERATOR(d, ASSERT_EQ(d(IND),TypeParam(21)));
 
                     madness::Tensor<TypeParam> q(d); // Copy constructor
-                    ASSERT_EQ(q.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(q.id()),int(madness::TensorTypeData<TypeParam>::id));
                     ASSERT_EQ(q.ptr(),d.ptr()); // Was it shallow?
-                    ASSERT_EQ(q.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(q.id()),int(madness::TensorTypeData<TypeParam>::id));
                     ASSERT_EQ(q.ndim(),ndim);
                     ASSERT_EQ(q.size(),nelem);
                     ITERATOR(d, ASSERT_EQ(q(IND),d(IND)));
@@ -155,7 +155,7 @@ namespace {
                     ASSERT_EQ(q.size(),0);
                     ASSERT_EQ(q.ptr(),(TypeParam*)0);
                     ASSERT_EQ(q.ndim(),-1);
-                    ASSERT_EQ(q.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(q.id()),int(madness::TensorTypeData<TypeParam>::id));
 
                     q = d;    // Assignment
                     ASSERT_EQ(q.ptr(),d.ptr()); // Was it shallow?
@@ -172,7 +172,7 @@ namespace {
                     ASSERT_EQ(r.size(),0);
                     ASSERT_EQ(r.ptr(),(TypeParam*)0);
                     ASSERT_EQ(r.ndim(),-1);
-                    ASSERT_EQ(r.id(),madness::TensorTypeData<TypeParam>::id);
+                    ASSERT_EQ(int(r.id()),int(madness::TensorTypeData<TypeParam>::id));
 
                     r = TensorTest<TypeParam>::f(); // Should invoke move semantics
                     ASSERT_EQ(r.ptr(),TensorTest<TypeParam>::move_test_ptr);

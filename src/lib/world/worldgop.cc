@@ -29,7 +29,7 @@
   fax:   865-572-0680
 
 
-  $Id: $
+  $Id $
 */
 
 #include <world/worldgop.h>
@@ -38,37 +38,12 @@
 namespace madness {
 
 
-
-    void WorldGopInterface::await(SafeMPI::Request& req) { World::await(req); }
-
-    // In the World constructor can ONLY rely on MPI and MPI being initialized
-    WorldGopInterface::WorldGopInterface(World& world)
-            : mpi(world.mpi)
-            , am(world.am)
-            , taskq(world.taskq)
-            , deferred(new detail::DeferredCleanup())
-            , debug(false)
-    { }
-
-    WorldGopInterface::~WorldGopInterface() {
-        deferred->destroy(true);
-        deferred->do_cleanup();
-    }
-
     /// Set debug flag to new value and return old value
     bool WorldGopInterface::set_debug(bool value) {
         bool status = debug;
         debug = value;
         return status;
     }
-
-    /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
-    void WorldGopInterface::barrier() {
-        long i = rank();
-        sum(i);
-        if (i != size()*(size()-1)/2) error("bad value after sum in barrier");
-    }
-
 
     /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
@@ -84,39 +59,39 @@ namespace madness {
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
-        mpi.binary_tree_info(0, parent, child0, child1);
-        Tag gfence_tag = mpi.unique_tag();
+        world.mpi.binary_tree_info(0, parent, child0, child1);
+        Tag gfence_tag = world.mpi.unique_tag();
         int npass = 0;
 
         //double start = wall_time();
 
         while (1) {
             uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
-            if (child0 != -1) req0 = mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
-            if (child1 != -1) req1 = mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
-            taskq.fence();
+            if (child0 != -1) req0 = world.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
+            world.taskq.fence();
             if (child0 != -1) World::await(req0);
             if (child1 != -1) World::await(req1);
 
             bool finished;
             uint64_t ntask1, nsent1, nrecv1, ntask2, nsent2, nrecv2;
             do {
-                taskq.fence();
+                world.taskq.fence();
 
                 // Since the number of outstanding tasks and number of AM sent/recv
                 // don't share a critical section read each twice and ensure they
                 // are unchanged to ensure that are consistent ... they don't have
                 // to be current.
 
-                ntask1 = taskq.size();
-                nsent1 = am.nsent;
-                nrecv1 = am.nrecv;
+                ntask1 = world.taskq.size();
+                nsent1 = world.am.nsent;
+                nrecv1 = world.am.nrecv;
 
                 __asm__ __volatile__ (" " : : : "memory");
 
-                ntask2 = taskq.size();
-                nsent2 = am.nsent;
-                nrecv2 = am.nrecv;
+                ntask2 = world.taskq.size();
+                nsent2 = world.am.nsent;
+                nrecv2 = world.am.nrecv;
 
                 __asm__ __volatile__ (" " : : : "memory");
 
@@ -128,12 +103,12 @@ namespace madness {
             sum[1] = sum0[1] + sum1[1] + nrecv2;
 
             if (parent != -1) {
-                req0 = mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
+                req0 = world.mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
                 World::await(req0);
             }
 
             // While we are probably idle free unused communication buffers
-            am.free_managed_buffers();
+            world.am.free_managed_buffers();
 
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;
@@ -160,7 +135,7 @@ namespace madness {
             nrecv_prev = sum[1];
 
         };
-        am.free_managed_buffers(); // free up communication buffers
+        world.am.free_managed_buffers(); // free up communication buffers
         deferred->do_cleanup();
     }
 
@@ -171,18 +146,18 @@ namespace madness {
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork) {
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
-        mpi.binary_tree_info(root, parent, child0, child1);
-        Tag bcast_tag = mpi.unique_tag();
+        world.mpi.binary_tree_info(root, parent, child0, child1);
+        Tag bcast_tag = world.mpi.unique_tag();
 
         //print("BCAST TAG", bcast_tag);
 
         if (parent != -1) {
-            req0 = mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
+            req0 = world.mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
             World::await(req0, dowork);
         }
 
-        if (child0 != -1) req0 = mpi.Isend(buf, nbyte, MPI::BYTE, child0, bcast_tag);
-        if (child1 != -1) req1 = mpi.Isend(buf, nbyte, MPI::BYTE, child1, bcast_tag);
+        if (child0 != -1) req0 = world.mpi.Isend(buf, nbyte, MPI::BYTE, child0, bcast_tag);
+        if (child1 != -1) req1 = world.mpi.Isend(buf, nbyte, MPI::BYTE, child1, bcast_tag);
 
         if (child0 != -1) World::await(req0, dowork);
         if (child1 != -1) World::await(req1, dowork);

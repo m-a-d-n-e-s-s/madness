@@ -14,10 +14,10 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	dqueue.h parar.h vecar.h worldexc.h worldmem.h worldser.h worldthread.h \
 	worldrmi.h safempi.h worldpapi.h worldmutex.h print_seq.h worldhashmap.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
-	worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h worlddc.h \
-	deferred_deleter.h scopedptr.h worldreduce.h worldtask.h taskfn.h make_task.h \
-	functional.h shared_ptr.h shared_ptr_bits.h stdarray.h stdarray_bits.h \
-	type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
+	worldfwd.h uniqueid.h worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h \
+	worlddc.h deferred_deleter.h scopedptr.h worldreduce.h worldtask.h taskfn.h \
+	make_task.h functional.h shared_ptr.h shared_ptr_bits.h stdarray.h \
+	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h
                       
 array_test_SOURCES = array_test.cc

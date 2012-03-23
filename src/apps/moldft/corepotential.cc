@@ -152,6 +152,7 @@ double CoreOrbital::eval_spherical_harmonics(int m, double x, double y, double z
             }
             break;
         case 2:
+          { /// braces need by some compilers to limit scope of fac
             static const double fac = 1.0; //sqrt(3.0);
             switch (m) {
                 case 0: p *= x*x; if (axis == 0) dp = 2*x; break;
@@ -170,6 +171,7 @@ double CoreOrbital::eval_spherical_harmonics(int m, double x, double y, double z
                         break;
                 case 5: p *= z*z; if (axis == 2) dp = 2*z; break;
                 default: throw "INVALID MAGNETIC QUANTUM NUMBER";
+            }
             }
             break;
         case 3:

@@ -43,43 +43,88 @@
 
 #include <iosfwd>
 #include <exception>
+#include <tensor/basetensor.h>
 
 namespace madness {
 /// Tensor is intended to throw only TensorExceptions
     class TensorException : public std::exception {
-    public:
         const char* msg;
         const char* assertion;
-        const int value;
-        const BaseTensor* t;
-        const int line;
+        int value;
+        BaseTensor t;
+        const BaseTensor *tp;
+        int line;
         const char *function;
         const char *filename;
 
+public:
         // Capturing the line/function/filename info is best done with the macros below
         TensorException(const char* s, const char *a, int err, const BaseTensor* tp,
                         int lin, const char *func, const char *file)
                 : msg(s)
                 , assertion(a)
                 , value(err)
-                , t(tp)
+                , tp(tp)
                 , line(lin)
                 , function(func)
-        , filename(file) {}
+                , filename(file) {
+            // We must copy the pointed-to tensor because during unwinding it
+            // might go out of scope and dereferencing its pointer is invalid
+	    if (tp != NULL)
+              new(&t) BaseTensor(*tp);
+        }
 
         virtual const char* what() const throw() {
             return msg;
         }
-    };
 
-// implemented in tensor.cc
-    std::ostream& operator <<(std::ostream& out, const TensorException& e);
+        virtual ~TensorException() throw() {}
+
+    /// Print a TensorException to the stream (for human consumption)
+    friend std::ostream& operator <<(std::ostream& out, const TensorException& e) {
+        out << "TensorException: msg='";
+        if (e.msg) out << e.msg;
+        out << "'\n";
+        if (e.assertion) out << "                 failed assertion='" <<
+            e.assertion << "'\n";
+        out << "                 value=" << e.value << "\n";
+        if (e.line) out << "                 line=" << e.line << "\n";
+        if (e.function) out << "                 function='" <<
+            e.function << "'\n";
+        if (e.filename) out << "                 filename='" <<
+            e.filename << "'\n";
+        if (e.tp != NULL) {
+            out << "                 tensor=Tensor<";
+            if (e.t.id()>=0 && e.t.id()<=TENSOR_MAX_TYPE_ID) {
+                out << tensor_type_names[e.t.id()] << ">(";
+            }
+            else {
+                out << "invalid_type_id>(";
+            }
+            if (e.t.ndim()>=0 && e.t.ndim()<TENSOR_MAXDIM) {
+                for (int i=0; i<e.t.ndim(); ++i) {
+                    out << e.t.dim(i);
+                    if (i != (e.t.ndim()-1)) out << ",";
+                }
+                out << ")";
+            }
+            else {
+                out << "invalid_dimensions)";
+            }
+            out << " at 0x" << (void *)(e.tp) << "\n";
+        }
+
+        return out;
+    }
+
+ };
+
 
 #define TENSOR_STRINGIZE(X) #X
 #define TENSOR_EXCEPTION_AT(F, L) TENSOR_STRINGIZE(F) "(" TENSOR_STRINGIZE(L) ")"
 
 #define TENSOR_EXCEPTION(msg,value,t) \
-    throw ::madness::TensorException("TENSOR EXCPETION: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
+    throw ::madness::TensorException("TENSOR EXCEPTION: " TENSOR_EXCEPTION_AT( __FILE__, __LINE__ ) ": " msg , \
     0,value,t,__LINE__,__FUNCTION__,__FILE__)
 
 #define TENSOR_ASSERT(condition,msg,value,t) \

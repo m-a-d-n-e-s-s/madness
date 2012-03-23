@@ -50,6 +50,9 @@
   - Application of the Helmholtz bound-state Green function as vector of operators and functions
   - Projection and change of representation of functions from multiwavelets of degree k to k+1
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/vnucso.cc>here</a>.
+
+
   This is a more involved example than the Hydrogen and Helium.
   This example couples the traditional diagonalization approach with that of the integral equation approach.
   The details are described in:

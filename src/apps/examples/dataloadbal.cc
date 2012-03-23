@@ -136,7 +136,7 @@
 #include <constants.h>
 using namespace madness;
 
-static const int NFUNC = 4000;
+static const int NFUNC = 4;
 
 // A class that behaves like a function to compute a Gaussian of given origin and exponent
 class Gaussian : public FunctionFunctorInterface<double,3> {

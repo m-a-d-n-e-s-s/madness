@@ -41,7 +41,7 @@ namespace madness {
 
 
     WorldAmInterface::WorldAmInterface(World& world)
-            : world(world)
+            : worldid(0) // worldid is initialized in the World constructor
             , rank(world.mpi.Get_rank())
             , nproc(world.mpi.Get_size())
             , cur_msg(0)
@@ -65,24 +65,17 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        for (int i=0; i<NSEND; ++i) {
-            while (!send_req[i].Test()) {
-                myusleep(100);
+        if(MPI::Is_finalized()) {
+            for (int i=0; i<NSEND; ++i)
+                free_managed_send_buf(i);
+        } else {
+            for (int i=0; i<NSEND; ++i) {
+                while (!send_req[i].Test()) {
+                    myusleep(100);
+                }
+                free_managed_send_buf(i);
             }
-            free_managed_send_buf(i);
         }
-    }
-
-    void AmArg::set_world(World* world) const {
-        worldid = world->id();
-    }
-
-    World* AmArg::get_world() const {
-        return World::world_from_id(worldid);
-    }
-
-    void WorldAmInterface::increment_worldam_nrecv(World* world) {
-        world->am.nrecv++;
     }
 
 } // namespace madness

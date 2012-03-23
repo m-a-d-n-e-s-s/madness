@@ -301,7 +301,7 @@ inline void mxm(long dimi, long dimj, long dimk,
 /// Matrix transpose * matrix transpose (hand tiled and unrolled)
 template <>
 inline void mTxmT(long dimi, long dimj, long dimk,
-                  double* restrict c, const double* restrict a, const double* restrict b) {
+                  double* restrict csave, const double* restrict asave, const double* restrict b) {
     /*
     c(i,j) = c(i,j) + sum(k) a(k,i)*b(j,k)
 
@@ -315,15 +315,13 @@ inline void mTxmT(long dimi, long dimj, long dimk,
     double ai[ktile];
     long dimj2 = (dimj/2)*2;
 
-    double* restrict csave = c;
-    const double* asave = a;
     for (long klo=0; klo<dimk; klo+=ktile, asave+=ktile*dimi, b+=ktile) {
         long khi = klo+ktile;
         if (khi > dimk) khi = dimk;
         long nk = khi-klo;
 
-        a = asave;
-        c = csave;
+        const double *restrict a = asave;
+        double *restrict c = csave;
         for (long i=0; i<dimi; ++i,c+=dimj,++a) {
             const double* q = a;
             for (long k=0; k<nk; ++k,q+=dimi) ai[k] = *q;

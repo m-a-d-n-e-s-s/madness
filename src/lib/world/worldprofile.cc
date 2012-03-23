@@ -37,7 +37,7 @@
 
 namespace madness {
 
-    __thread WorldProfileObj* WorldProfileObj::call_stack = 0;
+    thread_local WorldProfileObj* WorldProfileObj::call_stack = 0;
 
     Spinlock WorldProfile::mutex;
     volatile std::vector<WorldProfileEntry> WorldProfile::items;

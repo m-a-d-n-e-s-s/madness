@@ -80,44 +80,6 @@ namespace madness {
 
     template <class T> class SliceGenTensor;
 
-    /// Print a TensorException to the stream (for human consumption)
-    std::ostream& operator <<(std::ostream& out, const TensorException& e) {
-        out << "TensorException: msg='";
-        if (e.msg) out << e.msg;
-        out << "'\n";
-        if (e.assertion) out << "                 failed assertion='" <<
-            e.assertion << "'\n";
-        out << "                 value=" << e.value << "\n";
-        if (e.line) out << "                 line=" << e.line << "\n";
-        if (e.function) out << "                 function='" <<
-            e.function << "'\n";
-        if (e.filename) out << "                 filename='" <<
-            e.filename << "'\n";
-        if (e.t) {
-            out << "                 tensor=Tensor<";
-            if (e.t->id()>=0 && e.t->id()<=TENSOR_MAX_TYPE_ID) {
-                out << tensor_type_names[e.t->id()] << ">(";
-            }
-            else {
-                out << "invalid_type_id>(";
-            }
-            if (e.t->ndim()>=0 && e.t->ndim()<TENSOR_MAXDIM) {
-                for (int i=0; i<e.t->ndim(); ++i) {
-                    out << e.t->dim(i);
-                    if (i != (e.t->ndim()-1)) out << ",";
-                }
-                out << ")";
-            }
-            else {
-                out << "invalid_dimensions)";
-            }
-            out << " at 0x" << (void *)(e.t) << "\n";
-        }
-
-        return out;
-    }
-
-
     std::ostream& operator<<(std::ostream& stream, const Slice& s) {
         stream << "Slice(" << s.start << "," << s.end << "," << s.step << ")";
         return stream;

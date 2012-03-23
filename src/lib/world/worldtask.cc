@@ -48,11 +48,6 @@ namespace madness {
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
     }
 
-//    void TaskInterface::run(World& /*world*/) {
-//        //print("in virtual run(world) method");
-//        MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
-//    }
-
     WorldTaskQueue::WorldTaskQueue(World& world)
             : world(world)
             , me(world.rank()) {
@@ -80,27 +75,6 @@ namespace madness {
         Stealer xxx(*this, v, nsteal);
         ThreadPool::instance()->scan(xxx);
         return v;
-    }
-
-    bool WorldTaskQueue::ProbeAllDone::operator()() const {
-
-		if (cpu_time()-start > 12000000) {
-			for (int loop = 0; loop<3; loop++) {
-				std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
-				std::cout.flush();
-				myusleep(10000000);
-			}
-			MADNESS_ASSERT(cpu_time()-start < 12000000);
-		}
-		return (tq->size() == 0);
-    }
-
-    void WorldTaskQueue::fence() {
-        ProbeAllDone tester(this);
-        do {
-            world.await(tester);
-        }
-        while (nregistered);
     }
 
 }  // namespace madness

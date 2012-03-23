@@ -314,6 +314,34 @@ template <class T> void Test5() {
     std::cout << "Test5<" << tensor_type_names[TensorTypeData<T>::id] << "> OK\n";
 }
 
+template<class T> 
+void Test6a(Tensor<T> &f, long ind[])
+{
+  f.fill(0);
+  f(3,2,1,5) = (T) 1;
+  if (f.max() != (T) 1) error("test6: failed",0);
+  if (f.max(ind) != (T) 1) error("test6: failed",1);
+  if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
+    error("test6: failed",2);
+
+  f.fill(1);
+  f(3,2,1,5) = (T) -2;
+
+  if (f.min() != (T) -2) error("test6: failed",6);
+  if (f.min(ind) != (T) -2) error("test6: failed",7);
+  if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
+    error("test6: failed",8);
+}
+
+template<>
+void Test6a(Tensor<float_complex> &, long [])
+{
+}
+
+template<>
+void Test6a(Tensor<double_complex> &, long [])
+{
+}
 
 template <class T> void Test6() {
     // sum, min, max, absmin, absmax, normf, trace, and all that
@@ -322,15 +350,7 @@ template <class T> void Test6() {
     Tensor<T> f(9,5,3,8), g(5,9,8,3);
     long ind[TENSOR_MAXDIM];
 
-    f.fill(0);
-    f(3,2,1,5) = (T) 1;
-    if (f.id() != TensorTypeData<float_complex>::id &&
-            f.id() != TensorTypeData<double_complex>::id) {
-        if (f.max() != (T) 1) error("test6: failed",0);
-        if (f.max(ind) != (T) 1) error("test6: failed",1);
-        if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
-            error("test6: failed",2);
-    }
+    Test6a(f, ind);
 
     f.fill(0);
     f(3,2,1,5) = (T) -1;
@@ -338,16 +358,6 @@ template <class T> void Test6() {
     if (long(f.absmax(ind)+0.0001) != 1) error("test6: failed",4);
     if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
         error("test6: failed",5);
-
-    f.fill(1);
-    f(3,2,1,5) = (T) -2;
-    if (f.id() != TensorTypeData<float_complex>::id &&
-            f.id() != TensorTypeData<double_complex>::id) {
-        if (f.min() != (T) -2) error("test6: failed",6);
-        if (f.min(ind) != (T) -2) error("test6: failed",7);
-        if (ind[0]!=3 || ind[1]!=2 || ind[2]!=1 || ind[3]!=5)
-            error("test6: failed",8);
-    }
 
     f.fill(-12);
     f(3,2,1,5) = (T) -2;

@@ -32,9 +32,12 @@
   $Id$
 */
 
-#include <world/world.h>
+#include <world/worldfwd.h>
 #include <world/worldmem.h>
 #include <world/worldtime.h>
+#include <world/worldam.h>
+#include <world/worldtask.h>
+#include <world/worldgop.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -45,10 +48,19 @@
 #include <windows.h>
 #endif
 
+#define MPI_THREAD_STRING(level) \
+        ( level==MPI_THREAD_SERIALIZED ? "MPI_THREAD_SERIALIZED" : \
+            ( level==MPI_THREAD_MULTIPLE ? "MPI_THREAD_MULTIPLE" : \
+                ( level==MPI_THREAD_FUNNELED ? "MPI_THREAD_FUNNELED" : \
+                    ( level==MPI_THREAD_SINGLE ? "MPI_THREAD_SINGLE" : "WTF" ) ) ) )
+
 namespace madness {
 
-
-    //    SharedCounter future_count;
+#ifdef MADNESS_USE_BSEND_ACKS
+    namespace {
+        void * mpi_ack_buffer;
+    }
+#endif // MADNESS_USE_BSEND_ACKS
 
     static double start_cpu_time;
     static double start_wall_time;
@@ -86,6 +98,7 @@ namespace madness {
         }
         gop.broadcast(_id);
         gop.barrier();
+        am.worldid = _id;
 
 //        std::cout << "JUST MADE WORLD " << id() << std::endl
     }
@@ -100,80 +113,6 @@ namespace madness {
         }
     }
 
-
-    /// Returns new universe-wide unique ID for objects created in this world.  No comms.
-
-    /// You should consider using register_ptr(), unregister_ptr(),
-    /// id_from_ptr() and ptr_from_id() rather than using this directly.
-    ///
-    /// Currently relies on this being called in the same order on
-    /// every process within the current world in order to avoid
-    /// synchronization.
-    ///
-    /// The value objid=0 is guaranteed to be invalid.
-    uniqueidT World::unique_obj_id() {
-        return uniqueidT(_id,obj_id++);
-    }
-
-    World* World::world_from_id(unsigned long id) {
-        // This is why C++ iterators are stupid, stupid, stupid, ..., gack!
-        for (std::list<World *>::iterator it=worlds.begin(); it != worlds.end(); ++it) {
-            if ((*it) && (*it)->_id == id) return *it;
-        }
-        return 0;
-    }
-
-    void World::srand(unsigned long seed) {
-        if (seed == 0) seed = rank();
-#ifdef HAVE_RANDOM
-        srandom(seed);
-#else
-        myrand_next = seed;
-        for (int i=0; i<1000; ++i) rand(); // Warmup
-#endif
-    }
-
-
-    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,2**24).
-
-    /// Each process has a distinct seed for the generator.
-    int World::rand() {
-#ifdef HAVE_RANDOM
-        return int(random() & 0xfffffful);
-#else
-        myrand_next = myrand_next * 1103515245UL + 12345UL;
-        return int((myrand_next>>8) & 0xfffffful);
-#endif
-    }
-
-
-    /// Returns a CRUDE, LOW-QUALITY, random number uniformly distributed in [0,1).
-    double World::drand() {
-        return rand()/16777216.0;
-    }
-
-
-    /// Returns a random process number [0,world.size())
-    ProcessID World::random_proc() {
-        return rand()%size();
-    }
-
-
-    /// Returns a random process number [0,world.size()) != current process
-
-    /// Makes no sense to call this with just one process, but just in case you
-    /// do it returns -1 in the hope that you won't actually use the result.
-    ProcessID World::random_proc_not_me() {
-        if (size() == 1) return -1;
-        ProcessID p;
-        do {
-            p = rand()%size();
-        }
-        while (p == rank());
-        return p;
-    }
-
-
     World::~World() {
         if (finalizestate == 1) return;
         worlds.remove(this);
@@ -185,7 +124,7 @@ namespace madness {
 
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
-        MPI_Abort(MPI_COMM_WORLD,1);
+        MPI::COMM_WORLD.Abort(1);
     }
 
     void initialize(int argc, char** argv) {
@@ -224,8 +163,10 @@ namespace madness {
 #endif
         int provided = MPI::Init_thread(argc, argv, required);
         int me = MPI::COMM_WORLD.Get_rank();
-        if (provided < required && me == 0) {
-            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
+        if (provided < required && me == 0 ) {
+            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality "
+                      << MPI_THREAD_STRING(required)
+                      << " (" << MPI_THREAD_STRING(provided) << ")" << std::endl;
         }
 
         ThreadPool::begin();        // Must have thread pool before any AM arrives
@@ -235,13 +176,23 @@ namespace madness {
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
+
+#ifdef MADNESS_USE_BSEND_ACKS
+        mpi_ack_buffer = malloc(1000);
+        MADNESS_ASSERT(mpi_ack_buffer != NULL);
+        MPI::Attach_buffer(mpi_ack_buffer, 1000);
+#endif // MADNESS_USE_BSEND_ACKS
     }
 
     void finalize() {
         RMI::end();
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
+#ifdef MADNESS_USE_BSEND_ACKS
+        MPI::Detach_buffer(mpi_ack_buffer);
+        free(mpi_ack_buffer);
+#endif // MADNESS_USE_BSEND_ACKS
         MPI::Finalize();
-	finalizestate = 1;
+        finalizestate = 1;
     }
 
     // Enables easy printing of MadnessExceptions
@@ -255,12 +206,6 @@ namespace madness {
         if (e.filename) out << "filename='" << e.filename << "'";
         out << std::endl;
         return out;
-    }
-
-
-    std::ostream& operator<<(std::ostream& s, const uniqueidT& id) {
-        s << "{" << id.get_world_id() << "," << id.get_obj_id() << "}";
-        return s;
     }
 
     void exception_break(bool message) {
@@ -475,18 +420,5 @@ namespace madness {
 #endif
         world.gop.fence();
     }
-
-
-    namespace detail {
-        // These  functions are here to eliminate cyclic compile time dependencies
-        // in other header files. It would be nice to get rid of these but the
-        // objects in question need world and world needs them.
-
-        ProcessID world_rank(const World& w) { return w.rank(); }
-        ProcessID world_size(const World& w) { return w.size(); }
-        World* world_from_id(unsigned int id) { return World::world_from_id(id); }
-        unsigned int world_id(const World& w) { return w.id(); }
-
-    }  // namespace detail
 
 } // namespace madness

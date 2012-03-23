@@ -69,7 +69,9 @@ namespace madness {
     	return s;
     }
 
+#ifdef BENCH
 	static double time_[30];
+#endif
 
 
 
@@ -91,7 +93,9 @@ namespace madness {
 
 	public:
 
+#ifdef BENCH
 		static double& time(int i) {return time_[i];}
+#endif
 
 		typedef Tensor<T> tensorT;
 

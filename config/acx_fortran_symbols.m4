@@ -8,8 +8,13 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 
        echo "Checking Fortran-C linking conventions (dgemm -> ?)"
        fsym=no
-   
+
        if test $host = "powerpc-bgp-linux-gnu"; then
+          fsym="lc"
+          echo "Fortran linking convention is $fsym" 
+          AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])
+       fi
+       if test $host = "powerpc64-bgq-linux-gnu"; then
           fsym="lc"
           echo "Fortran linking convention is $fsym" 
           AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])

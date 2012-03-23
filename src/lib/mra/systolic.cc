@@ -274,8 +274,6 @@ namespace madness {
         std::vector<T*> iptr, jptr;     //< Indirection for implementing cyclic buffer !! SHOULD BE VOLATILE ?????
         std::vector<int64_t> map;       //< Used to keep track of actual row indices
 
-        using PoolTaskInterface::run;
-
         void iteration(const TaskThreadEnv& env) {
             start_iteration_hook(env);
             env.barrier();
@@ -617,7 +615,15 @@ namespace madness {
 using namespace madness;
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+#ifdef SERIALIZE_MPI
+    int required = MPI::THREAD_SERIALIZED;
+#else
+    int required = MPI::THREAD_MULTIPLE;
+#endif
+    int provided = MPI::Init_thread(argc, argv, required);
+    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
+        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
+    }
     madness::World world(MPI::COMM_WORLD);
 
     redirectio(world);

@@ -41,14 +41,16 @@
  *    MultiPrecision Floating point (with correct Rounding)  http://www.mpfr.org/
  *    MADNESS needs to be configured with
  *    ./configure LIBS="-lgsl -lgslblas -lmpfr -lgmp"
- * 2) Is designed modularly. Uncomment the desired functions as desired
+ * 2) Is designed modularly. In main() uncomment the desired functions
  *    projectPsi: Loads wave functions from disk, projects them onto an arbitrary basis
  *    projectZdip:For perturbation calculations
  *    printBasis: For debugging purposes
  *    belkic:     Reproduces an analytic integral
  * 3) projectPsi needs the following files
  *    wf.num                      a list of wave function ID numbers
-  *    bound.num OR unbound.num    a list of states to project on
+ *    bound.num OR unbound.num    a list of states to project on
+ *    input                       simulation input parameters
+ *    input2                      debugging input parameters
  ***************************************************************************************/
 
 #include "wavef.h"

@@ -38,6 +38,8 @@
   \defgroup hatom_energy Energy of the hydrogen atom ground state
   \ingroup examples
 
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/hatom_energy.cc>here</a>.
+
   This example computes the energy of the ground state of 
   the hydrogen atom as the expectation value of the
   non-relativistic Schr&ouml;dinger Hamiltonian within the 

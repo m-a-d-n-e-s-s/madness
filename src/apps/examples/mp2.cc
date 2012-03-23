@@ -943,7 +943,7 @@ namespace madness {
 //            	save_function(world,pair1,"pair1_ns");
             	load_function(world,pair1,"pair1_ns");
         		gvns=green(pair1);
-        		for (int i=0; i<30; i++) printf("time %d  %12.8f\n",i,SRConf<double>::time(i));
+//        		for (int i=0; i<30; i++) printf("time %d  %12.8f\n",i,SRConf<double>::time(i));
 //        		save_function(world,gvns,"gvphi_non_mod");
 //        		load_function(world,gvns,"gvphi_non_mod");
         		print("non-modified norm",gvns.norm2());

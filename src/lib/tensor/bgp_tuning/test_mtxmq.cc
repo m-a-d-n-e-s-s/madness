@@ -33,23 +33,31 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
+#include <cmath>
 
+#ifdef __bgp__
 extern "C" {
 #include "dcmf.h"
 }
-#include "mpi.h"
+#endif
 
+#include "rdtsc.h"
+
+#ifdef HPM
+#include <mpi.h>
 extern "C" void HPM_Init(void);           // initialize the UPC unit
 extern "C" void HPM_Start(char *label);   // start counting in a block marked by the label
 extern "C" void HPM_Stop(char *label);    // stop counting in a block marked by the label
 extern "C" void HPM_Print(void);          // print counters for all blocks
 extern "C" void HPM_Print_Flops(void);
+#endif
 
-extern "C" void dgemm(const char *transa, const char *transb, const int *m, const int *n, const int *k,
-                      const double *alpha, const double *a, const int *lda,
-                      const double *b, const int *ldb, const double *beta,
-                      double *c, const int *ldc, int la, int lb);
+#define DGEMM_FNAME dgemm_
+
+extern "C" void DGEMM_FNAME(const char *transa, const char *transb, const int *m, const int *n, const int *k,
+                            const double *alpha, const double *a, const int *lda,
+                            const double *b, const int *ldb, const double *beta,
+                            double *c, const int *ldc, int la, int lb);
 
 void mTxmq(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
 void mTxm_tune(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
@@ -59,7 +67,7 @@ void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const dou
   int fnj=nj;
   int fnk=nk;
   double one=1.0;
-  dgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  DGEMM_FNAME("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
 }
 
 double ran()
@@ -85,18 +93,15 @@ void mTxm(long dimi, long dimj, long dimk,
     }
 }
 
-inline long long rdtsc() {
-  long long x = DCMF_Timebase();
-  return x;
-}
-
 void timer(const char* s, long ni, long nj, long nk, double *a, double *b, double *c) {
   double fastest=0.0, fastest_dgemm=0.0, fastest_tune=0.0;
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
 
+#ifdef HPM
   HPM_Start("mTxmq");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -105,9 +110,13 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
     rate = nflop/start;
     if (rate > fastest) fastest = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq");
+#endif
 
+#ifdef HPM
   HPM_Start("mTxmq_dgemm");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -116,9 +125,13 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
     rate = nflop/start;
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq_dgemm");
+#endif
 
+#ifdef HPM
   HPM_Start("mTxmq_tune");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -127,7 +140,9 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
     rate = nflop/start;
     if (rate > fastest_tune) fastest_tune = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq_tune");
+#endif
 
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm, fastest_tune);
 }
@@ -138,7 +153,9 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
 
+#ifdef HPM
   HPM_Start("mTxmq");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -149,9 +166,13 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     rate = nflop/start;
     if (rate > fastest) fastest = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq");
+#endif
 
+#ifdef HPM
   HPM_Start("mTxmq_dgemm");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -162,9 +183,13 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     rate = nflop/start;
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq_dgemm");
+#endif
 
+#ifdef HPM
   HPM_Start("mTxmq_tune");
+#endif
   for (loop=0; loop<30; ++loop) {
     double rate;
     long long start = rdtsc();
@@ -175,7 +200,9 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
     rate = nflop/start;
     if (rate > fastest_tune) fastest_tune = rate;
   }
+#ifdef HPM
   HPM_Stop("mTxmq_tune");
+#endif
 
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm, fastest_tune);
 }
@@ -188,9 +215,10 @@ int main(int argc, char **argv) {
 
     double *a, *b, *c, *d;
 
+#ifdef HPM
     MPI_Init(&argc, &argv);
-
     HPM_Init();
+#endif
 
     posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
     posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
@@ -220,7 +248,7 @@ int main(int argc, char **argv) {
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
                 for (i=0; i<ni*nj; ++i) {
-                    double err = fabs(d[i]-c[i]);
+                    double err = std::abs(d[i]-c[i]);
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
@@ -238,14 +266,15 @@ int main(int argc, char **argv) {
     printf("... OK!\n");
 
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
-    for ( m=2; m<=30;  m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=30;  m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
-    for ( m=2; m<=20;  m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+    for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
+    for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
+    for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
 
+#ifdef HPM
     HPM_Print();
     HPM_Print_Flops();
-
     MPI_Finalize();
+#endif
 
     return 0;
 }

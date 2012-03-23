@@ -35,6 +35,8 @@
     \brief This file demonstrates solving a problem with interior (embedded)
     Dirichlet conditions.
 
+    The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/interior_dirichlet.cc>here</a>.
+
     The signed_distance_functions shapes (mra/sdf_domainmask.h and
     mra/sdf_shape_3D.h) are used to specify a sphere of radius 1 centered
     at the origin.  A Dirichlet condition (dir_cond) is imposed on this sphere.

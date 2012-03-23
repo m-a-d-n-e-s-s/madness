@@ -41,10 +41,6 @@
 
 // NEED TO ADD ATTRIBUTION TO SHINY ON SOURCE FORGE
 
-#if defined(ON_A_MAC) || defined(HAVE_IBMBGP) || defined(__PGI)
-#define __thread
-#endif
-
 namespace madness {
 
     class World;
@@ -161,7 +157,7 @@ namespace madness {
 
 
     class WorldProfileObj {
-        static __thread WorldProfileObj* call_stack;  ///< Current top of this thread's call stack
+        static thread_local WorldProfileObj* call_stack;  ///< Current top of this thread's call stack
         WorldProfileObj* const prev; ///< Pointer to the entry that called me
         const int id;                ///< My entry in the world profiler
         const double cpu_base;       ///< Time that I started executing

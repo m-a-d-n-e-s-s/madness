@@ -328,7 +328,7 @@ namespace madness {
         };
 
         template <class hashT, int lockmode>
-        class HashAccessor : NO_DEFAULTS {
+        class HashAccessor : private NO_DEFAULTS {
             template <class a,class b,class c> friend class madness::ConcurrentHashMap;
         public:
             typedef typename madness::if_<std::is_const<hashT>,

@@ -37,6 +37,8 @@
 /// \defgroup hellowworldmad Hello world MADNESS style
 /// \ingroup examples
 ///
+///  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/hello.cc>here</a>.
+///
 /// Simplest program that initializes the MADNESS parallel runtime
 /// using initialize(), makes a madness::World object, prints 
 /// a greeting, and then cleans up.
