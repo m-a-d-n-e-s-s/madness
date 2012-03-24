@@ -31,12 +31,7 @@
   $Id$
 */
 #include <world/safempi.h>
-//#include <world/worldthread.h>
 #include <world/worldexc.h>
-
-#ifdef STUBOUTMPI
-#include <world/stubmpi.h>
-#endif
 
 namespace SafeMPI {
 

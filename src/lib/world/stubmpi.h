@@ -5,8 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "madness_config.h"
-
 #define MPI_COMM_WORLD (0x44000000)
 #define MPI_UNDEFINED      (-32766)
 
