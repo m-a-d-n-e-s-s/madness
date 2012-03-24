@@ -38,7 +38,6 @@
 #include <world/worldam.h>
 #include <world/worldtask.h>
 #include <world/worldgop.h>
-#include <world/stubmpi.h>
 #include <cstdlib>
 #include <sstream>
 
