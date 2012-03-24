@@ -38,6 +38,7 @@
 #include <world/worldam.h>
 #include <world/worldtask.h>
 #include <world/worldgop.h>
+#include <world/stubmpi.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -48,11 +49,11 @@
 #include <windows.h>
 #endif
 
-#define MPI_THREAD_STRING(level) \
-        ( level==MPI_THREAD_SERIALIZED ? "MPI_THREAD_SERIALIZED" : \
-            ( level==MPI_THREAD_MULTIPLE ? "MPI_THREAD_MULTIPLE" : \
-                ( level==MPI_THREAD_FUNNELED ? "MPI_THREAD_FUNNELED" : \
-                    ( level==MPI_THREAD_SINGLE ? "MPI_THREAD_SINGLE" : "WTF" ) ) ) )
+#define MPI_THREAD_STRING(level)  \
+        ( level==MPI::THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
+            ( level==MPI::THREAD_MULTIPLE ? "THREAD_MULTIPLE" : \
+                ( level==MPI::THREAD_FUNNELED ? "THREAD_FUNNELED" : \
+                    ( level==MPI::THREAD_SINGLE ? "THREAD_SINGLE" : "WTF" ) ) ) )
 
 namespace madness {
 
