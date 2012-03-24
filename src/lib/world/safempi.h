@@ -38,7 +38,7 @@
 
 #include "madness_config.h"
 
-// Jeff has determined that MPI_THREAD_MULTIPLE on BGP sucks too much
+// Jeff has determined that MPI_THREAD_MULTIPLE on BGP sucks
 //#ifndef HAVE_IBMBGP
 #define SERIALIZE_MPI
 //#endif
@@ -159,17 +159,6 @@ namespace SafeMPI {
             if (count>10 || datatype!=MPI::BYTE) MADNESS_EXCEPTION("Bsend: this protocol is only for 1-byte acks", count );
             comm.Bsend(buf,count,datatype,dest,tag);
         }
-
-/*
-        void Attach_buffer(void* buffer, int size) {
-            Attach_buffer(buffer, size);
-        }
-
-        int Detach_buffer(void*& buffer) {
-            Detach_buffer(buffer);
-            return 0;
-        }
-*/
 #endif // MADNESS_USE_BSEND_ACKS
 
         void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
