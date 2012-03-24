@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "madness_config.h"
+
 #define MPI_COMM_WORLD (0x44000000)
 #define MPI_UNDEFINED      (-32766)
 
@@ -81,11 +83,27 @@ namespace MPI {
         }
     };
 
-    void Finalize();
+    void Finalize() {
+        return;
+    }
+
+    bool Is_finalized() {
+         return true;
+    }
 
     int Init_thread(int &argc, char **&argv, int required) {
             return THREAD_SERIALIZED; /* none of the functions defined in this file have side-effects */
-        };
+    }
+
+#ifdef MADNESS_USE_BSEND_ACKS
+    void Attach_buffer(void* buffer, int size) {
+        return;
+    }
+
+    int Detach_buffer(void*& buffer) {
+        return 0;
+    }
+#endif // MADNESS_USE_BSEND_ACKS
 
     struct Request {
         bool Test() {
@@ -125,6 +143,12 @@ namespace MPI {
         void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
+
+#ifdef MADNESS_USE_BSEND_ACKS
+        void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+            throw "not implemented";
+        }
+#endif // MADNESS_USE_BSEND_ACKS
 
         void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
             throw "not implemented";
