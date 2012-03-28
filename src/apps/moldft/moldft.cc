@@ -41,6 +41,7 @@
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
 #include <linalg/solvers.h>
+#include <mra/qmprop.h>
 #include <ctime>
 #include <list>
 using namespace madness;
@@ -50,6 +51,46 @@ using namespace madness;
 #include <moldft/molecularbasis.h>
 #include <moldft/corepotential.h>
 #include <moldft/xcfunctional.h>
+
+template <typename Q, int NDIM>
+struct function_real2complex_op
+{
+  typedef std::complex<Q> resultT;
+  Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
+  {
+    Tensor<resultT> result(t.ndim(), t.dims());
+    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = resultT(*_p0,0.0););
+    return result;
+  }
+  template <typename Archive>
+  void serialize(Archive& ar) {}
+};
+
+template <typename Q, int NDIM>
+Function<std::complex<Q>,NDIM> function_real2complex(const Function<Q,NDIM>& r)
+{
+  return unary_op_coeffs(r, function_real2complex_op<Q,NDIM>());
+}
+
+template<int NDIM>
+struct unaryexp {
+    void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
+        //vzExp(t.size, t.ptr(), t.ptr());
+        UNARY_OPTIMIZED_ITERATOR(double_complex, t, *_p0 = exp(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
+// Returns exp(-I*t*V)
+Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
+    v.reconstruct();
+    Function<double_complex,3> expV = double_complex(0.0,-t)*v;
+    expV.unaryop(unaryexp<3>());
+    //expV.truncate(); expV.reconstruct();
+    return expV;
+}
+
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
@@ -140,6 +181,11 @@ typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
+typedef Function<std::complex<double>,3> complex_functionT;
+typedef std::vector<complex_functionT> cvecfuncT;
+typedef Convolution1D<double_complex> complex_operatorT;
+
+
 
 double ttt, sss;
 void START_TIMER(World& world) {
@@ -340,6 +386,22 @@ public:
         for (int p=0; p<j; ++p) yj *= r[1];
         for (int p=0; p<k; ++p) zk *= r[2];
         return xi*yj*zk;
+    }
+};
+
+/// A generic functor to compute external potential for TDDFT
+template<typename T>
+class VextCosFunctor {
+  double _omega;
+  Function<T,3> _f;
+public:
+    VextCosFunctor(World& world, const FunctionFunctorInterface<T,3>& functor, double omega)
+     : _omega(omega)
+    {
+      _f = factoryT(world).functor(functor);
+    }
+    Function<T,3> operator()(const double t) const {
+        return std::cos(_omega * t) * _f;
     }
 };
 
@@ -1496,8 +1558,10 @@ struct Calculation {
             world.gop.broadcast(c.ptr(), c.size(), 0);
             world.gop.broadcast(e.ptr(), e.size(), 0);
             if(world.rank() == 0){
-                print("initial eigenvalues");
-                print(e);
+              print("initial eigenvalues");
+              print(e);
+              print("\n\nWSTHORNTON: initial eigenvectors");
+              print(c);
             }
             compress(world, ao);
 
@@ -1589,6 +1653,31 @@ struct Calculation {
         world.gop.fence();
         vsq.clear();
         return rho;
+    }
+
+    functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v)
+    {
+      reconstruct(world, v); // For max parallelism
+      std::vector<functionT> vsq(v.size());
+      for (unsigned int i=0; i < v.size(); i++) {
+          vsq[i] = abssq(v[i], false);
+      }
+      world.gop.fence();
+
+      compress(world, vsq); // since will be using gaxpy for accumulation
+      functionT rho = factoryT(world);
+      rho.compress();
+
+      for(unsigned int i = 0; i < vsq.size();++i) {
+          if(occ[i])
+              rho.gaxpy(1.0, vsq[i], occ[i], false);
+
+      }
+      world.gop.fence();
+      vsq.clear();
+      rho.truncate();
+
+      return rho;
     }
 
     std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
@@ -2295,6 +2384,134 @@ struct Calculation {
         END_TIMER(world, "Orthonormalize");
         amo = amo_new;
         bmo = bmo_new;
+    }
+
+    template <typename Func>
+    void propagate(World& world, const Func& Vext, int step0)
+    {
+      // Load molecular orbitals
+      load_mos(world);
+
+      int nstep = 1000;
+      int time_step = 0.001;
+
+      world.gop.broadcast(time_step);
+      world.gop.broadcast(nstep);
+
+      // Need complex orbitals :(
+      cvecfuncT camo = zero_functions<double_complex,3>(world, param.nalpha);
+      cvecfuncT cbmo = zero_functions<double_complex,3>(world, param.nbeta);
+      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
+        camo[iorb] = function_real2complex<double,3>(amo[iorb]);
+      for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
+        cbmo[iorb] = function_real2complex<double,3>(bmo[iorb]);
+
+      // Create free particle propagator
+      // Have no idea what to set "c" to
+      double c = 100.0;
+      Convolution1D<double_complex>* G = qm_1d_free_particle_propagator(FunctionDefaults<3>::get_k(), c, 0.5*time_step, 2.0*param.L);
+
+      // Start iteration over time
+      for (int step = 0; step < nstep; step++)
+      {
+        double t = time_step*step;
+        iterate_trotter(world, G, Vext, camo, cbmo, t, time_step);
+      }
+
+
+    }
+
+    complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& psi) {
+        complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
+        coordT lo, hi;
+        lo[2] = -10;
+        hi[2] = +10;
+
+        r.reconstruct();
+        r.broaden();
+        r.broaden();
+        r.broaden();
+        r.broaden();
+
+        r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
+        r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
+        r = apply_1d_realspace_push(*q1d, r, 0); r.sum_down();
+
+        return r;
+    }
+
+    template <typename Func>
+    void iterate_trotter(World& world,
+                         Convolution1D<double_complex>* G,
+                         const Func& Vext,
+                         cvecfuncT& camo,
+                         cvecfuncT& cbmo,
+                         double t,
+                         double time_step)
+    {
+
+      // first kinetic energy apply
+      cvecfuncT camo2 = zero_functions<double,3>(world, param.nalpha);
+      cvecfuncT cbmo2 = zero_functions<double,3>(world, param.nbeta);
+      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+        camo2[iorb] = APPLY(G,camo[iorb]);
+        camo2[iorb].truncate();
+      }
+      if(!param.spin_restricted && param.nbeta)
+      {
+        for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo2[iorb] = APPLY(G,cbmo[iorb]);
+          cbmo2[iorb].truncate();
+        }
+      }
+      // Construct new density
+      START_TIMER(world);
+      functionT arho = make_density(world, aocc, amo), brho;
+
+      if (param.nbeta) {
+          if (param.spin_restricted) {
+              brho = arho;
+          }
+          else {
+              brho = make_density(world, bocc, bmo);
+          }
+      }
+      else {
+          brho = functionT(world); // zero
+      }
+      functionT rho = arho + brho;
+      END_TIMER(world, "Make densities");
+
+      // Do RPA only for now
+      functionT vlocal = vnuc;
+      START_TIMER(world);
+      functionT vcoul = apply(*coulop, rho);
+      END_TIMER(world, "Coulomb");
+      vlocal += vcoul + Vext(t+0.5*time_step);
+
+      // exponentiate potential
+      complex_functionT expV = make_exp(time_step, vlocal);
+      cvecfuncT camo3 = mul_sparse(world,expV,camo2,vtol,false);
+
+      // second kinetic energy apply
+      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+        camo[iorb] = APPLY(G,camo3[iorb]);
+        camo[iorb].truncate();
+      }
+      if (!param.spin_restricted && param.nbeta)
+      {
+        cvecfuncT cbmo3 = mul_sparse(world,expV,cbmo2,vtol,false);
+
+        // second kinetic energy apply
+        for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo[iorb] = APPLY(G,cbmo3[iorb]);
+          cbmo[iorb].truncate();
+        }
+      }
     }
 
     // For given protocol, solve the DFT/HF/response equations
