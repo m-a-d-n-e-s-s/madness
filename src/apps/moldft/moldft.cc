@@ -52,26 +52,6 @@ using namespace madness;
 #include <moldft/corepotential.h>
 #include <moldft/xcfunctional.h>
 
-template <typename Q, int NDIM>
-struct function_real2complex_op
-{
-  typedef std::complex<Q> resultT;
-  Tensor<resultT> operator()(const Key<NDIM>& key, const Tensor<Q>& t) const
-  {
-    Tensor<resultT> result(t.ndim(), t.dims());
-    BINARY_OPTIMIZED_ITERATOR(const Q, t, resultT, result, *_p1 = resultT(*_p0,0.0););
-    return result;
-  }
-  template <typename Archive>
-  void serialize(Archive& ar) {}
-};
-
-template <typename Q, int NDIM>
-Function<std::complex<Q>,NDIM> function_real2complex(const Function<Q,NDIM>& r)
-{
-  return unary_op_coeffs(r, function_real2complex_op<Q,NDIM>());
-}
-
 template<int NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
@@ -395,10 +375,13 @@ class VextCosFunctor {
   double _omega;
   Function<T,3> _f;
 public:
-    VextCosFunctor(World& world, const FunctionFunctorInterface<T,3>& functor, double omega)
-     : _omega(omega)
+    VextCosFunctor(World& world,
+//        const std::shared_ptr<FunctionFunctorInterface<T,3> >& functor,
+        const FunctionFunctorInterface<T,3>* functor,
+        double omega) : _omega(omega)
     {
-      _f = factoryT(world).functor(functor);
+//      _f = factoryT(world).functor(functor);
+      _f = factoryT(world).functor(functorT(new DipoleFunctor(2)));
     }
     Function<T,3> operator()(const double t) const {
         return std::cos(_omega * t) * _f;
@@ -507,6 +490,7 @@ struct CalculationParameters {
     double gprec;               ///< gradient precision 
     int  gmaxiter;               ///< optimization maxiter 
     std::string algopt;         ///< algorithm used for optimization
+    bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -515,7 +499,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
     }
 
     CalculationParameters()
@@ -559,6 +543,7 @@ struct CalculationParameters {
         , gprec(1e-4)
         , gmaxiter(20)
         , algopt("BFGS")
+        , tdksprop(false)
     {}
         
 
@@ -702,6 +687,9 @@ struct CalculationParameters {
                 char buf[1024];
                 f.getline(buf,sizeof(buf));
                 algopt = buf;
+            }
+            else if (s == "tdksprop") {
+              tdksprop = true;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -2386,36 +2374,58 @@ struct Calculation {
         bmo = bmo_new;
     }
 
-    template <typename Func>
-    void propagate(World& world, const Func& Vext, int step0)
+//    template <typename Func>
+//    void propagate(World& world, const Func& Vext, int step0)
+    void propagate(World& world, double omega, int step0)
     {
       // Load molecular orbitals
+      set_protocol(world,1e-4);
+      make_nuclear_potential(world);
+      initial_load_bal(world);
       load_mos(world);
 
-      int nstep = 1000;
+      int nstep = 10;
       int time_step = 0.001;
+
+      // temporary way of doing this for now
+//      VextCosFunctor<double> Vext(world,new DipoleFunctor(2),omega);
+      functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(2))).initial_level(4);
 
       world.gop.broadcast(time_step);
       world.gop.broadcast(nstep);
 
       // Need complex orbitals :(
+      double thresh = 1e-4;
       cvecfuncT camo = zero_functions<double_complex,3>(world, param.nalpha);
       cvecfuncT cbmo = zero_functions<double_complex,3>(world, param.nbeta);
-      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
-        camo[iorb] = function_real2complex<double,3>(amo[iorb]);
-      for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
-        cbmo[iorb] = function_real2complex<double,3>(bmo[iorb]);
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+        camo[iorb] = double_complex(1.0,0.0)*amo[iorb];
+        camo[iorb].truncate(thresh);
+      }
+      if (!param.spin_restricted && param.nbeta) {
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo[iorb] = double_complex(1.0,0.0)*bmo[iorb];
+          cbmo[iorb].truncate(thresh);
+        }
+      }
 
       // Create free particle propagator
       // Have no idea what to set "c" to
-      double c = 100.0;
+      double c = 30.0;
+      printf("Creating G\n");
       Convolution1D<double_complex>* G = qm_1d_free_particle_propagator(FunctionDefaults<3>::get_k(), c, 0.5*time_step, 2.0*param.L);
+      printf("Done creating G\n");
 
       // Start iteration over time
       for (int step = 0; step < nstep; step++)
       {
+        if (world.rank() == 0) printf("Iterating step %d:\n\n", step);
         double t = time_step*step;
-        iterate_trotter(world, G, Vext, camo, cbmo, t, time_step);
+//        iterate_trotter(world, G, Vext, camo, cbmo, t, time_step);
+        iterate_trotter(world, G, fdip, camo, cbmo, t, time_step);
+
       }
 
 
@@ -2432,38 +2442,56 @@ struct Calculation {
         r.broaden();
         r.broaden();
         r.broaden();
-
+        printf("apply_1d_realspace_push: 2\n");
         r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
+        printf("apply_1d_realspace_push: 1\n");
         r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
+        printf("apply_1d_realspace_push: 0\n");
         r = apply_1d_realspace_push(*q1d, r, 0); r.sum_down();
 
         return r;
     }
 
-    template <typename Func>
+//    template <typename Func>
+//    void iterate_trotter(World& world,
+//                         Convolution1D<double_complex>* G,
+//                         const Func& Vext,
+//                         cvecfuncT& camo,
+//                         cvecfuncT& cbmo,
+//                         double t,
+//                         double time_step)
+//    void iterate_trotter(World& world,
+//                         Convolution1D<double_complex>* G,
+//                         const VextCosFunctor<double>& Vext,
+//                         cvecfuncT& camo,
+//                         cvecfuncT& cbmo,
+//                         double t,
+//                         double time_step)
     void iterate_trotter(World& world,
                          Convolution1D<double_complex>* G,
-                         const Func& Vext,
+                         const functionT fdip,
                          cvecfuncT& camo,
                          cvecfuncT& cbmo,
                          double t,
                          double time_step)
     {
+      double thresh = 1e-4;
 
       // first kinetic energy apply
-      cvecfuncT camo2 = zero_functions<double,3>(world, param.nalpha);
-      cvecfuncT cbmo2 = zero_functions<double,3>(world, param.nbeta);
-      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
+      cvecfuncT camo2 = zero_functions<double_complex,3>(world, param.nalpha);
+      cvecfuncT cbmo2 = zero_functions<double_complex,3>(world, param.nbeta);
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
       {
+        if (world.rank()) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
         camo2[iorb] = APPLY(G,camo[iorb]);
-        camo2[iorb].truncate();
+        camo2[iorb].truncate(thresh);
       }
       if(!param.spin_restricted && param.nbeta)
       {
-        for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
         {
           cbmo2[iorb] = APPLY(G,cbmo[iorb]);
-          cbmo2[iorb].truncate();
+          cbmo2[iorb].truncate(thresh);
         }
       }
       // Construct new density
@@ -2489,15 +2517,21 @@ struct Calculation {
       START_TIMER(world);
       functionT vcoul = apply(*coulop, rho);
       END_TIMER(world, "Coulomb");
-      vlocal += vcoul + Vext(t+0.5*time_step);
+//      vlocal += vcoul + Vext(t+0.5*time_step);
+      vlocal += vcoul + std::cos(0.1*(t+0.5*time_step))*fdip;
 
       // exponentiate potential
+      if (world.rank()) printf("Apply Kohn-Sham potential to orbitals\n");
       complex_functionT expV = make_exp(time_step, vlocal);
       cvecfuncT camo3 = mul_sparse(world,expV,camo2,vtol,false);
+      world.gop.fence();
+
 
       // second kinetic energy apply
-      for (unsigned int iorb = 0; iorb < param.nalpha; iorb++)
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
       {
+        if (world.rank() == 0) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
+        camo3[iorb].truncate(thresh);
         camo[iorb] = APPLY(G,camo3[iorb]);
         camo[iorb].truncate();
       }
@@ -2506,7 +2540,7 @@ struct Calculation {
         cvecfuncT cbmo3 = mul_sparse(world,expV,cbmo2,vtol,false);
 
         // second kinetic energy apply
-        for (unsigned int iorb = 0; iorb < param.nbeta; iorb++)
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
         {
           cbmo[iorb] = APPLY(G,cbmo3[iorb]);
           cbmo[iorb].truncate();
@@ -2867,6 +2901,12 @@ int main(int argc, char** argv) {
           geom.set_update(calc.param.algopt);
           geom.set_test(calc.param.gtest);
           geom.optimize(geomcoord);
+        }
+        else if (calc.param.tdksprop) {
+          print("\n\n Propagation of Kohn-Sham equation                      ");
+          print(" ----------------------------------------------------------\n");
+//          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
+          calc.propagate(world,0.1,0);
         }
         else {
           MolecularEnergy E(world, calc);
