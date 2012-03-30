@@ -45,6 +45,7 @@
 #include <tensor/cu_axpy.cu>
 //#include <world/cuda_streams.h>
 #include <string.h>
+#include <map>
 #include <cublas_v2.h>
 //namespace madness {
 //#include <cublas_v2.h>
@@ -672,6 +673,7 @@ template <typename T>
 T* GPUtransfer_buffer(T* CPU_buf, unsigned int offset, bool copy){
 	T *GPU_buf;
 	cudaError_t err = cudaMalloc((void **)&GPU_buf,offset*sizeof(T));
+        //printf("\n allocate +++ \n");
         if (err != cudaSuccess){
           perror("Could not allocate GPU memory   ");
           exit(-1);
@@ -746,12 +748,13 @@ template  void  CPUtransfer_buffer(long* CPU_buf, long *GPU_buf,unsigned int off
 
 
 template <typename W>
-       void GPUdelete_buffer(W* buf){
-	cudaError_t err = cudaFree(buf);
-         if (err != cudaSuccess){
-          perror("Could not free GPU memory   ");
-          exit(-1);
-        }
+void GPUdelete_buffer(W* buf){
+  cudaError_t err = cudaFree(buf);
+  //printf("\n deallocate +++ \n");
+  if (err != cudaSuccess){
+      perror("Could not free GPU memory   ");
+      exit(-1);
+  }
 }
 template   void GPUdelete_buffer(double* buf);
 template   void GPUdelete_buffer(std::complex<double>* buf);
@@ -2122,22 +2125,147 @@ exit(-1);
 }
 
 template <typename T>
-void fast_cutrans(long dimk, long dimi, T* mat_out, T* mat_in, void * GPU_stream){}
+class identity{
+    public:
+    static std::map<std::size_t,T*> ident_map;
+
+    static T* getIdentity(std::size_t dimk){
+        return 0;
+    }
+};
 
 template <>
-void fast_cutrans(long dimk, long dimi, float * mat_out, float * mat_in, void * GPU_stream){}
+class identity<double>{
+    public:
+    static std::map<std::size_t,double*> ident_map;
+
+    static double* getIdentity(std::size_t dimk){
+      std::map<std::size_t,double*>::iterator it;
+
+      if ((it = ident_map.find(dimk)) != ident_map.end()){
+        return it->second;
+      }
+      else{
+        double * mat;
+        double * id = new double[dimk*dimk];
+        for (int i = 0; i < dimk; i++){
+          for (int j = 0; j < dimk; j++){
+            if (i != j) id[i*dimk + j] = 0.0;
+            else id[i*dimk + j] = 1.0;
+          }
+        } 
+        cudaError_t err = cudaMalloc((void **)&mat,dimk*dimk*sizeof(double));
+        if (err != cudaSuccess){
+            perror("Could not allocate GPU memory   ");                                   
+            exit(-1);
+        }
+        err = cudaMemcpy((void*)mat,(void*)id,dimk*dimk*sizeof(double),cudaMemcpyHostToDevice);
+        if (err != cudaSuccess){
+            perror("Could not memcpy to just allocated GPU memory   ");
+            exit(-1);
+        }
+ 
+        delete[] id;
+
+        ident_map.insert(std::pair<std::size_t,double*>(dimk,mat));
+
+        return mat;
+      }
+    } 
+};
+
+std::map<std::size_t,double*> identity<double>::ident_map;
+
+template <typename T>
+void general_cutrans(long dimk, T* mat_out, T* mat_in, void * GPU_stream, void * h, std::size_t NDIM){}
 
 template <>
-void fast_cutrans(long dimk, long dimi, std::complex<double> * mat_out, std::complex<double> * mat_in, void * GPU_stream){}
+void general_cutrans(long dimk, double* mat_out, double* mat_in, void * GPU_stream, void * h, std::size_t NDIM){
+        /*
+        double * id = new double[dimk*dimk];
+        for (int i = 0; i < dimk; i++){
+          for (int j = 0; j < dimk; j++){
+            if (i != j) id[i*dimk + j] = 0.0;
+            else id[i*dimk + j] = 1.0;
+          }
+        } 
+        double * mat_id;
+        cudaError_t err = cudaMalloc((void **)&mat_id,dimk*dimk*sizeof(double));
+        if (err != cudaSuccess){
+            perror("Could not allocate GPU memory   ");                                   exit(-1);
+        }
+        err = cudaMemcpy((void*)mat_id,(void*)id,dimk*dimk*sizeof(double),cudaMemcpyHostToDevice);
+        if (err != cudaSuccess){
+            perror("Could not memcpy to just allocated GPU memory   ");
+            exit(-1);
+        }
+        */
+
+
+            // double *ha,*hb, *hc; 
+        double one=1.0;
+        double zero=0.0;
+        //printf(" GPU Scublas code execution");
+        //sleep(100);
+        int M = 1;
+        for (int i = 0; i < NDIM - 1; i++) M *= dimk;
+        int N = dimk;
+        int K = dimk;
+        //cublasStatus_t statt;
+        cudaError_t stat;
+        //double *devPtrA, *devPtrB, *devPtrC;
+        cublasHandle_t *handle=(cublasHandle_t *)h;
+//      cublasCreate(&handle);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(*handle, *stream);
+        double * B = identity<double>::getIdentity(dimk);
+        double * A = mat_in;
+        double * C = mat_out;
+
+        int b;
+        b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+        if (b == CUBLAS_STATUS_INVALID_VALUE)
+          printf("CUBLAS_STATUS_INVALID_VALUE");
+        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+          printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+ 
+        //err = cudaFree(mat_id); 
+        //if (err != cudaSuccess){
+        //    perror("Could not free GPU memory   ");                                       exit(-1);
+        //}
+        //delete[] id; 
+
+}
+
+template <typename T>
+void fast_cutrans(long dimk, long dimi, T* mat_out, T* mat_in, void * GPU_stream, int NDIM, void * h){}
 
 template <>
-void fast_cutrans(long dimk, long dimi, std::complex<float> * mat_out, std::complex<float> * mat_in, void * GPU_stream){}
+void fast_cutrans(long dimk, long dimi, float * mat_out, float * mat_in, void * GPU_stream, int NDIM, void * h){}
 
 template <>
-void fast_cutrans(long dimk, long dimi, double * mat_out, double * mat_in, void * GPU_stream){
+void fast_cutrans(long dimk, long dimi, std::complex<double> * mat_out, std::complex<double> * mat_in, void * GPU_stream, int NDIM, void * h){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, std::complex<float> * mat_out, std::complex<float> * mat_in, void * GPU_stream, int NDIM, void * h){}
+
+template <>
+void fast_cutrans(long dimk, long dimi, double * mat_out, double * mat_in, void * GPU_stream, int NDIM, void * h){
+    cudaError_t err;
     cudaStream_t *stream=(cudaStream_t*)GPU_stream;
     dim3 threads;
     dim3 grid;
+    if (NDIM == 3){
     switch (dimk){
         case 20: 
           threads = dim3(256, 1, 1);
@@ -2149,10 +2277,117 @@ void fast_cutrans(long dimk, long dimi, double * mat_out, double * mat_in, void 
           grid = dim3(1, 1, 1);
           cu_transpose_11<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
           break;
-        default:
-          printf("Only 10 and 20 are supported now for transpose \n");
-          exit(-1);
+        case 12: 
+          threads = dim3(160, 1, 1);
+          grid = dim3(1, 1, 1);
+          cu_transpose_12<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
           break;
+        case 6: 
+          threads = dim3(64, 1, 1);
+          grid = dim3(1, 1, 1);
+          cu_transpose_6<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          break;
+        case 16: 
+          threads = dim3(128, 1, 1);
+          grid = dim3(2, 1, 1);
+          cu_transpose_16<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          err = cudaGetLastError();
+          if (err != cudaSuccess){
+              perror("cu_transpose_16 error");
+              exit(-1);
+          }
+          break;
+        case 8: 
+          threads = dim3(64, 1, 1);
+          grid = dim3(1, 1, 1);
+          cu_transpose_8<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          err = cudaGetLastError();
+          if (err != cudaSuccess){
+              perror("cu_transpose_8 error");
+              exit(-1);
+          }
+          break;
+        case 14: 
+          threads = dim3(196, 1, 1);
+          grid = dim3(1, 1, 1);
+          cu_transpose_14<<<grid, threads, 0, *stream>>>(mat_out, mat_in);
+          err = cudaGetLastError();
+          if (err != cudaSuccess){
+              perror("cu_transpose_14 error");
+              exit(-1);
+          }
+          break;
+        default:
+          general_cutrans(dimk, mat_out, mat_in, GPU_stream, h, NDIM);
+          //printf("Only 10, 20, 6 12 8 and 16 are supported now for transpose \n");
+          //exit(-1);
+          break;
+    }
+    }
+    else{
+        general_cutrans(dimk, mat_out, mat_in, GPU_stream, h, NDIM);
+        /*
+        double * id = new double[dimk*dimk];
+        for (int i = 0; i < dimk; i++){
+          for (int j = 0; j < dimk; j++){
+            if (i != j) id[i*dimk + j] = 0.0;
+            else id[i*dimk + j] = 1.0;
+          }
+        } 
+        double * mat_id;
+        err = cudaMalloc((void **)&mat_id,dimk*dimk*sizeof(double));
+        if (err != cudaSuccess){
+            perror("Could not allocate GPU memory   ");                                   exit(-1);
+        }
+        err = cudaMemcpy((void*)mat_id,(void*)id,dimk*dimk*sizeof(double),cudaMemcpyHostToDevice);
+        if (err != cudaSuccess){
+            perror("Could not memcpy to just allocated GPU memory   ");
+            exit(-1);
+        }
+
+            // double *ha,*hb, *hc; 
+        double one=1.0;
+        double zero=0.0;
+        //printf(" GPU Scublas code execution");
+        //sleep(100);
+        int M = 1;
+        for (int i = 0; i < NDIM - 1; i++) M *= dimk;
+        int N = dimk;
+        int K = dimk;
+        //cublasStatus_t statt;
+        cudaError_t stat;
+        //double *devPtrA, *devPtrB, *devPtrC;
+        cublasHandle_t *handle=(cublasHandle_t *)h;
+//      cublasCreate(&handle);
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasSetStream(*handle, *stream);
+        double * B = mat_id;
+        double * A = mat_in;
+        double * C = mat_out;
+
+        int b;
+        b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+        if (b == CUBLAS_STATUS_INVALID_VALUE)
+          printf("CUBLAS_STATUS_INVALID_VALUE");
+        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+          printf("CUBLAS_STATUS_ARCH_MISMATCH");
+        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
+        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+          printf("CUBLAS_STATUS_MAPPING_ERROR");
+        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+          printf("CUBLAS_STATUS_ALLOC_FAILED");
+        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+          printf("CUBLAS_STATUS_INTERNAL_ERROR");
+ 
+        err = cudaFree(mat_id); 
+        if (err != cudaSuccess){
+            perror("Could not free GPU memory   ");                                       exit(-1);
+        }
+        delete[] id;
+        */ 
     }
 }
 
@@ -2211,6 +2446,17 @@ exit(-1);
 			//	threads=dim3(128,1,1 );
 			//	grid=dim3(2,1,1);
 				cu_mtxmq_integral_204<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
+	break; 
+	case 8:
+				threads=dim3( 64,1,1 );
+				grid=dim3(1,1,1);
+				cu_mtxmq_integral_80<<<grid,threads,64*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr, BU);
+	break;
+        case 16:
+				threads=dim3(128,1,1 );
+				grid=dim3(2,1,1);
+				//cu_mtxmq_integral_16<<<grid,threads,256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
+				cu_mtxmq_integral_17<<<grid,threads,256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
 	break;
 	default:
 				printf("Kernel does not exist for k=%d n=%d",k,n);

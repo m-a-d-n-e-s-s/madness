@@ -725,6 +725,709 @@ __global__ void cu_mtxmq_integral_16(const double *A, int lda, const double *B, 
 	}	
 }
 
+__global__ void cu_mtxmq_integral_80(const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT, int8_t *doit, double *mufac, double *result, int rank, long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__ double Cs[512];
+   double AL1[8];
+   double Ctemp;
+   __shared__ double resultS[512];
+   __shared__ int8_t  doitS[128];
+   __shared__ double mufacS[128];
+   __shared__ double As[512];
+   __shared__ int trank[512];
+
+  for (int i=0;i<2;i++){
+	int index=threadIdx.x + i*64;
+	if (index <rank)
+      doitS[index]=doit[index];
+	}
+   __syncthreads();
+  for (int i=0;i<2;i++){
+	int index=threadIdx.x + i*64;
+	if (index <rank)
+      mufacS[index]=mufac[index];
+	}
+   __syncthreads();
+
+
+#pragma unroll 
+   for (int i=0;i<8;i++)	{
+      int index =threadIdx.x+i*64;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+   //  if (threadIdx.x<100){
+#pragma unroll 
+   for ( int i =0;i<8;i++)
+      As[threadIdx.x+i*64]=A[threadIdx.x+i*64];
+   //	}
+   __syncthreads();
+   //	if (threadIdx.x<lda){
+#pragma unroll 
+   for (int i=0;i<8;i++)
+      //resultS[threadIdx.x+lda*i]=result[threadIdx.x+lda*i];
+      resultS[threadIdx.x+64*i]=0.0;
+   //	}
+   __syncthreads();
+
+
+   for (int mu=0;mu<rank;mu++){
+      if (mufacS[mu]){
+
+	 //	if (threadIdx.x==0)
+	 //printf("rank=%d \n",trank[mu]);	
+	 //      __syncthreads();
+	 if (trank[mu*3]== 8){
+	       Bs[threadIdx.x]=B[threadIdx.x+mu*192];
+	 }
+	 else{
+	       Bs[threadIdx.x]=BU[threadIdx.x+mu*192];
+	 }
+	 __syncthreads();
+
+
+
+	    for ( int i =0;i<8;i++)
+	       AL1[i]=As[threadIdx.x+i*64];
+//	 __syncthreads();
+	 // lda replaced by dim/trans.r
+	 //ldb replaced by trans.r
+	 // 10 in the loop replaced by trans.r 
+
+
+#pragma unroll 
+	    for (int  j=0;j<8;j++)//number of cols of B
+	    {
+	       Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<8;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+	       Cs[threadIdx.x*8+j]=Ctemp;
+	    }
+	 __syncthreads();
+
+
+	 if (trank[mu*3+1]== 8){
+	       Bs[threadIdx.x]=*(B+threadIdx.x+mu*192+64);
+	 }
+	 else{
+	       Bs[threadIdx.x]=*(BU+threadIdx.x+mu*192+64);
+	 }
+	 __syncthreads();
+
+#pragma unroll 
+	    for ( int i =0;i<8;i++)
+	       AL1[i]=Cs[threadIdx.x+i*64];
+//		__syncthreads();
+
+
+#pragma unroll 
+	    for (int  j=0;j<8;j++)//number of cols of B
+	    {
+	       Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<8;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+	       Cs[threadIdx.x*8+j]=Ctemp;	
+	    }
+
+	 __syncthreads();
+
+
+	 if (trank[mu*3+2]== 8){
+	       Bs[threadIdx.x]=*(B+threadIdx.x+mu*192+128);
+	 }
+	 else{
+	       Bs[threadIdx.x]=*(BU+threadIdx.x+mu*192+128);
+	 }
+	 __syncthreads();
+
+#pragma unroll 
+	    for ( int i =0;i<8;i++)
+	       AL1[i]=Cs[threadIdx.x+i*64];
+//	__syncthreads();
+
+
+#pragma unroll 
+	    for (int  j=0;j<8;j++)//number of cols of B
+	    {
+	       Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<8;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+	       Cs[threadIdx.x*8+j]=Ctemp;
+	    }
+	 __syncthreads();
+
+
+	 if (doitS[mu]){	
+	
+//	 	if (threadIdx.x==0)
+//	 printf("doit10[%d]=%d \n",mu,doitS[mu]);	
+//	       __syncthreads();
+	if ( doitS[mu] & 1){
+	       Bs[threadIdx.x]=BVT[threadIdx.x+mu*192];
+	    __syncthreads();
+
+#pragma unroll 
+	       for ( int i =0;i<8;i++)
+		  AL1[i]=Cs[threadIdx.x+i*64];
+//	__syncthreads();
+
+
+
+#pragma unroll 
+	       for (int  j=0;j<8;j++)//number of cols of B
+	       {
+		  Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<8;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+		  Cs[threadIdx.x*8+j]=Ctemp;
+	       }
+
+	    __syncthreads();
+	}
+	else{
+
+        #pragma unroll 
+        for ( int i =0;i<8;i++)
+                AL1[i]=Cs[threadIdx.x+i*64];
+//	__syncthreads();
+	
+	#pragma unroll 
+        for ( int i =0;i<8;i++)
+		Cs[threadIdx.x*8+i] = AL1[i];
+        __syncthreads();
+
+
+	}
+
+	if ( doitS[mu] & 2){
+	       Bs[threadIdx.x]=*(BVT+threadIdx.x+mu*192+64);
+	    __syncthreads();
+
+#pragma unroll 
+	       for ( int i =0;i<8;i++)
+		  AL1[i]=Cs[threadIdx.x+i*64];
+//		__syncthreads();
+
+
+#pragma unroll 
+	       for (int  j=0;j<8;j++)//number of cols of B
+	       {
+		  Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<8;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+		  Cs[threadIdx.x*8+j]=Ctemp;	
+	       }
+
+	    __syncthreads();
+	}
+	else{
+
+        #pragma unroll 
+        for ( int i =0;i<8;i++)
+                AL1[i]=Cs[threadIdx.x+i*64];
+//	__syncthreads();
+	
+	#pragma unroll 
+        for ( int i =0;i<8;i++)
+		Cs[threadIdx.x*8+i] = AL1[i];
+        __syncthreads();
+
+
+	}
+
+
+
+	if ( doitS[mu] & 4){
+	       Bs[threadIdx.x]=*(BVT+threadIdx.x+mu*192+128);
+	    __syncthreads();
+
+#pragma unroll 
+	       for ( int i =0;i<8;i++)
+		  AL1[i]=Cs[threadIdx.x+i*64];
+//		__syncthreads();
+
+#pragma unroll 
+	       for (int  j=0;j<8;j++)//number of cols of B
+	       {
+		  Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<8;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*8];//4 way bank conflict
+		  Cs[threadIdx.x*8+j]=Ctemp;
+
+	       }
+	    __syncthreads();
+	}
+	else{
+
+        #pragma unroll 
+        for ( int i =0;i<8;i++)
+                AL1[i]=Cs[threadIdx.x+i*64];
+//	__syncthreads();
+	
+	#pragma unroll 
+        for ( int i =0;i<8;i++)
+		Cs[threadIdx.x*8+i] = AL1[i];
+        __syncthreads();
+
+
+	}
+	 }
+
+	 //  if (threadIdx.x<lda){
+#pragma unroll 
+	 for (int i=0;i<8;i++)
+	    resultS[threadIdx.x+i*64]= resultS[threadIdx.x+i*64]-Cs[threadIdx.x+i*64]*mufacS[mu];
+	 __syncthreads();
+	 //}
+	 //      __syncthreads();
+      }
+   }
+#pragma unroll 
+      for (int i=0;i<8;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[threadIdx.x+i*64]= resultS[threadIdx.x+i*64];
+   __syncthreads();
+
+}
+
+
+__global__ void cu_mtxmq_integral_17( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufac, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[128][17];
+   double AL1[16];
+   //	double Ctemp;
+   __shared__ double resultS[2048];
+   __shared__  int8_t  doitS[112];
+   __shared__  double mufacS[112];
+  // __shared__  double  As[2720];
+   __shared__ int trank[512];
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   	if (threadIdx.x <rank)
+   	mufacS[threadIdx.x]=mufac[threadIdx.x];
+         __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*128;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+int index;
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+	resultS[threadIdx.x+i*128]=0.0;
+   	__syncthreads();
+/*#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+*/
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<2;i++){
+	    index=threadIdx.x + i*128;
+	       if (trank[mu*3]== 16)
+		  Bs[index]=B[index+mu*768];
+	       else
+		  Bs[index]=BU[index+mu*768];
+	 }
+	 __syncthreads();
+
+
+	 index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	    for ( int i =0;i<16;i++)
+	       AL1[i]=A[index+i*256];
+//	__syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+#pragma unroll 
+	    for (int  j=0;j<16;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+	       for (int  i =0;i<16;i++) // number of rows of B
+		 Cs[threadIdx.x][j]  +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+	       //Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+
+	    }
+	 __syncthreads();
+	 index= blockIdx.x*2048+threadIdx.x;
+	    for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<2;i++){
+	    index=threadIdx.x + i*128;
+	       if (trank[mu*3+1]== 16)
+		  Bs[index]=B[index+mu*768+256];
+	       else
+		  Bs[index]=BU[index+mu*768+256];
+	 }
+	 __syncthreads();
+
+	 index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	    for ( int i =0;i<16;i++)
+	       AL1[i]=C[index+i*256];
+//	__syncthreads();
+
+#pragma unroll 
+	    for (int  j=0;j<16;j++)//number of cols of B
+	    {
+	    //   double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+	       for (int  i =0;i<16;i++) // number of rows of B
+		  Cs[threadIdx.x][j] +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+
+	    }
+	 __syncthreads();
+	 index= blockIdx.x*2048+threadIdx.x;
+	    for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+	       //C[index+i*128]=Cs[threadIdx.x+i*128];
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<2;i++){
+	    index=threadIdx.x + i*128;
+	       if (trank[mu*3+2]== 16)
+		  Bs[index]=B[index+mu*768+512];
+	       else
+		  Bs[index]=BU[index+mu*768+512];
+	 }__syncthreads();
+
+	 index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	    for ( int i =0;i<16;i++)
+	       AL1[i]=C[index+i*256];
+//	 __syncthreads();
+
+#pragma unroll 
+	    for (int  j=0;j<16;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+	       for (int  i =0;i<16;i++) // number of rows of B
+		  Cs[threadIdx.x][j] +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+
+	    }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2048+threadIdx.x;
+	       for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+	//	  C[index+i*128]=Cs[threadIdx.x+i*128];
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==4)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<2;i++){
+	       index=threadIdx.x + i*128;
+		  Bs[index]=BVT[index+mu*768];
+	    }
+	    __syncthreads();
+
+	    index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<16;i++)
+		  AL1[i]=C[index+i*256];
+//		__syncthreads();
+
+
+
+#pragma unroll 
+	       for (int  j=0;j<16;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+		  for (int  i =0;i<16;i++) // number of rows of B
+		     Cs[threadIdx.x][j] +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    __syncthreads();
+	    index= blockIdx.x*2048+threadIdx.x;
+	       for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+	//	  C[index+i*128]=Cs[threadIdx.x+i*128];
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*128+threadIdx.x;  
+#pragma unroll 
+      for ( int i =0;i<16;i++)
+	  Cs[threadIdx.x][i]=C[index+i*256];
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2048+threadIdx.x;
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+               //   C[index+i*128]=Cs[threadIdx.x+i*128];
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<2;i++){
+	       index=threadIdx.x + i*128;
+		  Bs[index]=BVT[index+mu*768+256];
+	    }
+	    __syncthreads();
+
+	       index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<16;i++)
+		  AL1[i]=C[index+i*256];
+//		__syncthreads();
+
+
+#pragma unroll 
+	       for (int  j=0;j<16;j++)//number of cols of B
+	       {
+		//  double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+		  for (int  i =0;i<16;i++) // number of rows of B
+		     Cs[threadIdx.x][j] +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+		  //Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    __syncthreads();
+	    index= blockIdx.x*2048+threadIdx.x;
+	       for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+	//	  C[index+i*128]=Cs[threadIdx.x+i*128];
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*128+threadIdx.x;  
+#pragma unroll 
+      for ( int i =0;i<16;i++)
+	  Cs[threadIdx.x][i]=C[index+i*256];
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2048+threadIdx.x;
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+	       C[index+i*128]=Cs[(threadIdx.x>>4)+i*8][threadIdx.x&15];
+               //   C[index+i*128]=Cs[threadIdx.x+i*128];
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<2;i++){
+	       index=threadIdx.x + i*128;
+		  Bs[index]=BVT[index+mu*768+512];
+		}
+	__syncthreads();
+
+	       index= blockIdx.x*128+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<16;i++)
+		  AL1[i]=C[index+i*256];
+//		__syncthreads();
+
+#pragma unroll 
+	       for (int  j=0;j<16;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+	       Cs[threadIdx.x][j]=0.0;
+#pragma unroll 
+		  for (int  i =0;i<16;i++) // number of rows of B
+		     Cs[threadIdx.x][j] +=AL1[i]*Bs[j+i*16];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*128+threadIdx.x;  
+#pragma unroll 
+      for ( int i =0;i<16;i++)
+	  Cs[threadIdx.x][i]=C[index+i*256];
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==4)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();*/
+
+	#pragma unroll 
+        for (int i=0;i<16;i++){
+                index =threadIdx.x+i*128;
+                resultS[index]= resultS[index]+Cs[i*8+(threadIdx.x>>4)][threadIdx.x&15]*mufacS[mu];
+        }
+
+        __syncthreads();
+	}
+   }
+/*   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+*/
+	index= blockIdx.x*2048+threadIdx.x;
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+        result[index+i*128]=resultS[threadIdx.x+i*128];
+        __syncthreads();
+}
+
 __global__ void cu_mtxmq_integral_18(const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta)
 {
         extern __shared__ double Bs[];
@@ -3582,9 +4285,131 @@ odata[blockIdx.x*4000+index]=AS[index];
 
 }
 
+__global__ void cu_transpose_6(double *odata, const double  *idata){
+ 
+  double AL[6];  
+  __shared__ double  AS[216];
+
+  if (threadIdx.x <36){
+    #pragma unroll 
+    for ( int i =0;i<6;i++)
+	AL[i]=idata[threadIdx.x+i*36];
+  }
+  __syncthreads();
 
 
+  if (threadIdx.x <36){
+    #pragma unroll 
+    for ( int i =0;i<6;i++)
 
+    AS[threadIdx.x*6+i] = AL[i];
+  }
+  __syncthreads();
+
+
+  if (threadIdx.x <36){
+    for (int i=0;i<6;i++){
+      int index = threadIdx.x + i*36;
+      odata[index]=AS[index];
+    }
+  }
+  __syncthreads();
+}
+
+__global__ void cu_transpose_12(double *odata, const double  *idata){
+double AL[12];
+__shared__ double  AS[1728];
+
+if (threadIdx.x<144){
+#pragma unroll 
+for ( int i =0;i<12;i++)
+	AL[i]=idata[threadIdx.x+i*144];
+}
+__syncthreads();
+
+if (threadIdx.x<144){
+#pragma unroll 
+for ( int i =0;i<12;i++)
+
+AS[threadIdx.x*12+i] = AL[i];
+
+}
+__syncthreads();
+
+for (int i=0;i<12;i++){
+int index = threadIdx.x + i*144;
+if (index<1728)
+odata[index]=AS[index];
+}
+__syncthreads();
+}
+
+__global__ void cu_transpose_8(double *odata, const double  *idata){
+double AL[8];
+__shared__ double  AS[512];
+
+#pragma unroll 
+for ( int i =0;i<8;i++)
+	AL[i]=idata[threadIdx.x+i*64];
+
+#pragma unroll 
+for ( int i =0;i<8;i++)
+
+AS[threadIdx.x*8+i] = AL[i];
+
+__syncthreads();
+
+for (int i=0;i<8;i++){
+int index = threadIdx.x + i*64;
+odata[index]=AS[index];
+}
+}
+__global__ void cu_transpose_16(double *odata, const double  *idata){
+double AL[16];
+__shared__ double  AS[2048];
+
+#pragma unroll 
+for ( int i =0;i<16;i++)
+	AL[i]=idata[blockIdx.x*128+threadIdx.x+i*256];
+__syncthreads();
+
+#pragma unroll 
+for ( int i =0;i<16;i++)
+
+AS[threadIdx.x*16+i] = AL[i];
+
+__syncthreads();
+
+for (int i=0;i<16;i++){
+int index = threadIdx.x + i*128;
+odata[blockIdx.x*2048+index]=AS[index];
+}
+
+}
+
+__global__ void cu_transpose_14(double *odata, const double  *idata){
+ 
+  double AL[14];  
+  __shared__ double  AS[2744];
+
+  #pragma unroll 
+  for ( int i =0;i<14;i++)
+    AL[i]=idata[threadIdx.x+i*196];
+  __syncthreads();
+
+
+  #pragma unroll 
+  for ( int i =0;i<14;i++)
+    AS[threadIdx.x*14+i] = AL[i];
+  __syncthreads();
+
+
+  for (int i=0;i<14;i++){
+      int index = threadIdx.x + i*196;
+      odata[index]=AS[index];
+  }
+  __syncthreads();
+}
 
 __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
 {
@@ -3851,7 +4676,14 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-	index= blockIdx.x*136+threadIdx.x;
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -3865,7 +4697,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 
 	}
         __syncthreads();
-	
+*/	
 	index= blockIdx.x*2720+threadIdx.x;
             if (blockIdx.x <2){
 #pragma unroll 
@@ -3925,7 +4757,14 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-	index= blockIdx.x*136+threadIdx.x;
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -3939,7 +4778,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 
 	}
         __syncthreads();
-	
+*/	
 	index= blockIdx.x*2720+threadIdx.x;
             if (blockIdx.x <2){
 #pragma unroll 
@@ -3989,7 +4828,14 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-	index= blockIdx.x*136+threadIdx.x;
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -4002,7 +4848,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 		Cs[threadIdx.x*20+i] = AL1[i];
 
 	}
-        __syncthreads();
+        __syncthreads();*/
 	}
 	    /*if (blockIdx.x <2){
 	      for ( int i =0;i<17;i++)
@@ -4351,4 +5197,2629 @@ __global__ void cu_mtxmq_integral_113(const double *A, int lda, const double *B,
    }
    __syncthreads();
 
+}
+
+
+
+__global__ void cu_mtxmq_integral_205( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[2720];
+  // double AL1[20];
+   //	double Ctemp;
+   double resultS[20];
+   __shared__  int8_t  doitS[112];
+   //	__shared__  double mufacS[112];
+   __shared__  double  As[2720];
+   __shared__ int trank[336];
+   int num_threads;
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   //	if (threadIdx.x <rank)
+   //	mufacS[threadIdx.x]=mufac[threadIdx.x];
+   //      __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*160;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+   if (blockIdx.x == (gridDim.x-1) ) 
+      num_threads=128;
+   else
+      num_threads=136;
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+int index;
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3]== 20)
+		  Bs[index]=B[index+mu*1200];
+	       else
+		  Bs[index]=BU[index+mu*1200];
+	    }
+	 }
+	 __syncthreads();
+
+
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+1]== 20)
+		  Bs[index]=B[index+mu*1200+400];
+	       else
+		  Bs[index]=BU[index+mu*1200+400];
+	    }
+	 }
+	 __syncthreads();
+
+/*	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 }__syncthreads();*/
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+2]== 20)
+		  Bs[index]=B[index+mu*1200+800];
+	       else
+		  Bs[index]=BU[index+mu*1200+800];
+	    }
+	 }__syncthreads();
+
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 } __syncthreads();*/
+	 if (threadIdx.x<num_threads)        {
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==9)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200];
+	    }
+	    __syncthreads();
+
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	    index= blockIdx.x*136+threadIdx.x;
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+*/
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+400];
+	    }
+	    __syncthreads();
+
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+*/
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+800];
+	    }__syncthreads();
+
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+*/
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=As[i+threadIdx.x*20]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();
+      }
+   }
+   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+
+}
+
+
+
+
+__global__ void cu_mtxmq_integral_206( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[2720];
+   double AL1[20];
+   //	double Ctemp;
+   __shared__ double resultS[2720];
+   __shared__  int8_t  doitS[112];
+   //	__shared__  double mufacS[112];
+  // __shared__  double  As[2720];
+   __shared__ int trank[336];
+   int num_threads;
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   //	if (threadIdx.x <rank)
+   //	mufacS[threadIdx.x]=mufac[threadIdx.x];
+   //      __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*160;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+   if (blockIdx.x == (gridDim.x-1) ) 
+      num_threads=128;
+   else
+      num_threads=136;
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+int index;
+#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3]== 20)
+		  Bs[index]=B[index+mu*1200];
+	       else
+		  Bs[index]=BU[index+mu*1200];
+	    }
+	 }
+	 __syncthreads();
+
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=A[index+i*400];
+	 }__syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+1]== 20)
+		  Bs[index]=B[index+mu*1200+400];
+	       else
+		  Bs[index]=BU[index+mu*1200+400];
+	    }
+	 }
+	 __syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 }__syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+2]== 20)
+		  Bs[index]=B[index+mu*1200+800];
+	       else
+		  Bs[index]=BU[index+mu*1200+800];
+	    }
+	 }__syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 } __syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	       double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	       Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==9)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200];
+	    }
+	    __syncthreads();
+
+	    index= blockIdx.x*136+threadIdx.x;
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+400];
+	    }
+	    __syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+800];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Ctemp +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();*/
+
+        if (blockIdx.x <2){
+	#pragma unroll 
+        for (int i=0;i<17;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+	}
+	else{
+	#pragma unroll 
+        for (int i=0;i<16;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+
+	}
+        __syncthreads();
+      }
+   }
+/*   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+*/
+	index= blockIdx.x*2720+threadIdx.x;
+        if (blockIdx.x <2){
+        #pragma unroll 
+	for (int i=0;i<17;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+	}
+	else{
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+
+	}
+        __syncthreads();
+}
+
+
+__global__ void cu_mtxmq_integral_207( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[2720];
+   double AL1[20];
+   //	double Ctemp;
+   __shared__ double resultS[2720];
+   __shared__  int8_t  doitS[112];
+   //	__shared__  double mufacS[112];
+  // __shared__  double  As[2720];
+   __shared__ int trank[336];
+   int num_threads;
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   //	if (threadIdx.x <rank)
+   //	mufacS[threadIdx.x]=mufac[threadIdx.x];
+   //      __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*160;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+   if (blockIdx.x == (gridDim.x-1) ) 
+      num_threads=128;
+   else
+      num_threads=136;
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+int index;
+#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3]== 20)
+		  Bs[index]=B[index+mu*1200];
+	       else
+		  Bs[index]=BU[index+mu*1200];
+	    }
+	 }
+	 __syncthreads();
+
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=A[index+i*400];
+	 }__syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		 Cs[threadIdx.x*20+j]  +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	       //Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+1]== 20)
+		  Bs[index]=B[index+mu*1200+400];
+	       else
+		  Bs[index]=BU[index+mu*1200+400];
+	    }
+	 }
+	 __syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 }__syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	    //   double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+2]== 20)
+		  Bs[index]=B[index+mu*1200+800];
+	       else
+		  Bs[index]=BU[index+mu*1200+800];
+	    }
+	 }__syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 } __syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+#pragma unroll 
+	    for (int  j=0;j<20;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++) // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+
+	    }
+	 }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==9)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200];
+	    }
+	    __syncthreads();
+
+	    index= blockIdx.x*136+threadIdx.x;
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+400];
+	    }
+	    __syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+		//  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		  //Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+800];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<20;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++) // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+
+	       }
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();*/
+
+        if (blockIdx.x <2){
+	#pragma unroll 
+        for (int i=0;i<17;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+	}
+	else{
+	#pragma unroll 
+        for (int i=0;i<16;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+
+	}
+        __syncthreads();
+      }
+   }
+/*   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+*/
+	index= blockIdx.x*2720+threadIdx.x;
+        if (blockIdx.x <2){
+        #pragma unroll 
+	for (int i=0;i<17;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+	}
+	else{
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+
+	}
+        __syncthreads();
+}
+
+
+__global__ void cu_mtxmq_integral_208( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[2720];
+   double AL1[20];
+   //	double Ctemp;
+   __shared__ double resultS[2720];
+   __shared__  int8_t  doitS[112];
+   //	__shared__  double mufacS[112];
+  // __shared__  double  As[2720];
+   __shared__ int trank[336];
+   int num_threads;
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   //	if (threadIdx.x <rank)
+   //	mufacS[threadIdx.x]=mufac[threadIdx.x];
+   //      __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*160;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+   if (blockIdx.x == (gridDim.x-1) ) 
+      num_threads=128;
+   else
+      num_threads=136;
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+int index;
+#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3]== 20)
+		  Bs[index]=B[index+mu*1200];
+	       else
+		  Bs[index]=BU[index+mu*1200];
+	    }
+	 }
+	 __syncthreads();
+
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=A[index+i*400];
+	 }__syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int  j=0;j<5;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		 Cs[threadIdx.x*20+j]  +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+	       //Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+1]== 20)
+		  Bs[index]=B[index+mu*1200+400];
+	       else
+		  Bs[index]=BU[index+mu*1200+400];
+	    }
+	 }
+	 __syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 }__syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+
+#pragma unroll 
+	    for (int  j=0;j<5;j++)//number of cols of B
+	    {
+	    //   double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+2]== 20)
+		  Bs[index]=B[index+mu*1200+800];
+	       else
+		  Bs[index]=BU[index+mu*1200+800];
+	    }
+	 }__syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 } __syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+#pragma unroll 
+	    for (int  j=0;j<5;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==9)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200];
+	    }
+	    __syncthreads();
+
+	    index= blockIdx.x*136+threadIdx.x;
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<5;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+		}
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+400];
+	    }
+	    __syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<5;j++)//number of cols of B
+	       {
+		//  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+		 } //Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+800];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<5;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+5]  +=AL1[i]*Bs[j+5+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+10]  +=AL1[i]*Bs[j+10+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+15]  +=AL1[i]*Bs[j+15+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+		}
+	       }
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();*/
+
+        if (blockIdx.x <2){
+	#pragma unroll 
+        for (int i=0;i<17;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+	}
+	else{
+	#pragma unroll 
+        for (int i=0;i<16;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+
+	}
+        __syncthreads();
+      }
+   }
+/*   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+*/
+	index= blockIdx.x*2720+threadIdx.x;
+        if (blockIdx.x <2){
+        #pragma unroll 
+	for (int i=0;i<17;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+	}
+	else{
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+
+	}
+        __syncthreads();
+}
+
+
+__global__ void cu_mtxmq_integral_209( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+{
+   extern __shared__ double Bs[];
+   __shared__  double  Cs[2720];
+   double AL1[20];
+   //	double Ctemp;
+   __shared__ double resultS[2720];
+   __shared__  int8_t  doitS[112];
+   //	__shared__  double mufacS[112];
+  // __shared__  double  As[2720];
+   __shared__ int trank[336];
+   int num_threads;
+
+   if (threadIdx.x <rank)
+      doitS[threadIdx.x]=doit[threadIdx.x];
+   __syncthreads();
+   //	if (threadIdx.x <rank)
+   //	mufacS[threadIdx.x]=mufac[threadIdx.x];
+   //      __syncthreads();
+
+#pragma unroll 
+   for (int i=0;i<4;i++)   {
+      int index =threadIdx.x+i*160;
+      if ( index <rank*3)
+	 trank[index]=transr[index];
+   }
+   __syncthreads();
+
+   //        int x=blockIdx.x*136+threadIdx.x;   // single 
+
+   if (blockIdx.x == (gridDim.x-1) ) 
+      num_threads=128;
+   else
+      num_threads=136;
+/*
+   int index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 As[threadIdx.x*20+i]=A[index+i*400];
+   }
+   __syncthreads();*/
+int index;
+#pragma unroll 
+   for (int i=0;i<20;i++)
+      resultS[i]=0.0;
+   __syncthreads();
+
+
+   for (int mu=0;mu<rank;mu++){
+      //int mu=0;
+      if (mufacS[mu]){
+
+#pragma unroll 
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3]== 20)
+		  Bs[index]=B[index+mu*1200];
+	       else
+		  Bs[index]=BU[index+mu*1200];
+	    }
+	 }
+	 __syncthreads();
+
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=A[index+i*400];
+	 }__syncthreads();
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=As[i+threadIdx.x*20];
+	 } // __syncthreads();
+	 __syncthreads();
+*/
+
+
+	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int  j=0;j<4;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		 Cs[threadIdx.x*20+j]  +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+	       //Cs[threadIdx.x*20+j]=Ctemp;
+	       // __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 __syncthreads();
+	 //	__threadfence();
+
+
+	 start_global_barrier(1,prev_dimi);
+
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+1]== 20)
+		  Bs[index]=B[index+mu*1200+400];
+	       else
+		  Bs[index]=BU[index+mu*1200+400];
+	    }
+	 }
+	 __syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 }__syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+
+#pragma unroll 
+	    for (int  j=0;j<4;j++)//number of cols of B
+	    {
+	    //   double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;	
+	       //       __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 index= blockIdx.x*2720+threadIdx.x;
+	 if (blockIdx.x <2){
+	    for ( int i =0;i<17;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 else{
+	    for ( int i =0;i<16;i++)
+	       C[index+i*160]=Cs[threadIdx.x+i*160];
+	 }
+	 //	__threadfence();
+	 __syncthreads();
+
+	 start_global_barrier(2,prev_dimi);
+	 //	if(threadIdx.x==0)
+	 //	printf("blockIdx.x=%d count=%d ",blockIdx.x,count);
+	 //      __syncthreads();
+	 //
+	 for (int i=0;i<3;i++){
+	    index=threadIdx.x + i*160;
+	    if (index < 400){
+	       if (trank[mu*3+2]== 20)
+		  Bs[index]=B[index+mu*1200+800];
+	       else
+		  Bs[index]=BU[index+mu*1200+800];
+	    }
+	 }__syncthreads();
+
+	 index= blockIdx.x*136+threadIdx.x;
+	 if (threadIdx.x<num_threads)        {
+#pragma unroll 
+	    for ( int i =0;i<20;i++)
+	       AL1[i]=C[index+i*400];
+	 } __syncthreads();
+	 if (threadIdx.x<num_threads)        {
+
+#pragma unroll 
+	    for (int  j=0;j<4;j++)//number of cols of B
+	    {
+	      // double Ctemp=0.0;
+#pragma unroll 
+	       for (int  i =0;i<20;i++){ // number of rows of B
+		  Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+	      // Cs[threadIdx.x*20+j]=Ctemp;
+	       //        __syncthreads();
+		}
+	    }
+	 }
+	 __syncthreads();
+	 if (doitS[mu]){	
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    //__threadfence();
+	    __syncthreads();
+
+	    start_global_barrier(3,prev_dimi);
+
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==9)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+	 else{
+
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+
+
+	 }
+
+	 if (doitS[mu]){	
+
+	if ( doitS[mu] & 1){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200];
+	    }
+	    __syncthreads();
+
+	    index= blockIdx.x*136+threadIdx.x;
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<4;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+		}
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(1,prev_dimi);
+
+	if ( doitS[mu] & 2){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+400];
+	    }
+	    __syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<4;j++)//number of cols of B
+	       {
+		//  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+		 } //Cs[threadIdx.x*20+j]=Ctemp;	
+
+	       }
+	    }
+	    __syncthreads();
+	    index= blockIdx.x*2720+threadIdx.x;
+	    if (blockIdx.x <2){
+	       for ( int i =0;i<17;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    else{
+	       for ( int i =0;i<16;i++)
+		  C[index+i*160]=Cs[threadIdx.x+i*160];
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();
+*/	
+	index= blockIdx.x*2720+threadIdx.x;
+            if (blockIdx.x <2){
+#pragma unroll 
+               for ( int i =0;i<17;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            else{
+#pragma unroll 
+               for ( int i =0;i<16;i++)
+                  C[index+i*160]=Cs[threadIdx.x+i*160];
+            }
+            __syncthreads();
+
+
+	}
+	    start_global_barrier(2,prev_dimi);
+
+
+
+	if ( doitS[mu] & 4){
+	    for (int i=0;i<3;i++){
+	       index=threadIdx.x + i*160;
+	       if (index <400)
+		  Bs[index]=BVT[index+mu*1200+800];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads)
+	    {
+	       index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+	       for ( int i =0;i<20;i++)
+		  AL1[i]=C[index+i*400];
+	    }__syncthreads();
+
+	    if (threadIdx.x<num_threads){
+#pragma unroll 
+	       for (int  j=0;j<4;j++)//number of cols of B
+	       {
+	//	  double Ctemp=0.0;
+#pragma unroll 
+		  for (int  i =0;i<20;i++){ // number of rows of B
+		     Cs[threadIdx.x*20+j] +=AL1[i]*Bs[j+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+4]  +=AL1[i]*Bs[j+4+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+8]  +=AL1[i]*Bs[j+8+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+12]  +=AL1[i]*Bs[j+12+i*20];//4 way bank conflict
+		 Cs[threadIdx.x*20+j+16]  +=AL1[i]*Bs[j+16+i*20];//4 way bank conflict
+	//	  Cs[threadIdx.x*20+j]=Ctemp;
+		}
+	       }
+	    }
+	    __syncthreads();
+	}
+	else{
+   index= blockIdx.x*136+threadIdx.x;  
+   if (threadIdx.x<num_threads){
+#pragma unroll 
+      for ( int i =0;i<20;i++)
+	 Cs[threadIdx.x*20+i]=C[index+i*400];
+   }
+   __syncthreads();
+/*	index= blockIdx.x*136+threadIdx.x;
+            if (threadIdx.x<num_threads){
+#pragma unroll 
+               for ( int i =0;i<20;i++)
+                  AL1[i]=C[index+i*400];
+            }__syncthreads();
+
+	if (threadIdx.x<num_threads){
+#pragma unroll 
+        for ( int i =0;i<20;i++)
+		Cs[threadIdx.x*20+i] = AL1[i];
+
+	}
+        __syncthreads();*/
+	}
+	    /*if (blockIdx.x <2){
+	      for ( int i =0;i<17;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      else{
+	      for ( int i =0;i<16;i++)
+	      C[blockIdx.x*136*ldb+threadIdx.x+i*160]=Cs[threadIdx.x+i*160];
+	      }
+	      __syncthreads();
+
+	      start_global_barrier(3,prev_dimi);
+	     */
+	    if (threadIdx.x ==0){
+	       if(count[prev_dimi] ==6)
+		  count[prev_dimi]=0;	
+	    }
+	    __syncthreads();
+	 }
+
+/*	 if (threadIdx.x<num_threads){
+#pragma unroll 
+	    for (int i=0;i<20;i++)
+	       resultS[i]= resultS[i]+Cs[threadIdx.x*20+i]*mufacS[mu];
+	 }
+	 __syncthreads();*/
+
+        if (blockIdx.x <2){
+	#pragma unroll 
+        for (int i=0;i<17;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+	}
+	else{
+	#pragma unroll 
+        for (int i=0;i<16;i++){
+                index =threadIdx.x+i*160;
+                resultS[index]= resultS[index]+Cs[index]*mufacS[mu];
+        }
+
+	}
+        __syncthreads();
+      }
+   }
+/*   if (threadIdx.x<num_threads){
+      index= blockIdx.x*136+threadIdx.x;
+#pragma unroll 
+      for (int i=0;i<20;i++)
+	 //result[threadIdx.x+i*lda]= resultS[threadIdx.x+i*lda];
+	 result[(index)*20+i]= resultS[i];
+   }
+   __syncthreads();
+*/
+	index= blockIdx.x*2720+threadIdx.x;
+        if (blockIdx.x <2){
+        #pragma unroll 
+	for (int i=0;i<17;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+	}
+	else{
+        #pragma unroll 
+	for (int i=0;i<16;i++)
+	result[index+i*160]=resultS[threadIdx.x+i*160];
+
+	}
+        __syncthreads();
 }

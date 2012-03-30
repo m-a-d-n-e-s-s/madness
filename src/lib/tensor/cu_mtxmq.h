@@ -107,7 +107,7 @@ template <typename T, typename Q>
       void cu_axpystream(long n, T* a,  T*  b, Q s, void *GPU_stream, void *h);
 
 template <typename T>
-void fast_cutrans(long dimk, long dimi, T* mat_out, T* mat_in, void * GPU_stream);
+void fast_cutrans(long dimk, long dimi, T* mat_out, T* mat_in, void * GPU_stream, int NDIM, void * h);
 
 void  cu_memset();
 template <typename T>

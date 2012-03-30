@@ -98,8 +98,8 @@ namespace madness {
     void * everRunningTask(void * arg){
           World * w = static_cast<World *>(arg);
 //          streams=new void *[NUM_STREAMS];
-          cublas_handle = cublashandle_create();
           GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle);
+          cublas_handle = cublashandle_create();
           while (1){
             //printf("ERT \n");
             sched_yield();
@@ -179,7 +179,7 @@ t.tv_nsec = 2000000;
         //for (int i = 0; i < NUM_MUTEXES; i++){
           //pthread_mutex_init(&apply_mutexes[i], NULL);
         //}
-        printf("HAVE_GPU = %i \nBACKTO_CPU = %i \nSIM_GPU = %i \nJUST_AGG = %i \nTHREE_SPLIT = %i \nNUM_STREAMS= %i \nGPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,NUM_STREAMS,GPU_MINTASKS);
+        printf("COMPRESS_GPU = %i \n COMPRESS_BACKTO_CPU = %i \n COMPRESS_SIM_GPU = %i \n COMPRESS_JUST_AGG = %i \n COMPRESS_THREE_SPLIT = %i \n\n\n APPLY_GPU = %i \n APPLY_JUST_AGG = %i \n APPLY_BACKTO_CPU = %i \n APPLY_TEST_FLOPS = %i  \n\n\n NUM_STREAMS= %i \n GPU_MINTASKS= %i \n",HAVE_GPU,BACKTO_CPU,SIM_GPU,JUST_AGG,THREE_SPLIT,APPLY_GPU,APPLY_JUST_AGG,APPLY_BACKTO_CPU,APPLY_TEST_FLOPS,NUM_STREAMS,GPU_MINTASKS);
     }
 
 

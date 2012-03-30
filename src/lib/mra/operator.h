@@ -167,7 +167,7 @@ namespace madness {
         long* GPUr2_buffer;
         mutable unsigned int apply_prev_offset;
         mutable unsigned int apply_curr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*60;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*40;
         static const unsigned int R_maxsize = 1024*1024*1;
         static const unsigned int T_maxsize = 1024*1024*1;
         #endif
@@ -483,6 +483,13 @@ namespace madness {
               this->ops.push_back(ConvolutionND<Q,NDIM>(argops[mu]));
             }
 
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int twok_ndim = 1;
+            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k;
+            unsigned int ksq = k*k;
+            unsigned int k_ndim = 1;
+            for (int i = 0; i < NDIM; i++) k_ndim *= k;
+
             #if APPLY_GPU > 0
             pthread_mutex_init(&apply_lock, NULL);
             alloc_host(&apply_buffer,MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k));
@@ -491,11 +498,16 @@ namespace madness {
             GPUsecond_buffer = GPUtransfer_buffer(second_buffer, MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k) , false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
-            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
-            print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            //alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
+            //print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            print(MAX_AGG*(twok_ndim + k_ndim)*16);
+            //alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
             alloc_host(&r_buffer,MAX_AGG*rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&r2_buffer,MAX_AGG*rank*NDIM);
@@ -543,6 +555,13 @@ namespace madness {
                 MADNESS_ASSERT(bc(d,0)==bc(0,0));
             }
             this->process_pending();
+            
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int twok_ndim = 1;
+            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k;
+            unsigned int ksq = k*k;
+            unsigned int k_ndim = 1;
+            for (int i = 0; i < NDIM; i++) k_ndim *= k;
 
             #if APPLY_GPU > 0
             pthread_mutex_init(&apply_lock, NULL);
@@ -552,11 +571,16 @@ namespace madness {
             GPUsecond_buffer = GPUtransfer_buffer(second_buffer, MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k) , false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
-            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
-            print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            //alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
+            //print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            print(MAX_AGG*(twok_ndim + k_ndim)*16);
+            //alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
             alloc_host(&r_buffer,MAX_AGG*rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&r2_buffer,MAX_AGG*rank*NDIM);
@@ -602,6 +626,13 @@ namespace madness {
                 }
             }
 
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int twok_ndim = 1;
+            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k;
+            unsigned int ksq = k*k;
+            unsigned int k_ndim = 1;
+            for (int i = 0; i < NDIM; i++) k_ndim *= k;
+
             #if APPLY_GPU > 0
             pthread_mutex_init(&apply_lock, NULL);
             alloc_host(&apply_buffer,MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k));
@@ -610,11 +641,16 @@ namespace madness {
             GPUsecond_buffer = GPUtransfer_buffer(second_buffer, MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k) , false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
-            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
-            print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            //alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
+            //print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            print(MAX_AGG*(twok_ndim + k_ndim)*16);
+            //alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
             alloc_host(&r_buffer,MAX_AGG*rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&r2_buffer,MAX_AGG*rank*NDIM);
@@ -658,6 +694,13 @@ namespace madness {
                 }
             }
 
+            unsigned int twoksq = 2*k*2*k;
+            unsigned int twok_ndim = 1;
+            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k*2*k;
+            unsigned int ksq = k*k;
+            unsigned int k_ndim = 1;
+            for (int i = 0; i < NDIM; i++) k_ndim *= k;
+
             #if APPLY_GPU > 0
             pthread_mutex_init(&apply_lock, NULL);
             alloc_host(&apply_buffer,MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k));
@@ -666,11 +709,16 @@ namespace madness {
             GPUsecond_buffer = GPUtransfer_buffer(second_buffer, MAX_AGG*rank*NDIM*3*(2*k*2*k + k*k) , false);
             apply_prev_offset = 0;
             apply_curr_offset = 0;
-            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
-            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
-            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            //alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPURgeneric_buffer = GPUtransfer_buffer((char *)Rgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
+            //print(MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            print(MAX_AGG*(twok_ndim + k_ndim)*16);
+            //alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16);
+            alloc_host((char **)&Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16);
+            //GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(2*k*2*k*2*k + k*k*k)*16, false);
+            GPUTgeneric_buffer = GPUtransfer_buffer((char *)Tgeneric_buffer,MAX_AGG*(twok_ndim + k_ndim)*16, false);
             alloc_host(&r_buffer,MAX_AGG*rank*NDIM);
             GPUr_buffer = GPUtransfer_buffer(r_buffer, R_maxsize, false);
             alloc_host(&r2_buffer,MAX_AGG*rank*NDIM);
@@ -6134,7 +6182,7 @@ STARTt_TIMER;
 				////GPU
 				//fast_transpose(dim2k, dimi, w1ptr[i], w2ptr[i]);
                                 //print("fast_cutrans");
-				fast_cutrans(dim2k, dimi, w2ptr[i], w1ptr[i], GPU_streams[i%NUM_STREAMS]);
+				fast_cutrans(dim2k, dimi, w2ptr[i], w1ptr[i], GPU_streams[i%NUM_STREAMS], NDIM, cublas_handle);
 			    }
 			    ////GPU
 			    std::swap(w1ptr[i],w2ptr[i]);
@@ -6158,7 +6206,7 @@ STARTt_TIMER;
 					    ////GPU
 					    //fast_transpose(dimk, dimi2, w1ptr2[i], w2ptr2[i]);
                                             //print("fast_cutrans 10");
-				            fast_cutrans(dimk, dimi2, w2ptr2[i], w1ptr2[i], GPU_streams[i%NUM_STREAMS]);
+				            fast_cutrans(dimk, dimi2, w2ptr2[i], w1ptr2[i], GPU_streams[i%NUM_STREAMS], NDIM, cublas_handle);
 					}
 					////GPU
                                         std::swap(w1ptr2[i],w2ptr2[i]);
@@ -6184,11 +6232,16 @@ STARTt_TIMER;
                   }
                   delete[] c_array;
 		device_synchronize(GPU_streams,NUM_STREAMS);
-print("OP = ",(((unsigned long)conds)*2*2*k*2*k*2*k*2*k) + (((unsigned long)conds)*2*k*k*k*k));          
+double small_comp = 1;
+for (int i = 0; i <= NDIM; i++) small_comp *= k;
+double large_comp = 1.0;
+for (int i = 0; i <= NDIM; i++) large_comp *= 2*k;
+print("OP = ",(((unsigned long)conds)*2*large_comp) + (((unsigned long)conds)*2*small_comp));          
 ENDt_TIMER("comp 1");
 #endif
 }
 else{
+STARTt_TIMER;
                unsigned int * c_array = new unsigned int[inArgs.size()];
                for (i = 0; i < inArgs.size(); i++){
                      c_array[i] = 0;
@@ -6268,7 +6321,7 @@ else{
 				////GPU
 				//fast_transpose(dim2k, dimi, w1ptr[i], w2ptr[i]);
                                 //print("fast_cutrans");
-				fast_cutrans(dim2k, dimi, w2ptr[i], w1ptr[i], GPU_streams[i%NUM_STREAMS]);
+				fast_cutrans(dim2k, dimi, w2ptr[i], w1ptr[i], GPU_streams[i%NUM_STREAMS], NDIM, cublas_handle);
 			    }
 			    ////GPU
 			    std::swap(w1ptr[i],w2ptr[i]);
@@ -6292,7 +6345,7 @@ else{
 					    ////GPU
 					    //fast_transpose(dimk, dimi2, w1ptr2[i], w2ptr2[i]);
                                             //print("fast_cutrans 10");
-				            fast_cutrans(dimk, dimi2, w2ptr2[i], w1ptr2[i], GPU_streams[i%NUM_STREAMS]);
+				            fast_cutrans(dimk, dimi2, w2ptr2[i], w1ptr2[i], GPU_streams[i%NUM_STREAMS], NDIM, cublas_handle);
 					}
 					////GPU
                                         std::swap(w1ptr2[i],w2ptr2[i]);
@@ -6318,11 +6371,16 @@ else{
                         }
                   }
                   delete[] c_array;
+ENDt_TIMER("computation");
 }
            
 		device_synchronize(GPU_streams,NUM_STREAMS);
 //ENDt_TIMER("computation 2");
-print("OP = ",(((unsigned long)conds)*2*2*k*2*k*2*k*2*k) + (((unsigned long)conds)*2*k*k*k*k));          
+double small_comp = 1;
+for (int i = 0; i <= NDIM; i++) small_comp *= k;
+double large_comp = 1.0;
+for (int i = 0; i <= NDIM; i++) large_comp *= 2*k;
+print("OP = ",(((unsigned long)conds)*2*large_comp) + (((unsigned long)conds)*2*small_comp));          
  
             STARTt_TIMER; 
             CPUtransfer_buffer(rptr_arrayCPU, rptr_arrayGPU, rptr_off);

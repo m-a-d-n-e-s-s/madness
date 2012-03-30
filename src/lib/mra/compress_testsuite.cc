@@ -1270,8 +1270,8 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        /*
         test_basic<double,1>(world);
+        /*
         test_conv<double,1>(world);
         test_math<double,1>(world);
         test_diff<double,1>(world);

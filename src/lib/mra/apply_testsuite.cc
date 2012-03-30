@@ -660,6 +660,7 @@ void test_op(World& world) {
 
     FunctionDefaults<NDIM>::set_k(10);
     FunctionDefaults<NDIM>::set_thresh(1e-12);
+    //FunctionDefaults<NDIM>::set_thresh(1e-6);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);

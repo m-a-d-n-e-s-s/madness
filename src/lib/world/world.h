@@ -377,8 +377,8 @@ typedef UINT64_T uint64_t;
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 10
 
-#define APPLY_GPU 0
-#define APPLY_JUST_AGG 1
+#define APPLY_GPU 1
+#define APPLY_JUST_AGG 0
 #define APPLY_BACKTO_CPU 0
 #define APPLY_TEST_FLOPS 0
 //#define NUM_MUTEXES 37
