@@ -898,7 +898,7 @@ namespace madness {
         if (this->inArgs.size() >= GPU_MINTASKS){
             //objT odef; //this relies on objT having a default constructor
             
-          int ratio = inArgs.size() * 3/5;
+          int ratio = inArgs.size() * BACKTO_CPU_NUMERATOR/BACKTO_CPU_DENOMINATOR;
          print("Sending ",ratio," tasks back to CPU");
 
           std::vector<objT*> someObj;

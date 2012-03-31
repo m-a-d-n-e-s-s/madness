@@ -775,7 +775,7 @@ void test_coulomb(World& world) {
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
 
-    int k = 10;
+    int k = 20;
     double thresh = 1e-8;
 
     FunctionDefaults<3>::set_k(k);
@@ -1264,9 +1264,9 @@ int main(int argc, char**argv) {
         //test_conv<double,1>(world);
         //test_math<double,1>(world);
         //test_diff<double,1>(world);
-        test_op<double,1>(world);
+        ////test_op<double,1>(world);
         //test_plot<double,1>(world);
-        test_apply_push_1d<double,1>(world);
+        ////test_apply_push_1d<double,1>(world);
 
         //test_io<double,1>(world);
 
@@ -1302,7 +1302,7 @@ int main(int argc, char**argv) {
         //test_conv<double,3>(world);
         //test_math<double,3>(world);
         //test_diff<double,3>(world);
-        test_op<double,3>(world);
+        ////test_op<double,3>(world);
         //test_op<double,4>(world);
         //print("before fence ",world.gpu_hash.size(), world.taskq.size());
         //world.gop.fence();

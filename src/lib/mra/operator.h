@@ -167,7 +167,7 @@ namespace madness {
         long* GPUr2_buffer;
         mutable unsigned int apply_prev_offset;
         mutable unsigned int apply_curr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*40;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*20;
         static const unsigned int R_maxsize = 1024*1024*1;
         static const unsigned int T_maxsize = 1024*1024*1;
         #endif
@@ -328,7 +328,11 @@ namespace madness {
                     trans[d].VT = ops[d]->RVT.ptr();
                 }
             }
+            #if APPLY_RANK_RED > 0
+            apply_transformation(n, twok, trans, f, work1, work2, work5, mufac, result);
+            #else
             apply_transformation1(n, twok, trans, f, work1, work2, work5, mufac, result);
+            #endif
 
             if (n > 0) {
                 if (NDIM==1) break_even = long(0.5*k);
@@ -352,7 +356,11 @@ namespace madness {
                         trans[d].VT = ops[d]->TVT.ptr();
                     }
                 }
+                #if APPLY_RANK_RED > 0
+                apply_transformation(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                #else
                 apply_transformation1(n, k, trans, f0, work1, work2, work5, -mufac, result0);
+                #endif
             }
         }
 
@@ -1753,16 +1761,29 @@ namespace madness {
             const Q* U1;
             for (int mu=0; mu<rank; ++mu) {
               if (condition[mu]){
+                    long urank[NDIM];
+                    #if APPLY_RANK_RED > 0
 		    U = (trans[mu][0].r == dimk) ? trans[mu][0].U : shrink(dimk,dimk,trans[mu][0].r,trans[mu][0].U,w3);
+                    urank[0] = trans[mu][0].r;
+                    #else
+                    U = trans[mu][0].U;
+                    urank[0] = dimk;
+                    #endif
                     ////GPU
-		    mTxmq(dimi, trans[mu][0].r, dimk, w1, f.ptr(), U);
-		    size = trans[mu][0].r * size / dimk;
+		    mTxmq(dimi, urank[0]/*trans[mu][0].r*/, dimk, w1, f.ptr(), U);
+		    size = urank[0]/*trans[mu][0].r*/ * size / dimk;
 		    dimi = size/dimk;
 		    for (std::size_t d=1; d<NDIM; ++d) {
+                        #if APPLY_RANK_RED > 0
 			U = (trans[mu][d].r == dimk) ? trans[mu][d].U : shrink(dimk,dimk,trans[mu][d].r,trans[mu][d].U,w3);
-                        ////GPU
-			mTxmq(dimi, trans[mu][d].r, dimk, w2, w1, U);
-			size = trans[mu][d].r * size / dimk;
+                        urank[d] = trans[mu][d].r;
+                        #else
+                        U = trans[mu][d].U;
+                        urank[d] = dimk;
+                        #endif
+
+			mTxmq(dimi, urank[d]/*trans[mu][d].r*/, dimk, w2, w1, U);
+			size = urank[d]/*trans[mu][d].r*/ * size / dimk;
 			dimi = size/dimk;
                         ////GPU
 			std::swap(w1,w2);
@@ -1771,10 +1792,10 @@ namespace madness {
                     if (doit2[mu]){
 			    for (std::size_t d=0; d<NDIM; ++d) {
 				if (trans[mu][d].VT) {
-				    dimi = size/trans[mu][d].r;
+				    dimi = size/urank[d]/*trans[mu][d].r*/;
 				    ////GPU
-				    mTxmq(dimi, dimk, trans[mu][d].r, w2, w1, trans[mu][d].VT);
-				    size = dimk*size/trans[mu][d].r;
+				    mTxmq(dimi, dimk, urank[d]/*trans[mu][d].r*/, w2, w1, trans[mu][d].VT);
+				    size = dimk*size/urank[d]/*trans[mu][d].r*/;
 				 }
 				 else {
 				    ////GPU
@@ -1789,16 +1810,28 @@ namespace madness {
 		    aligned_axpy(size, r.ptr(), w1, mufacs[mu]);
 
                     if (n > 0){
+                            #if APPLY_RANK_RED > 0   
 			    U1 = (trans2[mu][0].r == dimk2) ? trans2[mu][0].U : shrink(dimk2,dimk2,trans2[mu][0].r,trans2[mu][0].U,w3);
+                            urank[0] = trans2[mu][0].r;
+                            #else
+                            U1 = trans2[mu][0].U;
+                            urank[0] = dimk2;
+                            #endif
 			    ////GPU
-			    mTxmq(dimi2, trans2[mu][0].r, dimk2, w1, f0.ptr(), U1);
-			    size2 = trans2[mu][0].r * size2 / dimk2;
+			    mTxmq(dimi2, urank[0]/*trans2[mu][0].r*/, dimk2, w1, f0.ptr(), U1);
+			    size2 = urank[0]/*trans2[mu][0].r*/ * size2 / dimk2;
 			    dimi2 = size2/dimk2;
 			    for (std::size_t d=1; d<NDIM; ++d) {
+                                #if APPLY_RANK_RED > 0
 				U1 = (trans2[mu][d].r == dimk2) ? trans2[mu][d].U : shrink(dimk2,dimk2,trans2[mu][d].r,trans2[mu][d].U,w3);
+                                urank[d] = trans2[mu][d].r;
+                                #else
+                                U1 = trans2[mu][d].U;
+                                urank[d] = dimk2;
+                                #endif
 				////GPU
-				mTxmq(dimi2, trans2[mu][d].r, dimk2, w2, w1, U1);
-				size2 = trans2[mu][d].r * size2 / dimk2;
+				mTxmq(dimi2, urank[d]/*trans2[mu][d].r*/, dimk2, w2, w1, U1);
+				size2 = urank[d]/*trans2[mu][d].r*/ * size2 / dimk2;
 				dimi2 = size2/dimk2;
 				////GPU
 				std::swap(w1,w2);
@@ -1807,10 +1840,10 @@ namespace madness {
 			    if (doit1[mu]) {
 				for (std::size_t d=0; d<NDIM; ++d) {
 				    if (trans2[mu][d].VT) {
-					dimi2 = size2/trans2[mu][d].r;
+					dimi2 = size2/urank[d]/*trans2[mu][d].r*/;
 					////GPU
-					mTxmq(dimi2, dimk2, trans2[mu][d].r, w2, w1, trans2[mu][d].VT);
-					size2 = dimk2*size2/trans2[mu][d].r;
+					mTxmq(dimi2, dimk2, urank[d]/*trans2[mu][d].r*/, w2, w1, trans2[mu][d].VT);
+					size2 = dimk2*size2/urank[d]/*trans2[mu][d].r*/;
 				    }
 				    else {
 					////GPU

@@ -372,14 +372,18 @@ typedef UINT64_T uint64_t;
 #define SIM_GPU 0
 #define JUST_AGG 0
 #define THREE_SPLIT 0
-#define COMPRESS_CPS 1
+#define COMPRESS_CPS 0
+
 #define MAX_AGG 60
 #define NUM_STREAMS 16
-#define GPU_MINTASKS 10
+#define GPU_MINTASKS 0
+#define BACKTO_CPU_NUMERATOR 1 
+#define BACKTO_CPU_DENOMINATOR 2
 
 #define APPLY_GPU 1
 #define APPLY_JUST_AGG 0
-#define APPLY_BACKTO_CPU 0
+#define APPLY_BACKTO_CPU 1
+#define APPLY_RANK_RED 0
 #define APPLY_TEST_FLOPS 0
 //#define NUM_MUTEXES 37
 namespace madness {
