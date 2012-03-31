@@ -2384,12 +2384,16 @@ struct Calculation {
       initial_load_bal(world);
       load_mos(world);
 
-      int nstep = 10;
-      int time_step = 0.001;
+      int nstep = 1000;
+      int time_step = 0.05;
+
+      double strength = 0.1;
 
       // temporary way of doing this for now
 //      VextCosFunctor<double> Vext(world,new DipoleFunctor(2),omega);
-      functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(2))).initial_level(4);
+      functionT fdipx = factoryT(world).functor(functorT(new DipoleFunctor(0))).initial_level(4);
+      functionT fdipy = factoryT(world).functor(functorT(new DipoleFunctor(1))).initial_level(4);
+      functionT fdipz = factoryT(world).functor(functorT(new DipoleFunctor(2))).initial_level(4);
 
       world.gop.broadcast(time_step);
       world.gop.broadcast(nstep);
@@ -2400,20 +2404,20 @@ struct Calculation {
       cvecfuncT cbmo = zero_functions<double_complex,3>(world, param.nbeta);
       for (int iorb = 0; iorb < param.nalpha; iorb++)
       {
-        camo[iorb] = double_complex(1.0,0.0)*amo[iorb];
+        camo[iorb] = std::exp(double_complex(0.0,2*constants::pi*strength))*amo[iorb];
         camo[iorb].truncate(thresh);
       }
       if (!param.spin_restricted && param.nbeta) {
         for (int iorb = 0; iorb < param.nbeta; iorb++)
         {
-          cbmo[iorb] = double_complex(1.0,0.0)*bmo[iorb];
+          cbmo[iorb] = std::exp(double_complex(0.0,2*constants::pi*strength))*bmo[iorb];
           cbmo[iorb].truncate(thresh);
         }
       }
 
       // Create free particle propagator
       // Have no idea what to set "c" to
-      double c = 30.0;
+      double c = 20.0;
       printf("Creating G\n");
       Convolution1D<double_complex>* G = qm_1d_free_particle_propagator(FunctionDefaults<3>::get_k(), c, 0.5*time_step, 2.0*param.L);
       printf("Done creating G\n");
@@ -2421,11 +2425,18 @@ struct Calculation {
       // Start iteration over time
       for (int step = 0; step < nstep; step++)
       {
-        if (world.rank() == 0) printf("Iterating step %d:\n\n", step);
+//        if (world.rank() == 0) printf("Iterating step %d:\n\n", step);
         double t = time_step*step;
 //        iterate_trotter(world, G, Vext, camo, cbmo, t, time_step);
-        iterate_trotter(world, G, fdip, camo, cbmo, t, time_step);
-
+        iterate_trotter(world, G, camo, cbmo, t, time_step, thresh);
+        functionT arho = make_density(world,aocc,camo);
+        functionT brho = (!param.spin_restricted && param.nbeta) ?
+            make_density(world,aocc,camo) : copy(arho);
+        functionT rho = arho + brho;
+        double xval = inner(fdipx,rho);
+        double yval = inner(fdipy,rho);
+        double zval = inner(fdipz,rho);
+        if (world.rank() == 0) printf("%15.7f%15.7f%15.7f%15.7f\n", t, xval, yval, zval);
       }
 
 
@@ -2442,47 +2453,28 @@ struct Calculation {
         r.broaden();
         r.broaden();
         r.broaden();
-        printf("apply_1d_realspace_push: 2\n");
         r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
-        printf("apply_1d_realspace_push: 1\n");
         r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
-        printf("apply_1d_realspace_push: 0\n");
         r = apply_1d_realspace_push(*q1d, r, 0); r.sum_down();
 
         return r;
     }
 
-//    template <typename Func>
-//    void iterate_trotter(World& world,
-//                         Convolution1D<double_complex>* G,
-//                         const Func& Vext,
-//                         cvecfuncT& camo,
-//                         cvecfuncT& cbmo,
-//                         double t,
-//                         double time_step)
-//    void iterate_trotter(World& world,
-//                         Convolution1D<double_complex>* G,
-//                         const VextCosFunctor<double>& Vext,
-//                         cvecfuncT& camo,
-//                         cvecfuncT& cbmo,
-//                         double t,
-//                         double time_step)
     void iterate_trotter(World& world,
                          Convolution1D<double_complex>* G,
-                         const functionT fdip,
                          cvecfuncT& camo,
                          cvecfuncT& cbmo,
                          double t,
-                         double time_step)
+                         double time_step,
+                         double thresh)
     {
-      double thresh = 1e-4;
 
       // first kinetic energy apply
       cvecfuncT camo2 = zero_functions<double_complex,3>(world, param.nalpha);
       cvecfuncT cbmo2 = zero_functions<double_complex,3>(world, param.nbeta);
       for (int iorb = 0; iorb < param.nalpha; iorb++)
       {
-        if (world.rank()) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
+//        if (world.rank()) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
         camo2[iorb] = APPLY(G,camo[iorb]);
         camo2[iorb].truncate(thresh);
       }
@@ -2495,7 +2487,7 @@ struct Calculation {
         }
       }
       // Construct new density
-      START_TIMER(world);
+//      START_TIMER(world);
       functionT arho = make_density(world, aocc, amo), brho;
 
       if (param.nbeta) {
@@ -2510,18 +2502,18 @@ struct Calculation {
           brho = functionT(world); // zero
       }
       functionT rho = arho + brho;
-      END_TIMER(world, "Make densities");
+//      END_TIMER(world, "Make densities");
 
       // Do RPA only for now
       functionT vlocal = vnuc;
-      START_TIMER(world);
+//      START_TIMER(world);
       functionT vcoul = apply(*coulop, rho);
-      END_TIMER(world, "Coulomb");
+//      END_TIMER(world, "Coulomb");
 //      vlocal += vcoul + Vext(t+0.5*time_step);
-      vlocal += vcoul + std::cos(0.1*(t+0.5*time_step))*fdip;
+//      vlocal += vcoul + std::cos(0.1*(t+0.5*time_step))*fdip;
 
       // exponentiate potential
-      if (world.rank()) printf("Apply Kohn-Sham potential to orbitals\n");
+//      if (world.rank()) printf("Apply Kohn-Sham potential to orbitals\n");
       complex_functionT expV = make_exp(time_step, vlocal);
       cvecfuncT camo3 = mul_sparse(world,expV,camo2,vtol,false);
       world.gop.fence();
@@ -2530,7 +2522,7 @@ struct Calculation {
       // second kinetic energy apply
       for (int iorb = 0; iorb < param.nalpha; iorb++)
       {
-        if (world.rank() == 0) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
+//        if (world.rank() == 0) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
         camo3[iorb].truncate(thresh);
         camo[iorb] = APPLY(G,camo3[iorb]);
         camo[iorb].truncate();
