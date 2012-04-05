@@ -382,7 +382,7 @@ typedef UINT64_T uint64_t;
 
 #define APPLY_GPU 1
 #define APPLY_JUST_AGG 0
-#define APPLY_BACKTO_CPU 1
+#define APPLY_BACKTO_CPU 0
 #define APPLY_RANK_RED 0
 #define APPLY_TEST_FLOPS 0
 //#define NUM_MUTEXES 37

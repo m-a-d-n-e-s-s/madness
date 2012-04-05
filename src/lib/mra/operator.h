@@ -167,7 +167,7 @@ namespace madness {
         long* GPUr2_buffer;
         mutable unsigned int apply_prev_offset;
         mutable unsigned int apply_curr_offset;
-        static const unsigned int apply_buffer_maxsize = 1024*1024*20;
+        static const unsigned int apply_buffer_maxsize = 1024*1024*40;
         static const unsigned int R_maxsize = 1024*1024*1;
         static const unsigned int T_maxsize = 1024*1024*1;
         #endif
@@ -704,7 +704,7 @@ namespace madness {
 
             unsigned int twoksq = 2*k*2*k;
             unsigned int twok_ndim = 1;
-            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k*2*k;
+            for (int i = 0; i < NDIM; i++) twok_ndim *= 2*k;
             unsigned int ksq = k*k;
             unsigned int k_ndim = 1;
             for (int i = 0; i < NDIM; i++) k_ndim *= k;

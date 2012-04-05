@@ -4411,6 +4411,7 @@ __global__ void cu_transpose_14(double *odata, const double  *idata){
   __syncthreads();
 }
 
+
 __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
 {
    extern __shared__ double Bs[];
@@ -4676,14 +4677,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-   index= blockIdx.x*136+threadIdx.x;  
-   if (threadIdx.x<num_threads){
-#pragma unroll 
-      for ( int i =0;i<20;i++)
-	 Cs[threadIdx.x*20+i]=C[index+i*400];
-   }
-   __syncthreads();
-/*	index= blockIdx.x*136+threadIdx.x;
+	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -4697,7 +4691,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 
 	}
         __syncthreads();
-*/	
+	
 	index= blockIdx.x*2720+threadIdx.x;
             if (blockIdx.x <2){
 #pragma unroll 
@@ -4757,14 +4751,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-   index= blockIdx.x*136+threadIdx.x;  
-   if (threadIdx.x<num_threads){
-#pragma unroll 
-      for ( int i =0;i<20;i++)
-	 Cs[threadIdx.x*20+i]=C[index+i*400];
-   }
-   __syncthreads();
-/*	index= blockIdx.x*136+threadIdx.x;
+	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -4778,7 +4765,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 
 	}
         __syncthreads();
-*/	
+	
 	index= blockIdx.x*2720+threadIdx.x;
             if (blockIdx.x <2){
 #pragma unroll 
@@ -4828,14 +4815,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 	    __syncthreads();
 	}
 	else{
-   index= blockIdx.x*136+threadIdx.x;  
-   if (threadIdx.x<num_threads){
-#pragma unroll 
-      for ( int i =0;i<20;i++)
-	 Cs[threadIdx.x*20+i]=C[index+i*400];
-   }
-   __syncthreads();
-/*	index= blockIdx.x*136+threadIdx.x;
+	index= blockIdx.x*136+threadIdx.x;
             if (threadIdx.x<num_threads){
 #pragma unroll 
                for ( int i =0;i<20;i++)
@@ -4848,7 +4828,7 @@ __global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B
 		Cs[threadIdx.x*20+i] = AL1[i];
 
 	}
-        __syncthreads();*/
+        __syncthreads();
 	}
 	    /*if (blockIdx.x <2){
 	      for ( int i =0;i<17;i++)
@@ -5198,7 +5178,6 @@ __global__ void cu_mtxmq_integral_113(const double *A, int lda, const double *B,
    __syncthreads();
 
 }
-
 
 
 __global__ void cu_mtxmq_integral_205( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)

@@ -98,8 +98,8 @@ namespace madness {
     void * everRunningTask(void * arg){
           World * w = static_cast<World *>(arg);
 //          streams=new void *[NUM_STREAMS];
-          GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle);
           cublas_handle = cublashandle_create();
+          GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle);
           while (1){
             //printf("ERT \n");
             sched_yield();

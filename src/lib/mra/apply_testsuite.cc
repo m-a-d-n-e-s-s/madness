@@ -775,7 +775,7 @@ void test_coulomb(World& world) {
     functorT functor(new Gaussian<double,3>(origin, expnt, coeff));
 
 
-    int k = 20;
+    int k = 10;
     double thresh = 1e-8;
 
     FunctionDefaults<3>::set_k(k);
