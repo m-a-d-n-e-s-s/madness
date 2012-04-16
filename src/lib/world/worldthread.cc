@@ -41,9 +41,15 @@
 #include <world/worldpapi.h>
 #include <world/safempi.h>
 #include <world/atomicint.h>
+#include <world/GPU_streams.h>
+#include <world/world.h>
 #include <cstring>
 
 namespace madness {
+
+//void madness::everRunningTask(void * arg);
+
+    class ERT;
 
     int ThreadBase::cpulo[3];
     int ThreadBase::cpuhi[3];
@@ -185,6 +191,14 @@ namespace madness {
 #endif
     }
 
+    void ThreadPool::addEverRunningTask(void * arg, ERT * erti){
+        world_arg = arg;
+        ert = erti; 
+        Thread * t = new Thread; 
+        //t.set_pool_thread_index(nthreads - 1);
+        t->start(gpu_thread_main, (void *)(t));
+    }
+
     /// The constructor is private to enforce the singleton model
     ThreadPool::ThreadPool(int nthread) : nthreads(nthread), finish(false) {
         nfinished = 0;
@@ -248,6 +262,19 @@ namespace madness {
         }
 #endif
         nfinished++;
+    }
+
+    void ThreadPool::gpu_thread(Thread* thread) {
+        PROFILE_MEMBER_FUNC(ThreadPool);
+        thread->set_affinity(2, thread->get_pool_thread_index());
+
+        ert->everRunningTask(world_arg);
+    }
+
+    /// Forwards thread to bound member function
+    void* ThreadPool::gpu_thread_main(void * v) {
+        instance()->gpu_thread((Thread*)(v));
+        return 0;
     }
 
     /// Forwards thread to bound member function

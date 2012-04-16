@@ -195,7 +195,7 @@ void test_basic(World& world) {
         cell(i,1) =  10.0+i;
     }
     FunctionDefaults<NDIM>::set_cell(cell);
-    FunctionDefaults<NDIM>::set_k(7);
+    FunctionDefaults<NDIM>::set_k(10);
     FunctionDefaults<NDIM>::set_thresh(1e-5);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
@@ -1270,7 +1270,7 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        test_basic<double,1>(world);
+        //test_basic<double,1>(world);
         /*
         test_conv<double,1>(world);
         test_math<double,1>(world);
@@ -1308,7 +1308,7 @@ int main(int argc, char**argv) {
         test_plot<double,2>(world);
         test_io<double,2>(world);
         */
-        test_basic<double,3>(world);
+        //test_basic<double,3>(world);
         /*
         test_conv<double,3>(world);
         test_math<double,3>(world);

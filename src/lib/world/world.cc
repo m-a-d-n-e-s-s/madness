@@ -1143,6 +1143,7 @@ int main(int argc, char** argv) {
     print("There are",world.size(),"processes and I am process",world.rank(),"with",ThreadPool::size(),"threads");
 
     world.args(argc,argv);
+    //ThreadPool::instance()->addEverRunningTask(&world, new ERT());
 
     world.gop.fence();
 

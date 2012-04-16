@@ -36,7 +36,6 @@
 #include <world/worldmem.h>
 #include <world/worldtime.h>
 #include <world/worldhashmap.h>
-#include <world/GPU_streams.h>
 #include <cstdlib>
 #include <sstream>
 
@@ -61,6 +60,7 @@ extern "C" void** streams_initialize(unsigned int, void *);
 extern "C" void  streams_destroy(void **,unsigned int);
 extern "C" void* cublashandle_create();
 extern "C" void cublashandle_destroy(void*);
+
 namespace madness {
 
     //    SharedCounter future_count;
@@ -95,7 +95,8 @@ namespace madness {
     };
     */
 
-    void * everRunningTask(void * arg){
+
+     void ERT::everRunningTask(void * arg){
           World * w = static_cast<World *>(arg);
 //          streams=new void *[NUM_STREAMS];
           cublas_handle = cublashandle_create();
@@ -105,7 +106,7 @@ namespace madness {
             sched_yield();
 		struct timespec t;
 
-/* other code */
+//other code
 
 t.tv_sec = 0.0;
 t.tv_nsec = 2000000;
@@ -127,8 +128,43 @@ t.tv_nsec = 2000000;
           }
           streams_destroy(GPU_streams,NUM_STREAMS);
           cublashandle_destroy(cublas_handle);
+      }
+
+     void* everRunningTask(void * arg){
+          World * w = static_cast<World *>(arg);
+//          streams=new void *[NUM_STREAMS];
+          cublas_handle = cublashandle_create();
+          GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle);
+          while (1){
+            //printf("ERT \n");
+            sched_yield();
+		struct timespec t;
+
+//other code
+
+t.tv_sec = 0.0;
+t.tv_nsec = 2000000;
+//nanosleep(&t, NULL);
+           
+            ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator gpu_it;
+
+            gpu_it = w->gpu_hash[w->active].begin();
+            while (gpu_it != w->gpu_hash[w->active].end()){
+                (*gpu_it).second->run();
+                ConcurrentHashMap<HashValAgg, ComputeBase *>::iterator temp_it = gpu_it;
+                gpu_it++;
+                w->gpu_hash[w->active].erase(temp_it);
+            }
+
+            w->gpu_hashlock.lock();
+            w->active = 1 - w->active;
+            w->gpu_hashlock.unlock(); 
+          }
+          streams_destroy(GPU_streams,NUM_STREAMS);
+          cublashandle_destroy(cublas_handle);
+
           return NULL;
-    }
+      }
 
     World::World(MPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id

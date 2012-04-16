@@ -2470,5 +2470,95 @@ if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
 exit(-1);
   }*/
 }
+
+//Raghu's new compress kernel
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmqcompress(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle)
+{}
+
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+
+  template<>   void cu_mTxmqcompress(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,int ndim,long tsize, void *h){}
+
+  template<>   void cu_mTxmqcompress(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){
+
+       // double *ha,*hb, *hc; 
+	double one=1.0;
+	double zero=0.0;
+	//printf(" GPU Scublas code execution");
+	//sleep(100);
+	int M = (int)m;
+	int N = (int)n;
+	int K = (int)k;
+	//cublasStatus_t statt;
+	cudaError_t stat;	
+	//double *devPtrA, *devPtrB, *devPtrC;
+        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
+        cublasHandle_t *handle=(cublasHandle_t *)h;	
+
+        dim3 threads, grid;        
+	
+	if (ndim ==0) ndim=2;
+
+        for (int i=0;i<ndim-1;i++){
+          int b;
+
+          switch(k){
+            case 14:
+	      threads=dim3(128,1,1 );
+	      grid=dim3(22,1,1);
+              cu_mtxmq_integral_2744<<<grid, threads, 196*8, *stream>>>(A, m, B, n, C, k, 0, 0.0, 1.0);
+              break;
+            case 16:
+	      threads=dim3(128,1,1 );
+	      grid=dim3(32,1,1);
+              cu_mtxmq_integral_2166<<<grid, threads, 256*8, *stream>>>(A, m, B, n, C, k, 0, 0.0, 1.0);
+              break;
+            case 18:
+	      threads=dim3(128,1,1 );
+	      grid=dim3(46,1,1);
+              cu_mtxmq_integral_5832<<<grid, threads, 324*8, *stream>>>(A, m, B, n, C, k, 0, 0.0, 1.0);
+              break;
+            case 20:
+	      threads=dim3(128,1,1 );
+	      grid=dim3(63,1,1);
+              cu_mtxmq_integral_8000<<<grid, threads, 400*8, *stream>>>(A, m, B, n, C, k, 0, 0.0, 1.0);
+              break;
+            case 22:
+	      threads=dim3(128,1,1 );
+	      grid=dim3(84,1,1);
+              cu_mtxmq_integral_10684<<<grid, threads, 484*8, *stream>>>(A, m, B, n, C, k, 0, 0.0, 1.0);
+              break;
+            default:
+	      b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
+              break;
+          }
+
+
+	if (tsize==1 && i < ndim - 2){
+		b=cublasDswap (*handle,M*N, A, 1,C ,1);
+                
+		if (b == CUBLAS_STATUS_INVALID_VALUE)
+		  printf("CUBLAS_STATUS_INVALID_VALUE");
+		else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
+		  printf("CUBLAS_STATUS_ARCH_MISMATCH");
+		else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
+		  printf("swapCUBLAS_STATUS_EXECUTION_FAILED");
+		else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
+		  printf("CUBLAS_STATUS_MAPPING_ERROR");
+		else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
+		  printf("CUBLAS_STATUS_ALLOC_FAILED");
+		else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
+		  printf("init CUBLAS_STATUS_NOT_INITIALIZED");
+		else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
+		  printf("CUBLAS_STATUS_INTERNAL_ERROR");        
+	}
+        
+}
+
+}
 #endif // MADNESS_TENSOR_CU_MTXMQ_H__INCLUDED
 

@@ -347,6 +347,7 @@ typedef UINT64_T uint64_t;
 #endif
 
 // Madness world header files needed by world
+#include <world/GPU_streams.h>
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
 //#include <world/sharedptr.h>
@@ -377,12 +378,13 @@ typedef UINT64_T uint64_t;
 #define MAX_AGG 60
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 0
+#define USE_CUSTOM_KERNELS 1
 #define BACKTO_CPU_NUMERATOR 1 
 #define BACKTO_CPU_DENOMINATOR 2
 
-#define APPLY_GPU 1
+#define APPLY_GPU 0
 #define APPLY_JUST_AGG 0
-#define APPLY_BACKTO_CPU 0
+#define APPLY_BACKTO_CPU 1
 #define APPLY_RANK_RED 0
 #define APPLY_TEST_FLOPS 0
 //#define NUM_MUTEXES 37
@@ -395,6 +397,7 @@ namespace madness {
     class WorldTaskQueue;
     class WorldAmInterface;
     class WorldGopInterface;
+    class ERT;
 
     void redirectio(World& world);
 
@@ -436,6 +439,13 @@ namespace madness {
         }
 
     };
+
+ class ERT{
+
+  public:
+
+  void everRunningTask(void * arg);
+ };
 
     namespace detail {
         // These  functions are here to eliminate cyclic compile time dependencies

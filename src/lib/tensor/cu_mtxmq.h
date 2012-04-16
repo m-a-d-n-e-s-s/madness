@@ -135,6 +135,12 @@ void setStream(void * GPU_stream, void * h);
 
 void lsk(int i);
 void lsk1(int i);
+
+//Raghu's new compress kernels
+
+template <typename aT, typename bT, typename cT>
+    void cu_mTxmqcompress(long dimi, long dimj, long dimk,
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle);
 #endif
 
     /*

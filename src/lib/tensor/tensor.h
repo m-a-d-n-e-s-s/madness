@@ -46,7 +46,7 @@
 #include <cstdlib>
 
 #include <world/archive.h>
-//static double ttt1, sss1;
+static double ttt1, sss1;
 #define STARTt1_TIMER  ttt1=wall_time(); sss1=cpu_time()
 #define ENDt1_TIMER(msg) ttt1=wall_time()-ttt1; sss1=cpu_time()-sss1;  printf("timer: %20.20s %8.10fs %8.10fs\n", msg, sss1, ttt1)
 

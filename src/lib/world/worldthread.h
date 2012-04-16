@@ -37,11 +37,12 @@
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
 
 #include <world/dqueue.h>
+//#include <world/world.h>
 #include <vector>
 #include <cstddef>
 #include <pthread.h>
 #include <sched.h> // Needed for sched_yield()
-
+#include <world/GPU_streams.h>
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
 // no. of processors so must use sysctl
@@ -56,6 +57,7 @@ namespace madness {
     class ThreadPool;
     class WorldTaskQueue;
     class AtomicInt;
+    class ERT;
     void error(const char *msg);
 
     /// Simplified thread wrapper to hide pthread complexity
@@ -65,6 +67,7 @@ namespace madness {
     ///
     /// The cleanest solution is to put the object on the heap and
     /// have the run method "delete this" at its end.
+
     class ThreadBase {
         friend class ThreadPool;
         static bool bind[3];
@@ -396,20 +399,30 @@ namespace madness {
             return (ntask>0);
         }
 
+        void gpu_thread(Thread* thread);
+        
+        /// Forwards thread to bound member function
+        static void* gpu_thread_main(void *v);
+
         void thread_main(Thread* thread);
 
         /// Forwards thread to bound member function
         static void* pool_thread_main(void *v);
 
 
+
+    public:
+        void * world_arg;
+
+        ERT * ert;
+        void addEverRunningTask(void * arg, ERT * erti);
+        
         /// Return a pointer to the only instance constructing as necessary
         static ThreadPool* instance(int nthread=-1) {
             if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
             return instance_ptr;
         }
 
-
-    public:
         /// Please invoke while in single threaded environment
         static void begin(int nthread=-1);
 
