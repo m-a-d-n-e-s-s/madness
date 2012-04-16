@@ -45,28 +45,51 @@
 using namespace madness;
 using namespace std;
 
-//set coordinates of colloid atoms                                                                                                                      
-std::vector< madness::Vector<double,3> > colloid_coords(const double&d,const double R,const std::vector<double> cc) {
-    std::vector< madness::Vector<double,3> > c(6); //6 spheres on the colloid surface                                                                   
+//set coordinates of colloid atoms                      
+std::vector< madness::Vector<double,3> > colloid_coordss(const double&d,const double R,const std::vector<double> cc) {
+    std::vector< madness::Vector<double,3> > c(6); //6 spheres on the colloid surface                                 
     double sqrttwo = std::sqrt(2.0);
     double dist= (sqrttwo/2.0)*R;
-    double x = cc[0], y =  cc[1], z = cc[2];                                                                                                  
+    double x = cc[0], y =  cc[1], z = cc[2];
     //double x = 0.0, y =  0.0, z = 0.0;
     c[0][0]=  x - dist, c[0][1]= y - d - dist, c[0][2] = z;
-    //c[0][0]=  x, c[0][1]= y - d , c[0][2] = z;                                                                                                        
+    //c[0][0]=  x, c[0][1]= y - d , c[0][2] = z;
     c[1][0]= x + dist, c[1][1]= y - d - dist, c[1][2] = z;
     c[2][0]= x + dist, c[2][1]= y - d + dist, c[2][2] = z;
     c[3][0]= x - dist, c[3][1]= y - d + dist, c[3][2] = z;
     c[4][0]= x , c[4][1]=  y - d , c[4][2] = z + R;
     c[5][0]= x , c[5][1]= y - d, c[5][2] = z - R;
-    //print("colloid coord",c);                                                                                                                         
+    //print("colloid coord",c);
+    return c;
+}
+std::vector< madness::Vector<double,3> > colloid_coords(const double&d,const double R,std::vector<double> cc) {
+    std::vector< madness::Vector<double,3> > c(16); //16 spheres on the colloid surface 
+    double sqrttwo = std::sqrt(2.0);
+    double dist= (R/sqrttwo);
+    double x = cc[0], y =  cc[1], z = cc[2];
+    c[0][0]=  x - dist,           c[0][1]= y - dist,           c[0][2] = z-d-R; //A
+    c[1][0]=  x - dist,           c[1][1]= y + dist,           c[1][2] = z-d-R; //B
+    c[2][0]=  x + dist,           c[2][1]= y + dist,           c[2][2] = z-d-R;  //C
+    c[3][0]=  x + dist,           c[3][1]= y - dist,           c[3][2] = z-d-R;   //D
+    c[4][0]=  x + dist,           c[4][1]= y + 2.0*R - dist,   c[4][2] = z-d-R; //C'
+    c[5][0]=  x + dist + 2.0*R,   c[5][1]= y + dist,           c[5][2] = z-d-R; //C"
+    c[6][0]=  x + 2.0*R + dist ,  c[6][1]= y + 2.0*R + dist,   c[6][2] = z-d-R;//C'" 
+    c[7][0]=  x - dist ,          c[7][1]= y + 2.0*R + dist,   c[7][2] = z-d-R; //B'
+    c[8][0]=  x - 2.0*R - dist ,  c[8][1]= y + dist,           c[8][2] = z-d-R; //B"  
+    c[9][0]=  x - 2.0*R - dist ,  c[9][1]= y + 2.0*R + dist,   c[9][2] = z-d-R; //B"'
+    c[10][0]=  x - dist ,         c[10][1]= y - 2.0*R - dist,  c[10][2] = z-d-R; //A'  
+    c[11][0]=  x - 2.0*R - dist , c[11][1]= y  - 2.0*R - dist, c[11][2] = z-d-R; //A"
+    c[12][0]=  x - 2.0*R - dist , c[12][1]= y - dist,          c[12][2] = z-d-R; //A"' 
+    c[13][0]=  x + 2.0*R + dist , c[13][1]= y - dist,          c[13][2] = z-d-R; //D'
+    c[14][0]=  x + 2.0*R + dist , c[14][1]= y  - 2.0*R - dist, c[14][2] = z-d-R; //D"
+    c[15][0]=  x + dist ,         c[15][1]= y - 2.0*R - dist,  c[15][2] = z-d-R; //D'" 
     return c;
 }
 
 //colloid radii
 //if number of colloid spheres changes don't forget to change it here
 std::vector<double> colloid_radii(const double& R) {
-    int nsphere = 6; //number of colloid spheres
+    int nsphere = 16; //number of colloid spheres
     std::vector<double> c(nsphere);
     for(int i=0; i<nsphere; i++)
         c[i] = R;
@@ -117,6 +140,7 @@ public:
         , op(CoulombOperator(world, minlen, thresh))
         , dlog(3)
     {
+        MADNESS_ASSERT(atomic_radii.size() == atomic_coords.size());//check on the consistency
         // Functors for mask related quantities
         real_functor_3d rdielectric_functor(new MolecularVolumeExponentialSwitchReciprocal(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords));
         real_functor_3d gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,0));
@@ -171,6 +195,12 @@ public:
         real_function_3d u = uguess.is_initialized() ? uguess : u0;
         double unorm = u.norm2();
         NonlinearSolver solver;
+        if (world.rank()==0){
+            print("\n\n");//for formating output 
+            madness::print("            Computing the Perturbed Potential Near              ");
+            madness::print("                    the Colloid Surface                         ");
+            madness::print("                   ______________________                    \n ");
+        }
         for (int iter=0; iter<20; iter++) {
             double start = wall_time();
             real_function_3d surface_charge = make_surface_charge(u);
@@ -181,16 +211,12 @@ public:
             real_function_3d unew = solver.update(u, r);
             
             double change = (unew-u).norm2();
-            if (world.rank()==0){
-                print("\n\n");//for formating output 
-                madness::print("            Computing the Perturbed Potential Near              ");
-                madness::print("                    the Colloid Surface                         ");
-                madness::print("                   ______________________                    \n ");
-                
+            
+            if(world.rank()==0){
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
                       "surface charge", sigtot,"used",wall_time()-start);
-                print("\n\n");
+               
             }
             // Step restriction 
             if (change > 0.3*unorm) 
@@ -200,6 +226,8 @@ public:
             
             if (change < std::max(1e-3,10.0*thresh)) break;
         }
+        if(world.rank()==0)
+            print("\n\n");//format printing
         return u - op(rho);
     }
     /// Solve for the full Coulomb potential using the free-particle GF
@@ -208,6 +236,12 @@ public:
         real_function_3d u = uguess;
         double unorm = u.norm2();
         NonlinearSolver solver;
+        //print for formating
+        if (world.rank()==0){
+            print("\n\n");//for formating output 
+            madness::print("            Computing the Perturbed Potential               ");
+            madness::print("                   ______________________                   \n ");
+        }
         for (int iter=0; iter<20; iter++) {
             double start = wall_time();
             real_function_3d surface_charge = make_surface_charge(u);
@@ -219,10 +253,6 @@ public:
             
             double change = (unew-u).norm2();
             if (world.rank()==0){
-                print("\n\n");//for formating output 
-                madness::print("            Computing the Perturbed Potential               ");
-                madness::print("                   ______________________                   \n ");
-                 
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
                       "surface charge", sigtot,"used",wall_time()-start);
@@ -235,8 +265,11 @@ public:
             
             if (change < std::max(1e-3,10.0*thresh)) break;
         }
+        if (world.rank()==0)
+            print("\n\n");
         return u;
     }
+
 };
 
 #endif
