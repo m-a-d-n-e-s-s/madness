@@ -12,7 +12,7 @@
 #include <xc.h>
 #include <xc_funcs.h>
 
-#include <math.h>
+#include <cmath>
 
 struct xc_name_map {
     const std::string name;
@@ -217,18 +217,18 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
 XCfunctional::XCfunctional() {}
 
 
-void XCfunctional::initialize(const std::string& input_line, bool polarized) 
+void XCfunctional::initialize(const std::string& input_line, bool polarized)
 {
     double factor;
     spin_polarized = polarized;
-    
+
     std::stringstream line(input_line);
     std::string name;
-    
+
     nderiv = 0;
     hf_coeff = 0.0;
     funcs.clear();
-    
+
     while (line >> name) {
         std::transform(name.begin(), name.end(), name.begin(), ::toupper);
         if (name == "LDA") {
@@ -245,7 +245,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
             funcs.push_back(std::make_pair(lookup_func(name,polarized), factor));
         }
     }
-    
+
     for (unsigned int i=0; i<funcs.size(); i++) {
         if (funcs[i].first->info->family == XC_FAMILY_GGA) nderiv = std::max(nderiv,1);
         if (funcs[i].first->info->family == XC_FAMILY_HYB_GGA) nderiv = std::max(nderiv,1);
@@ -264,11 +264,11 @@ XCfunctional::~XCfunctional() {
 bool XCfunctional::is_lda() const {
     return nderiv == 0;
 }
-        
+
 bool XCfunctional::is_gga() const {
     return nderiv == 1;
 }
-    
+
 bool XCfunctional::is_meta() const {
     return nderiv == 2;
 }
@@ -276,8 +276,8 @@ bool XCfunctional::is_meta() const {
 bool XCfunctional::is_dft() const {
     return (is_lda() || is_gga() || is_meta());
 }
-    
-bool XCfunctional::has_fxc() const 
+
+bool XCfunctional::has_fxc() const
 {
     return false; // not thought about this yet
 }
@@ -362,7 +362,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 }
 
 
-madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const 
+madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const
 {
     madness::Tensor<double> rho, sigma;
     make_libxc_args(t, rho, sigma);
@@ -403,7 +403,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const 
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const
 {
     madness::Tensor<double> rho, sigma;
     make_libxc_args(t, rho, sigma);
@@ -437,7 +437,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                     res[j] += vr[nvrho*j+what]*funcs[i].second;
                 }
             }
-            
+
             break;
 
         case XC_FAMILY_GGA:
@@ -447,13 +447,13 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 if (what < 2) {
                     for (long j=0; j<np; j++) {
                         res[j] += vr[nvrho*j+what]*funcs[i].second;
-                        if (isnan(res[j])) throw "ouch";
+                        if (std::isnan(res[j])) throw "ouch";
                     }
                 }
                 else {
                     for (long j=0; j<np; j++) {
                         res[j] += vs[nvsig*j+what-2]*funcs[i].second;
-                        if (isnan(res[j])) throw "ouch";
+                        if (std::isnan(res[j])) throw "ouch";
                     }
                 }
             }
@@ -461,13 +461,13 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 if (what == 0) {
                     for (long j=0; j<np; j++) {
                         res[j] += vr[j]*funcs[i].second;
-                        if (isnan(res[j])) throw "ouch";
+                        if (std::isnan(res[j])) throw "ouch";
                     }
                 }
                 else {
                     for (long j=0; j<np; j++) {
                         res[j] += vs[j]*funcs[i].second;
-                        if (isnan(res[j])) throw "ouch";
+                        if (std::isnan(res[j])) throw "ouch";
                     }
                 }
             }
@@ -475,7 +475,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
 
         default:
             throw "UGH!";
-        }                
+        }
     }
     return result;
 }
