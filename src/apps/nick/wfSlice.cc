@@ -78,6 +78,7 @@ complex_functionT wave_function_load(World& world, int step) {
     return psi;
 }
 
+// Wrappers & structs
 struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
     PhiK& phik;
     PhiKAdaptor(World& world, PhiK& phik) : phik(phik) {
@@ -228,6 +229,8 @@ int main(int argc, char** argv) {
     double kMomentum = 1.0;
     int    lMAX  = 12;
     int    nPhoton = 2;
+    bool   DEBUG = false;
+    bool   coordEdge = true;
     loadParameters(world, thresh, k, L, Z, nPhoton, cutoff);
     loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
@@ -258,25 +261,61 @@ int main(int argc, char** argv) {
                     string fileName ="wf" + step + ".bin";
                     FILE* pFile;
                     pFile = fopen(fileName.c_str(), "wb");
-                    //ofstream TXTout( ("wf" + step + ".dat").c_str());
+                    ofstream fout( ("wf" + step + ".dat").c_str());
                     // Compute grid
                     if( world.rank() == 0 ) {
+                        ///xMax: the largest x & z coordinate
+                        ///An odd number of grid points ensures zero is a gird point
                         int n = 2*nGrid + 1;
-                        const double dr = cutoff/nGrid;
-                        float buffer[n];
+                        const double xMax = cutoff;
+                        const double dr = xMax/nGrid;
+                        float buffer[n+1];
+                        // coordEdge pads the matrix with the coordinates
+                        // otherwise no coordinates will be provided
+                        if( coordEdge ) {
+                        ///Output for GNUPLOT binary matrix
+                        ///<n+1> <y0>   <y1>   <y2>   ...  <yN>
+                        ///<x0>  <x0,0> <z0,1> <z0,2> ... <z0,N>
+                        ///<x1>  <x1,0> <z1,1> <z1,2> ... <z1,N>
+                        /// .      .      .      .    ...   .
+                        /// .      .      .      .    ...   .  float buffer[n+1];
+                            // initialize first line
+                            buffer[0] = (float) n+1;
+                            if( DEBUG ) fout << buffer[0] << "\t";
+                            for( int i=0; i<n; i++ ) {
+                                buffer[i+1] = i*dr - xMax;
+                                if( DEBUG ) fout << buffer[i+1] << "\t";
+                            }
+                            fwrite(buffer, sizeof(float), n+1, pFile);
+                            if( DEBUG ) fout << std::endl;
+                        } 
+                        // initialize the bulk
                         for( int i=0; i<n; i++ ) {
-                            const double x = i*dr - cutoff;
+                            const double x = i*dr - xMax;
+                            if( coordEdge ) {
+                                buffer[0] = x;
+                                if( DEBUG ) fout <<  x << "\t";
+                            }
                             for( int j=0; j<n; j++ ) {
-                                const double z = j*dr - cutoff;
+                                const double z = j*dr - xMax;
                                 const double r[3] = {x, 0, z};
                                 const vector3D         rVec(r);
-                                buffer[j]    =  (float) real(psiT(rVec));
+                                if( coordEdge ) {
+                                    buffer[j+1] =  (float) real(psiT(rVec));
+                                } else {
+                                    buffer[j] =  (float) real(psiT(rVec));
+                                }
+                                if( DEBUG ) fout <<  real(psiT(rVec)) << "\t";
                             }
-                            fwrite(buffer, sizeof(float), n, pFile);
-                            //TXTout << std::endl;
+                            if( coordEdge ) {
+                                fwrite(buffer, sizeof(float), n+1, pFile);
+                            } else {
+                                fwrite(buffer, sizeof(float),   n, pFile);
+                            }
+                            if( DEBUG ) fout << std::endl;
                         }
                         fclose(pFile);
-                        //TXTout.close();
+                        fout.close();
                     }
                 }
             }// done loading wf.num
