@@ -1,6 +1,8 @@
 #ifndef MADNESS_STDARRAY_BITS_H
 #define MADNESS_STDARRAY_BITS_H
 
+#include <stdexcept>
+
 namespace madness {
     namespace tr1 {
         namespace array {
