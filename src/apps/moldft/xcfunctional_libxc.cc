@@ -1,7 +1,4 @@
 #include <madness_config.h>
-
-#ifdef MADNESS_HAS_LIBXC
-
 #include <moldft/xcfunctional.h>
 #include <tensor/tensor.h>
 #include <iostream>
@@ -12,7 +9,15 @@
 #include <xc.h>
 #include <xc_funcs.h>
 
-#include <cmath>
+// This function is here because compiling with -ffast-math breaks the C
+// function isnan. Also, there is a bug in some compilers where isnan is
+// undefined when <cmath> is included.
+namespace {
+    inline int isnan_x(double x) {
+        volatile double y = x;
+        return x != y;
+    }
+}
 
 struct xc_name_map {
     const std::string name;
@@ -447,13 +452,13 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 if (what < 2) {
                     for (long j=0; j<np; j++) {
                         res[j] += vr[nvrho*j+what]*funcs[i].second;
-                        if (std::isnan(res[j])) throw "ouch";
+                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
                 else {
                     for (long j=0; j<np; j++) {
                         res[j] += vs[nvsig*j+what-2]*funcs[i].second;
-                        if (std::isnan(res[j])) throw "ouch";
+                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
             }
@@ -461,13 +466,13 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                 if (what == 0) {
                     for (long j=0; j<np; j++) {
                         res[j] += vr[j]*funcs[i].second;
-                        if (std::isnan(res[j])) throw "ouch";
+                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
                 else {
                     for (long j=0; j<np; j++) {
                         res[j] += vs[j]*funcs[i].second;
-                        if (std::isnan(res[j])) throw "ouch";
+                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
             }
@@ -480,5 +485,3 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-
-#endif
