@@ -44,12 +44,11 @@
 
   \par Background
 
-  We seek to solve this PDE
+  Given \f$ u(0) \f$,  we seek to solve the PDE
   \f[
      \frac{du}{dt} = \hat{L} u + N(u)
   \f]
-  given \f$ u(0) \f$ for the function at some
-  future time \f$ t \f$ (i.e., for \f$ u(t) \f$).
+  for the function at some future time \f$ t \f$ (i.e., for \f$ u(t) \f$).
   \f$ \hat{L} \f$ is a linear operator that we are 
   able to exponentiate, and \f$ N \f$ is everything else
   including linear and non-linear parts. 
@@ -70,13 +69,13 @@
     a copy constructor, assignment, inplace addition, multiplication
     from the right by a double, and computation of the distance
     between two solutions \f$ a \f$ and \f$ b \f$ with the api 
-    \f\verb+ double distance(a,b) \f\verb+
+    \f\verb+double distance(a,b)+ \f
 
   Have a look in testspectralprop.cc for example use.
 
   With \f$ n \f$ quadrature points, the error is \f$ O\left(t^{2n+1}\right) \f$ 
   and the number of applications of the exponential operator per
-  time step is \f$ 1+(n_{it}+1)n +n_{it}n^2 \f$ where \f$ n_it \f$
+  time step is \f$ 1+(n_{it}+1)n +n_{it}n^2 \f$ where \f$ n_{it} \f$
   is the number of iterations necessary to solve the equations
   (typically about 5 but this is problem dependent).
   
@@ -92,24 +91,27 @@
 
 namespace madness {
 
-    double distance(double a, double b)
+    /// Default function for computing the distance between two doubles
+    static inline double distance(double a, double b)
     {
         return std::sqrt((a-b)*(a-b));
     }
 
+    /// Default function for computing the distance between two complex numbers
     template <typename T>
-    double distance(std::complex<T>& a, std::complex<T>& b)
+    static inline double distance(std::complex<T>& a, std::complex<T>& b)
     {
         return std::abs(a-b);
     }
 
     
+    /// Spectral propagtor in time.  Refer to documentation of file spectralprop.h for math detail.
     class SpectralPropagator {
-        const int NPT;
-        std::vector<double> x;
-        std::vector<double> w;
+        const int NPT;          ///< Number of quadrature points
+        std::vector<double> x;  ///< Quadrature points on [0,1] with value 0 prepended
+        std::vector<double> w;  ///< Quadrature weights on [0,1] with value 0 prepended
 
-        // Makes interpolating polyn p[i](t), i=0..NPT
+        /// Private: Makes interpolating polyn p[i](t), i=0..NPT
         double p(int i, double t) {
             double top=1.0, bot=1.0;
             for (int j=0; j<i; j++) {
@@ -123,6 +125,7 @@ namespace madness {
             return top/bot;
         }
 
+        /// Private: Computes interpolated solution
         template <typename uT>
         uT u(double dt, const std::vector<uT>& v) {
             uT U = v[0]*p(0,dt);
@@ -133,14 +136,7 @@ namespace madness {
         }
 
     public:
-        // Constructor 
-        // ... input ... npt, 
-        // ... makes ... x, w, p
-        //
-        // Apply
-        // ... input ... u(0)
-        // ... makes guess v(i), i=0..npt using explicit 1st order rule.
-
+        /// Construct propagator using \c NPT points
 	SpectralPropagator(int NPT)
             : NPT(NPT)
             , x(NPT+1)
@@ -153,6 +149,28 @@ namespace madness {
             std::reverse(w.begin()+1, w.end());
         }
         
+        /// Step forward in time from \f$ t \f$ to \f$ t+\Delta \f$
+
+        /// The template types should be automatically inferred from
+        /// the invocation.  \c uT is the C++ type for the solution.
+        ///
+        /// @param[in] t The current time
+        /// @param[in] Delta The time step
+        /// @param[in] u0 The solution at the current time
+        /// @param[in] expL A function or functor to compute \f$ \exp{\tau \hat{L}} u \f$  for \f$ \tau \in (0,\Delta) \f$
+        /// @param[in] N A function to compute the non-linear part
+        /// @returns The solution at time \f$ t+\Delta \f$
+        ///
+        /// The user provided operators are invoked as 
+        /// \code
+        /// uT expL(double tau, const uT& u)
+        /// \endcode
+        /// where \f$ \tau \in (0,\Delta) \f$
+        /// and
+        /// \code
+        /// uT N(double T, const uT& u)
+        /// \endcode
+        /// where \f$ T \in (t,t+\Delta) \f$ and \f$ u \f$ is a trial solution at time \f$ T \f$.
         template <typename uT, typename expLT, typename NT>
         uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false) {
             std::vector<uT> v(NPT+1,u0);
@@ -194,7 +212,7 @@ namespace madness {
                 vinew += expL(dt*Delta*(1.0-x[k]), N(t + Delta*ddt, u(ddt, v)))*(dt*Delta*w[k]); napp++;
             }
 
-            print("number of operator applications", napp);
+            if (doprint) print("number of operator applications", napp);
             return vinew;
 	}
     };
