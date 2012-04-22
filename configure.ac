@@ -69,6 +69,26 @@ echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
 CFLAGS="$initial_CFLAGS"
 CXXFLAGS="$initial_CXXFLAGS"
 
+# Chekc that the MPICC Compiler can link correctly
+AC_LANG_PUSH([C])
+AC_MSG_CHECKING([that the $MPICC linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICC])])
+AC_LANG_POP
+
+# Chekc that the MPICXX Compiler can link correctly
+AC_LANG_PUSH([C++])
+AC_MSG_CHECKING([that the $MPICXX linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICXX])])
+AC_LANG_POP
+  
 ACX_DETECT_CXX
 
 # Set debugging
