@@ -1545,7 +1545,7 @@ struct Calculation {
             sygv(fock, overlap, 1, c, e);
             world.gop.broadcast(c.ptr(), c.size(), 0);
             world.gop.broadcast(e.ptr(), e.size(), 0);
-            if(world.rank() == 0){
+            if(world.rank() == 0 && 0){
               print("initial eigenvalues");
               print(e);
               print("\n\nWSTHORNTON: initial eigenvectors");
@@ -2859,7 +2859,8 @@ int main(int argc, char** argv) {
         std::cout.precision(6);
 
         // Process 0 reads input information and broadcasts
-        Calculation calc(world, "input");
+        const char * inpname = (argc>1) ? argv[1] : "input";
+        Calculation calc(world, inpname);
 
         // Warm and fuzzy for the user
         if (world.rank() == 0) {
