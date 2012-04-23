@@ -2385,7 +2385,7 @@ struct Calculation {
       load_mos(world);
 
       int nstep = 1000;
-      int time_step = 0.05;
+      double time_step = 0.05;
 
       double strength = 0.1;
 
