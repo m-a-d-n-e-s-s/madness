@@ -211,6 +211,15 @@ string toString(int& i) {
     return ss.str();
 }
 
+void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) {
+    double start = wall_time();
+    Tensor<double> cell(3,2);
+    std::vector<long> npt(3, numpt);
+    cell(_,0) = -Lplot;
+    cell(_,1) =  Lplot;
+    plotdx(psi, fname, cell, npt);
+    if (world.rank() == 0) print("plotting used", wall_time()-start);
+}
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
@@ -229,8 +238,9 @@ int main(int argc, char** argv) {
     double kMomentum = 1.0;
     int    lMAX  = 12;
     int    nPhoton = 2;
-    bool   DEBUG = false;
-    bool   coordEdge = true;
+    bool   asciiFile = false;
+    bool   coordEdge = false;
+    bool   plotDX    = false;
     loadParameters(world, thresh, k, L, Z, nPhoton, cutoff);
     loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
@@ -257,66 +267,73 @@ int main(int argc, char** argv) {
                     PRINTLINE("Function " << step << " not found");
                 } else {
                     PRINTLINE("phi(T=" << step << ",x,z)");
-                    complex_functionT psiT = wave_function_load(world,atoi(step.c_str()));
-                    string fileName ="wf" + step + ".bin";
+                    int nWF = atoi(step.c_str());
+                    const complex_functionT psiT = wave_function_load(world, nWF);
+                    std::string fileNameStr ="wf" + step + ".dx";
+                    const char* fileName = fileNameStr.c_str();
+                    double Lplot = 60;
+                    long numpt = nGrid;
+                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt, fileName);
                     FILE* pFile;
-                    pFile = fopen(fileName.c_str(), "wb");
+                    pFile = fopen(fileName, "wb");
                     ofstream fout( ("wf" + step + ".dat").c_str());
-                    // Compute grid
-                    if( world.rank() == 0 ) {
-                        ///xMax: the largest x & z coordinate
-                        ///An odd number of grid points ensures zero is a gird point
-                        int n = 2*nGrid + 1;
-                        const double xMax = cutoff;
-                        const double dr = xMax/nGrid;
-                        float buffer[n+1];
-                        // coordEdge pads the matrix with the coordinates
-                        // otherwise no coordinates will be provided
-                        if( coordEdge ) {
-                        ///Output for GNUPLOT binary matrix
-                        ///<n+1> <y0>   <y1>   <y2>   ...  <yN>
-                        ///<x0>  <x0,0> <z0,1> <z0,2> ... <z0,N>
-                        ///<x1>  <x1,0> <z1,1> <z1,2> ... <z1,N>
-                        /// .      .      .      .    ...   .
-                        /// .      .      .      .    ...   .  float buffer[n+1];
-                            // initialize first line
-                            buffer[0] = (float) n+1;
-                            if( DEBUG ) fout << buffer[0] << "\t";
-                            for( int i=0; i<n; i++ ) {
-                                buffer[i+1] = i*dr - xMax;
-                                if( DEBUG ) fout << buffer[i+1] << "\t";
-                            }
-                            fwrite(buffer, sizeof(float), n+1, pFile);
-                            if( DEBUG ) fout << std::endl;
-                        } 
-                        // initialize the bulk
+                    //Compute grid
+                    ///xMax: the largest x & z coordinate
+                    ///An odd number of grid points ensures zero is a gird point
+                    int n = 2*nGrid + 1;
+                    const double xMax = cutoff;
+                    const double dr = xMax/nGrid;
+                    float buffer[n+1];
+                    // coordEdge pads the matrix with the coordinates
+                    // otherwise no coordinates will be provided
+                    if( coordEdge ) {
+                    ///Output for GNUPLOT binary matrix
+                    ///<n+1> <y0>   <y1>   <y2>   ...  <yN>
+                    ///<x0>  <x0,0> <z0,1> <z0,2> ... <z0,N>
+                    ///<x1>  <x1,0> <z1,1> <z1,2> ... <z1,N>
+                    /// .      .      .      .    ...   .
+                    /// .      .      .      .    ...   .  float buffer[n+1];
+                        // initialize first line
+                        buffer[0] = (float) n+1;
+                        if( asciiFile ) fout << buffer[0] << "\t";
                         for( int i=0; i<n; i++ ) {
-                            const double x = i*dr - xMax;
+                            buffer[i+1] = i*dr - xMax;
+                            if( asciiFile ) fout << buffer[i+1] << "\t";
+                        }
+                        fwrite(buffer, sizeof(float), n+1, pFile);
+                        if( asciiFile ) fout << std::endl;
+                    } 
+                    // initialize the bulk
+                    for( int i=0; i<n; i++ ) {
+                        const double x = i*dr - xMax;
+                        if( coordEdge ) {
+                            buffer[0] = x;
+                            if( asciiFile ) fout <<  x << "\t";
+                        }
+                        for( int j=0; j<n; j++ ) {
+                            const double z = j*dr - xMax;
+                            const double r[3] = {x, 0, z};
+                            const vector3D         rVec(r);
                             if( coordEdge ) {
-                                buffer[0] = x;
-                                if( DEBUG ) fout <<  x << "\t";
+                                buffer[j+1] =  (float) real(psiT(rVec));
+                            } else {
+                                buffer[j] =  (float) real(psiT(rVec));
                             }
-                            for( int j=0; j<n; j++ ) {
-                                const double z = j*dr - xMax;
-                                const double r[3] = {x, 0, z};
-                                const vector3D         rVec(r);
-                                if( coordEdge ) {
-                                    buffer[j+1] =  (float) real(psiT(rVec));
-                                } else {
-                                    buffer[j] =  (float) real(psiT(rVec));
-                                }
-                                if( DEBUG ) fout <<  real(psiT(rVec)) << "\t";
-                            }
+                            if( asciiFile ) fout <<  real(psiT(rVec)) << "\t";
+                        }
+                        if( world.rank() == 0 ) {
                             if( coordEdge ) {
                                 fwrite(buffer, sizeof(float), n+1, pFile);
                             } else {
                                 fwrite(buffer, sizeof(float),   n, pFile);
                             }
-                            if( DEBUG ) fout << std::endl;
+                            if( asciiFile ) fout << std::endl;
                         }
-                        fclose(pFile);
-                        fout.close();
+                        world.gop.fence();
                     }
+                    fclose(pFile);
+                    fout.close();
+                    world.gop.fence();
                 }
             }// done loading wf.num
         }
