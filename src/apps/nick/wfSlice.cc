@@ -269,14 +269,13 @@ int main(int argc, char** argv) {
                     PRINTLINE("phi(T=" << step << ",x,z)");
                     int nWF = atoi(step.c_str());
                     const complex_functionT psiT = wave_function_load(world, nWF);
-                    std::string fileNameStr ="wf" + step + ".dx";
-                    const char* fileName = fileNameStr.c_str();
                     double Lplot = 60;
                     long numpt = nGrid;
-                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt, fileName);
-                    FILE* pFile;
-                    pFile = fopen(fileName, "wb");
-                    ofstream fout( ("wf" + step + ".dat").c_str());
+                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt, 
+                            ("wf" + step + ".dx").c_str());
+                    FILE* binaryFile = fopen(("wf" + step + ".bin").c_str(), "wb");
+                    ofstream asciiFile( ("wf" + step + ".dat").c_str());
+
                     //Compute grid
                     ///xMax: the largest x & z coordinate
                     ///An odd number of grid points ensures zero is a gird point
@@ -293,22 +292,22 @@ int main(int argc, char** argv) {
                     ///<x1>  <x1,0> <z1,1> <z1,2> ... <z1,N>
                     /// .      .      .      .    ...   .
                     /// .      .      .      .    ...   .  float buffer[n+1];
-                        // initialize first line
+                     // initialize first line
                         buffer[0] = (float) n+1;
-                        if( asciiFile ) fout << buffer[0] << "\t";
+                        if( asciiFile ) asciiFile << buffer[0] << "\t";
                         for( int i=0; i<n; i++ ) {
                             buffer[i+1] = i*dr - xMax;
-                            if( asciiFile ) fout << buffer[i+1] << "\t";
+                            if( asciiFile ) asciiFile << buffer[i+1] << "\t";
                         }
-                        fwrite(buffer, sizeof(float), n+1, pFile);
-                        if( asciiFile ) fout << std::endl;
-                    } 
+                        fwrite(buffer, sizeof(float), n+1, binaryFile);
+                        if( asciiFile ) asciiFile << std::endl;
+                    }
                     // initialize the bulk
                     for( int i=0; i<n; i++ ) {
                         const double x = i*dr - xMax;
                         if( coordEdge ) {
                             buffer[0] = x;
-                            if( asciiFile ) fout <<  x << "\t";
+                            if( asciiFile ) asciiFile <<  x << "\t";
                         }
                         for( int j=0; j<n; j++ ) {
                             const double z = j*dr - xMax;
@@ -319,20 +318,20 @@ int main(int argc, char** argv) {
                             } else {
                                 buffer[j] =  (float) real(psiT(rVec));
                             }
-                            if( asciiFile ) fout <<  real(psiT(rVec)) << "\t";
+                            if( asciiFile ) asciiFile <<  real(psiT(rVec)) << "\t";
                         }
                         if( world.rank() == 0 ) {
                             if( coordEdge ) {
-                                fwrite(buffer, sizeof(float), n+1, pFile);
+                                fwrite(buffer, sizeof(float), n+1, binaryFile);
                             } else {
-                                fwrite(buffer, sizeof(float),   n, pFile);
+                                fwrite(buffer, sizeof(float),   n, binaryFile);
                             }
-                            if( asciiFile ) fout << std::endl;
+                            if( asciiFile ) asciiFile << std::endl;
                         }
                         world.gop.fence();
                     }
-                    fclose(pFile);
-                    fout.close();
+                    fclose(binaryFile);
+                    asciiFile.close();
                     world.gop.fence();
                 }
             }// done loading wf.num
