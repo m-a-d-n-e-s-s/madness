@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /*!
@@ -49,9 +49,9 @@
      \frac{du}{dt} = \hat{L} u + N(u)
   \f]
   for the function at some future time \f$ t \f$ (i.e., for \f$ u(t) \f$).
-  \f$ \hat{L} \f$ is a linear operator that we are 
+  \f$ \hat{L} \f$ is a linear operator that we are
   able to exponentiate, and \f$ N \f$ is everything else
-  including linear and non-linear parts. 
+  including linear and non-linear parts.
 
   In the semigroup approach the formal solution to the PDE
   is written
@@ -68,17 +68,17 @@
   - if necessary a user-defined data type that supports
     a copy constructor, assignment, inplace addition, multiplication
     from the right by a double, and computation of the distance
-    between two solutions \f$ a \f$ and \f$ b \f$ with the api 
+    between two solutions \f$ a \f$ and \f$ b \f$ with the api
     \f\verb+double distance(a,b)+ \f
 
   Have a look in testspectralprop.cc for example use.
 
-  With \f$ n \f$ quadrature points, the error is \f$ O\left(t^{2n+1}\right) \f$ 
+  With \f$ n \f$ quadrature points, the error is \f$ O\left(t^{2n+1}\right) \f$
   and the number of applications of the exponential operator per
   time step is \f$ 1+(n_{it}+1)n +n_{it}n^2 \f$ where \f$ n_{it} \f$
   is the number of iterations necessary to solve the equations
   (typically about 5 but this is problem dependent).
-  
+
 */
 
 
@@ -92,19 +92,19 @@
 namespace madness {
 
     /// Default function for computing the distance between two doubles
-    static inline double distance(double a, double b)
+    inline double distance(double a, double b)
     {
         return std::sqrt((a-b)*(a-b));
     }
 
     /// Default function for computing the distance between two complex numbers
     template <typename T>
-    static inline double distance(std::complex<T>& a, std::complex<T>& b)
+    inline double distance(std::complex<T>& a, std::complex<T>& b)
     {
         return std::abs(a-b);
     }
 
-    
+
     /// Spectral propagtor in time.  Refer to documentation of file spectralprop.h for math detail.
     class SpectralPropagator {
         const int NPT;          ///< Number of quadrature points
@@ -148,7 +148,7 @@ namespace madness {
             std::reverse(x.begin()+1, x.end());
             std::reverse(w.begin()+1, w.end());
         }
-        
+
         /// Step forward in time from \f$ t \f$ to \f$ t+\Delta \f$
 
         /// The template types should be automatically inferred from
@@ -161,7 +161,7 @@ namespace madness {
         /// @param[in] N A function to compute the non-linear part
         /// @returns The solution at time \f$ t+\Delta \f$
         ///
-        /// The user provided operators are invoked as 
+        /// The user provided operators are invoked as
         /// \code
         /// uT expL(double tau, const uT& u)
         /// \endcode
@@ -199,12 +199,12 @@ namespace madness {
                     }
                     v[i] = vinew;
                 }
-                double err = distance(v[NPT],vold);
+                double err = madness::distance(v[NPT],vold);
                 vold = v[NPT];
                 if (doprint) print("spectral",iter,err);
                 if (err < eps) break;
             }
-            
+
             double dt = 1.0 - x[NPT];
             uT vinew = expL(dt*Delta,v[NPT]);
             for (int k=1; k<=NPT; k++) {
@@ -221,7 +221,7 @@ namespace madness {
         const int NPT;
         std::vector<double> x;
         std::vector<double> w;
-        
+
         // Makes interpolating polyn p[i](t), i=0..NPT-1
         double p(int i, double t) {
             double top=1.0, bot=1.0;
@@ -246,8 +246,8 @@ namespace madness {
         }
 
     public:
-        // Constructor 
-        // ... input ... npt, 
+        // Constructor
+        // ... input ... npt,
         // ... makes ... x, w, p
         //
         // Apply
@@ -292,7 +292,7 @@ namespace madness {
                 w[i] = 0.5*w[i];
             }
         }
-        
+
         template <typename uT, typename expLT, typename NT>
         uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false) {
             std::vector<uT> v(NPT,u0);

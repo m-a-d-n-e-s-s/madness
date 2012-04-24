@@ -2,12 +2,19 @@
 #include <iostream>
 #include <vector>
 
+// These forward declarations are here for SpectralPropagator::step() in spectralprop.h.
+class Fred;
+namespace madness {
+    double distance(const Fred& a, const Fred& b);
+    double distance(madness::Function<std::complex<double>, 1ul>& a, madness::Function<std::complex<double>, 1ul>& b);
+}
+
 #include <examples/spectralprop.h>
 
 using namespace madness;
 
 // !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-// test0 is a simple scalar problem 
+// test0 is a simple scalar problem
 //
 // -u + u^2 = du/dt    u(0)=-0.1
 //
@@ -26,10 +33,10 @@ class Fred {
 
     // Default constructor not needed
     Fred();
-    
-public: 
+
+public:
     // Specific to this example
-    Fred(double a, double b, double c) 
+    Fred(double a, double b, double c)
         : v(3) {v[0] = a; v[1] = b; v[2] = c;}
     void set(int i, double a) {v[i] = a;}
     double get(int i) const {return v[i];}
@@ -59,15 +66,18 @@ public:
     }
 };
 
-double distance(const Fred& a, const Fred& b)
-{
-    double xsq = 0.0;
-    for (int i=0; i<3; i++) {
-        double xx = a.get(i) - b.get(i);
-        xsq += xx*xx;
+namespace madness {
+    // distance is in madness namespace to disambiguate it from std::distance.
+    double distance(const Fred& a, const Fred& b)
+    {
+        double xsq = 0.0;
+        for (int i=0; i<3; i++) {
+            double xx = a.get(i) - b.get(i);
+            xsq += xx*xx;
+        }
+        return std::sqrt(xsq);
     }
-    return std::sqrt(xsq);
-}
+} // namespace madness
 
 
 // Not required
@@ -158,7 +168,7 @@ void test1(World& world) {
         const double t = 0.0;
         const double dt = 0.1;
         Fred u0(-0.1,-0.2,-0.3);
-        
+
         // Solutions from maple
         Fred M[4] = {
             Fred(0.0,0.0,0.0),
@@ -185,7 +195,7 @@ void test1(World& world) {
 
             print("NPT =", NPT, "err(Maple)", err, "err(exact)", errexact);
         }
-        
+
         for (int NPT=1; NPT<=3; NPT++) {
             double t = 0.0;
             SpectralPropagator P(NPT);
@@ -200,7 +210,7 @@ void test1(World& world) {
             }
 
             print("NPT =", NPT, "err(exact t=11dt)", errexact);
-            
+
         }
     }
 }
@@ -245,14 +255,14 @@ double atom_position(double current_time) {
     return x0 + velocity*current_time;
 }
 
-class PsiExact : public FunctionFunctorInterface<double_complex,1> 
+class PsiExact : public FunctionFunctorInterface<double_complex,1>
 {
     const double current_time;
     const double atom_x;
 public:
-    PsiExact(double current_time) 
+    PsiExact(double current_time)
         : current_time(current_time)
-        , atom_x(atom_position(current_time)) 
+        , atom_x(atom_position(current_time))
     {}
 
     // Exact solution ... (H-E)psi is accurate to 2e-7 or better inside Maple
@@ -262,7 +272,7 @@ public:
         if (fabs(x) > 9.0) return 0.0;
 
         const double xsq = x*x;
-        
+
         // Horner's form for stability ... yes, it is 70-order polyn ... don't panic ... all is OK
 
         const double psi = exp(-1.30*xsq)*(-1.02151632756275513018719494826+(.522210612113707231536059971069+(-.378478352719362210706386739834+(.183732263756009855463432582593+(-0.866826311335724362186706464428e-1+(0.364601910940641762284283418688e-1+(-0.144289291226899801775738667691e-1+(0.536464813679927807734520149659e-2+(-0.188945345474975346004237994967e-2+(0.628725522158030920219217207400e-3+(-0.195986657875763402765072721284e-3+(0.563993909330309881048156461300e-4+(-0.147273758530730072646826354339e-4+(0.343202525037692780236348165792e-5+(-7.03765391498970506694108123682e-7+(1.25577395245191089173671652503e-7+(-1.93270666918809750376161513191e-8+(2.54624395753990033043923369519e-9+(-2.84968491109847694778452937732e-10+(2.68398879018928855922002181223e-11+(-2.09811331054703124038096336404e-12+(1.32869596552058891546970129944e-13+(-6.47453843054578193348503832223e-15+(2.08146181239264250219157355910e-16+(-8.27692933283146365185698371000e-19+(-4.21076100567125673420604632290e-19+(3.34873683682880953223636900553e-20+(-1.62840449033428572820374528252e-21+(5.80781234060753332169593869292e-23+(-1.58754665363960354625758075480e-24+(3.34792415609741263184593450566e-26+(-5.37727687523701580992550859153e-28+(6.37706272777548158355242766766e-30+(-5.27154378837014394526580093435e-32+(2.71430533655911926094030668033e-34-6.55694230766452931026127498540e-37*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq)*xsq);
@@ -274,7 +284,7 @@ public:
     }
 };
 
-class Vnuclear : public FunctionFunctorInterface<double,1> 
+class Vnuclear : public FunctionFunctorInterface<double,1>
 {
     const double atom_x;
 public:
@@ -291,24 +301,24 @@ public:
 
 complex_function_1d APPLY(complex_operatorT* q1d, const complex_function_1d& psi) {
     psi.reconstruct();
-    
-    psi.broaden(); 
+
     psi.broaden();
     psi.broaden();
     psi.broaden();
-    psi.broaden(); 
-    
+    psi.broaden();
+    psi.broaden();
+
     complex_function_1d r = apply_1d_realspace_push(*q1d, psi, 0);
     r.sum_down();
     return r;
 }
 
-complex_operatorT* MAKE_PROPAGATOR(World& world, double t) 
+complex_operatorT* MAKE_PROPAGATOR(World& world, double t)
 {
     return qm_1d_free_particle_propagator(k, c, t, 2.0*L);
 }
 
-template <typename T> 
+template <typename T>
 std::pair<bool, T> find_fuzzy(double t, const std::vector< std::pair<double,T> >& cache) {
     for (unsigned int i=0; i<cache.size(); i++) {
         if (std::fabs(cache[i].first - t) < 1e-12*t) {
@@ -396,7 +406,7 @@ void test2(World& world) {
 
     world.gop.broadcast(NPT);
     world.gop.broadcast(tstep);
-	
+
     int nstep = (velocity==0) ? 100 : int((L - 10 - x0)/velocity/tstep);
 
     if (world.rank() == 0) {
@@ -414,7 +424,7 @@ void test2(World& world) {
     for (int step=0; step<nstep; step++) {
         if ((step%10) == 0) print_info(world, t, psi, step);
         if (velocity==0) print("PHASE", inner(psi,psi0), exp(double_complex(0.0,-energy_exact*t)));
-        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0, true); 
+        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0, true);
         psi.truncate();
 
         t += tstep;
