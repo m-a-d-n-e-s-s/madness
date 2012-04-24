@@ -402,7 +402,7 @@ void test2(World& world) {
 
     // These should be input
     double tstep = 10.0*tcrit;
-    int NPT = 1;
+    int NPT = 2;
 
     world.gop.broadcast(NPT);
     world.gop.broadcast(tstep);
@@ -422,9 +422,10 @@ void test2(World& world) {
     SpectralPropagator P(NPT);
     double t = 0.0;
     for (int step=0; step<nstep; step++) {
-        if ((step%10) == 0) print_info(world, t, psi, step);
+        //if ((step%10) == 0) 
+        print_info(world, t, psi, step);
         if (velocity==0) print("PHASE", inner(psi,psi0), exp(double_complex(0.0,-energy_exact*t)));
-        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0, true);
+        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0); //, true, true); 
         psi.truncate();
 
         t += tstep;

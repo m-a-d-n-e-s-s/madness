@@ -110,7 +110,8 @@ namespace madness {
         const int NPT;          ///< Number of quadrature points
         std::vector<double> x;  ///< Quadrature points on [0,1] with value 0 prepended
         std::vector<double> w;  ///< Quadrature weights on [0,1] with value 0 prepended
-
+        SpectralPropagator* q;
+        
         /// Private: Makes interpolating polyn p[i](t), i=0..NPT
         double p(int i, double t) {
             double top=1.0, bot=1.0;
@@ -135,18 +136,76 @@ namespace madness {
             return U;
         }
 
+        // Separated this out to enable recursive use of solver ... but this 
+        // turned out to be largely not useful.
+        template <typename uT, typename expLT, typename NT>
+        std::vector<uT> solve(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps, bool doprint, bool recurinit, int& napp) {
+            if (doprint) madness::print("solving with NPT", NPT);
+            std::vector<uT> v(NPT+1,u0);
+
+            if (!recurinit || NPT==1) {
+                // Initialize using explicit first-order accurate rule
+                for (int i=1; i<=NPT; i++) {
+                    double dt = x[i] - x[i-1];
+                    v[i] = expL(dt*Delta,v[i-1]);
+                    v[i] += expL(Delta*dt,N(t+Delta*x[i-1],v[i-1]))*(dt*Delta);
+                }
+            }
+            else {
+                std::vector<uT> vx = q->solve(t, Delta, u0, expL, N, eps*1000.0, doprint, recurinit, napp);
+                for (int i=1; i<=NPT; i++) {
+                    v[i] = q->u(x[i],vx);
+                }
+            }
+
+            // Precompute G(x[1]-x[0])*v[0]
+            uT Gv0 = expL((x[1] - x[0])*Delta,v[0]); napp++;
+
+            // Crude fixed point iteration
+            uT vold = v[NPT]; // Track convergence thru change at last quadrature point
+            bool converged = false;
+            for (int iter=0; iter<20; iter++) {
+                for (int i=1; i<=NPT; i++) {
+                    double dt = x[i] - x[i-1];
+                    uT vinew = (i==0) ? Gv0*1.0 : expL(dt*Delta,v[i-1]); // *1.0 in case copy is shallow
+                    if (i != 0) napp++;
+                    for (int k=1; k<=NPT; k++) {
+                        double ddt = x[i-1] + dt*x[k];
+                        vinew += expL(dt*Delta*(1.0-x[k]), N(t + Delta*ddt, u(ddt, v)))*(dt*Delta*w[k]); napp++;
+                    }
+                    v[i] = vinew;
+                }
+                double err = distance(v[NPT],vold);
+                vold = v[NPT];
+                if (doprint) print("spectral",iter,err);
+                converged = (err < eps);
+                if (converged) break;
+            }
+            if (!converged) throw "spectral propagator failed to converge";
+
+            return v;
+        }
+
     public:
         /// Construct propagator using \c NPT points
 	SpectralPropagator(int NPT)
             : NPT(NPT)
             , x(NPT+1)
             , w(NPT+1)
+            , q(0)
         {
             x[0] = w[0] = 0.0;
             MADNESS_ASSERT(gauss_legendre(NPT, 0.0, 1.0, &x[1], &w[1]));
 
             std::reverse(x.begin()+1, x.end());
             std::reverse(w.begin()+1, w.end());
+
+            if (NPT > 1) q = new SpectralPropagator(NPT-1);
+        }
+
+        ~SpectralPropagator() 
+        {
+            delete q;
         }
 
         /// Step forward in time from \f$ t \f$ to \f$ t+\Delta \f$
@@ -159,6 +218,9 @@ namespace madness {
         /// @param[in] u0 The solution at the current time
         /// @param[in] expL A function or functor to compute \f$ \exp{\tau \hat{L}} u \f$  for \f$ \tau \in (0,\Delta) \f$
         /// @param[in] N A function to compute the non-linear part
+        /// @param[in] eps Threshold for convergence of iteration on norm of change in solution at last quadrature point.
+        /// @param[in] doprint If true will print some info on convergence
+        /// @param[in] recurinit If true initial guess is recursion from lower order quadrature instead of default explicit rule (default is usually best)
         /// @returns The solution at time \f$ t+\Delta \f$
         ///
         /// The user provided operators are invoked as
@@ -172,9 +234,10 @@ namespace madness {
         /// \endcode
         /// where \f$ T \in (t,t+\Delta) \f$ and \f$ u \f$ is a trial solution at time \f$ T \f$.
         template <typename uT, typename expLT, typename NT>
-        uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false) {
-            std::vector<uT> v(NPT+1,u0);
+        uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false, bool recurinit=false) {
             int napp = 0;
+            
+            std::vector<uT> v = solve(t, Delta, u0, expL, N, eps, doprint, recurinit, napp);
 
             // Initialize using explicit first-order accurate rule
             for (int i=1; i<=NPT; i++) {
