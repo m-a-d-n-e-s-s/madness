@@ -140,7 +140,8 @@ void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf,
     }
 }
 
-void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int& nPhoton, double& cutoff) {
+void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int&
+        nPhoton, double& cutoff, double& Llarge) {
     std::string tag;
     double Rx, Ry, Rz;
     double omega;
@@ -200,6 +201,10 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 }
                 PRINTLINE( "cutoff = " << cutoff );
             }
+            else if (tag == "Llarge") {
+                f >> Llarge;
+                PRINTLINE("Llarge = " << Llarge);
+            }
         }
     }
     f.close();
@@ -231,6 +236,7 @@ int main(int argc, char** argv) {
     double L = M_PI;
     double Z = 1.0;
     double cutoff = L;
+    double Llarge = L;
     int    nGrid = 5;
     double th = M_PI;
     double phi = 1.0;
@@ -241,7 +247,7 @@ int main(int argc, char** argv) {
     bool   asciiFile = false;
     bool   coordEdge = false;
     bool   plotDX    = false;
-    loadParameters(world, thresh, k, L, Z, nPhoton, cutoff);
+    loadParameters(world, thresh, k, L, Z, nPhoton, cutoff, Llarge);
     loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
@@ -256,6 +262,7 @@ int main(int argc, char** argv) {
     try{
         //LOAD Psi(t) -> psiIT
         PRINTLINE("cutoff = " << cutoff);
+        PRINTLINE("Llarge = " << Llarge);
         std::ifstream f("wf.num");
         if( !f.is_open() ) {
             PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
@@ -280,7 +287,7 @@ int main(int argc, char** argv) {
                     ///xMax: the largest x & z coordinate
                     ///An odd number of grid points ensures zero is a gird point
                     int n = 2*nGrid + 1;
-                    const double xMax = cutoff;
+                    const double xMax = Llarge;
                     const double dr = xMax/nGrid;
                     float buffer[n+1];
                     // coordEdge pads the matrix with the coordinates
