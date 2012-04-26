@@ -2758,15 +2758,15 @@ struct Calculation {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
 
-        if(world.rank() == 0) {
+        if (world.rank() == 0) {
             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
             print("Analysis of alpha MO vectors");
         }
 
         analyze_vectors(world, amo, aocc, aeps);
-        if(param.nbeta && !param.spin_restricted){
-            if(world.rank() == 0)
+        if (param.nbeta && !param.spin_restricted) {
+            if (world.rank() == 0)
                 print("Analysis of beta MO vectors");
 
             analyze_vectors(world, bmo, bocc, beps);
