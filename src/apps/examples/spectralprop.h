@@ -175,7 +175,7 @@ namespace madness {
                     }
                     v[i] = vinew;
                 }
-                double err = distance(v[NPT],vold);
+                double err = ::madness::distance(v[NPT],vold);
                 vold = v[NPT];
                 if (doprint) print("spectral",iter,err);
                 converged = (err < eps);
@@ -262,7 +262,7 @@ namespace madness {
                     }
                     v[i] = vinew;
                 }
-                double err = madness::distance(v[NPT],vold);
+                double err = ::madness::distance(v[NPT],vold);
                 vold = v[NPT];
                 if (doprint) print("spectral",iter,err);
                 if (err < eps) break;
@@ -379,7 +379,7 @@ namespace madness {
                     }
                     v[i] = vinew;
                 }
-                double err = distance(vold, v[NPT-1]);
+                double err = ::madness::distance(vold, v[NPT-1]);
                 if (doprint) print("hello",iter,err);
                 vold = v[NPT-1];
                 if (err < eps) break;
