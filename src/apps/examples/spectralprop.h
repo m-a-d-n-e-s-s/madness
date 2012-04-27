@@ -152,7 +152,8 @@ namespace madness {
                 }
             }
             else {
-                std::vector<uT> vx = q->solve(t, Delta, u0, expL, N, eps*1000.0, doprint, recurinit, napp);
+                // Recur down to lower-order quadrature rules for initial guess
+                std::vector<uT> vx = q->solve(t, Delta, u0, expL, N, eps*10000.0, doprint, recurinit, napp);
                 for (int i=1; i<=NPT; i++) {
                     v[i] = q->u(x[i],vx);
                 }
@@ -197,6 +198,8 @@ namespace madness {
             x[0] = w[0] = 0.0;
             MADNESS_ASSERT(gauss_legendre(NPT, 0.0, 1.0, &x[1], &w[1]));
 
+            // The iterative solution requires quadrature points in increasing
+            // order corresponding to shooting forward.
             std::reverse(x.begin()+1, x.end());
             std::reverse(w.begin()+1, w.end());
 
@@ -220,7 +223,7 @@ namespace madness {
         /// @param[in] N A function to compute the non-linear part
         /// @param[in] eps Threshold for convergence of iteration on norm of change in solution at last quadrature point.
         /// @param[in] doprint If true will print some info on convergence
-        /// @param[in] recurinit If true initial guess is recursion from lower order quadrature instead of default explicit rule (default is usually best)
+        /// @param[in] recurinit If true initial guess is recursion from lower order quadrature instead of default explicit rule
         /// @returns The solution at time \f$ t+\Delta \f$
         ///
         /// The user provided operators are invoked as
@@ -234,40 +237,13 @@ namespace madness {
         /// \endcode
         /// where \f$ T \in (t,t+\Delta) \f$ and \f$ u \f$ is a trial solution at time \f$ T \f$.
         template <typename uT, typename expLT, typename NT>
-        uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false, bool recurinit=false) {
+        uT step(double t, double Delta, const uT& u0, const expLT& expL, const NT& N, const double eps=1e-12, bool doprint=false, bool recurinit=true) {
             int napp = 0;
             
+            // Compute solution at quadrature points
             std::vector<uT> v = solve(t, Delta, u0, expL, N, eps, doprint, recurinit, napp);
 
-            // Initialize using explicit first-order accurate rule
-            for (int i=1; i<=NPT; i++) {
-                double dt = x[i] - x[i-1];
-                v[i] = expL(dt*Delta,v[i-1]);
-                v[i] += expL(Delta*dt,N(t+Delta*x[i-1],v[i-1]))*(dt*Delta);
-            }
-
-            // Precompute G(x[1]-x[0])*v[0]
-            uT Gv0 = expL((x[1] - x[0])*Delta,v[0]); napp++;
-
-            // Crude fixed point iteration
-            uT vold = v[NPT]; // Track convergence thru change at last quadrature point
-            for (int iter=0; iter<12; iter++) {
-                for (int i=1; i<=NPT; i++) {
-                    double dt = x[i] - x[i-1];
-                    uT vinew = (i==0) ? Gv0*1.0 : expL(dt*Delta,v[i-1]); // *1.0 in case copy is shallow
-                    if (i != 0) napp++;
-                    for (int k=1; k<=NPT; k++) {
-                        double ddt = x[i-1] + dt*x[k];
-                        vinew += expL(dt*Delta*(1.0-x[k]), N(t + Delta*ddt, u(ddt, v)))*(dt*Delta*w[k]); napp++;
-                    }
-                    v[i] = vinew;
-                }
-                double err = ::madness::distance(v[NPT],vold);
-                vold = v[NPT];
-                if (doprint) print("spectral",iter,err);
-                if (err < eps) break;
-            }
-
+            // Integrate forward from last quadrature point to the end point
             double dt = 1.0 - x[NPT];
             uT vinew = expL(dt*Delta,v[NPT]);
             for (int k=1; k<=NPT; k++) {

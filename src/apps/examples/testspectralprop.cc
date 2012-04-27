@@ -372,8 +372,9 @@ void print_info(World& world, double current_time, const complex_function_1d& ps
     double ke = inner(dpsi,dpsi).real() * 0.5;
     double pe = psi.inner(psi*(double_complex(1,0)*potn)).real(); // +psi*conj(psi)
     double norm = psi.norm2();
-
     double err = psi.err(PsiExact(current_time));
+    ke /= norm*norm;
+    pe /= norm*norm;
 
     if (world.rank() > 0) return;
     if ((step%40) == 0) {
@@ -402,7 +403,7 @@ void test2(World& world) {
 
     // These should be input
     double tstep = 10.0*tcrit;
-    int NPT = 2;
+    int NPT = 3;
 
     world.gop.broadcast(NPT);
     world.gop.broadcast(tstep);
@@ -425,7 +426,7 @@ void test2(World& world) {
         //if ((step%10) == 0) 
         print_info(world, t, psi, step);
         if (velocity==0) print("PHASE", inner(psi,psi0), exp(double_complex(0.0,-energy_exact*t)));
-        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0); //, true, true); 
+        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0); //, true, false); 
         psi.truncate();
 
         t += tstep;
