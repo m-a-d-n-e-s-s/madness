@@ -65,6 +65,12 @@
     (the unit sphere).
 
     The analytical solution \b inside the sphere is \f$u(\vec{x}) = z\f$.
+
+    References:
+    [1] X. Li, J. Lowengrub, A. Ratz, A. Voigt. Commun. Math. Sci. 7, 81
+        (2009).
+    [2] M. G. Reuter, J. C. Hill, R. J. Harrison. Comput. Phys. Commun. 183,
+        1 (2012).
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
