@@ -387,7 +387,7 @@ namespace madness {
     void GMRES(const AbstractVectorSpace<T, real_type, scalar_type> &space,
         const Operator<T> &op, const T &b, T &x, int &maxiters,
         real_type &resid_thresh, real_type &update_thresh,
-        const bool outp = true) {
+        const bool outp = false) {
 
         int iter, i;
         long rank;
