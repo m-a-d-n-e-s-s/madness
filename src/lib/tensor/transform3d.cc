@@ -32,19 +32,6 @@
   $Id$
 */
 
-
-// #include <iostream>
-// #include <tensor/tensor.h>
-
-// namespace {
-//   template <typename T>
-//   inline T** create_2d_array(unsigned int d1, unsigned int d2);
-//   template <typename T>
-//   inline void delete_2d_array(T** A);
-// }
-//
-//namespace madness {
-
 /// optomized 3d transform
 /// c must be 2d tensor(matrix) and must square
 /// t must be 3d tensor and must be a cube
@@ -55,27 +42,111 @@
 /// result(i,j,k) <-- sum(i',j',k') A(i',j',k') C(i',i) C(j',j) C(k',k)
 /// \endcode
 ///
+
+#if MADNESS_TRANSFORM3D_NO_INTERMEDIATES
+
 template <class T>
 Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
     TENSOR_ASSERT(c.ndim == 2,"c must be 2d tensor(matrix)",c.ndim,&c);
     if ((t.ndim != 3) ||
-            (t.dim[0] != t.dim[1]) ||
-            (t.dim[0] != t.dim[2]) ||
-            (c.dim[0] != t.dim[0]) ||
-            (c.dim[0] != c.dim[1]) ||
-            (!t.iscontiguous()) ||
-            (!c.iscontiguous()))
+        (t.dim[0] != t.dim[1]) || (t.dim[0] != t.dim[2]) || (c.dim[0] != t.dim[0]) || (c.dim[0] != c.dim[1]) ||
+        (!t.iscontiguous()) || (!c.iscontiguous()) )
         return transform(t,c);
 
-    long d0 = c.dim[0];
-    long d0_squared = d0*d0;
-    long d0_cubed = d0_squared*d0;
+    Tensor<T> result = Tensor<T>(c.dim[1],c.dim[1],c.dim[1]);
+    T v_jpkpi[c.dim[0]][c.dim[0]];
+    T v_kpij[c.dim[0]];
+    T v_ijk;
+    long c_d0 = c.dim[0];
+    long c_d1 = c.dim[1];
 
-    // Tensor constructor returns a zero filled tensor
-    Tensor<T> result = Tensor<T>(d0,d0,d0);
+    // Transform along 1st dimension
+    for (long i = 0; i < c_d1; ++i) {
+        for (long kp = 0; kp < c_d0; ++kp) {
+            for (long jp = 0; jp < c_d0; ++jp) {
+                v_jpkpi[jp][kp] = (T)0;
+                for (long ip = 0; ip < c_d0; ++ip)
+                    v_jpkpi[jp][kp] += t(ip,jp,kp) * c(ip,i);
+            }
+        }
+
+        // Transform along 2nd dimension
+        for (long j = 0; j < c_d1; ++j) {
+            for (long kp = 0; kp < c_d0; ++kp) {
+                v_kpij[kp] = (T)0;
+                for (long jp = 0; jp < c_d0; ++jp)
+                    v_kpij[kp] +=  v_jpkpi[jp][kp] * c(jp,j);
+            }
+
+            // Transform along 3rd dimension
+            for (long k = 0; k < c_d1; ++k) {
+                v_ijk = (T)0;
+                for (long kp = 0; kp < c_d0; ++kp)
+                    v_ijk +=  v_kpij[kp] * c(kp,k);
+
+                result(i,j,k) = v_ijk;
+            }
+        }
+    }
+    return result;
+}
+
+#else // MADNESS_TRANSFORM3D_NO_INTERMEDIATES
+
+template <class T>
+Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
+    TENSOR_ASSERT(c.ndim == 2,"c must be 2d tensor(matrix)",c.ndim,&c);
+    if ((t.ndim != 3) ||
+        (t.dim[0] != t.dim[1]) || (t.dim[0] != t.dim[2]) || (c.dim[0] != t.dim[0]) || (c.dim[0] != c.dim[1]) ||
+        (!t.iscontiguous()) || (!c.iscontiguous()))
+        return transform(t,c);
+
 #ifdef IBMXLC
     TENSOR_ASSERT(c.dim[0] < 36,"hard dimension failure",c.dim[0],&c);
 #endif
+
+    long d0       = c.dim[0];
+    long d0_sqred = d0*d0;
+    long d0_cubed = d0_sqred*d0;
+
+#ifdef MADNESS_TRANSFORM3D_COPYANDPAD
+
+    long d0_qpx       = (d0+3)/4;
+    long d0_sqred_qpx = d0_qpx*d0_qpx;
+    long d0_cubed_qpx = d0_sqred_qpx*d0_qpx;
+
+    // Tensor constructor returns a zero filled tensor
+    Tensor<T> result = Tensor<T>(d0_qpx,d0_qpx,d0_qpx);
+    T* tmp = new T[d0_cubed_qpx];
+
+    T* restrict r_p = result.ptr();
+    T* restrict t_p = t.ptr();
+    T* restrict c_p = c.ptr();
+    T* restrict tmp_p = tmp;
+
+    for (long i=0; i<d0_cubed_qpx; ++i)
+        tmp[i] = (T)0;
+
+    // both result and tmp are zero filled at this point
+    // Transform along 1st dimension
+    // result gets "result"
+    mTxm(d0_sqred_qpx, d0_qpx, d0_qpx, r_p, t_p, c_p);
+
+    // Transform along 2nd dimension
+    // tmp gets "result"
+    mTxm(d0_sqred_qpx, d0_qpx, d0_qpx, tmp_p, r_p, c_p);
+
+    // Transform along 3rd dimension
+    result.fill(0);
+    // result gets "result"
+    mTxm(d0_sqred_qpx, d0_qpx, d0_qpx, r_p, tmp_p, c_p);
+
+    delete[] tmp;
+
+#else // MADNESS_TRANSFORM3D_COPYANDPAD
+
+    // Tensor constructor returns a zero filled tensor
+    Tensor<T> result = Tensor<T>(d0,d0,d0);
     T* tmp = new T[d0_cubed];
 
     T* restrict r_p = result.ptr();
@@ -89,31 +160,32 @@ Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
     // both result and tmp are zero filled at this point
     // Transform along 1st dimension
     // result gets "result"
-    mTxm(d0_squared, d0, d0, r_p, t_p, c_p);
+    mTxm(d0_sqred, d0, d0, r_p, t_p, c_p);
 
     // Transform along 2nd dimension
     // tmp gets "result"
-    mTxm(d0_squared, d0, d0, tmp_p, r_p, c_p);
+    mTxm(d0_sqred, d0, d0, tmp_p, r_p, c_p);
 
     // Transform along 3rd dimension
     result.fill(0);
     // result gets "result"
-    mTxm(d0_squared, d0, d0, r_p, tmp_p, c_p);
+    mTxm(d0_sqred, d0, d0, r_p, tmp_p, c_p);
 
     delete[] tmp;
+
+#endif // MADNESS_TRANSFORM3D_COPYANDPAD
+
     return result;
 }
+
+#endif // MADNESS_TRANSFORM3D_NO_INTERMEDIATES
 
 
 Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor<double>& c) {
     TENSOR_ASSERT(c.ndim == 2,"c must be 2d tensor(matrix)",c.ndim,&c);
     if ((t.ndim != 3) ||
-            (t.dim[0] != t.dim[1]) ||
-            (t.dim[0] != t.dim[2]) ||
-            (c.dim[0] != t.dim[0]) ||
-            (c.dim[0] != c.dim[1]) ||
-            (!t.iscontiguous()) ||
-            (!c.iscontiguous()))
+        (t.dim[0] != t.dim[1]) || (t.dim[0] != t.dim[2]) || (c.dim[0] != t.dim[0]) || (c.dim[0] != c.dim[1]) ||
+        (!t.iscontiguous()) || (!c.iscontiguous()))
         TENSOR_EXCEPTION("transform3d:double_complex*double",0,&t);
 
     Tensor<double_complex> result = Tensor<double_complex>(c.dim[1],c.dim[1],c.dim[1]);
@@ -121,7 +193,6 @@ Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor
     double_complex v_jpkpi[c.dim[0]][c.dim[0]];
     double_complex v_kpij[c.dim[0]];
 #endif
-    //double_complex** v_jpkpi = ::create_2d_array<double_complex>(c.dim[0],c.dim[0]);
     TENSOR_ASSERT(c.dim[0] < 36,"hard dimension failure",c.dim[0],&c);
     double_complex v_kpjpi[36][36];
     double_complex* v_kpij = new double_complex[c.dim[0]];
@@ -162,70 +233,6 @@ Tensor<double_complex> transform3d(const Tensor<double_complex>& t, const Tensor
     return result;
 }
 
-#if 0
-
-// this seems to perform best on my G4
-
-/// optomized 3d transform
-/// c must be 2d tensor(matrix) and must square
-/// t must be 3d tensor and must be a cube
-/// t and c dims must match
-/// t and c must be contiguous
-///
-/// \code
-/// result(i,j,k) <-- sum(i',j',k') A(i',j',k') C(i',i) C(j',j) C(k',k)
-/// \endcode
-///
-template <class T>
-Tensor<T> transform3d(const Tensor<T>& t, const Tensor<T>& c) {
-    TENSOR_ASSERT(c.ndim == 2,"c must be 2d tensor(matrix)",c.ndim,&c);
-    if ((t.ndim != 3) ||
-            (t.dim[0] != t.dim[1]) ||
-            (t.dim[0] != t.dim[2]) ||
-            (c.dim[0] != t.dim[0]) ||
-            (c.dim[0] != c.dim[1]) ||
-            (!t.iscontiguous()) ||
-            (!c.iscontiguous()))
-        return transform(t,c);
-
-    Tensor<T> result = Tensor<T>(c.dim[1],c.dim[1],c.dim[1]);
-    T v_jpkpi[c.dim[0]][c.dim[0]];
-    T v_kpij[c.dim[0]];
-    T v_ijk;
-    long c_d0 = c.dim[0];
-    long c_d1 = c.dim[1];
-
-    // Transform along 1st dimension
-    for (long i = 0; i < c_d1; ++i) {
-        for (long kp = 0; kp < c_d0; ++kp) {
-            for (long jp = 0; jp < c_d0; ++jp) {
-                v_jpkpi[jp][kp] = (T)0;
-                for (long ip = 0; ip < c_d0; ++ip)
-                    v_jpkpi[jp][kp] += t(ip,jp,kp) * c(ip,i);
-            }
-        }
-
-        // Transform along 2nd dimension
-        for (long j = 0; j < c_d1; ++j) {
-            for (long kp = 0; kp < c_d0; ++kp) {
-                v_kpij[kp] = (T)0;
-                for (long jp = 0; jp < c_d0; ++jp)
-                    v_kpij[kp] +=  v_jpkpi[jp][kp] * c(jp,j);
-            }
-
-            // Transform along 3rd dimension
-            for (long k = 0; k < c_d1; ++k) {
-                v_ijk = (T)0;
-                for (long kp = 0; kp < c_d0; ++kp)
-                    v_ijk +=  v_kpij[kp] * c(kp,k);
-
-                result(i,j,k) = v_ijk;
-            }
-        }
-    }
-    return result;
-}
-#endif
 
 /// optomized 3d transform with three different C's
 /// all three c must be 2d tensor(matrix) and must square
@@ -251,15 +258,16 @@ Tensor<T> transform3d_3c(const Tensor<T>& t,
     TENSOR_ASSERT((c0.dim[0] == c1.dim[0]) && (c0.dim[0] == c2.dim[0]),"c's dims must be equal",0,0);
     TENSOR_ASSERT((t.iscontiguous() && c0.iscontiguous() && c1.iscontiguous() && c2.iscontiguous()),"t and c must be contiguous",t.ndim,&t);
 
+#ifdef IBMXLC
+    TENSOR_ASSERT(c0.dim[0] < 36,"hard dimension failure",c0.dim[0],&c0);
+#endif
+
     long d0 = c0.dim[0];
     long d0_squared = d0*d0;
     long d0_cubed = d0_squared*d0;
 
     // Tensor constructor returns a zero filled tensor
     Tensor<T> result = Tensor<T>(d0,d0,d0);
-#ifdef IBMXLC
-    TENSOR_ASSERT(c0.dim[0] < 36,"hard dimension failure",c0.dim[0],&c0);
-#endif
     T* tmp = new T[d0_cubed];
 
     T* restrict r_p = result.ptr();
@@ -299,25 +307,3 @@ template Tensor<double> transform3d_3c(const Tensor<double>& t,
                                        const Tensor<double>& c2);
 
 
-//}
-
-/*
-  namespace {
-
-  template <typename T>
-  inline T** create_2d_array(unsigned int d1, unsigned int d2) {
-  if (d1 == 0 || d2 == 0) return 0;
-  T** result = new T*[d1];
-  result[0] = new T[d1*d2];
-  for(unsigned int i=1; i<d1; ++i) result[i] = result[i-1] + d2;
-
-  return result;
-  }
-
-  template <typename T>
-  inline void delete_2d_array(T** A) {
-  delete[] A[0];
-  delete[] A;
-  }
-  }
-*/
