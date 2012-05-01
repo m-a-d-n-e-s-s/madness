@@ -81,24 +81,24 @@ namespace MPI {
         }
     };
 
-    void Finalize() {
+    inline void Finalize() {
         return;
     }
 
-    bool Is_finalized() {
+    inline bool Is_finalized() {
          return true;
     }
 
-    int Init_thread(int &argc, char **&argv, int required) {
+    inline int Init_thread(int &argc, char **&argv, int required) {
             return THREAD_SERIALIZED; /* none of the functions defined in this file have side-effects */
     }
 
 #ifdef MADNESS_USE_BSEND_ACKS
-    void Attach_buffer(void* buffer, int size) {
+    inline void Attach_buffer(void* buffer, int size) {
         return;
     }
 
-    int Detach_buffer(void*& buffer) {
+    inline int Detach_buffer(void*& buffer) {
         return 0;
     }
 #endif // MADNESS_USE_BSEND_ACKS
@@ -108,89 +108,89 @@ namespace MPI {
             return false;
         }
 
-        static bool Testany(int n, Request* request, int& ind) {
+        inline static bool Testany(int n, Request* request, int& ind) {
             return false;
         }
 
-        static int Testsome(int n, Request* request, int* ind, MPI::Status* status) {
+        inline static int Testsome(int n, Request* request, int* ind, MPI::Status* status) {
             return false;
         }
 
-        static int Testsome(int n, Request* request, int* ind) {
+        inline static int Testsome(int n, Request* request, int* ind) {
             return false;
         }
     };
 
     struct Intracomm {
-        int Get_rank() const {
+        inline int Get_rank() const {
             return 0;
         }
 
-        int Get_size() const {
+        inline int Get_size() const {
             return 1;
         }
 
-        Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        inline Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 
-        Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
+        inline Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
             throw "not implemented";
         }
 
-        void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        inline void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS
-        void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        inline void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 #endif // MADNESS_USE_BSEND_ACKS
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
+        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
             throw "not implemented";
         }
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
+        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
             throw "not implemented";
         }
 
-        void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
+        inline void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
             return;
         }
 
-        void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
+        inline void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
             /* TODO: support other build-in datatypes */
             if (datatype != BYTE) throw "die scum!";
             /* TODO use memmove or check for IN_PLACE */
             std::memcpy(recvbuf, sendbuf, count);
         }
 
-        void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
+        inline void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
             /* TODO: support other build-in datatypes */
             if (datatype != BYTE) throw "die scum!";
             /* TODO use memmove or check for IN_PLACE */
             std::memcpy(recvbuf, sendbuf, count);
         }
 
-        void Get_attr(int key, void* value) const {
+        inline void Get_attr(int key, void* value) const {
             throw "not implemented";
         }
 
-        void Abort(int code=1) const {
+        inline void Abort(int code=1) const {
             exit(code);
         }
 
-        void Barrier() const {
+        inline void Barrier() const {
             return;
         }
 
-        Intracomm Create(const MPI::Group& group) const {
+        inline Intracomm Create(const MPI::Group& group) const {
             return Intracomm();
         }
 
-        Group Get_group() const {
+        inline Group Get_group() const {
             return Group();
         }
 
