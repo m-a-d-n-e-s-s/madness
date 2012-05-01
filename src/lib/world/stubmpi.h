@@ -67,7 +67,7 @@ namespace MPI {
     };
 
     class Exception {
-        
+
     };
 
     struct Status {
@@ -108,89 +108,89 @@ namespace MPI {
             return false;
         }
 
-        inline static bool Testany(int n, Request* request, int& ind) {
+        static bool Testany(int n, Request* request, int& ind) {
             return false;
         }
 
-        inline static int Testsome(int n, Request* request, int* ind, MPI::Status* status) {
+        static int Testsome(int n, Request* request, int* ind, MPI::Status* status) {
             return false;
         }
 
-        inline static int Testsome(int n, Request* request, int* ind) {
+        static int Testsome(int n, Request* request, int* ind) {
             return false;
         }
     };
 
     struct Intracomm {
-        inline int Get_rank() const {
+        int Get_rank() const {
             return 0;
         }
 
-        inline int Get_size() const {
+        int Get_size() const {
             return 1;
         }
 
-        inline Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 
-        inline Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
+        Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
             throw "not implemented";
         }
 
-        inline void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS
-        inline void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
             throw "not implemented";
         }
 #endif // MADNESS_USE_BSEND_ACKS
 
-        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
+        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
             throw "not implemented";
         }
 
-        inline void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
+        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
             throw "not implemented";
         }
 
-        inline void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
+        void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
             return;
         }
 
-        inline void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
+        void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
             /* TODO: support other build-in datatypes */
             if (datatype != BYTE) throw "die scum!";
             /* TODO use memmove or check for IN_PLACE */
             std::memcpy(recvbuf, sendbuf, count);
         }
 
-        inline void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
+        void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
             /* TODO: support other build-in datatypes */
             if (datatype != BYTE) throw "die scum!";
             /* TODO use memmove or check for IN_PLACE */
             std::memcpy(recvbuf, sendbuf, count);
         }
 
-        inline void Get_attr(int key, void* value) const {
+        void Get_attr(int key, void* value) const {
             throw "not implemented";
         }
 
-        inline void Abort(int code=1) const {
+        void Abort(int code=1) const {
             exit(code);
         }
 
-        inline void Barrier() const {
+        void Barrier() const {
             return;
         }
 
-        inline Intracomm Create(const MPI::Group& group) const {
+        Intracomm Create(const MPI::Group& group) const {
             return Intracomm();
         }
 
-        inline Group Get_group() const {
+        Group Get_group() const {
             return Group();
         }
 
