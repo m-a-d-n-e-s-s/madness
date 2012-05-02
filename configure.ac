@@ -347,6 +347,8 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
        src/apps/jacob/Makefile
+       src/apps/interior_bc/Makefile
+       src/apps/interior_bc/nanophoto/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

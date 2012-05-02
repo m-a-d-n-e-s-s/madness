@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
 
     // the key data structure: sets up the problem details and projects
     // the initial functions
-    SharedPtr<TipSurface> tps(new TipSurface(eps, penalty, phi, d));
+    std::shared_ptr<TipSurface> tps(new TipSurface(eps, penalty, phi, d));
 
     if(world.rank() == 0) {
         // print out the arguments

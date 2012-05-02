@@ -50,10 +50,9 @@ typedef std::shared_ptr<GaussianBF> BasisFunc;
 
 /** \brief Abstract Atom class. */
 class Atom {
-    private:
+    protected:
         Atom() {}
 
-    protected:
         std::vector<BasisFunc> basis;
         Vector<double, 3> center;
 
@@ -75,17 +74,8 @@ class Atom {
             center[2] = c[2];
         }
 
-        virtual ~Atom() {
-            for(std::vector<BasisFunc>::iterator iter = basis.begin();
-                iter != basis.end();
-                ++iter) {
-
-                delete *iter;
-            }
-        }
-
         BasisFunc getBasisFunc(unsigned int n) {
-            assert(n >= 0 && n < basis.size());
+            MADNESS_ASSERT(n >= 0 && n < basis.size());
             return basis[n];
         }
 
@@ -99,7 +89,7 @@ class Atom {
 /** \brief Hydrogen atom */
 class Hydrogen : public Atom {
     private:
-        Hydrogen() : Atom(0) {}
+        Hydrogen() : Atom() {}
 
     public:
         Hydrogen(Vector<double, 3> &c)
@@ -128,7 +118,7 @@ class Hydrogen : public Atom {
 /** \brief Carbon atom */
 class Carbon : public Atom {
     private:
-        Carbon() : Atom(0) {}
+        Carbon() : Atom() {}
 
     public:
         Carbon(Vector<double, 3> &c)
@@ -202,7 +192,7 @@ class Carbon : public Atom {
 /** \brief Silicon atom */
 class Silicon : public Atom {
     private:
-        Silicon() : Atom(0) {}
+        Silicon() : Atom() {}
 
     public:
         Silicon(Vector<double, 3> &c)

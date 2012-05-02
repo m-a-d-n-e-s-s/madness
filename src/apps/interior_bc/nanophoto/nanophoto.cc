@@ -222,14 +222,14 @@ int main(int argc, char **argv) {
     real_function_3d usol;
     char arname[50];
     sprintf(arname, "solution/solution");
-    if(ParallelInputArchive::exists(world, arname)) {
+    if(archive::ParallelInputArchive::exists(world, arname)) {
         // read it in
         if(world.rank() == 0) {
             printf("Reading solution from archive\n");
             fflush(stdout);
         }
 
-        ParallelInputArchive input(world, arname, 10);
+        archive::ParallelInputArchive input(world, arname, 10);
         input & usol;
         input.close();
     }
@@ -290,7 +290,7 @@ int main(int argc, char **argv) {
         usol.scale(27211.385);
 
         // write the solution to archive
-        ParallelOutputArchive output(world, arname, 10);
+        archive::ParallelOutputArchive output(world, arname, 10);
         output & usol;
         output.close();
     }
