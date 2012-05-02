@@ -6081,8 +6081,11 @@ STARTt_TIMER;
             GPU_streams=streams_initialize(NUM_STREAMS, cublas_handle); 
 conds = 0;
 
-if (USE_CUSTOM_KERNELS){
-if (NDIM == 3 && k == 10){
+bool used_custom_kernel = false;
+
+#if USE_CUSTOM_KERNELS > 0
+if (NDIM == 3 && (k == 8 || k == 10)){
+used_custom_kernel = true;
 /*************************************** DUPLICATE WORK FOR FLOPS COUNT ***********************/
               
 STARTt_TIMER;
@@ -6274,8 +6277,9 @@ print("OP = ",(((unsigned long)conds)*2*large_comp) + (((unsigned long)conds)*2*
 ENDt_TIMER("comp 1");
 #endif
 }
-}
-else{
+#endif
+
+if (!used_custom_kernel){
 STARTt_TIMER;
                unsigned int * c_array = new unsigned int[inArgs.size()];
                for (i = 0; i < inArgs.size(); i++){

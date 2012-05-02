@@ -820,7 +820,8 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
 
     try {
-        doit(world);
+        //doit(world);
+        testbsh(world);
     } catch (const MPI::Exception& e) {
         //print(e); std::cout.flush();
         error("caught an MPI exception");
