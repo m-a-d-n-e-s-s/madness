@@ -32,8 +32,8 @@
 */
 
 /** \file test_problems.h
-    \brief Provides 2-D and 3-D test problems for examining the convergence of
-           embedded boundary conditions.
+    \brief Provides test problems for examining the convergence of
+           embedded (Dirichlet) boundary conditions.
 
     The auxiliary PDE being solved is
     \f[ \nabla^2 u - p(\varepsilon) S (u-g) = \varphi f, \f]
@@ -51,12 +51,12 @@
     The available test problems are
        -# A sphere of radius \f$R\f$ with \f$g = Y_0^0\f$, homogeneous
           (ConstantSphere)
-       -# A sphere of radius \f$R\f$ with \f$g = y_1^0\f$, homogeneous
+       -# A sphere of radius \f$R\f$ with \f$g = Y_1^0\f$, homogeneous
           (CosineSphere)
-       -# An ellipsoid of radii \f$(a=0.5, b=1.0, c=1.5)\f$ with \f$g = 2\f$,
-          inhomogeneous: \f$f = 4 (a^{-2} + b^{-2} + c^{-2})\f$ (Ellipsoid)
-       -# The unit circle with \f$g = 1/4 \f$, inhomogeneous:
-          \f$ f = 1 \f$ (Circle)
+       -# A sphere of radius \f$R\f$ with \f$g = Y_2^0\f$, homogeneous
+          (Y20Sphere)
+       -# A sphere of radius \f$R\f$ with \f$g = Y_0^0\f$, inhomogeneous
+          \f$ f = 1 \f$ (InhomoConstantSphere)
 
     This file sets up the various details of the problems... the main program
     is found in embedded_dirichlet.cc. */
@@ -67,7 +67,6 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <mra/sdf_shape_2D.h>
 #include <mra/sdf_shape_3D.h>
 #include <string>
 
@@ -101,8 +100,7 @@ struct DirichletLBCost {
 };
 
 /** \brief Abstract base class for embedded Dirichlet problems. */
-template<int NDIM>
-class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
+class EmbeddedDirichlet : public FunctionFunctorInterface<double, 3> {
     private:
         EmbeddedDirichlet() {}
         int initial_level;
@@ -112,7 +110,7 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
 
     protected:
         DomainMaskInterface *dmi;
-        SignedDFInterface<NDIM> *sdfi;
+        SignedDFInterface<3> *sdfi;
         double penalty_prefact, eps;
         std::string problem_name;
         std::string problem_specific_info;
@@ -138,18 +136,13 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
               sdfi(NULL), penalty_prefact(penalty_prefact), eps(eps),
               fop(DIRICHLET_RHS) {
 
-            FunctionDefaults<NDIM>::set_k(k);
-            FunctionDefaults<NDIM>::set_cubic_cell(-2.0, 2.0);
-            FunctionDefaults<NDIM>::set_thresh(thresh);
-            FunctionDefaults<NDIM>::set_truncate_on_project(true);
-
             // calculate some nice initial projection level
             // should be no lower than 6, but may need to be higher for small
             // eps
             initial_level = ceil(log(4.0 / eps) / log(2.0) - 4);
             if(initial_level < 6)
                 initial_level = 6;
-            FunctionDefaults<NDIM>::set_initial_level(initial_level);
+            FunctionDefaults<3>::set_initial_level(initial_level);
 
             switch(mask) {
             case LLRV:
@@ -174,13 +167,13 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
         }
 
         /// \brief Load balances using the provided Function
-        void load_balance(World &world, const Function<double, NDIM> &f)
+        void load_balance(World &world, const Function<double, 3> &f)
             const {
 
-            LoadBalanceDeux<NDIM> lb(world);
-            lb.add_tree(f, DirichletLBCost<NDIM>(1.0, 1.0));
+            LoadBalanceDeux<3> lb(world);
+            lb.add_tree(f, DirichletLBCost<3>(1.0, 1.0));
             // set this map as the default
-            FunctionDefaults<NDIM>::redistribute(world, lb.load_balance(2.0,
+            FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,
                 false));
         }
 
@@ -196,7 +189,7 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
         }
 
         /// \brief The operator for projecting a MADNESS function.
-        double operator() (const Vector<double, NDIM> &x) const {
+        double operator() (const Vector<double, 3> &x) const {
             switch(fop) {
             case EXACT:
                 return ExactSol(x);
@@ -223,27 +216,27 @@ class EmbeddedDirichlet : public FunctionFunctorInterface<double, NDIM> {
             }
         }
 
-        virtual double DirichletCond(const Vector<double, NDIM> &x) const = 0;
+        virtual double DirichletCond(const Vector<double, 3> &x) const = 0;
 
-        virtual double ExactSol(const Vector<double, NDIM> &x) const = 0;
+        virtual double ExactSol(const Vector<double, 3> &x) const = 0;
 
-        virtual double Inhomogeneity(const Vector<double, NDIM> &x) const = 0;
+        virtual double Inhomogeneity(const Vector<double, 3> &x) const = 0;
 
-        /// \brief The surface area (3-D) or perimeter (2-D) of the domain
+        /// \brief The surface area of the domain
         virtual double SurfaceIntegral() const = 0;
 
-        /// \brief The volume (3-D) or area (2-D) of the domain
+        /// \brief The volume of the domain
         virtual double VolumeIntegral() const = 0;
 
         /// \brief A list of points where we should compare the computed
         ///        solution to the exact solution
-        virtual std::vector< Vector<double, NDIM> > check_pts() const {
-            return std::vector< Vector<double, NDIM> >();
+        virtual std::vector< Vector<double, 3> > check_pts() const {
+            return std::vector< Vector<double, 3> >();
         }
 };
 
 /** \brief The constant on a sphere problem */
-class ConstantSphere : public EmbeddedDirichlet<3> {
+class ConstantSphere : public EmbeddedDirichlet {
     protected:
         double radius;
 
@@ -252,7 +245,7 @@ class ConstantSphere : public EmbeddedDirichlet<3> {
     public:
         ConstantSphere(int k, double thresh, double eps, std::string penalty_name,
             double penalty_prefact, double radius, Mask mask)
-            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+            : EmbeddedDirichlet(penalty_prefact, penalty_name, eps, k,
               thresh, mask), radius(radius) {
 
             char str[80];
@@ -309,7 +302,7 @@ class ConstantSphere : public EmbeddedDirichlet<3> {
 };
 
 /** \brief The constant on a sphere problem, with inhomogeneity */
-class InhomoConstantSphere : public EmbeddedDirichlet<3> {
+class InhomoConstantSphere : public EmbeddedDirichlet {
     protected:
         double radius;
 
@@ -318,7 +311,7 @@ class InhomoConstantSphere : public EmbeddedDirichlet<3> {
     public:
         InhomoConstantSphere(int k, double thresh, double eps, std::string penalty_name,
             double penalty_prefact, double radius, Mask mask)
-            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+            : EmbeddedDirichlet(penalty_prefact, penalty_name, eps, k,
               thresh, mask), radius(radius) {
 
             char str[80];
@@ -374,160 +367,8 @@ class InhomoConstantSphere : public EmbeddedDirichlet<3> {
         }
 };
 
-/** \brief The ellipsoid problem */
-class Ellipsoid : public EmbeddedDirichlet<3> {
-    protected:
-        Vector<double, 3> radii;
-
-        bool isHomogeneous() const { return false; }
-
-    public:
-        Ellipsoid(int k, double thresh, double eps, std::string penalty_name,
-            double penalty_prefact, Mask mask)
-            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
-              thresh, mask) {
-
-            radii[0] = 0.5;
-            radii[1] = 1.0;
-            radii[2] = 1.5;
-
-            char str[80];
-            sprintf(str, "Ellipsoid radii: %.6e %.6e %.6e\n", radii[0],
-                radii[1], radii[2]);
-            problem_specific_info = str;
-            problem_name = "Ellipsoid";
-
-            // set up the domain masks, etc.
-            coord_3d pt(0.0); // origin
-            sdfi = new SDFEllipsoid(radii, pt);
-        }
-
-        double DirichletCond(const Vector<double, 3> &x) const {
-            return 2.0;
-        }
-
-        double ExactSol(const Vector<double, 3> &x) const {
-            double sd = x[0]*x[0]/(radii[0]*radii[0]) +
-                        x[1]*x[1]/(radii[1]*radii[1]) +
-                        x[2]*x[2]/(radii[2]*radii[2]);
-
-            if(sd <= 1.0)
-                return 2.0 * sd;
-            else
-                // don't know the real solution on the outside...
-                return 2.0;
-        }
-
-        double Inhomogeneity(const Vector<double, 3> &x) const {
-            return 4.0 * (1.0/(radii[0]*radii[0]) + 1.0/(radii[1]*radii[1])
-                       +  1.0/(radii[2]*radii[2]));
-        }
-
-        double SurfaceIntegral() const {
-            // calculated in Mathematica for the ellipsoid with radii 0.5,
-            // 1.0, and 1.5
-            return 8.195226043365464;
-        }
-
-        double VolumeIntegral() const {
-            return 4.0*constants::pi*radii[0]*radii[1]*radii[2] / 3.0;
-        }
-
-        virtual std::vector< Vector<double, 3> > check_pts() const {
-            std::vector< Vector<double, 3> > vec;
-            Vector<double, 3> pt;
-
-            pt[0] = 0.1;
-            pt[1] = pt[2] = 0.0;
-            vec.push_back(pt);
-
-            pt[0] = 0.0;
-            pt[1] = 0.1;
-            vec.push_back(pt);
-
-            pt[1] = 0.0;
-            pt[2] = 0.1;
-            vec.push_back(pt);
-
-            pt[0] = radii[0];
-            pt[2] = 0.0;
-            vec.push_back(pt);
-
-            pt[0] = 0.0;
-            pt[1] = radii[1];
-            vec.push_back(pt);
-
-            pt[1] = 0.0;
-            pt[2] = radii[2];
-            vec.push_back(pt);
-
-            return vec;
-        }
-};
-
-/** \brief The 2D LLRV Circle problem */
-class LLRVCircle : public EmbeddedDirichlet<2> {
-    protected:
-        bool isHomogeneous() const { return false; }
-
-    public:
-        LLRVCircle(int k, double thresh, double eps, std::string penalty_name,
-            double penalty_prefact, Mask mask)
-            : EmbeddedDirichlet<2>(penalty_prefact, penalty_name, eps, k,
-              thresh, mask) {
-
-            char str[80];
-            sprintf(str, "Circle radius: %.6e\n", 1.0);
-            problem_specific_info = str;
-            problem_name = "LLRV Circle";
-
-            // set up the domain masks, etc.
-            coord_2d pt(0.0); // origin
-            sdfi = new SDFCircle(1.0, pt);
-        }
-
-        double DirichletCond(const Vector<double, 2> &x) const {
-            return 0.25;
-        }
-
-        double ExactSol(const Vector<double, 2> &x) const {
-            double r2 = x[0]*x[0] + x[1]*x[1];
-
-            if(r2 <= 1.0)
-                return r2 * 0.25;
-            else
-                return 0.25;
-        }
-
-        double Inhomogeneity(const Vector<double, 2> &x) const {
-            return 1.0;
-        }
-
-        double SurfaceIntegral() const {
-            return 2.0*constants::pi;
-        }
-
-        double VolumeIntegral() const {
-            return constants::pi;
-        }
-
-        virtual std::vector< Vector<double, 2> > check_pts() const {
-            std::vector< Vector<double, 2> > vec;
-            Vector<double, 2> pt;
-
-            pt[0] = 0.0;
-            pt[1] = 0.1;
-            vec.push_back(pt);
-
-            pt[1] = 1.0;
-            vec.push_back(pt);
-
-            return vec;
-        }
-};
-
 /** \brief The cos(theta) on a sphere problem */
-class CosineSphere : public EmbeddedDirichlet<3> {
+class CosineSphere : public EmbeddedDirichlet {
     protected:
         double radius;
 
@@ -536,7 +377,7 @@ class CosineSphere : public EmbeddedDirichlet<3> {
     public:
         CosineSphere(int k, double thresh, double eps, std::string penalty_name,
             double penalty_prefact, double radius, Mask mask)
-            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+            : EmbeddedDirichlet(penalty_prefact, penalty_name, eps, k,
               thresh, mask), radius(radius) {
 
             char str[80];
@@ -597,8 +438,8 @@ class CosineSphere : public EmbeddedDirichlet<3> {
         }
 };
 
-/** \brief The y_2^0 on a sphere problem */
-class Y20Sphere : public EmbeddedDirichlet<3> {
+/** \brief The Y_2^0 on a sphere problem */
+class Y20Sphere : public EmbeddedDirichlet {
     protected:
         double radius;
 
@@ -607,7 +448,7 @@ class Y20Sphere : public EmbeddedDirichlet<3> {
     public:
         Y20Sphere(int k, double thresh, double eps, std::string penalty_name,
             double penalty_prefact, double radius, Mask mask)
-            : EmbeddedDirichlet<3>(penalty_prefact, penalty_name, eps, k,
+            : EmbeddedDirichlet(penalty_prefact, penalty_name, eps, k,
               thresh, mask), radius(radius) {
 
             char str[80];
@@ -670,13 +511,12 @@ class Y20Sphere : public EmbeddedDirichlet<3> {
 };
 
 /** \brief The operator needed for solving for \f$u\f$ with GMRES */
-template<int NDIM>
-class DirichletCondIntOp : public Operator<Function<double, NDIM> > {
+class DirichletCondIntOp : public Operator<Function<double, 3> > {
     protected:
         /// \brief The Green's function
-        const SeparatedConvolution<double, NDIM> &G;
+        const SeparatedConvolution<double, 3> &G;
         /// \brief The surface function (normalized)
-        const Function<double, NDIM> &b;
+        const Function<double, 3> &b;
 
         /** \brief Applies the operator to \c invec
 
@@ -684,10 +524,10 @@ class DirichletCondIntOp : public Operator<Function<double, NDIM> > {
 
             \param[in] invec The input vector
             \param[out] outvec The action of the operator on \c invec */
-        void action(const Function<double, NDIM> &invec,
-                    Function<double, NDIM> &outvec) const {
+        void action(const Function<double, 3> &invec,
+                    Function<double, 3> &outvec) const {
 
-                Function<double, NDIM> f = b*invec;
+                Function<double, 3> f = b*invec;
                 f.broaden();
                 f.broaden();
                 outvec = invec + G(f);
@@ -697,8 +537,8 @@ class DirichletCondIntOp : public Operator<Function<double, NDIM> > {
         }
 
     public:
-        DirichletCondIntOp(const SeparatedConvolution<double, NDIM> &gin,
-            const Function<double, NDIM> &bin)
+        DirichletCondIntOp(const SeparatedConvolution<double, 3> &gin,
+            const Function<double, 3> &bin)
             : G(gin), b(bin) {}
 };
 

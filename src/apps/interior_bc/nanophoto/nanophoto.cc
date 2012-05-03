@@ -32,8 +32,23 @@
 */
 
 /** \file nanophoto.cc
-    \brief
+    \brief Code for the nanophotonics example in the article
+           M.G. Reuter et al., Comput. Phys. Commun. 183, pp. 1-7 (2012).
 
+           \note Details on the procedure can be found in the article and in
+                 the embedded_dirichlet program in the super directory.
+
+           Sets up an example STM - molecule (H_2) - surface system for an
+           electrostatics simulation. A paraboloidal tip is some distance
+           above the surface with a molecule in between. A bias (electrostatic
+           potential difference) is applied by specifying Dirichlet boundary
+           conditions on the tip and the surface. The molecule provides an
+           inhomogeneity in the system.
+
+           Poisson's equation is solved following the methods described
+           elsewhere.
+
+           This code generated the data in Figure 3 of the above reference.
 */
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
@@ -65,27 +80,11 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
 
     if (world.rank() == 0) {
-        if(argc < 6) {
-            print("usage: ./nanophoto k thresh epsilon potential-difference " \
-                "tip-surface\n");
-            print("potential difference is in mV, and tip-surface distance " \
-                "in nm\n");
-            error("bad number of arguments");
-        }
-
-        // read in and validate the command-line arguments
-        k = atoi(argv[1]);
-        if(k < 4) error("cheapskate");
-
-        thresh = atof(argv[2]);
-        if(thresh > 1.0e-4) error("use some real thresholds...");
-
-        eps = atof(argv[3]) / 0.052918; // convert to a.u.
-        if(eps <= 0.0) error("eps must be positive, and hopefully small");
-
-        phi = atof(argv[4]) * 3.6749324e-5; // convert to a.u.
-
-        d = atof(argv[5]) / 0.052918; // convert to a.u.
+        k = 8;
+        thresh = 1.0e-6;
+        eps = 0.6 / 0.052918; // convert from nm to a.u.
+        phi = 500 * 3.6749324e-5; // convert from mV to a.u.
+        d = 10.0 / 0.052918; // convert from nm to a.u.
     }
     world.gop.broadcast(phi);
     world.gop.broadcast(eps);
@@ -104,7 +103,7 @@ int main(int argc, char **argv) {
     // make the basis functions to get the density
     std::vector<Atom*> atoms(0);
     std::vector<BasisFunc> basis(0);
-    int nstate = mol_geom(atoms);
+    int nstate = mol_geom(atoms); // this loads the atoms
     int nbasis = 0;
 
     // make the set of basis functions
@@ -126,8 +125,8 @@ int main(int argc, char **argv) {
 
     // the key data structure: sets up the problem details and projects
     // the initial functions
-    std::shared_ptr<TipMolecule> tpm(new TipMolecule(eps, penalty, coeffs, atoms,
-        basis, phi, d));
+    std::shared_ptr<TipMolecule> tpm(new TipMolecule(eps, penalty, coeffs,
+        atoms, basis, phi, d));
 
     if(world.rank() == 0) {
         // print out the arguments
@@ -142,6 +141,7 @@ int main(int argc, char **argv) {
 
     real_function_3d dmask, dens;
 
+    // some initial load balancing
     // low order defaults
     FunctionDefaults<3>::set_k(6);
     FunctionDefaults<3>::set_thresh(1.0e-4);
