@@ -80,10 +80,10 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
 
     if (world.rank() == 0) {
-        k = 8;
-        thresh = 1.0e-6;
+        k = 9;
+        thresh = 1.0e-7;
         eps = 0.6 / 0.052918; // convert from nm to a.u.
-        phi = 500 * 3.6749324e-5; // convert from mV to a.u.
+        phi = 1000 * 3.6749324e-5; // convert from mV to a.u.
         d = 10.0 / 0.052918; // convert from nm to a.u.
     }
     world.gop.broadcast(phi);
