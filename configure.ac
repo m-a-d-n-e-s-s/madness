@@ -12,6 +12,7 @@ AC_CONFIG_MACRO_DIR([config])
 
 # Default options for automake ??
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+AM_PROG_AR
 
 # We want #defines output into a header file
 AC_CONFIG_HEADERS([include/madness_config.h])
