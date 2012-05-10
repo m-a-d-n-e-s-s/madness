@@ -496,9 +496,11 @@ struct CalculationParameters {
     double td_strength;          ///< prop strength  
     double td_tstep;             ///< prop time step
     bool polar;                  ///< Activate dipole polarizability
+    bool nosavemo;               ///< No save molecular orbitals
     double polarfreq;            ///< frequency incident laser for polarizability
     int polarnstep;              ///< number of iteration for perturbed density
     double  efield;              ///<  efield
+    bool noorient;
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -508,6 +510,7 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
+        ar & td_nstep & td_strength & td_tstep & polar & nosavemo & polarfreq & polarnstep & efield & noorient; 
     }
 
     CalculationParameters()
@@ -556,8 +559,10 @@ struct CalculationParameters {
         , td_nstep(1000)
         , td_strength(.1)
         , polar(false)
+        , nosavemo(false)
         , polarfreq(0.00)
         , polarnstep(50)
+        , noorient(false)
     {}
         
 
@@ -720,6 +725,12 @@ struct CalculationParameters {
             else if (s == "polar") {
                 polar=true;
             }
+            else if (s == "nosavemo") {
+                nosavemo=true;
+            }
+            else if (s == "noorient") {
+                noorient=true;
+            }
             else if (s == "polarfreq") {
                 f >> polarfreq;
             }
@@ -866,7 +877,9 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
-            molecule.orient();
+            if (!param.noorient) {
+                molecule.orient();
+            }
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
@@ -2408,6 +2421,487 @@ struct Calculation {
         amo = amo_new;
         bmo = bmo_new;
     }
+/////////////////////////////////////////////
+//  vama
+/////////////////////////////////////////////
+//LR//1    vecfuncT
+//LR//1    apply_potentialpt(World& world,
+//LR//1                    const tensorT& occ,
+//LR//1                    const vecfuncT& amo,
+//LR//1                    const vecfuncT& amopt,
+//LR//1                    const functionT& arho,
+//LR//1                    const functionT& brho,
+//LR//1                    const functionT& adelrhosq,
+//LR//1                    const functionT& bdelrhosq,
+//LR//1                    const functionT& vlocal,
+//LR//1                    double& exc) {
+//LR//1
+//LR//1        functionT vloc = vlocal;
+//LR//1        if (param.lda) {
+//LR//1            START_TIMER;
+//LR//1            exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
+//LR//1            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
+//LR//1            END_TIMER("LDA potential");
+//LR//1        }
+//LR//1
+//LR//1        START_TIMER;
+//LR//1        vecfuncT Vpsi = mul_sparse(world, vloc, amopt, vtol);
+//LR//1        END_TIMER("V*psi");
+//LR//1
+//LR//1        if (!param.lda) {
+//LR//1            START_TIMER;
+//LR//1            vecfuncT Kamo = apply_hf_exchange(world, occ, amopt, amo);
+//LR//1            tensorT excv = inner(world, Kamo, amo);
+//LR//1            exc = 0.0;
+//LR//1            for (unsigned long i=0; i<amo.size(); i++) {
+//LR//1                exc -= 0.5*excv[i]*occ[i];
+//LR//1            }
+//LR//1            gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
+//LR//1            Kamo.clear();
+//LR//1            END_TIMER("HF exchange");
+//LR//1        }
+//LR//1
+//LR//1        START_TIMER;
+//LR//1        truncate(world,Vpsi);
+//LR//1        END_TIMER("Truncate Vpsi");
+//LR//1
+//LR//1        world.gop.fence(); // ensure memory is cleared
+//LR//1        return Vpsi;
+//LR//1    }
+//LR//1//vama
+//LR//1    /// Computes the residual for one spin ... destroys Vpsi
+//LR//1    vecfuncT compute_residualpt(World& world,
+//LR//1                              tensorT& occ,
+//LR//1                              tensorT& fock,
+//LR//1                              const vecfuncT& psi1,
+//LR//1                              vecfuncT& Vpsi,
+//LR//1                              vecfuncT& Vpsi1,
+//LR//1                              vecfuncT& dipoles,
+//LR//1                              double& err)
+//LR//1    {
+//LR//1// Compute residuals
+//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
+//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+//LR//1// psi_1 = -(T-eps)^-1 * [  RHS  ]
+//LR//1//
+//LR//1//        epsilon.gaxpy(1.0, fock, 0.0, false);
+//LR//1
+//LR//1        // Compute energy shifts
+//LR//1        int nmo = psi.size();
+//LR//1        tensorT eps(nmo);
+//LR//1        for (int i=0; i<nmo; i++) {
+//LR//1// include omega
+//LR//1            eps(i) = min(-0.05, fock(i,i)) - omega;
+//LR//1            //if (world.rank() == 0) print("shifts", i, eps(i));
+//LR//1            fock(i,i) -= eps(i);
+//LR//1        }
+//LR//1
+//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+//LR//1        // Form RHS = V*psi - fock*psi
+//LR//1        double trantol = vtol/min(30.0,double(psi.size()));
+//LR//1//E1*psi
+//LR//1        vecfuncT fpsi = transform(world, psi, dipoles, trantol);
+//LR//1//        vecfuncT fpsi = transform(world, psi, fock, trantol);
+//LR//1//E1*psi-V1*psi
+//LR//1        gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
+//LR//1        fpsi.clear();
+//LR//1//E1*psi0-V1*psi0-V0*psi1
+//LR//1        gaxpy(world, 1.0, Vpsi, -1.0, Vpsi1);
+//LR//1////
+//LR//1//???????? missing fock*psi
+//LR//1//
+//LR//1//
+//LR//1        vector<double> fac(nmo,-2.0);
+//LR//1        scale(world, Vpsi, fac);
+//LR//1
+//LR//1        vector<poperatorT> ops = make_bsh_operators(world, eps);
+//LR//1        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
+//LR//1
+//LR//1        if (world.rank() == 0) cout << "entering apply\n";
+//LR//1        START_TIMER;
+//LR//1        vecfuncT new_psi1 = apply(world, ops, Vpsi);
+//LR//1        END_TIMER("Apply BSH");
+//LR//1        ops.clear();            // free memory
+//LR//1        Vpsi.clear();
+//LR//1        world.gop.fence();
+//LR//1
+//LR//1        START_TIMER;
+//LR//1        truncate(world, new_psi1);
+//LR//1        END_TIMER("Truncate new psi1");
+//LR//1
+//LR//1//         START_TIMER;
+//LR//1//         new_psi = mul_sparse(world, mask, new_psi, vtol);
+//LR//1//         END_TIMER("Mask");
+//LR//1
+//LR//1        vecfuncT r = sub(world, psi1, new_psi1); // residuals
+//LR//1
+//LR//1        vector<double> rnorm = norm2(world, r);
+//LR//1        double rms, maxval;
+//LR//1        vector_stats(rnorm, rms, maxval);
+//LR//1        err = maxval;
+//LR//1        if (world.rank() == 0) print("BSH residual: rms", rms, "   max", maxval);
+//LR//1
+//LR//1        return r;
+//LR//1//vama
+//LR//1//
+//LR//1// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i].
+//LR//1//
+//LR//1//
+//LR//1//
+//LR//1//
+//LR//1    void update_subspacept(World& world,
+//LR//1                         vecfuncT& Vpsiapt, vecfuncT& Vpsibpt,
+//LR//1                         tensorT& focka, tensorT& fockb,
+//LR//1                         vecfuncT& V1psia0, vecfuncT& V1psib0,
+//LR//1                         vecfuncT& dippsia0, vecfuncT& dippsib0,
+//LR//1                         subspaceT& subspace,
+//LR//1                         tensorT& Q,
+//LR//1                         double& bsh_residual,
+//LR//1                         double& update_residual) {
+//LR//1
+//LR//1// eps = e0 - omega
+//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
+//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+//LR//1// psi_1 = -(T-eps)^-1 * [  RHS  ]
+//LR//1//
+//LR//1//    E1 = <psi_0|V1|psi_0>
+//LR//1// 
+//LR//1        // Form RHS = V*psi - fock*psi
+//LR//1//
+//LR//1        double aerr=0.0, berr=0.0;
+//LR//1        vecfuncT vm = amopt;
+//LR//1        vecfuncT rm = compute_residualpt(world, aocc, epsilona, amopt, Vpsiapt, V1psiapt, dippsia0, aerr);
+//LR//1        if (param.nbeta && !param.spin_restricted) {
+//LR//1            vecfuncT br = compute_residualpt(world, bocc, epsilonb, bmopt, Vpsibpt, dippsib0, berr);
+//LR//1            vm.insert(vm.end(), bmopt.begin(), bmopt.end());
+//LR//1            rm.insert(rm.end(), br.begin(), br.end());
+//LR//1        }
+//LR//1        bsh_residual = max(aerr, berr);
+//LR//1        world.gop.broadcast(bsh_residual, 0);
+//LR//1
+//LR//1//  functionT Vpsi = V0*psi1 + (epsilon - e0 + omega)*psi1 + V1*psi0;
+//LR//1//            vecfuncT Vnucpsib = mul_sparse(world, vloc, bmop, vtol);
+//LR//1
+//LR//1
+//LR//1        // Update subspace and matrix Q
+//LR//1        compress(world, vm, false);
+//LR//1        compress(world, rm, false);
+//LR//1        world.gop.fence();
+//LR//1        subspace.push_back(pairvecfuncT(vm,rm));
+//LR//1
+//LR//1        int m = subspace.size();
+//LR//1        tensorT ms(m);
+//LR//1        tensorT sm(m);
+//LR//1        for (int s=0; s<m; s++) {
+//LR//1            const vecfuncT& vs = subspace[s].first;
+//LR//1            const vecfuncT& rs = subspace[s].second;
+//LR//1            for (unsigned int i=0; i<vm.size(); i++) {
+//LR//1                ms[s] += vm[i].inner_local(rs[i]);
+//LR//1                sm[s] += vs[i].inner_local(rm[i]);
+//LR//1            }
+//LR//1        }
+//LR//1        world.gop.sum(ms.ptr(),m);
+//LR//1        world.gop.sum(sm.ptr(),m);
+//LR//1
+//LR//1        tensorT newQ(m,m);
+//LR//1        if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = Q;
+//LR//1        newQ(m-1,_) = ms;
+//LR//1        newQ(_,m-1) = sm;
+//LR//1
+//LR//1        Q = newQ;
+//LR//1
+//LR//1        // Solve the subspace equations
+//LR//1        tensorT c;
+//LR//1        if (world.rank() == 0) {
+//LR//1            double rcond = 1e-12;
+//LR//1            while (1) {
+//LR//1                c = KAIN(Q,rcond);
+//LR//1                if (abs(c[m-1]) < 3.0) {
+//LR//1                    break;
+//LR//1                }
+//LR//1                else if (rcond < 0.01) {
+//LR//1                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
+//LR//1                    rcond *= 100;
+//LR//1                }
+//LR//1                else {
+//LR//1                    print("Forcing full step due to subspace malfunction");
+//LR//1                    c = 0.0;
+//LR//1                    c[m-1] = 1.0;
+//LR//1                    break;
+//LR//1                }
+//LR//1            }
+//LR//1        }
+//LR//1
+//LR//1
+//LR//1        world.gop.broadcast_serializable(c, 0);
+//LR//1        if (world.rank() == 0) {
+//LR//1            //print("Subspace matrix");
+//LR//1            //print(Q);
+//LR//1            print("Subspace solution", c);
+//LR//1        }
+//LR//1
+//LR//1
+//LR//1
+//LR//1        // Form linear combination for new solution
+//LR//1        START_TIMER;
+//LR//1        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
+//LR//1        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
+//LR//1        compress(world, amo_new, false);
+//LR//1        compress(world, bmo_new, false);
+//LR//1        world.gop.fence();
+//LR//1        for (unsigned int m=0; m<subspace.size(); m++) {
+//LR//1            const vecfuncT& vm = subspace[m].first;
+//LR//1            const vecfuncT& rm = subspace[m].second;
+//LR//1            const vecfuncT  vma(vm.begin(),vm.begin()+amo.size());
+//LR//1            const vecfuncT  rma(rm.begin(),rm.begin()+amo.size());
+//LR//1            const vecfuncT  vmb(vm.end()-bmo.size(), vm.end());
+//LR//1            const vecfuncT  rmb(rm.end()-bmo.size(), rm.end());
+//LR//1
+//LR//1            gaxpy(world, 1.0, amo_new, c(m), vma, false);
+//LR//1            gaxpy(world, 1.0, amo_new,-c(m), rma, false);
+//LR//1            gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
+//LR//1            gaxpy(world, 1.0, bmo_new,-c(m), rmb, false);
+//LR//1        }
+//LR//1        world.gop.fence();
+//LR//1        END_TIMER("Subspace transform");
+//LR//1
+//LR//1        if (param.maxsub <= 1) {
+//LR//1            // Clear subspace if it is not being used
+//LR//1            subspace.clear();
+//LR//1        }
+//LR//1        else if (subspace.size() == param.maxsub) {
+//LR//1            // Truncate subspace in preparation for next iteration
+//LR//1            subspace.erase(subspace.begin());
+//LR//1            Q = Q(Slice(1,-1),Slice(1,-1));
+//LR//1        }
+//LR//1
+//LR//1        // Form step sizes
+//LR//1        vector<double> anorm = norm2(world, sub(world, amo, amo_new));
+//LR//1        vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
+//LR//1
+//LR//1        // Step restriction
+//LR//1        int nres = 0;
+//LR//1        for (unsigned int i=0; i<amo.size(); i++) {
+//LR//1            if (anorm[i] > param.maxrotn) {
+//LR//1                double s = param.maxrotn/anorm[i];
+//LR//1                nres++;
+//LR//1                if (world.rank() == 0) {
+//LR//1                    if (nres == 1) printf("  restricting step for alpha orbitals:");
+//LR//1                    printf(" %d", i);
+//LR//1                }
+//LR//1                amo_new[i].gaxpy(s, amopt[i], 1.0-s, false);
+//LR//1            }
+//LR//1        }
+//LR//1        if (nres>0 && world.rank() ==0) printf("\n");
+//LR//1        nres = 0;
+//LR//1        for (unsigned int i=0; i<bmo.size(); i++) {
+//LR//1            if (bnorm[i] > param.maxrotn) {
+//LR//1                double s = param.maxrotn/bnorm[i];
+//LR//1                nres++;
+//LR//1                if (world.rank() == 0) {
+//LR//1                    if (nres == 1) printf("  restricting step for  beta orbitals:");
+//LR//1                    printf(" %d", i);
+//LR//1                }
+//LR//1                bmo_new[i].gaxpy(s, bmopt[i], 1.0-s, false);
+//LR//1            }
+//LR//1        }
+//LR//1        world.gop.fence();
+//LR//1
+//LR//1        double rms, maxval;
+//LR//1        vector_stats(anorm, rms, maxval);
+//LR//1        if (world.rank() == 0) print("Norm of vector changes alpha: rms", rms, "   max", maxval);
+//LR//1        update_residual = maxval;
+//LR//1        if (bnorm.size()) {
+//LR//1            vector_stats(bnorm, rms, maxval);
+//LR//1            if (world.rank() == 0) print("Norm of vector changes  beta: rms", rms, "   max", maxval);
+//LR//1            update_residual = max(update_residual, maxval);
+//LR//1        }
+//LR//1
+//LR//1        // Orthogonalize
+//LR//1        START_TIMER;
+//LR//1        double trantol = vtol/min(30.0,double(amo.size()));
+//LR//1        normalize(world, amo_new);
+//LR//1        amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
+//LR//1        truncate(world, amo_new);
+//LR//1        normalize(world, amo_new);
+//LR//1        if (param.nbeta && !param.spin_restricted) {
+//LR//1            normalize(world, bmo_new);
+//LR//1            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol);
+//LR//1            truncate(world, bmo_new);
+//LR//1            normalize(world, bmo_new);
+//LR//1        }
+//LR//1        END_TIMER("Orthonormalize");
+//LR//1        amopt = amo_new;
+//LR//1        bmopt = bmo_new;
+//LR//1    }
+//LR//1// vama
+//LR//1    void create_guesspt(World& world) {
+//LR//1        for (unsigned int i=0; i<amo.size(); i++) {
+//LR//1            amopt[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
+//LR//1        }
+//LR//1        if (param.nbeta && !param.spin_restricted) {
+//LR//1            for (unsigned int i=0; i<bmo.size(); i++) {
+//LR//1                bmopt[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
+//LR//1            }
+//LR//1        }
+//LR//1    }
+//LR//1
+//LR//1//    void make_V1(World& world, dip) {
+//LR//1//
+//LR//1//        int nmo = mo.size();
+//LR//1// not necessary need a matrix
+//LR//1//      tensorT momentmat(3,nmo);
+//LR//1//        for (int axis=0; axis<3; axis++) {
+//LR//1//            functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
+//LR//1// not necessary need a matrix
+//LR//1//             momentmat(axis,_) = inner(world, mo, mul_sparse(world, fdip, mo, vtol));
+//LR//1        }
+//LR//1//    }
+//LR//1
+//LR//1
+//LR//1
+//LR//1//vama
+//LR//1//
+//LR//1//
+//LR//1//  STATIC POlARIZABILITY
+//LR//1//
+//LR//1//
+//LR//1//
+//LR//1//
+    void polarizability(World& world) {
+    }
+//LR//1
+//LR//1        functionT adelrhosq, bdelrhosq; // placeholders for GGAs
+//LR//1// create guess for psipert
+//LR//1
+//LR//1        create_guesspt(world);
+//LR//1
+//LR//1        functionT arho = make_density(world, aocc, amo);
+//LR//1        functionT brho;
+//LR//1        if (!param.spin_restricted && param.nbeta)
+//LR//1            brho = make_density(world, bocc, bmo);
+//LR//1        else
+//LR//1            brho = arho;
+//LR//1//create dens
+//LR//1        functionT rho = arho + brho;
+//LR//1        rho.truncate();
+//LR//1
+//LR//1//form apply_potentials
+//LR//1// get e_i from psi0
+//LR//1        {
+//LR//1// apply potentials function 
+//LR//1            functionT vcoul = apply(*coulop, rho);
+//LR//1
+//LR//1            functionT vlocal = vcoul + vnuc;
+//LR//1            vcoul.clear(false);
+//LR//1            vlocal.truncate();
+//LR//1
+//LR//1            double exca=0.0, excb=0.0;
+//LR//1            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
+//LR//1            vecfuncT Vpsib;
+//LR//1            if (param.spin_restricted) {
+//LR//1                if (!param.lda) excb = exca;
+//LR//1            }
+//LR//1            else if (param.nbeta) {
+//LR//1                Vpsibp = apply_potential(world, bocc, bmo, brho, adelrhos, bdelrhos, vlocal, excb);
+//LR//1            }
+//LR//1//here genetate the e_i
+//LR//1            double ekina=0.0, ekinb=0.0;
+//LR//1            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+//LR//1            tensorT fockb = focka;
+//LR//1            if (param.spin_restricted)
+//LR//1                ekinb = ekina;
+//LR//1            else
+//LR//1            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+//LR//1        } // end e_i from psi0
+//LR//1
+//LR//1
+//LR//1        for (int iter=0; iter<100; iter++) {
+//LR//1
+//LR//1        {
+//LR//1            functionT arhopt = make_density(world, aocc, amopt);
+//LR//1            functionT brhopt;
+//LR//1            if (!param.spin_restricted && param.nbeta)
+//LR//1                brhopt = make_density(world, bocc, bmopt);
+//LR//1            else
+//LR//1                brhopt = arhopt;
+//LR//1//create dens
+//LR//1            functionT rhopt = arhopt + brhopt;
+//LR//1            rhopt.truncate();
+//LR//1// apply V0 to phi1
+//LR//1// TO CHECK the exchange part
+//LR//1            double excapt=0.0, excbpt=0.0;
+//LR//1            vecfuncT Vpsiapt= apply_potentialpt(world, aocc, amo, amopt, arhopt, brhopt, adelrhosq, bdelrhosq, vlocal, excapt);
+//LR//1            vecfuncT Vpsibpt;
+//LR//1            if (param.spin_restricted) {
+//LR//1                if (!param.lda) excbpt = excapt;
+//LR//1            }
+//LR//1            else if (param.nbeta) {
+//LR//1                Vpsibpt = apply_potentialpt(world, bocc, bmo, bmopt, brhopt, adelrhospt, bdelrhospt, vlocal, excbpt);
+//LR//1            }
+//LR//1        }
+//LR//1//apply H1 to phi0
+//LR//1        {
+//LR//1            int nmo = mo.size();
+//LR//1            int axis = 0
+//LR//1            tensorT dippsia0(axis,nmo);
+//LR//1            tensorT dippsib0(axis,nmo);
+//LR//1            functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
+//LR//1            vecfuncT V1psia0 = mul_sparse(world, fdip, amo, vtol);
+//LR//1            vecfuncT V1psib0;
+//LR//1
+//LR//1//evaluate dipole moments  <0|V1|0>
+//LR//1
+//LR//1            dippsia0(axis,_) = inner(world, amo, V1psia0);
+//LR//1//
+//LR//1            if (!param.spin_restricted && param.nbeta) {
+//LR//1                V1psib0 = mul_sparse(world, fdip, bmo, vtol);
+//LR//1                dippsib0(axis,_) = inner(world, bmo, V1psib0);
+//LR//1            }
+//LR//1            else {
+//LR//1                V1psib0 = V1psia0;
+//LR//1                dippsib0 = dippsia0
+//LR//1            }
+//LR//1        }
+//LR//1// start updatept
+//LR//1        update_subspacept(world, Vpsiapt, Vpsibpt, focka, fockb,
+//LR//1                                 V1psia0, V1psib0, dippsia0, dippsib0,
+//LR//1                          subspace, Q, bsh_residual, update_residual);
+//LR//1// Estimate the new zz polarizability
+//LR//1        tensorT polapt(3,nmo), polbpt(3,nmo);
+//LR//1        pola = 0.0e-0;
+//LR//1        poba = 0.0e-0;
+//LR//1
+//LR//1        double pola, polb;
+//LR//1        for (int axis2=0; axis2<3; axis2++) {
+//LR//1            functionT fdip2 = factoryT(world).functor(functorT(new DipoleFunctor(axis2))).initial_level(4);
+//LR//1            polapt(axis2,_) = -2.0*inner(world, amopt, mul_sparse(world, fdip2, amo, vtol));
+//LR//1            vecfuncT V1psib1;
+//LR//1            if (!param.spin_restricted && param.nbeta)
+//LR//1                 polbpt(axis2,_) = -2.0*inner(world, bmopt, mul_sparse(world, fdip2, bmo, vtol));
+//LR//1            else
+//LR//1// .gaxpy
+//LR//1                 polbpt(axis2,_) = polapt(axis2,_);
+//LR//1//
+//LR//1            for (long j=0; j<nmo; j++) {
+//LR//1                 pola += polapt(axis2,j);
+//LR//1            }
+//LR//1        }
+//LR//1        for (long i=0; i<nmo; i++) {
+//LR//1        pola +=
+//LR//1        }
+//LR//1//        printf("pola=(%.2f,%.2f,%.2f) ", polapt(0,i), polapt(1,i), polapt(2,i);
+//LR//1//        printf("polb=(%.2f,%.2f,%.2f) ", polapt(0,i), polapt(1,i), polapt(2,i);
+//LR//1
+//LR//1        }
+//LR//1    }
+//LR//1
+//LR//1//vama end
+//LR//1
+/////////////////////////////////////////////
+//  vama
+/////////////////////////////////////////////
+
 
 //    template <typename Func>
 //    void propagate(World& world, const Func& Vext, int step0)
@@ -2590,7 +3084,7 @@ struct Calculation {
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
 
-        for(int iter = 0;iter < param.maxiter;++iter){
+        for(int iter = 0;iter <= param.maxiter;++iter){
             if(world.rank() == 0)
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
@@ -2789,8 +3283,10 @@ struct Calculation {
                 }
 
             }
+            if (param.maxiter != 0) {
+                update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
+            }
 
-            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
 
         if (param.mulliken) {
@@ -2870,7 +3366,8 @@ public:
             }
 
             calc.solve(world);
-            calc.save_mos(world);
+            // too agressive low IO or hacking for very special cases
+            if (!calc.param.nosavemo) calc.save_mos(world);
         }
         return calc.current_energy;
     }
@@ -2891,68 +3388,74 @@ int main(int argc, char** argv) {
       World world(MPI::COMM_WORLD);
 
       try {
-        // Load info for MADNESS numerical routines
-        startup(world,argc,argv);
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
-
-        std::cout.precision(6);
-
-        // Process 0 reads input information and broadcasts
-        const char * inpname = (argc>1) ? argv[1] : "input";
-        Calculation calc(world, inpname);
-
-        // Warm and fuzzy for the user
-        if (world.rank() == 0) {
-          print("\n\n");
-          print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-          print(" ----------------------------------------------------------\n");
-          print("\n");
-          calc.molecule.print();
-          print("\n");
-          calc.param.print(world);
-        }
-
-        // Come up with an initial OK data map
-        if (world.size() > 1) {
-          calc.set_protocol(world,1e-4);
-          calc.make_nuclear_potential(world);
-          calc.initial_load_bal(world);
-        }
-
-        if ( calc.param.gopt) {
-          print("\n\n Geometry Optimization                      ");
-          print(" ----------------------------------------------------------\n");
-          calc.param.gprint(world);
-
-          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
-                           calc.param.gmaxiter,
-                           calc.param.gtol,  //tol
-                           calc.param.gval,  //value prec
-                           calc.param.gprec); // grad prec
-          geom.set_update(calc.param.algopt);
-          geom.set_test(calc.param.gtest);
-          geom.optimize(geomcoord);
-        }
-        else if (calc.param.tdksprop) {
-          print("\n\n Propagation of Kohn-Sham equation                      ");
-          print(" ----------------------------------------------------------\n");
-//          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
-          calc.propagate(world,0.1,0);
-        }
-        else {
-          MolecularEnergy E(world, calc);
-          E.value(calc.molecule.get_all_coords().flat()); // ugh!
-          if (calc.param.derivatives) calc.derivatives(world);
-          if (calc.param.dipole) calc.dipole(world);
-        }
-
-        //        if (calc.param.twoint) {
-        //Tensor<double> g = calc.twoint(world,calc.amo);
-        //cout << g;
-        // }
-
-        calc.do_plots(world);
+          // Load info for MADNESS numerical routines
+          startup(world,argc,argv);
+          FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+  
+          std::cout.precision(6);
+  
+          // Process 0 reads input information and broadcasts
+          const char * inpname = (argc>1) ? argv[1] : "input";
+          Calculation calc(world, inpname);
+  
+          // Warm and fuzzy for the user
+          if (world.rank() == 0) {
+              print("\n\n");
+              print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+              print(" ----------------------------------------------------------\n");
+              print("\n");
+              calc.molecule.print();
+              print("\n");
+              calc.param.print(world);
+          }
+  
+          // Come up with an initial OK data map
+          if (world.size() > 1) {
+              calc.set_protocol(world,1e-4);
+              calc.make_nuclear_potential(world);
+              calc.initial_load_bal(world);
+          }
+  
+          if ( calc.param.gopt) {
+              print("\n\n Geometry Optimization                      ");
+              print(" ----------------------------------------------------------\n");
+              calc.param.gprint(world);
+    
+              Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+              QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+                               calc.param.gmaxiter,
+                               calc.param.gtol,  //tol
+                               calc.param.gval,  //value prec
+                               calc.param.gprec); // grad prec
+              geom.set_update(calc.param.algopt);
+              geom.set_test(calc.param.gtest);
+              geom.optimize(geomcoord);
+          }
+          else if (calc.param.tdksprop) {
+              print("\n\n Propagation of Kohn-Sham equation                      ");
+              print(" ----------------------------------------------------------\n");
+    //          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
+              calc.propagate(world,0.1,0);
+          }
+          else {
+              MolecularEnergy E(world, calc);
+              E.value(calc.molecule.get_all_coords().flat()); // ugh!
+              if (calc.param.derivatives) calc.derivatives(world);
+              if (calc.param.dipole) calc.dipole(world);
+              if (calc.param.polar) {
+                  print("\n\n Dipole Polarizability calculation                      ");
+                  print(" ----------------------------------------------------------\n");
+                  calc.polarizability(world);
+    //          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
+            }
+          }
+  
+          //        if (calc.param.twoint) {
+          //Tensor<double> g = calc.twoint(world,calc.amo);
+          //cout << g;
+          // }
+  
+          calc.do_plots(world);
 
       }
       catch (const MPI::Exception& e) {
