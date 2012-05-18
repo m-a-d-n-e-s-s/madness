@@ -2082,31 +2082,16 @@ template <typename aT, typename bT, typename cT>
   
   template<>   void cu_mTxmq_integralop(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,long prev_dimi,double* BVT, bool *doit, double *mufac, double *result, int rank, long *transr, double *BU){
 
-
-/*int b =cudaGetLastError();
-if (b !=cudaSuccess){printf("errpr = %d",b);
-exit(-1);
-  	}*/
         cudaStream_t *stream=(cudaStream_t*)GPU_stream;
 	dim3 threads, grid;
-	/*threads=dim3( BLOCK_SIZE,1,1 );
-	if ((m%BLOCK_SIZE)==0)
-		grid=dim3(m/BLOCK_SIZE,1,1);
-	else
-		grid=dim3(m/BLOCK_SIZE+1,1,1);*/
 //	STARTt_TIMER;
 	switch (k){
 	case 10:
 				threads=dim3( 128,1,1 );
 				grid=dim3(1,1,1);
-				//cu_mtxmq_integral_101<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr);
 				cu_mtxmq_integral_110<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr, BU);
 	break;
         case 20:
-				//cu_mtxmq_integral_20<<<grid,threads,512*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
-				//threads=dim3(160,1,1 );
-				//grid=dim3(3,1,1);
-				//cu_mtxmq_integral_201<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank);
 				threads=dim3(128,1,1 );
 				grid=dim3(2,1,1);
 				cu_mtxmq_integral_211<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
@@ -2117,11 +2102,6 @@ exit(-1);
 	break;
 	}
 
-//cudaDeviceSynchronize();
-//int  b =cudaGetLastError();
-//if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
-//exit(-1);
-//  }
 }
 
 template <typename T>
@@ -2181,41 +2161,15 @@ void general_cutrans(long dimk, T* mat_out, T* mat_in, void * GPU_stream, void *
 
 template <>
 void general_cutrans(long dimk, double* mat_out, double* mat_in, void * GPU_stream, void * h, std::size_t NDIM){
-        /*
-        double * id = new double[dimk*dimk];
-        for (int i = 0; i < dimk; i++){
-          for (int j = 0; j < dimk; j++){
-            if (i != j) id[i*dimk + j] = 0.0;
-            else id[i*dimk + j] = 1.0;
-          }
-        } 
-        double * mat_id;
-        cudaError_t err = cudaMalloc((void **)&mat_id,dimk*dimk*sizeof(double));
-        if (err != cudaSuccess){
-            perror("Could not allocate GPU memory   ");                                   exit(-1);
-        }
-        err = cudaMemcpy((void*)mat_id,(void*)id,dimk*dimk*sizeof(double),cudaMemcpyHostToDevice);
-        if (err != cudaSuccess){
-            perror("Could not memcpy to just allocated GPU memory   ");
-            exit(-1);
-        }
-        */
-
-
-            // double *ha,*hb, *hc; 
+        
         double one=1.0;
         double zero=0.0;
-        //printf(" GPU Scublas code execution");
-        //sleep(100);
         int M = 1;
         for (int i = 0; i < NDIM - 1; i++) M *= dimk;
         int N = dimk;
         int K = dimk;
-        //cublasStatus_t statt;
         cudaError_t stat;
-        //double *devPtrA, *devPtrB, *devPtrC;
         cublasHandle_t *handle=(cublasHandle_t *)h;
-//      cublasCreate(&handle);
         cudaStream_t *stream=(cudaStream_t*)GPU_stream;
         cublasSetStream(*handle, *stream);
         double * B = identity<double>::getIdentity(dimk);
@@ -2238,12 +2192,6 @@ void general_cutrans(long dimk, double* mat_out, double* mat_in, void * GPU_stre
           printf("init CUBLAS_STATUS_NOT_INITIALIZED");
         else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
           printf("CUBLAS_STATUS_INTERNAL_ERROR");
- 
-        //err = cudaFree(mat_id); 
-        //if (err != cudaSuccess){
-        //    perror("Could not free GPU memory   ");                                       exit(-1);
-        //}
-        //delete[] id; 
 
 }
 
@@ -2326,68 +2274,6 @@ void fast_cutrans(long dimk, long dimi, double * mat_out, double * mat_in, void 
     }
     else{
         general_cutrans(dimk, mat_out, mat_in, GPU_stream, h, NDIM);
-        /*
-        double * id = new double[dimk*dimk];
-        for (int i = 0; i < dimk; i++){
-          for (int j = 0; j < dimk; j++){
-            if (i != j) id[i*dimk + j] = 0.0;
-            else id[i*dimk + j] = 1.0;
-          }
-        } 
-        double * mat_id;
-        err = cudaMalloc((void **)&mat_id,dimk*dimk*sizeof(double));
-        if (err != cudaSuccess){
-            perror("Could not allocate GPU memory   ");                                   exit(-1);
-        }
-        err = cudaMemcpy((void*)mat_id,(void*)id,dimk*dimk*sizeof(double),cudaMemcpyHostToDevice);
-        if (err != cudaSuccess){
-            perror("Could not memcpy to just allocated GPU memory   ");
-            exit(-1);
-        }
-
-            // double *ha,*hb, *hc; 
-        double one=1.0;
-        double zero=0.0;
-        //printf(" GPU Scublas code execution");
-        //sleep(100);
-        int M = 1;
-        for (int i = 0; i < NDIM - 1; i++) M *= dimk;
-        int N = dimk;
-        int K = dimk;
-        //cublasStatus_t statt;
-        cudaError_t stat;
-        //double *devPtrA, *devPtrB, *devPtrC;
-        cublasHandle_t *handle=(cublasHandle_t *)h;
-//      cublasCreate(&handle);
-        cudaStream_t *stream=(cudaStream_t*)GPU_stream;
-        cublasSetStream(*handle, *stream);
-        double * B = mat_id;
-        double * A = mat_in;
-        double * C = mat_out;
-
-        int b;
-        b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
-        if (b == CUBLAS_STATUS_INVALID_VALUE)
-          printf("CUBLAS_STATUS_INVALID_VALUE");
-        else if (b == CUBLAS_STATUS_ARCH_MISMATCH)
-          printf("CUBLAS_STATUS_ARCH_MISMATCH");
-        else if (b ==CUBLAS_STATUS_EXECUTION_FAILED )
-          printf("kernelCUBLAS_STATUS_EXECUTION_FAILED");
-        else if (b ==CUBLAS_STATUS_MAPPING_ERROR )
-          printf("CUBLAS_STATUS_MAPPING_ERROR");
-        else if (b ==CUBLAS_STATUS_ALLOC_FAILED )
-          printf("CUBLAS_STATUS_ALLOC_FAILED");
-        else if (b ==CUBLAS_STATUS_NOT_INITIALIZED )
-          printf("init CUBLAS_STATUS_NOT_INITIALIZED");
-        else if (b ==CUBLAS_STATUS_INTERNAL_ERROR )
-          printf("CUBLAS_STATUS_INTERNAL_ERROR");
- 
-        err = cudaFree(mat_id); 
-        if (err != cudaSuccess){
-            perror("Could not free GPU memory   ");                                       exit(-1);
-        }
-        delete[] id;
-        */ 
     }
 }
 
@@ -2403,7 +2289,8 @@ if (b !=cudaSuccess){printf("memset cpy error = %d",b);
 exit(-1);
   	}
 }
-	
+
+//Raghu's custom apply kernels	
 template <typename aT, typename bT, typename cT>
     void cu_mTxmq_integrallop(long dimi, long dimj, long dimk,
                cT* /*restrict*/ c,  aT* a,  bT* b, void *GPU_stream,long prev_m, bT* b1, int8_t *doit, bT* mufac, bT* result, int rank, long *transr, bT* bU)
@@ -2418,34 +2305,19 @@ template <typename aT, typename bT, typename cT>
   
   template<>   void cu_mTxmq_integrallop(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,long prev_dimi,double* BVT, int8_t *doit, double *mufac, double *result, int rank, long *transr, double *BU){
 
-
-/*int b =cudaGetLastError();
-if (b !=cudaSuccess){printf("errpr = %d",b);
-exit(-1);
-  	}*/
         cudaStream_t *stream=(cudaStream_t*)GPU_stream;
 	dim3 threads, grid;
-	/*threads=dim3( BLOCK_SIZE,1,1 );
-	if ((m%BLOCK_SIZE)==0)
-		grid=dim3(m/BLOCK_SIZE,1,1);
-	else
-		grid=dim3(m/BLOCK_SIZE+1,1,1);*/
 //	STARTt_TIMER;
 	switch (k){
 	case 10:
 				threads=dim3( 128,1,1 );
 				grid=dim3(1,1,1);
-				//cu_mtxmq_integral_101<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr);
 				cu_mtxmq_integral_113<<<grid,threads,128*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0, BVT, doit, mufac, result, rank, transr, BU);
 	break;
         case 20:
-				//cu_mtxmq_integral_20<<<grid,threads,512*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0);
 				threads=dim3(160,1,1 );
 				grid=dim3(3,1,1);
-				//cu_mtxmq_integral_201<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank);
-			//	threads=dim3(128,1,1 );
-			//	grid=dim3(2,1,1);
-				cu_mtxmq_integral_204<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
+				cu_mtxmq_integral_20_3block<<<grid,threads,400*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
 	break; 
 	case 8:
 				threads=dim3( 64,1,1 );
@@ -2455,7 +2327,6 @@ exit(-1);
         case 16:
 				threads=dim3(128,1,1 );
 				grid=dim3(2,1,1);
-				//cu_mtxmq_integral_16<<<grid,threads,256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
 				cu_mtxmq_integral_17<<<grid,threads,256*8,*stream>>>( A,m,B,n, C, k,prev_dimi, 0.0,1.0,BVT, doit, mufac, result, rank, transr, BU);
 	break;
 	default:
@@ -2464,38 +2335,28 @@ exit(-1);
 	break;
 	}
 
-/*cudaDeviceSynchronize();
-int  b =cudaGetLastError();
-if (b !=cudaSuccess){printf("error= %d k=%d m=%d n=%d\n",b,k,m,n);
-exit(-1);
-  }*/
 }
 
 //Raghu's new compress kernel
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqcompress(long dimi, long dimj, long dimk,
-               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle)
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle, int NDIM)
 {}
 
-  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,int ndim,long tsize, void *h){}
-  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){}
-  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, std::complex<double> *B,void *GPU_stream,int ndim,long tsize, void *h, int NDIM){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<double> *C, std::complex<double> *A, double *B,void *GPU_stream,int ndim,long tsize, void *h, int NDIM){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, std::complex<float> *C, std::complex<float> *A, std::complex<float> *B,void *GPU_stream,int ndim,long tsize, void *h, int NDIM){}
 
-  template<>   void cu_mTxmqcompress(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,int ndim,long tsize, void *h){}
+  template<>   void cu_mTxmqcompress(long m, long n,long k, float *C, float *A, float *B,void *GPU_stream,int ndim,long tsize, void *h, int NDIM){}
 
-  template<>   void cu_mTxmqcompress(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,int ndim,long tsize, void *h){
+  template<>   void cu_mTxmqcompress(long m, long n,long k, double *C, double *A, double *B,void *GPU_stream,int ndim,long tsize, void *h, int NDIM){
 
-       // double *ha,*hb, *hc; 
 	double one=1.0;
 	double zero=0.0;
-	//printf(" GPU Scublas code execution");
-	//sleep(100);
 	int M = (int)m;
 	int N = (int)n;
 	int K = (int)k;
-	//cublasStatus_t statt;
 	cudaError_t stat;	
-	//double *devPtrA, *devPtrB, *devPtrC;
         cudaStream_t *stream=(cudaStream_t*)GPU_stream;
         cublasHandle_t *handle=(cublasHandle_t *)h;	
 
@@ -2506,6 +2367,7 @@ template <typename aT, typename bT, typename cT>
         for (int i=0;i<ndim-1;i++){
           int b;
 
+          if (NDIM == 4){
           switch(k){
             case 14:
 	      threads=dim3(128,1,1 );
@@ -2535,6 +2397,10 @@ template <typename aT, typename bT, typename cT>
             default:
 	      b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
               break;
+          }
+          }
+          else{
+              b=cublasDgemm(*handle,CUBLAS_OP_N,CUBLAS_OP_T,N,M,K,&one,B,N,A,M,&zero,C,N);
           }
 
 

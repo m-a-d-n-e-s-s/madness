@@ -1130,7 +1130,9 @@ ENDt_TIMER("memcpy3");
             return None;
         }
 
-
+/*
+*    Runs multiple GPU compress kernels. The parameters are a vector of Closures and a vector of Continuation objects.              
+*/
         std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > compressop_allComputeGPU(std::vector< std::tr1::tuple<tensorT,int,keyT,containerT,bool,keyT,dcT,long,long,Tensor<double>*,T*,T*,tensorT*,tensorT*,const double*> > inArgs, std::vector< FunctionNode<T,NDIM>* > inObj){
             std::vector< std::tr1::tuple<tensorT*,int,keyT,containerT,bool,keyT,dcT,tensorT*,Tensor<double>*> > outArg;
 STARTt_TIMER;
@@ -1208,10 +1210,20 @@ STARTt_TIMER;
 		long nij = dimi*dimj;
 
                 if (NDIM > 1){
+                  #if USE_CUSTOM_KERNELS_COMPRESS > 0
+                  cu_mTxmqcompress(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off, GPU_streams[i%NUM_STREAMS], 0, 0, cublas_handle, NDIM);
+                  #else
                   cu_mTxmqq(dimi, dimj, dimj, start_t0 + t0_off, start_tptr + tptr_off, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],0,0,cublas_handle);
+                  #endif
+
                   T* ptr_t0 = start_t0 + t0_off;
                   T* ptr_t1 = start_t1 + t1_off;
+
+                  #if USE_CUSTOM_KERNELS_APPLY > 0
+                  cu_mTxmqcompress(dimi, dimj, dimj, ptr_t1, ptr_t0, start_pc + pc_off, GPU_streams[i%NUM_STREAMS], t.ndim(), 1, cublas_handle, NDIM);
+                  #else
                   cu_mTxmqq(dimi, dimj, dimj, ptr_t1, ptr_t0, start_pc + pc_off,GPU_streams[i%NUM_STREAMS],t.ndim(),1,cublas_handle);
+                  #endif
                 }
                 else{
                   //NDIM = 1
@@ -1383,12 +1395,12 @@ ENDt_TIMER("memcpy3");
 
         Void compress_op(const keyT& key, dcT dc, const std::map<keyT, tensorT>& tensor_keys, containerT ct , const bool& nonstandard, const int& k, const keyT& parent) {
 
-            #if HAVE_GPU > 0 && BACKTO_CPU > 0
+            #if COMPRESS_GPU > 0 && COMPRESS_BACKTO_CPU > 0
                 if (NDIM > 1)
                     dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
                 else
                     dc.local_update(key, &FunctionNode<T, NDIM>::compressop_preprocess, &FunctionNode<T, NDIM>::compressop_compute, &FunctionNode<T, NDIM>::compressop_postprocess, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent));
-            #elif HAVE_GPU > 0
+            #elif COMPRESS_GPU > 0
                 if (NDIM > 1)
                     dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
                 else
@@ -1557,9 +1569,9 @@ ENDt_TIMER("memcpy3");
               if (tensor_keys.size() == max){
                 int z = 0;
                 //dc.update(key, &nodeT::compress_op, tensor_keys, ct, nonstandard, k, this->parent);
-                #if HAVE_GPU > 0 && BACKTO_CPU > 0
+                #if COMPRESS_GPU > 0 && COMPRESS_BACKTO_CPU > 0
                 dc.local_updateGPU(key, &FunctionNode<T, NDIM>::compressop_preprocessGPU, &FunctionNode<T, NDIM>::compressop_allComputeGPU, &FunctionNode<T, NDIM>::compressop_postprocessGPU, &FunctionNode<T, NDIM>::compressop_backToCPU, std::tr1::tuple<keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT>(key, dc, tensor_keys, ct, nonstandard, k, parent), 0);
-                #elif HAVE_GPU > 0
+                #elif COMPRESS_GPU > 0
                   dc.local_updateGPU(key, &nodeT::compressop_preprocessGPU, &nodeT::compressop_allComputeGPU, &nodeT::compressop_postprocessGPU, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), z);
                 #elif SIM_GPU > 0
                   dc.local_updateGPU(key, &nodeT::compressop_preprocess, &nodeT::compressop_allCompute, &nodeT::compressop_postprocess, std::tr1::tuple< keyT, dcT, std::map<keyT, tensorT>, containerT, bool, int, keyT >(key, dc, tensor_keys, ct, nonstandard, k, this->parent), 0);

@@ -368,8 +368,8 @@ typedef UINT64_T uint64_t;
 //extern "C" void * apply_hashmaps_ru;
 //extern "C" void * apply_hashmaps_rvt;
 
-#define HAVE_GPU 0
-#define BACKTO_CPU 0
+#define COMPRESS_GPU 0
+#define COMPRESS_BACKTO_CPU 0
 #define SIM_GPU 0
 #define JUST_AGG 0
 #define THREE_SPLIT 0
@@ -378,7 +378,8 @@ typedef UINT64_T uint64_t;
 #define MAX_AGG 60
 #define NUM_STREAMS 16
 #define GPU_MINTASKS 0
-#define USE_CUSTOM_KERNELS 1
+#define USE_CUSTOM_KERNELS_COMPRESS 0
+#define USE_CUSTOM_KERNELS_APPLY 1
 #define BACKTO_CPU_NUMERATOR 1 
 #define BACKTO_CPU_DENOMINATOR 2
 

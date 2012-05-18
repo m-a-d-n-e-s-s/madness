@@ -4412,7 +4412,7 @@ __global__ void cu_transpose_14(double *odata, const double  *idata){
 }
 
 
-__global__ void cu_mtxmq_integral_204( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
+__global__ void cu_mtxmq_integral_20_3block( const double *A, int lda, const double *B, int ldb, double* C, int ldc, int prev_dimi, double alpha, double beta, const double* BVT,const int8_t *doit,const double *mufacS, double *result, int rank,const long *transr, const double *BU)
 {
    extern __shared__ double Bs[];
    __shared__  double  Cs[2720];

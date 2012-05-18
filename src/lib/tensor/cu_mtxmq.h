@@ -140,7 +140,7 @@ void lsk1(int i);
 
 template <typename aT, typename bT, typename cT>
     void cu_mTxmqcompress(long dimi, long dimj, long dimk,
-               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle);
+               cT* restrict c,  aT* a,  bT* b, void *GPU_stream,int ndim,long tsize, void  *handle, int NDIM);
 #endif
 
     /*

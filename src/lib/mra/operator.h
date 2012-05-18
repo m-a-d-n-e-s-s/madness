@@ -6083,7 +6083,7 @@ conds = 0;
 
 bool used_custom_kernel = false;
 
-#if USE_CUSTOM_KERNELS > 0
+#if USE_CUSTOM_KERNELS_APPLY > 0
 if (NDIM == 3 && (k == 8 || k == 10)){
 used_custom_kernel = true;
 /*************************************** DUPLICATE WORK FOR FLOPS COUNT ***********************/
@@ -6102,7 +6102,7 @@ STARTt_TIMER;
 		    doitt_GPU = doit2_GPU+i*rank ;
 		    long * trans2r = rank_buf[i];
 		    //cu_mTxmq_integralop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%7],i%7,const_cast<Q*>(VT),(bool*)doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
-		    cu_mTxmq_integrallop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[i%5],i%5,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
+		    cu_mTxmq_integrallop(dimi,dim2k, dim2k, w1ptr[i], fptr[i], const_cast<Q*>(U),GPU_streams[(i%5)%NUM_STREAMS],(i%5)%NUM_STREAMS,const_cast<Q*>(VT),doitt_GPU,mufac_GPU,resultptr[i], rank, trans2r, const_cast<Q*>(RU));
               }
          device_synchronize(GPU_streams,NUM_STREAMS);
 
@@ -6264,7 +6264,9 @@ STARTt_TIMER;
                         }
                  
                         for (i = 0; i < inArgs.size(); i++){
-                            if (condition[i][mu] || doit2[mu] || doit1[mu]) c_array[i]++;
+                            //if (condition[i][mu] || doit2[mu] || doit1[mu]) 
+
+                            c_array[i]++;
                         }
                   }
                   delete[] c_array;
@@ -6274,7 +6276,7 @@ for (int i = 0; i <= NDIM; i++) small_comp *= k;
 double large_comp = 1.0;
 for (int i = 0; i <= NDIM; i++) large_comp *= 2*k;
 print("OP = ",(((unsigned long)conds)*2*large_comp) + (((unsigned long)conds)*2*small_comp));          
-ENDt_TIMER("comp 1");
+ENDt_TIMER("cuBLAS comp");
 #endif
 }
 #endif

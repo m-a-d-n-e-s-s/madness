@@ -195,7 +195,8 @@ void test_basic(World& world) {
         cell(i,1) =  10.0+i;
     }
     FunctionDefaults<NDIM>::set_cell(cell);
-    FunctionDefaults<NDIM>::set_k(10);
+    FunctionDefaults<NDIM>::set_k(14);
+
     FunctionDefaults<NDIM>::set_thresh(1e-5);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
