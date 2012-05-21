@@ -855,6 +855,7 @@ struct Calculation {
     functionT vnuc;
     functionT mask;
     vecfuncT amo, bmo;
+    vecfuncT amopt, bmopt;   // perturbed
     std::vector<int> aset, bset;
     vecfuncT ao;
     std::vector<int> at_to_bf, at_nbf;
@@ -2425,49 +2426,68 @@ struct Calculation {
 //  vama
 /////////////////////////////////////////////
 //LR//1    vecfuncT
-//LR//1    apply_potentialpt(World& world,
-//LR//1                    const tensorT& occ,
-//LR//1                    const vecfuncT& amo,
-//LR//1                    const vecfuncT& amopt,
-//LR//1                    const functionT& arho,
-//LR//1                    const functionT& brho,
+    apply_potentialpt(World& world,
+                    const tensorT& occ,
+                    const vecfuncT& amo,
+                    const vecfuncT& amopt,
+                    const functionT& arho,
+                    const functionT& brho,
 //LR//1                    const functionT& adelrhosq,
 //LR//1                    const functionT& bdelrhosq,
-//LR//1                    const functionT& vlocal,
-//LR//1                    double& exc) {
+                    const functionT& vlocal,
+                    double& exc) {
 //LR//1
-//LR//1        functionT vloc = vlocal;
-//LR//1        if (param.lda) {
-//LR//1            START_TIMER;
-//LR//1            exc = make_lda_energy(world, arho, brho, adelrhosq, bdelrhosq);
-//LR//1            vloc = vloc + make_lda_potential(world, arho, brho, adelrhosq, bdelrhosq);
-//LR//1            END_TIMER("LDA potential");
-//LR//1        }
-//LR//1
-//LR//1        START_TIMER;
-//LR//1        vecfuncT Vpsi = mul_sparse(world, vloc, amopt, vtol);
-//LR//1        END_TIMER("V*psi");
-//LR//1
-//LR//1        if (!param.lda) {
-//LR//1            START_TIMER;
-//LR//1            vecfuncT Kamo = apply_hf_exchange(world, occ, amopt, amo);
-//LR//1            tensorT excv = inner(world, Kamo, amo);
-//LR//1            exc = 0.0;
-//LR//1            for (unsigned long i=0; i<amo.size(); i++) {
-//LR//1                exc -= 0.5*excv[i]*occ[i];
-//LR//1            }
-//LR//1            gaxpy(world, 1.0, Vpsi, -1.0, Kamo);
-//LR//1            Kamo.clear();
-//LR//1            END_TIMER("HF exchange");
-//LR//1        }
-//LR//1
-//LR//1        START_TIMER;
-//LR//1        truncate(world,Vpsi);
-//LR//1        END_TIMER("Truncate Vpsi");
-//LR//1
-//LR//1        world.gop.fence(); // ensure memory is cleared
-//LR//1        return Vpsi;
-//LR//1    }
+        functionT vloc = vlocal;
+        if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+            START_TIMER(world);
+            if (ispin == 0) exc = make_dft_energy(world, vf);
+            vloc = vloc + make_dft_potential(world, vf, ispin);
+            //print("VLOC1", vloc.trace(), vloc.norm2());
+
+            if (xc.is_gga()) {
+                if (xc.is_spin_polarized()) {
+                    throw "not yet";
+                }
+                else {
+		  //print("VF", vf[0].trace(), vf[1].trace());
+                    real_function_3d vsig = make_dft_potential(world, vf, 1);
+                    //print("VSIG", vsig.trace(), vsig.norm2());
+                    real_function_3d vr(world);
+                    for (int axis=0; axis<3; axis++) {
+                        vr += (*gradop[axis])(vsig*delrho[axis]);
+                    }
+                    vloc = vloc - vr; // need a 2?
+                    //print("VLOC2", vloc.trace(), vloc.norm2());
+                }
+            }
+            END_TIMER(world, "DFT potential");
+        }
+
+        START_TIMER;
+        vecfuncT Vpsi = mul_sparse(world, vloc, amopt, vtol);
+        END_TIMER("V*psi");
+
+        if(xc.hf_exchange_coefficient()){
+            START_TIMER(world);
+            vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
+            tensorT excv = inner(world, Kamo, amo);
+            exc = 0.0;
+            for(unsigned long i = 0;i < amo.size();++i){
+                exc -= 0.5 * excv[i] * occ[i];
+            }
+            if (!xc.is_spin_polarized()) exc *= 2.0;
+            gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
+            Kamo.clear();
+            END_TIMER(world, "HF exchange");
+        }
+        
+        START_TIMER;
+        truncate(world,Vpsi);
+        END_TIMER("Truncate Vpsi");
+
+        world.gop.fence(); // ensure memory is cleared
+        return Vpsi;
+    }
 //LR//1//vama
 //LR//1    /// Computes the residual for one spin ... destroys Vpsi
 //LR//1    vecfuncT compute_residualpt(World& world,
@@ -2735,17 +2755,41 @@ struct Calculation {
 //LR//1        bmopt = bmo_new;
 //LR//1    }
 //LR//1// vama
-//LR//1    void create_guesspt(World& world) {
-//LR//1        for (unsigned int i=0; i<amo.size(); i++) {
-//LR//1            amopt[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
-//LR//1        }
+    void create_guesspt(World& world) {
+        for (unsigned int i=0; i<amo.size(); i++) {
+            amopt[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
+        }
 //LR//1        if (param.nbeta && !param.spin_restricted) {
 //LR//1            for (unsigned int i=0; i<bmo.size(); i++) {
 //LR//1                bmopt[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
 //LR//1            }
 //LR//1        }
+    }
+
+
+//LR//1void CoupledPurturbation::guess_excite (int axis)
+//LR//1{
+//LR//1    // TODO: add selection to load stored functions
+//LR//1    START_TIMER(world);
+//LR//1
+//LR//1    functionT dipole = factoryT(world).functor(functorT(new DipoleFunctor(axis)));
+//LR//1    rmo[axis] = vector<vecfuncT>(2*nXY);
+//LR//1    Vrmo[axis] = vector<vecfuncT>(2*nXY);
+//LR//1    for (int i=0; i<nXY; ++i) {
+//LR//1        rmo[axis][i*2] = mul(world, dipole, calc.amo);
+//LR//1        truncate(world, rmo[axis][i*2]);
+//LR//1        compress(world, rmo[axis][i*2]);
+//LR//1        if (!calc.param.spin_restricted && calc.param.nbeta) {
+//LR//1            rmo[axis][i*2+1] = mul(world, dipole, calc.bmo);
+//LR//1            truncate(world, rmo[axis][i*2+1]);
+//LR//1            compress(world, rmo[axis][i*2+1]);
+//LR//1        }
 //LR//1    }
 //LR//1
+//LR//1    END_TIMER(world, "guess excite function");
+//LR//1}
+
+
 //LR//1//    void make_V1(World& world, dip) {
 //LR//1//
 //LR//1//        int nmo = mo.size();
@@ -2768,69 +2812,147 @@ struct Calculation {
 //LR//1//
 //LR//1//
 //LR//1//
-    void polarizability(World& world) {
-    }
-//LR//1
-//LR//1        functionT adelrhosq, bdelrhosq; // placeholders for GGAs
+    void polar_solve(World& world) {
+
+//LR//1        functionT arho_old, brho_old;
+//LR//1        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
+//LR//1        const double trantol = vtol / std::min(30.0, double(amo.size()));
+//LR//1        const double tolloc = 1e-3;
+//LR//1        double update_residual = 0.0, bsh_residual = 0.0;
+//LR//1        subspaceT subspace;
+//LR//1        tensorT Q;
+//LR//1        bool do_this_iter = true;
 //LR//1// create guess for psipert
 //LR//1
 //LR//1        create_guesspt(world);
-//LR//1
-//LR//1        functionT arho = make_density(world, aocc, amo);
-//LR//1        functionT brho;
-//LR//1        if (!param.spin_restricted && param.nbeta)
-//LR//1            brho = make_density(world, bocc, bmo);
-//LR//1        else
-//LR//1            brho = arho;
-//LR//1//create dens
-//LR//1        functionT rho = arho + brho;
-//LR//1        rho.truncate();
-//LR//1
-//LR//1//form apply_potentials
-//LR//1// get e_i from psi0
-//LR//1        {
-//LR//1// apply potentials function 
+//          amopt, bmopt
+
+        int nstep = param.polarnstep;
+        double omega = param.polarfreq;
+
+        initial_load_bal(world);
+        make_nuclear_potential(world);
+
+        functionT arho = make_density(world, aocc, amo);
+        functionT brho;
+        if (!param.spin_restricted && param.nbeta)
+            brho = make_density(world, bocc, bmo);
+        else
+            brho = arho;
+//create dens
+        functionT rho = arho + brho;
+        rho.truncate();
+
+//form apply_potentials
+// get e_i from psi0
+        {
+// apply potentials function 
+            vecfuncT vf, delrho;
+            if (xc.is_dft()) {
+                arho.reconstruct();
+                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho);
+                if (xc.is_gga()) {
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
+                    if (xc.is_spin_polarized()) {
+                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+                    }
+                    world.gop.fence(); // NECESSARY
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
+                    if (xc.is_spin_polarized()) {
+                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+                    }
+                }
+                if (vf.size()) {
+                    reconstruct(world, vf);
+                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                }
+            }
 //LR//1            functionT vcoul = apply(*coulop, rho);
-//LR//1
-//LR//1            functionT vlocal = vcoul + vnuc;
-//LR//1            vcoul.clear(false);
-//LR//1            vlocal.truncate();
-//LR//1
-//LR//1            double exca=0.0, excb=0.0;
+
+            functionT vlocal;
+
+            if(param.nalpha + param.nbeta > 1){
+                START_TIMER(world);
+                vlocal = vnuc + apply(*coulop, rho);
+                END_TIMER(world, "guess Coulomb potn");
+                bool save = param.spin_restricted;
+                param.spin_restricted = true;
+                vlocal = vlocal + make_lda_potential(world, rho);
+                vlocal.truncate();
+                param.spin_restricted = save;
+            } else {
+                vlocal = vnuc;
+            }
+            vlocal.reconstruct();
+
+            double exca=0.0, excb=0.0;
+
 //LR//1            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
-//LR//1            vecfuncT Vpsib;
-//LR//1            if (param.spin_restricted) {
-//LR//1                if (!param.lda) excb = exca;
-//LR//1            }
-//LR//1            else if (param.nbeta) {
+            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
+            vecfuncT Vpsib;
+            if(!param.spin_restricted && param.nbeta) {
 //LR//1                Vpsibp = apply_potential(world, bocc, bmo, brho, adelrhos, bdelrhos, vlocal, excb);
-//LR//1            }
-//LR//1//here genetate the e_i
-//LR//1            double ekina=0.0, ekinb=0.0;
-//LR//1            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
-//LR//1            tensorT fockb = focka;
-//LR//1            if (param.spin_restricted)
-//LR//1                ekinb = ekina;
-//LR//1            else
-//LR//1            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-//LR//1        } // end e_i from psi0
-//LR//1
-//LR//1
-//LR//1        for (int iter=0; iter<100; iter++) {
-//LR//1
-//LR//1        {
-//LR//1            functionT arhopt = make_density(world, aocc, amopt);
-//LR//1            functionT brhopt;
-//LR//1            if (!param.spin_restricted && param.nbeta)
-//LR//1                brhopt = make_density(world, bocc, bmopt);
-//LR//1            else
-//LR//1                brhopt = arhopt;
-//LR//1//create dens
-//LR//1            functionT rhopt = arhopt + brhopt;
-//LR//1            rhopt.truncate();
-//LR//1// apply V0 to phi1
-//LR//1// TO CHECK the exchange part
-//LR//1            double excapt=0.0, excbpt=0.0;
+                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
+            }
+//here genetate the e_i
+            double ekina=0.0, ekinb=0.0;
+            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+            tensorT fockb = focka;
+            if (param.spin_restricted)
+                ekinb = ekina;
+            else
+            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+        } // end e_i from psi0
+
+
+        amopt = zero_functions<double,3>(world, amo.size());
+        bmopt = zero_functions<double,3>(world, bmo.size());
+
+        functionT arhopt = make_density(world, aocc, amopt);
+        functionT brhopt;
+
+        if (!param.spin_restricted && param.nbeta)
+             brhopt = make_density(world, bocc, bmopt);
+        else
+             brhopt = arhopt;
+
+        for (int iter=0; iter<nstep; iter++)
+        {
+//create dens
+            functionT rhopt = arhopt + brhopt;
+            rhopt.truncate();
+// apply V0 to phi1
+            vecfuncT vf, delrhopt;
+            if (xc.is_dft()) {
+                arhopt.reconstruct();
+                if (param.nbeta && xc.is_spin_polarized()) brhopt.reconstruct();
+
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho);
+                if (xc.is_gga()) {
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arhopt,false));
+                    if (xc.is_spin_polarized()) {
+                        for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(brhopt,false));
+                    }
+                    world.gop.fence(); // NECESSARY
+                    vf.push_back(delrhopt[0]*delrhopt[0]+delrhopt[1]*delrhopt[1]+delrhopt[2]*delrhopt[2]); // sigma_aa
+                    if (xc.is_spin_polarized()) {
+                        vf.push_back(delrhopt[0]*delrhopt[3]+delrhopt[1]*delrhopt[4]+delrhopt[2]*delrhopt[5]); // sigma_ab
+                        vf.push_back(delrhopt[3]*delrhopt[3]+delrhopt[4]*delrhopt[4]+delrhopt[5]*delrhopt[5]); // sigma_bb
+                    }
+                }
+                if (vf.size()) {
+                    reconstruct(world, vf);
+                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                }
+            }
+//LR//1            functionT vcoul = apply(*coulop, rho);
+// TO CHECK the exchange part
+            double excapt=0.0, excbpt=0.0;
 //LR//1            vecfuncT Vpsiapt= apply_potentialpt(world, aocc, amo, amopt, arhopt, brhopt, adelrhosq, bdelrhosq, vlocal, excapt);
 //LR//1            vecfuncT Vpsibpt;
 //LR//1            if (param.spin_restricted) {
@@ -2862,7 +2984,8 @@ struct Calculation {
 //LR//1                V1psib0 = V1psia0;
 //LR//1                dippsib0 = dippsia0
 //LR//1            }
-//LR//1        }
+        }
+    }
 //LR//1// start updatept
 //LR//1        update_subspacept(world, Vpsiapt, Vpsibpt, focka, fockb,
 //LR//1                                 V1psia0, V1psib0, dippsia0, dippsib0,
@@ -3445,7 +3568,7 @@ int main(int argc, char** argv) {
               if (calc.param.polar) {
                   print("\n\n Dipole Polarizability calculation                      ");
                   print(" ----------------------------------------------------------\n");
-                  calc.polarizability(world);
+                  calc.polar_solve(world);
     //          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
             }
           }

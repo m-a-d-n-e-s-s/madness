@@ -1,11 +1,17 @@
 dft
+ maxiter 0
+ restart
+ polar
+ protocol 1e-2
+ polarnstep 1
+
 end
 
   #xc LDA
   #maxsub 5
   #aobasis sto-3g
 geometry
-Ar 0.0 0.0 0.0
+He 0.0 0.0 0.0
 end
 
 # water dimer
