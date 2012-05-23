@@ -2425,19 +2425,18 @@ struct Calculation {
 /////////////////////////////////////////////
 //  vama
 /////////////////////////////////////////////
-//LR//1    vecfuncT
-    apply_potentialpt(World& world,
-                    const tensorT& occ,
-                    const vecfuncT& amo,
-                    const vecfuncT& amopt,
-                    const functionT& arho,
-                    const functionT& brho,
-//LR//1                    const functionT& adelrhosq,
-//LR//1                    const functionT& bdelrhosq,
-                    const functionT& vlocal,
-                    double& exc) {
+    vecfuncT apply_potentialpt(World & world, 
+                               const tensorT & occ, 
+                               const vecfuncT & amo, 
+                               const vecfuncT& vf, 
+                               const vecfuncT& delrho, 
+                               const functionT & vlocal, 
+                               double & exc, 
+                               int ispin)
+    {
 //LR//1
         functionT vloc = vlocal;
+        exc = 0.0;
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf);
@@ -2463,9 +2462,9 @@ struct Calculation {
             END_TIMER(world, "DFT potential");
         }
 
-        START_TIMER;
+        START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amopt, vtol);
-        END_TIMER("V*psi");
+        END_TIMER(world, "V*psi");
 
         if(xc.hf_exchange_coefficient()){
             START_TIMER(world);
@@ -2481,9 +2480,9 @@ struct Calculation {
             END_TIMER(world, "HF exchange");
         }
         
-        START_TIMER;
+        START_TIMER(world);
         truncate(world,Vpsi);
-        END_TIMER("Truncate Vpsi");
+        END_TIMER(world,"Truncate Vpsi");
 
         world.gop.fence(); // ensure memory is cleared
         return Vpsi;
@@ -2828,7 +2827,7 @@ struct Calculation {
 //          amopt, bmopt
 
         int nstep = param.polarnstep;
-        double omega = param.polarfreq;
+//LR//1        double omega = param.polarfreq;
 
         initial_load_bal(world);
         make_nuclear_potential(world);
@@ -2845,6 +2844,7 @@ struct Calculation {
 
 //form apply_potentials
 // get e_i from psi0
+        functionT vlocal;
         {
 // apply potentials function 
             vecfuncT vf, delrho;
@@ -2873,7 +2873,6 @@ struct Calculation {
             }
 //LR//1            functionT vcoul = apply(*coulop, rho);
 
-            functionT vlocal;
 
             if(param.nalpha + param.nbeta > 1){
                 START_TIMER(world);
@@ -2890,7 +2889,6 @@ struct Calculation {
             vlocal.reconstruct();
 
             double exca=0.0, excb=0.0;
-
 //LR//1            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
             vecfuncT Vpsib;
@@ -2902,15 +2900,18 @@ struct Calculation {
             double ekina=0.0, ekinb=0.0;
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
-            if (param.spin_restricted)
-                ekinb = ekina;
+
+            if (!param.spin_restricted && param.nbeta)
+                fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
             else
-            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+                ekinb = ekina;
         } // end e_i from psi0
 
 
         amopt = zero_functions<double,3>(world, amo.size());
         bmopt = zero_functions<double,3>(world, bmo.size());
+        amopt = amo;
+        bmopt = bmo;
 
         functionT arhopt = make_density(world, aocc, amopt);
         functionT brhopt;
@@ -2922,6 +2923,7 @@ struct Calculation {
 
         for (int iter=0; iter<nstep; iter++)
         {
+//LR//2            functionT vlocal;
 //create dens
             functionT rhopt = arhopt + brhopt;
             rhopt.truncate();
@@ -2931,10 +2933,10 @@ struct Calculation {
                 arhopt.reconstruct();
                 if (param.nbeta && xc.is_spin_polarized()) brhopt.reconstruct();
 
-                vf.push_back(arho);
-                if (xc.is_spin_polarized()) vf.push_back(brho);
+                vf.push_back(arhopt);
+                if (xc.is_spin_polarized()) vf.push_back(brhopt);
                 if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arhopt,false));
+                    for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(arhopt,false));
                     if (xc.is_spin_polarized()) {
                         for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(brhopt,false));
                     }
@@ -2947,43 +2949,52 @@ struct Calculation {
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                    arhopt.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                 }
             }
-//LR//1            functionT vcoul = apply(*coulop, rho);
+            functionT vcoul = apply(*coulop, rhopt);
 // TO CHECK the exchange part
             double excapt=0.0, excbpt=0.0;
-//LR//1            vecfuncT Vpsiapt= apply_potentialpt(world, aocc, amo, amopt, arhopt, brhopt, adelrhosq, bdelrhosq, vlocal, excapt);
-//LR//1            vecfuncT Vpsibpt;
-//LR//1            if (param.spin_restricted) {
-//LR//1                if (!param.lda) excbpt = excapt;
-//LR//1            }
-//LR//1            else if (param.nbeta) {
-//LR//1                Vpsibpt = apply_potentialpt(world, bocc, bmo, bmopt, brhopt, adelrhospt, bdelrhospt, vlocal, excbpt);
-//LR//1            }
-//LR//1        }
-//LR//1//apply H1 to phi0
-//LR//1        {
-//LR//1            int nmo = mo.size();
-//LR//1            int axis = 0
-//LR//1            tensorT dippsia0(axis,nmo);
-//LR//1            tensorT dippsib0(axis,nmo);
-//LR//1            functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis))).initial_level(4);
-//LR//1            vecfuncT V1psia0 = mul_sparse(world, fdip, amo, vtol);
-//LR//1            vecfuncT V1psib0;
-//LR//1
-//LR//1//evaluate dipole moments  <0|V1|0>
-//LR//1
-//LR//1            dippsia0(axis,_) = inner(world, amo, V1psia0);
-//LR//1//
-//LR//1            if (!param.spin_restricted && param.nbeta) {
-//LR//1                V1psib0 = mul_sparse(world, fdip, bmo, vtol);
-//LR//1                dippsib0(axis,_) = inner(world, bmo, V1psib0);
-//LR//1            }
-//LR//1            else {
-//LR//1                V1psib0 = V1psia0;
-//LR//1                dippsib0 = dippsia0
-//LR//1            }
+            vecfuncT Vpsiapt = apply_potential(world, aocc, amopt, vf, delrhopt, vlocal, excapt, 0);
+            vecfuncT Vpsibpt;
+            if(!param.spin_restricted && param.nbeta) {
+                Vpsibpt = apply_potential(world, bocc, bmopt, vf, delrhopt, vlocal, excbpt, 1);
+            }
+            else {
+                excbpt = excapt;
+            }
+//apply H1 to phi0
+            {
+                int namo = amo.size();
+                int nbmo;
+                if(!param.spin_restricted && param.nbeta) {
+                    nbmo = bmo.size();
+                }
+                else {
+                    nbmo = namo;
+                }
+                tensorT dippsia0(namo, 3);
+                tensorT dippsib0(nbmo, 3);
+                for (int axis=0; axis<3; ++axis) {
+                     tensorT dipa=dippsia0(_,axis);
+                     tensorT dipb=dippsib0(_,axis);
+                     functionT fdip = factoryT(world).functor(functorT(new DipoleFunctor(axis)));
+         
+//evaluate dipole moments  <0|V1|0>
+                     vecfuncT V1psia0 = mul_sparse(world, fdip, amo, vtol);
+                     dipa= inner(world, amo, V1psia0);
+                     vecfuncT V1psib0;
+                     if(!param.spin_restricted && param.nbeta) {
+                          V1psib0 = mul_sparse(world, fdip, bmo, vtol);
+                          dipb = inner(world, bmo, V1psib0);
+                     }
+                     else {
+//LR//2                          V1psib0 = mul_sparse(world, fdip, amo, vtol);
+//LR//2                          dipb = inner(world, bmo, V1psib0);
+                          dipb = dipa;
+                     }
+                }
+             }
         }
     }
 //LR//1// start updatept
