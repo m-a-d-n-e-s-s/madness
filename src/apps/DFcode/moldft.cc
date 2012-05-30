@@ -2488,79 +2488,90 @@ struct Calculation {
         return Vpsi;
     }
 //LR//1//vama
-//LR//1    /// Computes the residual for one spin ... destroys Vpsi
-//LR//1    vecfuncT compute_residualpt(World& world,
-//LR//1                              tensorT& occ,
-//LR//1                              tensorT& fock,
-//LR//1                              const vecfuncT& psi1,
-//LR//1                              vecfuncT& Vpsi,
-//LR//1                              vecfuncT& Vpsi1,
-//LR//1                              vecfuncT& dipoles,
-//LR//1                              double& err)
-//LR//1    {
-//LR//1// Compute residuals
-//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
-//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
-//LR//1// psi_1 = -(T-eps)^-1 * [  RHS  ]
-//LR//1//
-//LR//1//        epsilon.gaxpy(1.0, fock, 0.0, false);
+    /// Computes the residual for one spin ... destroys Vpsi
+    vecfuncT compute_residualpt(World & world, 
+                                tensorT & occ, 
+                                tensorT & fock, 
+                                const vecfuncT & psi, 
+                                const vecfuncT & psipt, 
+                                vecfuncT & Vpsi, 
+                                vecfuncT & Vpsi1, 
+                                tensorT & dipoles, 
+                                double & err)
+    {
+// Compute residuals
+// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
+// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+// psi_1 = -(T-eps)^-1 * [  RHS  ]
+//
+//        epsilon.gaxpy(1.0, fock, 0.0, false);
+
+        double omega = param.polarfreq;
+        double trantol = vtol / std::min(30.0, double(psipt.size()));
+        // Compute energy shifts
+        int nmo = psipt.size();
+        tensorT eps(nmo);
+        for (int i=0; i<nmo; i++) {
+// include omega
+            eps(i) = std::min(-0.05, fock(i,i)) - omega;
+            //if (world.rank() == 0) print("shifts", i, eps(i));
+            fock(i,i) -= eps(i);
+        }
+
+	if (world.rank() == 0) {
+	   print("Fock");
+	   print(fock);
+	}
+// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+        // Form RHS = V*psi - fock*psi
+//E1*psi
+        vecfuncT fpsi = transform(world, psi, dipoles, trantol, true);
+// here???
+        for(int i = 0;i < nmo;++i){ // Undo the damage
+            fock(i, i) += eps(i);
+        }
+//        vecfuncT fpsi = transform(world, psi, fock, trantol);
+//E1*psi-V1*psi
+        gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
+        fpsi.clear();
+//E1*psi0-V1*psi0-V0*psi1
+        gaxpy(world, 1.0, Vpsi, -1.0, Vpsi1);
+////
+//???????? missing fock*psi
+//
+//
+        vector<double> fac(nmo,-2.0);
+        scale(world, Vpsi, fac);
+
+        vector<poperatorT> ops = make_bsh_operators(world, eps);
+        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
+
+        if (world.rank() == 0) cout << "entering apply\n";
+        START_TIMER(world);
+        vecfuncT new_psi1 = apply(world, ops, Vpsi);
+        END_TIMER(world,"Apply BSH");
+        ops.clear();            // free memory
+        Vpsi.clear();
+        world.gop.fence();
+
+        START_TIMER(world);
+        truncate(world, new_psi1);
+        END_TIMER(world,"Truncate new psi1");
 //LR//1
-//LR//1        // Compute energy shifts
-//LR//1        int nmo = psi.size();
-//LR//1        tensorT eps(nmo);
-//LR//1        for (int i=0; i<nmo; i++) {
-//LR//1// include omega
-//LR//1            eps(i) = min(-0.05, fock(i,i)) - omega;
-//LR//1            //if (world.rank() == 0) print("shifts", i, eps(i));
-//LR//1            fock(i,i) -= eps(i);
-//LR//1        }
-//LR//1
-//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
-//LR//1        // Form RHS = V*psi - fock*psi
-//LR//1        double trantol = vtol/min(30.0,double(psi.size()));
-//LR//1//E1*psi
-//LR//1        vecfuncT fpsi = transform(world, psi, dipoles, trantol);
-//LR//1//        vecfuncT fpsi = transform(world, psi, fock, trantol);
-//LR//1//E1*psi-V1*psi
-//LR//1        gaxpy(world, 1.0, Vpsi, -1.0, fpsi);
-//LR//1        fpsi.clear();
-//LR//1//E1*psi0-V1*psi0-V0*psi1
-//LR//1        gaxpy(world, 1.0, Vpsi, -1.0, Vpsi1);
-//LR//1////
-//LR//1//???????? missing fock*psi
-//LR//1//
-//LR//1//
-//LR//1        vector<double> fac(nmo,-2.0);
-//LR//1        scale(world, Vpsi, fac);
-//LR//1
-//LR//1        vector<poperatorT> ops = make_bsh_operators(world, eps);
-//LR//1        set_thresh(world, Vpsi, FunctionDefaults<3>::get_thresh());  // <<<<< Since cannot set in apply
-//LR//1
-//LR//1        if (world.rank() == 0) cout << "entering apply\n";
-//LR//1        START_TIMER;
-//LR//1        vecfuncT new_psi1 = apply(world, ops, Vpsi);
-//LR//1        END_TIMER("Apply BSH");
-//LR//1        ops.clear();            // free memory
-//LR//1        Vpsi.clear();
-//LR//1        world.gop.fence();
-//LR//1
-//LR//1        START_TIMER;
-//LR//1        truncate(world, new_psi1);
-//LR//1        END_TIMER("Truncate new psi1");
-//LR//1
-//LR//1//         START_TIMER;
+//LR//1//         START_TIMER(world);
 //LR//1//         new_psi = mul_sparse(world, mask, new_psi, vtol);
-//LR//1//         END_TIMER("Mask");
+//LR//1//         END_TIMER(world,"Mask");
 //LR//1
-//LR//1        vecfuncT r = sub(world, psi1, new_psi1); // residuals
-//LR//1
-//LR//1        vector<double> rnorm = norm2(world, r);
-//LR//1        double rms, maxval;
-//LR//1        vector_stats(rnorm, rms, maxval);
-//LR//1        err = maxval;
-//LR//1        if (world.rank() == 0) print("BSH residual: rms", rms, "   max", maxval);
-//LR//1
-//LR//1        return r;
+        vecfuncT r = sub(world, psipt, new_psi1); // residuals
+
+        std::vector<double> rnorm = norm2s(world, r);
+        double rms, maxval;
+        vector_stats(rnorm, rms, maxval);
+        err = maxval;
+        if (world.rank() == 0) print("BSH residual: rms", rms, "   max", maxval);
+
+        return r;
+    }
 //LR//1//vama
 //LR//1//
 //LR//1// Generalized A*X+Y for vectors of functions ---- a[i] = alpha*a[i] + beta*b[i].
@@ -2568,201 +2579,202 @@ struct Calculation {
 //LR//1//
 //LR//1//
 //LR//1//
-//LR//1    void update_subspacept(World& world,
-//LR//1                         vecfuncT& Vpsiapt, vecfuncT& Vpsibpt,
-//LR//1                         tensorT& focka, tensorT& fockb,
-//LR//1                         vecfuncT& V1psia0, vecfuncT& V1psib0,
-//LR//1                         vecfuncT& dippsia0, vecfuncT& dippsib0,
-//LR//1                         subspaceT& subspace,
-//LR//1                         tensorT& Q,
-//LR//1                         double& bsh_residual,
-//LR//1                         double& update_residual) {
-//LR//1
-//LR//1// eps = e0 - omega
-//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
-//LR//1// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
-//LR//1// psi_1 = -(T-eps)^-1 * [  RHS  ]
-//LR//1//
-//LR//1//    E1 = <psi_0|V1|psi_0>
-//LR//1// 
-//LR//1        // Form RHS = V*psi - fock*psi
-//LR//1//
-//LR//1        double aerr=0.0, berr=0.0;
-//LR//1        vecfuncT vm = amopt;
-//LR//1        vecfuncT rm = compute_residualpt(world, aocc, epsilona, amopt, Vpsiapt, V1psiapt, dippsia0, aerr);
-//LR//1        if (param.nbeta && !param.spin_restricted) {
-//LR//1            vecfuncT br = compute_residualpt(world, bocc, epsilonb, bmopt, Vpsibpt, dippsib0, berr);
-//LR//1            vm.insert(vm.end(), bmopt.begin(), bmopt.end());
-//LR//1            rm.insert(rm.end(), br.begin(), br.end());
-//LR//1        }
-//LR//1        bsh_residual = max(aerr, berr);
-//LR//1        world.gop.broadcast(bsh_residual, 0);
-//LR//1
-//LR//1//  functionT Vpsi = V0*psi1 + (epsilon - e0 + omega)*psi1 + V1*psi0;
-//LR//1//            vecfuncT Vnucpsib = mul_sparse(world, vloc, bmop, vtol);
-//LR//1
-//LR//1
-//LR//1        // Update subspace and matrix Q
-//LR//1        compress(world, vm, false);
-//LR//1        compress(world, rm, false);
-//LR//1        world.gop.fence();
-//LR//1        subspace.push_back(pairvecfuncT(vm,rm));
-//LR//1
-//LR//1        int m = subspace.size();
-//LR//1        tensorT ms(m);
-//LR//1        tensorT sm(m);
-//LR//1        for (int s=0; s<m; s++) {
-//LR//1            const vecfuncT& vs = subspace[s].first;
-//LR//1            const vecfuncT& rs = subspace[s].second;
-//LR//1            for (unsigned int i=0; i<vm.size(); i++) {
-//LR//1                ms[s] += vm[i].inner_local(rs[i]);
-//LR//1                sm[s] += vs[i].inner_local(rm[i]);
-//LR//1            }
-//LR//1        }
-//LR//1        world.gop.sum(ms.ptr(),m);
-//LR//1        world.gop.sum(sm.ptr(),m);
-//LR//1
-//LR//1        tensorT newQ(m,m);
-//LR//1        if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = Q;
-//LR//1        newQ(m-1,_) = ms;
-//LR//1        newQ(_,m-1) = sm;
-//LR//1
-//LR//1        Q = newQ;
-//LR//1
-//LR//1        // Solve the subspace equations
-//LR//1        tensorT c;
-//LR//1        if (world.rank() == 0) {
-//LR//1            double rcond = 1e-12;
-//LR//1            while (1) {
-//LR//1                c = KAIN(Q,rcond);
-//LR//1                if (abs(c[m-1]) < 3.0) {
-//LR//1                    break;
-//LR//1                }
-//LR//1                else if (rcond < 0.01) {
-//LR//1                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
-//LR//1                    rcond *= 100;
-//LR//1                }
-//LR//1                else {
-//LR//1                    print("Forcing full step due to subspace malfunction");
-//LR//1                    c = 0.0;
-//LR//1                    c[m-1] = 1.0;
-//LR//1                    break;
-//LR//1                }
-//LR//1            }
-//LR//1        }
-//LR//1
-//LR//1
-//LR//1        world.gop.broadcast_serializable(c, 0);
-//LR//1        if (world.rank() == 0) {
-//LR//1            //print("Subspace matrix");
-//LR//1            //print(Q);
-//LR//1            print("Subspace solution", c);
-//LR//1        }
-//LR//1
-//LR//1
-//LR//1
-//LR//1        // Form linear combination for new solution
-//LR//1        START_TIMER;
-//LR//1        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
-//LR//1        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
-//LR//1        compress(world, amo_new, false);
-//LR//1        compress(world, bmo_new, false);
-//LR//1        world.gop.fence();
-//LR//1        for (unsigned int m=0; m<subspace.size(); m++) {
-//LR//1            const vecfuncT& vm = subspace[m].first;
-//LR//1            const vecfuncT& rm = subspace[m].second;
-//LR//1            const vecfuncT  vma(vm.begin(),vm.begin()+amo.size());
-//LR//1            const vecfuncT  rma(rm.begin(),rm.begin()+amo.size());
-//LR//1            const vecfuncT  vmb(vm.end()-bmo.size(), vm.end());
-//LR//1            const vecfuncT  rmb(rm.end()-bmo.size(), rm.end());
-//LR//1
-//LR//1            gaxpy(world, 1.0, amo_new, c(m), vma, false);
-//LR//1            gaxpy(world, 1.0, amo_new,-c(m), rma, false);
-//LR//1            gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
-//LR//1            gaxpy(world, 1.0, bmo_new,-c(m), rmb, false);
-//LR//1        }
-//LR//1        world.gop.fence();
-//LR//1        END_TIMER("Subspace transform");
-//LR//1
-//LR//1        if (param.maxsub <= 1) {
-//LR//1            // Clear subspace if it is not being used
-//LR//1            subspace.clear();
-//LR//1        }
-//LR//1        else if (subspace.size() == param.maxsub) {
-//LR//1            // Truncate subspace in preparation for next iteration
-//LR//1            subspace.erase(subspace.begin());
-//LR//1            Q = Q(Slice(1,-1),Slice(1,-1));
-//LR//1        }
-//LR//1
-//LR//1        // Form step sizes
-//LR//1        vector<double> anorm = norm2(world, sub(world, amo, amo_new));
-//LR//1        vector<double> bnorm = norm2(world, sub(world, bmo, bmo_new));
-//LR//1
-//LR//1        // Step restriction
-//LR//1        int nres = 0;
-//LR//1        for (unsigned int i=0; i<amo.size(); i++) {
-//LR//1            if (anorm[i] > param.maxrotn) {
-//LR//1                double s = param.maxrotn/anorm[i];
-//LR//1                nres++;
-//LR//1                if (world.rank() == 0) {
-//LR//1                    if (nres == 1) printf("  restricting step for alpha orbitals:");
-//LR//1                    printf(" %d", i);
-//LR//1                }
-//LR//1                amo_new[i].gaxpy(s, amopt[i], 1.0-s, false);
-//LR//1            }
-//LR//1        }
-//LR//1        if (nres>0 && world.rank() ==0) printf("\n");
-//LR//1        nres = 0;
-//LR//1        for (unsigned int i=0; i<bmo.size(); i++) {
-//LR//1            if (bnorm[i] > param.maxrotn) {
-//LR//1                double s = param.maxrotn/bnorm[i];
-//LR//1                nres++;
-//LR//1                if (world.rank() == 0) {
-//LR//1                    if (nres == 1) printf("  restricting step for  beta orbitals:");
-//LR//1                    printf(" %d", i);
-//LR//1                }
-//LR//1                bmo_new[i].gaxpy(s, bmopt[i], 1.0-s, false);
-//LR//1            }
-//LR//1        }
-//LR//1        world.gop.fence();
-//LR//1
-//LR//1        double rms, maxval;
-//LR//1        vector_stats(anorm, rms, maxval);
-//LR//1        if (world.rank() == 0) print("Norm of vector changes alpha: rms", rms, "   max", maxval);
-//LR//1        update_residual = maxval;
-//LR//1        if (bnorm.size()) {
-//LR//1            vector_stats(bnorm, rms, maxval);
-//LR//1            if (world.rank() == 0) print("Norm of vector changes  beta: rms", rms, "   max", maxval);
-//LR//1            update_residual = max(update_residual, maxval);
-//LR//1        }
-//LR//1
-//LR//1        // Orthogonalize
-//LR//1        START_TIMER;
-//LR//1        double trantol = vtol/min(30.0,double(amo.size()));
-//LR//1        normalize(world, amo_new);
-//LR//1        amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
-//LR//1        truncate(world, amo_new);
-//LR//1        normalize(world, amo_new);
-//LR//1        if (param.nbeta && !param.spin_restricted) {
-//LR//1            normalize(world, bmo_new);
-//LR//1            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol);
-//LR//1            truncate(world, bmo_new);
-//LR//1            normalize(world, bmo_new);
-//LR//1        }
-//LR//1        END_TIMER("Orthonormalize");
-//LR//1        amopt = amo_new;
-//LR//1        bmopt = bmo_new;
-//LR//1    }
-//LR//1// vama
+    void update_subspacept(World & world,
+                         vecfuncT & Vpsiapt, vecfuncT & Vpsibpt,
+                         tensorT & focka, tensorT & fockb,
+                         vecfuncT & V1psia0, vecfuncT & V1psib0,
+                         tensorT & dippsia0, tensorT & dippsib0,
+                         subspaceT & subspace,
+                         tensorT & Q,
+                         double & bsh_residual,
+                         double & update_residual) {
+
+// eps = e0 - omega
+// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1+(eps - e0 + omega)*psi1]
+// psi_1 = -(T-eps)^-1 [(E1-V1)psi_0-V0*psi_1]
+// psi_1 = -(T-eps)^-1 * [  RHS  ]
+//
+//    E1 = <psi_0|V1|psi_0>
+// 
+        // Form RHS = V*psi - fock*psi
+//
+        double aerr=0.0, berr=0.0;
+        vecfuncT vmpt = amopt;
+        vecfuncT vm = amo;
+	vecfuncT rm = compute_residualpt(world, aocc, focka, amo, amopt, Vpsiapt, V1psia0,dippsia0,  aerr);
+        if (param.nbeta && !param.spin_restricted) {
+	    vecfuncT br = compute_residualpt(world, bocc, fockb, bmo, bmopt, Vpsibpt, V1psib0,dippsib0,  aerr);
+            vm.insert(vm.end(), bmopt.begin(), bmopt.end());
+            rm.insert(rm.end(), br.begin(), br.end());
+        }
+        bsh_residual = std::max(aerr, berr);
+        world.gop.broadcast(bsh_residual, 0);
+
+//  functionT Vpsi = V0*psi1 + (epsilon - e0 + omega)*psi1 + V1*psi0;
+//            vecfuncT Vnucpsib = mul_sparse(world, vloc, bmop, vtol);
+
+
+        // Update subspace and matrix Q
+        compress(world, vm, false);
+        compress(world, rm, false);
+        world.gop.fence();
+        subspace.push_back(pairvecfuncT(vm,rm));
+
+        int m = subspace.size();
+        tensorT ms(m);
+        tensorT sm(m);
+        for (int s=0; s<m; s++) {
+            const vecfuncT& vs = subspace[s].first;
+            const vecfuncT& rs = subspace[s].second;
+            for (unsigned int i=0; i<vm.size(); i++) {
+                ms[s] += vm[i].inner_local(rs[i]);
+                sm[s] += vs[i].inner_local(rm[i]);
+            }
+        }
+        world.gop.sum(ms.ptr(),m);
+        world.gop.sum(sm.ptr(),m);
+
+        tensorT newQ(m,m);
+        if (m > 1) newQ(Slice(0,-2),Slice(0,-2)) = Q;
+        newQ(m-1,_) = ms;
+        newQ(_,m-1) = sm;
+
+        Q = newQ;
+
+        // Solve the subspace equations
+        tensorT c;
+        if (world.rank() == 0) {
+            double rcond = 1e-12;
+            while (1) {
+                c = KAIN(Q,rcond);
+                if (abs(c[m-1]) < 3.0) {
+                    break;
+                }
+                else if (rcond < 0.01) {
+                    print("Increasing subspace singular value threshold ", c[m-1], rcond);
+                    rcond *= 100;
+                }
+                else {
+                    print("Forcing full step due to subspace malfunction");
+                    c = 0.0;
+                    c[m-1] = 1.0;
+                    break;
+                }
+            }
+        }
+
+
+        world.gop.broadcast_serializable(c, 0);
+        if (world.rank() == 0) {
+            //print("Subspace matrix");
+            //print(Q);
+            print("Subspace solution", c);
+        }
+
+
+
+        // Form linear combination for new solution
+        START_TIMER(world);
+        vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
+        vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
+        compress(world, amo_new, false);
+        compress(world, bmo_new, false);
+        world.gop.fence();
+        for (unsigned int m=0; m<subspace.size(); m++) {
+            const vecfuncT& vm = subspace[m].first;
+            const vecfuncT& rm = subspace[m].second;
+            const vecfuncT  vma(vm.begin(),vm.begin()+amo.size());
+            const vecfuncT  rma(rm.begin(),rm.begin()+amo.size());
+            const vecfuncT  vmb(vm.end()-bmo.size(), vm.end());
+            const vecfuncT  rmb(rm.end()-bmo.size(), rm.end());
+
+            gaxpy(world, 1.0, amo_new, c(m), vma, false);
+            gaxpy(world, 1.0, amo_new,-c(m), rma, false);
+            gaxpy(world, 1.0, bmo_new, c(m), vmb, false);
+            gaxpy(world, 1.0, bmo_new,-c(m), rmb, false);
+        }
+        world.gop.fence();
+        END_TIMER(world,"Subspace transform");
+
+        if (param.maxsub <= 1) {
+            // Clear subspace if it is not being used
+            subspace.clear();
+        }
+        else if (subspace.size() == param.maxsub) {
+            // Truncate subspace in preparation for next iteration
+            subspace.erase(subspace.begin());
+            Q = Q(Slice(1,-1),Slice(1,-1));
+        }
+
+        // Form step sizes
+        vector<double> anorm = norm2s(world, sub(world, amo, amo_new));
+        vector<double> bnorm = norm2s(world, sub(world, bmo, bmo_new));
+
+        // Step restriction
+        int nres = 0;
+        for (unsigned int i=0; i<amo.size(); i++) {
+            if (anorm[i] > param.maxrotn) {
+                double s = param.maxrotn/anorm[i];
+                nres++;
+                if (world.rank() == 0) {
+                    if (nres == 1) printf("  restricting step for alpha orbitals:");
+                    printf(" %d", i);
+                }
+                amo_new[i].gaxpy(s, amopt[i], 1.0-s, false);
+            }
+        }
+        if (nres>0 && world.rank() ==0) printf("\n");
+        nres = 0;
+        for (unsigned int i=0; i<bmo.size(); i++) {
+            if (bnorm[i] > param.maxrotn) {
+                double s = param.maxrotn/bnorm[i];
+                nres++;
+                if (world.rank() == 0) {
+                    if (nres == 1) printf("  restricting step for  beta orbitals:");
+                    printf(" %d", i);
+                }
+                bmo_new[i].gaxpy(s, bmopt[i], 1.0-s, false);
+            }
+        }
+        world.gop.fence();
+
+        double rms, maxval;
+        vector_stats(anorm, rms, maxval);
+        if (world.rank() == 0) print("Norm of vector changes alpha: rms", rms, "   max", maxval);
+        update_residual = maxval;
+        if (bnorm.size()) {
+            vector_stats(bnorm, rms, maxval);
+            if (world.rank() == 0) print("Norm of vector changes  beta: rms", rms, "   max", maxval);
+            update_residual = std::max(update_residual, maxval);
+        }
+
+        // Orthogonalize
+        START_TIMER(world);
+        double trantol = vtol/std::min(30.0,double(amo.size()));
+        normalize(world, amo_new);
+        amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol);
+        truncate(world, amo_new);
+        normalize(world, amo_new);
+        if (param.nbeta && !param.spin_restricted) {
+            normalize(world, bmo_new);
+            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol);
+            truncate(world, bmo_new);
+            normalize(world, bmo_new);
+        }
+        END_TIMER(world,"Orthonormalize");
+        amopt = amo_new;
+        bmopt = bmo_new;
+    } //ends update_subspacept
+// vama
     void create_guesspt(World& world) {
         for (unsigned int i=0; i<amo.size(); i++) {
             amopt[i] = copy(amo[i], FunctionDefaults<3>::get_pmap(), false);
         }
-//LR//1        if (param.nbeta && !param.spin_restricted) {
-//LR//1            for (unsigned int i=0; i<bmo.size(); i++) {
-//LR//1                bmopt[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
-//LR//1            }
-//LR//1        }
+        if (param.nbeta && !param.spin_restricted) {
+            for (unsigned int i=0; i<bmo.size(); i++) {
+                bmopt[i] = copy(bmo[i], FunctionDefaults<3>::get_pmap(), false);
+            }
+        }
     }
 
 
@@ -2817,9 +2829,9 @@ struct Calculation {
 //LR//1        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
 //LR//1        const double trantol = vtol / std::min(30.0, double(amo.size()));
 //LR//1        const double tolloc = 1e-3;
-//LR//1        double update_residual = 0.0, bsh_residual = 0.0;
-//LR//1        subspaceT subspace;
-//LR//1        tensorT Q;
+        double update_residual = 0.0, bsh_residual = 0.0;
+        subspaceT subspace;
+        tensorT Q;
 //LR//1        bool do_this_iter = true;
 //LR//1// create guess for psipert
 //LR//1
@@ -2845,67 +2857,67 @@ struct Calculation {
 //form apply_potentials
 // get e_i from psi0
         functionT vlocal;
-        {
+//////       {
 // apply potentials function 
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                arho.reconstruct();
-                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+        vecfuncT vf, delrho;
+        if (xc.is_dft()) {
+            arho.reconstruct();
+            if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
 
-                vf.push_back(arho);
-                if (xc.is_spin_polarized()) vf.push_back(brho);
-                if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
-                    if (xc.is_spin_polarized()) {
-                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-                    }
-                    world.gop.fence(); // NECESSARY
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
-                    if (xc.is_spin_polarized()) {
-                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-                    }
+            vf.push_back(arho);
+            if (xc.is_spin_polarized()) vf.push_back(brho);
+            if (xc.is_gga()) {
+                for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
+                if (xc.is_spin_polarized()) {
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
                 }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                world.gop.fence(); // NECESSARY
+                vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
+                if (xc.is_spin_polarized()) {
+                    vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                    vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
                 }
             }
+            if (vf.size()) {
+                reconstruct(world, vf);
+                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+            }
+        }
 //LR//1            functionT vcoul = apply(*coulop, rho);
 
 
-            if(param.nalpha + param.nbeta > 1){
-                START_TIMER(world);
-                vlocal = vnuc + apply(*coulop, rho);
-                END_TIMER(world, "guess Coulomb potn");
-                bool save = param.spin_restricted;
-                param.spin_restricted = true;
-                vlocal = vlocal + make_lda_potential(world, rho);
-                vlocal.truncate();
-                param.spin_restricted = save;
-            } else {
-                vlocal = vnuc;
-            }
-            vlocal.reconstruct();
-
-            double exca=0.0, excb=0.0;
+        if(param.nalpha + param.nbeta > 1){
+            START_TIMER(world);
+            vlocal = vnuc + apply(*coulop, rho);
+            END_TIMER(world, "guess Coulomb potn");
+            bool save = param.spin_restricted;
+            param.spin_restricted = true;
+            vlocal = vlocal + make_lda_potential(world, rho);
+            vlocal.truncate();
+            param.spin_restricted = save;
+        } else {
+            vlocal = vnuc;
+        }
+        vlocal.reconstruct();
+ 
+        double exca=0.0, excb=0.0;
 //LR//1            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
-            vecfuncT Vpsib;
-            if(!param.spin_restricted && param.nbeta) {
+        vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
+        vecfuncT Vpsib;
+        if(!param.spin_restricted && param.nbeta) {
 //LR//1                Vpsibp = apply_potential(world, bocc, bmo, brho, adelrhos, bdelrhos, vlocal, excb);
-                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
-            }
+            Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
+        }
 //here genetate the e_i
-            double ekina=0.0, ekinb=0.0;
-            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
-            tensorT fockb = focka;
+        double ekina=0.0, ekinb=0.0;
+        tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+        tensorT fockb = focka;
 
-            if (!param.spin_restricted && param.nbeta)
-                fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-            else
-                ekinb = ekina;
-        } // end e_i from psi0
+        if (!param.spin_restricted && param.nbeta)
+            fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+        else
+            ekinb = ekina;
+///////////        } // end e_i from psi0
 
 
         amopt = zero_functions<double,3>(world, amo.size());
@@ -2957,6 +2969,18 @@ struct Calculation {
             double excapt=0.0, excbpt=0.0;
             vecfuncT Vpsiapt = apply_potential(world, aocc, amopt, vf, delrhopt, vlocal, excapt, 0);
             vecfuncT Vpsibpt;
+            vecfuncT V1psia0;
+            vecfuncT V1psib0;
+            int namo = amo.size();
+            int nbmo;
+            if(!param.spin_restricted && param.nbeta) {
+                nbmo = bmo.size();
+            }
+            else {
+                nbmo = namo;
+            }
+            tensorT dippsia0(namo, 3);
+            tensorT dippsib0(nbmo, 3);
             if(!param.spin_restricted && param.nbeta) {
                 Vpsibpt = apply_potential(world, bocc, bmopt, vf, delrhopt, vlocal, excbpt, 1);
             }
@@ -2965,16 +2989,6 @@ struct Calculation {
             }
 //apply H1 to phi0
             {
-                int namo = amo.size();
-                int nbmo;
-                if(!param.spin_restricted && param.nbeta) {
-                    nbmo = bmo.size();
-                }
-                else {
-                    nbmo = namo;
-                }
-                tensorT dippsia0(namo, 3);
-                tensorT dippsib0(nbmo, 3);
                 for (int axis=0; axis<3; ++axis) {
                      tensorT dipa=dippsia0(_,axis);
                      tensorT dipb=dippsib0(_,axis);
@@ -2995,32 +3009,35 @@ struct Calculation {
                      }
                 }
              }
-        }
-    }
 //LR//1// start updatept
-//LR//1        update_subspacept(world, Vpsiapt, Vpsibpt, focka, fockb,
-//LR//1                                 V1psia0, V1psib0, dippsia0, dippsib0,
-//LR//1                          subspace, Q, bsh_residual, update_residual);
+        update_subspacept(world, Vpsiapt, Vpsibpt, focka, fockb,
+                                 V1psia0, V1psib0, dippsia0, dippsib0,
+                          subspace, Q, bsh_residual, update_residual);
 //LR//1// Estimate the new zz polarizability
-//LR//1        tensorT polapt(3,nmo), polbpt(3,nmo);
-//LR//1        pola = 0.0e-0;
-//LR//1        poba = 0.0e-0;
-//LR//1
-//LR//1        double pola, polb;
-//LR//1        for (int axis2=0; axis2<3; axis2++) {
+        tensorT polapt(namo, 3), polbpt(nbmo, 3);
+
+        double pola, polb;
+        pola = 0.0e-0;
+        polb = 0.0e-0;
+        for (int axis=0; axis<3; axis++) {
+            tensorT polla=polapt(_,axis);
+            tensorT pollb=polbpt(_,axis);
+            functionT fdip2 = factoryT(world).functor(functorT(new DipoleFunctor(axis)));
 //LR//1            functionT fdip2 = factoryT(world).functor(functorT(new DipoleFunctor(axis2))).initial_level(4);
 //LR//1            polapt(axis2,_) = -2.0*inner(world, amopt, mul_sparse(world, fdip2, amo, vtol));
-//LR//1            vecfuncT V1psib1;
-//LR//1            if (!param.spin_restricted && param.nbeta)
-//LR//1                 polbpt(axis2,_) = -2.0*inner(world, bmopt, mul_sparse(world, fdip2, bmo, vtol));
-//LR//1            else
-//LR//1// .gaxpy
+            polla = -2.0*inner(world, amopt, mul_sparse(world, fdip2, amo, vtol));
+                
+            vecfuncT V1psib1;
+            if (!param.spin_restricted && param.nbeta)
+                 pollb = -2.0*inner(world, bmopt, mul_sparse(world, fdip2, bmo, vtol));
+            else
+// .gaxpy
 //LR//1                 polbpt(axis2,_) = polapt(axis2,_);
-//LR//1//
-//LR//1            for (long j=0; j<nmo; j++) {
-//LR//1                 pola += polapt(axis2,j);
-//LR//1            }
-//LR//1        }
+//
+            for (long j=0; j<namo; j++) {
+                 pola += polapt(j,axis);
+            }
+        }
 //LR//1        for (long i=0; i<nmo; i++) {
 //LR//1        pola +=
 //LR//1        }
@@ -3032,6 +3049,8 @@ struct Calculation {
 //LR//1
 //LR//1//vama end
 //LR//1
+        } //iter
+    }
 /////////////////////////////////////////////
 //  vama
 /////////////////////////////////////////////
