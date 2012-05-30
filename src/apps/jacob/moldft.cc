@@ -2827,12 +2827,15 @@ struct Calculation {
 
             analyze_vectors(world, bmo, bocc, beps);
         }
-        if(param.absolvent || param.svpe)
+        if((param.absolvent || param.svpe)&&!param.physisorption)
             if(world.rank()==0)
                 print("\n\n                            Entrying Solvation Module                       \n\n");                          
-        if(param.physisorption)
+        if(param.physisorption && !(param.absolvent || param.svpe))
             if(world.rank()==0)
                 print("\n\n                            Entrying Physisorption Module                       \n\n");                          
+        if(param.physisorption && param.absolvent)
+            if(world.rank()==0)
+                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                          
     }
     //end solve_vacuo
  void solve(World & world)
@@ -2957,16 +2960,24 @@ struct Calculation {
            ================================================================================================ */
            if(param.physisorption ){
                 rhotp = rhon - vacuo_rho;
+                if (world.rank()==0)
+                    print("ENTERYING COLLOID");
                 SVPEColloidSolver solver(world,param.sigma,param.epsilon_2,param.epsilon_1,colloid_radii(param.Rcoll) \
-                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()),std::min(1e-4,param.sigma*0.1));
-                //realfunc Uguess = (X + Y + Z).scale(-1.0*param.F);//Colloid is in the -Y direction
-                //ULaplace = solver.solve_Laplace(Uguess);
+                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
+                                         ,std::min(1e-4,param.sigma*0.1),param.maxiter);
+                realfunc Uguess = (X + Y + Z).scale(-1.0*param.F);//Colloid is in the -Y direction
+                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+                                                                               ,molecule.get_all_coords_vec()));
+                realfunc mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
+                print("Molecularmask", mol_mask.trace());
                 Uphysisorb = solver.solve(rhotp);
-                /*realfunc FL  = solver.make_electric_field(ULaplace);
-                  if(world.rank() == 0)
-                  print(" continuum reflected field ",FL.norm2());*/
-             
-            }
+                ULaplace = solver.solve_Laplace(Uguess);
+                realfunc FL  = solver.make_electric_field(ULaplace);
+                double AF = solver.ave_rxn_field(FL,mol_mask);
+                if(world.rank() == 0)
+                    print(" average continuum reflected field ",AF);
+                
+           }
             /*==========================================================================================
               Instantiating SVPE and Isodensity solvation models
               ============================================================================================*/
@@ -3758,9 +3769,9 @@ struct Calculation {
                 printf("               cavitation energy %16.8f\n     ",E_cav*627.503);
                 printf("                gas phase energy %16.8f\n     ",vacuo_energy);
                 printf("           solution phase energy%16.8f\n\n     ",etot);
-	  }
+            }
 	}
-	else if(param.svpe){
+        if(param.svpe){
             rhot = rhon - vacuo_rho;
             ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
                                            molecule.get_all_coords_vec()); 
@@ -3769,34 +3780,35 @@ struct Calculation {
             ereaction = rhot.inner(vsolvent);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
             if(world.rank() == 0) {
-            print("\n\n");
-            print("                            MADNESS SVPE            ");
-            print("                          _________________         ");
-            print("     (electrostatic) solvation energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
-            print("(electrostatic) solvation free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
-            print("                    cavitation energy:          ",cav_energy*627.503,"kcal/mol");
-            printf("               solution phase energy:%16.8f\n  ",etot);
-            printf("                    gas phase energy:%16.8f\n  ",vacuo_energy);
+                print("\n\n");
+                print("                            MADNESS SVPE            ");
+                print("                          _________________         ");
+                print("     (electrostatic) solvation energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
+                print("(electrostatic) solvation free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
+                print("                    cavitation energy:          ",cav_energy*627.503,"kcal/mol");
+                printf("               solution phase energy:%16.8f\n  ",etot);
+                printf("                    gas phase energy:%16.8f\n  ",vacuo_energy);
             }
 	}
-        else if(param.physisorption){
+        if(param.physisorption){
             rhot = rhon - vacuo_rho;
-            SVPEColloidSolver solver(world,param.sigma,param.epsilon_2,param.epsilon_1,colloid_radii(param.Rcoll)\
-                                     ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()),std::min(1e-4,param.sigma*0.1));
+            SVPEColloidSolver solver(world,param.sigma,param.epsilon_2,param.epsilon_1,colloid_radii(param.Rcoll) \
+                                     ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center())\
+                                     ,std::min(1e-4,param.sigma*0.1),param.maxiter);
             Uphysisorb = solver.solve(rhot);
             realfunc FFF  = solver.make_electric_field(Uphysisorb);
             double Fxyz = FFF.norm2();
             ereaction = rhot.inner(Uphysisorb);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
             if(world.rank() == 0) {
-            print("\n\n");
-            print("                            MADNESS PHYSISORPTION            ");
-            print("                              _________________              ");
-            print("     (electrostatic) physisorption energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
-            print("(electrostatic) physisorption free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
-            print("           colloid-solute reflected field:          ",Fxyz,"a.u.");
-            printf("              physisorption phase energy:%16.8f\n  ",etot);
-            printf("                    gas phase energy:%16.8f\n      ",vacuo_energy);
+                print("\n\n");
+                print("                            MADNESS PHYSISORPTION            ");
+                print("                              _________________              ");
+                print("     (electrostatic) physisorption energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
+                print("(electrostatic) physisorption free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
+                print("           colloid-solute reflected field:          ",Fxyz,"a.u.");
+                printf("              physisorption phase energy:%16.8f\n  ",etot);
+                printf("                    gas phase energy:%16.8f\n      ",vacuo_energy);
             }
         }
     }
