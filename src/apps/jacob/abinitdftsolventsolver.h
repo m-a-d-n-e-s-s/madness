@@ -519,8 +519,15 @@ public:
         realfunc dz = Dz(uxc) ;
         return (dx + dy + dz).scale(-1.0);
     }
-
-  //Defining the Constructor
+    //calculate the average reaction field(\int C(r)F_r(r)d \tau/\int C(r)d\tau  
+    //the mask is that of the molecule because the average field is that felt by the molecule 
+    double ave_rxn_field(const real_function_3d& F_r,const real_function_3d& mask)const {
+        real_function_3d  pdt = mask*F_r;
+        double numerator = pdt.trace();
+        double denominator = mask.trace();
+        return (numerator/denominator);
+    }
+ //Defining the Constructor
  DFTSolventSolver(const realfunc& rho,
 		  const realfunc& rhot,
 		  const double& rho_0,
