@@ -142,7 +142,7 @@ public:
     {
         MADNESS_ASSERT(atomic_radii.size() == atomic_coords.size());//check on the consistency
         // Functors for mask related quantities
-        real_functor_3d rdielectric_functor(new MolecularVolumeExponentialSwitchReciprocal(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords));
+        real_functor_3d rdielectric_functor(new MolecularVolumeExponentialSwitchReciprocal(sigma,epsilon_0,epsilon_1,atomic_radii,atomic_coords));
         real_functor_3d gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,0));
         real_functor_3d grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,1));
         real_functor_3d gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,2));
@@ -150,12 +150,12 @@ public:
         // Make the actual functions
         // const double rfourpi = 1.0/(4.0*constants::pi);
         rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
-        dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence();
-        dlog[1] = real_factory_3d(world).functor(grady_functor).nofence();
-        dlog[2] = real_factory_3d(world).functor(gradz_functor); // FENCE
+        dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence().truncate_on_project();
+        dlog[1] = real_factory_3d(world).functor(grady_functor).nofence().truncate_on_project();
+        dlog[2] = real_factory_3d(world).functor(gradz_functor).truncate_on_project(); // FENCE
         // scale(world, dlog, rfourpi);
         rdielectric.truncate(false);
-        //truncate(world, dlog);
+        truncate(world, dlog);
     }
 
     // Given the full Coulomb potential computes the surface charge
@@ -167,11 +167,11 @@ public:
         real_function_3d dx = Dx(u);
         real_function_3d dy = Dy(u);
         real_function_3d dz = Dz(u);
-        real_function_3d sc = (dlog[0]*dx + dlog[1]*dy + dlog[2]*dz);//.truncate();
-        //real_function_3d sc = (func_pdt(dlog[0],dx) + func_pdt(dlog[1],dy) + func_pdt(dlog[2],dz)).truncate();
-        // coord_3d lo,hi;
-        //lo[1]=-20.0, hi[1]=20.0;
-        //plot_line("colloid_surf_charge.dat", 201, lo, hi, sc);
+        //real_function_3d sc = (dlog[0]*dx + dlog[1]*dy + dlog[2]*dz);//.truncate();
+        real_function_3d sc = func_pdt(dlog[0],dx).truncate() + func_pdt(dlog[1],dy).truncate() + func_pdt(dlog[2],dz).truncate();
+        coord_3d lo,hi;
+        lo[1]=-20.0, hi[1]=20.0;
+        plot_line("colloid_surf_charge.dat", 201, lo, hi, sc);
         return sc.scale(fac);
     }
     //computes components of the the electric field due to the surface charge 
@@ -192,7 +192,6 @@ public:
     real_function_3d solve(const real_function_3d& rho) const {
         real_function_3d charge = (rdielectric*rho).scale(-1.0);
         //charge.truncate();
-        
         // Initial guess is constant dielectric        
         real_function_3d u0 = op(charge);//.truncate();
         //real_function_3d u = uguess.is_initialized() ? uguess : u0;
@@ -209,8 +208,6 @@ public:
         }
         for (int iter=0; iter<maxiter; iter++) {
             double start = wall_time();
-            if (world.rank()==0)
-                print("I AM HERE ON SURFACE CHARGE");
             real_function_3d surface_charge = make_surface_charge(u);
             real_function_3d r = (u - u0 - op(surface_charge)).truncate();
             double sigtot = surface_charge.trace();
