@@ -461,6 +461,7 @@ struct CalculationParameters {
     int nmo_beta;               ///< Number of beta  spin molecular orbitals
     double lo;                  ///< Smallest length scale we need to resolve
     double epsilon_1;           ///<vacuum dielectric constant jacob added
+    double epsilon_c;           ///<metallic colloid dielectric constant jacob added
     double epsilon_2;          ///< solvent dielectric constant  jacob added
     bool svpe;               ///< if true add reaction potential to the total energy at convergence  jacob added
     bool absolvent;            ///< if true, activate the DFT Solvent Solver
@@ -532,7 +533,7 @@ struct CalculationParameters {
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
-        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_c & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
 	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & F & fx & mfx & fy & mfy & fz & mfz & tfztfy & mtfztfy;
 	ar & tfzmtfy & mtfzmtfy & fyfz & mfyfz & fymfz & mfymfz & tfx & mtfx & tfy & mtfy & tfz & mtfz & fxfy & mfxfy & fxmfy & mfxmfy;
 	ar & tfztfx & mtfztfx & tfzmtfx & mtfzmtfx & tfytfx & mtfytfx & tfymtfx & mtfymtfx & fxfz & mfxfz & fxmfz & mfxmfz;
@@ -572,6 +573,7 @@ struct CalculationParameters {
         , nmo_beta(0)
         , lo(1e-10)
         , epsilon_1(1.0)        
+        , epsilon_c(1600.0)        
         , epsilon_2(epsilon_2)  
         , svpe(false)        
         , absolvent(false)
@@ -723,6 +725,12 @@ struct CalculationParameters {
 	    else if (s == "dielectric"|| s == "dielec"){
                f>>epsilon_2;      
 	    }
+            else if (s == "colloid_dielectric"|| s == "colloid_dielec"){
+               f>>epsilon_c;      
+	    }
+            else if (s == "env_dielectric"|| s == "env_dielec"){ //for environment arround the colloid
+               f>>epsilon_1;      
+            }
 	    else if (s == "svpe"|| s == "SVPE"){
 	       svpe = true;   
 	    }
@@ -1026,6 +1034,10 @@ struct CalculationParameters {
 	    madness::print("        dielectric ", epsilon_2); //jacob added
 	    madness::print("     surface width ", sigma);
 	}
+        if (physisorption){
+            madness::print("dielectric around colloid and molecule         ", epsilon_1); //jacob added
+            madness::print("colloid's dielectric constant                  ", epsilon_c);
+        }
         if (plot_cell.size() > 0)
             madness::print("        plot  volume ", plot_cell(0,0), plot_cell(0,1),
                            plot_cell(1,0), plot_cell(1,1), plot_cell(2,0), plot_cell(2,1));
@@ -1073,6 +1085,7 @@ struct Calculation {
     double E_cav;
     double Ues;
     realfunc Uphysisorb;
+    realfunc mol_mask;
     realfunc ULaplace;
     realfunc Ucontinuum;
     realfunc Uabinit;
@@ -2960,22 +2973,21 @@ struct Calculation {
            ================================================================================================ */
            if(param.physisorption ){
                 rhotp = rhon - vacuo_rho;
-                if (world.rank()==0)
-                    print("ENTERYING COLLOID");
-                SVPEColloidSolver solver(world,param.sigma,param.epsilon_2,param.epsilon_1,colloid_radii(param.Rcoll) \
+                SVPEColloidSolver solver(world,param.sigma,param.epsilon_c,param.epsilon_1,colloid_radii(param.Rcoll) \
                                          ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
                                          ,std::min(1e-4,param.sigma*0.1),param.maxiter);
-                realfunc Uguess = (X + Y + Z).scale(-1.0*param.F);//Colloid is in the -Y direction
+                // realfunc Uguess = (X + Y + Z).scale(-1.0*param.F);//Colloid is in the -Y direction
                 real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
                                                                                ,molecule.get_all_coords_vec()));
-                realfunc mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
-                print("Molecularmask", mol_mask.trace());
+                mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
                 Uphysisorb = solver.solve(rhotp);
-                ULaplace = solver.solve_Laplace(Uguess);
-                realfunc FL  = solver.make_electric_field(ULaplace);
-                double AF = solver.ave_rxn_field(FL,mol_mask);
-                if(world.rank() == 0)
-                    print(" average continuum reflected field ",AF);
+                // if(world.rank() == 0)
+                //     print("initial guess into Laplace",Uguess.norm2());
+                //ULaplace = solver.solve_Laplace(Uguess);
+                //realfunc FL  = solver.make_electric_field(ULaplace);
+                //double AF = solver.ave_rxn_field(FL,mol_mask);
+                //                if(world.rank() == 0)
+                //    print(" average continuum reflected field ",AF);
                 
            }
             /*==========================================================================================
@@ -3753,7 +3765,7 @@ struct Calculation {
             //DFTSsolver.dftsolverplots();
             vsolvent = DFTSsolver.ESP();
             realfunc FF  = DFTSsolver.make_electric_field(vsolvent);
-            double Fxyz = FF.norm2();
+            double Fxyz = DFTSsolver.ave_rxn_field(FF,mol_mask);
             E_es = rhot.inner(vsolvent);
             E_cav = DFTSsolver.cavitation_energy();
             double E_free = etot - vacuo_energy + 0.5*E_es;
@@ -3797,7 +3809,7 @@ struct Calculation {
                                      ,std::min(1e-4,param.sigma*0.1),param.maxiter);
             Uphysisorb = solver.solve(rhot);
             realfunc FFF  = solver.make_electric_field(Uphysisorb);
-            double Fxyz = FFF.norm2();
+            double Fxyz = solver.ave_rxn_field(FFF,mol_mask);
             ereaction = rhot.inner(Uphysisorb);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
             if(world.rank() == 0) {
