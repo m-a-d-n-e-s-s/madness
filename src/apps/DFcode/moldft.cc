@@ -2825,10 +2825,11 @@ struct Calculation {
 //LR//1//
     void polar_solve(World& world) {
 
-//LR//1        functionT arho_old, brho_old;
 //LR//1        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
 //LR//1        const double trantol = vtol / std::min(30.0, double(amo.size()));
 //LR//1        const double tolloc = 1e-3;
+        functionT arhopt_old, brhopt_old;
+
         double update_residual = 0.0, bsh_residual = 0.0;
         subspaceT subspace;
         tensorT Q;
@@ -2844,57 +2845,88 @@ struct Calculation {
         initial_load_bal(world);
         make_nuclear_potential(world);
 
-        functionT arho = make_density(world, aocc, amo);
-        functionT brho;
-        if (!param.spin_restricted && param.nbeta)
-            brho = make_density(world, bocc, bmo);
-        else
-            brho = arho;
-//create dens
-        functionT rho = arho + brho;
-        rho.truncate();
 
-//form apply_potentials
-// get e_i from psi0
-        functionT vlocal;
-//////       {
-// apply potentials function 
-        vecfuncT vf, delrho;
-        if (xc.is_dft()) {
-            arho.reconstruct();
-            if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
-
-            vf.push_back(arho);
-            if (xc.is_spin_polarized()) vf.push_back(brho);
-            if (xc.is_gga()) {
-                for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
-                if (xc.is_spin_polarized()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-                }
-                world.gop.fence(); // NECESSARY
-                vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
-                if (xc.is_spin_polarized()) {
-                    vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                    vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-                }
+//make rho
+        START_TIMER(world);
+        functionT arho = make_density(world, aocc, amo), brho;
+        if (param.nbeta) {
+            if (param.spin_restricted) {
+                brho = arho;
             }
-            if (vf.size()) {
-                reconstruct(world, vf);
-                arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+            else {
+            brho = make_density(world, bocc, bmo);                    
             }
         }
-//LR//1            functionT vcoul = apply(*coulop, rho);
+        else {
+            brho = functionT(world); // zero
+        }
+        functionT rho = arho + brho;
+        rho.truncate();
+        END_TIMER(world, "Make densities");
 
 
+	    // DEBUG
+// 	    double rhotrace = rho.trace();
+// 	    double vnuctrace = vnuc.trace();
+// 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+	    // END DEBUG
+
+//create local potentials
+//    get e_i from psi0
+
+//form  apply_potentials
+// Vlocal potential
+        vecfuncT Vpsia;
+        vecfuncT Vpsib;
+//
+        functionT vlocal;
+//    Nuclear potential
+//
+//        double enuclear = inner(rho, vnuc);
+//
+
+//    Internal potential
+        vecfuncT vf, delrho;
         if(param.nalpha + param.nbeta > 1){
             START_TIMER(world);
-            vlocal = vnuc + apply(*coulop, rho);
-            END_TIMER(world, "guess Coulomb potn");
-            bool save = param.spin_restricted;
-            param.spin_restricted = true;
-            vlocal = vlocal + make_lda_potential(world, rho);
+//        Coulombic potential
+            functionT vcoul = apply(*coulop, rho);
+            END_TIMER(world, "Coulomb");
+//
+//          double ecoulomb = 0.5 * inner(rho, vcoul);
+//
+            rho.clear(false);
+
+            vlocal = vcoul + vnuc;
+            vcoul.clear(false);
             vlocal.truncate();
-            param.spin_restricted = save;
+
+           print(" hola\n");
+//        Exchange correlation potential
+            if (xc.is_dft()) {
+                arho.reconstruct();
+                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+    
+                vf.push_back(arho);
+                if (xc.is_spin_polarized()) vf.push_back(brho);
+                if (xc.is_gga()) {
+                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
+                    if (xc.is_spin_polarized()) {
+                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+                    }
+                    world.gop.fence(); // NECESSARY
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
+                    if (xc.is_spin_polarized()) {
+                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+                    }
+                }
+                if (vf.size()) {
+                    reconstruct(world, vf);
+                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+                }
+            }
+//LR//1            functionT vcoul = apply(*coulop, rho);
         } else {
             vlocal = vnuc;
         }
@@ -2902,8 +2934,8 @@ struct Calculation {
  
         double exca=0.0, excb=0.0;
 //LR//1            vecfuncT Vpsia = apply_potential(world, aocc, amo, arho, brho, adelrhosq, bdelrhosq, vlocal, exca);
-        vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
-        vecfuncT Vpsib;
+        Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
+
         if(!param.spin_restricted && param.nbeta) {
 //LR//1                Vpsibp = apply_potential(world, bocc, bmo, brho, adelrhos, bdelrhos, vlocal, excb);
             Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
@@ -2917,58 +2949,77 @@ struct Calculation {
             fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
         else
             ekinb = ekina;
-///////////        } // end e_i from psi0
+///////////        } // end e_i from psi0   V0|psi0> Done! 
 
 
         amopt = zero_functions<double,3>(world, amo.size());
         bmopt = zero_functions<double,3>(world, bmo.size());
-        amopt = amo;
-        bmopt = bmo;
-
-        functionT arhopt = make_density(world, aocc, amopt);
-        functionT brhopt;
-
-        if (!param.spin_restricted && param.nbeta)
-             brhopt = make_density(world, bocc, bmopt);
-        else
-             brhopt = arhopt;
 
         for (int iter=0; iter<nstep; iter++)
         {
-//LR//2            functionT vlocal;
+//        amopt = amo;
+//        bmopt = bmo;
+
+            functionT arhopt = make_density(world, aocc, amopt);
+            functionT brhopt;
+    
+            if (!param.spin_restricted && param.nbeta)
+                 brhopt = make_density(world, bocc, bmopt);
+            else
+                 brhopt = arhopt;
 //create dens
             functionT rhopt = arhopt + brhopt;
             rhopt.truncate();
-// apply V0 to phi1
-            vecfuncT vf, delrhopt;
-            if (xc.is_dft()) {
-                arhopt.reconstruct();
-                if (param.nbeta && xc.is_spin_polarized()) brhopt.reconstruct();
+            vecfuncT vfpt, delrhopt;
 
-                vf.push_back(arhopt);
-                if (xc.is_spin_polarized()) vf.push_back(brhopt);
-                if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(arhopt,false));
-                    if (xc.is_spin_polarized()) {
-                        for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(brhopt,false));
+            vecfuncT Vpsiapt;
+            vecfuncT Vpsibpt;
+            vecfuncT V1psia0;
+            vecfuncT V1psib0;
+            if(param.nalpha + param.nbeta > 1){
+                START_TIMER(world);
+    //        Coulombic potential
+                functionT vcoul = apply(*coulop, rho);
+                END_TIMER(world, "Coulomb");
+    //
+    //          double ecoulomb = 0.5 * inner(rho, vcoul);
+    //
+                rho.clear(false);
+    
+                vlocal = vcoul + vnuc;
+                vcoul.clear(false);
+                vlocal.truncate();
+    // apply V0 to phi1
+                if (xc.is_dft()) {
+                    arhopt.reconstruct();
+                    if (param.nbeta && xc.is_spin_polarized()) brhopt.reconstruct();
+    
+                    vfpt.push_back(arhopt);
+                    if (xc.is_spin_polarized()) vfpt.push_back(brhopt);
+                    if (xc.is_gga()) {
+                        for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(arhopt,false));
+                        if (xc.is_spin_polarized()) {
+                            for(int axis=0; axis<3; ++axis) delrhopt.push_back((*gradop[axis])(brhopt,false));
+                        }
+                        world.gop.fence(); // NECESSARY
+                        vfpt.push_back(delrhopt[0]*delrhopt[0]+delrhopt[1]*delrhopt[1]+delrhopt[2]*delrhopt[2]); // sigma_aa
+                        if (xc.is_spin_polarized()) {
+                            vfpt.push_back(delrhopt[0]*delrhopt[3]+delrhopt[1]*delrhopt[4]+delrhopt[2]*delrhopt[5]); // sigma_ab
+                            vfpt.push_back(delrhopt[3]*delrhopt[3]+delrhopt[4]*delrhopt[4]+delrhopt[5]*delrhopt[5]); // sigma_bb
+                        }
                     }
-                    world.gop.fence(); // NECESSARY
-                    vf.push_back(delrhopt[0]*delrhopt[0]+delrhopt[1]*delrhopt[1]+delrhopt[2]*delrhopt[2]); // sigma_aa
-                    if (xc.is_spin_polarized()) {
-                        vf.push_back(delrhopt[0]*delrhopt[3]+delrhopt[1]*delrhopt[4]+delrhopt[2]*delrhopt[5]); // sigma_ab
-                        vf.push_back(delrhopt[3]*delrhopt[3]+delrhopt[4]*delrhopt[4]+delrhopt[5]*delrhopt[5]); // sigma_bb
+                    if (vfpt.size()) {
+                        reconstruct(world, vfpt);
+                        arhopt.refine_to_common_level(vfpt); // Ugly but temporary (I hope!)
                     }
                 }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arhopt.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
+            } else {
+                vlocal = vnuc;
             }
-            functionT vcoul = apply(*coulop, rhopt);
+            vlocal.reconstruct();
 // TO CHECK the exchange part
             double excapt=0.0, excbpt=0.0;
-            vecfuncT Vpsiapt = apply_potential(world, aocc, amopt, vf, delrhopt, vlocal, excapt, 0);
-            vecfuncT Vpsibpt;
+            Vpsiapt = apply_potential(world, aocc, amopt, vfpt, delrhopt, vlocal, excapt, 0);
             vecfuncT V1psia0;
             vecfuncT V1psib0;
             int namo = amo.size();

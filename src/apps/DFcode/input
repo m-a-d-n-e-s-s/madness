@@ -1,9 +1,9 @@
 dft
  maxiter 0
- restart
  polar
  protocol 1e-2
  polarnstep 1
+ restart
 
 end
 
