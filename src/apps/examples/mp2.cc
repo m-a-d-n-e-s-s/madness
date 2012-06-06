@@ -71,6 +71,22 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string&
     pair.print_size(name);
 }
 
+void do_stuff(const real_function_6d& f, const std::string root) {
+
+    coord_6d fix_coord(0.0);
+
+    for (int i=0; i<3; ++i) {
+        // electron 2:
+        fix_coord[3]=0.5;
+        fix_coord[4]=0.5+double(i);
+        std::string name=root+stringify(fix_coord[4]);
+        f.get_impl()->print_plane(name,"xy",fix_coord);
+    }
+
+
+}
+
+
 /// Smoothed 1/r potential (c is the smoothing distance)
 static double u(double r, double c) {
     r = r/c;
@@ -914,8 +930,49 @@ namespace madness {
         	}
         }
 
+        void test2(const int i, const int j) {
+        	real_function_6d psi;
+        	load_function(world,psi,"psi1_it5");
+        	do_stuff(psi,"psi");
+
+        	real_function_6d r12phi;
+        	load_function(world,r12phi,"r12phi");
+        	r12phi=Q12(r12phi+psi).truncate();
+        	do_stuff(r12phi,"phi");
+
+        	coord_3d el2(0.0);
+        	//            el2[0]=0.25*sqrt(2.0);
+        	//            el2[1]=0.25*sqrt(2.0);
+        	el2[1]=0.5;
+        	long npt=600;
+        	trajectory<6> circle(0.5,el2,npt);
+        	madness::plot_along<6>(world,circle,psi,"psi_lineplot");
+        	madness::plot_along<6>(world,circle,r12phi,"r12phi_lineplot");
+
+        }
+
         void test(const int i, const int j) {
 
+//        	hf.calc.vnuc.clear();
+//        	for (int i=2; i<hf.nocc(); ++i) {
+//        		for (int j=i; j<hf.nocc(); ++j) {
+//                	const real_function_3d& phi_i=hf.orbital(i);
+//                	const real_function_3d& phi_j=hf.orbital(j);
+//
+//                	real_function_6d phi0;//=hartree_product(phi_i,phi_j);
+//                	int ts=phi0.tree_size();
+//                	if (world.rank()==0) printf("     |%2d %2d>  tree_size: %2d\n",i,j,ts);
+//
+//                	real_function_6d r12phi=CompositeFactory<double,6,3>(world)
+//                                .g12(corrfac.f()).particle1(copy(phi_i)).particle2(copy(phi_j));
+//                    r12phi.fill_tree().truncate();
+//                	ts=r12phi.tree_size();
+//                	if (world.rank()==0) printf(" f12 |%2d %2d>  tree_size: %2d\n",i,j,ts);
+//
+//                	world.gop.fence();
+//
+//        		}
+//        	}
         }
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
@@ -960,6 +1017,7 @@ namespace madness {
 
             // compute <ij| g O1O2 f |ij>
             double c=0.0;
+#if 1
             real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
             for (int k=0; k<hf.nocc(); ++k) {
                 for (int l=0; l<hf.nocc(); ++l) {
@@ -982,6 +1040,25 @@ namespace madness {
                     c+=g_ijkl*f_ijkl;
                 }
             }
+#else
+            for (int k=0; k<hf.nocc(); ++k) {
+            	for (int l=0; l<hf.nocc(); ++l) {
+                    const real_function_3d& phi_k=hf.orbital(k);
+                    const real_function_3d& phi_l=hf.orbital(l);
+
+                    const double g_ijkl=inner(xi_ij[k],phi_l);
+                    if (world.rank()==0) printf("<kl | g                | ij>  %12.8f\n",g_ijkl);
+
+                    real_function_6d tmp2=CompositeFactory<double,6,3>(world)
+                                            .particle1(copy(phi_k))
+                                            .particle2(copy(phi_l));
+                    const double f_ijkl=inner(pair.r12phi,tmp2);
+                    if (world.rank()==0) printf("<kl | f                | ij>  %12.8f\n",f_ijkl);
+                    c+=g_ijkl*f_ijkl;
+                }
+            }
+
+#endif
             if (world.rank()==0) printf("<ij | g O1 O2 f        | ij>  %12.8f\n",c);
 
             const double e=a-b+c;
