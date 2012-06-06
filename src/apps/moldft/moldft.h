@@ -38,10 +38,10 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-#include <mra/function_factory_and_interface.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
 #include <linalg/solvers.h>
+#include <mra/qmprop.h>
 #include <ctime>
 #include <list>
 using namespace madness;
@@ -51,6 +51,26 @@ using namespace madness;
 #include <moldft/molecularbasis.h>
 #include <moldft/corepotential.h>
 #include <moldft/xcfunctional.h>
+
+template<int NDIM>
+struct unaryexp {
+    void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
+        //vzExp(t.size, t.ptr(), t.ptr());
+        UNARY_OPTIMIZED_ITERATOR(double_complex, t, *_p0 = exp(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
+// Returns exp(-I*t*V)
+Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
+    v.reconstruct();
+    Function<double_complex,3> expV = double_complex(0.0,-t)*v;
+    expV.unaryop(unaryexp<3>());
+    //expV.truncate(); expV.reconstruct();
+    return expV;
+}
+
 
 /// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
 void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
@@ -141,6 +161,11 @@ typedef Tensor<double> tensorT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
+typedef Function<std::complex<double>,3> complex_functionT;
+typedef std::vector<complex_functionT> cvecfuncT;
+typedef Convolution1D<double_complex> complex_operatorT;
+
+
 
 double ttt, sss;
 void START_TIMER(World& world) {
@@ -344,6 +369,25 @@ public:
     }
 };
 
+/// A generic functor to compute external potential for TDDFT
+template<typename T>
+class VextCosFunctor {
+  double _omega;
+  Function<T,3> _f;
+public:
+    VextCosFunctor(World& world,
+//        const std::shared_ptr<FunctionFunctorInterface<T,3> >& functor,
+        const FunctionFunctorInterface<T,3>* functor,
+        double omega) : _omega(omega)
+    {
+//      _f = factoryT(world).functor(functor);
+      _f = factoryT(world).functor(functorT(new DipoleFunctor(2)));
+    }
+    Function<T,3> operator()(const double t) const {
+        return std::cos(_omega * t) * _f;
+    }
+};
+
 
 /// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
 tensorT Q3(const tensorT& s) {
@@ -448,6 +492,7 @@ struct CalculationParameters {
     double gprec;               ///< gradient precision 
     int  gmaxiter;               ///< optimization maxiter 
     std::string algopt;         ///< algorithm used for optimization
+    bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -456,7 +501,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
     }
 
     CalculationParameters()
@@ -502,6 +547,7 @@ struct CalculationParameters {
         , gprec(1e-4)
         , gmaxiter(20)
         , algopt("BFGS")
+        , tdksprop(false)
     {}
         
 
@@ -651,6 +697,9 @@ struct CalculationParameters {
                 char buf[1024];
                 f.getline(buf,sizeof(buf));
                 algopt = buf;
+            }
+            else if (s == "tdksprop") {
+              tdksprop = true;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -1517,9 +1566,9 @@ struct Calculation {
             sygv(fock, overlap, 1, c, e);
             world.gop.broadcast(c.ptr(), c.size(), 0);
             world.gop.broadcast(e.ptr(), e.size(), 0);
-            if(world.rank() == 0){
-                print("initial eigenvalues");
-                print(e);
+            if(world.rank() == 0 && 0){
+              print("initial eigenvalues");
+              print(e);
             }
             compress(world, ao);
 
@@ -1611,6 +1660,31 @@ struct Calculation {
         world.gop.fence();
         vsq.clear();
         return rho;
+    }
+
+    functionT make_density(World & world, const tensorT & occ, const cvecfuncT & v)
+    {
+      reconstruct(world, v); // For max parallelism
+      std::vector<functionT> vsq(v.size());
+      for (unsigned int i=0; i < v.size(); i++) {
+          vsq[i] = abssq(v[i], false);
+      }
+      world.gop.fence();
+
+      compress(world, vsq); // since will be using gaxpy for accumulation
+      functionT rho = factoryT(world);
+      rho.compress();
+
+      for(unsigned int i = 0; i < vsq.size();++i) {
+          if(occ[i])
+              rho.gaxpy(1.0, vsq[i], occ[i], false);
+
+      }
+      world.gop.fence();
+      vsq.clear();
+      rho.truncate();
+
+      return rho;
     }
 
     std::vector<poperatorT> make_bsh_operators(World & world, const tensorT & evals)
@@ -2331,6 +2405,172 @@ struct Calculation {
         bmo = bmo_new;
     }
 
+//    template <typename Func>
+//    void propagate(World& world, const Func& Vext, int step0)
+    void propagate(World& world, double omega, int step0)
+    {
+      // Load molecular orbitals
+      set_protocol<3>(world,1e-4);
+      make_nuclear_potential(world);
+      initial_load_bal(world);
+      load_mos(world);
+
+      int nstep = 1000;
+      double time_step = 0.05;
+
+      double strength = 0.1;
+
+      // temporary way of doing this for now
+//      VextCosFunctor<double> Vext(world,new DipoleFunctor(2),omega);
+      functionT fdipx = factoryT(world).functor(functorT(new DipoleFunctor(0))).initial_level(4);
+      functionT fdipy = factoryT(world).functor(functorT(new DipoleFunctor(1))).initial_level(4);
+      functionT fdipz = factoryT(world).functor(functorT(new DipoleFunctor(2))).initial_level(4);
+
+      world.gop.broadcast(time_step);
+      world.gop.broadcast(nstep);
+
+      // Need complex orbitals :(
+      double thresh = 1e-4;
+      cvecfuncT camo = zero_functions<double_complex,3>(world, param.nalpha);
+      cvecfuncT cbmo = zero_functions<double_complex,3>(world, param.nbeta);
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+        camo[iorb] = std::exp(double_complex(0.0,2*constants::pi*strength))*amo[iorb];
+        camo[iorb].truncate(thresh);
+      }
+      if (!param.spin_restricted && param.nbeta) {
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo[iorb] = std::exp(double_complex(0.0,2*constants::pi*strength))*bmo[iorb];
+          cbmo[iorb].truncate(thresh);
+        }
+      }
+
+      // Create free particle propagator
+      // Have no idea what to set "c" to
+      double c = 20.0;
+      printf("Creating G\n");
+      Convolution1D<double_complex>* G = qm_1d_free_particle_propagator(FunctionDefaults<3>::get_k(), c, 0.5*time_step, 2.0*param.L);
+      printf("Done creating G\n");
+
+      // Start iteration over time
+      for (int step = 0; step < nstep; step++)
+      {
+//        if (world.rank() == 0) printf("Iterating step %d:\n\n", step);
+        double t = time_step*step;
+//        iterate_trotter(world, G, Vext, camo, cbmo, t, time_step);
+        iterate_trotter(world, G, camo, cbmo, t, time_step, thresh);
+        functionT arho = make_density(world,aocc,camo);
+        functionT brho = (!param.spin_restricted && param.nbeta) ?
+            make_density(world,aocc,camo) : copy(arho);
+        functionT rho = arho + brho;
+        double xval = inner(fdipx,rho);
+        double yval = inner(fdipy,rho);
+        double zval = inner(fdipz,rho);
+        if (world.rank() == 0) printf("%15.7f%15.7f%15.7f%15.7f\n", t, xval, yval, zval);
+      }
+
+
+    }
+
+    complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& psi) {
+        complex_functionT r = psi;  // Shallow copy violates constness !!!!!!!!!!!!!!!!!
+        coordT lo, hi;
+        lo[2] = -10;
+        hi[2] = +10;
+
+        r.reconstruct();
+        r.broaden();
+        r.broaden();
+        r.broaden();
+        r.broaden();
+        r = apply_1d_realspace_push(*q1d, r, 2); r.sum_down();
+        r = apply_1d_realspace_push(*q1d, r, 1); r.sum_down();
+        r = apply_1d_realspace_push(*q1d, r, 0); r.sum_down();
+
+        return r;
+    }
+
+    void iterate_trotter(World& world,
+                         Convolution1D<double_complex>* G,
+                         cvecfuncT& camo,
+                         cvecfuncT& cbmo,
+                         double t,
+                         double time_step,
+                         double thresh)
+    {
+
+      // first kinetic energy apply
+      cvecfuncT camo2 = zero_functions<double_complex,3>(world, param.nalpha);
+      cvecfuncT cbmo2 = zero_functions<double_complex,3>(world, param.nbeta);
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+//        if (world.rank()) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
+        camo2[iorb] = APPLY(G,camo[iorb]);
+        camo2[iorb].truncate(thresh);
+      }
+      if(!param.spin_restricted && param.nbeta)
+      {
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo2[iorb] = APPLY(G,cbmo[iorb]);
+          cbmo2[iorb].truncate(thresh);
+        }
+      }
+      // Construct new density
+//      START_TIMER(world);
+      functionT arho = make_density(world, aocc, amo), brho;
+
+      if (param.nbeta) {
+          if (param.spin_restricted) {
+              brho = arho;
+          }
+          else {
+              brho = make_density(world, bocc, bmo);
+          }
+      }
+      else {
+          brho = functionT(world); // zero
+      }
+      functionT rho = arho + brho;
+//      END_TIMER(world, "Make densities");
+
+      // Do RPA only for now
+      functionT vlocal = vnuc;
+//      START_TIMER(world);
+      functionT vcoul = apply(*coulop, rho);
+//      END_TIMER(world, "Coulomb");
+//      vlocal += vcoul + Vext(t+0.5*time_step);
+//      vlocal += vcoul + std::cos(0.1*(t+0.5*time_step))*fdip;
+
+      // exponentiate potential
+//      if (world.rank()) printf("Apply Kohn-Sham potential to orbitals\n");
+      complex_functionT expV = make_exp(time_step, vlocal);
+      cvecfuncT camo3 = mul_sparse(world,expV,camo2,vtol,false);
+      world.gop.fence();
+
+
+      // second kinetic energy apply
+      for (int iorb = 0; iorb < param.nalpha; iorb++)
+      {
+//        if (world.rank() == 0) printf("Apply free-particle Green's function to alpha orbital %d\n", iorb);
+        camo3[iorb].truncate(thresh);
+        camo[iorb] = APPLY(G,camo3[iorb]);
+        camo[iorb].truncate();
+      }
+      if (!param.spin_restricted && param.nbeta)
+      {
+        cvecfuncT cbmo3 = mul_sparse(world,expV,cbmo2,vtol,false);
+
+        // second kinetic energy apply
+        for (int iorb = 0; iorb < param.nbeta; iorb++)
+        {
+          cbmo[iorb] = APPLY(G,cbmo3[iorb]);
+          cbmo[iorb].truncate();
+        }
+      }
+    }
+
     // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
@@ -2549,15 +2789,15 @@ struct Calculation {
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
 
-        if(world.rank() == 0) {
+        if (world.rank() == 0) {
             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
             print("Analysis of alpha MO vectors");
         }
 
         analyze_vectors(world, amo, aocc, aeps);
-        if(param.nbeta && !param.spin_restricted){
-            if(world.rank() == 0)
+        if (param.nbeta && !param.spin_restricted) {
+            if (world.rank() == 0)
                 print("Analysis of beta MO vectors");
 
             analyze_vectors(world, bmo, bocc, beps);
