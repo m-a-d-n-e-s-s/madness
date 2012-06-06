@@ -295,7 +295,7 @@ bool XCfunctional::has_kxc() const
 
 /// Allocates rho (and if GGA also sigma) and copies data from t[] into rho and sigma.
 void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >& t,
-                                   madness::Tensor<double>& rho, madness::Tensor<double>& sigma) const
+                                   madness::Tensor<double>& rho, madness::Tensor<double>& sigma, madness::Tensor<double>& delrho) const
 {
     const int np = t[0].size();
     if (spin_polarized) {
@@ -346,18 +346,29 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
         }
         else if (is_gga()) {
-            MADNESS_ASSERT(t.size() == 2);
+            //MADNESS_ASSERT(t.size() == 2);
             const double * restrict rhoa = t[0].ptr();
             const double * restrict sigaa = t[1].ptr();
+            const double * restrict drhoax = t[2].ptr();
+            const double * restrict drhoay = t[3].ptr();
+            const double * restrict drhoaz = t[4].ptr();
             rho  = madness::Tensor<double>(np);
             sigma  = madness::Tensor<double>(np);
+            delrho  = madness::Tensor<double>(np*3L);
             double * restrict dens = rho.ptr();
             double * restrict sig = sigma.ptr();
+            double * restrict ddens = delrho.ptr();
             for (long i=0; i<np; i++) {
                 double ra=2.0*rhoa[i], saa=4.0*sigaa[i];
-                munge2(ra, saa);
+                double dax=2.0*drhoax[i];
+                double day=2.0*drhoay[i];
+                double daz=2.0*drhoaz[i];
+                munge_der(ra, saa, dax, day, daz);
                 dens[i] = ra;
                 sig[i] = saa;
+                ddens[3*i  ] = dax;
+                ddens[3*i+1] = day;
+                ddens[3*i+2] = daz;
             }
         }
         else {
@@ -370,9 +381,11 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const
 {
     madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma);
+    madness::Tensor<double> delrho;
+    make_libxc_args(t, rho, sigma, delrho);
 
     const int np = t[0].size();
+    const int npi = t.size();
     const double * restrict dens = rho.ptr();
     const double * restrict sig = sigma.ptr();
 
@@ -387,6 +400,8 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
             xc_lda_exc(funcs[i].first, np, dens, work);
             break;
         case XC_FAMILY_GGA:
+            xc_gga_exc(funcs[i].first, np, dens, sig, work);
+            break;
         case XC_FAMILY_HYB_GGA:
             xc_gga_exc(funcs[i].first, np, dens, sig, work);
             break;
@@ -411,11 +426,10 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
 madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const
 {
     madness::Tensor<double> rho, sigma;
-    make_libxc_args(t, rho, sigma);
-    const int np = t[0].size();
-    const double * restrict dens = rho.ptr();
-    const double * restrict sig = sigma.ptr();
+    madness::Tensor<double> delrho;
+    make_libxc_args(t, rho, sigma, delrho);
 
+    const int np = t[0].size();
 
     int nvsig, nvrho;
     if (spin_polarized) {
@@ -428,25 +442,74 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     }
 
     madness::Tensor<double> result(3L, t[0].dims());
-    madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
-    double * restrict vr = vrho.ptr();
-    double * restrict vs = vsig.ptr();
     double * restrict res = result.ptr();
+    const double * restrict dens = rho.ptr();
 
     for (unsigned int i=0; i<funcs.size(); i++) {
         switch(funcs[i].first->info->family) {
         case XC_FAMILY_LDA:
+           {
+            madness::Tensor<double> vrho(nvrho*np);
+            double * restrict vr = vrho.ptr();
             xc_lda_vxc(funcs[i].first, np, dens, vr);
             if (what < 2) {
                 for (long j=0; j<np; j++) {
                     res[j] += vr[nvrho*j+what]*funcs[i].second;
+                    if (isnan_x(res[j])) throw "ouch";
                 }
             }
+           }
 
             break;
 
         case XC_FAMILY_GGA:
+           {
+            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
+            double * restrict vr = vrho.ptr();
+            double * restrict vs = vsig.ptr();
+            const double * restrict sig = sigma.ptr();
+            const double * restrict ddens = delrho.ptr();
+            xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+            if (spin_polarized) {
+                if (what < 2) {
+                    for (long j=0; j<np; j++) {
+                        res[j] += vr[nvrho*j+what]*funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+                else {
+                    for (long j=0; j<np; j++) {
+                        res[j] += vs[nvsig*j+what-2]*funcs[i].second;
+                        if (isnan_x(res[j])) throw "ouch";
+                    }
+                }
+            }
+            else {
+                if (what == 0) {
+                   for (long j=0; j<np; j++) {
+                       res[j] += vr[j]*funcs[i].second;
+                       if (isnan_x(res[j])) throw "ouch";
+                   }
+                }
+                else {
+                    for (long j=0; j<np; j++) {
+                        for (int axis=0; axis<3; axis++) {
+                            res[j] += vs[j]*funcs[i].second*ddens[j*3+axis]*2.0;
+                            if (isnan_x(res[j])) throw "ouch";
+                        }
+                    }
+                }
+            }
+           }
+            break;
+
         case XC_FAMILY_HYB_GGA:
+           {
+            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
+            double * restrict vr = vrho.ptr();
+            double * restrict vs = vsig.ptr();
+            const double * restrict sig = sigma.ptr();
+            const double * restrict ddens = delrho.ptr();
             xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
             if (spin_polarized) {
                 if (what < 2) {
@@ -476,6 +539,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                     }
                 }
             }
+           }
             break;
 
         default:

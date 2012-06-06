@@ -2,6 +2,7 @@ dft
   xc LDA
   maxsub 5
 end
+  #xc GGA_X_PBE 1. GGA_C_PBE 1.
 
 # water dimer
 geometry

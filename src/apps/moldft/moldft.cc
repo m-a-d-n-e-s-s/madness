@@ -1794,17 +1794,17 @@ struct Calculation {
             vloc = vloc + make_dft_potential(world, vf, ispin);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
-            if (xc.is_gga()) {
+            if (xc.is_gga() ) {
                 if (xc.is_spin_polarized()) {
                     throw "not yet";
                 }
                 else {
-		  //print("VF", vf[0].trace(), vf[1].trace());
+		    //print("VF", vf[0].trace(), vf[1].trace());
                     real_function_3d vsig = make_dft_potential(world, vf, 1);
                     //print("VSIG", vsig.trace(), vsig.norm2());
                     real_function_3d vr(world);
                     for (int axis=0; axis<3; axis++) {
-                        vr += (*gradop[axis])(vsig*delrho[axis]);
+                        vr += (*gradop[axis])(vsig);
                     }
                     vloc = vloc - vr; // need a 2?
                     //print("VLOC2", vloc.trace(), vloc.norm2());
@@ -2651,6 +2651,7 @@ struct Calculation {
 
                 vf.push_back(arho);
                 if (xc.is_spin_polarized()) vf.push_back(brho);
+
                 if (xc.is_gga()) {
                     for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
                     if (xc.is_spin_polarized()) {
@@ -2661,6 +2662,10 @@ struct Calculation {
                     if (xc.is_spin_polarized()) {
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
+                    }
+                    for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]); // dd_x
+                    if (xc.is_spin_polarized()) {
+                       for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]);
                     }
                 }
                 if (vf.size()) {

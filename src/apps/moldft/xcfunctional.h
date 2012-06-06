@@ -46,7 +46,8 @@ protected:
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho, 
-                         madness::Tensor<double>& sigma) const;
+                         madness::Tensor<double>& sigma, 
+                         madness::Tensor<double>& delrho) const;
     int nderiv;
 #endif
 
@@ -128,6 +129,18 @@ protected:
         saa *= dpadx*dpadx;
         sab *= dpadx*dpbdx;
         sbb *= dpbdx*dpbdx;
+    }
+    static void munge_der(double& rhoa, double& sigma, double& drx, double& dry, double& drz) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (sigma < 0.0) sigma = 0.0;
+        double p, dpdx;
+        polyn(rhoa, p, dpdx);
+        rhoa = p;
+        sigma *= dpdx*dpdx;
+        drx *=dpdx;
+        dry *=dpdx;
+        drz *=dpdx;
     }
 
 public:
