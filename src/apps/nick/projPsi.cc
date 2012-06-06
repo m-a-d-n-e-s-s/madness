@@ -163,24 +163,6 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         }
     }
     world.gop.sum(&YlPsi(0L,0L), n*(lMAX+1));
-    //         //Volume of the central spherical element with radius = dr/2 and a linear correction
-    //         double Pl = (std::real(YlPsi(0L)*std::conj(YlPsi(0L))) / 12 
-    //                      + std::real(YlPsi(1L)*std::conj(YlPsi(1L))) / 4
-    //                     ) * 0.125*dr*dr*dr; 
-    //         for (int i=1; i<n-1; i++) { // i elem [1, n-2]
-    //             double f0 = std::real( YlPsi(i-1) * std::conj(YlPsi(i-1)) );
-    //             double f1 = std::real( YlPsi(i  ) * std::conj(YlPsi(i  )) );
-    //             double f2 = std::real( YlPsi(i+1) * std::conj(YlPsi(i+1)) );
-    //             double r = i*dr + 1e-10;
-    //             //           volume      slope correction    concavity correction
-    //             double Plr = f1*r*r*dr + 0.5*(f2-f0)*r*r*r + 0.5*(f2 - 2*f1 + f0)*r*r*r*r/dr;
-    //             Pl += Plr;
-    //             //if(printR) PRINTLINE(Plr << "\t" << "r = " << r <<  "\t YlPsi(i-1) = "<< YlPsi(i-1) <<  "\t YlPsi(i) = "<< YlPsi(i) );
-    //             if(printR) PRINT(Plr << "\t");
-    //         }
-    //         if(printR) PRINTLINE("");
-    //         PRINT( "my routine: " );
-    //         PRINTLINE(std::setprecision(6) << std::scientific << Pl);
     Tensor<double> P(lMAX+1);
     for( int l=0; l<=lMAX; l++) {
         PRINT("Y"<< l << "0: \t\t\t\t\t\t");
@@ -363,6 +345,8 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         double before=0, after=0;
         //LOAD unbound states
         if( !unboundList.empty() ) {
+            const double coarseTHRESH = 1e-5;
+            PRINTLINE( "coarseTHRESH = " << coarseTHRESH);
             std::vector<std::string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
                 //parsing unboundList
@@ -377,23 +361,30 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                     //PROJECT Psi_k into MADNESS
                     if(world.rank()==0) before = wall_time();
                     complex_functionT phiK;
+                    //Setting an artificially low accuracy to speed up computation
+                    FunctionDefaults<NDIM>::set_thresh(coarseTHRESH);
                     if( usesPlaneWaves ) {
                         phiK = complex_factoryT(world).functor(functorT( new Expikr(kVec) ));
                     } else {
                         const double constcutoff = cutoff;
                         PhiK phik = PhiK(world, Z, kVec, constcutoff);
                         phik.Init(world);
+                        PRINTLINE("creating phiK");
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
                     if(world.rank()==0) after = wall_time();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>
-                    complexd k_overlap_0 = inner(phiK,psi0);
+                    PRINTLINE("inner(phiK,psi0)");
+                    //complexd k_overlap_0 = inner(phiK,psi0);
+                    complexd k_overlap_0 = phiK.inner(world, "psiK,psi0", psi0);
                     //loop through time steps
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
-                        output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
+                        PRINTLINE("inner(phiK,psi(T)");
+                        //output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
+                        output =  phiK.inner(world, "phiK,psiT", psiIT->func) - k_overlap_0  * psi0.inner(world, "psi0,psiT",psiIT->func);
                         PRINT( std::scientific << "\t" << real(conj(output)*output) );
                     }
                     PRINTLINE("");

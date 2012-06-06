@@ -1,7 +1,7 @@
 #!/usr/bin/python
 import sys, math
 #cart = False corresponds to spherical coordinates
-cart = True
+cart = False
 zaxis = False
 eps = 0.001
 if(cart):

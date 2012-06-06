@@ -3,6 +3,7 @@
 // Used only if we don't have boost or C++0x
 
 namespace madness {
+  namespace tr1 {
     namespace detail {
         /// Function traits in the spirt of boost function traits
         template <typename functionT>
@@ -461,5 +462,9 @@ namespace madness {
             typedef typename memfunc_traits<fnT>::result_type type;
         };
     }
+}
+  namespace detail {
+    using namespace ::madness::tr1::detail;
+  }
 }
 #endif

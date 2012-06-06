@@ -420,8 +420,9 @@ namespace madness {
             Tensor<Q> R, T;
             if (!get_issmall(n, lx)) {
                 Translation lx2 = lx*2;
+#if 0 // UNUSED VARIABLES
                 Slice s0(0,k-1), s1(k,2*k-1);
-
+#endif
                 const Tensor<Q> r0 = rnlij(n+1,lx2);
                 const Tensor<Q> rp = rnlij(n+1,lx2+1);
                 const Tensor<Q> rm = rnlij(n+1,lx2-1);

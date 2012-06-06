@@ -176,6 +176,7 @@ void compare1F1(World& world, double cutoff) {
     double dr   = 1.0;
     double k    = 1.0; //NOT USED
     double Z    = 1.0;
+    double TH   = 0.0;
     /***************************************
      *Load graphing parameters from the file: param
      * rMIN 0.0
@@ -209,6 +210,10 @@ void compare1F1(World& world, double cutoff) {
             else if (tag == "k") {
                 f >> k;
                 PRINTLINE("k = " << k);
+            }
+            else if (tag == "TH") {
+                f >> TH;
+                PRINTLINE("TH     = " << TH);
             }
         }
     }

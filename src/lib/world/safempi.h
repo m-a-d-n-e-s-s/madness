@@ -38,9 +38,10 @@
 
 #include "madness_config.h"
 
-#ifndef HAVE_IBMBGP
+// Jeff has determined that MPI_THREAD_MULTIPLE on BGP sucks
+//#ifndef HAVE_IBMBGP
 #define SERIALIZE_MPI
-#endif
+//#endif
 
 #ifdef STUBOUTMPI
 #include <world/stubmpi.h>

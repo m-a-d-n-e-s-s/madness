@@ -31,16 +31,7 @@
   $Id$
 */
 #include <world/safempi.h>
-//#include <world/worldthread.h>
 #include <world/worldexc.h>
-
-#ifdef STUBOUTMPI
-namespace MPI {
-    void Finalize() {};
-
-    int Init_thread(int &argc, char **&argv, int required) {return 0;};
-}
-#endif
 
 namespace SafeMPI {
 

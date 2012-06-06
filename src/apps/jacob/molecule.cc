@@ -1,290 +1,306 @@
-/*
-  This file is part of MADNESS.
+ /*
+   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
-  This program is free software; you can redistribute it and/or modify
-  it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 2 of the License, or
-  (at your option) any later version.
+   This program is free software; you can redistribute it and/or modify
+   it under the terms of the GNU General Public License as published by
+   the Free Software Foundation; either version 2 of the License, or
+   (at your option) any later version.
 
-  This program is distributed in the hope that it will be useful,
-  but WITHOUT ANY WARRANTY; without even the implied warranty of
-  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details.
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU General Public License for more details.
 
-  You should have received a copy of the GNU General Public License
-  along with this program; if not, write to the Free Software
-  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+   You should have received a copy of the GNU General Public License
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-  For more information please contact:
+   For more information please contact:
 
-  Robert J. Harrison
-  Oak Ridge National Laboratory
-  One Bethel Valley Road
-  P.O. Box 2008, MS-6367
+   Robert J. Harrison
+   Oak Ridge National Laboratory
+   One Bethel Valley Road
+   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov
-  tel:   865-241-3937
-  fax:   865-572-0680
-
-
-  $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
-*/
+   email: harrisonrj@ornl.gov
+   tel:   865-241-3937
+   fax:   865-572-0680
 
 
-/// \file moldft/molecule.cc
-/// \brief Simple management of molecular information and potential
-///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-///#include <mra/mra.h>
-#include <tensor/tensor.h>
-#include <linalg/tensor_lapack.h>
-#include <constants.h>
-#include <jacob/molecule.h>
-#include <jacob/atomutil.h>
-#include <misc/misc.h>
-#include <iomanip>
-#include <set>
+   $Id: test.cc 257 2007-06-25 19:09:38Z HartmanBaker $
+ */
 
 
-static const double PI = 3.1415926535897932384;
+ /// \file moldft/molecule.cc
+ /// \brief Simple management of molecular information and potential
+ ///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+ ///#include <mra/mra.h>
+ #include <tensor/tensor.h>
+ #include <linalg/tensor_lapack.h>
+ #include <constants.h>
+ #include <jacob/molecule.h>
+ #include <jacob/atomutil.h>
+ #include <misc/misc.h>
+ #include <iomanip>
+ #include <set>
 
-static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
-    double xx = x1-x2;
-    double yy = y1-y2;
-    double zz = z1-z2;
-    return sqrt(xx*xx + yy*yy + zz*zz);
-}
 
-static inline double distance_sq(double x1, double y1, double z1, double x2, double y2, double z2) {
-    double xx = x1-x2;
-    double yy = y1-y2;
-    double zz = z1-z2;
-    return xx*xx + yy*yy + zz*zz;
-}
+ static const double PI = 3.1415926535897932384;
 
-std::ostream& operator<<(std::ostream& s, const Atom& atom) {
-    s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
-    return s;
-}
+ static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
+     double xx = x1-x2;
+     double yy = y1-y2;
+     double zz = z1-z2;
+     return sqrt(xx*xx + yy*yy + zz*zz);
+ }
 
-void Molecule::read_file(const std::string& filename) {
-    atoms.clear();
-    field = 0.0;
+ static inline double distance_sq(double x1, double y1, double z1, double x2, double y2, double z2) {
+     double xx = x1-x2;
+     double yy = y1-y2;
+     double zz = z1-z2;
+     return xx*xx + yy*yy + zz*zz;
+ }
 
-    std::ifstream f(filename.c_str());
-    if(f.fail()) {
-        std::string errmsg = std::string("Failed to open file: ") + filename;
-        MADNESS_EXCEPTION(errmsg.c_str(), 0);
+ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
+     s << "Atom([" << atom.x << ", " << atom.y << ", " << atom.z << "], " << atom.q << "," << atom.atomic_number << ")";
+     return s;
+ }
+
+ void Molecule::read_file(const std::string& filename) {
+     atoms.clear();
+     field = 0.0;
+
+     std::ifstream f(filename.c_str());
+     if(f.fail()) {
+	 std::string errmsg = std::string("Failed to open file: ") + filename;
+	 MADNESS_EXCEPTION(errmsg.c_str(), 0);
+     }
+     madness::position_stream(f, "geometry");
+     double scale = 1.0; // Default is atomic units
+
+     std::string s;
+     while (std::getline(f,s)) {
+	 std::istringstream ss(s);
+	 std::string tag;
+	 ss >> tag;
+	 if (tag == "end") {
+	     goto finished;
+	 }
+	 else if (tag == "units") {
+	     if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
+	     ss >> tag;
+	     if (tag == "a.u." || tag == "au" || tag == "atomic") {
+		 std::cout << "\nAtomic units being used to read input coordinates\n\n";
+		 scale = 1.0;
+	     }
+	     else if (tag == "angstrom" || tag == "angs") {
+		 scale = 1e-10 / madness::constants::atomic_unit_of_length;
+		 printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
+	     }
+	     else {
+		 throw "Molecule: read_file: unknown units requested";
+	     }
+	 }
+	 else if (tag == "eprec") {
+	     ss >> eprec;
+	 }
+	 else if (tag == "field") {
+	     ss >> field[0] >> field[1] >> field[2];
+	 }
+	 else {
+	     double xx, yy, zz;
+	     ss >> xx >> yy >> zz;
+	     xx *= scale;
+	     yy *= scale;
+	     zz *= scale;
+	     int atn = symbol_to_atomic_number(tag);
+	     double qq = atn;
+	     if (atn == 0) ss >> qq; // Charge of ghost atom
+	     add_atom(xx,yy,zz,qq,atn);
+	 }
+     }
+     throw "No end to the geometry in the input file";
+ finished:
+     ;
+
+     set_eprec(eprec);
+ }  
+
+
+ void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
+     atoms.push_back(Atom(x,y,z,q,atomic_number));
+     double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
+     atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
+     //printf("smoothing param %.6f\n", c);
+ }
+
+ void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
+     if (i>=atoms.size()) throw "trying to set coords of invalid atom";
+     atoms[i].x = x;
+     atoms[i].y = y;
+     atoms[i].z = z;
+ }
+
+
+ madness::Tensor<double> Molecule::get_all_coords() const {
+     madness::Tensor<double> c(natom(),3);
+     for (int i=0; i<natom(); ++i) {
+	 const Atom atom = get_atom(i);
+	 c(i,0) = atom.x;
+	 c(i,1) = atom.y;
+	 c(i,2) = atom.z;
+     }
+     return c;
+ }
+
+ std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
+   std::vector< madness::Vector<double,3> > c(natom());
+   for (int i=0; i<natom(); ++i) {
+     const Atom atom = get_atom(i);
+     c[i][0] = atom.x;
+     c[i][1] = atom.y;
+     c[i][2] = atom.z;
+   }
+   return c;
+ }
+///get the coordinates of the nuclear charge center
+std::vector<double> Molecule::charge_center(){
+    std::vector<double> c(3,0.0);
+    double xx=0.0, yy=0.0, zz=0.0, qq=0.0;
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        xx += atoms[i].x*atoms[i].q;
+        yy += atoms[i].y*atoms[i].q;
+        zz += atoms[i].z*atoms[i].q;
+        qq += atoms[i].q;
     }
-    madness::position_stream(f, "geometry");
-    double scale = 1.0; // Default is atomic units
-
-    std::string s;
-    while (std::getline(f,s)) {
-        std::istringstream ss(s);
-        std::string tag;
-        ss >> tag;
-        if (tag == "end") {
-            goto finished;
-        }
-        else if (tag == "units") {
-            if (natom()) throw "Molecule: read_file: presently units must be the first line of the geometry block";
-            ss >> tag;
-            if (tag == "a.u." || tag == "au" || tag == "atomic") {
-                std::cout << "\nAtomic units being used to read input coordinates\n\n";
-                scale = 1.0;
-            }
-            else if (tag == "angstrom" || tag == "angs") {
-                scale = 1e-10 / madness::constants::atomic_unit_of_length;
-                printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
-            }
-            else {
-                throw "Molecule: read_file: unknown units requested";
-            }
-        }
-        else if (tag == "eprec") {
-            ss >> eprec;
-        }
-        else if (tag == "field") {
-            ss >> field[0] >> field[1] >> field[2];
-        }
-        else {
-            double xx, yy, zz;
-            ss >> xx >> yy >> zz;
-            xx *= scale;
-            yy *= scale;
-            zz *= scale;
-            int atn = symbol_to_atomic_number(tag);
-            double qq = atn;
-            if (atn == 0) ss >> qq; // Charge of ghost atom
-            add_atom(xx,yy,zz,qq,atn);
-        }
-    }
-    throw "No end to the geometry in the input file";
-finished:
-    ;
-
-    set_eprec(eprec);
-}  
-
-
-void Molecule::add_atom(double x, double y, double z, double q, int atomic_number) {
-    atoms.push_back(Atom(x,y,z,q,atomic_number));
-    double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
-    atomic_radii.push_back(radius*2.0*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
-    //printf("smoothing param %.6f\n", c);
-}
-
-void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
-    if (i>=atoms.size()) throw "trying to set coords of invalid atom";
-    atoms[i].x = x;
-    atoms[i].y = y;
-    atoms[i].z = z;
-}
-
-
-madness::Tensor<double> Molecule::get_all_coords() const {
-    madness::Tensor<double> c(natom(),3);
-    for (int i=0; i<natom(); ++i) {
-        const Atom atom = get_atom(i);
-        c(i,0) = atom.x;
-        c(i,1) = atom.y;
-        c(i,2) = atom.z;
-    }
+    xx /= qq;
+    yy /= qq;
+    zz /= qq;
+    c[0]= xx;
+    c[1]= yy;
+    c[2]= zz;
     return c;
 }
-
-std::vector< madness::Vector<double,3> > Molecule::get_all_coords_vec() const {
-  std::vector< madness::Vector<double,3> > c(natom());
-  for (int i=0; i<natom(); ++i) {
-    const Atom atom = get_atom(i);
-    c[i][0] = atom.x;
-    c[i][1] = atom.y;
-    c[i][2] = atom.z;
-  }
-  return c;
-}
-
+//we can now build the colloid
+    
 void Molecule::set_all_coords(const madness::Tensor<double>& c) {
     MADNESS_ASSERT(c.ndim()==2 && c.dims()[0]==natom() && c.dims()[1]==3);
     for (int i=0; i<natom(); ++i) {
-        Atom atom = get_atom(i);
-        atom.x = c(i,0);
-        atom.y = c(i,1);
-        atom.z = c(i,2);
-    }
-}
+	 Atom atom = get_atom(i);
+	 atom.x = c(i,0);
+	 atom.y = c(i,1);
+	 atom.z = c(i,2);
+     }
+ }
 
-/// updates rcuts with given eprec
-void Molecule::set_eprec(double value) {
-  eprec = value;
-  rsqasymptotic.resize(natom());
-  rcut.resize(natom());
-  for (unsigned int i=0; i<atoms.size(); ++i) {
-    double c = smoothing_parameter(atoms[i].q, eprec);
-    rsqasymptotic[i] = 36.0*c*c;       //jacob added
-    rcut[i] = 1.0 / c;
-  }
-  core_pot.set_eprec(value);
-}
+ /// updates rcuts with given eprec
+ void Molecule::set_eprec(double value) {
+   eprec = value;
+   rsqasymptotic.resize(natom());
+   rcut.resize(natom());
+   for (unsigned int i=0; i<atoms.size(); ++i) {
+     double c = smoothing_parameter(atoms[i].q, eprec);
+     rsqasymptotic[i] = 36.0*c*c;       //jacob added
+     rcut[i] = 1.0 / c;
+   }
+   core_pot.set_eprec(value);
+ }
 
-void Molecule::set_rcut(double value) {
-  throw "THIS LOOKS WRONG ... RJH";
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        rcut[i] = (value<=0.0) ? 1.0 : value;
-    }
-}
+ void Molecule::set_rcut(double value) {
+   throw "THIS LOOKS WRONG ... RJH";
+     for (unsigned int i=0; i<atoms.size(); ++i) {
+	 rcut[i] = (value<=0.0) ? 1.0 : value;
+     }
+ }
 
-const Atom& Molecule::get_atom(unsigned int i) const {
-    if (i>=atoms.size()) throw "trying to get coords of invalid atom";
-    return atoms[i];
-}
+ const Atom& Molecule::get_atom(unsigned int i) const {
+     if (i>=atoms.size()) throw "trying to get coords of invalid atom";
+     return atoms[i];
+ }
 
-void Molecule::print() const {
-    std::cout.flush();
-    printf(" geometry\n");
-    printf("   eprec %.1e\n", eprec);
-    printf("   units atomic\n");
-    //printf("   Finite Field %11.8f %20.8f %20.8f\n", field[0], field[1], field[2]);
-    for (int i=0; i<natom(); ++i) {
-        printf("   %-2s  %20.8f %20.8f %20.8f", get_atomic_data(atoms[i].atomic_number).symbol,
-               atoms[i].x, atoms[i].y, atoms[i].z);
-        if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
-        printf("\n");
-    }
-    printf(" end\n");
-}
+ void Molecule::print() const {
+     std::cout.flush();
+     printf(" geometry\n");
+     printf("   eprec %.1e\n", eprec);
+     printf("   units atomic\n");
+     //printf("   Finite Field %11.8f %20.8f %20.8f\n", field[0], field[1], field[2]);
+     for (int i=0; i<natom(); ++i) {
+	 printf("   %-2s  %20.8f %20.8f %20.8f", get_atomic_data(atoms[i].atomic_number).symbol,
+		atoms[i].x, atoms[i].y, atoms[i].z);
+	 if (atoms[i].atomic_number == 0) printf("     %20.8f", atoms[i].q);
+	 printf("\n");
+     }
+     printf(" end\n");
+ }
 
-double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
-    if (i>=atoms.size()) throw "trying to compute distance with invalid atom";
-    if (j>=atoms.size()) throw "trying to compute distance with invalid atom";
-    return distance(atoms[i].x, atoms[i].y, atoms[i].z,
-                    atoms[j].x, atoms[j].y, atoms[j].z);
-}
+ double Molecule::inter_atomic_distance(unsigned int i,unsigned int j) const {
+     if (i>=atoms.size()) throw "trying to compute distance with invalid atom";
+     if (j>=atoms.size()) throw "trying to compute distance with invalid atom";
+     return distance(atoms[i].x, atoms[i].y, atoms[i].z,
+		     atoms[j].x, atoms[j].y, atoms[j].z);
+ }
 
-double Molecule::nuclear_repulsion_energy() const {
-    double sum = 0.0;
-    for (unsigned int i=0; i<atoms.size(); ++i) {
-        unsigned int z1 = atoms[i].atomic_number;
-        if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
-        for (unsigned int j=i+1; j<atoms.size(); ++j) {
-            unsigned int z2 = atoms[j].atomic_number;
-            if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
-            sum += z1 * z2 / inter_atomic_distance(i,j);
-        }
-    }
-    return sum;
-}
+ double Molecule::nuclear_repulsion_energy() const {
+     double sum = 0.0;
+     for (unsigned int i=0; i<atoms.size(); ++i) {
+	 unsigned int z1 = atoms[i].atomic_number;
+	 if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
+	 for (unsigned int j=i+1; j<atoms.size(); ++j) {
+	     unsigned int z2 = atoms[j].atomic_number;
+	     if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
+	     sum += z1 * z2 / inter_atomic_distance(i,j);
+	 }
+     }
+     return sum;
+ }
 
-double Molecule::nuclear_dipole(int axis) const {
-    double sum = 0.0;
-    for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
-        unsigned int z = atoms[atom].atomic_number;
-        if (core_pot.is_defined(z)) z -= core_pot.n_core_orb(z) * 2;
-        double r;
-        switch (axis) {
-            case 0: r = atoms[atom].x; break;
-            case 1: r = atoms[atom].y; break;
-            case 2: r = atoms[atom].z; break;
-            default: MADNESS_EXCEPTION("invalid axis", 0);
-        }
-        sum += r*z;
-    }
+ double Molecule::nuclear_dipole(int axis) const {
+     double sum = 0.0;
+     for (unsigned int atom = 0; atom < atoms.size(); ++atom) {
+	 unsigned int z = atoms[atom].atomic_number;
+	 if (core_pot.is_defined(z)) z -= core_pot.n_core_orb(z) * 2;
+	 double r;
+	 switch (axis) {
+	     case 0: r = atoms[atom].x; break;
+	     case 1: r = atoms[atom].y; break;
+	     case 2: r = atoms[atom].z; break;
+	     default: MADNESS_EXCEPTION("invalid axis", 0);
+	 }
+	 sum += r*z;
+     }
 
-    return sum;
-}
-double Molecule::nuclear_charge_density(double x, double y, double z) const {
-  // Only one atom will contribute due to the short range of the nuclear            
-  // charge density                                                                                                                                        
-    for (unsigned int i=0; i<atoms.size(); i++) {
-    double big = rsqasymptotic[i];
-    double xx = atoms[i].x - x;
-    double rsq = xx*xx;
-    if (rsq <  big) {
-      double yy = atoms[i].y - y;
-      rsq += yy*yy;
-      if (rsq < big) {
-	double zz = atoms[i].z - z;
-	rsq += zz*zz;
-	if (rsq < big) {
-	  double r = sqrt(rsq);
-	  return atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
-	}
-      }
-    }
-  }
-  return 0.0;
-  /*
-  double sum = 0.0;
-  for (unsigned int i = 0; i<atoms.size(); i++){
-    double r = distance(atoms[i].x, atoms[i].y,atoms[i].z, x, y, z);
-    int atn = atoms[i].atomic_number;
-    double xi = get_atomic_data(atn).nuclear_gaussian_exponent;
-    double rhoc = double(atn)*pow(xi/PI, 0.5*3.0);
-    sum -= rhoc*exp(-r*r*xi);
-  }
-  return sum;   */
+     return sum;
+ }
+ double Molecule::nuclear_charge_density(double x, double y, double z) const {
+   // Only one atom will contribute due to the short range of the nuclear            
+   // charge density                                                                                                                                        
+   for (unsigned int i=0; i<atoms.size(); i++) {
+     double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z)*rcut[i];
+     if (r < 6.0) {
+       return atoms[i].atomic_number * smoothed_density(r)*rcut[i]*rcut[i]*rcut[i];
+     }
+   }
+   return  0.0;
+  //   for (unsigned int i=0; i<atoms.size(); i++) {
+  //   double big = rsqasymptotic[i];
+  //   double xx = atoms[i].x - x;
+  //   double rsq = xx*xx;
+  //   if (rsq <  big) {
+  //     double yy = atoms[i].y - y;
+  //     rsq += yy*yy;
+  //     if (rsq < big) {
+  // 	double zz = atoms[i].z - z;
+  // 	rsq += zz*zz;
+  // 	if (rsq < big) {
+  // 	  double r = sqrt(rsq);
+  // 	  return atoms[i].atomic_number * smoothed_density(r*rcut[i])*rcut[i]*rcut[i]*rcut[i];
+  // 	}
+  //     }
+  //   }
+  // }
+  // return 0.0;
 }
 
   double Molecule::nuclear_repulsion_derivative(int i, int axis) const {
@@ -334,6 +350,63 @@ void Molecule::center() {
         atoms[i].z -= zz;
     }
 }
+//compute the nuclear quadrupole moment. The reference point is the origin
+//Quadropole                                                                                                                                            
+double Molecule::Qnxx() const {
+    double sum = 0.0, qxx = 0.0, X = 0.0, Y = 0.0, Z = 0.0, qq = 0.0;
+    for(unsigned int i=0;i<atoms.size();i++){
+        X = atoms[i].x, Y = atoms[i].y, Z = atoms[i].z, qq = atoms[i].q ;
+        qxx = qq*(2.0*X*X - Y*Y - Z*Z);//*rho.scale(0.5);                                                                                  
+        sum = sum + qxx;
+    }
+    return 0.5*sum;//.trace();                                                                                                                              
+}
+double Molecule::Qnyy() const {
+    double sum = 0.0, qyy = 0.0, X = 0.0, Y = 0.0, Z = 0.0, qq = 0.0;
+    for(unsigned int i=0;i<atoms.size();i++){
+        X = atoms[i].x, Y = atoms[i].y, Z = atoms[i].z, qq = atoms[i].q ;
+        qyy = qq*(2.0*Y*Y - X*X  - Z*Z);//*rho.scale(0.5);                                                                                 
+        sum = sum + qyy;
+    }
+    return 0.5*sum;//.trace();                                                                                                                              
+}
+double Molecule::Qnzz() const {
+    double sum = 0.0, qzz = 0.0, X = 0.0, Y = 0.0, Z = 0.0, qq = 0.0;
+    for(unsigned int i= 0; i<atoms.size(); i++){
+        X = atoms[i].x, Y = atoms[i].y, Z = atoms[i].z, qq = atoms[i].q ;
+        qzz = qq*(2.0*Z*Z - X*X - Y*Y );
+        sum = sum + qzz;
+    }
+    return 0.5*sum;//.trace();                                                                                                                              
+}
+double Molecule::Qnxz() const {
+    double sum = 0.0, qxz = 0.0, X = 0.0, Z = 0.0, qq = 0.0;
+    for(unsigned int i= 0; i<atoms.size(); i++){
+        X = atoms[i].x, Z = atoms[i].z, qq = atoms[i].q ;
+        qxz = qq*X*Z;
+        sum = sum + qxz;
+    }
+    return 1.5*sum;
+}
+double Molecule::Qnxy() const {
+    double sum = 0.0, qxy = 0.0, X = 0.0, Y = 0.0, qq = 0.0;
+    for(unsigned int i= 0; i<atoms.size(); i++){
+        X = atoms[i].x, Y = atoms[i].y, qq = atoms[i].q ;
+        qxy = qq*X*Y;
+        sum = sum + qxy;
+    }
+    return 1.5*sum;
+}
+double Molecule::Qnyz() const {
+    double sum = 0.0, qyz = 0.0, qq =0.0, Y = 0.0, Z = 0.0;
+    for(unsigned int i= 0; i<atoms.size(); i++){
+        Y = atoms[i].y, Z = atoms[i].z, qq = atoms[i].q ;
+        qyz = qq*Y*Z;
+        sum = sum + qyz;
+    }
+    return 1.5*sum;
+}
+
 
 /// Apply to (x,y,z) a C2 rotation about an axis thru the origin and (xaxis,yaxis,zaxis)
 static void apply_c2(double xaxis, double yaxis, double zaxis, double& x, double& y, double& z) {

@@ -78,6 +78,7 @@ complex_functionT wave_function_load(World& world, int step) {
     return psi;
 }
 
+// Wrappers & structs
 struct PhiKAdaptor : public FunctionFunctorInterface<std::complex<double>,3> {
     PhiK& phik;
     PhiKAdaptor(World& world, PhiK& phik) : phik(phik) {
@@ -139,7 +140,8 @@ void loadParameters2(World& world, int &nGrid, double& th, double& phi, int& wf,
     }
 }
 
-void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int& nPhoton, double& cutoff) {
+void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &Z, int&
+        nPhoton, double& cutoff, double& Llarge) {
     std::string tag;
     double Rx, Ry, Rz;
     double omega;
@@ -199,6 +201,10 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 }
                 PRINTLINE( "cutoff = " << cutoff );
             }
+            else if (tag == "Llarge") {
+                f >> Llarge;
+                PRINTLINE("Llarge = " << Llarge);
+            }
         }
     }
     f.close();
@@ -210,6 +216,15 @@ string toString(int& i) {
     return ss.str();
 }
 
+void doplot(World& world, int step, const complex_functionT& psi, double Lplot, long numpt, const char* fname) {
+    double start = wall_time();
+    Tensor<double> cell(3,2);
+    std::vector<long> npt(3, numpt);
+    cell(_,0) = -Lplot;
+    cell(_,1) =  Lplot;
+    plotdx(psi, fname, cell, npt);
+    if (world.rank() == 0) print("plotting used", wall_time()-start);
+}
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
@@ -221,6 +236,7 @@ int main(int argc, char** argv) {
     double L = M_PI;
     double Z = 1.0;
     double cutoff = L;
+    double Llarge = L;
     int    nGrid = 5;
     double th = M_PI;
     double phi = 1.0;
@@ -228,7 +244,10 @@ int main(int argc, char** argv) {
     double kMomentum = 1.0;
     int    lMAX  = 12;
     int    nPhoton = 2;
-    loadParameters(world, thresh, k, L, Z, nPhoton, cutoff);
+    bool   asciiFile = false;
+    bool   coordEdge = false;
+    bool   plotDX    = false;
+    loadParameters(world, thresh, k, L, Z, nPhoton, cutoff, Llarge);
     loadParameters2(world, nGrid, th, phi, wf, kMomentum, lMAX, nPhoton);
     FunctionDefaults<NDIM>::set_k(k);               // Wavelet order
     FunctionDefaults<NDIM>::set_thresh(1e-3);       // Accuracy
@@ -242,8 +261,8 @@ int main(int argc, char** argv) {
     FunctionDefaults<NDIM>::set_truncate_on_project(true);
     try{
         //LOAD Psi(t) -> psiIT
-        cutoff = 0.01;
         PRINTLINE("cutoff = " << cutoff);
+        PRINTLINE("Llarge = " << Llarge);
         std::ifstream f("wf.num");
         if( !f.is_open() ) {
             PRINTLINE("File: wf.num expected to contain a list of integers of loadable wave functions");
@@ -255,30 +274,72 @@ int main(int argc, char** argv) {
                     PRINTLINE("Function " << step << " not found");
                 } else {
                     PRINTLINE("phi(T=" << step << ",x,z)");
-                    complex_functionT psiT = wave_function_load(world,atoi(step.c_str()));
-                    string fileName ="wf" + step + ".bin";
-                    FILE* pFile;
-                    pFile = fopen(fileName.c_str(), "wb");
-                    ofstream TXTout( ("wf" + step + ".dat").c_str());
-                    // Compute grid
+                    int nWF = atoi(step.c_str());
+                    const complex_functionT psiT = wave_function_load(world, nWF);
+                    double Lplot = 60;
+                    long numpt = nGrid;
+                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt, 
+                            ("wf" + step + ".dx").c_str());
+                    FILE* binaryFile = fopen(("wf" + step + ".bin").c_str(), "wb");
+                    ofstream asciiFile( ("wf" + step + ".dat").c_str());
+
+                    //Compute grid
+                    ///xMax: the largest x & z coordinate
+                    ///An odd number of grid points ensures zero is a gird point
                     int n = 2*nGrid + 1;
-                    float buffer[n];
-                    const double dr = cutoff/nGrid;
+                    const double xMax = Llarge;
+                    const double dr = xMax/nGrid;
+                    float buffer[n+1];
+                    // coordEdge pads the matrix with the coordinates
+                    // otherwise no coordinates will be provided
+                    if( coordEdge ) {
+                    ///Output for GNUPLOT binary matrix
+                    ///<n+1> <y0>   <y1>   <y2>   ...  <yN>
+                    ///<x0>  <x0,0> <z0,1> <z0,2> ... <z0,N>
+                    ///<x1>  <x1,0> <z1,1> <z1,2> ... <z1,N>
+                    /// .      .      .      .    ...   .
+                    /// .      .      .      .    ...   .  float buffer[n+1];
+                     // initialize first line
+                        buffer[0] = (float) n+1;
+                        if( asciiFile ) asciiFile << buffer[0] << "\t";
+                        for( int i=0; i<n; i++ ) {
+                            buffer[i+1] = i*dr - xMax;
+                            if( asciiFile ) asciiFile << buffer[i+1] << "\t";
+                        }
+                        fwrite(buffer, sizeof(float), n+1, binaryFile);
+                        if( asciiFile ) asciiFile << std::endl;
+                    }
+                    // initialize the bulk
                     for( int i=0; i<n; i++ ) {
-                        const double x = i*dr - cutoff;
+                        const double x = i*dr - xMax;
+                        if( coordEdge ) {
+                            buffer[0] = x;
+                            if( asciiFile ) asciiFile <<  x << "\t";
+                        }
                         for( int j=0; j<n; j++ ) {
-                            const double z = j*dr - cutoff;
+                            const double z = j*dr - xMax;
                             const double r[3] = {x, 0, z};
                             const vector3D         rVec(r);
-                            float psiA   = (float) real(psiT(rVec));
-                            buffer[j]    =         psiA;
-                            TXTout << psiA << " ";
+                            if( coordEdge ) {
+                                buffer[j+1] =  (float) real(psiT(rVec));
+                            } else {
+                                buffer[j] =  (float) real(psiT(rVec));
+                            }
+                            if( asciiFile ) asciiFile <<  real(psiT(rVec)) << "\t";
                         }
-                        fwrite(buffer, sizeof(float), n, pFile);
-                        TXTout << std::endl;
+                        if( world.rank() == 0 ) {
+                            if( coordEdge ) {
+                                fwrite(buffer, sizeof(float), n+1, binaryFile);
+                            } else {
+                                fwrite(buffer, sizeof(float),   n, binaryFile);
+                            }
+                            if( asciiFile ) asciiFile << std::endl;
+                        }
+                        world.gop.fence();
                     }
-                    fclose(pFile);
-                    TXTout.close();
+                    fclose(binaryFile);
+                    asciiFile.close();
+                    world.gop.fence();
                 }
             }// done loading wf.num
         }

@@ -43,96 +43,110 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
 
     { // limit lifetime of world so that finalize() can execute cleanly
-        World world(MPI::COMM_WORLD);
+      World world(MPI::COMM_WORLD);
 
-        try {
-            // Load info for MADNESS numerical routines
-            startup(world,argc,argv);
-            FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+      try {
+        // Load info for MADNESS numerical routines
+        startup(world,argc,argv);
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
 
-            std::cout.precision(6);
+        std::cout.precision(6);
 
-            // Process 0 reads input information and broadcasts
-            Calculation calc(world, "input");
+        // Process 0 reads input information and broadcasts
+        const char * inpname = (argc>1) ? argv[1] : "input";
+        Calculation calc(world, inpname);
 
-            // Warm and fuzzy for the user
-            if (world.rank() == 0) {
-                print("\n\n");
-                print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-                print(" ----------------------------------------------------------\n");
-                print("\n");
-                calc.molecule.print();
-                print("\n");
-                calc.param.print(world);
-            }
-
-            // Come up with an initial OK data map
-            if (world.size() > 1) {
-                calc.set_protocol<3>(world,calc.param.econv);
-                calc.make_nuclear_potential(world);
-                calc.initial_load_bal(world);
-            }
-
-            if ( calc.param.gopt) {
-                print("\n\n Geometry Optimization                      ");
-                print(" ----------------------------------------------------------\n");
-                calc.param.gprint(world);
-  
-                Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-                QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
-                                 calc.param.gmaxiter,
-                                 calc.param.gtol,  //tol
-                                 calc.param.gval,  //value prec
-                                 calc.param.gprec); // grad prec
-                geom.set_update(calc.param.algopt);
-                geom.set_test(calc.param.gtest);
-                geom.optimize(geomcoord);
-            }
-            else {
-                MolecularEnergy E(world, calc);
-                E.value(calc.molecule.get_all_coords().flat()); // ugh!
-                if (calc.param.derivatives) calc.derivatives(world);
-                if (calc.param.dipole) calc.dipole(world);
-            }
-            calc.do_plots(world);
-        }
-        catch (const MPI::Exception& e) {
-            //        print(e);
-            error("caught an MPI exception");
-        }
-        catch (const madness::MadnessException& e) {
-            print(e);
-            error("caught a MADNESS exception");
-        }
-        catch (const madness::TensorException& e) {
-            print(e);
-            error("caught a Tensor exception");
-        }
-        catch (char* s) {
-            print(s);
-            error("caught a string exception");
-        }
-        catch (const char* s) {
-            print(s);
-            error("caught a string exception");
-        }
-        catch (const std::string& s) {
-            print(s);
-            error("caught a string (class) exception");
-        }
-        catch (const std::exception& e) {
-            print(e.what());
-            error("caught an STL exception");
-        }
-        catch (...) {
-            error("caught unhandled exception");
+        // Warm and fuzzy for the user
+        if (world.rank() == 0) {
+          print("\n\n");
+          print(" MADNESS Hartree-Fock and Density Functional Theory Program");
+          print(" ----------------------------------------------------------\n");
+          print("\n");
+          calc.molecule.print();
+          print("\n");
+          calc.param.print(world);
         }
 
-        // Nearly all memory will be freed at this point
-        world.gop.fence();
-        world.gop.fence();
-        ThreadPool::end();
-        print_stats(world);
+        // Come up with an initial OK data map
+        if (world.size() > 1) {
+          calc.set_protocol<3>(world,calc.param.econv);
+          calc.make_nuclear_potential(world);
+          calc.initial_load_bal(world);
+        }
+
+        if ( calc.param.gopt) {
+          print("\n\n Geometry Optimization                      ");
+          print(" ----------------------------------------------------------\n");
+          calc.param.gprint(world);
+
+          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
+                           calc.param.gmaxiter,
+                           calc.param.gtol,  //tol
+                           calc.param.gval,  //value prec
+                           calc.param.gprec); // grad prec
+          geom.set_update(calc.param.algopt);
+          geom.set_test(calc.param.gtest);
+          geom.optimize(geomcoord);
+        }
+        else if (calc.param.tdksprop) {
+          print("\n\n Propagation of Kohn-Sham equation                      ");
+          print(" ----------------------------------------------------------\n");
+//          calc.propagate(world,VextCosFunctor<double>(world,new DipoleFunctor(2),0.1),0);
+          calc.propagate(world,0.1,0);
+        }
+        else {
+          MolecularEnergy E(world, calc);
+          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+          if (calc.param.derivatives) calc.derivatives(world);
+          if (calc.param.dipole) calc.dipole(world);
+        }
+
+        //        if (calc.param.twoint) {
+        //Tensor<double> g = calc.twoint(world,calc.amo);
+        //cout << g;
+        // }
+
+        calc.do_plots(world);
+
+      }
+      catch (const MPI::Exception& e) {
+        //        print(e);
+        error("caught an MPI exception");
+      }
+      catch (const madness::MadnessException& e) {
+        print(e);
+        error("caught a MADNESS exception");
+      }
+      catch (const madness::TensorException& e) {
+        print(e);
+        error("caught a Tensor exception");
+      }
+      catch (char* s) {
+        print(s);
+        error("caught a string exception");
+      }
+      catch (const char* s) {
+        print(s);
+        error("caught a string exception");
+      }
+      catch (const std::string& s) {
+        print(s);
+        error("caught a string (class) exception");
+      }
+      catch (const std::exception& e) {
+        print(e.what());
+        error("caught an STL exception");
+      }
+      catch (...) {
+        error("caught unhandled exception");
+      }
+
+      // Nearly all memory will be freed at this point
+      world.gop.fence();
+      world.gop.fence();
+      ThreadPool::end();
+      print_stats(world);
     } // world is dead -- ready to finalize
     finalize();
 

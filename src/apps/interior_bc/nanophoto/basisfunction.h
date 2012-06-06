@@ -32,8 +32,8 @@
 */
 
 /** \file basisfunction.h
-    \brief
-
+    \brief Provides code to project Gaussian basis functions from independent
+           quantum chemistry packages into MADNESS.
 */
 
 #ifndef MADNESS_INTERIOR_BC_BASISFUNCTION_H__INCLUDED
@@ -45,7 +45,8 @@
 
 using namespace madness;
 
-/** \brief Abstract Gaussian basis function.  Overriden for angular momenta. */
+/** \brief Abstract Gaussian basis function. Must be overriden to specify
+           angular momenta (s, p, d, etc.). */
 class GaussianBF : public FunctionFunctorInterface<double, 3> {
     private:
         GaussianBF() {}

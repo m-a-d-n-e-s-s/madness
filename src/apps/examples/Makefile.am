@@ -1,23 +1,15 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester interior_dirichlet test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal laplace_sphere hatom_1d binaryop dielectric hehf 3dharmonic testsolver helium_mp2 tiny mp2
-
-prog_only = helium_mp2_prog
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop
 
 thisincludedir = $(includedir)/examples
-thisinclude_HEADERS = molecularmask.h  nonlinsol.h
-
-mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/xcfunctional_libxc.cc
-
-tiny_SOURCES = tiny.cc
-
-helium_mp2_SOURCES = helium_mp2.cc
+thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 dataloadbal_SOURCES = dataloadbal.cc
 
-testsolver_SOURCES = testsolver.cc
+testspectralprop_SOURCES = testspectralprop.cc
 
-laplace_sphere_SOURCES = laplace_sphere.cc
+testsolver_SOURCES = testsolver.cc
 
 sininteg_SOURCES = sininteg.cc
 
@@ -50,8 +42,6 @@ tdse1d_SOURCES = tdse1d.cc
 csqrt_SOURCES = csqrt.cc
 
 sdf_shape_tester_SOURCES = sdf_shape_tester.cc
-
-interior_dirichlet_SOURCES = interior_dirichlet.cc
 
 test_gmres_SOURCES = test_gmres.cc
 

@@ -143,6 +143,8 @@ public:
     std::vector< madness::Vector<double,3> > get_all_coords_vec() const;
 
     std::vector<double> atomic_radii;
+
+    std::vector<double> charge_center();
     
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
@@ -186,6 +188,18 @@ public:
     void center();
 
     void orient();
+
+    double Qnxx() const;
+
+    double Qnyy() const;
+
+    double Qnzz() const;
+
+    double Qnxz() const;
+
+    double Qnxy() const;
+
+    double Qnyz() const;
 
     double total_nuclear_charge() const;
 
