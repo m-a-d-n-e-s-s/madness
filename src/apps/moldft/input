@@ -1,18 +1,9 @@
 dft
-  nopen 1
-  xc GGA_X_PBE 1. GGA_C_PBE 1.
+  xc LDA
+  maxsub 5
 end
-  #xc LDA
-  #nopen 2
-  #protocol 1e-2 1e-3 1e-4
   #xc GGA_X_PBE 1. GGA_C_PBE 1.
-geometry
-  units angstrom
-  Li 0. 0. 0.
-end
 
-  #Li 5.5 0. 0.
-  #Li 1.3 0. 0.
 # water dimer
 geometry
   units angstrom
