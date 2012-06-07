@@ -311,24 +311,49 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
         }
         else if (is_gga()) {
-            MADNESS_ASSERT(t.size() == 5);
+            //MADNESS_ASSERT(t.size() == 5);
             const double * restrict rhoa  = t[0].ptr();
             const double * restrict rhob  = t[1].ptr();
+
             const double * restrict sigaa = t[2].ptr();
             const double * restrict sigab = t[3].ptr();
             const double * restrict sigbb = t[4].ptr();
+
+            const double * restrict drhoax = t[5].ptr();
+            const double * restrict drhoay = t[6].ptr();
+            const double * restrict drhoaz = t[7].ptr();
+
+            const double * restrict drhobx = t[8].ptr();
+            const double * restrict drhoby = t[9].ptr();
+            const double * restrict drhobz = t[10].ptr();
+
             rho   = madness::Tensor<double>(np*2L);
             sigma = madness::Tensor<double>(np*3L);
+            delrho  = madness::Tensor<double>(np*6L);
+            double * restrict ddens = delrho.ptr();
             double * restrict dens = rho.ptr();
             double * restrict sig  = sigma.ptr();
             for (long i=0; i<np; i++) {
                 double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
-                munge5(ra, rb, saa, sab, sbb);
+
+                double dax=drhoax[i], day=drhoay[i], daz=drhoaz[i];
+                double dbx=drhobx[i], dby=drhoby[i], dbz=drhobz[i];
+            //    munge5(ra, rb, saa, sab, sbb);
+                munge5_der(ra, rb, saa, sab, sbb, dax, day, daz, dbx, dby, dbz);
                 dens[2*i  ] = ra;
                 dens[2*i+1] = rb;
+
                 sig[3*i  ] = saa;
                 sig[3*i+1] = sab;
                 sig[3*i+2] = sbb;
+
+                ddens[6*i  ] = dax;
+                ddens[6*i+1] = day;
+                ddens[6*i+2] = daz;
+
+                ddens[6*i+3] = dbx;
+                ddens[6*i+4] = dby;
+                ddens[6*i+5] = dbz;
             }
         }
         else {
@@ -378,14 +403,13 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
 }
 
 
-madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const
+madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t, const int ispin) const
 {
     madness::Tensor<double> rho, sigma;
     madness::Tensor<double> delrho;
     make_libxc_args(t, rho, sigma, delrho);
 
     const int np = t[0].size();
-    const int npi = t.size();
     const double * restrict dens = rho.ptr();
     const double * restrict sig = sigma.ptr();
 
@@ -410,7 +434,8 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         }
         if (spin_polarized) {
             for (long j=0; j<np; j++) {
-                res[j] += work[j]*(dens[2*j]+dens[2*j+1])*funcs[i].second;
+                res[j] += work[j]*(dens[2*j+ispin])*funcs[i].second;
+                //res[j] += work[j]*(dens[2*j]+dens[2*j+1])*funcs[i].second;
             }
         }
         else {
@@ -423,7 +448,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
 {
     madness::Tensor<double> rho, sigma;
     madness::Tensor<double> delrho;
@@ -454,7 +479,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             xc_lda_vxc(funcs[i].first, np, dens, vr);
             if (what < 2) {
                 for (long j=0; j<np; j++) {
-                    res[j] += vr[nvrho*j+what]*funcs[i].second;
+                    res[j] += vr[nvrho*j+ispin]*funcs[i].second;
                     if (isnan_x(res[j])) throw "ouch";
                 }
             }
@@ -464,6 +489,60 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
 
         case XC_FAMILY_GGA:
            {
+            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
+            double * restrict vr = vrho.ptr();
+            double * restrict vs = vsig.ptr();
+            const double * restrict sig = sigma.ptr();
+            const double * restrict ddens = delrho.ptr();
+            xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
+            if (spin_polarized) {
+                if (what == 0) {
+                   for (long j=0; j<np; j++) {
+                       res[j] += vr[nvrho*j+ispin]*funcs[i].second;
+                       if (isnan_x(res[j])) throw "ouch";
+                   }
+                }
+                else {
+                    for (long j=0; j<np; j++) {
+                        if (ispin == 0) {
+                            for (int axis=0; axis<3; axis++) {
+                                res[j] += vs[3*j  ]*funcs[i].second*ddens[6*j+axis  ]*2.0;
+                                res[j] += vs[3*j+1]*funcs[i].second*ddens[6*j+axis+3];
+                                if (isnan_x(res[j])) throw "ouch";
+                            } 
+                        } 
+                        else {
+                            for (int axis=0; axis<3; axis++) {
+                                res[j] += vs[3*j]*funcs[i].second*ddens[6*j+axis+3]*2.0;
+                                res[j] += vs[3*j+1]*funcs[i].second*ddens[6*j+axis+3  ];
+                                if (isnan_x(res[j])) throw "ouch";
+                            }
+                        }
+                    }
+                }
+            }
+            else {
+                if (what == 0) {
+                   for (long j=0; j<np; j++) {
+                       res[j] += vr[j]*funcs[i].second;
+                       if (isnan_x(res[j])) throw "ouch";
+                   }
+                }
+                else {
+                    for (long j=0; j<np; j++) {
+                        for (int axis=0; axis<3; axis++) {
+                            res[j] += vs[j]*funcs[i].second*ddens[3*j+axis]*2.0;
+                            if (isnan_x(res[j])) throw "ouch";
+                        }
+                    }
+                }
+            }
+           }
+            break;
+
+        case XC_FAMILY_HYB_GGA:
+           {
+            throw "UGH!";
             madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
             double * restrict vr = vrho.ptr();
             double * restrict vs = vsig.ptr();
@@ -497,45 +576,6 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
                             res[j] += vs[j]*funcs[i].second*ddens[j*3+axis]*2.0;
                             if (isnan_x(res[j])) throw "ouch";
                         }
-                    }
-                }
-            }
-           }
-            break;
-
-        case XC_FAMILY_HYB_GGA:
-           {
-            madness::Tensor<double> vrho(nvrho*np), vsig(nvsig*np);
-            double * restrict vr = vrho.ptr();
-            double * restrict vs = vsig.ptr();
-            const double * restrict sig = sigma.ptr();
-            const double * restrict ddens = delrho.ptr();
-            xc_gga_vxc(funcs[i].first, np, dens, sig, vr, vs);
-            if (spin_polarized) {
-                if (what < 2) {
-                    for (long j=0; j<np; j++) {
-                        res[j] += vr[nvrho*j+what]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
-                    }
-                }
-                else {
-                    for (long j=0; j<np; j++) {
-                        res[j] += vs[nvsig*j+what-2]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
-                    }
-                }
-            }
-            else {
-                if (what == 0) {
-                    for (long j=0; j<np; j++) {
-                        res[j] += vr[j]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
-                    }
-                }
-                else {
-                    for (long j=0; j<np; j++) {
-                        res[j] += vs[j]*funcs[i].second;
-                        if (isnan_x(res[j])) throw "ouch";
                     }
                 }
             }

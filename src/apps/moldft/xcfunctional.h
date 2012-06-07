@@ -114,7 +114,18 @@ protected:
         rho = p;
         sigma *= dpdx*dpdx;
     }
-
+    static void munge_der(double& rhoa, double& sigma, double& drx, double& dry, double& drz) {
+        // rho(x) --> p(rho(x))
+        // d/dx p(rho(x)) --> dp/drho * drho/dx
+        if (sigma < 0.0) sigma = 0.0;
+        double p, dpdx;
+        polyn(rhoa, p, dpdx);
+        rhoa = p;
+        sigma *= dpdx*dpdx;
+        drx *=dpdx;
+        dry *=dpdx;
+        drz *=dpdx;
+    }
     static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
         // rho(x) --> p(rho(x))
         // d/dx p(rho(x)) --> dp/drho * drho/dx
@@ -130,17 +141,30 @@ protected:
         sab *= dpadx*dpbdx;
         sbb *= dpbdx*dpbdx;
     }
-    static void munge_der(double& rhoa, double& sigma, double& drx, double& dry, double& drz) {
+    static void munge5_der(double& rhoa, double& rhob, double& saa, double& sab, double& sbb,
+                           double& drax, double& dray, double& draz, 
+                           double& drbx, double& drby, double& drbz) {
         // rho(x) --> p(rho(x))
         // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (sigma < 0.0) sigma = 0.0;
-        double p, dpdx;
-        polyn(rhoa, p, dpdx);
-        rhoa = p;
-        sigma *= dpdx*dpdx;
-        drx *=dpdx;
-        dry *=dpdx;
-        drz *=dpdx;
+        if (saa < 0.0) saa = 0.0;
+        if (sab < 0.0) sab = 0.0;
+        if (sbb < 0.0) sbb = 0.0;
+        double pa, pb, dpadx, dpbdx;
+        polyn(rhoa, pa, dpadx);
+        polyn(rhob, pb, dpbdx);
+        rhoa = pa;
+        rhob = pb;
+        saa *= dpadx*dpadx;
+        sab *= dpadx*dpbdx;
+        sbb *= dpbdx*dpbdx;
+
+        drax *=dpadx;
+        dray *=dpadx;
+        draz *=dpadx;
+
+        drbx *=dpbdx;
+        drby *=dpbdx;
+        drbz *=dpbdx;
     }
 
 public:
@@ -205,7 +229,7 @@ public:
     ///
     /// @param t The input densities and derivatives as required by the functional
     /// @return The exchange-correlation energy functional
-    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t) const;
+    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t , const int ispin=0) const;
     
     /// Computes components of the potential (derivative of the energy functional) at np points
 
@@ -251,7 +275,7 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int what=0) const;
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin=0, const int what=0) const;
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {
@@ -278,9 +302,10 @@ public:
 /// Class to compute the energy functional
 struct xc_functional {
     const XCfunctional* xc;
+    const int ispin;
 
-    xc_functional(const XCfunctional& xc) 
-        : xc(&xc)
+    xc_functional(const XCfunctional& xc, int ispin) 
+        : xc(&xc), ispin(ispin)
     {}
     
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
@@ -294,15 +319,16 @@ struct xc_functional {
 struct xc_potential {
     const XCfunctional* xc;
     const int what;
+    const int ispin;
     
-    xc_potential(const XCfunctional& xc, int what) 
-        : xc(&xc), what(what)
+    xc_potential(const XCfunctional& xc, int ispin,int what) 
+        : xc(&xc), what(what), ispin(ispin)
     {}
     
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
         MADNESS_ASSERT(xc);
-        madness::Tensor<double> r = xc->vxc(t, what);
+        madness::Tensor<double> r = xc->vxc(t, ispin, what);
         return r;
     }
 };

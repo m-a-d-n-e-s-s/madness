@@ -1770,14 +1770,14 @@ struct Calculation {
     }
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int what) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what) 
     {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc,what), vf);
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
     }
 
-    double make_dft_energy(World & world, const vecfuncT& vf)
+    double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
     {
-        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
+        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
         return vlda.trace();
     }
 
@@ -1789,26 +1789,28 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+            print(" WARNING GGA XC functionalis must be used with caution in this version \n"); 
             START_TIMER(world);
-            if (ispin == 0) exc = make_dft_energy(world, vf);
-            vloc = vloc + make_dft_potential(world, vf, ispin);
+             exc = make_dft_energy(world, vf, ispin);
+            //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+            //print(exc); 
+            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
             if (xc.is_gga() ) {
-                if (xc.is_spin_polarized()) {
-                    throw "not yet";
-                }
-                else {
-		    //print("VF", vf[0].trace(), vf[1].trace());
-                    real_function_3d vsig = make_dft_potential(world, vf, 1);
+//3                if (xc.is_spin_polarized()) {
+//3                    throw "not yet";
+//3                }
+//3                else {
+                    real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
                     //print("VSIG", vsig.trace(), vsig.norm2());
                     real_function_3d vr(world);
                     for (int axis=0; axis<3; axis++) {
                         vr += (*gradop[axis])(vsig);
+                    //print("VR", vr.trace(), vr.norm2());
                     }
                     vloc = vloc - vr; // need a 2?
-                    //print("VLOC2", vloc.trace(), vloc.norm2());
-                }
+//3                }
             }
             END_TIMER(world, "DFT potential");
         }
@@ -2650,7 +2652,9 @@ struct Calculation {
                 if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
 
                 vf.push_back(arho);
-                if (xc.is_spin_polarized()) vf.push_back(brho);
+                if (xc.is_spin_polarized()) {
+                    vf.push_back(brho);
+                }
 
                 if (xc.is_gga()) {
                     for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
@@ -2663,10 +2667,11 @@ struct Calculation {
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
                     }
-                    for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]); // dd_x
+                    for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]); // dda_x
                     if (xc.is_spin_polarized()) {
-                       for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]);
+                       for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); //ddb_x
                     }
+                //    world.gop.fence(); // NECESSARY
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
