@@ -1791,12 +1791,12 @@ struct Calculation {
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
-            // print( "exc ",exc , "\n");
             vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
             if (xc.is_gga() ) {
-            print(" WARNING GGA XC functionalis must be used with caution in this version \n"); 
+                if(world.rank() == 0)
+                   print(" WARNING GGA XC functionalis must be used with caution in this version \n"); 
 //3                if (xc.is_spin_polarized()) {
 //3                    throw "not yet";
 //3                }
@@ -1821,14 +1821,15 @@ struct Calculation {
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
-            exc = 0.0;
+            double exchf = 0.0;
             for(unsigned long i = 0;i < amo.size();++i){
-                exc -= 0.5 * excv[i] * occ[i];
+                exchf -= 0.5 * excv[i] * occ[i];
             }
-            if (!xc.is_spin_polarized()) exc *= 2.0;
+            if (!xc.is_spin_polarized()) exchf *= 2.0;
             gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
+            exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
         
         if (param.core_type.substr(0,3) == "mcp") {
