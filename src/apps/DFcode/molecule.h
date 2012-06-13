@@ -99,13 +99,17 @@ private:
 
     bool test_for_inverse() const;
 
+    std::string geometry_name;
+
 public:
     /// Makes a molecule with zero atoms
     Molecule() : atoms(), rcut(), eprec(1e-4), core_pot(), field(3L) {};
 
-    Molecule(const std::string& filename);
+//    Molecule(const std::string& filename);
+    Molecule(const std::string& filename, const std::string& geomname="");
 
     void read_file(const std::string& filename);
+    void read_file(const std::string& filename, const std::string& geomname);
 
     void read_core_file(const std::string& filename);
 
