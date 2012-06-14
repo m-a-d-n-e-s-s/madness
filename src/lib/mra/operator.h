@@ -356,6 +356,81 @@ namespace madness {
         /// Apply one of the separated terms, accumulating into the result
         template <typename T>
         void muopxv_fast(ApplyTerms at,
+                         const ConvolutionData1D<Q>* const ops[NDIM],
+                         const Tensor<T>& f, const Tensor<T>& f0,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& result0,
+                         double tol,
+                         const Q mufac,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work1,
+                         Tensor<TENSOR_RESULT_TYPE(T,Q)>& work2,
+                         Tensor<Q>& work5) const {
+
+            PROFILE_MEMBER_FUNC(SeparatedConvolution);
+            Transformation trans[NDIM];
+
+            double Rnorm = 1.0;
+            for (std::size_t d=0; d<NDIM; ++d) Rnorm *= ops[d]->Rnorm;
+            if (Rnorm == 0.0) return;
+
+            tol = tol/(Rnorm*NDIM);  // Errors are relative within here
+
+            // Determine rank of SVD to use or if to use the full matrix
+            const long twok = 2*k;
+            long break_even;
+            if (NDIM==1) break_even = long(0.5*twok);
+            else if (NDIM==2) break_even = long(0.6*twok);
+            else if (NDIM==3) break_even=long(0.65*twok);
+            else break_even=long(0.7*twok);
+            for (std::size_t d=0; d<NDIM; ++d) {
+                long r;
+                for (r=0; r<twok; ++r) {
+                    if (ops[d]->Rs[r] < tol) break;
+                }
+                if (r >= break_even) {
+                    trans[d].r = twok;
+                    trans[d].U = ops[d]->R.ptr();
+                    trans[d].VT = 0;
+                }
+                else {
+                    r += (r&1L);
+                    trans[d].r = std::max(2L,r);
+                    trans[d].U = ops[d]->RU.ptr();
+                    trans[d].VT = ops[d]->RVT.ptr();
+                }
+            }
+            apply_transformation(twok, trans, f, work1, work2, work5, mufac, result);
+
+            if (at.t_term) {
+                if (NDIM==1) break_even = long(0.5*k);
+                else if (NDIM==2) break_even = long(0.6*k);
+                else if (NDIM==3) break_even=long(0.65*k);
+                else break_even=long(0.7*k);
+                for (std::size_t d=0; d<NDIM; ++d) {
+                    long r;
+                    for (r=0; r<k; ++r) {
+                        if (ops[d]->Ts[r] < tol) break;
+                    }
+                    if (r >= break_even) {
+                        trans[d].r = k;
+                        trans[d].U = ops[d]->T.ptr();
+                        trans[d].VT = 0;
+                    }
+                    else {
+                        r += (r&1L);
+                        trans[d].r = std::max(2L,r);
+                        trans[d].U = ops[d]->TU.ptr();
+                        trans[d].VT = ops[d]->TVT.ptr();
+                    }
+                }
+                apply_transformation(k, trans, f0, work1, work2, work5, -mufac, result0);
+            }
+        }
+
+
+        /// Apply one of the separated terms, accumulating into the result
+        template <typename T>
+        void muopxv_fast_mod(ApplyTerms at,
                          const ConvolutionData1D<Q>* const ops_1d[NDIM],
                          const Tensor<T>& f, const Tensor<T>& f0,
                          Tensor<TENSOR_RESULT_TYPE(T,Q)>& result,
@@ -556,6 +631,7 @@ namespace madness {
             }
             if (n) prodR = sqrt(std::max(prodR*prodR - prodT*prodT,0.0));
 
+            // this kicks in if the line above has no numerically significant digits.
             if (prodR < 1e-8*prodT) {
                 double prod=1.0, sum=0.0;
                 for (std::size_t d=0; d<NDIM; ++d) {
@@ -1097,8 +1173,13 @@ namespace madness {
                 if (muop.norm > tol) {
                     // ops is of ConvolutionND, returns data for 1 term and all dimensions
                     Q fac = ops[mu].getfac();
-                    muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                    if (modified()) {  
+                        muopxv_fast_mod(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
                                 work1, work2, work5);
+                    } else {
+                        muopxv_fast(at, muop.ops, *input, f0, r, r0, tol/std::abs(fac), fac,
+                                work1, work2, work5);
+                    }
                 }
             }
 

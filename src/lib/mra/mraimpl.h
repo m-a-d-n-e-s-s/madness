@@ -284,7 +284,6 @@ namespace madness {
         return None;
     }
 
-
     template <typename T, std::size_t NDIM>
     Tensor<T> fcube(const Key<NDIM>& key, T (*f)(const Vector<double,NDIM>&), const Tensor<double>& qx) {
 //      fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
@@ -668,25 +667,18 @@ namespace madness {
         if (not functor) MADNESS_EXCEPTION("FunctionImpl: project: confusion about function?",0);
 
         // if functor provides coeffs directly, awesome; otherwise use compute by yourself
-        if (functor->provides_coeff()) {
-        	return functor->coeff(key).full_tensor_copy();
+        if (functor->provides_coeff()) return functor->coeff(key).full_tensor_copy();
 
-        } else {
+        MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
+        tensorT fval(cdata.vq,false); // this will be the returned result
+        tensorT work(cdata.vk,false); // initially evaluate the function in here
+        tensorT workq(cdata.vq,false); // initially evaluate the function in here
 
-//            MADNESS_ASSERT(cdata.npt == cdata.k); // only necessary due to use of fast transform
-            tensorT fval(cdata.vq,false); // this will be the returned result
-//            tensorT work(cdata.vk,false); // initially evaluate the function in here
-            tensorT work(cdata.vq,false); // initially evaluate the function in here
-            tensorT workq(cdata.vq,false); // initially evaluate the function in here
+        madness::fcube(key,*functor,cdata.quad_x,work);
 
-        	madness::fcube(key,*functor,cdata.quad_x,work);
-
-        	work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
-            //return transform(work,cdata.quad_phiw);
-//            return fast_transform(work,cdata.quad_phiw,fval,workq);
-            return transform(work,cdata.quad_phiw);
-        }
-
+        work.scale(sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*key.level()))));
+        //return transform(work,cdata.quad_phiw);
+        return fast_transform(work,cdata.quad_phiw,fval,workq);
     }
 
     template <typename T, std::size_t NDIM>

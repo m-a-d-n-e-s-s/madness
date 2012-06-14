@@ -120,8 +120,9 @@ namespace madness {
                             TaskAttributes::hipri());
                 }
                 else if (!right.second.has_data()) {
-                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1, f, df, key,
-                    		left, center, find_neighbor(f, key,1), TaskAttributes::hipri());
+                    woT::task(owner, &madness::DerivativeBase<T,NDIM>::do_diff1,
+                            f, df, key, left, center, find_neighbor(f, key,1),
+                            TaskAttributes::hipri());
                 }
                 // Boundary node
                 else if (left.first.is_invalid() || right.first.is_invalid()) {
@@ -135,7 +136,7 @@ namespace madness {
                 }
             }
             else {
-                df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1,
+              df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1,
                         this, f, key, left, center, right, TaskAttributes::hipri());
             }
             return None;
@@ -366,9 +367,7 @@ namespace madness {
             int bc_right = this->bc(this->axis,1);
 
             Future<argT> found_argT;
-//            tensorT bf, bdry_t;
-            tensorT bdry_t;
-            tensorT bf;
+            tensorT bf, bdry_t;
             //left boundary
             if (l[this->axis] == 0) {
                 if (bc_left != BC_PERIODIC && bc_left != BC_FREE && bc_left != BC_ZERO && bc_left != BC_ZERONEUMANN) {

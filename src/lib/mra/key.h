@@ -352,6 +352,21 @@ namespace madness {
             return Key<NDIM+LDIM>(rhs.level(),t);
         }
 
+        /// return if the other key is pointing in the same direction and is farther out
+
+        /// unlike in distsq() the direction is taken into account, and other must be
+        /// longer than this in each dimension
+        /// @param[in]	other 	a key
+        /// @return		if other is farther out
+        bool is_farther_out_than(const Key<NDIM>& other) const {
+        	for (size_t i=0; i<NDIM; ++i) {
+        		if ((other.translation()[i]>0) and (other.translation()[i]>l[i])) return false;
+        		if ((other.translation()[i]<0) and (other.translation()[i]<l[i])) return false;
+        	}
+        	return true;
+        }
+
+
         /// Recomputes hashval ... presently only done when reading from external storage
         void
         rehash() {

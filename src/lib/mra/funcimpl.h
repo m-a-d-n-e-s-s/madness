@@ -926,7 +926,6 @@ namespace madness {
             this->process_pending();
             if (factory._fence && functor)
                 world.gop.fence();
-
         }
 
         /// Copy constructor
@@ -1573,13 +1572,10 @@ namespace madness {
 
         template <typename Q>
         Tensor<Q> values2coeffs(const keyT& key, const Tensor<Q>& values) const {
-//        coeffT values2coeffs(const keyT& key, const coeffT& values) const {
-//        __Tensor<Q> values2coeffs(const keyT& key, const __Tensor<Q>& values) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
             return transform(values,cdata.quad_phiw).scale(scale);
         }
-
 
         /// Compute the function values for multiplication
 
@@ -4447,14 +4443,9 @@ namespace madness {
 			// applying the operator
             // OPTIMIZATION NEEDED HERE ... CHANGING THIS TO TASK NOT SEND REMOVED
             // BUILTIN OPTIMIZATION TO SHORTCIRCUIT MSG IF DATA IS LOCAL
-            if (norm > 0.1*args.tol/args.fac) {
+            if (norm > 0.3*args.tol/args.fac) {
 
-            	// check norm of the wavelet coeffs
-            	double s_norm=result_full(cdata.s0).normf();
-            	double d_norm=sqrt(norm*norm-s_norm*s_norm);
-            	if (d_norm<apply_targs.thresh) small++;
-            	else large++;
-
+            	small++;
 				double cpu0=cpu_time();
 				coeffT result=coeffT(result_full,apply_targs);
 				MADNESS_ASSERT(result.tensor_type()==TT_FULL or result.tensor_type()==TT_2D);
@@ -4489,6 +4480,7 @@ namespace madness {
             MADNESS_ASSERT(result_norm>-0.5);
 
             if (result_norm> 0.3*args.tol/args.fac) {
+            	small++;
 
                 // accumulate also expects result in SVD form
                 Future<double> time=coeffs.task(args.dest, &nodeT::accumulate, result, coeffs, args.dest, apply_targs,
@@ -4514,22 +4506,32 @@ namespace madness {
             typedef typename opT::keyT opkeyT;
             static const size_t opdim=opT::opdim;
 
+            opkeyT source;
+            Key<NDIM-opdim> dummykey;
+            if (op->particle()==1) key.break_apart(source,dummykey);
+            if (op->particle()==2) key.break_apart(dummykey,source);
+
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
             double cnorm = c.normf();
             //const long lmax = 1L << (key.level()-1);
 
-            const std::vector<keyT>& disp = op->get_disp(key.level());
+            const std::vector<opkeyT>& disp = op->get_disp(key.level());
 
             static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
-            for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const keyT& d = *it;
+            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
+//                const opkeyT& d = *it;
+
+                keyT d;
+                Key<NDIM-opdim> nullkey(key.level());
+                if (op->particle()==1) d=it->merge_with(nullkey);
+                if (op->particle()==2) d=nullkey.merge_with(*it);
 
                 keyT dest = neighbor(key, d, is_periodic);
 
                 if (dest.is_valid()) {
-                    double opnorm = op->norm(key.level(), d, key);
+                    double opnorm = op->norm(key.level(), *it, source);
                     // working assumption here is that the operator is isotropic and
                     // montonically decreasing with distance
                     double tol = truncate_tol(thresh, key);
@@ -4542,10 +4544,10 @@ namespace madness {
                         if (d.distsq()==0) {
                             // This introduces finer grain parallelism
                             ProcessID where = world.rank();
-                            do_op_args<opdim> args(key, d, dest, tol, fac, cnorm);
-                            woT::task(where, &implT:: template do_apply_kernel<opT,R>, op, c, args);
+                            do_op_args<opdim> args(source, *it, dest, tol, fac, cnorm);
+                            woT::task(where, &implT:: template do_apply_kernel<opT,R,opdim>, op, c, args);
                         } else {
-                            tensorT result = op->apply(key, d, c, tol/fac/cnorm);
+                            tensorT result = op->apply(source,*it, c, tol/fac/cnorm);
                             if (result.normf()> 0.3*tol/fac) {
                                 coeffs.task(dest, &nodeT::accumulate2, result, coeffs, dest, TaskAttributes::hipri());
                             }
@@ -4569,20 +4571,19 @@ namespace madness {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.full_tensor_copy());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff().full_tensor_copy());
                     }
                 }
             }
             if (fence)
                 world.gop.fence();
 
-            if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
+//            if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
             this->compressed=true;
             this->nonstandard=true;
             this->redundant=false;
 
         }
-
 
         /// apply an operator on the coeffs c (at node key)
 
@@ -4590,246 +4591,18 @@ namespace madness {
         /// @param[in] op     the operator to act on the source function
         /// @param[in] key    key of the source FunctionNode of f which is processed (see "source")
         /// @param[in] coeff  coeffs of FunctionNode being processed
-        /// @return		the norm of the operator applied on the null-displacement
+        /// @param[in] do_kernel	true: do the 0-disp only; false: do everything but the kernel
+        /// @return	   max norm, and will modify or include new nodes in this' tree
         template <typename opT, typename R>
-        double do_apply_source_driven(const opT* op, const keyT& key, const coeffT& coeff) {
+        double do_apply_directed_screening(const opT* op, const keyT& key, const coeffT& coeff,
+        		const bool& do_kernel) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             // insert timer here
-
-            typedef typename opT::keyT opkeyT;
-            static const size_t opdim=opT::opdim;
-            Key<NDIM-opdim> nullkey(key.level());
-
-            // source is that part of key that corresponds to those dimensions being processed
-            opkeyT source;
-            Key<NDIM-opdim> dummykey;
-            if (op->particle()==1) key.break_apart(source,dummykey);
-            if (op->particle()==2) key.break_apart(dummykey,source);
-
-             // fac is the number of contributing neighbors (approx)
-            const double tol = truncate_tol(thresh, key);
-
-            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-//            if (opdim==6) fac=729; //100.0;
-            if (opdim==6) fac=100; //100.0;
-            if (op->modified()) fac*=10.0;
-            double cnorm = coeff.normf();
-
-            double wall0=wall_time();
-            bool verbose=false;
-            long neighbors=0;
-
-
-            // for accumulation: keep slightly tighter TensorArgs
-            TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.01;
-//            apply_targs.tt=TT_FULL;
-
-            // for the kernel it may be more efficient to do the convolution in full rank
-            tensorT coeff_full;
-            // the norm of the result of the null-displacment
-            double kernel_norm;
-
-
-            const std::vector<opkeyT>& disp = op->get_disp(key.level());
-
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-            double opnorm_old=100.0;
-            double opnorm=100.0;
-
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const opkeyT& d = *it;
-
-                keyT disp1;
-                if (op->particle()==1) disp1=it->merge_with(nullkey);
-                if (op->particle()==2) disp1=nullkey.merge_with(*it);
-
-                keyT dest = neighbor(key, disp1, is_periodic);
-
-                if (dest.is_valid()) {
-                    opnorm_old=opnorm;
-                    opnorm = op->norm(key.level(), d, source);
-//                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
-
-                    // working assumption here is that the operator is isotropic and
-                    // montonically decreasing with distance
-
-                    //print("APP", key, dest, cnorm, opnorm, (cnorm*opnorm> tol/fac));
-
-                    if (cnorm*opnorm> tol/fac) {
-//                    if (d.distsq()<2) {
-//                        double wall00=wall_time();
-                        neighbors++;
-
-                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
-//                        cost_ratio=1.5;     // force low rank
-//                        cost_ratio=0.5;     // force full rank
-                        ProcessID here = world.rank();
-//                        ProcessID there =  world.random_proc();
-//                        ProcessID where = FunctionDefaults<NDIM>::get_apply_randomize() ? there : here;
-
-                        if (cost_ratio>0.0) {
-
-                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
-                        	// Most expensive part is the kernel ... do it in a separate task -- full rank
-                        	if (d.distsq()==0) {
-                                if (cost_ratio<1.0) {
-                                    if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
-                                    kernel_norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
-                                } else {
-                                    kernel_norm=do_apply_kernel3(op,coeff,args,apply_targs);
-                                }
-                        	} else {
-								if (cost_ratio<1.0) {
-									if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
-									woT::task(here, &implT:: template do_apply_kernel2<opT,R,opdim>, op, coeff_full,
-											args,apply_targs);
-								} else {
-									woT::task(here, &implT:: template do_apply_kernel3<opT,R,opdim> ,op,coeff,
-											args,apply_targs);
-								}
-                        	}
-                        }
-                    } else if (d.distsq() >= 12) {
-                        break; // Assumes monotonic decay beyond nearest neighbor
-                    }
-                }
-            }
-            double wall1=wall_time();
-            if (verbose) {
-                print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
-                        coeff_full.has_data());
-            }
-            return kernel_norm;
-        }
-
-        Void print_norm(const long& disp, const double est, const double act) const {
-        	print("displacement, estimated and actual norm",disp,est,act);
-        	return None;
-        }
-
-
-        /// similar to apply, but for low rank coeffs
-        template <typename opT, typename R>
-        void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-
-            bool do_new=true;
-            if (world.rank()==0) print("f.do_new", do_new);
-            small=0;
-            large=0;
-
-            MADNESS_ASSERT(not op.modified());
-            // looping through all the coefficients of the source f
-            typename dcT::const_iterator end = f.get_coeffs().end();
-            for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
-
-                const keyT& key = it->first;
-                const coeffT& coeff = it->second.coeff();
-
-                if (coeff.has_data() and (coeff.rank()!=0)) {
-
-                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                    if (do_new) {
-                    	tensorT coeff_full;
-                    	Future<double> norm0=woT::task(p,&implT:: template do_apply_shell<opT,R>, &op, key, coeff, coeff_full, 0);
-//                    	woT::task(p,&implT:: template apply_shells<opT,R>, &op, key, coeff, norm0);
-                        woT::task(world.rank(),&implT:: template forward_apply_shells<opT,T>, &op, key, coeff, norm0, p);
-                    } else {
-//                    	woT::task(p, &implT:: template do_apply_source_driven<opT,R>, &op, key, coeff);
-                    	tensorT coeff_full;
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,0);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,1);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,2);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,3);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,4);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,5);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,6);
-                    	woT::task(p, &implT:: template do_apply_shell<opT,R>, &op, key, coeff,coeff_full,7);
-                    }
-
-                }
-            }
-            if (fence) world.gop.fence();
-            if (world.rank()==0) {
-            	print("small wavelet coeffs",small);
-            	print("large wavelet coeffs",large);
-            }
-
-        }
-
-        /// @return 	the number of neighbors in a given shell (=displacement.distsq())
-        template<typename opT>
-        int nneigh(const opT* op, const unsigned int shell) {
             typedef typename opT::keyT opkeyT;
 
-        	int n=0;
-            const std::vector<opkeyT>& disp = op->get_disp(0);
-            for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
-                const opkeyT& d = *it;
-                if (d.distsq()<shell) continue;
-                if (d.distsq()>shell) break;
-                ++n;
-            }
-            return n;
-        }
+            // screening: contains all displacement keys that had small result norms
+            std::list<opkeyT> blacklist;
 
-        /// apply the convolution operator one shell at a time, to facilitate screening
-        template<typename opT, typename R>
-        Void apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0) {
-
-        	/*
-        	example in 6d for operator application: estimates and actual results
-
-        	d max est     max actual    #neigh  accum.est accum.est_opt   accum.act
-        	0 0.0258306   0.000270722     1     0.0250        0.0250      0.00027
-        	1 0.00337100  6.13745e-05    12     0.0396        0.0032      0.00046
-        	2 0.000491831 1.57511e-05    60     0.0295        0.0037      0.00031
-        	3 7.78085e-05 4.02905e-06   160     0.0123        0.0024      0.00012
-        	4 1.32076e-05 1.10838e-06   240     0.0031        0.0009      0.00003
-
-        	max est:
-        	opnorm*cnorm
-
-        	accumulative estimate:
-        	take the maximum estimated norm of this shell and multiply with the number of neighbors
-
-        	accumulative estimate optimal:
-        	take the maximum actual norm of the inner-next shell and multiply with the number of neighbors
-        	assuming that the maximum actual norm decays with each shell (emphasis on maximum)
-        	 */
-        	Tensor<R> coeff_full;
-        	int shell=0;
-        	double tol=truncate_tol(thresh,key);
-//        	const double norm0=do_apply_shell(op, key, coeff, coeff_full, shell);
-            double max_norm=norm0;
-            while (1) {
-            	++shell;
-            	const double accum_norm=max_norm*nneigh(op,shell);
-            	if (accum_norm<tol) break;
-            	max_norm=do_apply_shell(op, key, coeff, coeff_full, shell);
-            	MADNESS_ASSERT(shell<20);		// emergency break
-            }
-            return None;
-        }
-
-        /// apply in shells
-
-        /// @param[in]	op			the operator
-        /// @param[in]	key			the current source key
-        /// @param[in]	coeff		the source coeffs in low rank corresponding to key
-        /// @param[inout]	coeff_full	the source coeffs in full rank
-        /// @param[in]	shell		the shell we apply, i.e. shell==displacement.distsq()
-        /// @return 				largest norm of a result tensor in this shell
-        ///								 0.0	no contributions to this shell
-        ///								>0.0	max contribution to this shell
-        template<typename opT, typename R>
-        double do_apply_shell(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff,
-        		 Tensor<R>& coeff_full, const unsigned int shell) {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            // insert timer here
-
-            typedef typename opT::keyT opkeyT;
             static const size_t opdim=opT::opdim;
             Key<NDIM-opdim> nullkey(key.level());
 
@@ -4852,26 +4625,24 @@ namespace madness {
             double wall0=wall_time();
             bool verbose=false;
             long neighbors=0;
-
+            double maxnorm=0.0;
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
             apply_targs.thresh=tol/fac*0.01;
 
-            double max_norm=0.0;
+            // for the kernel it may be more efficient to do the convolution in full rank
+            tensorT coeff_full;
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
-
             static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
-            double opnorm_old=100.0;
-            double opnorm=100.0;
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
-                if (d.distsq()<shell) continue;
-                if (d.distsq()>shell) break;
 
-                neighbors++;
+                const int shell=d.distsq();
+                if (do_kernel and (shell>0)) break;
+                if ((not do_kernel) and (shell==0)) continue;
 
                 keyT disp1;
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
@@ -4879,33 +4650,47 @@ namespace madness {
 
                 keyT dest = neighbor(key, disp1, is_periodic);
 
-                if (dest.is_valid()) {
-                    opnorm_old=opnorm;
-                    opnorm = op->norm(key.level(), d, source);
-//                    MADNESS_ASSERT(opnorm_old+1.e-10>=opnorm);
+                if (not dest.is_valid()) continue;
 
+                // directed screening
+                // working assumption here is that the operator is isotropic and
+                // monotonically decreasing with distance
+                bool screened=false;
+                typename std::list<opkeyT>::const_iterator it2;
+                for (it2=blacklist.begin(); it2!=blacklist.end(); it2++) {
+                	if (d.is_farther_out_than(*it2)) {
+                		screened=true;
+                		break;
+                	}
+                }
+                if (not screened) {
+
+                    double opnorm = op->norm(key.level(), d, source);
+                    double norm=0.0;
 
                     if (cnorm*opnorm> tol/fac) {
-//                    if (1) {
-                    	double fac2=fac*10.0;
+                        neighbors++;
 
-                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac2/cnorm, tol/fac2);
+                        double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
 //                        cost_ratio=1.5;     // force low rank
 //                        cost_ratio=0.5;     // force full rank
 
                         if (cost_ratio>0.0) {
 
-                            do_op_args<opdim> args(source, d, dest, tol, fac2, cnorm);
-                            double norm=0.0;
+                            do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
                             if (cost_ratio<1.0) {
                             	if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
                             	norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
                             } else {
                             	norm=do_apply_kernel3(op,coeff,args,apply_targs);
                             }
-                            max_norm=std::max(max_norm,norm);
                         }
+
+                    } else if (shell >= 12) {
+                        break; // Assumes monotonic decay beyond nearest neighbor
                     }
+                    maxnorm=std::max(norm,maxnorm);
+                    if (norm<0.3*tol/fac) blacklist.push_back(d);
                 }
             }
             double wall1=wall_time();
@@ -4913,11 +4698,48 @@ namespace madness {
                 print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
                         coeff_full.has_data());
             }
-//            print("shell, #neighbors, max_norm",shell,neighbors,max_norm);
-            if (neighbors==0) max_norm=100.0;	// large number so we continue with the next shell
-            return max_norm;
+            return maxnorm;
+        }
+
+
+        /// similar to apply, but for low rank coeffs
+        template <typename opT, typename R>
+        void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            bool do_new=false;
+            if (world.rank()==0) print("f.do_new", do_new);
+            small=0;
+            large=0;
+
+            MADNESS_ASSERT(not op.modified());
+            // looping through all the coefficients of the source f
+            typename dcT::const_iterator end = f.get_coeffs().end();
+            for (typename dcT::const_iterator it=f.get_coeffs().begin(); it!=end; ++it) {
+
+                const keyT& key = it->first;
+                const coeffT& coeff = it->second.coeff();
+
+//                Translation l1=2;
+//                const Vector<Translation,6> l=vec(l1,l1,l1,l1,l1,l1);
+//                bool doit=(NDIM==6);
+//                for (int i=0; i<NDIM; ++i) doit=(doit and (key.translation()[i]==l[i]));
+
+//                if (coeff.has_data() and (coeff.rank()!=0) and doit) {
+                if (coeff.has_data() and (coeff.rank()!=0)) {
+                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
+                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, true);
+                    woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, false);
+                }
+            }
+            if (fence) world.gop.fence();
+            if (world.rank()==0) {
+            	print("small wavelet coeffs",small);
+            	print("large wavelet coeffs",large);
+            }
 
         }
+
 
         /// after apply we need to do some cleanup;
         void finalize_apply(const bool fence=true) {
@@ -5063,13 +4885,10 @@ namespace madness {
                 	// now send off the application
                     tensorT coeff_full;
                     ProcessID p=result->world.rank();
-//                    ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize()
-//                    		? result->world.random_proc() : result->coeffs.owner(key);
-//                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
-//                    		apply_op, key, coeff, coeff_full, 0);
-                    double norm0=result->do_apply_shell<opT,T>(apply_op, key, coeff, coeff_full, 0);
+                    double norm0=result->do_apply_directed_screening<opT,T>(apply_op, key, coeff, true);
 
-                    result->task(p,&implT:: template apply_shells<opT,T>, apply_op, key, coeff, norm0);
+                    result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
+                    		apply_op,key,coeff,false);
 
                     return finalize(norm0,key,coeff);
 
@@ -5166,14 +4985,12 @@ namespace madness {
 
                 if (coeff.has_data()) {
 
-                	// now send off the application
-                    tensorT coeff_full;
-                    ProcessID p=result->world.rank();
-                    Future<double> norm0=result->task(p,&implT:: template do_apply_shell<opT,T>,
-                    		apply_op, key, coeff, coeff_full, 0);
-
-                    result->task(result->world.rank(),&implT:: template forward_apply_shells<opT,T>,
-                    		apply_op, key, coeff, norm0, p);
+//                	// now send off the application
+                	ProcessID p=result->world.rank();
+                	Future<double> norm0=result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
+                    		apply_op, key, coeff, true);
+                	result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
+                			apply_op, key, coeff, false);
 
                     if (iaf.datum.second.is_leaf()) return Future<argT> (argT(true,coeff));
                     return result->world.taskq.add(*const_cast<this_type*> (this), &this_type::finalize,
@@ -5217,31 +5034,7 @@ namespace madness {
             }
         };
 
-        template<typename opT, typename R>
-        Void forward_apply_shells(opT* op, const Key<NDIM>& key, const GenTensor<R>& coeff, double norm0, const ProcessID& p) {
-            woT::task(p,&implT:: template apply_shells<opT,R>, op, key, coeff, norm0);
-            return None;
-        }
-
-        /// compute the error for a (compressed) node using the wavelet coeffs
-
-        /// @param[in]	node			the node whose error to be computed
-        /// @return 	error			the error (zero if leaf node)
-        double compute_error(const nodeT& node) const {
-
-        	if (node.is_leaf()) return 0.0;
-
-        	MADNESS_ASSERT(node.has_coeff());
-        	MADNESS_ASSERT(node.coeff().dim(0)==2*this->get_k());
-
-    		coeffT d = copy(node.coeff());
-       		d(cdata.s0)=0.0;
-        	return d.normf();
-        }
-
-
-
-        /// Returns the square of the error norm in the box labelled by key
+        /// Returns the square of the error norm in the box labeled by key
 
         /// Assumed to be invoked locally but it would be easy to eliminate
         /// this assumption
