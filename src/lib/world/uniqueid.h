@@ -86,6 +86,13 @@ namespace madness {
         }
     }; // class uniqueidT
 
+    inline hashT hash_value(const uniqueidT& id) {
+        hashT seed = hash_value(id.get_world_id());
+        detail::combine_hash(seed, hash_value(id.get_obj_id()));
+
+        return seed;
+    }
+
 
 }  // namespace madness
 
