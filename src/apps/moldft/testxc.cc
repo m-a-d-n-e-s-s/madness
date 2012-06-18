@@ -168,7 +168,7 @@ void test_xcfunctional()
       xc_args.push_back(rhoa_t);
       xc_args.push_back(sigmaaa_t);
     }
-    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+    Tensor<double> vr = xcfunc.vxc(xc_args, 0, 0);
 
     for (unsigned int idp = 0; idp < dps.size(); idp++)
     {
@@ -230,7 +230,7 @@ void test_xcfunctional()
         xc_args.push_back(sigmaaa_t);
       }
     }
-    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+    Tensor<double> vr = xcfunc.vxc(xc_args,0, 0);
 
     if (xcfunc.is_spin_polarized())
     {

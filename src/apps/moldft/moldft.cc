@@ -1790,13 +1790,14 @@ struct Calculation {
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
-            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+            //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+            exc = make_dft_energy(world, vf, ispin);
             vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
             if (xc.is_gga() ) {
                 if(world.rank() == 0)
-                   print(" WARNING GGA XC functionalis must be used with caution in this version \n"); 
+                   print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
 //3                if (xc.is_spin_polarized()) {
 //3                    throw "not yet";
 //3                }

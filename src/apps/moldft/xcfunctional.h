@@ -72,6 +72,7 @@ protected:
 
         static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
         static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
+        static const double xmax = 1e-10;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
 
         static const double xmax2 = xmax*xmax;
         static const double xmax3 = xmax2*xmax;
@@ -229,7 +230,7 @@ public:
     ///
     /// @param t The input densities and derivatives as required by the functional
     /// @return The exchange-correlation energy functional
-    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t , const int ispin=0) const;
+    madness::Tensor<double> exc(const std::vector< madness::Tensor<double> >& t , const int ispin) const;
     
     /// Computes components of the potential (derivative of the energy functional) at np points
 
@@ -275,7 +276,7 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
-    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin=0, const int what=0) const;
+    madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {
@@ -290,9 +291,9 @@ public:
         std::vector< madness::Tensor<double> > t;
         t.push_back(rho);
         if (is_spin_polarized()) t.push_back(rho);
-        madness::Tensor<double> f  = exc(t);
-        madness::Tensor<double> va = vxc(t,0);
-        madness::Tensor<double> vb = vxc(t,1);
+        madness::Tensor<double> f  = exc(t,0); //pending UGHHHHH
+        madness::Tensor<double> va = vxc(t,0,0);
+        madness::Tensor<double> vb = vxc(t,0,1);
         for (long i=0; i<npt; i++) {
             printf("%.3e %.3e %.3e %.3e\n", rho[i], f[i], va[i], vb[i]);
         }
@@ -311,7 +312,7 @@ struct xc_functional {
     madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const 
     {
         MADNESS_ASSERT(xc);
-        return xc->exc(t);
+        return xc->exc(t,ispin);
     }
 };
 
