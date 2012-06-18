@@ -2,7 +2,7 @@ dft
   xc LDA
   maxsub 5
 end
-  #xc GGA_X_PBE .75 GGA_C_PBE 1.a HF_X .25
+  #xc GGA_X_PBE .75 GGA_C_PBE 1. HF_X .25
 
 # water dimer
 geometry
