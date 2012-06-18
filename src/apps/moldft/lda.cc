@@ -61,7 +61,7 @@ int x_rks_s__(const double *r__, double *f, double *
               dfdra) {
 
     /* Local variables */
-    static double ra13;
+    double ra13;
 
 
     /*     This subroutine evaluates the spin polarised exchange functional */
