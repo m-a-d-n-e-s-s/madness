@@ -113,6 +113,7 @@
 
 #include "tensor/tensor.h"
 #include "tensor/srconf.h"
+#include "tensor/tensortrain.h"
 #include <stdexcept>
 
 namespace madness {
@@ -369,7 +370,22 @@ namespace madness {
 			if (tt==TT_3D) {
 				this->doReduceRank(targs.thresh,values_eff);
 			} else if (tt==TT_2D) {
+#if 1
+				TensorTrain<T> tt(rhs,targs.thresh*facReduce());
+				Tensor<T> U,VT;
+				Tensor<double> s;
+				tt.two_mode_representation(U,VT,s);
+				const long r=VT.dim(0);
+				const long nd=VT.ndim();
+				MADNESS_ASSERT(U.dim(nd-1)==r);
+				Tensor<T> UU=U.reshape(U.size()/r,r);
+				_ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
+						dim(), get_k()));
+				this->normalize();
+#else
+
 				this->computeSVD(targs.thresh,values_eff);
+#endif
 			} else if (tt==TT_FULL){
 				_ptr.reset(new configT(copy(rhs)));
 			} else {
@@ -1472,13 +1488,15 @@ namespace madness {
 
 			// find the maximal singular value that's supposed to contribute
 			// singular values are ordered (largest first)
-			const double threshold=eps*eps*facReduce()*facReduce();
-			double residual=0.0;
-			long i;
-			for (i=s.dim(0)-1; i>=0; i--) {
-				residual+=s(i)*s(i);
-				if (residual>threshold) break;
-			}
+			const double thresh=eps*facReduce();
+			long i=SRConf<T>::max_sigma(thresh,s.dim(0),s);
+//			const double threshold=eps*eps*facReduce()*facReduce();
+//			double residual=0.0;
+//			long i;
+//			for (i=s.dim(0)-1; i>=0; i--) {
+//				residual+=s(i)*s(i);
+//				if (residual>threshold) break;
+//			}
 
 			// convert SVD output to our convention
 			if (i>=0) {

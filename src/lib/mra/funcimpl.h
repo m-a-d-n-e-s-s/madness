@@ -631,9 +631,9 @@ namespace madness {
         }
 
         /// Accumulate inplace and if necessary connect node to parent
-        Void accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
+        double accumulate2(const tensorT& t, const typename FunctionNode<T,NDIM>::dcT& c,
         		const Key<NDIM>& key) {
-
+        	double cpu0=cpu_time();
             if (has_coeff()) {
             	MADNESS_ASSERT(coeff().tensor_type()==TT_FULL);
 //            	if (coeff().type==TT_FULL) {
@@ -656,7 +656,8 @@ namespace madness {
                     const_cast<dcT&>(c).task(parent, &FunctionNode<T,NDIM>::set_has_children_recursive, c, parent);
                 }
             }
-            return None;
+            double cpu1=cpu_time();
+            return cpu1-cpu0;
         }
 
 
