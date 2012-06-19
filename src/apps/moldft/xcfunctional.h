@@ -72,7 +72,6 @@ protected:
 
         static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
         static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
-        static const double xmax = 1e-10;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
 
         static const double xmax2 = xmax*xmax;
         static const double xmax3 = xmax2*xmax;
