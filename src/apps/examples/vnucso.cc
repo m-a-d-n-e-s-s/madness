@@ -521,6 +521,12 @@ void doit(World& world) {
 	u[i] = madness::project(u[i], k, thresh);
 	v[i] = madness::project(v[i], k, thresh);
       }
+      V0 = real_factoryT(world).f(V).thresh(thresh);
+      V0x = real_derivative_3d(world,0)(V0);
+      V0y = real_derivative_3d(world,1)(V0);
+      V0z = real_derivative_3d(world,2)(V0);
+      world.gop.fence();
+
     }
 }
 
