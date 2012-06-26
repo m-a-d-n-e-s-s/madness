@@ -520,7 +520,7 @@ struct CalculationParameters {
         , plotdens(false)
         , plotcoul(false)
         , localize(true)
-        , localize_pm(false)
+        , localize_pm(true)
         , restart(false)
         , maxsub(8)
         , npt_plot(101)
@@ -778,8 +778,8 @@ struct CalculationParameters {
         else
             madness::print("        plot  volume ", "default");
 
-        std::string loctype = "boys";
-        if (localize_pm) loctype = "pm";
+        std::string loctype = "pm";
+        if (!localize_pm) loctype = "boys";
         if (localize)
             madness::print("  localized orbitals ", loctype);
         else
@@ -1132,8 +1132,8 @@ struct Calculation {
 
             long ndone_iter = 0;
             double maxtheta = 0.0;
-            // if(doprint)
-            //     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
+            if(doprint)
+                printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
 
             for(long i = 0;i < nmo;++i){
                 for(long j = 0;j < i;++j){
@@ -1159,11 +1159,9 @@ struct Calculation {
 
                             if(theta > thetamax)
                                 theta = thetamax;
-
                             else
                                 if(theta < -thetamax)
                                     theta = -thetamax;
-
 
                             maxtheta = std::max(fabs(theta), maxtheta);
                             if(fabs(theta) >= tol){
@@ -1177,13 +1175,9 @@ struct Calculation {
                                     Q(j, a) = PM_q(Svec[a], C, j, j, at_to_bf[a], at_nbf[a]);
                                 }
                             }
-
                         }
-
                     }
-
                 }
-
             }
 
             ndone += ndone_iter;
@@ -1198,7 +1192,7 @@ struct Calculation {
 
     }
 
-    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = true)
+    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false)
     {
         START_TIMER(world);
         long nmo = mo.size();
@@ -1220,6 +1214,31 @@ struct Calculation {
 
             localize_PM_task_kernel(Q, Svec, C, doprint, set, thetamax, U, thresh);
             U = transpose(U);
+
+            // Fix orbital orders
+	    bool switched = true;
+	    while (switched) {
+	      switched = false;
+	      for (int i=0; i<nmo; i++) {
+		for (int j=i+1; j<nmo; j++) {
+		  if (set[i] == set[j]) {
+		    double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		    double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		    if (snew > sold) {
+		      tensorT tmp = copy(U(_,i));
+		      U(_,i) = U(_,j);
+		      U(_,j) = tmp;
+		      switched = true;
+		    }
+		  }
+		}
+	      }
+	    }
+
+            // Fix phases.
+            for (long i=0; i<nmo; ++i) {
+                if (U(i,i) < 0.0) U(_,i).scale(-1.0);
+            }
         }
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
@@ -1567,24 +1586,21 @@ struct Calculation {
                 aocc[i] = 1.0;
 
             aset = std::vector<int>(param.nmo_alpha,0);
-            //if (param.localize_pm) {
-                aset[0] = 0;
-                if(world.rank() == 0)
-                    std::cout << "alpha set " << 0 << " " << 0 << "-";
-
-                for(int i = 1;i < param.nmo_alpha;++i) {
-                    aset[i] = aset[i - 1];
-                    if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
-                        ++(aset[i]);
-                        if(world.rank() == 0){
-                            std::cout << i - 1 << std::endl;
-                            std::cout << "alpha set " << aset[i] << " " << i << "-";
-                        }
+            if(world.rank() == 0)
+                std::cout << "alpha set " << 0 << " " << 0 << "-";
+            
+            for(int i = 1;i < param.nmo_alpha;++i) {
+                aset[i] = aset[i - 1];
+                if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
+                    ++(aset[i]);
+                    if(world.rank() == 0){
+                        std::cout << i - 1 << std::endl;
+                        std::cout << "alpha set " << aset[i] << " " << i << "-";
                     }
                 }
-                if(world.rank() == 0)
-                    std::cout << param.nmo_alpha - 1 << std::endl;
-            //}
+            }
+            if(world.rank() == 0)
+                std::cout << param.nmo_alpha - 1 << std::endl;
 
             if(param.nbeta && !param.spin_restricted){
                 bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
@@ -1596,25 +1612,21 @@ struct Calculation {
                     bocc[i] = 1.0;
 
                 bset = std::vector<int>(param.nmo_beta,0);
-                //if (param.localize_pm) {
-                    bset[0] = 0;
-                    if(world.rank() == 0)
-                        std::cout << " beta set " << 0 << " " << 0 << "-";
-
-                    for(int i = 1;i < param.nmo_beta;++i) {
-                        bset[i] = bset[i - 1];
-                        if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
-                            ++(bset[i]);
-                            if(world.rank() == 0){
-                                std::cout << i - 1 << std::endl;
-                                std::cout << " beta set " << bset[i] << " " << i << "-";
-                            }
+                if(world.rank() == 0)
+                    std::cout << " beta set " << 0 << " " << 0 << "-";
+                
+                for(int i = 1;i < param.nmo_beta;++i) {
+                    bset[i] = bset[i - 1];
+                    if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
+                        ++(bset[i]);
+                        if(world.rank() == 0){
+                            std::cout << i - 1 << std::endl;
+                            std::cout << " beta set " << bset[i] << " " << i << "-";
                         }
                     }
-                    if(world.rank() == 0)
-                        std::cout << param.nmo_beta - 1 << std::endl;
-                //}
-
+                }
+                if(world.rank() == 0)
+                    std::cout << param.nmo_beta - 1 << std::endl;
             }
         }
     }
@@ -2223,8 +2235,29 @@ struct Calculation {
     {
         double aerr = 0.0, berr = 0.0;
         vecfuncT vm = amo;
+
+        // Orbitals with occ!=1.0 exactly must be solved for as eigenfunctions
+        // so zero out off diagonal lagrange multipliers
+        for (int i=0; i<param.nmo_alpha; i++) {
+            if (aocc[i] != 1.0) {
+                double tmp = focka(i,i);
+                focka(i,_) = 0.0;
+                focka(_,i) = 0.0;
+                focka(i,i) = tmp;
+            }
+        }
+        
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
         if(param.nbeta && !param.spin_restricted){
+            for (int i=0; i<param.nmo_beta; i++) {
+                if (bocc[i] != 1.0) {
+                    double tmp = fockb(i,i);
+                    fockb(i,_) = 0.0;
+                    fockb(_,i) = 0.0;
+                    fockb(i,i) = tmp;
+                }
+            }
+
             vecfuncT br = compute_residual(world, bocc, fockb, bmo, Vpsib, berr);
             vm.insert(vm.end(), bmo.begin(), bmo.end());
             rm.insert(rm.end(), br.begin(), br.end());
