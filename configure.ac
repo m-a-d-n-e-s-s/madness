@@ -12,6 +12,7 @@ AC_CONFIG_MACRO_DIR([config])
 
 # Default options for automake ??
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+AM_PROG_AR
 
 # We want #defines output into a header file
 AC_CONFIG_HEADERS([include/madness_config.h])
@@ -69,6 +70,26 @@ echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
 CFLAGS="$initial_CFLAGS"
 CXXFLAGS="$initial_CXXFLAGS"
 
+# Check that the MPICC Compiler can link correctly.
+AC_LANG_PUSH([C])
+AC_MSG_CHECKING([that the $MPICC linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICC])])
+AC_LANG_POP
+
+# Check that the MPICXX Compiler can link correctly.
+AC_LANG_PUSH([C++])
+AC_MSG_CHECKING([that the $MPICXX linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICXX])])
+AC_LANG_POP
+  
 ACX_DETECT_CXX
 
 # Set debugging
@@ -327,6 +348,8 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
        src/apps/jacob/Makefile
+       src/apps/interior_bc/Makefile
+       src/apps/interior_bc/nanophoto/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
