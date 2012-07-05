@@ -133,6 +133,11 @@ void Molecule::read_file(const std::string& filename, const std::string& geomnam
         else if (tag == "eprec") {
             ss >> eprec;
         }
+        else if (tag == "scale") {
+            double f;
+            ss >> f;
+            scale=f*1e-10/ madness::constants::atomic_unit_of_length;
+        }
         else if (tag == "field") {
             ss >> field[0] >> field[1] >> field[2];
         }

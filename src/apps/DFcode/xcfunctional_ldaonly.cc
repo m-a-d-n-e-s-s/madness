@@ -57,7 +57,7 @@ bool XCfunctional::has_kxc() const
     return false;
 }
 
-madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t) const 
+madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<double> >& t, const int ispin) const
 {
     const double* arho = t[0].ptr();
     madness::Tensor<double> result(3L, t[0].dims(), false);
@@ -89,7 +89,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int what) const 
+madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
 {
     //MADNESS_ASSERT(what == 0);
     const double* arho = t[0].ptr();

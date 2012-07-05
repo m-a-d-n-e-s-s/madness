@@ -3711,7 +3711,6 @@ int main(int argc, char** argv) {
               print("sobres",calc.param.alchemy);
               int old_maxiter=calc.param.maxiter;
               if (calc.param.alchemy !=0) {
-                  calc.param.maxiter=1;
                   if (world.rank() == 0) {
                       print(" MADNESS Alchemical derivatives                              ");
                       print(" ----------------------------------------------------------\n");
@@ -3720,9 +3719,18 @@ int main(int argc, char** argv) {
                           print(" Geometry name", geoms,"\n" );
                           cuc  << geoms;
                           calc.molecule.read_file(inpname,cuc.str());
+                          calc.make_nuclear_potential(world);
+                          calc.initial_load_bal(world);
+                          calc.param.maxiter=0;
                           calc.param.restart=true;
-                          E.value(calc.molecule.get_all_coords().flat()); // ugh!
+                          //calc.initial_load_bal(world);
+                          calc.param.protocol_data=madness::vector_factory(1e-6);
+                          calc.param.nosavemo=true;
+                          MolecularEnergy A(world, calc);
                           calc.molecule.print();
+                          calc.param.print(world);
+                          A.value(calc.molecule.get_all_coords().flat()); // ugh!
+                      print(" ----------------------------------------------------------\n");
                       }
                   }
               calc.param.maxiter=old_maxiter;
@@ -3734,7 +3742,7 @@ int main(int argc, char** argv) {
           //cout << g;
           // }
   
-          calc.do_plots(world);
+        //  calc.do_plots(world);
 
       }
       catch (const MPI::Exception& e) {
