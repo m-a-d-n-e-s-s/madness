@@ -118,7 +118,13 @@ namespace madness {
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         std::cout << "NCPU " << ncpu << std::endl;
 #else
+#  if def(HAVE_IBMBGQ) || defined(__bgq__)
+        int ncpu=64;
+#  elif defined(HAVE_IBMBGP) || defined(__bgp__)
+        int ncpu=4;
+#  else
         int ncpu=1;
+#  endif
 #endif
         return ncpu;
     }
