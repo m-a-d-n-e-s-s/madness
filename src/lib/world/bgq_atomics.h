@@ -37,7 +37,7 @@ __INLINE__ int32_t CompareAndSwapSigned32( volatile int32_t *var,
                                            int32_t  Compare,
                                            int32_t  NewValue )
 {
-    int32_t OldValue = var;
+    int32_t OldValue = *var;
 
     do {
        int32_t TmpValue = LoadReservedSigned32( var );
@@ -51,7 +51,7 @@ __INLINE__ int32_t CompareAndSwapSigned32( volatile int32_t *var,
     return(OldValue);
 }
 
-__INLINE__ int32_t FetchAndAddSigned32( int32_t *pVar, int32_t value )
+__INLINE__ int32_t FetchAndAddSigned32( volatile int32_t *pVar, int32_t value )
 {
     register int32_t old_val, tmp_val;
 
