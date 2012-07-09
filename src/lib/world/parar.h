@@ -71,10 +71,13 @@ namespace madness {
             /// Returns the process doing IO for given node
 
             /// Currently assigned in round-robin-fashion to the first nio processes except
-	    /// on IBM BG/P where use every 64'th
+            /// on IBM BG/P where use every 64'th
             ProcessID io_node(ProcessID rank) const {
-#ifdef HAVE_IBMBGP
-		return ((rank/64)%nio) * 64;
+#if defined(HAVE_IBMBGP)
+#warning Use MPIX to get the actual rank-0-modulo-IO-pset processes...
+		        return ((rank/64)%nio) * 64;
+//#elif defined(HAVE_IBMBGQ)
+// TODO Use MPIX_Hardware to get PSET masters here...
 #else
                 return rank%nio;
 #endif
@@ -117,14 +120,15 @@ namespace madness {
             ///
             /// The default number of IO nodes is one and there is an
             /// arbitrary maximum of 50 set. On IBM BG/P the maximum
-	    /// is nproc/64.
+            /// is nproc/64.
             void open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
 #ifdef HAVE_IBMBGP
-		int maxio = (world.size()-1)/64 + 1;
+#warning See previous comment about PSETs...
+                int maxio = (world.size()-1)/64 + 1;
 #else
-		int maxio = 50;
+                int maxio = 50;
 #endif
                 if (nio > maxio) nio = maxio; // Sanity?
                 if (nio > world.size()) nio = world.size();
