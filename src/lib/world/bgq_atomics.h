@@ -9,9 +9,6 @@
  * In theory, this should work for any PowerPC system.  Need to verify on Blue Gene/P and POWER7. 
  */
 
-/* for ppc_msync only; should just implemente here and omit header inclusion */
-#include <hwi/include/bqc/A2_inlines.h>
-
 __INLINE__ int32_t LoadReservedSigned32( volatile int32_t *pVar )
 {
    register int32_t Val;
@@ -36,18 +33,15 @@ __INLINE__ int StoreConditionalSigned32( volatile int32_t *pVar, int32_t Val )
    return(rc);
 }
 
-__INLINE__ int32_t CompareAndSwapSigned32( volatile int32_t *var,
-                                           int32_t  Compare,
-                                           int32_t  NewValue )
+__INLINE__ int32_t CompareAndSwapSigned32( volatile int32_t *var, int32_t  Compare, int32_t  NewValue )
 {
+    asm volatile ("msync" : : : "memory");
+
     int32_t OldValue = *var;
 
     do {
        int32_t TmpValue = LoadReservedSigned32( var );
-       if ( Compare != TmpValue  )
-          {
-              return(OldValue);
-          }
+       if ( Compare != TmpValue  ) return(OldValue);
        }
        while( !StoreConditionalSigned32( var, NewValue ) );
 
@@ -56,9 +50,9 @@ __INLINE__ int32_t CompareAndSwapSigned32( volatile int32_t *var,
 
 __INLINE__ int32_t FetchAndAddSigned32( volatile int32_t *pVar, int32_t value )
 {
-    register int32_t old_val, tmp_val;
+    asm volatile ("msync" : : : "memory");
 
-    ppc_msync();
+    register int32_t old_val, tmp_val;
 
     do
     {
