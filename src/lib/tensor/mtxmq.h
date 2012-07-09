@@ -74,7 +74,72 @@ namespace madness {
 
     }
 
-#ifdef HAVE_IBMBGP
+    /*
+     * mtxm, but with padded buffers.
+     *
+     * ext_b is the extent of the b array, so shrink() isn't needed.
+     */
+    template <typename aT, typename bT, typename cT>
+    void mTxmq_padding(long dimi, long dimj, long dimk, long ext_b,
+               cT* restrict c, const aT* a, const bT* b) {
+        const int alignment = 4;
+        bool free_b = false;
+        long effj = dimj;
+
+        /* Setup a buffer for c if needed */
+        cT* c_buf = c;
+        if (dimj%alignment) {
+            effj = (dimj | 3) + 1;
+            c_buf = (cT*)malloc(sizeof(cT)*dimi*effj);
+        }
+
+        /* Copy b into a buffer if needed */
+        if (ext_b%alignment) {
+            free_b = true;
+            bT* b_buf = (bT*)malloc(sizeof(bT)*dimk*effj);
+
+            bT* bp = b_buf;
+            for (long k=0; k<dimk; k++, bp += effj, b += ext_b)
+                memcpy(bp, b, sizeof(bT)*dimj);
+
+            b = b_buf;
+            ext_b = effj;
+        }
+
+        cT* c_work = c_buf;
+        /* mTxm */
+        for (long i=0; i<dimi; ++i,c_work+=effj,++a) {
+            for (long j=0; j<dimj; ++j) c_work[j] = 0.0;
+            const aT *aik_ptr = a;
+            for (long k=0; k<dimk; ++k,aik_ptr+=dimi) {
+                aT aki = *aik_ptr;
+                for (long j=0; j<dimj; ++j) {
+                    c_work[j] += aki*b[k*ext_b+j];
+                }
+            }
+        }
+
+        /* Copy c out if needed */
+        if (dimj%alignment) {
+            cT* ct = c_buf;
+            for (long i=0; i<dimi; i++, ct += effj, c += dimj)
+                memcpy(c, ct, sizeof(cT)*dimj);
+
+            free(c_buf);
+        }
+
+        /* Free the buffer for b */
+        if (free_b) free((bT*)b);
+    }
+#ifdef HAVE_IBMBGQ
+  extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
+          double* restrict c, const double* a, const double* b);
+    template <>
+    inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+            double* restrict c, const double* a, const double* b) {
+        bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
+    }
+#elif defined(HAVE_IBMBGP)
     template <>
     inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);

@@ -2,7 +2,7 @@ MY_ROOT=.
 DEBUG=YES
 #HPM_PROFILING=YES
 
-TARGET=BGP
+TARGET=BGQ
 
 
 #############################################
@@ -17,8 +17,8 @@ ifeq ($(TARGET),BGP)
    ARFLAGS = cru
    HAVE_BGPIBM = -DHAVE_IBMBGP
 
-   LIB=-L$(MY_ROOT) 
-   INC=-I$(MY_ROOT) 
+   LIB=-L$(MY_ROOT)
+   INC=-I$(MY_ROOT)
 
    CC=mpixlc_r
    CXX=mpixlcxx_r
@@ -29,20 +29,42 @@ ifeq ($(TARGET),BGP)
    LD=$(CC)
    LDFLAGS= -O3 -qarch=450d -qtune=450 -qthreaded
 
+   OBJECTS = bgp_cc.o  bgp_cr.o  bgp_rc.o bgp_rr.o
 endif
 
 
-OBJECTS = bgp_cc.o  bgp_cr.o  bgp_rc.o bgp_rr.o
+ifeq ($(TARGET),BGQ)
+   RM = rm
+   RMFLAGS = -f
 
-all: libBGPmTxm.a
+   AR = ar
+   ARFLAGS = cru
+   HAVE_BGQIBM = -DHAVE_IBMBGQ
+
+   LIB=-L$(MY_ROOT)
+   INC=-I$(MY_ROOT) -I/bgsys/drivers/ppcfloor/
+
+   CC=xlc_r
+   CXX=xlc++_r
+   COPT= -O5 -qhot=level=1 -qsimd=auto -qtune=qp -qarch=qp
+   CXXFLAGS=$(INC) $(COPT) $(HAVE_BGPIBM)
+   CPP=$(CC) -E
+
+   LD=$(CC)
+   LDFLAGS= -O3 -qarch=450d -qtune=450 -qthreaded
+
+   OBJECTS = bgq_rr.o
+endif
+
+all: libMADMTXM.a
 
 refresh: realclean all
 
 
-libBGPmTxm.a: $(OBJECTS)
-	rm -rf libBGPmTxm.a
-	$(AR) $(ARFLAGS) libBGPmTxm.a $(OBJECTS) 
-	ranlib libBGPmTxm.a
+libMADMTXM.a: $(OBJECTS)
+	rm -rf libMADMTXM.a
+	$(AR) $(ARFLAGS) libMADMTXM.a $(OBJECTS)
+	ranlib libMADMTXM.a
 
 $%.o: %.cc
 	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INC) $< -o $@
