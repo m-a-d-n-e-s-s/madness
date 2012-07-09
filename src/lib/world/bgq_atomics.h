@@ -5,6 +5,8 @@
  * This implementation of BGQ atomics is based upon 
  * hwi/include/bqc/A2_inlines.h but uses signed integers
  * instead of unsigned integer and/or long types.
+ *
+ * In theory, this should work for any PowerPC system.  Need to verify on Blue Gene/P and POWER7. 
  */
 
 /* for ppc_msync only; should just implemente here and omit header inclusion */
