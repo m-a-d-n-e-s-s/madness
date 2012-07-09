@@ -8,6 +8,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(HAVE_IBMBGQ)
+#  include <spi/include/kernel/location.h>
+#  include <spi/include/kernel/process.h>
+#endif
+
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
 // no. of processors so must use sysctl
@@ -187,7 +192,15 @@ pthread_key_t idkey; // Must be external
 static thread_local int my_thread_id;
 
 static int __num_hw_processors() {
-#ifdef _SC_NPROCESSORS_CONF
+// JEFF: use sysconf/sysctl until we're sure BG alternatives are correct.
+//#if defined(HAVE_IBMBGP)
+//#warning Jeff needs to add query for SMP/DUAL/VN here to be sure this is right.
+//    int ncpu=4;
+//#elif defined(HAVE_IBMBGQ)
+//    /* Return number of processors (hardware threads) within the current process. */
+//    int ncpu=Kernel_ProcessorCount();
+//#elif defined(_SC_NPROCESSORS_CONF)
+#if defined(_SC_NPROCESSORS_CONF)
     int ncpu = sysconf(_SC_NPROCESSORS_CONF);
     if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
 #elif defined(HC_NCPU)
