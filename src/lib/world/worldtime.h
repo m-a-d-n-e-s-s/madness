@@ -46,7 +46,12 @@
 #include <catamount/dclock.h>
 #endif
 
+#ifdef HAVE_IBMBGP
+#  include <mpi.h>
+#endif
+
 #ifdef HAVE_IBMBGQ
+#  include <mpi.h>
 #  include <hwi/include/bqc/A2_inlines.h>
 #endif
 
@@ -124,6 +129,11 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return cycle_count()*rfreq;
 #elif defined(_CRAY)
         return dclock();
+/* MPI_Wtime is fast on BG and cycle-accurate */
+#elif defined(HAVE_IBMBGP)
+        return MPI_Wtime();
+#elif defined(HAVE_IBMBGQ)
+        return MPI_Wtime();
 #else
         return double(clock())/CLOCKS_PER_SEC;
 #endif
@@ -138,7 +148,11 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 	for (int i=0; i<25; i++) {
 	    asm volatile ("nop\n");
 	}
+#elif defined(HAVE_IBMBGQ)
+    /* this is calling asm nop */
+    Delay(200);
 #else
+#warning cpu_relax is not implemented!
 #endif
     }
 
