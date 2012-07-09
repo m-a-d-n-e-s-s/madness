@@ -9,6 +9,12 @@
  * In theory, this should work for any PowerPC system.  Need to verify on Blue Gene/P and POWER7. 
  */
 
+#ifndef __INLINE__
+#define __INLINE__ extern inline __attribute__((always_inline))
+#endif
+
+/* Not yet verified for use on non-BGQ PPC but not active there anyways */
+#if defined(__bgq__) || defined(__bgp__) || defined(__powerpc__)
 __INLINE__ int32_t LoadReservedSigned32( volatile int32_t *pVar )
 {
    register int32_t Val;
@@ -63,3 +69,6 @@ __INLINE__ int32_t FetchAndAddSigned32( volatile int32_t *pVar, int32_t value )
 
     return( old_val );
 }
+#else
+#error You cannot use PowerPC assembly on a non-PowerPC architecture!
+#endif
