@@ -51,7 +51,7 @@ ifeq ($(TARGET),BGQ)
    CPP=$(CC) -E
 
    LD=$(CC)
-   LDFLAGS= -O3 -qarch=450d -qtune=450 -qthreaded
+   LDFLAGS= -O3 -qarch=qp -qtune=qp -qthreaded
 
    OBJECTS = bgq_rr.o
 endif
