@@ -7,7 +7,8 @@
  * instead of unsigned integer and/or long types.
  */
 
- #include <hwi/include/bqc/A2_inlines.h>
+/* for ppc_msync only; should just implemente here and omit header inclusion */
+#include <hwi/include/bqc/A2_inlines.h>
 
 __INLINE__ int32_t LoadReservedSigned32( volatile int32_t *pVar )
 {
