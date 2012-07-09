@@ -47,11 +47,12 @@
 #endif
 
 #ifdef HAVE_IBMBGP
-#  include <mpi.h>
+#  define BG_SECONDS_PER_CYCLE 1.176470588235294033e-09
+#  include <arch/include/bpcore/ppc450_inlines.h>
 #endif
 
 #ifdef HAVE_IBMBGQ
-#  include <mpi.h>
+#  define BG_SECONDS_PER_CYCLE 6.25e-10
 #  include <hwi/include/bqc/A2_inlines.h>
 #endif
 
@@ -129,11 +130,10 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return cycle_count()*rfreq;
 #elif defined(_CRAY)
         return dclock();
-/* MPI_Wtime is fast on BG and cycle-accurate */
 #elif defined(HAVE_IBMBGP)
-        return MPI_Wtime();
+        return BG_SECONDS_PER_CYCLE * _bgp_GetTimeBase();
 #elif defined(HAVE_IBMBGQ)
-        return MPI_Wtime();
+        return BG_SECONDS_PER_CYCLE * GetTimeBase();
 #else
         return double(clock())/CLOCKS_PER_SEC;
 #endif
@@ -149,10 +149,9 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 	    asm volatile ("nop\n");
 	}
 #elif defined(HAVE_IBMBGQ)
-    /* this is calling asm nop */
-    Delay(200);
+   Delay(200); /* this is calling asm nop */
 #else
-#warning cpu_relax is not implemented!
+#error cpu_relax is not implemented!
 #endif
     }
 
@@ -161,12 +160,19 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 
     /// Wrapper to ensure desired behavior (and what is that one might ask??)
     static inline void myusleep(int us) {
-#if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
+#if defined(HAVE_CRAYXT)
         double secs = us*1e-6;
         double start = cpu_time();
         while (cpu_time()-start < secs) {
             for (int i=0; i<100; ++i) cpu_relax();
         }
+#elif defined(HAVE_IBMBGP)
+        int count = 850*us;
+        for (int i=0; i<count; i++) {
+            asm volatile ("nop\n");
+        }
+#elif defined(HAVE_IBMBGQ)
+        Delay(1600*us); /* this is calling asm nop */
 #else
         usleep(us);
 #endif
