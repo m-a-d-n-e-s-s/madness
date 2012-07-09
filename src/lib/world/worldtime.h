@@ -71,7 +71,7 @@ namespace madness {
     /// Otherwise uses wall_time() in nanoseconds.
     static inline uint64_t cycle_count() {
         uint64_t x;
-#ifdef HAVE_IBMBGP
+#if defined(HAVE_IBMBGP)
      unsigned int rx, ry, rz;
      do
      {
@@ -82,6 +82,9 @@ namespace madness {
      while ( rx != rz );
      x = rx;
      x = (x << 32) | ry;
+#elif defined(HAVE_IBMBGQ)
+/* Jeff could use the asm above but is pretending this is more portable */
+    x = GetTimeBase();
 #elif defined(X86_32)
 __asm__ volatile(".byte 0x0f, 0x31" : "=A"(x));
 #elif defined(X86_64)
