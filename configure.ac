@@ -12,6 +12,7 @@ AC_CONFIG_MACRO_DIR([config])
 
 # Default options for automake ??
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+AM_PROG_AR
 
 # We want #defines output into a header file
 AC_CONFIG_HEADERS([include/madness_config.h])
@@ -69,6 +70,26 @@ echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
 CFLAGS="$initial_CFLAGS"
 CXXFLAGS="$initial_CXXFLAGS"
 
+# Check that the MPICC Compiler can link correctly.
+AC_LANG_PUSH([C])
+AC_MSG_CHECKING([that the $MPICC linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICC])])
+AC_LANG_POP
+
+# Check that the MPICXX Compiler can link correctly.
+AC_LANG_PUSH([C++])
+AC_MSG_CHECKING([that the $MPICXX linker works])
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([[]], [[]])],
+  [AC_MSG_RESULT([yes])],
+  [AC_MSG_RESULT([no])
+   AC_MSG_ERROR(["Unable to link with $MPICXX])])
+AC_LANG_POP
+  
 ACX_DETECT_CXX
 
 # Set debugging
@@ -138,6 +159,7 @@ AC_HEADER_STDBOOL
 # Types
 AC_TYPE_PID_T
 AC_C_RESTRICT
+ACX_CHECK_TLS
 AC_TYPE_SIZE_T
 AC_HEADER_TIME
 #AC_TYPE_UINT64_T
@@ -258,6 +280,16 @@ AC_DEFINE_UNQUOTED([MADNESS_CONFIGURATION_HOST], ["$HOSTNAME"],[Configured on th
 AC_DEFINE([WORLD_WATCHDOG],[1],[Enables timeout for dead lock detection])
 AC_DEFINE([WATCHDOG_BARK_INTERVAL],[300],[Interval for warning about possible deadlock])
 AC_DEFINE([WATCHDOG_TIMEOUT],[1200],[Abort if idle for this long])
+AC_ARG_ENABLE([bsend-ack],
+            [AC_HELP_STRING([--disable-bsend-ack], [Use MPI Send instead of MPI Bsend for huge message acknowledgements.])],
+            [
+              if test "x$enableval" != xno; then
+                AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
+              fi
+            ],
+            [
+             AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
+            ])
 AC_ARG_WITH([fortran-int32],
             [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit.])],
             [
@@ -316,6 +348,8 @@ AC_CONFIG_FILES([
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
        src/apps/jacob/Makefile
+       src/apps/interior_bc/Makefile
+       src/apps/interior_bc/nanophoto/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])
