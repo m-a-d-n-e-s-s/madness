@@ -9,6 +9,8 @@
  * In theory, this should work for any PowerPC system.  Need to verify on Blue Gene/P and POWER7. 
  */
 
+#include <stdint.h>
+
 #ifndef __INLINE__
 #define __INLINE__ extern inline __attribute__((always_inline))
 #endif
