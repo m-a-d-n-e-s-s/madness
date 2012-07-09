@@ -62,6 +62,10 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 #include <world/atomicint.h>
 #include <world/worldexc.h>
 
+#ifdef HAVE_IBMBGQ
+#  include <hwi/include/bqc/A2_inlines.h>
+#endif
+
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
 
@@ -74,12 +78,15 @@ namespace madness {
 
         /// Yield for specified number of microseconds unless dedicated CPU
         void yield(int us) { 
-#ifdef HAVE_IBMBGP
-	    cpu_relax();
+#if defined(HAVE_IBMBGP)
+            cpu_relax();
+#elif defined(HAVE_IBMBGQ)
+            /* 1600 GHz means 1600 cyles in a microsecond */
+            Delay(1600*us);
 #else
-	    myusleep(us); 
+	        myusleep(us); 
 #endif
-	}
+	    }
 
     public:
         MutexWaiter() : count(0) { }
