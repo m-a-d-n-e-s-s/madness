@@ -38,10 +38,9 @@
 
 #include "madness_config.h"
 
-// Jeff has determined that MPI_THREAD_MULTIPLE on BGP sucks
-//#ifndef HAVE_IBMBGP
+//  It is not safe to undefine this because the MPI mutex protects static variables.
+//  One needs thread-local storage or something similar if MPI_THREAD_MULTIPLE is to be used.
 #define SERIALIZE_MPI
-//#endif
 
 #ifdef STUBOUTMPI
 #include <world/stubmpi.h>
