@@ -26,7 +26,7 @@ public:
         return F(x-b.x);
     }
 
-    F operator+=(const F& b) { // Operator+= necessary
+    F& operator+=(const F& b) { // Operator+= necessary
         x += b.x;
         return *this;
     }
