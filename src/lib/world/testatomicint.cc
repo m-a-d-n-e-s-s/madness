@@ -80,8 +80,22 @@ public:
     }
 };
 
-int main() {
-    const int nthread = 3;
+int get_nthread() {
+    int nthread;
+    char *cnthread = getenv("MAD_NUM_THREADS");
+    if (cnthread) {
+        int result = sscanf(cnthread, "%d", &nthread);
+        if (result != 1)
+            MADNESS_EXCEPTION("MAD_NUM_THREADS is not an integer", result);
+    }
+    else {
+        nthread = 3; /* this was the hard-coded value in the test previously */
+    }
+    return nthread;
+}
+
+int main(int argc, char* argv[]) {
+    const int nthread = get_nthread();
     Thread threads[nthread];
 
     try {
