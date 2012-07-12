@@ -38,6 +38,8 @@
 
 #include <world/atomicint.h>
 
+#define MAX_NUM_THREADS 1000
+
 using namespace std;
 using namespace madness;
 
@@ -96,7 +98,9 @@ int get_nthread() {
 
 int main(int argc, char* argv[]) {
     const int nthread = get_nthread();
-    Thread threads[nthread];
+    if (nthread > MAX_NUM_THREADS)
+        MADNESS_EXCEPTION("MAD_NUM_THREADS is too large", nthread);
+    Thread threads[MAX_NUM_THREADS];
 
     try {
         sum = ndone = 0;
