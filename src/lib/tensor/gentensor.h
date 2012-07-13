@@ -375,13 +375,17 @@ namespace madness {
 				Tensor<T> U,VT;
 				Tensor<double> s;
 				tt.two_mode_representation(U,VT,s);
-				const long r=VT.dim(0);
+				const long r=s.size();
 				const long nd=VT.ndim();
-				MADNESS_ASSERT(U.dim(nd-1)==r);
-				Tensor<T> UU=U.reshape(U.size()/r,r);
-				_ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
-						dim(), get_k()));
-				this->normalize();
+				if (r==0) {
+					_ptr=sr_ptr(new configT(dim(),get_k(),tensor_type()));
+				} else {
+					MADNESS_ASSERT(U.dim(nd-1)==r);
+					Tensor<T> UU=U.reshape(U.size()/r,r);
+					_ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
+							dim(), get_k()));
+					this->normalize();
+				}
 #else
 
 				this->computeSVD(targs.thresh,values_eff);

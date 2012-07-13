@@ -36,7 +36,6 @@
 
 #include "tensor/tensor.h"
 #include "tensor/srconf.h"
-#include <linalg/clapack.h>
 #include <linalg/tensor_lapack.h>
 
 
@@ -99,6 +98,12 @@ namespace madness {
 
 				r[d]=SRConf<T>::max_sigma(eps,s.dim(0),s)+1;
 
+				// no singular values left -> empty tensor
+				if (r[d]==0) {
+					typename std::vector<Tensor<T> >::iterator it;
+					for (it=core.begin(); it!=core.end(); ++it) *it=Tensor<T>(0,k,0);
+					break;
+				}
 
 				u=copy(u(_,Slice(0,r[d]-1)));
 				vt=vt(Slice(0,r[d]-1),_);
@@ -110,8 +115,8 @@ namespace madness {
 				}
 				core[d-1]=u.reshape(r[d-1],k,r[d]);
 				c=copy(vt);
+				core[t.ndim()-1]=c;
 			}
-			core[t.ndim()-1]=c;
 			core[0]=core[0].fusedim(0);
 		}
 
@@ -137,8 +142,17 @@ namespace madness {
 		void two_mode_representation(Tensor<T>& U, Tensor<T>& VT,
 				Tensor< typename Tensor<T>::scalar_type >& s) {
 
-			/// number of dimensions needs to be even
+			// number of dimensions needs to be even
 			MADNESS_ASSERT(ndim()%2==0);
+
+			// fast return if possible
+			if (core[0].size()==0) {
+				U=Tensor<T>();
+				VT=Tensor<T>();
+				s=Tensor< typename Tensor<T>::scalar_type >();
+				return;
+			}
+
 
 			typename std::vector<Tensor<T> >::const_iterator it1, it2;
 

@@ -952,27 +952,23 @@ namespace madness {
         }
 
         void test(const int i, const int j) {
-
-//        	hf.calc.vnuc.clear();
-//        	for (int i=2; i<hf.nocc(); ++i) {
-//        		for (int j=i; j<hf.nocc(); ++j) {
-//                	const real_function_3d& phi_i=hf.orbital(i);
-//                	const real_function_3d& phi_j=hf.orbital(j);
-//
-//                	real_function_6d phi0;//=hartree_product(phi_i,phi_j);
-//                	int ts=phi0.tree_size();
-//                	if (world.rank()==0) printf("     |%2d %2d>  tree_size: %2d\n",i,j,ts);
-//
-//                	real_function_6d r12phi=CompositeFactory<double,6,3>(world)
-//                                .g12(corrfac.f()).particle1(copy(phi_i)).particle2(copy(phi_j));
-//                    r12phi.fill_tree().truncate();
-//                	ts=r12phi.tree_size();
-//                	if (world.rank()==0) printf(" f12 |%2d %2d>  tree_size: %2d\n",i,j,ts);
-//
-//                	world.gop.fence();
-//
-//        		}
-//        	}
+            real_function_6d r12phi, sv;
+        	load_function(world,r12phi,"r12phi");
+        	sv=copy(r12phi);
+        	double norm=r12phi.norm2();
+        	if (world.rank()==0) print("norm(r12phi",norm);
+        	r12phi.compress();
+        	if (world.rank()==0) print("time for compression", wall_time());
+        	r12phi.reconstruct();
+        	real_function_6d diff=sv-r12phi;
+        	double error=diff.norm2();
+        	if (world.rank()==0) print("error reconstruct  ",error);
+//        	save_function(world,r12phi,"r12phi_ns");
+//        	load_function(world,r12phi,"r12phi_ns");
+//        	r12phi.set_thresh(FunctionDefaults<6>::get_thresh(),true);
+//        	double eps=-0.9;
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+//    		real_function_6d result=green(r12phi);
         }
 
         /// compute the matrix element <ij | g12 Q12 f12 | ij>
