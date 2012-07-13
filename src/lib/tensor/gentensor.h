@@ -830,7 +830,7 @@ namespace madness {
 			// for convenience
 			const unsigned int conf_dim=this->_ptr->dim_eff();
 			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
-			const unsigned int rank=this->rank();
+			const long rank=this->rank();
 			long d[TENSOR_MAXDIM];
 
 			// fast return if possible
@@ -1048,7 +1048,7 @@ namespace madness {
 
 			// for convenience
 			const unsigned int dim=this->_ptr->dim_eff();
-			const unsigned int kvec=this->kVec();
+			const long kvec=this->kVec();
 			gentensorT& trial=*this;
 
 			const bool have1=(fac1!=0.0 and ref1.rank()>0);

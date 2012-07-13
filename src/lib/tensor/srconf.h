@@ -166,7 +166,7 @@ namespace madness {
 			, tensortype_(tt) {
 
 			// make sure dim is integer multiple of requested TT
-			const unsigned int nvec=compute_nvec(tt);
+			const long nvec=compute_nvec(tt);
 			MADNESS_ASSERT(dim%nvec==0);
 
 			// construct empty vector
@@ -176,7 +176,7 @@ namespace madness {
 			if (tt==TT_FULL) {
 				vector_[0]=tensorT(std::vector<long>(dim,k));
 			} else {
-				for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,this->kVec());
+				for (unsigned int idim=0; idim<nvec; idim++) vector_[idim]=Tensor<T>(0,kVec());
 			}
 			make_structure();
 			MADNESS_ASSERT(has_structure());
@@ -206,7 +206,7 @@ namespace madness {
 
 			rank_=weights.dim(0);
 			weights_=weights;
-			vector_=std::vector<Tensor<T> > (vectors.size());
+			vector_=std::vector<Tensor<T> > (long(vectors.size()));
 			for (unsigned int idim=0; idim<vectors.size(); idim++) {
 				vector_[idim]=vectors[idim];
 			}
@@ -266,7 +266,7 @@ namespace madness {
 				weights_=Tensor<double>(0);
 				vector_=std::vector<Tensor<T> > (rhs.dim_eff());
 				rank_=0;
-				for (unsigned int idim=0; idim<dim_eff(); idim++) vector_[idim]=Tensor<T>(0,this->kVec());
+				for (unsigned int idim=0; idim<dim_eff(); idim++) vector_[idim]=Tensor<T>(0,long(this->kVec()));
 				make_structure();
 
 
@@ -752,7 +752,7 @@ namespace madness {
 
 
 		/// fill this SRConf with 1 flattened random configurations (tested)
-		void fillWithRandom(const unsigned int& rank=1) {
+		void fillWithRandom(const long& rank=1) {
 
 			rank_=rank;
 
@@ -858,7 +858,7 @@ namespace madness {
 		unsigned int get_k() const {return maxk_;};
 
 		/// return the length of the vector (dim_pv*maxk)
-		unsigned int kVec() const {
+		long kVec() const {
 			const int dimpv=this->dim_per_vector();
 			int kv=1;
 			for (int i=0; i<dimpv; ++i) kv*=this->get_k();

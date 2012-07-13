@@ -46,24 +46,22 @@
 #include <cstdlib>
 
 #include <world/archive.h>
-#include <world/print.h>
-
-typedef std::complex<float> float_complex;
-typedef std::complex<double> double_complex;
-
-// These probably have to be included in this order
-#include <tensor/tensor_macros.h>
-#include <tensor/type_data.h>
-#include <tensor/slice.h>
-#include <tensor/vector_factory.h>
+// #include <world/print.h>
+// 
+// typedef std::complex<float> float_complex;
+// typedef std::complex<double> double_complex;
+// 
+// // These probably have to be included in this order
+// #include <tensor/tensor_macros.h>
+// #include <tensor/type_data.h>
+// #include <tensor/slice.h>
+// #include <tensor/vector_factory.h>
 #include <tensor/basetensor.h>
-#include <tensor/tensoriter.h>
-#include <tensor/tensorexcept.h>
 #include <tensor/aligned.h>
 #include <tensor/mxm.h>
 #include <tensor/mtxmq.h>
-
-//#define TENSOR_BOUNDS_CHECKING 1
+#include <tensor/tensorexcept.h>
+#include <tensor/tensoriter.h>
 
 /*!
   \file tensor.h
@@ -420,14 +418,6 @@ namespace madness {
             allocate(1, _dim, true);
         }
 
-        /// Create and zero new 1-d tensor
-
-        /// @param[in] d0 Size of dimension 0
-        explicit Tensor(unsigned int d0) : _p(0) {
-            _dim[0] = d0;
-            allocate(1, _dim, true);
-        }
-
         /// Create and zero new 2-d tensor
 
         /// @param[in] d0 Size of dimension 0
@@ -488,7 +478,7 @@ namespace madness {
         /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vcector size.
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
-            allocate(d.size(),&(d[0]),dozero);
+	  allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);
         }
 
         /// Politically incorrect general constructor.
@@ -1341,7 +1331,7 @@ namespace madness {
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         Tensor<T> reshape(const std::vector<long>& d) {
-            return reshape(d.size(), &d[0]);
+	  return reshape(d.size(), d.size() ? &d[0] : 0);
         }
 
         /// Returns new view/tensor reshaping size/number of dimensions to conforming tensor
@@ -1349,7 +1339,7 @@ namespace madness {
         /// @param[in] d Array containing size of each new dimension
         /// @return New tensor (viewing same underlying data as the original but with different shape)
         const Tensor<T> reshape(const std::vector<long>& d) const {
-            return reshape(d.size(), &d[0]);
+            return reshape(d.size(), d.size() ? &d[0] : 0);
         }
 
         /// Returns new view/tensor rehapings to conforming 1-d tensor with given dimension
@@ -1593,13 +1583,7 @@ namespace madness {
 
         /// Test if \c *this and \c t conform.
         template <class Q> bool conforms(const Tensor<Q>& t) const {
-            if (!BaseTensor::conforms(&t)) {
-            	print("non-conforming tensors found");
-            	print(this->ndim(),this->size(),this->dim(0));
-            	print(t.ndim(),t.size(),t.dim(0));
-
-            }
-        	return BaseTensor::conforms(&t);
+            return BaseTensor::conforms(&t);
         }
 
         /// Returns the sum of all elements of the tensor
