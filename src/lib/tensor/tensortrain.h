@@ -36,6 +36,7 @@
 
 #include "tensor/tensor.h"
 #include "tensor/srconf.h"
+#include <linalg/clapack.h>
 #include <linalg/tensor_lapack.h>
 
 
@@ -65,6 +66,8 @@ namespace madness {
 
 		/// holding the core tensors of a tensor train
 		std::vector<Tensor<T> > core;
+		/// true if rank is zero
+		bool zero_rank;
 
 	public:
 
@@ -75,9 +78,11 @@ namespace madness {
 		/// @param[in]	t	full representation of a tensor
 		/// @param[in]	eps	the accuracy threshold
 		TensorTrain(const Tensor<T>& t, double eps)
-			: core(std::vector<Tensor<T> >(t.ndim())) {
+			: core(std::vector<Tensor<T> >(t.ndim())), zero_rank(false) {
 
-			const long k=t.dim(0);
+		    MADNESS_ASSERT(t.size() != 0);
+            MADNESS_ASSERT(t.ndim() != 0);
+
 			eps=eps/sqrt(t.ndim()-1);	// error is relative
 
 			Tensor<T> u,vt;
@@ -85,12 +90,13 @@ namespace madness {
 
 			Tensor<T> c=t;
 
-			// tentative ranks
-			std::vector<long> r(t.ndim()+1,k);
-			r[0]=1;
+			// this keeps track of the ranks
+			std::vector<long> r(t.ndim()+1,0l);
+			r[0] = r[t.ndim()] = 1;
 
 			for (long d=1; d<t.ndim(); ++d) {
 
+	            const long k=t.dim(d-1);
 				const long d1=r[d-1]*k;
 				c=c.reshape(d1,c.size()/d1);
 
@@ -98,24 +104,30 @@ namespace madness {
 
 				r[d]=SRConf<T>::max_sigma(eps,s.dim(0),s)+1;
 
-				// no singular values left -> empty tensor
-				if (r[d]==0) {
-					typename std::vector<Tensor<T> >::iterator it;
-					for (it=core.begin(); it!=core.end(); ++it) *it=Tensor<T>(0,k,0);
-					break;
+				// handle rank=0 explicitly
+				if (r[d]) {
+				  u=copy(u(_,Slice(0,r[d]-1)));
+				  vt=vt(Slice(0,r[d]-1),_);
+				  for (int i=0; i<vt.dim(0); ++i) {
+				    for (int j=0; j<vt.dim(1); ++j) {
+				      vt(i,j)*=s(i);
+				    }
+				  }
+				  core[d-1]=u.reshape(r[d-1],k,r[d]);
+				  c=copy(vt);
+				  if (d == t.ndim()-1)
+				    core[d]=c;
 				}
-
-				u=copy(u(_,Slice(0,r[d]-1)));
-				vt=vt(Slice(0,r[d]-1),_);
-
-				for (int i=0; i<vt.dim(0); ++i) {
-					for (int j=0; j<vt.dim(1); ++j) {
-						vt(i,j)*=s(i);
-					}
+				else {
+				  zero_rank = true;
+				  core[d-1] = Tensor<T>(r[d-1],k,long(0));
+				  // iterate through the rest
+				  for(++d; d<t.ndim(); ++d) {
+	                const long k=t.dim(d-1);
+				    core[d-1] = Tensor<T>(long(0),k,long(0));
+				  }
+				  core[t.ndim()-1] = Tensor<T>(long(0),t.dim(t.ndim()-1));
 				}
-				core[d-1]=u.reshape(r[d-1],k,r[d]);
-				c=copy(vt);
-				core[t.ndim()-1]=c;
 			}
 			core[0]=core[0].fusedim(0);
 		}
@@ -145,26 +157,28 @@ namespace madness {
 			// number of dimensions needs to be even
 			MADNESS_ASSERT(ndim()%2==0);
 
-			// fast return if possible
-			if (core[0].size()==0) {
-				U=Tensor<T>();
-				VT=Tensor<T>();
-				s=Tensor< typename Tensor<T>::scalar_type >();
-				return;
-			}
-
-
-			typename std::vector<Tensor<T> >::const_iterator it1, it2;
-
-			U=core.front();
-			VT=core.back();
-
-			for (it1=++core.begin(), it2=--(--core.end()); it1<it2; ++it1, --it2) {
-				U=inner(U,*it1);
+			if (not zero_rank) {
+			  typename std::vector<Tensor<T> >::const_iterator it1, it2;
+			  U=core.front();
+			  VT=core.back();
+			  for (it1=++core.begin(), it2=--(--core.end()); it1<it2; ++it1, --it2) {
+			    U=inner(U,*it1);
 				VT=inner(*it2,VT);
+			  }
+			  s=Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
+			  s=1.0;
 			}
-			s=Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
-			s=1.0;
+			else {
+			  long dim1 = core.front().dim(0);
+			  long dim2 = core.back().dim(1);
+              for (int d1=1, d2=core.size()-2; d1<d2; ++d1, --d2) {
+                dim1 *= core[d1].dim(1);
+                dim2 *= core[d2].dim(1);
+              }
+              U = Tensor<T>(dim1,long(0));
+              VT = Tensor<T>(long(0),dim2);
+              s = Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
+			}
 		}
 
 		/// return the number of dimensions

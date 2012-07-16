@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott tensortrain
+bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott
 lib_LIBRARIES = libMADtensor.a
 
 thisincludedir = $(includedir)/tensor
@@ -27,8 +27,8 @@ test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
-tensortrain_SOURCES = tensortrain.cc
-tensortrain_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
+#tensortrain_SOURCES = tensortrain.cc
+#tensortrain_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)

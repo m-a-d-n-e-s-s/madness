@@ -44,7 +44,8 @@ using namespace madness;
 
 template<typename T>
 int tt_svd(const Tensor<T>& t, const double eps) {
-
+  abort();
+  return -1;
 }
 
 int main(int argc, char** argv) {

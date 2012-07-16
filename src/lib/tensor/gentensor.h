@@ -366,31 +366,31 @@ namespace madness {
 			Tensor<T> values_eff=rhs.reshape(d);
 
 			// direct reduction on the polynomial values on the Tensor
-			TensorType tt=tensor_type();
-			if (tt==TT_3D) {
+			TensorType ttype=tensor_type();
+			if (ttype==TT_3D) {
 				this->doReduceRank(targs.thresh,values_eff);
-			} else if (tt==TT_2D) {
+			} else if (ttype==TT_2D) {
 #if 1
 				TensorTrain<T> tt(rhs,targs.thresh*facReduce());
 				Tensor<T> U,VT;
 				Tensor<double> s;
 				tt.two_mode_representation(U,VT,s);
-				const long r=s.size();
+				const long r=VT.dim(0);
 				const long nd=VT.ndim();
 				if (r==0) {
-					_ptr=sr_ptr(new configT(dim(),get_k(),tensor_type()));
+                    _ptr=sr_ptr(new configT(dim(),get_k(),ttype));
 				} else {
-					MADNESS_ASSERT(U.dim(nd-1)==r);
-					Tensor<T> UU=U.reshape(U.size()/r,r);
-					_ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
-							dim(), get_k()));
-					this->normalize();
+                MADNESS_ASSERT(U.dim(nd-1)==r);
+                Tensor<T> UU=U.reshape(U.size()/r,r);
+				  _ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
+				                          dim(), get_k()));
+				  this->normalize();
 				}
 #else
 
 				this->computeSVD(targs.thresh,values_eff);
 #endif
-			} else if (tt==TT_FULL){
+			} else if (ttype==TT_FULL){
 				_ptr.reset(new configT(copy(rhs)));
 			} else {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor(tensorT,targs)",0);
@@ -1494,13 +1494,6 @@ namespace madness {
 			// singular values are ordered (largest first)
 			const double thresh=eps*facReduce();
 			long i=SRConf<T>::max_sigma(thresh,s.dim(0),s);
-//			const double threshold=eps*eps*facReduce()*facReduce();
-//			double residual=0.0;
-//			long i;
-//			for (i=s.dim(0)-1; i>=0; i--) {
-//				residual+=s(i)*s(i);
-//				if (residual>threshold) break;
-//			}
 
 			// convert SVD output to our convention
 			if (i>=0) {

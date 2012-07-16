@@ -132,12 +132,12 @@ namespace madness {
 	public:
 
     	/// return the index of the last singular vector/value to meet the threshold
-
+		///        (returns -1 if all meet threshold, i.e. || A ||_2 < threshold)
     	/// given a matrix A in SVD form, truncate the singular values such that the
     	/// accuracy threshold is still met.
-    	/// @param[in]	thresh	the threshold eps: || A(svd) - A(truncated) || < eps
+    	/// @param[in]	thresh	the threshold eps: || A - A(truncated) || < eps
     	/// @param[in] 	rank	the number of singular values in w
-    	/// @paran[in]	w		the weights/singular values of A(svd)
+    	/// @paran[in]	w		the weights/singular values of A
     	/// @return		i		the index of s_max to contribute: w(Slice(0,i)); i.e. inclusive!
     	static int max_sigma(const double& thresh, const int& rank, const Tensor<double>& w) {
 
