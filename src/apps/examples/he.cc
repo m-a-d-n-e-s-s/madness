@@ -182,8 +182,8 @@ double energy(World& world, const real_function_6d& psi) {
         printf("   smooth %.1e %.1e %.1e %.1e\n", rcut, r12cut, dcut, d12cut);
         printf("        L %12.6f\n", L);
         print ("   tensor ", FunctionDefaults<6>::get_tensor_type());
-        printf("       oi %d\n", oi);
-        printf("       vi %d\n", vi);
+        printf("       oi %ld\n", oi);
+        printf("       vi %ld\n", vi);
         printf("\n");
         printf("   #coeff %12.2e\n", size);
         printf("        S %12.6f\n", overlap);
