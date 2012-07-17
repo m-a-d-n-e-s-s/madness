@@ -31,6 +31,7 @@
   $Id$
 */
 #include <linalg/tensor_lapack.h>
+#include <world/print.h>
 
 using std::cout;
 using std::endl;

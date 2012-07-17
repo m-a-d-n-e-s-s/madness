@@ -1746,7 +1746,7 @@ namespace madness {
 		}
 
 		U=(U(Slice(_),Slice(lo,-1)));
-		unsigned int rank1=rank-lo;
+		long rank1=rank-lo;
 
 
 		// include weights to x
