@@ -897,7 +897,7 @@ struct Calculation {
         gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
+            print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k", FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
 
