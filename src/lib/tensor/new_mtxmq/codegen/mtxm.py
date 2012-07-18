@@ -66,8 +66,6 @@ class MTXMGen:
         self._odds = [1]
         self.have_bgp = False
         self.have_bgq = False
-        # Tile i loop in jik loop order
-        self.tile_i = False
         self.complex_a = cxa 
         self.complex_b = cxb
         self.complex_dup_cast = ''
@@ -92,9 +90,9 @@ class MTXMGen:
     def real_real(self):
         return not self.complex_a
 
-    def set_complex(self, a, b):
-        self.complex_a = a
-        self.complex_b = b
+#    def set_complex(self, a, b):
+#        self.complex_a = a
+#        self.complex_b = b
 
     def _temp(self, prefix, x, y):
         return prefix + '_' + str(x) + '_' + str(y)
@@ -121,9 +119,6 @@ class MTXMGen:
     def _temp_dec(self, size):
         ret = []
         indent = '    '
-        if self.tile_i:
-            ret.append("    double* __restrict__ cc = c;")
-            ret.append("    const double* __restrict__ bb = b;")
         x = indent + self.vector_type + ' '
         x += ', '.join(self._temps('_c', 'i', 'j', size) +
                 self._temps('_b', 'k', 'j', size)) + ';'
@@ -250,8 +245,6 @@ class MTXMGen:
     def _loops(self, i, size, bc_mod=""):
         if i == 'i':
             start = 'i=0'
-            if self.tile_i:
-                start = 'i=ii'
             #FIXME Don't include _odds if i%2==0 and only evens
             loops = [size[i]]
             if loops[-1] != 1:
@@ -259,10 +252,7 @@ class MTXMGen:
             if self.have_bgp:
                 loops = range(size[i], 0, -2)
             for loop in loops:
-                i_cond = ""
-                if self.tile_i:
-                    i_cond = " && i+{0}<=ii+{1}".format(loop, self.tile_i_size)
-                yield ('for ({0}; i+{1}<=dimi {2}; i+={1}) {{'.format(start, loop, i_cond), loop)
+                yield ('for ({0}; i+{1}<=dimi; i+={1}) {{'.format(start, loop), loop)
                 start = ''
         elif i == 'j':
             loop = size[i] // (self.complex_c and 2 or 1)
@@ -327,15 +317,7 @@ class MTXMGen:
 
         return ret
 
-    def _i_tile_loop(self):
-        ret = []
-        ret.append("    for (ii=0; ii<dimi; ii+={}) {{".format(self.tile_i_size))
-        ret.append("        b = bb;")
-        ret.append("        c = cc;")
-        return ret
-
-
-    def gen(self, f, perm, size, itile=0, func_name='mtxmq'):
+    def gen(self, f, perm, size, func_name='mtxmq'):
         """Output generated code to file f
 
         Input:
@@ -354,10 +336,6 @@ class MTXMGen:
             raise Exception("k must be inner loop")
 
         indent = 0
-        if itile > 0:
-            self.tile_i = True
-            self.tile_i_size = itile
-            indent += 1
 
         lines = []
 
@@ -369,9 +347,6 @@ class MTXMGen:
 
         # Architecture Specific declarations, e.g. mask prep
         lines += self._extra()
-
-        if self.tile_i:
-            lines += self._i_tile_loop()
 
         # Computation
         lines += self._inner_loops(perm, size, indent)

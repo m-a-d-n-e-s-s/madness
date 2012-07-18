@@ -70,37 +70,37 @@ def main():
     if args.arch == 'sse':
         M = MTXMSSE
         bests = {
-                (False, False): ("jik", {'i':2, 'j':14, 'k':1}, 0, args.name),
-                (True, False) : ("jik", {'i':2, 'j':12, 'k':1}, 0, args.name),
-                (False, True) : ("jik", {'i':2, 'j':14, 'k':1}, 0, args.name),
-                (True, True)  : ("ijk", {'i':2, 'j':14, 'k':1}, 0, args.name)}
-        versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(2,21,2) for j in range(2,21,2) for lo in ["ijk", "jik"] if i*j <= 60]
+                (False, False): ("jik", {'i':2, 'j':14, 'k':1}, args.name),
+                (True, False) : ("jik", {'i':2, 'j':12, 'k':1}, args.name),
+                (False, True) : ("jik", {'i':2, 'j':14, 'k':1}, args.name),
+                (True, True)  : ("ijk", {'i':2, 'j':14, 'k':1}, args.name)}
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(2,21,2) for j in range(2,21,2) for lo in ["ijk", "jik"] if i*j <= 60]
     elif args.arch == 'avx':
         M = MTXMAVX
         bests = {
-                (False, False): ("jik", {'i':2, 'j':20, 'k':1}, 0, args.name), # jik_i3j12k1 is a bit better, except on 400 20 20 much slower
-                (True, False) : ("ijk", {'i':4, 'j':12, 'k':1}, 0, args.name), # ijk_i4j8k1 is better for 400 20 20 but worse on others
-                (False, True) : ("ijk", {'i':3, 'j':12, 'k':1}, 0, args.name), # jik_i3j12k1 best on avg across tested sizes, ijk_i4j8k1 best on 400 20 20
-                (True, True)  : ("ijk", {'i':2, 'j':16, 'k':1}, 0, args.name)} # jik is better for squares, ijk better for 400 20 20 and similar
-        versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
+                (False, False): ("jik", {'i':2, 'j':20, 'k':1}, args.name), # jik_i3j12k1 is a bit better, except on 400 20 20 much slower
+                (True, False) : ("ijk", {'i':4, 'j':12, 'k':1}, args.name), # ijk_i4j8k1 is better for 400 20 20 but worse on others
+                (False, True) : ("ijk", {'i':3, 'j':12, 'k':1}, args.name), # jik_i3j12k1 best on avg across tested sizes, ijk_i4j8k1 best on 400 20 20
+                (True, True)  : ("ijk", {'i':2, 'j':16, 'k':1}, args.name)} # jik is better for squares, ijk better for 400 20 20 and similar
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
     elif args.arch == 'bgp':
         M = MTXMBGP
         bests = {
-                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, 0, args.name),
-                (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, 0, args.name),
-                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, 0, args.name), # ijk_i9j4k1 is better for (m*m,m)T*(m*m) 400 20 20 by almost 30%, but generally quite a bit worse
-                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, 0, args.name)}
-        versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
+                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, args.name),
+                (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, args.name),
+                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, args.name), # ijk_i9j4k1 is better for (m*m,m)T*(m*m) 400 20 20 by almost 30%, but generally quite a bit worse
+                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, args.name)}
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
         #versions = [bests[(args.cxa, args.cxb)]]
     elif args.arch == 'bgq':
         M = MTXMBGQ
         # thie following is just copied from BGP and is probably wrong
         bests = {
-                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, 0, args.name),
-                (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, 0, args.name),
-                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, 0, args.name),
-                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, 0, args.name)}
-        versions = [(lo, {'i':i, 'j':j, 'k':1}, 0, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
+                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, args.name),
+                (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, args.name),
+                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, args.name),
+                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, args.name)}
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
 
     m = M(args.cxa, args.cxb)
     best = bests[(args.cxa, args.cxb)]
