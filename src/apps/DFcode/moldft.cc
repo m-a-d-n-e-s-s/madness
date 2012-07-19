@@ -1864,10 +1864,16 @@ struct Calculation {
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#ifdef HAVE_LIBXC
             exc = make_dft_energy(world, vf, ispin);
+#else
+            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#endif
             vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
+
+#ifdef HAVE_LIBXC
             if (xc.is_gga() ) {
                 if(world.rank() == 0)
                    print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
@@ -1885,6 +1891,7 @@ struct Calculation {
                     vloc = vloc - vr; // need a 2?
 //3                }
             }
+#endif
             END_TIMER(world, "DFT potential");
         }
         
@@ -3651,6 +3658,7 @@ public:
             if (proto == 0) {
                 if (calc.param.restart) {
                     calc.load_mos(world);
+                print("vama loas_mos ");
                 }
                 else {
                     calc.initial_guess(world);
@@ -3730,6 +3738,12 @@ int main(int argc, char** argv) {
               }
     
               Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
+
+              MolecularEnergy E(world, calc);
+              E.value(calc.molecule.get_all_coords().flat()); // ugh!
+
+              calc.set_protocol(world,1e-6);
+              calc.param.restart = true;
               QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
                                calc.param.gmaxiter,
                                calc.param.gtol,  //tol
