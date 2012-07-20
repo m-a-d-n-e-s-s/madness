@@ -41,7 +41,13 @@ class XCfunctional {
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
+    bool gga;        ///< True if the functional is gga
+    bool lda;        ///< True if the functional is lda
 
+    void make_xc_args(const std::vector< madness::Tensor<double> >& t,
+                         std::vector< madness::Tensor<double> >& rho, 
+                         std::vector< madness::Tensor<double> >& sigma, 
+                         std::vector< madness::Tensor<double> >& delrho) const;
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
