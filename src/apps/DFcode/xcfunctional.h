@@ -36,6 +36,13 @@ struct xc_lda_potential {
     }
 };
 
+//vama3#ifndef MADNESS_HAS_LIBXC
+//vama3struct xc_func_type {
+//vama3    int functional;
+//vama3    int nspin;
+//vama3};
+//vama3#endif
+
 /// Simplified interface to XC functionals
 class XCfunctional {
 protected:
@@ -48,6 +55,7 @@ protected:
                          std::vector< madness::Tensor<double> >& rho, 
                          std::vector< madness::Tensor<double> >& sigma, 
                          std::vector< madness::Tensor<double> >& delrho) const;
+//vama3    std::vector< std::pair<xc_func_type,double> > funcs;
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,

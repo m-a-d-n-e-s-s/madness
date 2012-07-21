@@ -3601,6 +3601,15 @@ struct Calculation {
 
         }
 
+                    if(world.rank() == 0) {
+                        print(" ");
+                        print("alpha eigenvalues");
+                        print(aeps);
+                        if(param.nbeta && !param.spin_restricted){
+                            print("beta eigenvalues");
+                            print(beps);
+                        }
+                    }
         if (param.mulliken) {
             if (world.rank() == 0) {
                 if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
