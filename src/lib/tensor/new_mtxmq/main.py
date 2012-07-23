@@ -7,7 +7,10 @@ import sys
 from itertools import permutations, product
 
 from codegen.driver import tester_gen
+from codegen.bgqdriver import tester_gen_bgq
 from codegen.mtxm import *
+
+# TODO: call bgq version of tester gen if needed
 
 def tester(m, versions):
     """Generate .cc files and Makefile to test correctness and
@@ -18,6 +21,9 @@ def tester(m, versions):
             print("\tHPM=/soft/apps/UPC/lib/libhpm.a", file=mf)
             print("\tCXX=tmpixlcxx_r", file=mf)
             print("\tCXXFLAGS=-g -O3 -qarch=450d -qtune=450 -qthreaded", file=mf)
+        elif m.have_bgq:
+            print("\tCXX=/bgsys/drivers/ppcfloor/comm/xl/bin/mpixlcxx_r", file=mf)
+            print("\tCXXFLAGS=-I/bgsys/drivers/ppcfloor/ -O5 -qhot=level=1 -qsimd=auto -qtune=qp -qarch=qp", file=mf)
         else:
             print("\tCXX=g++", file=mf)
             march = "ssse3"
@@ -30,11 +36,19 @@ def tester(m, versions):
             bunch_size = 1
             if m.have_bgp:
                 bunch_size = 64
+            elif m.have_bgq:
+                pass
+                #bunch_size = 128
             cur, versions = versions[:bunch_size], versions[bunch_size:]
             with open("tune_mtxm_{}.cc".format(n), 'w') as f:
-                tester_gen(f, cur, m.gen, m.complex_a, m.complex_b, m.have_bgp)
+                if m.have_bgq:
+                    tester_gen_bgq(f, cur, m.gen, m.complex_a, m.complex_b)
+                else:
+                    tester_gen(f, cur, m.gen, m.complex_a, m.complex_b, m.have_bgp)
             print("\t$(CXX) -c $(CXXFLAGS) tune_mtxm_{0}.cc -o tune_mtxm_{0}.o".format(n), file=mf)
             print("\t$(CXX) $(CXXFLAGS) tune_mtxm_{0}.o $(HPM) -o tune_mtxm_{0}.x".format(n), file=mf)
+            if m.have_bgq:
+                print("\tqsub -A MADNESS_MPQC_esp -t 10 -n {0} --mode c1 --cwd `pwd` -O tune_mtxm_{1} ./tune_mtxm_{1}.x".format(len(cur), n), file=mf)
             n += 1
 
 def main():

@@ -14,10 +14,10 @@ namespace madness {
         double *b = (double*)b_x;
 
         /* Setup a buffer for c if needed */
-        double* c_buf = c;
+        double* c_out = c;
         if (dimj%4) {
             effj = (dimj | 3) + 1;
-            c_buf = (double*)malloc(sizeof(double)*dimi*effj);
+            c = (double*)malloc(sizeof(double)*dimi*effj);
         }
 
         /* Copy b into a buffer if needed */
@@ -33,15 +33,13 @@ namespace madness {
             ext_b = effj;
         }
 
-        double* c_work = c_buf;
-
         vector4double _c_0_0, _c_1_0, _c_2_0, _c_3_0, _c_4_0, _c_5_0, _c_6_0, _c_7_0;
         vector4double _b_0_0;
         vector4double _a_0_0, _a_1_0, _a_2_0, _a_3_0, _a_4_0, _a_5_0, _a_6_0, _a_7_0; 
 
         for (i=0; i+8<=dimi; i+= 8) {
             double *xb = b;
-            double *xc = c_work;
+            double *xc = c;
             for (j=effj; j>0; j-=4,xc+=4,xb+=4) {
                 double *pb = xb;
                 double *pa = a+i;
@@ -84,7 +82,7 @@ namespace madness {
         }
         for (; i+6<=dimi; i+= 6) {
             double *xb = b;
-            double *xc = c_work;
+            double *xc = c;
             for (j=effj; j>0; j-=4,xc+=4,xb+=4) {
                 double *pb = xb;
                 double *pa = a+i;
@@ -120,7 +118,7 @@ namespace madness {
 
         for (; i+4<=dimi; i+= 4) {
             double *xb = b;
-            double *xc = c_work;
+            double *xc = c;
             for (j=effj; j>0; j-=4,xc+=4,xb+=4) {
                 double *pb = xb;
                 double *pa = a+i;
@@ -147,7 +145,7 @@ namespace madness {
         }
         for (; i+2<=dimi; i+= 2) {
             double *xb = b;
-            double *xc = c_work;
+            double *xc = c;
             for (j=effj; j>0; j-=4,xc+=4,xb+=4) {
                 double *pb = xb;
                 double *pa = a+i;
@@ -167,11 +165,11 @@ namespace madness {
 
         /* Copy c out if needed */
         if (dimj%4) {
-            double* ct = c_buf;
-            for (i=0; i<dimi; i++, ct += effj, c += dimj)
-                memcpy(c, ct, sizeof(double)*dimj);
+            double* ct = c;
+            for (i=0; i<dimi; i++, ct += effj, c_out += dimj)
+                memcpy(c_out, ct, sizeof(double)*dimj);
 
-            free(c_buf);
+            free(c);
         }
 
         /* Free the buffer for b */
