@@ -178,6 +178,24 @@ namespace madness {
         T* operator->() const {return p;}
     };
 
+    template <typename T>
+    struct has_result_type {
+        // yes and no are guaranteed to have different sizes,
+        // specifically sizeof(yes) == 1 and sizeof(no) == 2
+        typedef char yes[1];
+        typedef char no[2];
+
+        template <typename C>
+        static yes& test(typename C::result_type*);
+
+        template <typename>
+        static no& test(...);
+
+        // if the sizeof the result of calling test<T>(0) is equal to the sizeof(yes),
+        // the first overload worked and T has a nested type named type.
+        static const bool value = sizeof(test<T>(0)) == sizeof(yes);
+    };
+
 
     /* Macros to make some of this stuff more readable */
 
