@@ -107,22 +107,22 @@ using namespace std;
 
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
-const double L = 5; // box is [-L,L]
+const double L = 20; // box is [-L,L]
 const double sigma = 0.2; // Surface width
 const double Ez = 0.05; // External electric field
 
-const double epsilon_0 =   1.0; // Interior dielectric
-const double epsilon_1 = 100.0; // Exterior dielectric
-const double R = 2.0; // Radius of cavity
+const double epsilon_0 = 100.0; // Interior dielectric
+const double epsilon_1 =   1.0; // Exterior dielectric
+const double R = 10.0; // Radius of cavity
 
 // Adjustment to radius of sphere to enhance accuracy of calculation
 // at finite value of sigma
 const double delta = 0.65*sigma;
 
-double exact_function(const coord_3d& x) { // for u ... total potential add on -Ez*z
+double exact_function(const coord_3d& x) {
     const double epsilon_r = epsilon_1 / epsilon_0;
     double r = sqrt(x[0]*x[0] + x[1]*x[1] + x[2]*x[2]);
-
+    
     if (r < R) {
         return Ez*x[2] * (1 - 3 / (epsilon_r + 2));
     }
@@ -137,16 +137,14 @@ int main(int argc, char **argv) {
     startup(world,argc,argv);
 
     coord_3d lo(0.0), hi(0.0); // Range for line plotting
-    lo[2] =-5.0;
-    hi[2] = 5.0;
+    lo[2] =-L;
+    hi[2] = L;
 
     // Function defaults
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
-    FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_truncate_on_project(true);
-    //FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_bc(BC_FREE);
 
     // The Coulomb operator (this is just 1/r ... whereas the notes are -1/4pir)
@@ -169,13 +167,15 @@ int main(int argc, char **argv) {
     print("radii ", atomic_radii);
     print("coords", atomic_coords);
 
+    print(MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,0).special_points());
+
     // Log derivative of the dielectric function
     real_function_3d logdx = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,0)));
     real_function_3d logdy = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,1)));
     real_function_3d logdz = real_factory_3d(world).functor(real_functor_3d(new MolecularVolumeExponentialSwitchLogGrad(sigma,epsilon_1,epsilon_0, atomic_radii, atomic_coords,2)));
 
-    // Exact solution
-    real_function_3d exact = real_factory_3d(world).f(exact_function);
+    //double area = 4*madness::constants::pi*R*R;
+    //double simulation_volume = 8*L*L*L;
 
     const double rfourpi = 1.0/(4.0*constants::pi);
 
@@ -183,38 +183,39 @@ int main(int argc, char **argv) {
     real_function_3d u(world);
     double unorm = 0.0;
 
-    NonlinearSolver solver;
-    real_function_3d surface_charge;
+    NonlinearSolver solver(20);
+    real_function_3d surface_charge, old_surface_charge(world);
     for (int iter=0; iter<20; iter++) {
-        surface_charge = ((logdx*Dx(u) + logdy*Dy(u) + logdz*(-Ez+Dz(u)))).scale(rfourpi).truncate();
-        real_function_3d r = (u - op(surface_charge)).truncate();
+        // Scale with 1/4pi AFTER applying operator to get one more digit of accuracy
+        surface_charge = (logdx*Dx(u) + logdy*Dy(u) + logdz*(-Ez+Dz(u))).truncate();
+        real_function_3d r = (u - op(surface_charge).scale(rfourpi)).truncate(thresh*0.032);
+        surface_charge.scale(rfourpi);
         
         real_function_3d unew = solver.update(u, r);
 
         double change = (unew-u).norm2();
-        double err = (u-exact).norm2();
+        double schange = (old_surface_charge-surface_charge).norm2();
+        double err = u.err(exact_function);
         print("iter", iter, "change", change, "err", err, 
-              "surface charge", surface_charge.trace());
-        //"exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)),
+              "surface charge", surface_charge.trace(), "schange", schange);
 
+        old_surface_charge = surface_charge;
 
         if (change > 0.3*unorm) 
             u = 0.5*unew + 0.5*u;
         else 
             u = unew;
 
-        if (change < 10.0*thresh) break;
+        if (schange < 10.0*thresh) break;
     }
 
-    plot_line("testpot.dat", 1001, lo, hi, u, exact, surface_charge);
+    plot_line("testpot.dat", 1001, lo, hi, u, surface_charge);
 
     real_tensor cell(3,2);
-    cell(_,0) = -4.0;
-    cell(_,1) =  4.0;
+    cell(_,0) = -L;
+    cell(_,1) =  L;
 
     plotdx(u, "testpot.dx", cell);
-    plotdx(exact, "exact.dx", cell);
-    plotdx(u-exact, "err.dx", cell);
 
     finalize();
     return 0;
