@@ -348,6 +348,9 @@ namespace madness {
         // Handler for incoming task with 0 arguments
         template <typename memfunT>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type> > taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT>;
             Derived* obj;
@@ -355,13 +358,17 @@ namespace madness {
                 detail::info<memfunT> info;
                 arg & info;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), info.attr));
             }
         }
 
         // Handler for incoming task with 1 argument
         template <typename memfunT, typename arg1T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>, arg1T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             Derived* obj = arg.get_world()-> template ptr_from_id<Derived>(id);
             am_handlerT ptr = handler_task<memfunT,arg1T>;
@@ -370,13 +377,17 @@ namespace madness {
                 arg1T arg1;
                 arg & info & arg1;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, info.attr));
             }
         }
 
         // Handler for incoming task with 2 arguments
         template <typename memfunT, typename arg1T, typename arg2T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>, arg1T,arg2T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T>;
             Derived* obj;
@@ -386,13 +397,18 @@ namespace madness {
                 arg2T arg2;
                 arg & info & arg1 & arg2;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, info.attr));
             }
         }
 
         // Handler for incoming task with 3 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T>;
             Derived* obj;
@@ -403,13 +419,19 @@ namespace madness {
                 arg3T arg3;
                 arg & info & arg1 & arg2 & arg3;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        info.attr));
             }
         }
 
         // Handler for incoming task with 4 arguments
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T>;
             Derived* obj;
@@ -421,7 +443,9 @@ namespace madness {
                 arg4T arg4;
                 arg & info & arg1 & arg2 & arg3 & arg4;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, info.attr));
             }
         }
 
@@ -429,6 +453,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T,arg5T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T>;
             Derived* obj;
@@ -441,7 +469,9 @@ namespace madness {
                 arg5T arg5;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, arg5, info.attr));
             }
         }
 
@@ -449,6 +479,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T, typename arg6T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T,arg5T,arg6T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T>;
             Derived* obj;
@@ -462,7 +496,9 @@ namespace madness {
                 arg6T arg6;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,arg6,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, arg5, arg6, info.attr));
             }
         }
 
@@ -470,6 +506,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T, typename arg6T, typename arg7T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T>;
             Derived* obj;
@@ -484,7 +524,9 @@ namespace madness {
                 arg7T arg7;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, arg5, arg6, arg7, info.attr));
             }
         }
 
@@ -492,6 +534,10 @@ namespace madness {
         template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
         typename arg5T, typename arg6T, typename arg7T, typename arg8T>
         static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T> taskT;
+
             const uniqueidT& id = detail::peek(arg);
             am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T>;
             Derived* obj;
@@ -507,7 +553,9 @@ namespace madness {
 				arg8T arg8;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8;
                 typename detail::info<memfunT>::futureT result(info.ref);
-                arg.get_world()->taskq.add(new TaskMemfun<memfunT>(result,*obj,info.memfun,arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,info.attr));
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, arg5, arg6, arg7, arg8, info.attr));
             }
         }
 
@@ -856,7 +904,7 @@ namespace madness {
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -871,7 +919,7 @@ namespace madness {
         Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) >
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -888,7 +936,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
              const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -905,7 +953,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -922,7 +970,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -939,7 +987,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -956,7 +1004,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -973,7 +1021,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;
@@ -990,7 +1038,7 @@ namespace madness {
         task(ProcessID dest, memfunT memfun, const arg1T& arg1, const arg2T& arg2, const arg3T& arg3,
              const arg4T& arg4, const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const arg8T& arg8, const TaskAttributes& attr = TaskAttributes()) {
             if (dest == me) {
-                return world.taskq.add(*static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr);
+                return world.taskq.add(static_cast<Derived*>(this), memfun, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr);
             }
             else {
                 Future< REMFUTURE(MEMFUN_RETURNT(memfunT)) > result;

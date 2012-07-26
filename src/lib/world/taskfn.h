@@ -35,9 +35,110 @@
 #ifndef MADNESS_WORLD_TASKFN_H__INCLUDED
 #define MADNESS_WORLD_TASKFN_H__INCLUDED
 
-//namespace madness {
+#include <world/worlddep.h>
+#include <world/worldthread.h>
+#include <world/worldfut.h>
 
-    namespace {
+namespace madness {
+
+
+    // Forward decls
+    class World;
+    class WorldTaskQueue;
+
+    /// All world tasks must be derived from this public interface
+
+    /// Multiple worlds with independent queues feed tasks into shared task
+    /// pool that is mapped to the H/W.
+    ///
+    /// For simplicity and backward compatibility we maintain two run interfaces
+    /// but new code should adopt the multithreaded interface
+    ///
+    /// \c run(World&) - the user implements this for a single-threaded task
+    ///
+    /// \c run(World&, \c const \c TaskThreadEnv&) - the user implements this for
+    /// a multi-threaded task.
+    ///
+    class TaskInterface : public DependencyInterface , public PoolTaskInterface {
+        friend class WorldTaskQueue;
+    private:
+        volatile World* world;
+        CallbackInterface* completion;
+
+        // Used for submission to underlying queue when all dependencies are satisfied
+        struct Submit : public CallbackInterface {
+            PoolTaskInterface* p;
+            Submit(PoolTaskInterface* p) : p(p) {}
+            void notify() {
+                ThreadPool::add(p);
+            }
+        } submit;
+
+
+        /// Set task info
+
+        /// \param w The world object that contains the task
+        /// \param c Call this callback on completion
+        void set_info(World* w, CallbackInterface* c) {
+            world = w;
+            completion = c;
+        }
+
+        /// Adds call back to schedule task when outstanding dependencies are satisfied
+        void register_submit_callback() { register_callback(&submit); }
+
+    protected:
+        virtual void run(const TaskThreadEnv& env);
+
+    public:
+        static bool debug;
+
+        /// Create a new task with ndepend dependencies (default 0) and given attributes
+        TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
+                : DependencyInterface(ndepend)
+                , PoolTaskInterface(attr)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
+
+        /// Create a new task with zero dependencies and given attributes
+        explicit TaskInterface(const TaskAttributes& attr)
+                : DependencyInterface(0)
+                , PoolTaskInterface(attr)
+                , world(0)
+                , completion(0)
+                , submit(this)
+        {}
+
+//         void serialize(Buffer& ar) {
+//             throw "there is no way this is correct";
+//             ar & *static_cast<PoolTaskInterface*>(this) & world;
+//         }
+
+        /// Runs a single-threaded task ... derived classes must implement this.
+
+        /// This interface may disappear so new code should use the multi-threaded interface.
+        virtual void run(World&) {
+            //print("in virtual run(world) method");
+            MADNESS_EXCEPTION("World TaskInterface: user did not implement one of run(world) or run(world, taskthreadenv)", 0);
+        }
+
+        /// Runs a multi-threaded task
+        virtual void run(World& world, const TaskThreadEnv& env) {
+            //print("in virtual run(world,env) method", env.nthread(), env.id());
+            if (env.nthread() != 1)
+                MADNESS_EXCEPTION("World TaskInterface: user did not implement run(world, taskthreadenv) for multithreaded task", 0);
+            run(world);
+        }
+
+        World* get_world() const { return const_cast<World*>(world); }
+
+        virtual ~TaskInterface() { if (completion) completion->notify(); }
+
+    }; // class TaskInterface
+
+    namespace detail {
 
         template <typename T>
         struct ArgCountHelper {
@@ -108,9 +209,10 @@
         struct task_result_type {
             typedef typename madness::remove_fcvr<typename madness::detail::result_of<fnT>::type>::type resultT;
             typedef Future<resultT> futureT;
+            typedef futureT type;
         };
 
-    } // namespace
+    } // namespace detail
 
     /// Wrap a callable object and its arguments into a task function
 
@@ -128,22 +230,22 @@
     public:
 
         typedef fnT functionT; ///< The task function type
-        typedef typename task_result_type<fnT>::resultT resultT;
+        typedef typename detail::task_result_type<fnT>::resultT resultT;
         ///< The result type of the function
-        typedef typename task_result_type<fnT>::futureT futureT;
+        typedef typename detail::task_result_type<fnT>::futureT futureT;
 
         // argument value typedefs
-        typedef typename value_type<arg1_type>::type arg1T; ///< Argument 1 type
-        typedef typename value_type<arg2_type>::type arg2T; ///< Argument 2 type
-        typedef typename value_type<arg3_type>::type arg3T; ///< Argument 3 type
-        typedef typename value_type<arg4_type>::type arg4T; ///< Argument 4 type
-        typedef typename value_type<arg5_type>::type arg5T; ///< Argument 5 type
-        typedef typename value_type<arg6_type>::type arg6T; ///< Argument 6 type
-        typedef typename value_type<arg7_type>::type arg7T; ///< Argument 7 type
-        typedef typename value_type<arg8_type>::type arg8T; ///< Argument 8 type
-        typedef typename value_type<arg9_type>::type arg9T; ///< Argument 9 type
+        typedef typename detail::value_type<arg1_type>::type arg1T; ///< Argument 1 type
+        typedef typename detail::value_type<arg2_type>::type arg2T; ///< Argument 2 type
+        typedef typename detail::value_type<arg3_type>::type arg3T; ///< Argument 3 type
+        typedef typename detail::value_type<arg4_type>::type arg4T; ///< Argument 4 type
+        typedef typename detail::value_type<arg5_type>::type arg5T; ///< Argument 5 type
+        typedef typename detail::value_type<arg6_type>::type arg6T; ///< Argument 6 type
+        typedef typename detail::value_type<arg7_type>::type arg7T; ///< Argument 7 type
+        typedef typename detail::value_type<arg8_type>::type arg8T; ///< Argument 8 type
+        typedef typename detail::value_type<arg9_type>::type arg9T; ///< Argument 9 type
 
-        static const unsigned int arity = ArgCount<arg1_type, arg2_type, arg3_type, arg4_type,
+        static const unsigned int arity = detail::ArgCount<arg1_type, arg2_type, arg3_type, arg4_type,
                 arg5_type, arg6_type, arg7_type, arg8_type, arg9_type>::value;
         ///< The number of arguments given for the function
         ///< \note This may not match the arity of the function
@@ -438,20 +540,24 @@
 
         virtual ~TaskFn() { }
 
-        void run(World&) {
-            runner<arity, resultT> ();
-        }
-
         const futureT& result() const { return result_; }
 
-    protected:
-        // Intel does not like using so explicitly instantiate it.
-        void run(const TaskThreadEnv& env) {
-            TaskInterface::run(env);
+
+#ifdef HAVE_INTEL_TBB
+        virtual tbb::task* execute() {
+            runner<arity, resultT> ();
+            return NULL;
         }
+#else
+      protected:
+        virtual void run(const TaskThreadEnv& env) {
+            runner<arity, resultT> ();
+        }
+#endif // HAVE_INTEL_TBB
+
     }; // class TaskFn
 
-//} // namespace madness
+} // namespace madness
 
 
 #endif // MADNESS_WORLD_TASKFN_H__INCLUDED

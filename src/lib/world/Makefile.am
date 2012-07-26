@@ -15,7 +15,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldfwd.h uniqueid.h worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h \
 	worlddc.h deferred_deleter.h scopedptr.h worldtask.h taskfn.h \
-	make_task.h shared_ptr.h shared_ptr_bits.h stdarray.h \
+	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h
                       
