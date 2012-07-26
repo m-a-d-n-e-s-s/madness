@@ -3667,7 +3667,7 @@ public:
             if (proto == 0) {
                 if (calc.param.restart) {
                     calc.load_mos(world);
-                print("vama loas_mos ");
+                //print("vama loas_mos ");
                 }
                 else {
                     calc.initial_guess(world);
@@ -3769,7 +3769,7 @@ int main(int argc, char** argv) {
               calc.propagate(world,0.1,0);
           }
           else {
-                  print("sobres");
+                  //print("sobres");
               MolecularEnergy E(world, calc);
               E.value(calc.molecule.get_all_coords().flat()); // ugh!
               if (calc.param.derivatives) calc.derivatives(world);
@@ -3779,30 +3779,32 @@ int main(int argc, char** argv) {
                   print(" ----------------------------------------------------------\n");
                   calc.polar_solve(world);
               }
-              print("sobres",calc.param.alchemy);
+              //print("sobres",calc.param.alchemy);
               int old_maxiter=calc.param.maxiter;
               if (calc.param.alchemy !=0) {
                   if (world.rank() == 0) {
                       print(" MADNESS Alchemical derivatives                              ");
                       print(" ----------------------------------------------------------\n");
-                      for(int geoms = 1;geoms <= calc.param.alchemy;++geoms){
-                          std::stringstream cuc ;
-                          print(" Geometry name", geoms,"\n" );
-                          cuc  << geoms;
+                  }
+                  for (int geoms = 1;geoms <= calc.param.alchemy;++geoms){
+                      std::stringstream cuc ;
+                      if (world.rank() == 0)  print(" Geometry name", geoms,"\n" );
+                      cuc  << geoms;
+                      if (world.size() > 1) {
                           calc.molecule.read_file(inpname,cuc.str());
                           calc.make_nuclear_potential(world);
                           calc.initial_load_bal(world);
-                          calc.param.maxiter=0;
-                          calc.param.restart=true;
-                          //calc.initial_load_bal(world);
-                          calc.param.protocol_data=madness::vector_factory(1e-6);
-                          calc.param.nosavemo=true;
-                          MolecularEnergy A(world, calc);
-                          calc.molecule.print();
-                          calc.param.print(world);
-                          A.value(calc.molecule.get_all_coords().flat()); // ugh!
-                      print(" ----------------------------------------------------------\n");
                       }
+                      calc.param.maxiter=0;
+                      calc.param.restart=true;
+                      //calc.initial_load_bal(world);
+                      calc.param.protocol_data=madness::vector_factory(1e-6);
+                      calc.param.nosavemo=true;
+                      MolecularEnergy A(world, calc);
+                      if (world.rank() == 0) calc.molecule.print();
+                      if (world.rank() == 0) calc.param.print(world);
+                      A.value(calc.molecule.get_all_coords().flat()); // ugh!
+                      if (world.rank() == 0) print(" ----------------------------------------------------------\n");
                   }
               calc.param.maxiter=old_maxiter;
               }

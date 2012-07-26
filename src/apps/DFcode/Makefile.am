@@ -9,7 +9,7 @@ endif
 
 bin_PROGRAMS = testpg moldft mcpfit testperiodic testxc 
 
-moldft_SOURCES = moldft.cc  molecule.cc \
+moldft_SOURCES = moldft.cc  molecule.cc lda.cc \
                  molecule.h molecularbasis.h molecularbasis.cc \
                  atomutil.h atomutil.cc \
                  corepotential.h corepotential.cc \
@@ -17,7 +17,7 @@ moldft_SOURCES = moldft.cc  molecule.cc \
 
 testpg_SOURCES = testpg.cc pointgroup.h
 
-testperiodic_SOURCES = testperiodic.cc molecule.cc \
+testperiodic_SOURCES = testperiodic.cc molecule.cc lda.cc \
                  molecule.h molecularbasis.h molecularbasis.cc \
                  atomutil.h atomutil.cc \
                  corepotential.h corepotential.cc \
@@ -35,7 +35,7 @@ testxc_SOURCES = testxc.cc xcfunctional.h
 
 if HAVE_LIBXC
 moldft_SOURCES += xcfunctional_libxc.cc
-testperiodic_SOURCES += xcfunctional_libxc.cc
+testperiodic_SOURCES += xcfunctional_libxc.cc lda.cc
 testxc_SOURCES += xcfunctional_libxc.cc
 else
 testxc_SOURCES += xcfunctional.cc 
