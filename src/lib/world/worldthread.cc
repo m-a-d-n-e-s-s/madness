@@ -278,6 +278,7 @@ namespace madness {
     /// Returns queue statistics
     const DQStats& ThreadPool::get_stats() {
         return instance()->queue.get_stats();
+
     }
 
 } // namespace madness
