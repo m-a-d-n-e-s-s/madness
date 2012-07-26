@@ -11,6 +11,7 @@ def _header(complex_c, complex_a, complex_b):
 #include <pthread.h>
 #include <mpi.h>
 #include <limits.h>
+#include <complex>
 
 #define NAPTIME 3
 #define MAX_POSIX_THREADS 64
@@ -31,7 +32,7 @@ static int num_posix_threads;
 pthread_barrier_t barr;
 
 void ran_fill(int n, double *a) {
-    while (n--) *a++ = (double)rand();
+    while (n--) *a++ = ((double)rand())/RAND_MAX;
 }
 
 inline void start_timer(pt_data *pt) {
@@ -163,22 +164,24 @@ def _main(mtxms, complex_c, complex_a, complex_b):
     ran_fill(nkmax*nimax{cax}, (double*)a);
     ran_fill(nkmax*njmax{cbx}, (double*)b);
 
-    for (ni=2; ni<60; ni+=2) {{
-        for (nj=2; nj<100; nj+=6) {{
-            for (nk=2; nk<100; nk+=6) {{
-                for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
-                mtxm(ni,nj,nk,nj,c,a,b);
+    if (pt->total_threads == 1) {{
+        for (ni=2; ni<60; ni+=2) {{
+            for (nj=2; nj<100; nj+=6) {{
+                for (nk=2; nk<100; nk+=6) {{
+                    for (i=0; i<ni*nj; ++i) d[i] = c[i] = 0.0;
+                    mtxm(ni,nj,nk,nj,c,a,b);
 """
     for i, f in enumerate(mtxms):
-        ret += "                if (mpi_rank=={}) {}(ni,nj,nk,nj,d,a,b);\n".format(i, f)
+        ret += "                    if (mpi_rank=={}) {}(ni,nj,nk,nj,d,a,b);\n".format(i, f)
     ret += """
-                for (i=0; i<ni*nj; ++i) {{
-                    double err = abs(d[i]-c[i]);
-                    if (err > 1e-{error}) {{
+                    for (i=0; i<ni*nj; ++i) {{
+                        double err = abs(d[i]-c[i]);
+                        if (err > 1e-{error}) {{
 """
     for i, f in enumerate(mtxms):
-        ret += """                        if (mpi_rank=={}) fprintf(stderr, "{} error %d: %ld %ld %ld %e\\n",mpi_rank,ni,nj,nk,err);\n""".format(i, f)
+        ret += """                            if (mpi_rank=={}) fprintf(stderr, "{} error %d: %ld %ld %ld %e\\n",mpi_rank,ni,nj,nk,err);\n""".format(i, f)
     ret += """
+                        }}
                     }}
                 }}
             }}

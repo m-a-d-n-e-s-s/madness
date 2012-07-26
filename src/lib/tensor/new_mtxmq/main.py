@@ -37,8 +37,7 @@ def tester(m, versions):
             if m.have_bgp:
                 bunch_size = 64
             elif m.have_bgq:
-                pass
-                #bunch_size = 128
+                bunch_size = 128
             cur, versions = versions[:bunch_size], versions[bunch_size:]
             with open("tune_mtxm_{}.cc".format(n), 'w') as f:
                 if m.have_bgq:
@@ -105,16 +104,14 @@ def main():
                 (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, args.name), # ijk_i9j4k1 is better for (m*m,m)T*(m*m) 400 20 20 by almost 30%, but generally quite a bit worse
                 (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, args.name)}
         versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
-        #versions = [bests[(args.cxa, args.cxb)]]
     elif args.arch == 'bgq':
         M = MTXMBGQ
-        # thie following is just copied from BGP and is probably wrong
         bests = {
                 (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, args.name),
                 (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, args.name),
                 (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, args.name),
                 (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, args.name)}
-        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,14) for j in range(4,29,4) for lo in ["ijk", "jik"] if i*j <= 90]
 
     m = M(args.cxa, args.cxb)
     best = bests[(args.cxa, args.cxb)]
