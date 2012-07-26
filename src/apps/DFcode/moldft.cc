@@ -3790,8 +3790,8 @@ int main(int argc, char** argv) {
                       std::stringstream cuc ;
                       if (world.rank() == 0)  print(" Geometry name", geoms,"\n" );
                       cuc  << geoms;
+                      if (world.rank() == 0) calc.molecule.read_file(inpname,cuc.str());
                       if (world.size() > 1) {
-                          calc.molecule.read_file(inpname,cuc.str());
                           calc.make_nuclear_potential(world);
                           calc.initial_load_bal(world);
                       }
