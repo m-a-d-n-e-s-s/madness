@@ -132,13 +132,38 @@ namespace madness {
         if (free_b) free((bT*)b);
     }
 #ifdef HAVE_IBMBGQ
-  extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
-          double* restrict c, const double* a, const double* b);
+    extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
+            double* restrict c, const double* a, const double* b);
+    extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* restrict c, const __complex__ double* a, const __complex__ double* b);
+    extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* restrict c, const double* a, const __complex__ double* b);
+    extern void bgq_mtxm_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* restrict c, const __complex__ double* a, const double* b);
+
     template <>
-    inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
-            double* restrict c, const double* a, const double* b) {
-        bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
-    }
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                double* restrict c, const double* a, const double* b) {
+            bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* restrict c, const __complex__ double* a, const __complex__ double* b) {
+            bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* restrict c, const double* a, const __complex__ double* b) {
+            bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* restrict c, const __complex__ double* a, const double* b) {
+            bgq_mtxm_padded(ni, nj, nk, ej, c, a, b);
+        }
 #elif defined(HAVE_IBMBGP)
     template <>
     inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {

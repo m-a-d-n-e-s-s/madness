@@ -191,7 +191,7 @@ def _main(mtxms, complex_c, complex_a, complex_b):
     for (ni=2; ni<60; ni+=2) timer(pt, "(m*m)T*(m*m)", ni,ni,ni,a,b,c);
     for ( m=2; m<=30;  m+=2) timer(pt, "(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
 """
-    if complex_a or complex_b:
+    if complex_a and complex_b:
         ret += """    for ( m=2; m<=30;  m+=2) trantimer(pt, "tran(m,m,m)", m*m,m,m,a,b,c);\n"""
     ret += """
     for ( m=2; m<=20;  m+=2) timer(pt, "(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);

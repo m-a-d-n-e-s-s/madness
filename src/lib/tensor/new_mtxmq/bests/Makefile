@@ -53,7 +53,7 @@ ifeq ($(TARGET),BGQ)
    LD=$(CC)
    LDFLAGS= -O3 -qarch=qp -qtune=qp -qthreaded
 
-   OBJECTS = bgq_rr.o
+   OBJECTS = bgq_mtxm.o
 endif
 
 all: libMADMTXM.a

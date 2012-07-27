@@ -107,10 +107,10 @@ def main():
     elif args.arch == 'bgq':
         M = MTXMBGQ
         bests = {
-                (False, False): ("ijk", {'i':8, 'j':4, 'k':1}, args.name),
+                (False, False): ("jik", {'i':4, 'j':20, 'k':1}, args.name),
                 (True, False) : ("ijk", {'i':6, 'j':8, 'k':1}, args.name),
-                (False, True) : ("jik", {'i':2, 'j':20, 'k':1}, args.name),
-                (True, True)  : ("ijk", {'i':5, 'j':8, 'k':1}, args.name)}
+                (False, True) : ("jik", {'i':4, 'j':20, 'k':1}, args.name),
+                (True, True)  : ("jik", {'i':3, 'j':28, 'k':1}, args.name)}
         versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,14) for j in range(4,29,4) for lo in ["ijk", "jik"] if i*j <= 90]
 
     m = M(args.cxa, args.cxb)

@@ -245,7 +245,10 @@ class MTXMGen:
         return spaces + self._temp('_br', k, j) + ' = {}({});'.format(self.complex_reverse_dup, addr)
 
     def _load_az(self, spaces, addr, temp, k, i):
-        return spaces + self._temp('_az', k, i) + ' = {}({}{});'.format(self.complex_dup, self.complex_dup_cast, addr)
+        arg0 = ''
+        if self.have_bgq:
+            arg0 = '0, '
+        return spaces + self._temp('_az', k, i) + ' = {}({}{}{});'.format(self.complex_dup, arg0, self.complex_dup_cast, addr)
 
     def _load_bz(self, spaces, addr, temp, k, j):
         return spaces + self._temp('_bz', k, j) + ' = {}({});'.format(self.pair_splat, addr)
@@ -546,17 +549,6 @@ class MTXMBGP(MTXMGen):
         return [x.replace("__restrict__", "").replace("const", "").replace("double complex", "__complex__ double") for x in lines]
 
 class MTXMBGQ(MTXMGen):
-    # Complex Complex:
-    # _a = vec_ld2, _b = vec_ld
-    # _c = vec_xmadd(_a, _b, _c)
-    # _c = vec_xxnpmadd(_b, _a, _c)
-
-    # Complex Real
-    # _a = vec_ld2
-    # _b = vec_ld2
-    # _b = vec_perm(_b, _b, vec_gpci(0x9))
-    # _c = vec_madd(_a, _b, _c)
-
     def __init__(self, *args):
         super().__init__(*args)
         self.have_bgq = True
@@ -567,15 +559,22 @@ class MTXMBGQ(MTXMGen):
         self.vector_store = 'vec_st'
         self.vector_zero = '(vector4double)(0.0)'
 
+        self.complex_dup = 'vec_ld2'
+
         self.splat_type = 'vector4double'
         self.splat_op = 'vec_lds'
+
+    def _load_bz(self, spaces, addr, temp, k, j):
+        t = self._temp('_bz', k, j)
+        ret = spaces + t + ' = vec_ld2{};\n'.format(addr)
+        ret += spaces + t + ' = vec_perm({0}, {0}, _cr_perm);'.format(t)
+        return ret
 
     def _fma(self, at, bt, ct):
         if self.complex_complex:
             return ct + ' = vec_xmadd(' + at + ', ' + bt + ', ' + ct + ');'
         else:
             return ct + ' = vec_madd(' + at + ', ' + bt + ', ' + ct + ');'
-
 
     def _fmaddsub(self, at, bt, ct):
         return ct + ' = vec_xxnpmadd(' + bt + ', ' + at + ', ' + ct + ');'
