@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
     const int nthread = get_nthread();
     if (nthread > MAX_NUM_THREADS)
         MADNESS_EXCEPTION("MAD_NUM_THREADS is too large", nthread);
-    Thread threads[MAX_NUM_THREADS];
+    Thread* threads = new Thread[nthread];
 
     try {
         sum = ndone = 0;
@@ -121,6 +121,8 @@ int main(int argc, char* argv[]) {
     catch (const char * e) {
         cout << "string exception: " << e << endl;
     }
+
+    delete [] threads;
 
     return 0;
 }
