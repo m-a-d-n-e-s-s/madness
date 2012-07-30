@@ -625,7 +625,7 @@ namespace madness {
 
 
         Intermediates intermediates;
-        real_convolution_3d poisson;
+        std::shared_ptr<real_convolution_3d> poisson;
 
     public:
         MP2(World& world, const CorrelationFactor& corrfac, const std::string& input)
@@ -634,8 +634,8 @@ namespace madness {
 //            , hf(world,Calculation(world,input.c_str()))
             , corrfac(corrfac)
             , solved(false)
-            , intermediates()
-            , poisson(CoulombOperator(world,0.0001,param.thresh_*0.01)) {
+            , intermediates() {
+//            , poisson(CoulombOperator(world,0.0001,param.thresh_*0.01)) {
 
         	{
         		Calculation calc(world,input.c_str());
@@ -648,6 +648,8 @@ namespace madness {
                 calc.molecule.set_eprec(calc.param.econv*0.1);
 
                 hf=std::shared_ptr<HartreeFock>(new HartreeFock(world,calc));
+                poisson=std::shared_ptr<real_convolution_3d>
+                	(CoulombOperatorPtr(world,0.0001,calc.param.econv));
         	}
 
 
@@ -931,10 +933,75 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-        	real_function_3d v=hf->get_nuclear_potential();
-        	real_function_3d f=hf->orbital(0);
-        	v.compress();
-        	f.compress();
+        	const real_function_3d v=hf->get_nuclear_potential();
+        	const real_function_3d f=hf->orbital(0);
+        	double n0,n1,n2,d,cpu0,cpu1;
+
+        	real_function_3d mul=f*v;
+        	mul.print_size("mul");
+
+            real_function_3d tmp2=CompositeFactory<double,3,3>(world).g12(copy(v)).ket(copy(f));
+        	tmp2.fill_tree();
+            const size_t maxdepth=tmp2.max_depth();
+            tmp2.print_size("tmp2 "+stringify(maxdepth));
+
+
+//            cpu0=cpu_time();
+//        	real_function_3d r1=(*poisson)(f*v).truncate();
+//        	cpu1=cpu_time();
+//        	print("time",cpu1-cpu0);
+//        	r1.print_size("r1");
+//        	n0=r1.norm2();
+//
+//
+////        	real_function_3d r2=(*poisson)(tmp2).truncate();
+////        	r2.print_size("r2");
+////        	n2=r2.norm2();
+//
+//        	cpu0=cpu_time();
+//            real_function_3d tmp1=CompositeFactory<double,3,3>(world).g12(copy(v)).ket(copy(f));
+//        	real_function_3d result=(*poisson)(tmp1);
+//        	cpu1=cpu_time();
+//        	print("time",cpu1-cpu0);
+//        	result.print_size("result");
+//        	n1=result.norm2();
+//
+//        	real_function_3d diff=r1-result;
+//        	d=diff.norm2();
+//        	if (world.rank()==0) print("diffnorm",d,n0,n1,n2);
+
+            real_function_6d r1;
+            real_function_6d r2;
+
+        	real_function_6d phi0=this->zeroth_order_function(i,j);
+
+            const double eps=zeroth_order_energy(i,j);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+            		FunctionDefaults<6>::get_thresh()*0.1);
+            if (0) {
+				cpu0=wall_time();
+				real_function_6d r12phi=CompositeFactory<double,6,3>(world)
+							.g12(corrfac.f()).ket(copy(phi0));
+				r12phi.fill_tree().truncate().reduce_rank();
+				r1=green(r12phi);
+				cpu1=wall_time();
+				print("time conventional",cpu1-cpu0);
+				save_function(r1,"r1");
+            } else {
+            	load_function(r1,"r1");
+            }
+
+            {
+				cpu0=wall_time();
+				real_function_6d r12phi=CompositeFactory<double,6,3>(world)
+							.g12(corrfac.f()).ket(copy(phi0));
+				r2=green(r12phi);
+				cpu1=wall_time();
+				print("time new",cpu1-cpu0);
+            }
+            real_function_6d diff=r1-r2;
+            d=diff.norm2();
+            if (world.rank()==0) print("diffnorm",d);
 
 
         }
@@ -1618,7 +1685,7 @@ namespace madness {
             MADNESS_ASSERT(hf->get_calc().param.spin_restricted);
             std::vector<real_function_3d> psif = mul_sparse(world, phi, hf->get_calc().amo, tol);
             truncate(world, psif);
-            psif = apply(world, poisson, psif);
+            psif = apply(world, *poisson, psif);
             truncate(world, psif);
             return psif;
         }
