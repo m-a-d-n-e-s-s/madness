@@ -414,6 +414,13 @@ which merely blows instead of sucking.
                 , is_the_default_initializer(false)
         { }
 
+        explicit Future(const AmArg& arg)
+                : f()
+                , value()
+                , is_the_default_initializer(false)
+        {
+            arg & value;
+        }
 
         /// Copy constructor is shallow
         Future(const Future<T>& other)
@@ -600,7 +607,9 @@ which merely blows instead of sucking.
 
         Future(const RemoteReference< FutureImpl<void> >&) {}
 
-        Future(const Future<Void>&) {}
+        Future(const AmArg& arg) {
+            arg & *this;
+        }
 
         inline void set(const Future<void>&) {}
 
@@ -630,8 +639,6 @@ which merely blows instead of sucking.
         Future() {}
 
         Future(const RemoteReference< FutureImpl<Void> >& /*ref*/) {}
-
-        Future(const Future<void>& /*f*/) {}
 
         inline void set(const Future<Void>& /*f*/) {}
 

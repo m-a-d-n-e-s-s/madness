@@ -409,55 +409,12 @@ namespace madness {
 
             detail::TaskHandlerInfo<typename taskT::futureT::remote_refT,
                     typename taskT::functionT> info;
-            a1T a1;
-            a2T a2;
-            a3T a3;
-            a4T a4;
-            a5T a5;
-            a6T a6;
-            a7T a7;
-            a8T a8;
-            a9T a9;
 
-            arg & info & a1 & a2 & a3 & a4 & a5 & a6 & a7 & a8 & a9;
-
-            // Create result future
-            typename taskT::futureT result(info.ref);
+            arg & info;
 
             // Construct task
-            taskT* task = NULL;
-            switch(taskT::arity) {
-            case 0u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, info.attr);
-                break;
-            case 1u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, info.attr);
-                break;
-            case 2u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, info.attr);
-                break;
-            case 3u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, info.attr);
-                break;
-            case 4u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, info.attr);
-                break;
-            case 5u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, a5, info.attr);
-                break;
-            case 6u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, a5, a6, info.attr);
-                break;
-            case 7u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, a5, a6, a7, info.attr);
-                break;
-            case 8u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, a5, a6, a7, a8, info.attr);
-                break;
-            case 9u:
-                task = new MADNESS_ALLOC_CHILD_TASK taskT(result, info.func, a1, a2, a3, a4, a5, a6, a7, a8, a9, info.attr);
-                break;
-            }
+            taskT* task = new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(info.ref),
+                    info.func, info.attr, arg);
 
             // Add task to queue
             arg.get_world()->taskq.add(task);

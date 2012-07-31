@@ -538,6 +538,14 @@ namespace madness {
             check_dependencies();
         }
 
+        TaskFn(const futureT& result, functionT func, const TaskAttributes& attr,
+                const AmArg& arg) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(arg), arg2_(arg),
+            arg3_(arg), arg4_(arg), arg5_(arg), arg6_(arg), arg7_(arg), arg8_(arg), arg9_(arg)
+        {
+            // No need to check dependencies since the arguments are from an archive
+        }
+
         virtual ~TaskFn() { }
 
         const futureT& result() const { return result_; }
