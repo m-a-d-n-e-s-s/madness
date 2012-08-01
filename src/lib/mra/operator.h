@@ -1070,6 +1070,22 @@ namespace madness {
 
         virtual ~SeparatedConvolution() { }
 
+        void print_timer() const {
+        	if (this->world.rank()==0) {
+                timer_full.print("op full tensor       ");
+                timer_low_transf.print("op low rank transform");
+                timer_low_accumulate.print("op low rank addition ");
+        	}
+        }
+
+        void reset_timer() const {
+        	if (this->world.rank()==0) {
+                timer_full.reset();
+                timer_low_transf.reset();
+                timer_low_accumulate.reset();
+        	}
+        }
+
         const BoundaryConditions<NDIM>& get_bc() const {return bc;}
 
         const std::vector< Key<NDIM> >& get_disp(Level n) const {
@@ -1081,6 +1097,36 @@ namespace madness {
             // SeparatedConvolutionData keeps data for all terms and all dimensions and 1 displacement
 //            return 1.0;
             return getop(n, d, source_key)->norm;
+        }
+
+        /// return that part of a hi-dim key that serves as the base for displacements of this operator
+
+        /// if the function and the operator have the same dimension return key
+        /// if the function has a higher dimension than the operator (e.g. in the exchange operator)
+        /// return only that part of key that corresponds to the particle this operator works on
+        /// @param[in]	key	hi-dim key
+        /// @return		a lo-dim part of key; typically first or second half
+        template<size_t FDIM>
+        typename disable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        get_source_key(const Key<FDIM> key) const {
+            Key<NDIM> source;
+            Key<FDIM-NDIM> dummykey;
+            if (particle()==1) key.break_apart(source,dummykey);
+            if (particle()==2) key.break_apart(dummykey,source);
+        	return source;
+        }
+
+        /// return that part of a hi-dim key that serves as the base for displacements of this operator
+
+        /// if the function and the operator have the same dimension return key
+        /// if the function has a higher dimension than the operator (e.g. in the exchange operator)
+        /// return only that part of key that corresponds to the particle this operator works on
+        /// @param[in]	key	hi-dim key
+        /// @return		a lo-dim part of key; typically first or second half
+        template<size_t FDIM>
+        typename enable_if_c<FDIM==NDIM, Key<NDIM> >::type
+        get_source_key(const Key<FDIM> key) const {
+        	return key;
         }
 
         /// apply this operator on a function f

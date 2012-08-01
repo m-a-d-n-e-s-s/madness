@@ -321,10 +321,7 @@ namespace madness {
             if (key.level()<2) return false;
 
             typedef Key<opT::opdim> opkeyT;
-            opkeyT source;
-            Key<NDIM-opT::opdim> dummykey;
-            if (op->particle()==1) key.break_apart(source,dummykey);
-            if (op->particle()==2) key.break_apart(dummykey,source);
+            const opkeyT source=op->get_source_key(key);
 
             const double thresh=f->truncate_tol(f->get_thresh(),key);
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
@@ -1184,6 +1181,21 @@ namespace madness {
             return None;
         }
 
+        void print_timer() const {
+        	if (world.rank()==0) {
+				timer_accumulate.print("accumulate");
+				timer_target_driven.print("total target_driven");
+				timer_lr_result.print("result2low_rank");
+        	}
+        }
+
+        void reset_timer() {
+        	if (world.rank()==0) {
+            	timer_accumulate.reset();
+                timer_target_driven.reset();
+                timer_lr_result.reset();
+        	}
+        }
 
         /// Adds a constant to the function.  Local operation, optional fence
 
@@ -4602,10 +4614,7 @@ namespace madness {
             typedef typename opT::keyT opkeyT;
             static const size_t opdim=opT::opdim;
 
-            opkeyT source;
-            Key<NDIM-opdim> dummykey;
-            if (op->particle()==1) key.break_apart(source,dummykey);
-            if (op->particle()==2) key.break_apart(dummykey,source);
+            const opkeyT source=op->get_source_key(key);
 
             // insert timer here
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -4703,12 +4712,9 @@ namespace madness {
             Key<NDIM-opdim> nullkey(key.level());
 
             // source is that part of key that corresponds to those dimensions being processed
-            opkeyT source;
-            Key<NDIM-opdim> dummykey;
-            if (op->particle()==1) key.break_apart(source,dummykey);
-            if (op->particle()==2) key.break_apart(dummykey,source);
+            const opkeyT source=op->get_source_key(key);
 
-             // fac is the number of contributing neighbors (approx)
+      	    // fac is the number of contributing neighbors (approx)
             const double tol = truncate_tol(thresh, key);
 
             double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
@@ -5175,6 +5181,7 @@ namespace madness {
         	typedef std::pair<bool, coeffT> argT;
             implT* result=const_cast<implT*> (coeff_op.result.impl);
         	MADNESS_ASSERT(result->get_coeffs().is_local(key));
+        	const double tol=this->truncate_tol(this->get_thresh(),key);
 
             // the accurate sum coefficients that will be returned
         	Future<argT> arg0;
@@ -5186,7 +5193,6 @@ namespace madness {
             bool accurate=true;					// accuracy of the children, as defined by coeff_op
         	bool do_continue_recursion=false;	// if we will continue the recursion
         	bool do_apply_operator=true;		// if we will apply the operator
-        	bool did_apply=false;				// marker for the 0-displacement of the operator
 
         	// step 1: filter
         	// collect the sum coeffs from the children
@@ -5216,7 +5222,7 @@ namespace madness {
             d(cdata.s0)=0.0;
             const double error=d.normf();
             d.clear();
-            if (error < this->truncate_tol(this->get_thresh(),key) and key.level()>2) {
+            if (error < tol and key.level()>2) {
             	do_apply_operator=false;
             	do_continue_recursion=false;
             }
@@ -5230,12 +5236,17 @@ namespace madness {
             	do_continue_recursion=false;
             }
 
-            // estimate a-posteriori
-			if (0) {//not small_opnorm) {
-				coeff=coeffT(c,get_tensor_args());
-				const double resultnorm=this->do_apply_directed_screening<apply_opT,T>(apply_op, key, coeff, true);
-				did_apply=true;
-				if (resultnorm< this->truncate_tol(this->get_thresh(),key)) {
+            // estimate a-posteriori; this takes about .5 sec/box for k5 e3 f12|phi0>
+			if ((do_apply_operator or do_continue_recursion) and key.level()>2) {
+
+				// pass in a null-displacement key; needs not be very accurate since we only need the norm
+				const double cnorm=c.normf();
+				const Key<apply_opT::opdim> source=apply_op->get_source_key(key);
+				tensorT result_full = apply_op->apply(source, Key<apply_opT::opdim>(0), c, tol/cnorm);
+
+				const double fac=10.0;
+				const double resultnorm=result_full.normf();
+				if (resultnorm< tol/fac) {
 	            	do_apply_operator=false;
 	            	do_continue_recursion=false;
 				}
@@ -5245,21 +5256,25 @@ namespace madness {
             if (do_apply_operator) {
 
             	large++;
-            	print(key);
 
 				if (coeff.has_no_data()) coeff=coeffT(c,get_tensor_args());
                 const coeffT coeff0=coeffT(copy(c(cdata.s0)),get_tensor_args());
+                c.clear();
 
 				// send off the operator apply
 				ProcessID p=world.rank();
 
 				// do the 0-displacement
-				if (not did_apply) woT::task(p,&implT:: template do_apply_directed_screening<apply_opT,T>,
-						apply_op, key, coeff, true);
+//				woT::task(p,&implT:: template do_apply_directed_screening<apply_opT,T>,
+//						apply_op, key, coeff, true,TaskAttributes::hipri());
+//
+//				// do all other displacements
+//				woT::task(p,&implT:: template do_apply_directed_screening<apply_opT,T>,
+//						apply_op, key, coeff, false,TaskAttributes::hipri());
 
-				// do all other displacements
-				woT::task(p,&implT:: template do_apply_directed_screening<apply_opT,T>,
-						apply_op, key, coeff, false);
+				do_apply_directed_screening<apply_opT,T>(apply_op, key, coeff, true);
+				do_apply_directed_screening<apply_opT,T>(apply_op, key, coeff, false);
+//            	print(key, wall_time());
 
 				arg0=Future<argT>(argT(true,coeff0));
             }
@@ -5290,7 +5305,7 @@ namespace madness {
                     		// make coeffs for child; possibly inaccurate
                         	v2[ii]=woT::task(world.rank(),
                         			&implT:: template s_mul_ns_apply_forward1<coeff_opT>,
-                        			gchild_op,grandchild);
+                        			gchild_op,grandchild,TaskAttributes::hipri());
 
                         }
                         // v2 might be inaccurate, but s_mul_ns_apply will return accurate child coeffs
@@ -5298,13 +5313,15 @@ namespace madness {
                 		Future<coeff_opT> child_op=coeff_op.make_child_op(child);
 
                         v_accurate[i]=woT::task(p,&implT:: template s_mul_ns_apply<coeff_opT, apply_opT>,
-                				child, child_op, apply_op, v2);
+                				child, child_op, apply_op, v2, TaskAttributes::hipri());
                 	}
 
                 }
                 // now we have accurate child coeffs on v_accurate, call self again
                 arg0 = woT::task(world.rank(),&implT:: template s_mul_ns_apply<coeff_opT, apply_opT>,
             				key, coeff_op, apply_op, v_accurate);
+			} else {
+				// release memory of coeff_op
 			}
 
 			// step 3c: don't do nothing and return accurate sum coeffs
@@ -5328,7 +5345,7 @@ namespace madness {
         template<typename coeff_opT>
         Future<std::pair<bool,coeffT> > s_mul_ns_apply_forward1(const coeff_opT& coeff_op, const keyT& key) const {
        		ProcessID p=coeffs.owner(key);
-       		return woT::task(p,&implT:: template s_mul_ns_apply_forward2<coeff_opT>,coeff_op,key);
+       		return woT::task(p,&implT:: template s_mul_ns_apply_forward2<coeff_opT>,coeff_op,key,TaskAttributes::hipri());
     	}
 
         /// traverse an imaginary tree, make coefficients and apply an operator

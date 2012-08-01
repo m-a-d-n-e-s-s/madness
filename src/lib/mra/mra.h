@@ -1893,25 +1893,14 @@ namespace madness {
     	Function<resultT,LDIM+LDIM> result=factory.empty().fence();
     	Function<resultT,LDIM+LDIM> r1=factory.empty().fence();		// this is a dummy function
 
-    	result.get_impl()->timer_accumulate.reset();
-        result.get_impl()->timer_target_driven.reset();
-        result.get_impl()->timer_lr_result.reset();
-        op.timer_full.reset();
-        op.timer_low_transf.reset();
-        op.timer_low_accumulate.reset();
+    	result.get_impl()->reset_timer();
+    	op.reset_timer();
 
         result.get_impl()->recursive_apply(op, f1.get_impl().get(),
         		f2.get_impl().get(), r1.get_impl().get(),true);			// will fence here
 
-        if (result.world().rank()==0) {
-            result.get_impl()->timer_accumulate.print("accumulate");
-            result.get_impl()->timer_target_driven.print("total target_driven");
-            result.get_impl()->timer_lr_result.print("result2low_rank");
-
-            op.timer_full.print("op full tensor       ");
-            op.timer_low_transf.print("op low rank transform");
-            op.timer_low_accumulate.print("op low rank addition ");
-        }
+        result.get_impl()->print_timer();
+        op.print_timer();
 
 		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
 
@@ -1938,28 +1927,17 @@ namespace madness {
         result.set_impl(f, true);
         r1.set_impl(f, true);
 
-        result.get_impl()->timer_accumulate.reset();
-        result.get_impl()->timer_target_driven.reset();
-        result.get_impl()->timer_lr_result.reset();
-
-        op.timer_full.reset();
-        op.timer_low_transf.reset();
-        op.timer_low_accumulate.reset();
+        result.get_impl()->reset_timer();
+        op.reset_timer();
 
         result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
 //        result.get_impl()->recursive_apply(op, f.get_impl().get(),
 //        		r1.get_impl().get(),true);			// will fence here
 
 
-        if ((NDIM==6) and (f.world().rank()==0)) {
-
-            result.get_impl()->timer_accumulate.print("accumulate");
-            result.get_impl()->timer_target_driven.print("total target_driven");
-            result.get_impl()->timer_lr_result.print("result2low_rank");
-
-            op.timer_full.print("op full tensor       ");
-            op.timer_low_transf.print("op low rank transform");
-            op.timer_low_accumulate.print("op low rank addition ");
+        if (NDIM==6) {
+            result.get_impl()->print_timer();
+            op.print_timer();
         }
 		result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
 
@@ -1985,9 +1963,16 @@ namespace madness {
             result.set_impl(ff, false);		// this will be the final result: op(f)
             vphi.set_impl(ff, false);
 
+            result.get_impl()->reset_timer();
+            op.reset_timer();
+
             result.get_impl()->recursive_op_NS(op,vphi.get_impl().get(),ff.get_impl().get());
             vphi.get_impl()->get_coeffs().clear();
             result.reconstruct();
+
+            result.get_impl()->print_timer();
+            op.print_timer();
+
 
             return result;
 
