@@ -400,8 +400,7 @@ namespace madness {
             return op(left,right);
         }
 
-        template <typename taskT, typename a1T, typename a2T, typename a3T, typename a4T, typename a5T,
-                typename a6T, typename a7T, typename a8T, typename a9T>
+        template <typename taskT>
         static void spawn_remote_task_handler(const AmArg& arg) {
             MADNESS_ASSERT(taskT::arity <= 9u);
 
@@ -443,7 +442,7 @@ namespace madness {
         {
             typename taskT::futureT result;
             typedef detail::TaskHandlerInfo<typename taskT::futureT::remote_refT, typename taskT::functionT> infoT;
-            world.am.send(where, & WorldTaskQueue::template spawn_remote_task_handler<taskT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T>,
+            world.am.send(where, & WorldTaskQueue::template spawn_remote_task_handler<taskT>,
                     new_am_arg(infoT(result.remote_ref(world), fn, attr),
                     a1, a2, a3, a4, a5, a6, a7, a8, a9));
 
