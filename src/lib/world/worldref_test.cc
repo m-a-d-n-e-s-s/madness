@@ -475,13 +475,13 @@ namespace {
             XferRef<int> xfer_wobj(*pworld);
             xfer_wobj.xfer(send, r, true);
 
-            pworld->gop.barrier();
+            pworld->gop.fence();
 
             // Check that there is one remote reference in addition to the
             // single local reference
             EXPECT_EQ(2, r.use_count());
 
-            pworld->gop.barrier();
+            pworld->gop.fence();
 
             // wait for the remote reference
             RemoteReference<int>& remote = xfer_wobj.remote_ref.get();
@@ -504,7 +504,7 @@ namespace {
 
             xfer_wobj.xfer(recv, remote, false);
 
-            pworld->gop.barrier();
+            pworld->gop.fence();
             // Check that the remote reference is NULL after sending it back
             EXPECT_FALSE(remote);
 
