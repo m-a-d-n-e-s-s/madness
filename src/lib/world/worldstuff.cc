@@ -171,6 +171,7 @@ namespace madness {
 
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
+
         if (me == 0) std::cout << "Runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
 
 #ifdef HAVE_PAPI
@@ -185,7 +186,9 @@ namespace madness {
     }
 
     void finalize() {
+//#if !HAVE_INTEL_TBB
         RMI::end();
+//#endif
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
 #ifdef MADNESS_USE_BSEND_ACKS
         MPI::Detach_buffer(mpi_ack_buffer);

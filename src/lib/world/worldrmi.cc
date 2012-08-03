@@ -42,6 +42,10 @@ namespace madness {
 
     RMI* RMI::instance_ptr = 0;
 
+#if HAVE_INTEL_TBB
+    tbb::empty_task* RMI::tbb_rmi_parent_task = 0;
+#endif
+
     bool RMI::is_ordered(attrT attr) {
         return attr & ATTR_ORDERED;
     }
@@ -236,7 +240,16 @@ namespace madness {
                 post_recv_buf(i);
             }
             recv_buf[NRECV] = 0;
+#if HAVE_INTEL_TBB
+            tbb_rmi_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
+            tbb_rmi_parent_task->set_ref_count(2);
+
+            RMI_TBB_TASK* rmi_task = new (tbb_rmi_parent_task->allocate_child()) RMI_TBB_TASK(this);
+
+            tbb_rmi_parent_task->enqueue(*rmi_task);
+#else
             start();
+#endif
         }
     }
 
@@ -352,6 +365,6 @@ namespace madness {
 
     const RMIStats& RMI::get_stats() {
         return instance()->stats;
-    }
+    } 
 
 } // namespace madness

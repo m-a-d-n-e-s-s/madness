@@ -46,12 +46,7 @@
 
 #include <iostream>
 #include <world/nodefaults.h>
-//#include <world/worldtypes.h>
-//#include <world/typestuff.h>
-//#include <world/worlddep.h>
-//#include <world/worldthread.h>
 #include <world/worldrange.h>
-//#include <world/worldfut.h>
 #include <world/worldtime.h>
 #include <world/taskfn.h>
 
@@ -72,7 +67,6 @@ namespace madness {
     namespace detail {
 
         /// Serialization container for sending tasks to remote nodes
-
         /// This is for internal use only. You should not use this class directly.
         /// \tparam refT The remote reference type for task result future
         /// \tparam functionT The task function type
@@ -124,7 +118,6 @@ namespace madness {
             }
 
             /// Serialization for non- function pointers and member function pointers.
-
             /// \tparam fnT The function type
             /// \tparam Archive The serialization archive type
             /// \param ar The serialization archive
@@ -569,7 +562,13 @@ namespace madness {
         WorldTaskQueue(World& world);
 
         /// Returns the number of pending tasks
-        size_t size() const { return nregistered; }
+        size_t size() const {
+#if HAVE_INTEL_TBB
+            return ThreadPool::tbb_parent_task->ref_count()-1;
+#else
+            return nregistered;
+#endif
+        }
 
         class Stealer {
             WorldTaskQueue& q;
@@ -605,7 +604,13 @@ namespace madness {
             t->set_info(&world, this);       // Stuff info
 
             if (t->ndep() == 0) {
+#if HAVE_INTEL_TBB
+                ThreadPool::tbb_parent_task->increment_ref_count();
+//                ThreadPool::tbb_parent_task->spawn(*t);
+                ThreadPool::tbb_parent_task->enqueue(*t);
+#else
                 ThreadPool::add(t); // If no dependencies directly submit
+#endif
             } else {
                 // With dependencies must use the callback to avoid race condition
                 t->register_submit_callback();
@@ -1188,6 +1193,22 @@ namespace madness {
         { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,attr); }
 
         struct ProbeAllDone {
+#if HAVE_INTEL_TBB
+            tbb::empty_task* tq;
+            double start;
+            ProbeAllDone(tbb::empty_task* tq) : tq(tq), start(cpu_time()) {}
+            bool operator()() const {
+                if (cpu_time()-start > 1200) {
+                    for (int loop = 0; loop<3; ++loop) {
+                        std::cout << "HUNG Q? " << tq->ref_count()-1 << std::endl;
+                        std::cout.flush();
+                        myusleep(1000000);
+                    }
+                    MADNESS_ASSERT(cpu_time()-start < 1200);
+                }
+                return (tq->ref_count() == 1);
+            }
+#else
             WorldTaskQueue* tq;
             double start;
             ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
@@ -1202,17 +1223,26 @@ namespace madness {
                 }
                 return (tq->size() == 0);
             }
+#endif
         };
 
         /// Returns after all local tasks have completed
 
         /// While waiting the calling thread will run tasks.
         void fence()  {
+#if HAVE_INTEL_TBB
+            ProbeAllDone tester(ThreadPool::tbb_parent_task);
+            do {
+                world.await(tester);
+            }
+            while (ThreadPool::tbb_parent_task->ref_count()-1);
+#else
             ProbeAllDone tester(this);
             do {
                 world.await(tester);
             }
             while (nregistered);
+#endif
         }
     };
 

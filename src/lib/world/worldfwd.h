@@ -573,7 +573,7 @@ namespace madness {
         // Cannot use bind_nullary here since MPI::Request::Test is non-const
         struct MpiRequestTester {
             mutable SafeMPI::Request* r;
-            MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
+            MpiRequestTester(SafeMPI::Request& r) : r(&r) {}
             bool operator()() const {
                 return r->Test();
             }
@@ -585,7 +585,41 @@ namespace madness {
             await(MpiRequestTester(request), dowork);
         }
 
+#if HAVE_INTEL_TBB
 
+        template<typename Probe>
+        class probe_task : public tbb::task {
+        private:
+            const Probe& my_probe;
+        public:
+            probe_task( const Probe &p ) : my_probe(p) {}
+            tbb::task* execute() {
+               if( !my_probe() ) {
+                   probe_task* new_task = new (allocate_continuation()) probe_task(my_probe); // a continuation “inherits” the parent and keeps its ref count the same
+//                   spawn(*new_task);
+                   enqueue(*new_task);
+                }
+                return NULL;
+            }
+        };
+
+        /// Gracefully wait for a condition to become true ... executes tasks if any in queue
+
+        /// Probe should be an object that when called returns the status.
+        template <typename Probe>
+        static void inline await(const Probe& probe, bool dowork = true) {
+            PROFILE_MEMBER_FUNC(World);
+            // NEED TO RESTORE THE WATCHDOG STUFF
+            if (!probe()) {
+                tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
+                local_wait_task->set_ref_count(2); // 1 for child, 1 for blocking
+                tbb::task* pt = new (local_wait_task->allocate_child()) probe_task<Probe>(probe);
+//                local_wait_task->spawn_and_wait_for_all(*pt);
+                local_wait_task->enqueue(*pt);
+                local_wait_task->wait_for_all(); // will only return when the probe is true.
+            }
+        }
+#else
         /// Gracefully wait for a condition to become true ... executes tasks if any in queue
 
         /// Probe should be an object that when called returns the status.
@@ -601,6 +635,7 @@ namespace madness {
                 else waiter.wait();
             }
         }
+#endif
 
         void srand(unsigned long seed = 0ul) {
             if (seed == 0) seed = rank();

@@ -42,6 +42,11 @@
 #include <cstdio>
 #include <pthread.h>
 
+#ifdef HAVE_INTEL_TBB
+#include "tbb/tbb.h"
+#endif
+
+
 #ifndef _SC_NPROCESSORS_CONF
 // Old macs don't have necessary support thru sysconf to determine the
 // no. of processors so must use sysctl
@@ -246,6 +251,14 @@ namespace madness {
             : _nthread(nthread), _id(id), _barrier(barrier)
         {}
 
+#if HAVE_INTEL_TBB
+        // I can not get the TaskThreadEnv to work with Barrier
+        // Need to figure out why
+        TaskThreadEnv(int nthread, int id)
+            : _nthread(1), _id(id), _barrier(NULL)
+        {};
+#endif
+
         int nthread() const {return _nthread;}
 
         int id() const {return _id;}
@@ -265,8 +278,13 @@ namespace madness {
 
     /// The pool invokes run_multi_threaded() that does any necessary
     /// setup for multiple threads and then invokes the users \c run method.
-    class PoolTaskInterface : public TaskAttributes {
-    	friend class ThreadPool;
+    class PoolTaskInterface :
+        #if HAVE_INTEL_TBB
+            public tbb::task,
+        #endif
+            public TaskAttributes
+    {
+        friend class ThreadPool;
 
     private:
         Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
@@ -274,6 +292,9 @@ namespace madness {
 
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
+#if HAVE_INTEL_TBB
+            MADNESS_EXCEPTION("run_multi_threaded should not be called when using Intel TBB", 1);
+#else
             // As a thread enters this routine it increments the shared counter
             // to generate a unique id without needing any thread-local storage.
             // A downside is this does not preserve any relationships between thread
@@ -292,6 +313,7 @@ namespace madness {
                 
                 return barrier->enter(id);
             }
+#endif
         }
 
     public:
@@ -325,6 +347,18 @@ namespace madness {
             }
         }
 
+#if HAVE_INTEL_TBB
+        tbb::task* execute() {
+            int nthread = get_nthread();
+            int id = count++;
+//            volatile bool barrier_flag;
+//            barrier->register_thread(id, &barrier_flag);
+
+            run( TaskThreadEnv(nthread, id) );
+            return NULL;
+        }
+#endif
+
         /// Override this method to implement a multi-threaded task
 
         /// \c info.nthread() will be the number of threads collaborating on this task
@@ -351,11 +385,13 @@ namespace madness {
     /// A singleton pool of threads for dynamic execution of tasks.
 
     /// YOU MUST INSTANTIATE THE POOL WHILE RUNNING WITH JUST ONE THREAD
-    class ThreadPool {
+    class ThreadPool
+    {
     private:
         friend class WorldTaskQueue;
         Thread *threads;              ///< Array of threads
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
+
         int nthreads;		  ///< No. of threads
         volatile bool finish;              ///< Set to true when time to stop
         AtomicInt nfinished;
@@ -373,6 +409,9 @@ namespace madness {
 
         /// Run next task ... returns true if one was run ... blocks if wait is true
         bool run_task(bool wait) {
+#if HAVE_INTEL_TBB
+            MADNESS_EXCEPTION("run_task should not be called when using Intel TBB", 1);
+#else
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             // Task pointer might be zero due to stealing
@@ -381,9 +420,23 @@ namespace madness {
                     delete t.first;
             }
             return t.second;
+#endif
         }
 
         bool run_tasks(bool wait) {
+#if HAVE_INTEL_TBB
+//            if (!wait && tbb_task_list->empty()) return false;
+//            tbb::task* t = &tbb_task_list->pop_front();
+//            if (t) {
+//                tbb_parent_task->increment_ref_count();
+//                tbb_parent_task->enqueue(*t);
+//            }
+
+//            wait = (tbb_parent_task->ref_count() >= 1) ? false : true;
+//            return wait;
+
+            MADNESS_EXCEPTION("run_tasks should not be called when using Intel TBB", 1);
+#else
             static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
             PoolTaskInterface* taskbuf[nmax];
             int ntask = queue.pop_front(nmax, taskbuf, wait);
@@ -395,6 +448,7 @@ namespace madness {
                 }
             }
             return (ntask>0);
+#endif
         }
 
         void thread_main(Thread* thread);
@@ -411,6 +465,14 @@ namespace madness {
 
 
     public:
+
+#if HAVE_INTEL_TBB
+        // all tasks run as children of tbb_parent_task
+        // be sure to allocate tasks with tbb_parent_task->allocate_child()
+        static tbb::empty_task* tbb_parent_task;
+        static tbb::task_scheduler_init* tbb_scheduler;
+#endif
+
         /// Please invoke while in single threaded environment
         static void begin(int nthread=-1);
 
@@ -418,6 +480,9 @@ namespace madness {
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
+#if HAVE_INTEL_TBB
+            MADNESS_EXCEPTION("Do not add tasks to the madness task queue when using Intel TBB.", 1);
+#else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int nthread = task->get_nthread();
             // Currently multithreaded tasks must be shoved on the end of the q
@@ -428,6 +493,7 @@ namespace madness {
             else {
                 instance()->queue.push_back(task, nthread);
             }
+#endif
         }
 
         template <typename opT>
@@ -438,10 +504,14 @@ namespace madness {
 
         /// Add a vector of tasks to the pool
         static void add(const std::vector<PoolTaskInterface*>& tasks) {
+#if HAVE_INTEL_TBB
+            MADNESS_EXCEPTION("Do not add tasks to the madness task queue when using Intel TBB.", 1);
+#else
             typedef std::vector<PoolTaskInterface*>::const_iterator iteratorT;
             for (iteratorT it=tasks.begin(); it!=tasks.end(); ++it) {
                 add(*it);
             }
+#endif
         }
 
         /// An otherwise idle thread can all this to run a task
@@ -464,7 +534,13 @@ namespace madness {
         /// Returns queue statistics
         static const DQStats& get_stats();
 
-        ~ThreadPool() {}
+        ~ThreadPool() {
+#if HAVE_INTEL_TBB
+            delete(tbb_parent_task);
+            tbb_scheduler->terminate();
+            delete(tbb_scheduler);
+#endif
+        }
     };
 
 }

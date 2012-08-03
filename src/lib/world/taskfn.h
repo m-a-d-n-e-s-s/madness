@@ -59,7 +59,7 @@ namespace madness {
     /// \c run(World&, \c const \c TaskThreadEnv&) - the user implements this for
     /// a multi-threaded task.
     ///
-    class TaskInterface : public DependencyInterface , public PoolTaskInterface {
+    class TaskInterface : public PoolTaskInterface, public DependencyInterface {
         friend class WorldTaskQueue;
     private:
         volatile World* world;
@@ -70,7 +70,14 @@ namespace madness {
             PoolTaskInterface* p;
             Submit(PoolTaskInterface* p) : p(p) {}
             void notify() {
+#if HAVE_INTEL_TBB
+                ThreadPool::tbb_parent_task->increment_ref_count();
+//                ThreadPool::tbb_parent_task->spawn(*p);
+                ThreadPool::tbb_parent_task->enqueue(*p);
+#else
+
                 ThreadPool::add(p);
+#endif
             }
         } submit;
 
@@ -95,8 +102,8 @@ namespace madness {
 
         /// Create a new task with ndepend dependencies (default 0) and given attributes
         TaskInterface(int ndepend=0, const TaskAttributes attr = TaskAttributes())
-                : DependencyInterface(ndepend)
-                , PoolTaskInterface(attr)
+                : PoolTaskInterface(attr)
+                , DependencyInterface(ndepend)
                 , world(0)
                 , completion(0)
                 , submit(this)
@@ -104,8 +111,8 @@ namespace madness {
 
         /// Create a new task with zero dependencies and given attributes
         explicit TaskInterface(const TaskAttributes& attr)
-                : DependencyInterface(0)
-                , PoolTaskInterface(attr)
+                : PoolTaskInterface(attr)
+                , DependencyInterface(0)
                 , world(0)
                 , completion(0)
                 , submit(this)

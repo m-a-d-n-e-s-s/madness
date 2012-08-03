@@ -550,7 +550,7 @@ namespace madness {
                 arg5T arg5;
                 arg6T arg6;
                 arg7T arg7;
-				arg8T arg8;
+                arg8T arg8;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8;
                 typename detail::info<memfunT>::futureT result(info.ref);
                 arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
@@ -558,6 +558,37 @@ namespace madness {
                         arg4, arg5, arg6, arg7, arg8, info.attr));
             }
         }
+
+        // Handler for incoming task with 9 arguments
+        template <typename memfunT, typename arg1T, typename arg2T, typename arg3T, typename arg4T,
+        typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
+        static void handler_task(const AmArg& arg) {
+            typedef TaskFn<detail::MemFuncWrapper<Derived*, memfunT,
+                    typename detail::result_of<memfunT>::type>,
+                    arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T> taskT;
+
+            const uniqueidT& id = detail::peek(arg);
+            am_handlerT ptr = handler_task<memfunT,arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T>;
+            Derived* obj;
+            if (is_ready(id,obj,arg,ptr)) {
+                detail::info<memfunT> info;
+                arg1T arg1;
+                arg2T arg2;
+                arg3T arg3;
+                arg4T arg4;
+                arg5T arg5;
+                arg6T arg6;
+                arg7T arg7;
+                arg8T arg8;
+                arg9T arg9;
+                arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
+                typename detail::info<memfunT>::futureT result(info.ref);
+                arg.get_world()->taskq.add(new MADNESS_ALLOC_CHILD_TASK taskT(result,
+                        detail::wrap_mem_fn(obj,info.memfun), arg1, arg2, arg3,
+                        arg4, arg5, arg6, arg7, arg8, arg9, info.attr));
+            }
+        }
+
 
         // This slightly convoluted logic is to ensure ordering when
         // processing pending messages.  If a new message arrives

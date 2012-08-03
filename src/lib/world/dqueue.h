@@ -59,6 +59,7 @@ namespace madness {
                 : npush_back(0), npush_front(0), npop_front(0), ngrow(0), nmax(0) {}
     };
 
+
     /// A thread safe, fast but simple doubled-ended queue.
 
     /// Since the point is speed, the implementation is a circular

@@ -211,7 +211,7 @@ SystolicEigensolver<T> void systolic_eigensolver(DistributedMatrix<T>& A, int ta
 
     DistributedMatrix<T> A_V = concatenate_rows(A,V);
 
-    A.get_world().taskq.add(new SystolicEigensolver<T>(A_V, tag));
+    A.get_world().taskq.add(new MADNESS_ALLOC_CHILD_TASK SystolicEigensolver<T>(A_V, tag));
     A.get_world().taskq.fence();
 
 } */
@@ -293,10 +293,10 @@ int main(int argc, char** argv) {
                print("matrix D");
                print(D.data()); //... O.K
 
-               world.taskq.add(new TestSystolicMatrixAlgorithm<double>(C, 3333));
+               world.taskq.add(new MADNESS_ALLOC_CHILD_TASK TestSystolicMatrixAlgorithm<double>(C, 3333));
                world.taskq.fence();
 
-               world.taskq.add(new SystolicEigensolver<double>(A, 3334));
+               world.taskq.add(new MADNESS_ALLOC_CHILD_TASK SystolicEigensolver<double>(A, 3334));
                world.taskq.fence();
              */
         }

@@ -394,7 +394,7 @@ namespace madness {
         for (long i=n-1; i>=0; --i) {
             long jtop = m;
             if (sym) jtop = i+1;
-            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
+            world.taskq.add(new MADNESS_ALLOC_CHILD_TASK MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
         }
         world.gop.fence();
         world.gop.sum(r.ptr(),n*m);

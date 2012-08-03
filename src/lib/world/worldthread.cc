@@ -50,6 +50,10 @@ namespace madness {
     bool ThreadBase::bind[3];
 
     ThreadPool* ThreadPool::instance_ptr = 0;
+#if HAVE_INTEL_TBB
+    tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
+    tbb::empty_task* ThreadPool::tbb_parent_task = 0;
+#endif
 
     void* ThreadBase::main(void* self) {
 #ifdef HAVE_PAPI
@@ -192,11 +196,19 @@ namespace madness {
     }
 
     /// The constructor is private to enforce the singleton model
-    ThreadPool::ThreadPool(int nthread) : nthreads(nthread), finish(false) {
+    ThreadPool::ThreadPool(int nthread) : nthreads(nthread), finish(false)
+    {
         nfinished = 0;
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
-        //std::cout << "POOL " << nthreads << std::endl;
+
+#if HAVE_INTEL_TBB
+        // There are nthreads+2 because the main and communicator thread
+        // are now a part of tbb.
+        tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+        tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
+        tbb_parent_task->increment_ref_count();
+#else
 
         try {
             if (nthreads > 0)
@@ -212,6 +224,7 @@ namespace madness {
             threads[i].set_pool_thread_index(i);
             threads[i].start(pool_thread_main, (void *)(threads+i));
         }
+#endif
     }
 
     /// Get number of threads from the environment
@@ -267,12 +280,14 @@ namespace madness {
     }
 
     void ThreadPool::end() {
+#if !HAVE_INTEL_TBB
         if (!instance_ptr) return;
         instance()->finish = true;
         for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);
+#endif
     }
 
     /// Returns queue statistics

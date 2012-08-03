@@ -89,7 +89,7 @@ AC_DEFUN([ACX_WITH_TBB], [
       
     fi
     
-    AC_DEFINE(MADNESS_HAS_TBB, [1], [Define if Intel TBB is available.])
+    AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
     AC_LANG_RESTORE
   fi
 ])

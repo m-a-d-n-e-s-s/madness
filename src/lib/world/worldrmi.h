@@ -34,12 +34,8 @@
 #define MADNESS_WORLD_WORLDRMI_H__INCLUDED
 
 #include <world/safempi.h>
-//#include <cstdlib>
-//#include <iostream>
-//#include <algorithm>
 #include <world/worldthread.h>
 #include <world/worldtypes.h>
-//#include <world/posixmem.h>
 #include <utility>
 #include <list>
 
@@ -145,6 +141,21 @@ namespace madness {
         typedef SafeMPI::Request Request;
 
     private:
+#if HAVE_INTEL_TBB
+        static tbb::empty_task* tbb_rmi_parent_task;
+
+        class RMI_TBB_TASK : public tbb::task {
+        private:
+            RMI* rmi;
+        public:
+            RMI_TBB_TASK(RMI* rmi_) : rmi(rmi_) {}
+            tbb::task* execute() {
+                rmi->run();
+                return NULL;
+            }
+        };
+#endif
+
 #ifdef HAVE_CRAYXT
         static const int NRECV=128;
 #else
@@ -194,6 +205,7 @@ namespace madness {
         void private_exit();
 
     public:
+
         static Request isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED);
 
         static void end();
@@ -207,5 +219,7 @@ namespace madness {
         static const RMIStats& get_stats();
     };
 }
+
+
 
 #endif // MADNESS_WORLD_WORLDRMI_H__INCLUDED
