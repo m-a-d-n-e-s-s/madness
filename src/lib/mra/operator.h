@@ -1375,7 +1375,7 @@ namespace madness {
 
             const SeparatedConvolutionData<Q,NDIM>* op = getop(source.level(), shift, source);
 
-            GenTensor<resultT> r(v2k,tt), r0(vk,tt), result(v2k,tt), result0(vk,tt);
+            GenTensor<resultT> r, r0, result, result0;
             GenTensor<resultT> work1(v2k,tt), work2(v2k,tt);
             GenTensor<Q> work5(v2k,tt);
 
@@ -1386,6 +1386,10 @@ namespace madness {
                 work5=GenTensor<Q>();
 
             }
+
+            // collect the results of the individual operator terms
+            std::list<GenTensor<T> > r_list;
+            std::list<GenTensor<T> > r0_list;
 
 //            const GenTensor<T> f0 = copy(coeff(s0));
             const GenTensor<T> f0 = copy((*input)(s0));
@@ -1414,21 +1418,21 @@ namespace madness {
                                 tol/std::abs(fac), fac,	work1, work2, work5);
                         double cpu1=cpu_time();
                         timer_low_transf.accumulate(cpu1-cpu0);
-                        cpu0=cpu1;
 
-                        r.reduceRank(tol2);
-                        r0.reduceRank(tol2);
-                        result.add_SVD(r,tol2);
-                        result0.add_SVD(r0,tol2);
-
-                        cpu1=cpu_time();
-                        timer_low_accumulate.accumulate(cpu1-cpu0);
+                        r_list.push_back(r);
+                        r0_list.push_back(r0);
                     }
                 }
             }
+
+            // finally accumulate all the resultant terms into one tensor
             double cpu0=cpu_time();
-            result(s0)+=result0;
+
+            result0=reduce(r0_list,tol2*rank);
+            if (r_list.size()>0) r_list.front()(s0)+=result0;
+            result=reduce(r_list,tol2*rank);
             result.reduceRank(tol2*rank);
+
             double cpu1=cpu_time();
             timer_low_accumulate.accumulate(cpu1-cpu0);
             return result;

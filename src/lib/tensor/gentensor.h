@@ -118,7 +118,9 @@
 
 namespace madness {
 
+	// a forward declaration
 	template <class T> class SliceGenTensor;
+	template <class T> class GenTensor;
 
 
 	/// TensorArgs holds the arguments for creating a LowRankTensor
@@ -143,6 +145,13 @@ namespace madness {
 		    tt=TensorType(i);
 		}
 	};
+
+
+    /// true if GenTensor has zero rank or no data
+    template<typename T>
+    bool has_zero_rank(const GenTensor<T>& g) {
+    	return ((g.rank()==0) or (g.tensor_type()==TT_NONE));
+    }
 
 
 #if !HAVE_GENTENSOR
@@ -1596,7 +1605,65 @@ namespace madness {
     	return t.transform(c);
     }
 
+    /// helper struct for reduce
+    struct RankReduceWrapper {
+    	double eps;
+    	RankReduceWrapper(const double& e) : eps(e) {}
 
+    	template<typename T>
+    	void operator()(GenTensor<T>& g) const {
+    		g.reduceRank(eps);
+    	}
+    };
+
+    /// compare the rank of two GenTensors for sorting
+    template<typename T>
+    bool compare_rank(const GenTensor<T>& g1, const GenTensor<T>& g2) {
+    	return g1.rank()<g2.rank();
+    }
+
+
+    /// add all the GenTensors of a given list
+
+    /// If there are many tensors to add it's beneficial to do a sorted addition and start with
+    /// those tensors with low ranks
+    /// @param[in]	addends		a list with gentensors of same dimensions; will be destroyed upon return
+    /// @param[in]	eps			the accuracy threshold
+    /// @param[in]	are_optimal	flag if the GenTensors in the list are already in SVD format (if TT_2D)
+    ///	@return		the sum GenTensor of the input GenTensors
+    template<typename T>
+	GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
+
+    	// fast return
+    	if (addends.size()==0) return GenTensor<T>();
+
+    	typedef typename std::list<GenTensor<T> >::iterator iterT;
+
+    	// make error relative
+    	eps=eps/addends.size();
+
+    	// if the addends are not in SVD format do that now so that we can call add_svd later
+    	if (not are_optimal) {
+    		RankReduceWrapper f(eps);
+    		std::for_each(addends.begin(),addends.end(),f);
+    	}
+
+    	// remove zero ranks and sort the list according to the gentensor's ranks
+		addends.remove_if(has_zero_rank<T>);
+    	if (addends.size()==0) return GenTensor<T>();
+		addends.sort(compare_rank<T>);
+
+    	// do the additions
+    	GenTensor<T> result=copy(addends.front());
+    	for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
+    		GenTensor<T>& rhs=*it;
+    		MADNESS_ASSERT(&rhs!=&result);
+    		result.add_SVD(rhs,eps);
+    	}
+    	addends.clear();
+
+    	return result;
+    }
 
     /// Transforms one dimension of the tensor t by the matrix c, returns new contiguous tensor
 
