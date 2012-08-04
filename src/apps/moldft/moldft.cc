@@ -2943,7 +2943,9 @@ int main(int argc, char** argv) {
                            calc.param.gprec); // grad prec
           geom.set_update(calc.param.algopt);
           geom.set_test(calc.param.gtest);
+        if (world.rank() == 0) {
           geom.optimize(geomcoord);
+        }
         }
         else if (calc.param.tdksprop) {
           print("\n\n Propagation of Kohn-Sham equation                      ");
