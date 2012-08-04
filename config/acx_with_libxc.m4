@@ -28,5 +28,5 @@ AC_DEFUN([ACX_WITH_LIBXC], [
     AC_LANG_RESTORE
   fi
 
-  AM_CONDITIONAL([HAVE_LIBXC], [test $acx_with_libxc != "no"])
+  AM_CONDITIONAL([MADNESS_HAS_LIBXC], [test $acx_with_libxc != "no"])
 ])
