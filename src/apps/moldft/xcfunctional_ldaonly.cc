@@ -105,7 +105,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             double xf, cf, xdfdr[2], cdfdr[2];
             
             x_uks_s__(&ra, &rb, &xf, xdfdr, xdfdr+1);
-            c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
+//            c_uks_vwn5__(&ra, &rb, &cf, cdfdr, cdfdr+1);
             
             f[i] = xdfdr[what] + cdfdr[what];
         }
@@ -117,7 +117,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
             double r = munge(2.0 * arho[i]); 
             double q, dq1, dq2;
             x_rks_s__(&r, &q, &dq1);
-            c_rks_vwn5__(&r, &q, &dq2); 
+ //           c_rks_vwn5__(&r, &q, &dq2); 
             f[i] = dq1 + dq2;
         }
     }

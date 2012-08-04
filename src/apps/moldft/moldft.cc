@@ -1803,10 +1803,15 @@ struct Calculation {
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
             //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
+#else
+            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#endif
             vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
+#ifdef MADNESS_HAS_LIBXC
             if (xc.is_gga() ) {
                 if(world.rank() == 0)
                    print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
@@ -1824,6 +1829,7 @@ struct Calculation {
                     vloc = vloc - vr; // need a 2?
 //3                }
             }
+#endif
             END_TIMER(world, "DFT potential");
         }
         
