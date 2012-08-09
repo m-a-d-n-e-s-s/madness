@@ -234,9 +234,9 @@ void test_chin_chen(World& world) {
 
 int main(int argc, char**argv) {
 #ifdef SERIALIZE_MPI
-    int required = MPI::THREAD_SERIALIZED;
+    int required = MPI_THREAD_SERIALIZED;
 #else
-    int required = MPI::THREAD_MULTIPLE;
+    int required = MPI_THREAD_MULTIPLE;
 #endif
     int provided = MPI::Init_thread(argc, argv, required);
     if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
