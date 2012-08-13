@@ -47,11 +47,13 @@
 #endif
 
 #ifdef HAVE_IBMBGP
+#  define BG_CYCLES_PER_MICROSECOND 850
 #  define BG_SECONDS_PER_CYCLE 1.176470588235294033e-09
 #  include <arch/include/bpcore/ppc450_inlines.h>
 #endif
 
 #ifdef HAVE_IBMBGQ
+#  define BG_CYCLES_PER_MICROSECOND 1600
 #  define BG_SECONDS_PER_CYCLE 6.25e-10
 #  include <hwi/include/bqc/A2_inlines.h>
 #endif
@@ -168,13 +170,11 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         while (cpu_time()-start < secs) {
             for (int i=0; i<100; ++i) cpu_relax();
         }
-#elif defined(HAVE_IBMBGP)
-        int count = 850*us;
+#elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
+        int count = BG_CYCLES_PER_MICROSECOND*us;
         for (int i=0; i<count; i++) {
             asm volatile ("nop\n");
         }
-#elif defined(HAVE_IBMBGQ)
-        Delay(1600*us); /* this is calling asm nop */
 #else
         usleep(us);
 #endif
