@@ -204,35 +204,6 @@ namespace madness {
         template <typename Archive> void serialize (Archive& ar) {ar & f;}
     };
 
-
-
-//    /// returns true if the result of a multiplication is a leaf node
-//    template<typename T, std::size_t NDIM>
-//    struct mul_leaf_op {
-//        typedef FunctionImpl<T,NDIM> implT;
-//
-//        const implT* f;
-//
-//        mul_leaf_op() {}
-//        mul_leaf_op(const implT* f) : f(f) {}
-//
-//        /// return true if f is a leaf and the result is well-represented
-//        bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
-//            double flo,fhi,glo,ghi;
-//            bool is_leaf=true;
-//            f->tnorm(fcoeff,&flo,&fhi);
-//            f->tnorm(gcoeff,&glo,&ghi);
-//            double total_hi=glo*fhi + ghi*flo + fhi*ghi;
-//            if (total_hi>f->truncate_tol(f->get_thresh(),key)) is_leaf=false;
-//            return is_leaf;
-//        }
-//        template <typename Archive> void serialize (Archive& ar) {
-//            ar & f;
-//        }
-//    };
-
-
-
     /// returns true if the result of a hartree_product is a leaf node (compute norm & error)
     template<typename T, size_t NDIM>
     struct hartree_leaf_op {
@@ -413,7 +384,7 @@ namespace madness {
 
     template<typename T, size_t NDIM>
     struct noop {
-
+    	void operator()(const Key<NDIM>& key, const GenTensor<T>& coeff, const bool& is_leaf) const {}
         bool operator()(const Key<NDIM>& key, const GenTensor<T>& fcoeff, const GenTensor<T>& gcoeff) const {
             MADNESS_EXCEPTION("in noop::operator()",1);
             return true;
@@ -422,6 +393,25 @@ namespace madness {
 
     };
 
+    template<typename T, std::size_t NDIM>
+    struct insert_op {
+    	typedef FunctionImpl<T,NDIM> implT;
+    	typedef Key<NDIM> keyT;
+    	typedef GenTensor<T> coeffT;
+    	typedef FunctionNode<T,NDIM> nodeT;
+
+    	implT* impl;
+    	insert_op() : impl() {}
+    	insert_op(implT* f) : impl(f) {}
+    	insert_op(const insert_op& other) : impl(other.impl) {}
+    	void operator()(const keyT& key, const coeffT& coeff, const bool& is_leaf) const {
+    		impl->get_coeffs().replace(key,nodeT(coeff,not is_leaf));
+    	}
+        template <typename Archive> void serialize (Archive& ar) {
+            ar & impl;
+        }
+
+    };
 
     template<size_t NDIM>
     struct true_op {
@@ -762,79 +752,135 @@ namespace madness {
         }
     };
 
-    /// impl_and_arg is a bookkeeping helper, consisting of a function and a pointer to a node
+    /// a class to track where relevant (parent) coeffs are
+
+    /// E.g. if a 6D function is composed of two 3D functions their coefficients must be tracked.
+    /// We might need coeffs from a box that does not exist, and to avoid searching for
+    /// parents we track which are their required respective boxes.
+    ///  - CoeffTracker will refer either to a requested key, if it exists, or to its
+    ///    outermost parent.
+    ///  - Children must be made in sequential order to be able to track correctly.
+    ///
+    /// Usage: 	1. make the child of a given CoeffTracker.
+    ///			   If the parent CoeffTracker refers to a leaf node (flag is_leaf)
+    ///            the child will refer to the same node. Otherwise it will refer
+    ///            to the child node.
+    ///			2. retrieve its coefficients (possible communication/ returns a Future).
+    ///            Member variable key always refers to an existing node,
+    ///            so we can fetch it. Once we have the node we can determine
+    ///            if it has children which allows us to make a child (see 1. )
     template<typename T, size_t NDIM>
-    struct impl_and_arg {
-        typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-        typedef FunctionImpl<T,NDIM> implT;
-        typedef impl_and_arg<T,NDIM> this_type;
+    class CoeffTracker {
 
-        const implT* impl;
-        datumT datum;
+    	typedef FunctionImpl<T,NDIM> implT;
+    	typedef Key<NDIM> keyT;
+    	typedef GenTensor<T> coeffT;
+		typedef std::pair<Key<NDIM>,ShallowNode<T,NDIM> > datumT;
+        enum LeafStatus {no, yes, unknown};
 
-        impl_and_arg() : impl() {}
+        /// the funcimpl that has the coeffs
+    	const implT* impl;
+    	/// the current key, which must exists in impl
+    	keyT key_;
+    	/// flag if key is a leaf node
+    	LeafStatus is_leaf_;
+    	/// the coefficients belonging to key
+    	coeffT coeff_;
+    public:
 
-        /// ctor takes funcimpl, which might be a null pointer, and finds the head node
-        impl_and_arg(const implT* impl) : impl(impl) {
-        	if (impl and (not impl->is_on_demand())) {
-                // have to wait for this, but should be local..
-        		ProcessID owner=impl->get_coeffs().owner(impl->key0());
-                Future<datumT> dat1=impl->task(owner, &implT::find_datum,impl->key0(),TaskAttributes::hipri());
-                datum=dat1.get();
-        	}
-        }
+    	/// default ctor
+    	CoeffTracker() : impl(), key_(), is_leaf_(unknown), coeff_() {}
 
-        impl_and_arg(const implT* impl, const datumT& datum) : impl(impl), datum(datum) {}
+    	/// the initial ctor making the root key
+    	CoeffTracker(const implT* impl) : impl(impl), is_leaf_(no) {
+    		if (impl) key_=impl->get_cdata().key0;
+    	}
 
-        impl_and_arg(const impl_and_arg<T,NDIM>& other) : impl(other.impl), datum(other.datum) {}
+    	/// ctor with a pair<keyT,nodeT>
+    	explicit CoeffTracker(const CoeffTracker& other, const datumT& datum) : impl(other.impl), key_(other.key_),
+    			coeff_(datum.second.coeff()) {
+    		if (datum.second.is_leaf()) is_leaf_=yes;
+    		else is_leaf_=no;
+    	}
 
-        /// find the requested key or its outermost parent
+    	/// copy ctor
+    	CoeffTracker(const CoeffTracker& other) : impl(other.impl), key_(other.key_),
+    			is_leaf_(other.is_leaf_), coeff_(other.coeff_) {}
 
-        /// @param[in]	child	requested key
-        /// @return 	an updated version of this, with datum refering to key
-        Future<impl_and_arg> make_child(const Key<NDIM>& key) const {
+    	/// const reference to impl
+    	const implT* get_impl() const {return impl;}
 
-        	// fast return if there is no function
-            if (not impl) return Future<impl_and_arg>(impl_and_arg());
+    	/// const reference to the coeffs
+    	const coeffT& coeff() const {return coeff_;}
 
-            // fast return if this' impl is on-demand
-        	if (impl->is_on_demand()) return Future<impl_and_arg>(this->impl);
+    	/// const reference to the key
+    	const keyT& key() const {return key_;}
 
-            // fast return if we already have the outermost key
-        	if (datum.second.is_leaf()) return Future<impl_and_arg>(*this);
+    	/// const reference to is_leaf flag
+    	const LeafStatus& is_leaf() const {return is_leaf_;}
 
-        	// if key is the direct child of this' datum, directly make the child;
-        	// otherwise forward the request
-        	if (key.parent()==datum.first) {
-            	Future<datumT> datum1=impl->task(impl->get_coeffs().owner(key), &implT::find_datum,key,
-                        TaskAttributes::hipri());
-                // wait for the nodes to arrive, and construct a new operator
-                return impl->world.taskq.add(*const_cast<impl_and_arg*> (this), &impl_and_arg::make_child2,
-                        impl,datum1);
-        	} else {
-        		Future<this_type> parent = this->make_child(key.parent());
-                return impl->world.taskq.add(*const_cast<this_type*> (this),
-                		&this_type::make_child3,parent,key);
-        	}
-        }
+    	/// make a child of this, ignoring the coeffs
+    	CoeffTracker make_child(const keyT& child) const {
 
-        /// forwarding constructor for taskq-compatibility
+    		// fast return
+    		if (not impl) return CoeffTracker();
 
-        /// @param[in]	impl1	the funcimpl
-        /// @param[in]	datum1	presumably a Future<datum> that we wait on
-        impl_and_arg make_child2(const implT* impl1, const datumT& datum1) const {
-            return impl_and_arg(impl1,datum1);
-        }
+    		// can't make a child without knowing if this is a leaf -- activate first
+			MADNESS_ASSERT((is_leaf_==yes) or (is_leaf_==no));
 
-        /// forwarding make_child for grandparents
-        Future<this_type> make_child3(const this_type& other, const Key<NDIM>& key) const {
-            return other.make_child(key);
-        }
+    		CoeffTracker result;
+    		if (impl) {
+    			result.impl=impl;
+    			if (is_leaf_==yes) result.key_=key_;
+    			if (is_leaf_==no) {
+    				result.key_=child;
+    				// check if child is direct descendent of this, but root node is special case
+    				if (child.level()>0) MADNESS_ASSERT(result.key().level()==key().level()+1);
+    			}
+    			result.is_leaf_=unknown;
+    		}
+    		return result;
+    	}
 
+    	/// find the coefficients
+
+    	/// this involves communication to a remote node
+    	/// @return	a Future<CoeffTracker> with the coefficients that key refers to
+    	Future<CoeffTracker> activate() const {
+
+    		// fast return
+    		if (not impl) return Future<CoeffTracker>(CoeffTracker());
+
+    		// this will return a <keyT,nodeT> from a remote node
+    		ProcessID p=impl->get_coeffs().owner(key());
+        	Future<datumT> datum1=impl->task(p, &implT::find_datum,key_,TaskAttributes::hipri());
+
+        	// construct a new CoeffTracker locally
+            return impl->world.taskq.add(*const_cast<CoeffTracker*> (this),
+            		&CoeffTracker::forward_ctor,*this,datum1);
+    	}
+
+    private:
+    	/// taskq-compatible forwarding to the ctor
+    	CoeffTracker forward_ctor(const CoeffTracker& other, const datumT& datum) const {
+    		return CoeffTracker(other,datum);
+    	}
+
+    public:
+    	/// serialization
         template <typename Archive> void serialize(const Archive& ar) {
-            ar & impl & datum;
+        	int il=int(is_leaf_);
+            ar & impl & key_ & il & coeff_;
+            is_leaf_=LeafStatus(il);
         }
     };
+
+    template<typename T, std::size_t NDIM>
+    std::ostream&
+    operator<<(std::ostream& s, const CoeffTracker<T,NDIM>& ct) {
+        s << ct.key() << ct.is_leaf() << " " << ct.get_impl();
+        return s;
+    }
 
 
 
@@ -1027,7 +1073,8 @@ namespace madness {
         /// perform: this= alpha*f + beta*g, invoked by result
 
         /// f and g are reconstructed, so we can save on the compress operation,
-        /// just walk down the joint tree, and add leaf coefficients
+        /// walk down the joint tree, and add leaf coefficients; effectively refines
+        /// to common finest level.
         /// @param[in]  alpha   prefactor for f
         /// @param[in]  f       first addend
         /// @param[in]  beta    prefactor for g
@@ -1039,21 +1086,19 @@ namespace madness {
             MADNESS_ASSERT(not f.is_compressed());
             MADNESS_ASSERT(not g.is_compressed());
 
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-            typedef FunctionImpl<T,NDIM> implL;
-
             ProcessID owner = coeffs.owner(cdata.key0);
             if (world.rank() == owner) {
 
-                Future<datumT> dat1=f.task(owner, &implT::find_datum,f.cdata.key0,TaskAttributes::hipri());
-                Future<datumT> dat2=g.task(owner, &implT::find_datum,g.cdata.key0,TaskAttributes::hipri());
+                CoeffTracker<T,NDIM> ff(&f);
+                CoeffTracker<T,NDIM> gg(&g);
 
-                // have to wait for this, but should be local..
-                datumT fdatum=dat1.get();
-                datumT gdatum=dat2.get();
+                typedef add_op coeff_opT;
+                coeff_opT coeff_op(ff,gg,alpha,beta);
+                typedef insert_op<T,NDIM> apply_opT;
+                apply_opT apply_op(this);
 
-                add_op op(&f,&g,fdatum,gdatum,alpha,beta);
-                woT::task(owner, &implT:: template recursive_op<add_op>, op, cdata.key0);
+                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+                		coeff_op, apply_op, cdata.key0);
 
             }
 
@@ -1478,9 +1523,9 @@ namespace madness {
 
         /// return the NS coefficients if parent and child are the same,
         /// or construct sum coeffs from the parents and "add" zero wavelet coeffs
-        /// @param[in]	parent	the actual lo-dim key we are working on
-        /// @param[in]	child	the (leaf) key of the lo-dim function
-        /// @param[in]	coeff	the (leaf) coeffs of the lo-dim function
+        /// @param[in]	child	the key whose coeffs we are requesting
+        /// @param[in]	parent	the (leaf) key of our function
+        /// @param[in]	coeff	the (leaf) coeffs belonging to parent
         /// @return 	coeffs in NS form
         tensorT parent_to_child_NS(const keyT& child, const keyT& parent,
         		const coeffT& coeff) const {
@@ -1498,23 +1543,23 @@ namespace madness {
         			t=tensorT(f->cdata.v2k);
         			t(f->cdata.s0)=coeff.full_tensor();
         		} else {
-        			MADNESS_EXCEPTION("confused k in recursive_apply_op",1);
+        			MADNESS_EXCEPTION("confused k in parent_to_child_NS",1);
         		}
         	} else if (child.level()>parent.level()) {
 
         		// parent and coeff should refer to a leaf node with sum coeffs only
+        		// b/c tree should be compressed with leaves kept.
         		MADNESS_ASSERT(coeff.dim(0)==f->get_k());
                 const coeffT coeff1=f->parent_to_child(coeff,parent,child);
         		t=tensorT(f->cdata.v2k);
     			t(f->cdata.s0)=coeff1.full_tensor();
         	} else {
-        		MADNESS_EXCEPTION("confused keys in recursive_apply_op",1);
+        		MADNESS_EXCEPTION("confused keys in parent_to_child_NS",1);
         	}
         	return t;
         }
 
-
-    /// Returns the box at level n that contains the given point in simulation coordinates
+        /// Returns the box at level n that contains the given point in simulation coordinates
         Key<NDIM> simpt2key(const coordT& pt, Level n) const {
             Vector<Translation,NDIM> l;
             double twon = std::pow(2.0, double(n));
@@ -2929,31 +2974,19 @@ namespace madness {
         struct multiply_op {
 
         	static bool randomize() {return false;}
-
-            typedef FunctionImpl<T,LDIM> implL;
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+        	typedef CoeffTracker<T,NDIM> ctT;
+        	typedef CoeffTracker<T,LDIM> ctL;
+        	typedef multiply_op<LDIM> this_type;
 
             implT* h;     ///< the result function h(1,2) = f(1,2) * g(1)
-            const implT* f;     ///< the function f(1,2) that will be multiplied with g(1)
-            const implL* g;     ///< the function g(1) or g(2) will be multiplied with f(1,2)
-            datumT fdatum;      ///< pointing to the most-leaf node of f
-            datumL gdatum;      ///< pointing to the most-leaf node of g
+            ctT f;
+            ctL g;
             int particle;       ///< if g is g(1) or g(2)
 
-            multiply_op()
-                : particle(1) {
-            };
+            multiply_op() : particle(1) {}
 
-            multiply_op(implT* h, const implT* f, const implL* g, const datumT& fdatum, const datumL& gdatum, const int particle)
-                : h(h)
-                , f(f)
-                , g(g)
-                , fdatum(fdatum)
-                , gdatum(gdatum)
-                , particle(particle) {
-                MADNESS_ASSERT(gdatum.second.coeff().has_data());
-            };
+            multiply_op(implT* h, const ctT& f, const ctL& g, const int particle)
+                : h(h), f(f), g(g), particle(particle) {};
 
             /// return true if this will be a leaf node
 
@@ -2961,7 +2994,7 @@ namespace madness {
             bool screen(coeffT& fcoeff, const coeffT& gcoeff) const {
                 double glo, ghi, flo, fhi;
                 MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
-                g->tnorm(gcoeff.full_tensor(), &glo, &ghi);
+                g.get_impl()->tnorm(gcoeff.full_tensor(), &glo, &ghi);
 
                 // this assumes intimate knowledge of how a GenTensor is organized!
                 MADNESS_ASSERT(fcoeff.tensor_type()==TT_2D);
@@ -2971,7 +3004,7 @@ namespace madness {
                 for (long i=0; i<rank; ++i) {
                     double lo,hi;
                     tensorT c=vec(Slice(i,i),_,_,_).reshape(maxk,maxk,maxk);
-                    g->tnorm(c, &lo, &hi);        // note we use g instead of h, since g is 3D
+                    g.get_impl()->tnorm(c, &lo, &hi);        // note we use g instead of h, since g is 3D
                     flo+=lo*fcoeff.config().weights(i);
                     fhi+=hi*fcoeff.config().weights(i);
                 }
@@ -2979,7 +3012,6 @@ namespace madness {
                 return (total_hi<(h->get_thresh()));
 
             }
-
 
             /// apply this on a FunctionNode of f and g of Key key
 
@@ -2995,15 +3027,10 @@ namespace madness {
                 key.break_apart(key1,key2);
                 const Key<LDIM> gkey= (particle==1) ? key1 : key2;
 
-                // get coefficients of this FunctionNode, or of a parent (if applicable)
-                // iterators point to nodes in redundant representation
-                const coeffT& fcoeff=fdatum.second.coeff();
-                const coeffT& gcoeff=gdatum.second.coeff();
-
                 // get coefficients of the actual FunctionNode
-                coeffT coeff1=f->parent_to_child(fcoeff,fdatum.first,key);
+                coeffT coeff1=f.get_impl()->parent_to_child(f.coeff(),f.key(),key);
                 coeff1.normalize();
-                const coeffT coeff2=g->parent_to_child(gcoeff,gdatum.first,gkey);
+                const coeffT coeff2=g.get_impl()->parent_to_child(g.coeff(),g.key(),gkey);
 
                 coeffT hcoeff;
 
@@ -3013,8 +3040,8 @@ namespace madness {
                 if (is_leaf) {
 
                     // convert coefficients to values
-                    coeffT hvalues=f->coeffs2values(key,coeff1);
-                    coeffT gvalues=g->coeffs2values(gkey,coeff2);
+                    coeffT hvalues=f.get_impl()->coeffs2values(key,coeff1);
+                    coeffT gvalues=g.get_impl()->coeffs2values(gkey,coeff2);
 
                     // multiply one of the two vectors of f with g
                     // note shallow copy of Tensor<T>
@@ -3036,97 +3063,86 @@ namespace madness {
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
 
-            ///
-            Future<multiply_op> make_child_op(const keyT& child) const {
+            this_type make_child(const keyT& child) const {
 
                 // break key into particles
                 Key<LDIM> key1, key2;
                 child.break_apart(key1,key2);
                 const Key<LDIM> gkey= (particle==1) ? key1 : key2;
 
-                // point to "outermost" leaf node
-                Future<datumT> datum11=f->outermost_child(child,fdatum);
-                Future<datumL> datum22=g->outermost_child(gkey,gdatum);
-
-                return h->world.taskq.add(*const_cast<multiply_op *> (this), &multiply_op<LDIM>::make_op,
-                        h,f,g,datum11,datum22,particle);
+                return this_type(h,f.make_child(child),g.make_child(gkey),particle);
             }
 
-            /// taskq-compatible constructor
-            multiply_op make_op(implT* h, const implT* f, const implL* g,
-                    const datumT& fdatum, const datumL& gdatum, const int particle) {
-                return multiply_op(h,f,g,fdatum,gdatum,particle);
+            Future<this_type> activate() const {
+            	Future<ctT> f1=f.activate();
+            	Future<ctL> g1=g.activate();
+                return h->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,h,f1,g1,particle);
             }
 
-            /// serialization
+            this_type forward_ctor(implT* h1, const ctT& f1, const ctL& g1, const int particle) {
+            	return this_type(h1,f1,g1,particle);
+            }
+
             template <typename Archive> void serialize(const Archive& ar) {
-                 ar & h & f & g & fdatum & gdatum & particle;
+                ar & h & f & g;
             }
-
         };
 
 
         /// add two functions f and g: result=alpha * f  +  beta * g
         struct add_op {
 
-        	bool randomize() const {return false;}
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
+        	typedef CoeffTracker<T,NDIM> ctT;
+        	typedef add_op this_type;
 
-            const implT* f;     ///< first addend
-            const implT* g;     ///< second addend
-            datumT fdatum;      ///< pointing to the outermost node of f
-            datumT gdatum;      ///< pointing to the outermost node of g
-            double alpha, beta; ///< prefactor for f, g
+        	bool randomize() const {return false;}
+
+        	/// tracking coeffs of first and second addend
+        	ctT f,g;
+        	/// prefactor for f, g
+        	double alpha, beta;
 
             add_op() {};
-            add_op(const implT* f, const implT* g, const datumT& fdatum, const datumT& gdatum,
-                    const double alpha, const double beta)
-                : f(f)
-                , g(g)
-                , fdatum(fdatum)
-                , gdatum(gdatum)
-                , alpha(alpha)
-                , beta(beta) {
-            }
+            add_op(const ctT& f, const ctT& g, const double alpha, const double beta)
+                : f(f), g(g), alpha(alpha), beta(beta){}
 
             /// if we are at the bottom of the trees, return the sum of the coeffs
             std::pair<bool,coeffT> operator()(const keyT& key) const {
 
-                bool is_leaf=(fdatum.second.is_leaf() and gdatum.second.is_leaf());
+                bool is_leaf=(f.is_leaf() and g.is_leaf());
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
-                coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
-                coeffT gcoeff=g->parent_to_child(gdatum.second.coeff(),gdatum.first,key);
+                coeffT fcoeff=f.get_impl()->parent_to_child(f.coeff(),f.key(),key);
+                coeffT gcoeff=g.get_impl()->parent_to_child(g.coeff(),g.key(),key);
                 coeffT hcoeff=copy(fcoeff);
                 hcoeff.gaxpy(alpha,gcoeff,beta);
-                hcoeff.reduceRank(f->get_tensor_args().thresh);
+                hcoeff.reduceRank(f.get_impl()->get_tensor_args().thresh);
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
 
-            Future<add_op> make_child_op(const keyT& child) const {
-
-                // point to "outermost" leaf node
-                Future<datumT> ffdatum=f->outermost_child(child,fdatum);
-                Future<datumT> ggdatum=g->outermost_child(child,gdatum);
-
-                return f->world.taskq.add(*const_cast<add_op *> (this), &add_op::make_op,
-                        f,g,ffdatum,ggdatum,alpha,beta);
+            this_type make_child(const keyT& child) const {
+                return this_type(f.make_child(child),g.make_child(child),alpha,beta);
             }
 
-            /// taskq-compatible constructor
-            add_op make_op(const implT* f,const implT* g,const datumT& datum1,const datumT& datum2,
-                    const double alpha, const double beta) {
-                return add_op(f,g,datum1,datum2,alpha,beta);
+            /// retrieve the coefficients (parent coeffs might be remote)
+            Future<this_type> activate() const {
+            	Future<ctT> f1=f.activate();
+            	Future<ctT> g1=g.activate();
+                return f.get_impl()->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,f1,g1,alpha,beta);
             }
 
+            /// taskq-compatible ctor
+            this_type forward_ctor(const ctT& f1, const ctT& g1, const double alpha, const double beta) {
+            	return this_type(f1,g1,alpha,beta);
+            }
 
             template <typename Archive> void serialize(const Archive& ar) {
-                ar & f & g & fdatum & gdatum & alpha & beta;
+                ar & f & g & alpha & beta;
             }
 
-
         };
-
 
         /// multiply f (a pair function of NDIM) with an orbital g (LDIM=NDIM/2)
 
@@ -3139,157 +3155,27 @@ namespace madness {
         template<size_t LDIM>
         Void multiply(const implT* f, const FunctionImpl<T,LDIM>* g, const int particle) {
 
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-            typedef FunctionImpl<T,LDIM> implL;
+        	keyT key0=f->cdata.key0;
 
-            if (world.rank() == g->get_coeffs().owner(g->cdata.key0)) {
-                Future<datumT> datf=f->task(f->get_coeffs().owner(f->cdata.key0), &implT::find_datum,
-                        f->cdata.key0,TaskAttributes::hipri());
-                Future<datumL> datg=g->task(g->get_coeffs().owner(g->cdata.key0), &implL::find_datum,
-                        g->cdata.key0,TaskAttributes::hipri());
+            if (world.rank() == coeffs.owner(key0)) {
 
-                // have to wait for this, but should be local..
-                datumT fdatum=datf.get();
-                datumL gdatum=datg.get();
+                CoeffTracker<T,NDIM> ff(f);
+                CoeffTracker<T,LDIM> gg(g);
 
-                ProcessID owner = coeffs.owner(cdata.key0);
+                typedef multiply_op<LDIM> coeff_opT;
+                coeff_opT coeff_op(this,ff,gg,particle);
 
-                typedef multiply_op<LDIM> op_type;
-                op_type multiply_op(this,f,g,fdatum,gdatum,particle);
+                typedef insert_op<T,NDIM> apply_opT;
+                apply_opT apply_op(this);
 
-                woT::task(owner, &implT:: template recursive_op<op_type>, multiply_op, cdata.key0);
-
+                ProcessID p= coeffs.owner(key0);
+                woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, coeff_op, apply_op, key0);
             }
 
             this->compressed=false;
             return None;
 
         }
-
-
-        /// perform this multiplication: h=f*g, with g being on-demand
-
-        /// the criteria for refinement are:
-        /// 1. at least a leaf node of f
-        /// 2. compare to coeffs of parent node
-        template<typename leaf_opT, typename L, typename R>
-        struct mul_op {
-
-        	bool randomize() const {return false;}
-
-        	typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
-
-            implT* h;           ///< the result function h = f * g
-            const FunctionImpl<L,NDIM>* f;     ///< the function f(1,2) that will be multiplied with g
-            const FunctionImpl<R,NDIM>* g;     ///< the function g (on-demand)
-            datumL fdatum;      ///< pointing to the most-leaf node of f
-            leaf_opT leaf_op;
-            coeffT hparent;     ///< coeffs of h of the parent node
-
-            mul_op() {
-            };
-
-            mul_op(implT* h, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g, const datumL& fdatum, const leaf_opT& leaf_op,
-                    const coeffT& hparent)
-                : h(h), f(f), g(g), fdatum(fdatum), leaf_op(leaf_op), hparent(hparent) {
-            };
-
-            /// apply this on a FunctionNode of f and g of Key key
-
-            /// @param[in]  key key for FunctionNode in f and g
-            /// @return <this node is a leaf, coefficients of this node>
-            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
-
-                // pre-screen if this is a leaf (supposedly leaf_node of f)
-                bool is_leaf=leaf_op(fdatum.first);
-                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
-                const tensorT hcoeff=this->coeff(key);
-                return std::pair<bool,coeffT> (is_leaf,coeffT(hcoeff,h->get_tensor_args()));
-            }
-
-        private:
-            /// return the coeffs of h=f*g, for key, using fdatum of the parent key
-            tensorT coeff(const keyT& key) const {
-
-                const coeffT fcoeff=f->parent_to_child(fdatum.second.coeff(),fdatum.first,key);
-                const tensorT gcoeff=g->project(key);
-
-                // convert coefficients to values
-                tensorT fvalues=f->coeffs2values(key,fcoeff).full_tensor_copy();
-                tensorT gvalues=g->coeffs2values(key,gcoeff);
-
-                // multiply f and g
-                if (fvalues.has_data() and gvalues.has_data()) {
-                    tensorT hvalues(h->cdata.vk,false);
-                    TERNARY_OPTIMIZED_ITERATOR(T, hvalues, T, fvalues, T, gvalues, *_p0 = *_p1 * *_p2;);
-                    tensorT hcoeff=h->values2coeffs(key,hvalues);
-                    return hcoeff;
-                } else {
-                    return tensorT(h->cdata.vk);
-                }
-            }
-
-        public:
-
-            /// make operator for child of this
-            Future<mul_op> make_child_op(const keyT& child) const {
-
-                // point to "outermost" leaf node
-                Future<datumL> fdatum1=f->outermost_child(child,fdatum);
-                const coeffT hparent1=coeffT(this->coeff(child.parent()),h->get_tensor_args());
-
-                return h->world.taskq.add(*const_cast<mul_op *> (this), &mul_op<leaf_opT,L,R>::make_op,
-                        h,f,g,fdatum1,leaf_op,hparent1);
-            }
-
-            /// taskq-compatible constructor
-            mul_op make_op(implT* h, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g,
-                    const datumL& fdatum, const leaf_opT& leaf_op, const coeffT& hparent) {
-                return mul_op(h,f,g,fdatum,leaf_op,hparent);
-            }
-
-            /// serialization
-            template <typename Archive> void serialize(const Archive& ar) {
-                 ar & h & f & g & fdatum & leaf_op & hparent;
-            }
-
-        };
-
-
-        /// multiply f with an on-demand function, invoked by result
-
-        /// @param[in]  leaf_op     use this as a (pre-) measure to determine if f needs refinement
-        /// @param[in]  f           the NDIM function f=f(1,2)
-        /// @param[in]  g           the on-demand function (provides coeffs via FunctorInterface)
-        /// @return     this        f * g
-        template<typename leaf_opT, typename L, typename R>
-        Void multiply(const leaf_opT& leaf_op, const FunctionImpl<L,NDIM>* f, const FunctionImpl<R,NDIM>* g, const bool fence) {
-
-            typedef std::pair<Key<NDIM>, ShallowNode<T,NDIM> > datumT;
-            typedef std::pair<Key<NDIM>, ShallowNode<L,NDIM> > datumL;
-
-            if (world.rank() == g->get_coeffs().owner(g->cdata.key0)) {
-                Future<datumL> datf=f->task(f->get_coeffs().owner(f->cdata.key0), &FunctionImpl<L,NDIM>::find_datum,
-                        f->cdata.key0,TaskAttributes::hipri());
-
-                // have to wait for this, but should be local..
-                datumL fdatum=datf.get();
-
-                typedef mul_op<leaf_opT,L,R> op_type;
-                coeffT hparent=(fdatum.second.coeff());
-                op_type mul_op(this,f,g,fdatum,leaf_op,hparent);
-
-                ProcessID owner = coeffs.owner(cdata.key0);
-                woT::task(owner, &implT:: template recursive_op<op_type>, mul_op, cdata.key0);
-
-            }
-            if (fence) world.gop.fence();
-            this->compressed=false;
-            return None;
-
-        }
-
 
         /// Hartree product of two LDIM functions to yield a NDIM = 2*LDIM function
         template<size_t LDIM, typename leaf_opT>
@@ -3297,24 +3183,23 @@ namespace madness {
         	bool randomize() const {return false;}
 
             typedef hartree_op<LDIM,leaf_opT> this_type;
-            typedef impl_and_arg<T,LDIM> iaT;
+            typedef CoeffTracker<T,LDIM> ctL;
 
-            const implT* result; 	    ///< where to construct the pair function
-            iaT p1;						///< keep track of the tree of particle 1
-            iaT p2;						///< keep track of the tree of particle 2
-            leaf_opT leaf_op;           ///< determine if a given node will be a leaf node
+            implT* result; 	    ///< where to construct the pair function
+            ctL p1, p2;			///< tracking coeffs of the two lo-dim functions
+            leaf_opT leaf_op;   ///< determine if a given node will be a leaf node
 
             // ctor
             hartree_op() {}
-            hartree_op(const implT* result, const iaT& p1, const iaT& p2, const leaf_opT& leaf_op)
-                : result(result), p1(p1), p2(p2), leaf_op(leaf_op) {
+            hartree_op(implT* result, const ctL& p11, const ctL& p22, const leaf_opT& leaf_op)
+                : result(result), p1(p11), p2(p22), leaf_op(leaf_op) {
                 MADNESS_ASSERT(LDIM+LDIM==NDIM);
             }
 
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-                const coeffT& fcoeff=p1.datum.second.coeff();
-                const coeffT& gcoeff=p2.datum.second.coeff();
+                const coeffT& fcoeff=p1.coeff();
+                const coeffT& gcoeff=p2.coeff();
                 bool is_leaf=leaf_op(key,fcoeff.full_tensor(),gcoeff.full_tensor());
                 if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
 
@@ -3323,11 +3208,11 @@ namespace madness {
                 key.break_apart(key1,key2);
 
                 // iterators point to nodes in nonstandard representation: get the sum coeffs
-                const coeffT s1=fcoeff(p1.impl->cdata.s0);
-                const coeffT s2=gcoeff(p2.impl->cdata.s0);
+                const coeffT s1=fcoeff(p1.get_impl()->cdata.s0);
+                const coeffT s2=gcoeff(p2.get_impl()->cdata.s0);
 
-                const coeffT coeff1=p1.impl->parent_to_child(s1,p1.datum.first,key1);
-                const coeffT coeff2=p2.impl->parent_to_child(s2,p2.datum.first,key2);
+                const coeffT coeff1=p1.get_impl()->parent_to_child(s1,p1.key(),key1);
+                const coeffT coeff2=p2.get_impl()->parent_to_child(s2,p2.key(),key2);
 
                 // new coeffs are simply the hartree/kronecker/outer product --
                 coeffT coeff=outer(coeff1,coeff2);
@@ -3337,22 +3222,24 @@ namespace madness {
                 return std::pair<bool,coeffT>(is_leaf,coeff);
             }
 
-            Future<hartree_op> make_child_op(const keyT& child) const {
+            this_type make_child(const keyT& child) const {
 
                 // break key into particles
                 Key<LDIM> key1, key2;
                 child.break_apart(key1,key2);
 
-                // point to "outermost" leaf node
-                Future<iaT> p11=p1.make_child(key1);
-                Future<iaT> p22=p2.make_child(key2);
-                return result->world.taskq.add(*const_cast<hartree_op *> (this),
-                        &hartree_op<LDIM,leaf_opT>::make_op,result,p11,p22,leaf_op);
+                return this_type(result,p1.make_child(key1),p2.make_child(key2),leaf_op);
             }
 
-            this_type make_op(const implT* result, const iaT& p11, const iaT& p22,
-                    const leaf_opT& leaf_op) {
-                return hartree_op(result,p11,p22,leaf_op);
+            Future<this_type> activate() const {
+            	Future<ctL> p11=p1.activate();
+            	Future<ctL> p22=p2.activate();
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,result,p11,p22,leaf_op);
+            }
+
+            this_type forward_ctor(implT* result1, const ctL& p11, const ctL& p22, const leaf_opT& leaf_op) {
+            	return this_type(result1,p11,p22,leaf_op);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
@@ -3360,72 +3247,77 @@ namespace madness {
             }
         };
 
+        /// traverse a non-existing tree
 
-        template<typename opT>
-        Void recursive_op(const opT& op, const keyT& key) {
+        /// part I: make the coefficients, process them and continue the recursion if necessary
+        /// @param[in]	coeff_op	operator making the coefficients and determining them being leaves
+        /// @param[in]	apply_op	operator processing the coefficients
+        /// @param[in]	key			the key we are currently working on
+        /// @return		nothing, but might continue the recursion, depending on coeff_op
+        template<typename coeff_opT, typename apply_opT>
+        Void traverse_tree(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
+        	MADNESS_ASSERT(coeffs.is_local(key));
 
-         	typedef std::pair<bool,coeffT> argT;
+        	typedef typename std::pair<bool,coeffT> argT;
+        	const argT arg=coeff_op(key);
+        	apply_op.operator()(key,arg.second,arg.first);
 
-             // op returns <is_leaf, coeff>
-             Future<argT> arg(op(key));
-             world.taskq.add(*this, &implT:: template spawn_op<opT>, op, key, arg);
-             return None;
-        }
-
-        template<typename opT>
-        Void spawn_op(const opT op, const keyT& key, std::pair<bool,coeffT>& arg) {
-
-        	const bool is_leaf=arg.first;
-        	const coeffT& coeff=arg.second;
-
-        	// insert result into this' tree
-        	const bool has_children=(not is_leaf);
-        	coeffs.replace(key,nodeT(coeff,has_children));
-
-        	// descend if needed
+        	const bool has_children=(not arg.first);
         	if (has_children) {
         		for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-        			const keyT& child = kit.key();
-        			Future<opT> child_op=op.make_child_op(child);
-        			woT::task(world.rank(), &implT:: template forward_op<opT>, child_op, child);
+        			const keyT& child=kit.key();
+                	coeff_opT child_op=coeff_op.make_child(child);
+                	// spawn activation where child is local
+        			ProcessID p=coeffs.owner(child);
+                    woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, child_op, apply_op, child);
         		}
         	}
         	return None;
         }
 
+        /// traverse a non-existing tree
 
-        /// walk down the tree and perform an operation on each node
-        template<typename opT>
-        Void forward_op(const opT& op, const keyT& key) {
-        	ProcessID p = op.randomize() ? world.random_proc() : coeffs.owner(key);
-//        	ProcessID p = coeffs.owner(key);
-        	woT::task(p, &implT:: template recursive_op<opT>, op, key);
+        /// part II: activate coeff_op, i.e. retrieve all the necessary remote boxes (communication)
+        /// @param[in]	coeff_op	operator making the coefficients that needs activation
+        /// @param[in]	apply_op	just passing thru
+        /// @param[in]	key			the key we are working on
+        /// @return 	nothing, but will forward all input to traverse_tree()
+        template<typename coeff_opT, typename apply_opT>
+        Void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
+        	MADNESS_ASSERT(coeffs.is_local(key));
+        	Future<coeff_opT> active_coeff=coeff_op.activate();
+            woT::task(world.rank(), &implT:: template traverse_tree<coeff_opT,apply_opT>, active_coeff, apply_op, key);
         	return None;
         }
 
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
         /// |Phi(1,2)> = |phi(1)> x |phi(2)>
+        /// @param[in]	p1	FunctionImpl of particle 1
+        /// @param[in]	p2	FunctionImpl of particle 2
+        /// @param[in]	leaf_op	operator determining of a given box will be a leaf
         template<std::size_t LDIM, typename leaf_opT>
         Void hartree_product(const FunctionImpl<T,LDIM>* p1, const FunctionImpl<T,LDIM>* p2,
                 const leaf_opT& leaf_op, bool fence) {
             MADNESS_ASSERT(p1->is_nonstandard());
             MADNESS_ASSERT(p2->is_nonstandard());
 
-            typedef std::pair<Key<LDIM>, ShallowNode<T,LDIM> > datumL;
-            typedef FunctionImpl<T,LDIM> implL;
-
             if (world.rank() == p1->get_coeffs().owner(p1->cdata.key0)) {
 
-            	// prepare the impl_and_arg, both of which must be local
-                impl_and_arg<T,LDIM> iap1(p1,p1->find_datum(p1->cdata.key0));
-                impl_and_arg<T,LDIM> iap2(p2,p2->find_datum(p2->cdata.key0));
+            	// prepare the CoeffTracker
+                CoeffTracker<T,LDIM> iap1(p1);
+                CoeffTracker<T,LDIM> iap2(p2);
 
-                typedef hartree_op<LDIM,leaf_opT> op_type;
-                op_type hartree_op(this,iap1,iap2,leaf_op);
+                // the operator making the coefficients
+                typedef hartree_op<LDIM,leaf_opT> coeff_opT;
+                coeff_opT coeff_op(this,iap1,iap2,leaf_op);
 
-                ProcessID owner = coeffs.owner(cdata.key0);
-                woT::task(owner, &implT:: template recursive_op<op_type>, hartree_op, cdata.key0);
+                // this operator simply inserts the coeffs into this' tree
+                typedef insert_op<T,NDIM> apply_opT;
+                apply_opT apply_op(this);
+
+                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+                		coeff_op, apply_op, cdata.key0);
 
             }
 
@@ -3565,17 +3457,6 @@ namespace madness {
         	return std::pair<Key<NDIM>,ShallowNode<T,NDIM> >(key,snode);
         }
 
-        /// walk down the tree until a leaf node is hit
-        Future<std::pair<keyT,ShallowNode<T,NDIM> > >
-        outermost_child(const keyT& key, const std::pair<keyT,ShallowNode<T,NDIM> >& in) const {
-
-            const ShallowNode<T,NDIM>& node=in.second;
-            if (not node.has_children()) return Future<std::pair<keyT,ShallowNode<T,NDIM> > >(in);
-            return woT::task(coeffs.owner(key), &implT::find_datum, key, TaskAttributes::hipri());
-        }
-
-
-
         /// given a ket and the 1- and 2-electron potentials, construct the function V phi
         template<typename opT, size_t LDIM>
         struct Vphi_op {
@@ -3584,25 +3465,23 @@ namespace madness {
 
             typedef Vphi_op<opT,LDIM> this_type;
             typedef FunctionImpl<T,LDIM> implL;
-            typedef impl_and_arg<T,NDIM> iaT;
-            typedef impl_and_arg<T,LDIM> iaL;
+            typedef CoeffTracker<T,NDIM> ctT;
+            typedef CoeffTracker<T,LDIM> ctL;
 
-//            implT* result;             ///< where to construct the V phi
-            mutable impl_and_arg<T,NDIM> result;    ///< where to construct Vphi, and parent node
+            ctT result;    ///< where to construct Vphi, and parent node
             opT leaf_op;               ///< deciding if a given FunctionNode will be a leaf node
-            impl_and_arg<T,NDIM> iaket;
-            impl_and_arg<T,LDIM> iap1;
-            impl_and_arg<T,LDIM> iap2;
-            impl_and_arg<T,LDIM> iav1;
-            impl_and_arg<T,LDIM> iav2;
-            impl_and_arg<T,NDIM> iaeri;
+            ctT iaket;
+            ctL iap1;
+            ctL iap2;
+            ctL iav1;
+            ctL iav2;
+            ctT iaeri;
 
             // ctor
             Vphi_op() {}
-            Vphi_op(const iaT& result, const opT& leaf_op, const impl_and_arg<T,NDIM>& iaket,
-                    const impl_and_arg<T,LDIM>& iap1, const impl_and_arg<T,LDIM>& iap2,
-                    const impl_and_arg<T,LDIM>& iav1, const impl_and_arg<T,LDIM>& iav2,
-                    const impl_and_arg<T,NDIM>& iaeri)
+            Vphi_op(const ctT& result, const opT& leaf_op, const ctT& iaket,
+                    const ctL& iap1, const ctL& iap2, const ctL& iav1, const ctL& iav2,
+                    const ctT& iaeri)
                 : result(result), leaf_op(leaf_op), iaket(iaket), iap1(iap1), iap2(iap2)
                 , iav1(iav1), iav2(iav2), iaeri(iaeri) {
             }
@@ -3620,72 +3499,72 @@ namespace madness {
 				key.break_apart(key1,key2);
 
 				// get the ket
-				if (iaket.impl) {
-					const coeffT& coeff1=iaket.datum.second.coeff();
-					coeff_ket=iaket.impl->parent_to_child(coeff1,iaket.datum.first,key);
+				if (iaket.get_impl()) {
+					const coeffT& coeff1=iaket.coeff();
+					coeff_ket=iaket.get_impl()->parent_to_child(coeff1,iaket.key(),key);
 				} else {
-					MADNESS_ASSERT(iap1.impl and iap2.impl);
+					MADNESS_ASSERT(iap1.get_impl() and iap2.get_impl());
 
-					const coeffT& coeff1=iap1.datum.second.coeff();
-					const coeffT c1=iap1.impl->parent_to_child(coeff1,iap1.datum.first,key1);
-					const coeffT& coeff2=iap2.datum.second.coeff();
-					const coeffT c2=iap2.impl->parent_to_child(coeff2,iap2.datum.first,key2);
+					const coeffT& coeff1=iap1.coeff();
+					const coeffT c1=iap1.get_impl()->parent_to_child(coeff1,iap1.key(),key1);
+					const coeffT& coeff2=iap2.coeff();
+					const coeffT c2=iap2.get_impl()->parent_to_child(coeff2,iap2.key(),key2);
 					coeff_ket=outer(c1,c2);
 				}
 
 				// take a shortcut if we don't need to resort to function values
-                bool ket_only=(not (iav1.impl or iav2.impl or iaeri.impl));
+                bool ket_only=(not (iav1.get_impl() or iav2.get_impl() or iaeri.get_impl()));
                 if (ket_only) {
                 	coeff_result=coeff_ket;
 
                 } else {
 
                 	// switch to values instead of coefficients
-					const coeffT val_ket=result.impl->coeffs2values(key,coeff_ket);
+					const coeffT val_ket=result.get_impl()->coeffs2values(key,coeff_ket);
 					coeffT val_result;
 
 					// potential for particle 1
-					if (iav1.impl) {
-						const coeffT val_pot1=iav1.impl->fcube_for_mul(key1,iav1.datum.first,
-								iav1.datum.second.coeff());
+					if (iav1.get_impl()) {
+						const coeffT val_pot1=iav1.get_impl()->fcube_for_mul(key1,iav1.key(),
+								iav1.coeff());
 						val_result+=multiply(val_ket,val_pot1,0);
 					}
 
 					// potential for particle 2
-					if (iav2.impl) {
-						const coeffT val_pot2=iav2.impl->fcube_for_mul(key2,iav2.datum.first,
-								iav2.datum.second.coeff());
+					if (iav2.get_impl()) {
+						const coeffT val_pot2=iav2.get_impl()->fcube_for_mul(key2,iav2.key(),
+								iav2.coeff());
 						val_result+=multiply(val_ket,val_pot2,1);
 					}
 
 					// values for eri: this must be done in full rank...
-					if (iaeri.impl) {
+					if (iaeri.get_impl()) {
 						tensorT val_eri;
-						if (iaeri.impl->is_on_demand()) {
-							if (iaeri.impl->get_functor()->provides_coeff()) {
-								val_eri=iaeri.impl->coeffs2values(key,iaeri.impl->get_functor()->coeff(key)).full_tensor();
+						if (iaeri.get_impl()->is_on_demand()) {
+							if (iaeri.get_impl()->get_functor()->provides_coeff()) {
+								val_eri=iaeri.get_impl()->coeffs2values(key,iaeri.get_impl()->get_functor()->coeff(key)).full_tensor();
 							} else {
-								val_eri=tensorT(result.impl->cdata.vk);
-								result.impl->fcube(key, *(iaeri.impl->get_functor()), iaeri.impl->cdata.quad_x, val_eri);
+								val_eri=tensorT(result.get_impl()->cdata.vk);
+								result.get_impl()->fcube(key, *(iaeri.get_impl()->get_functor()), iaeri.get_impl()->cdata.quad_x, val_eri);
 							}
 						} else {
-							val_eri = (iaeri.impl->fcube_for_mul(key,iaeri.datum.first,
-									iaeri.datum.second.coeff())).full_tensor_copy();
+							val_eri = (iaeri.get_impl()->fcube_for_mul(key,iaeri.key(),
+									iaeri.coeff())).full_tensor_copy();
 						}
 
 						// multiply potential with ket
-						tensorT tcube(result.impl->cdata.vk,false);
+						tensorT tcube(result.get_impl()->cdata.vk,false);
 						tensorT val_ket2=val_ket.full_tensor_copy();
 						TERNARY_OPTIMIZED_ITERATOR(T, tcube, T, val_ket2, T, val_eri, *_p0 = *_p1 * *_p2;);
 
 						// accumulate everything in full rank
 						if (val_result.has_data()) tcube+=val_result.full_tensor_copy();
-						coeff_result=coeffT(result.impl->values2coeffs(key,tcube),result.impl->get_tensor_args());
+						coeff_result=coeffT(result.get_impl()->values2coeffs(key,tcube),result.get_impl()->get_tensor_args());
 
 					} else {
 						MADNESS_ASSERT(val_result.has_data());
-						coeff_result=result.impl->values2coeffs(key,val_result);
-						coeff_result.reduceRank(result.impl->get_tensor_args().thresh);
+						coeff_result=result.get_impl()->values2coeffs(key,val_result);
+						coeff_result.reduceRank(result.get_impl()->get_tensor_args().thresh);
 					}
 
                 }
@@ -3694,14 +3573,14 @@ namespace madness {
 
                 // compare to parent
                 if (leaf_op.do_error_leaf_op()) {
-                    error_leaf_op<T,NDIM> elop(result.impl);
-                    MADNESS_ASSERT(key.parent()==result.datum.first);
-                    is_leaf=is_leaf or elop(key,coeff_result,result.datum.second.coeff());
+                    error_leaf_op<T,NDIM> elop(result.get_impl());
+                    MADNESS_ASSERT(key.parent()==result.key());
+                    is_leaf=is_leaf or elop(key,coeff_result,result.coeff());
                 }
 
-                bool has_children=not is_leaf;
-                implT* r=const_cast<implT*>(result.impl);
-            	r->get_coeffs().replace(key,nodeT(coeff_result,has_children));
+//                bool has_children=not is_leaf;
+//                implT* r=const_cast<implT*>(result.get_impl());
+//            	r->get_coeffs().replace(key,nodeT(coeff_result,has_children));
                 return std::pair<bool,coeffT> (is_leaf,coeff_result);
             }
 
@@ -3722,35 +3601,37 @@ namespace madness {
                 return rr;
             }
 
-            /// given the current operator, construct the child operator, which means
-            /// to provide pointers to the appropriate nodes from which the new
-            /// result node will be constructed
-            Future<Vphi_op> make_child_op(const keyT& child) const {
+            this_type make_child(const keyT& child) const {
 
                 // break key into particles
-            	Key<LDIM> key1, key2;
-            	child.break_apart(key1,key2);
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
 
-            	Future<iaT> result_= (leaf_op.do_error_leaf_op())
-		    			? result.make_child(child.parent()) : Future<iaT>(result);
-            	Future<iaT> iaket_=iaket.make_child(child);
-                Future<iaT> iaeri_=iaeri.make_child(child);
-            	Future<iaL> iap1_=iap1.make_child(key1);
-                Future<iaL> iap2_=iap2.make_child(key2);
-                Future<iaL> iav1_=iav1.make_child(key1);
-                Future<iaL> iav2_=iav2.make_child(key2);
+                // result coeffs lag behing by one scale: always compare to parents.
+                ctT result1=(leaf_op.do_error_leaf_op())
+				    			? result.make_child(child.parent()) : ctT(result);
 
-                // wait for the nodes to arrive, and construct a new operator
-                return result.impl->world.taskq.add(*const_cast<Vphi_op *> (this), &this_type::make_op,
-                        result_,leaf_op,iaket_,iap1_,iap2_,iav1_,iav2_,iaeri_);
+                return this_type(result1,leaf_op,iaket.make_child(child),
+                		iap1.make_child(key1),iap2.make_child(key2),
+                		iav1.make_child(key1),iav2.make_child(key2),iaeri.make_child(child));
             }
 
-            /// taskq-compatible child constructor
-            Vphi_op make_op(iaT& result, const opT& leaf_op, const impl_and_arg<T,NDIM>& iaket,
-                    const impl_and_arg<T,LDIM>& iap1, const impl_and_arg<T,LDIM>& iap2,
-                    const impl_and_arg<T,LDIM>& iav1, const impl_and_arg<T,LDIM>& iav2,
-                    const impl_and_arg<T,NDIM>& eri) const {
-                return Vphi_op(result,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
+            Future<this_type> activate() const {
+            	Future<ctT> iaresult1=result.activate();
+            	Future<ctT> iaket1=iaket.activate();
+            	Future<ctT> iaeri1=iaeri.activate();
+            	Future<ctL> iap11=iap1.activate();
+            	Future<ctL> iap21=iap2.activate();
+            	Future<ctL> iav11=iav1.activate();
+            	Future<ctL> iav21=iav2.activate();
+                return result.get_impl()->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,iaresult1,leaf_op,iaket1,iap11,iap21,iav11,iav21,iaeri1);
+            }
+
+            this_type forward_ctor(const ctT& result1, const opT& leaf_op, const ctT& iaket1,
+                    const ctL& iap11, const ctL& iap21, const ctL& iav11, const ctL& iav21,
+                    const ctT& iaeri1) {
+            	return this_type(result1,leaf_op,iaket1,iap11,iap21,iav11,iav21,iaeri1);
             }
 
             /// serialize this (needed for use in recursive_op)
@@ -3793,24 +3674,30 @@ namespace madness {
 
             if (world.rank() == coeffs.owner(key0)) {
 
-            	// prepare the impl_and_arg, all head nodes must be local
-                impl_and_arg<T,NDIM> iaket(ket);
-                impl_and_arg<T,LDIM> iap1(p1);
-                impl_and_arg<T,LDIM> iap2(p2);
-                impl_and_arg<T,LDIM> iav1(v1);
-                impl_and_arg<T,LDIM> iav2(v2);
-
-//                if (eri) MADNESS_ASSERT(eri->is_on_demand());
-
                 // insert an empty internal node for comparison
                 this->coeffs.replace(key0,nodeT(coeffT(),true));
-                impl_and_arg<T,NDIM> iaresult(this);
 
-                typedef Vphi_op<opT,LDIM> op_type;
-                op_type op(iaresult,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
 
-                ProcessID owner = coeffs.owner(cdata.key0);
-                woT::task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+				// prepare the CoeffTracker
+				CoeffTracker<T,NDIM> iaket(ket);
+				CoeffTracker<T,NDIM> iaeri(eri);
+				CoeffTracker<T,LDIM> iap1(p1);
+				CoeffTracker<T,LDIM> iap2(p2);
+				CoeffTracker<T,LDIM> iav1(v1);
+				CoeffTracker<T,LDIM> iav2(v2);
+
+				CoeffTracker<T,NDIM> iaresult(this);
+
+				// the operator making the coefficients
+                typedef Vphi_op<opT,LDIM> coeff_opT;
+                coeff_opT coeff_op(iaresult,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
+
+				// this operator simply inserts the coeffs into this' tree
+				typedef insert_op<T,NDIM> apply_opT;
+				apply_opT apply_op(this);
+
+				woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+						coeff_op, apply_op, cdata.key0);
             }
 
             world.gop.fence();
@@ -4809,8 +4696,6 @@ namespace madness {
         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-            bool do_new=false;
-            if (world.rank()==0) print("f.do_new", do_new);
             small=0;
             large=0;
 
@@ -4835,10 +4720,10 @@ namespace madness {
                 }
             }
             if (fence) world.gop.fence();
-            if (world.rank()==0) {
-            	print("small wavelet coeffs",small);
-            	print("large wavelet coeffs",large);
-            }
+//            if (world.rank()==0) {
+//            	print("small wavelet coeffs",small);
+//            	print("large wavelet coeffs",large);
+//            }
 
         }
 
@@ -4883,16 +4768,18 @@ namespace madness {
 
             if (world.rank() == coeffs.owner(key0)) {
 
-            	// prepare the impl_and_arg, both of which must be local
-                impl_and_arg<T,LDIM> iaf(fimpl);
-                impl_and_arg<T,LDIM> iag(gimpl);
+                CoeffTracker<T,LDIM> ff(fimpl);
+                CoeffTracker<T,LDIM> gg(gimpl);
 
-                typedef recursive_apply_op<opT,LDIM> op_type;
-//                op_type op(this,iaf,iag,&apply_op);
-                op_type op(this,iaf,iag,&apply_op);
+                typedef recursive_apply_op<opT,LDIM> coeff_opT;
+                coeff_opT coeff_op(this,ff,gg,&apply_op);
 
-                ProcessID owner = coeffs.owner(cdata.key0);
-                rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+                typedef noop<T,NDIM> apply_opT;
+                apply_opT apply_op;
+
+                ProcessID p= coeffs.owner(key0);
+                woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, coeff_op, apply_op, key0);
+
             }
             if (fence) world.gop.fence();
         }
@@ -4905,14 +4792,14 @@ namespace madness {
         	typedef recursive_apply_op<opT,LDIM> this_type;
 
             implT* result;
-            impl_and_arg<T,LDIM> iaf;
-            impl_and_arg<T,LDIM> iag;
+            CoeffTracker<T,LDIM> iaf;
+            CoeffTracker<T,LDIM> iag;
             opT* apply_op;
 
             // ctor
             recursive_apply_op() {}
             recursive_apply_op(implT* result,
-            		const impl_and_arg<T,LDIM>& iaf, const impl_and_arg<T,LDIM>& iag,
+            		const CoeffTracker<T,LDIM>& iaf, const CoeffTracker<T,LDIM>& iag,
                     const opT* apply_op) : result(result), iaf(iaf), iag(iag), apply_op(apply_op)
             {
                 MADNESS_ASSERT(LDIM+LDIM==NDIM);
@@ -4931,8 +4818,8 @@ namespace madness {
                 Key<LDIM> key1,key2;
                 key.break_apart(key1,key2);
 
-                const tensorT fcoeff=iaf.impl->parent_to_child_NS(key1,iaf.datum.first,iaf.datum.second.coeff());
-                const tensorT gcoeff=iag.impl->parent_to_child_NS(key2,iag.datum.first,iag.datum.second.coeff());
+                const tensorT fcoeff=iaf.get_impl()->parent_to_child_NS(key1,iaf.key(),iaf.coeff());
+                const tensorT gcoeff=iag.get_impl()->parent_to_child_NS(key2,iag.key(),iag.coeff());
 
                 // would this be a leaf node? If so, then its sum coeffs have already been
                 // processed by the parent node's wavelet coeffs. Therefore we won't
@@ -4942,7 +4829,7 @@ namespace madness {
 
                 if (not is_leaf) {
 					// new coeffs are simply the hartree/kronecker/outer product --
-                	const std::vector<Slice>& s0=iaf.impl->cdata.s0;
+                	const std::vector<Slice>& s0=iaf.get_impl()->cdata.s0;
                 	const coeffT coeff = (apply_op->modified())
                 			? outer_low_rank(copy(fcoeff(s0)),copy(gcoeff(s0)))
                 			: outer_low_rank(fcoeff,gcoeff);
@@ -4951,6 +4838,8 @@ namespace madness {
                     tensorT coeff_full;
                     ProcessID p=result->world.rank();
                     double norm0=result->do_apply_directed_screening<opT,T>(apply_op, key, coeff, true);
+
+                    if (result->world.rank()==0) print("applying on",key);
 
                     result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
                     		apply_op,key,coeff,false);
@@ -4971,30 +4860,32 @@ namespace madness {
             	return std::pair<bool,coeffT> (is_leaf,coeff);
             }
 
-            Future<recursive_apply_op> make_child_op(const keyT& child) const {
+
+            this_type make_child(const keyT& child) const {
 
                 // break key into particles
                 Key<LDIM> key1, key2;
                 child.break_apart(key1,key2);
 
-                // point to "outermost" leaf node
-                Future<impl_and_arg<T,LDIM> > iaff=iaf.make_child(key1);
-                Future<impl_and_arg<T,LDIM> > iagg=iag.make_child(key2);
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::make_op,result,iaff,iagg,apply_op);
+                return this_type(result,iaf.make_child(key1),iag.make_child(key2),apply_op);
             }
 
-            this_type make_op(implT* rr, const impl_and_arg<T,LDIM>& iaff,
-            		const impl_and_arg<T,LDIM>& iagg, const opT* op) {
-                return this_type(rr,iaff,iagg,op);
+            Future<this_type> activate() const {
+            	Future<CoeffTracker<T,LDIM> > f1=iaf.activate();
+            	Future<CoeffTracker<T,LDIM> > g1=iag.activate();
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,result,f1,g1,apply_op);
+            }
+
+            this_type forward_ctor(implT* r, const CoeffTracker<T,LDIM>& f1, const CoeffTracker<T,LDIM>& g1,
+            		const opT* apply_op1) {
+            	return this_type(r,f1,g1,apply_op1);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {
                 ar & result & iaf & iag & apply_op;
             }
         };
-
-
 
         /// traverse an existing tree and apply an operator
 
@@ -5009,11 +4900,15 @@ namespace madness {
 
             if (world.rank() == coeffs.owner(key0)) {
 
-                typedef recursive_apply_op2<opT> op_type;
-                op_type op(this,fimpl,&apply_op);
+            	typedef recursive_apply_op2<opT> coeff_opT;
+            	coeff_opT coeff_op(this,fimpl,&apply_op);
 
-                ProcessID owner = coeffs.owner(cdata.key0);
-                rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
+            	typedef noop<T,NDIM> apply_opT;
+            	apply_opT apply_op;
+
+				woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+						coeff_op, apply_op, cdata.key0);
+
             }
             if (fence) world.gop.fence();
         }
@@ -5024,17 +4919,16 @@ namespace madness {
         	bool randomize() const {return true;}
 
         	typedef recursive_apply_op2<opT> this_type;
-        	typedef impl_and_arg<T,NDIM> iaT;
+        	typedef CoeffTracker<T,NDIM> ctT;
         	typedef std::pair<bool,coeffT> argT;
 
             mutable implT* result;
-//            const implT* fimpl;
-            iaT iaf;			/// need this for randomization
+            ctT iaf;			/// need this for randomization
             const opT* apply_op;
 
             // ctor
             recursive_apply_op2() {}
-            recursive_apply_op2(implT* result, const iaT& iaf, const opT* apply_op)
+            recursive_apply_op2(implT* result, const ctT& iaf, const opT* apply_op)
             	: result(result), iaf(iaf), apply_op(apply_op) {}
 
             recursive_apply_op2(const recursive_apply_op2& other) : result(other.result),
@@ -5046,7 +4940,7 @@ namespace madness {
             /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
             Future<argT> operator()(const Key<NDIM>& key) const {
 
-            	const coeffT& coeff=iaf.datum.second.coeff();
+            	const coeffT& coeff=iaf.coeff();
 
                 if (coeff.has_data()) {
 
@@ -5057,7 +4951,7 @@ namespace madness {
                 	result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
                 			apply_op, key, coeff, false);
 
-                    if (iaf.datum.second.is_leaf()) return Future<argT> (argT(true,coeff));
+                    if (iaf.is_leaf()) return Future<argT> (argT(true,coeff));
                     return result->world.taskq.add(*const_cast<this_type*> (this), &this_type::finalize,
                             norm0,key,coeff,result);
 
@@ -5077,22 +4971,22 @@ namespace madness {
             	return argT(is_leaf,coeff);
             }
 
-            Future<recursive_apply_op2> make_child_op(const keyT& child) const {
 
-                // point to "outermost" leaf node
-                Future<iaT> iaff=iaf.make_child(child);
+            this_type make_child(const keyT& child) const {
+                return this_type(result,iaf.make_child(child),apply_op);
+            }
+
+            /// retrieve the coefficients (parent coeffs might be remote)
+            Future<this_type> activate() const {
+            	Future<ctT> f1=iaf.activate();
                 return result->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::make_op,result,iaff,apply_op);
+                        &this_type::forward_ctor,result,f1,apply_op);
             }
 
-            this_type make_op(implT* rr, const iaT& iaff, const opT* op) {
-                return this_type(rr,iaff,op);
+            /// taskq-compatible ctor
+            this_type forward_ctor(implT* result1, const ctT& iaf1, const opT* apply_op1) {
+            	return this_type(result1,iaf1,apply_op1);
             }
-
-//            /// this is very simple here, since we don't need to find appropriate coeffs; nice..
-//            Future<recursive_apply_op2<opT> > make_child_op(const keyT& child) const {
-//                return Future<this_type>(*this);
-//            }
 
             template <typename Archive> void serialize(const Archive& ar) {
                 ar & result & iaf & apply_op;
@@ -5130,11 +5024,10 @@ namespace madness {
             if (world.rank() == coeffs.owner(key0)) {
 
                 vphi->get_coeffs().replace(key0,nodeT(coeffT(),true));
-                impl_and_arg<T,NDIM> iavphi(vphi);
 
                 error_leaf_op<T,NDIM> leaf_op(f);
                 print("making error_leaf_op",leaf_op.do_error_leaf_op());
-                coeff_opT coeff_op(iavphi,leaf_op,ket,p1,p2,v1,v2,eri);
+                coeff_opT coeff_op(vphi,leaf_op,ket,p1,p2,v1,v2,eri);
 
                 // come up with some child coeffs
             	std::vector<Future<argT> > v = future_vector_factory<argT>(1<<NDIM);
@@ -5142,7 +5035,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key0); kit; ++kit,++i) {
 
                 	const keyT& child=kit.key();
-            		Future<coeff_opT> child_op=coeff_op.make_child_op(child);
+                	Future<coeff_opT> child_op=coeff_op.make_child(child).activate();
 
             		// make coeffs for child; possibly inaccurate
             		v[i]=woT::task(world.rank(),
@@ -5179,7 +5072,7 @@ namespace madness {
         		const std::vector<Future<std::pair<bool, coeffT> > >& v) {
 
         	typedef std::pair<bool, coeffT> argT;
-            implT* result=const_cast<implT*> (coeff_op.result.impl);
+            implT* result=const_cast<implT*> (coeff_op.result.get_impl());
         	MADNESS_ASSERT(result->get_coeffs().is_local(key));
         	const double tol=this->truncate_tol(this->get_thresh(),key);
 
@@ -5256,15 +5149,15 @@ namespace madness {
             if (do_apply_operator) {
 
             	large++;
-
+            	double cpu0=cpu_time();
 				if (coeff.has_no_data()) coeff=coeffT(c,get_tensor_args());
                 const coeffT coeff0=coeffT(copy(c(cdata.s0)),get_tensor_args());
                 c.clear();
 
-				// send off the operator apply
-				ProcessID p=world.rank();
-
-				// do the 0-displacement
+//				// send off the operator apply
+//				ProcessID p=world.rank();
+//
+//				// do the 0-displacement
 //				woT::task(p,&implT:: template do_apply_directed_screening<apply_opT,T>,
 //						apply_op, key, coeff, true,TaskAttributes::hipri());
 //
@@ -5274,7 +5167,8 @@ namespace madness {
 
 				do_apply_directed_screening<apply_opT,T>(apply_op, key, coeff, true);
 				do_apply_directed_screening<apply_opT,T>(apply_op, key, coeff, false);
-//            	print(key, wall_time());
+				double cpu1=cpu_time();
+				print(key, cpu1-cpu0);
 
 				arg0=Future<argT>(argT(true,coeff0));
             }
@@ -5300,7 +5194,8 @@ namespace madness {
                         	const keyT& grandchild=kit2.key();
 
                     		// make coeff_operator for grandchild
-                    		Future<coeff_opT> gchild_op=coeff_op.make_child_op(grandchild);
+                        	MADNESS_EXCEPTION("this will fail",0);
+                    		Future<coeff_opT> gchild_op=coeff_op.make_child(grandchild).activate();
 
                     		// make coeffs for child; possibly inaccurate
                         	v2[ii]=woT::task(world.rank(),
@@ -5310,7 +5205,7 @@ namespace madness {
                         }
                         // v2 might be inaccurate, but s_mul_ns_apply will return accurate child coeffs
                    		ProcessID p=coeffs.owner(child);
-                		Future<coeff_opT> child_op=coeff_op.make_child_op(child);
+                		Future<coeff_opT> child_op=coeff_op.make_child(child).activate();
 
                         v_accurate[i]=woT::task(p,&implT:: template s_mul_ns_apply<coeff_opT, apply_opT>,
                 				child, child_op, apply_op, v2, TaskAttributes::hipri());
@@ -5464,18 +5359,17 @@ namespace madness {
         	bool randomize() const {return true;}
 
         	typedef recursive_multiply_and_apply_op<opT> this_type;
-        	typedef impl_and_arg<T,NDIM> iaT;
+        	typedef CoeffTracker<T,NDIM> ctT;
         	typedef std::pair<bool,coeffT> argT;
 
             mutable implT* result;
-            iaT iaf;			/// multiply this
-            iaT iaM;			/// multiply this, optionally on-demand
+            ctT iaf;			/// multiply this
+            ctT iaM;			/// multiply this, optionally on-demand
             const opT* apply_op;
 
             // ctor
             recursive_multiply_and_apply_op() {}
-            recursive_multiply_and_apply_op(implT* result, const iaT& iaf,
-            		const iaT& iaM, const opT* apply_op)
+            recursive_multiply_and_apply_op(implT* result, const ctT& iaf, const ctT& iaM, const opT* apply_op)
             	: result(result), iaf(iaf), iaM(iaM), apply_op(apply_op) {}
 
             recursive_multiply_and_apply_op(const recursive_multiply_and_apply_op& other) : result(other.result),
@@ -5488,15 +5382,15 @@ namespace madness {
             Future<argT> operator()(const Key<NDIM>& key) const {
 
             	// get the coeffs from f and M
-                tensorT fcoeff=iaf.impl->parent_to_child_NS(key,iaf.datum.first,iaf.datum.second.coeff());
-                tensorT mcoeff=iaM.impl->parent_to_child_NS(key,iaM.datum.first,iaM.datum.second.coeff());
+                tensorT fcoeff=iaf.get_impl()->parent_to_child_NS(key,iaf.key(),iaf.coeff());
+                tensorT mcoeff=iaM.get_impl()->parent_to_child_NS(key,iaM.key(),iaM.coeff());
                 tensorT fcoeff0=copy(fcoeff(result->cdata.s0));
                 tensorT mcoeff0=copy(mcoeff(result->cdata.s0));
                 tensorT cc(result->cdata.v2k);
 
                 // unfilter to sum coefficients of level n+1
-                fcoeff=iaf.impl->unfilter(fcoeff);
-                mcoeff=iaM.impl->unfilter(mcoeff);
+                fcoeff=iaf.get_impl()->unfilter(fcoeff);
+                mcoeff=iaM.get_impl()->unfilter(mcoeff);
 
                 // number of quadrature points for multiplication: must be k+1
                 const int npt=result->cdata.k+1;
@@ -5557,17 +5451,23 @@ namespace madness {
             	return argT(is_leaf,coeff);
             }
 
-            Future<recursive_multiply_and_apply_op> make_child_op(const keyT& child) const {
+            this_type make_child(const keyT& child) const {
+                return this_type(result,iaf.make_child(child),iaM.make_child(child),apply_op);
+            }
 
-                Future<iaT> iaff=iaf.make_child(child);
-                Future<iaT> iaMM=iaM.make_child(child);
+            /// retrieve the coefficients (parent coeffs might be remote)
+            Future<this_type> activate() const {
+            	Future<ctT> f1=iaf.activate();
+            	Future<ctT> M1=iaM.activate();
                 return result->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::make_op,result,iaff,iaMM,apply_op);
+                        &this_type::forward_ctor,result,f1,M1,apply_op);
             }
 
-            this_type make_op(implT* rr, const iaT& iaff, const iaT& iaMM, const opT* op) {
-                return this_type(rr,iaff,iaMM,op);
+            /// taskq-compatible ctor
+            this_type forward_ctor(implT* result1, const ctT& iaf1, const ctT& iaM1, const opT* apply_op1) {
+            	return this_type(result1,iaf1,iaM1,apply_op1);
             }
+
 
             template <typename Archive> void serialize(const Archive& ar) {
                 ar & result & iaf & iaM & apply_op;
@@ -5684,57 +5584,6 @@ namespace madness {
             }
         };
 
-        template<size_t LDIM>
-        struct do_trace3functions_local {
-
-            const implT* g;
-            const implT* h;
-
-            do_trace3functions_local() {}
-            do_trace3functions_local(const implT* g, const implT* h) : g(g), h(h) {
-                MADNESS_ASSERT(LDIM+LDIM==NDIM);
-            }
-
-            /// compute the trace f(1,2)g(1,3)h(2,3)
-
-            /// @param[in]  it  iterator to a FunctionNode of f
-            double operator()(typename dcT::const_iterator& it) const {
-
-                Key<LDIM> fkey1,gkey1;
-                Key<LDIM> fkey2,gkey2;
-                it->first.break_apart(fkey1,fkey2);
-                double result=0.0;
-
-                // loop over g's keys
-                typename dcT::const_iterator end = g->coeffs.end();
-                for (typename dcT::const_iterator git=g->coeffs.begin(); git!=end; ++git) {
-
-                    git->first.break_apart(gkey1,gkey2);
-
-                    // find matching pairs for the trace f(1,2)g(1,3):
-                    // first half of the key must be the same
-                    if (fkey1==gkey1) {
-
-                        // make the coeffs for h(2,3)
-                        Key<NDIM> hkey=fkey2.merge_with(gkey2);
-                        const coeffT hcoeff=h->get_functor()->coeff(hkey);
-                        const coeffT& fcoeff=it->second.coeff();
-                        const coeffT& gcoeff=git->second.coeff();
-                        result+=inner3way(fcoeff,gcoeff,hcoeff);
-                    }
-                }
-                return result;
-            }
-
-            double operator()(double a, double b) const {
-                return (a+b);
-            }
-
-            template <typename Archive> void serialize(const Archive& ar) {
-                throw "NOT IMPLEMENTED";
-            }
-        };
-
 
         /// Returns the square of the local norm ... no comms
         double norm2sq_local() const {
@@ -5775,65 +5624,55 @@ namespace madness {
             return sum;
         }
 
-        /// Computes the trace of three functions of the form int dr1 dr2 dr3 f(1,2) g(1,3) h(2,3)
+        /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
 
-        /// requires all FunctionNodes of f and g with the same first half of their keys to be local!
-        template <typename R>
-        typename enable_if_c<NDIM==6, TENSOR_RESULT_TYPE(T,R)>::type
-        trace3functions_local(const FunctionImpl<R,NDIM>& g,
-                const FunctionImpl<T,NDIM>& h) const {
-
-            typedef Range<typename dcT::const_iterator> rangeT;
-            return world.taskq.reduce<double,rangeT,do_trace3functions_local<3> >(rangeT(coeffs.begin(),coeffs.end()),
-                    do_trace3functions_local<3>(&g,&h));
-
-        }
-
-        /// project the low-dim function g on the hi-dim function f: this(x) = <f(x,y) | g(y)>
-
-        /// invoked by the hi-dim function, a function of NDIM
-        /// @param[in]  f   hi-dim function of LDIM+NDIM
-        /// @param[in]  g   lo-dim function of LDIM
-        /// @param[in]	rimpl	a dummy function..
+        /// invoked by the hi-dim function, a function of NDIM+LDIM
+        /// @param[in]  result  lo-dim function of NDIM-LDIM
+        /// @param[in]  g   	lo-dim function of LDIM
         /// @param[in]  dim over which dimensions to be integrated: 0..LDIM or LDIM..LDIM+NDIM-1
         /// @return this, with contributions on all scales
         template<size_t LDIM>
-        void project_out(FunctionImpl<T,LDIM>* result, const FunctionImpl<T,LDIM>* gimpl,
-        		FunctionImpl<T,NDIM>* rimpl, const int dim, const bool fence) const {
+        void project_out(FunctionImpl<T,NDIM-LDIM>* result, const FunctionImpl<T,LDIM>* gimpl,
+        		const int dim, const bool fence) {
 
         	const keyT& key0=cdata.key0;
 
-        	if (world.rank() == coeffs.owner(key0)) {
+            if (world.rank() == coeffs.owner(key0)) {
 
-        		// prepare the impl_and_arg, both of which must be local
-        		impl_and_arg<T,LDIM> iag(gimpl);
+        		// coeff_op will accumulate the result
+                typedef project_out_op<LDIM> coeff_opT;
+                coeff_opT coeff_op(this,result,CoeffTracker<T,LDIM>(gimpl),dim);
 
-        		typedef project_out_op<LDIM> op_type;
-        		op_type op(this,result,iag,dim);
+                // don't do anything on this -- coeff_op will accumulate into result
+                typedef noop<T,NDIM> apply_opT;
+                apply_opT apply_op;
 
-        		ProcessID owner = coeffs.owner(cdata.key0);
-        		rimpl->task(owner, &implT:: template recursive_op<op_type>, op, cdata.key0);
-        	}
-    		if (fence) world.gop.fence();
+                woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
+                		coeff_op, apply_op, cdata.key0);
+
+            }
+            if (fence) world.gop.fence();
+
         }
 
+        /// project the low-dim function g on the hi-dim function f: result(x) = <f(x,y) | g(y)>
         template<size_t LDIM>
         struct project_out_op {
         	bool randomize() const {return false;}
 
         	typedef project_out_op<LDIM> this_type;
-        	typedef impl_and_arg<T,LDIM> iaL;
-        	typedef FunctionImpl<T,LDIM> implL;
+        	typedef CoeffTracker<T,LDIM> ctL;
+        	typedef FunctionImpl<T,NDIM-LDIM> implL1;
         	typedef std::pair<bool,coeffT> argT;
 
             const implT* fimpl;			//< the hi dim function f
-            mutable implL* result;	//< the low dim result function
-            iaL iag;				//< the low dim function g
+            mutable implL1* result;	//< the low dim result function
+            ctL iag;				//< the low dim function g
             int dim;				//< 0: project 0..LDIM-1, 1: project LDIM..NDIM-1
 
             // ctor
             project_out_op() {}
-            project_out_op(const implT* fimpl, implL* result, const iaL& iag, const int dim)
+            project_out_op(const implT* fimpl, implL1* result, const ctL& iag, const int dim)
             		: fimpl(fimpl), result(result), iag(iag), dim(dim) {}
             project_out_op(const project_out_op& other)
             		: fimpl(other.fimpl), result(other.result), iag(other.iag), dim(other.dim) {}
@@ -5848,11 +5687,11 @@ namespace madness {
             	// make the right coefficients
                 coeffT gcoeff;
                 if (dim==0) {
-                	gcoeff=iag.impl->parent_to_child(iag.datum.second.coeff(),iag.datum.first,key1);
+                	gcoeff=iag.get_impl()->parent_to_child(iag.coeff(),iag.key(),key1);
                 	dest=key2;
                 }
                 if (dim==1) {
-                	gcoeff=iag.impl->parent_to_child(iag.datum.second.coeff(),iag.datum.first,key2);
+                	gcoeff=iag.get_impl()->parent_to_child(iag.coeff(),iag.key(),key2);
                 	dest=key1;
                 }
 
@@ -5890,18 +5729,24 @@ namespace madness {
                 return Future<argT> (argT(fnode.is_leaf(),coeffT()));
             }
 
-            Future<project_out_op> make_child_op(const keyT& child) const {
+            this_type make_child(const keyT& child) const {
             	Key<LDIM> key1,key2;
             	child.break_apart(key1,key2);
             	const Key<LDIM> gkey = (dim==0) ? key1 : key2;
-                // point to "outermost" leaf node
-                Future<iaL> iagg=iag.make_child(gkey);
-                return result->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::make_op,fimpl,result,iagg,dim);
+
+                return this_type(fimpl,result,iag.make_child(gkey),dim);
             }
 
-            this_type make_op(const implT* ff, implL* rr, const iaL& iagg, const int ddim) {
-                return this_type(ff,rr,iagg,ddim);
+            /// retrieve the coefficients (parent coeffs might be remote)
+            Future<this_type> activate() const {
+            	Future<ctL> g1=iag.activate();
+                return result->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,fimpl,result,g1,dim);
+            }
+
+            /// taskq-compatible ctor
+            this_type forward_ctor(const implT* fimpl1, implL1* result1, const ctL& iag1, const int dim1) {
+            	return this_type(fimpl1,result1,iag1,dim1);
             }
 
             template <typename Archive> void serialize(const Archive& ar) {

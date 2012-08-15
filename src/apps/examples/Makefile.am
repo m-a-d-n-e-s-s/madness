@@ -1,11 +1,13 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop mp2 tiny
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop mp2 tiny oep
 
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc 
+
+oep_SOURCES = oep.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc 
 
 tiny_SOURCES = tiny.cc
 

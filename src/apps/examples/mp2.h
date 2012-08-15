@@ -900,7 +900,7 @@ namespace madness {
 
             if(world.rank() == 0) printf("\ndone at time %.1fs\n", wall_time());
         	if (world.rank()==0) print("inner(phi0,JKphi0)",aa);
-        	return;
+
         	real_function_6d phi1, phi0;
         	real_function_6d result1, result2;
         	real_function_6d source1;
@@ -909,10 +909,16 @@ namespace madness {
         	// do the full comparison
         	if (1) {
 
-//        		result1=apply_hartree_product(green,sqrt2*JKVphi_i,sqrt2*JKVphi_j);
+//        		real_function_6d Vphi1=CompositeFactory<double,6,3>(world).particle1(JKVphi_i).particle2(phi_j);
+//        		real_function_6d Vphi2=CompositeFactory<double,6,3>(world).particle1(phi_i).particle2(JKVphi_j);
+
+//        		Vphi1.fill_tree(green);
+
+//        		result1=-2.0*green(Vphi1);
+//        		result1=result1-2.0*green(Vphi2);
+
         		result1=-2.0*green(JKVphi_i,phi_j).truncate().reduce_rank();
         		result1=result1-2.0*green(phi_i,JKVphi_j).truncate().reduce_rank();
-//        		phi1=green(phi0);
             	world.gop.fence();
             	a=result1.norm2();
             	if (world.rank()==0) print("norm(green(JKVphi,JKVphi))",a);
@@ -933,10 +939,17 @@ namespace madness {
 
         void test(const int i, const int j) {
 
+        	test1(i,j);
+        	return;
+
+
         	const real_function_3d v=hf->get_nuclear_potential();
         	const real_function_3d f=hf->orbital(0);
         	double n0,n1,n2,d,cpu0,cpu1;
 
+
+        	real_function_6d hartree=hartree_product(f,f);
+        	hartree.print_size("hartree");
         	real_function_3d mul=f*v;
         	mul.print_size("mul");
 
@@ -983,6 +996,7 @@ namespace madness {
 				real_function_6d r12phi=CompositeFactory<double,6,3>(world)
 							.g12(corrfac.f()).ket(copy(phi0));
 				r12phi.fill_tree().truncate().reduce_rank();
+				r12phi.print_size("r12phi");
 				r1=green(r12phi);
 				cpu1=wall_time();
 				print("time conventional",cpu1-cpu0);

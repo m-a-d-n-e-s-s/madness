@@ -82,6 +82,10 @@ static double add_test(const coord_6d& r) {
     return g1*g2 + g1*g1*g2;
 }
 
+static double V(const Vector<double,3>& r) {
+  return -1.0/sqrt(r[0]*r[0]+r[1]*r[1]+r[2]*r[2]+1e-12);
+}
+
 /// test f(1,2) = g(1) h(2)
 int test_hartree_product(World& world, const long& k, const double thresh) {
 
@@ -131,6 +135,7 @@ int test_multiply(World& world, const long& k, const double thresh) {
     real_function_6d ij=hartree_product(phi,phi);
     real_function_6d iij=hartree_product(phisq,phi);
     real_function_6d iij2=multiply(copy(ij),phi,1);
+    iij2.print_size("multiply");
 
 //    double err=iij2.err(r2r);
     double err=(iij-iij2).norm2();
@@ -141,10 +146,16 @@ int test_multiply(World& world, const long& k, const double thresh) {
     real_function_6d iij3=CompositeFactory<double,6,3>(world)
     	    	.ket(copy(ij)).V_for_particle1(copy(phi));
     iij3.fill_tree();
+    iij3.print_size("CompositeFactory");
+    iij3.truncate();
+    iij3.print_size("CompositeFactory");
+
+    double err4=(iij2-iij3).norm2();
+    print("multiply - CompositeFactory",err4);
 
     double err2=(iij-iij3).norm2();
     good=is_small(err2,thresh);
-    print(ok(good), "multiply f(1,2)*g(1) error:",err2);
+    print(ok(good), "CompositeFactory f(1,2)*g(1) error:",err2);
 
 
     if (not good) nerror++;
@@ -289,6 +300,63 @@ int test_inner(World& world, const long& k, const double thresh) {
 }
 
 
+/// test 6D convolution
+int test_convolution(World& world, const long& k, const double thresh) {
+
+    print("entering convolution");
+    int nerror=0;
+    bool good;
+
+    double eps=-0.5;
+
+    // solve the 3D H-atom
+    real_function_3d phi=real_factory_3d(world).f(gauss_3d);
+    const real_function_3d v=real_factory_3d(world).f(V);
+	real_function_3d vphi=v*phi;
+
+    v.print_size("v");
+    real_convolution_3d poisson = CoulombOperator(world,0.0001,thresh);
+    real_convolution_3d green = BSHOperator<3>(world, sqrt(-2.0*eps), 1.e-8, thresh);
+
+    for (int i=0; i<10; ++i) {
+
+    	vphi=v*phi;
+    	double PE=inner(vphi,phi);
+    	print("<phi | V | phi>: ",PE);
+
+    	real_derivative_3d Dx = free_space_derivative<double,3>(world,0);
+    	Function<double,3> du = Dx(phi);
+    	double KE = 3*0.5*(du.inner(du));
+    	print("<phi | T | phi>: ",KE);
+    	print("<phi | H | phi>: ",KE + PE);
+
+
+    	phi=green(-2.0*vphi);
+    	double norm=phi.norm2();
+    	phi.scale(1.0/norm);
+    	print("phi.norm2()",norm);
+    }
+
+    // solve the H-atom in 6D
+    real_convolution_6d green6 = BSHOperator<6>(world, sqrt(-2.0*eps), 1.e-8, thresh);
+
+	real_function_6d result1=-2.0*green6(vphi,phi).truncate().reduce_rank();
+	result1=result1-2.0*green6(phi,vphi).truncate().reduce_rank();
+
+	real_function_6d diff=result1-hartree_product(phi,phi);
+	double norm=diff.norm2();
+
+    if (world.rank()==0) print("diff norm",norm);
+    good=is_small(norm,thresh);
+    print(ok(good), "inner error:",norm);
+    if (not good) nerror++;
+
+    print("all done\n");
+    return nerror;
+}
+
+
+
 
 int test(World& world, const long& k, const double thresh) {
 
@@ -414,7 +482,8 @@ int main(int argc, char**argv) {
 
 //    test(world,k,thresh);
 //    error+=test_hartree_product(world,k,thresh);
-    error+=test_multiply(world,k,thresh);
+    error+=test_convolution(world,k,thresh);
+//    error+=test_multiply(world,k,thresh);
 //    error+=test_add(world,k,thresh);
 //    error+=test_exchange(world,k,thresh);
 //    error+=test_inner(world,k,thresh);

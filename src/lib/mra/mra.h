@@ -1226,16 +1226,11 @@ namespace madness {
                     .k(g.k()).thresh(g.thresh());
             Function<resultT,KDIM> result=factory;      // no empty() here!
 
-            FunctionFactory<resultT,NDIM> factory2=FunctionFactory<resultT,NDIM>(world())
-                    .k(this->k()).thresh(this->thresh());
-            Function<resultT,NDIM> r1=factory2.empty().fence();		// this is a dummy function
-        	FunctionImpl<resultT,NDIM>* rimpl=r1.get_impl().get();
-
             FunctionImpl<R,LDIM>* gimpl = const_cast< FunctionImpl<R,LDIM>* >(g.get_impl().get());
 
             this->reconstruct();
             gimpl->make_redundant(true);
-            this->get_impl()->project_out(result.get_impl().get(),gimpl,rimpl,dim,true);
+            this->get_impl()->project_out(result.get_impl().get(),gimpl,dim,true);
 //            result.get_impl()->project_out2(this->get_impl().get(),gimpl,dim);
             result.world().gop.fence();
             result.get_impl()->trickle_down(true);
@@ -1574,14 +1569,8 @@ namespace madness {
     operator*(const Function<L,NDIM>& left, const Function<R,NDIM>& right) {
         if (left.is_compressed())  left.reconstruct();
         if (right.is_compressed()) right.reconstruct();
-        if (left.is_on_demand() or right.is_on_demand()) {
-            Function<TENSOR_RESULT_TYPE(L,R),NDIM> result;
-            result.set_impl(left, false);
-            result.mul_on_demand(left,right,true);
-            return result;
-        } else {
-            return mul(left,right,true);
-        }
+        MADNESS_ASSERT(not (left.is_on_demand() or right.is_on_demand()));
+        return mul(left,right,true);
     }
 
     /// Performs a Hartree product on the two given low-dimensional functions
