@@ -823,7 +823,7 @@ namespace madness {
     	CoeffTracker make_child(const keyT& child) const {
 
     		// fast return
-    		if (not impl) return CoeffTracker();
+    		if ((not impl) or impl->is_on_demand()) return CoeffTracker(*this);
 
     		// can't make a child without knowing if this is a leaf -- activate first
 			MADNESS_ASSERT((is_leaf_==yes) or (is_leaf_==no));
@@ -850,6 +850,7 @@ namespace madness {
 
     		// fast return
     		if (not impl) return Future<CoeffTracker>(CoeffTracker());
+    		if (impl->is_on_demand()) return Future<CoeffTracker>(CoeffTracker(impl));
 
     		// this will return a <keyT,nodeT> from a remote node
     		ProcessID p=impl->get_coeffs().owner(key());
@@ -3302,7 +3303,9 @@ namespace madness {
             MADNESS_ASSERT(p1->is_nonstandard());
             MADNESS_ASSERT(p2->is_nonstandard());
 
-            if (world.rank() == p1->get_coeffs().owner(p1->cdata.key0)) {
+            keyT key0=cdata.key0;
+
+            if (world.rank() == this->get_coeffs().owner(key0)) {
 
             	// prepare the CoeffTracker
                 CoeffTracker<T,LDIM> iap1(p1);
@@ -3654,6 +3657,8 @@ namespace madness {
             const size_t LDIM=3;
 
             // keep the functor available, but remove it from the result
+            // result will return false upon is_on_demand(), which is necessary for the
+            // CoeffTracker to track the parent coeffs correctly for error_leaf_op
             std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func2(this->get_functor());
             this->unset_functor();
 
