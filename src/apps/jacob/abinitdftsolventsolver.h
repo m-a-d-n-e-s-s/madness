@@ -266,7 +266,6 @@ private:
     repsilon_rho(double rho0, double beta, double epsilon, double cutrho)
       : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
     {}
-
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
       UNARY_OPTIMIZED_ITERATOR(T,t,
                                T rho = std::fabs(*_p0);
@@ -282,6 +281,18 @@ private:
         ar & rho0 & beta & epsilon & cutrho;
     }
   };
+    //Use UNARY operator to obtain the point-wise norm of the electric field
+    template<typename T,int DIM>
+    struct square_root {
+        square_root() {};
+        void operator()(const Key<DIM>& key,Tensor<T>& t) const {
+            UNARY_OPTIMIZED_ITERATOR(T,t,
+                                     *_p0 = std::pow((*_p0),0.5);
+                                     );
+        }
+        
+        template <typename Archive>void serialize(Archive& ar) {}
+    };
   //gradient of density
   realfunc grad_of(const realfunc& dens) const {
     real_derivative_3d Dx = free_space_derivative<double,3>(dens.world(), 0);
@@ -382,7 +393,19 @@ public:
     const double rfourpi = 1.0/(4.0*constants::pi);
     return (make_ratioepsilon()*pgrad).scale(rfourpi);
   }
-  
+  // Given the full Laplace potential and the external electric field compute the surface charge
+    real_function_3d make_Laplace_surface_charge(const real_function_3d& u,std::vector<double> E=std::vector<double>(3,0.0)) const {
+        real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
+        real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
+        real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
+        //double fac = -1.0/(4.0*constants::pi);
+        real_function_3d dx = -E[0] + Dx(u);
+        real_function_3d dy = -E[1] + Dy(u);
+        real_function_3d dz = -E[2] + Dz(u);
+        realfunc pgrad = (Dx(rho)*dx + Dy(rho)*dy + Dz(rho)*dz);
+        //const double rfourpi = 1.0/(4.0*constants::pi);
+        return (make_ratioepsilon()*pgrad);
+    }
   //Define the electrostatic potential
   realfunc ESP()const {
     const bool USE_SOLVER = true;
@@ -392,8 +415,8 @@ public:
     realfunc U0 = op(charge);  //U
     //    double einf = -1.0/epsilon;
     realfunc U = op(rhot); //Uvac
-    realfunc Ug = op(tcharge);//U0
-    realfunc Ur = U;// - Uvac; 
+    // realfunc Ug = op(tcharge);//U0
+    //    realfunc Ur = U;// - Uvac; 
     double unorm = U.norm2();
     //print("U.norm2: ", unorm);
     /*coord_3d lo(0.0), hi(0.0);
@@ -412,7 +435,7 @@ public:
     plot_line("iso_surfacecharge.dat", 10001, hi, lo,make_surfcharge(U));
     // throw "done";*/
     if (USE_SOLVER) {
-        madness::NonlinearSolver solver;//(5);
+        madness::NonlinearSolver solver(20);//(5);
       // This section employs a non-linear equation solver from solvers.h                                                                                  
       //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract                                                                               
       if (world.rank() == 0){
@@ -432,12 +455,10 @@ public:
           double err = rvec.norm2();
           if (world.rank()==0)
               // madness::print("  ", iter,"             " , err,"           ",U(coord_3d(10.0)));
-              std::printf("%8d %22.10f %22.10f \n", iter,err,Ur(coord_3d(10.0)));
+              std::printf("%8d %22.10f %22.10f \n", iter,err,U(coord_3d(10.0)));
           if (err >0.3*unorm) U = 0.5*U + 0.5*U_new;
-          //if (err >0.3*unorm) Ur = 0.5*Ur + 0.5*U_new;
           else
               U = U_new;
-          //Ur = U_new;
           if(err < 10.0*tol) break;
       }
     }
@@ -447,49 +468,48 @@ public:
     realfunc rxtnpot = U - op(rhot);
     return rxtnpot;
   }
-    
-  //Defining the polarization of the dielectric continuum in the presence of 
+ //Defining the polarization of the dielectric continuum in the presence of 
  // an external electric field. Used in the response of solvated molecule  
-    realfunc Laplace_ESP(const realfunc& uguess)const {
-        const bool USE_SOLVER = true;
-        double tol = std::max(1e-7,FunctionDefaults<3>::get_thresh());
-        realfunc U = uguess;
-        double unorm = U.norm2();
-        print("U.norm2: ", unorm);
-        //start plots
-        coord_3d lo(0.0), hi(0.0);
-        lo[0] = -20.0;
-        hi[0] = 20.0;
-        if (USE_SOLVER) {
-            madness::NonlinearSolver solver;//(5);
-            if (world.rank() == 0){
-                print("\n\n");//for formating output
-                madness::print("    Computing the Continuum-Field Interaction Potential   ");
-                madness::print("           ______________________           \n ");
-                
-                madness::print("iteration          residue norm2            soln(10.0)  ");
-            }
-            
-            for (int iter=0; iter<maxiter; iter++) {
-                realfunc uvec = U;
-                realfunc Scharge = make_surfcharge(U);// - Uvac);
-                realfunc rvec = (U - op(Scharge)).truncate();
-                plot_line("continuum_surface_pot.dat", 10001, hi, lo,op(Scharge));
-                plotdx(op(Scharge),"continuum_surface_pot.dx");
-                realfunc U_new = solver.update(uvec,rvec);
-                double err = rvec.norm2();
-                if (world.rank()==0)
-                    std::printf("%8d %22.10f %22.10f \n", iter,err,U(coord_3d(10.0)));
-                //madness::print("  ", iter,"             " , err,"           ",U(coord_3d(10.0)));
-                if (err >0.3*unorm) U = 0.5*U + 0.5*U_new;
-                else
-                    U = U_new;
-                if(err < 10.0*tol) break;
-            }
+    real_function_3d Laplace_ESP(std::vector<double>E) const {
+        // Initial guess is constant dielectric        
+        const double fac = -1.0/(4.0*constants::pi);
+        real_function_3d u(world);//  guess pot is zero;
+        double unorm = 0.0;//u.norm2();
+        NonlinearSolver solver(20);
+        //print for formating
+        if (world.rank()==0){
+            print("\n\n");//for formating output 
+            madness::print("            Computing the Dielectric Resonse to the External Electric Field           ");
+            madness::print("                           ______________________                            \n ");
         }
-        // plot_line("continuum_field_pot.dat", 10001, hi, lo,U);
-        //plotdx(U,"continuum_field_pot.dx");
-        return U;
+        for (int iter=0; iter<maxiter; iter++) {
+            double start = wall_time();
+            real_function_3d surface_charge = make_Laplace_surface_charge(u,E);
+            real_function_3d r = (u - op(surface_charge).scale(fac)).truncate(.032*FunctionDefaults<3>::get_thresh());
+            double sigtot = surface_charge.trace()*fac;
+            //surface_charge.clear();
+            real_function_3d unew = solver.update(u, r);
+            double change = (unew-u).norm2();///(8.0*std::pow(L,3.0));
+            if (world.rank()==0){
+                print("iter", iter, "change", change,
+                      "soln(10.0)", u(coord_3d(10.0)),
+                      "surface charge", sigtot,"used",wall_time()-start);
+            }
+            // Step restriction 
+            if (change > 0.3*unorm) 
+                u = 0.5*unew + 0.5*u;
+            else 
+                u = unew;
+            
+            if (change < std::max(1e-4,10.0*thresh)) break;
+        }
+        if (world.rank()==0)
+            print("\n\n");
+        coord_3d lo(0.0),hi(0.0);
+        lo[1]=-50.0, hi[1]=50.0;
+        plot_line("ab_laplace_surfcharge.dat", 1001, hi, lo, make_Laplace_surface_charge(u,E).scale(fac));
+        plot_line("ab_laplace_pot.dat", 1001, hi, lo, u);
+        return u;
     }
 //Defining the derivative of the ESP w.r.t rho
 // this function is very noisy and is not called
@@ -507,25 +527,30 @@ public:
     return dep;
   }
     //computes components of the the electric field due to the surface charge 
-    realfunc make_electric_field(const realfunc& u) const {
+    vector_real_function_3d make_electric_field(const real_function_3d& u) const {
+        vector_real_function_3d E(3);//=std::vector<double>(3,0.0);
         real_derivative_3d Dx = free_space_derivative<double,3>(u.world(), 0);
         real_derivative_3d Dy = free_space_derivative<double,3>(u.world(), 1);
         real_derivative_3d Dz = free_space_derivative<double,3>(u.world(), 2);
         double fac = -1.0/(4.0*constants::pi);
-        realfunc Sigma =(Dx(u) + Dy(u) + Dz(u)).scale(fac); //excess charge on colloid surface
-        realfunc uxc  = op(Sigma); //coulomb potential due to excess charge                                                                         
-        realfunc dx = Dx(uxc) ;
-        realfunc dy = Dy(uxc) ;
-        realfunc dz = Dz(uxc) ;
-        return (dx + dy + dz).scale(-1.0);
+        real_function_3d Sigmax =(Dx(u)).scale(fac), Sigmay = (Dy(u)).scale(fac),Sigmaz = (Dz(u)).scale(fac); //excess charge on colloid surface
+        E[0] = Dx(op(Sigmax)), E[1] = Dy(op(Sigmay)), E[2] = Dz(op(Sigmaz)) ;
+        coord_3d lo(0.0),hi(0.0);
+        lo[1]=-50.0, hi[1]=50.0;
+        plot_line("ab_sigma.dat", 1001, hi, lo, E[0], E[1], E[2]);
+        // real_function_3d uxc  = op(Sigma); //coulomb potential due to excess charge
+        
+        return E;
     }
     //calculate the average reaction field(\int C(r)F_r(r)d \tau/\int C(r)d\tau  
-    //the mask is that of the molecule because the average field is that felt by the molecule 
-    double ave_rxn_field(const real_function_3d& F_r,const real_function_3d& mask)const {
-        real_function_3d  pdt = mask*F_r;
-        double numerator = pdt.trace();
+    double ave_rxn_field(const real_function_3d& u,const real_function_3d& mask)const {
+        real_function_3d  pdtx = mask*make_electric_field(u)[0]; 
+        real_function_3d  pdty = mask*make_electric_field(u)[1]; 
+        real_function_3d  pdtz = mask*make_electric_field(u)[2]; 
+        double numx = pdtx.trace(), numy = pdty.trace(), numz = pdtz.trace();
         double denominator = mask.trace();
-        return (numerator/denominator);
+        double Favx = numx/denominator, Favy = numy/denominator,Favz = numz/denominator;
+        return std::sqrt(std::pow(Favx,2.0) + std::pow(Favy,2.0) + std::pow(Favz,2.0));
     }
  //Defining the Constructor
  DFTSolventSolver(const realfunc& rho,
