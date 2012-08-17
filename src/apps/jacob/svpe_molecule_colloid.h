@@ -47,16 +47,18 @@ using namespace std;
 
 //set coordinates of colloid atoms                      
 std::vector< madness::Vector<double,3> > colloid_coords(const double&d,const double R,const std::vector<double> cc) {
-    std::vector< madness::Vector<double,3> > c(6, madness::Vector<double,3>(0.0)); //6 spheres on the colloid surface                                 
-    double sqrttwo = std::sqrt(2.0);
-    double dist= (sqrttwo/2.0)*R;
+    int nsphere = 1;
+    std::vector< madness::Vector<double,3> > c(nsphere, madness::Vector<double,3>(0.0)); //6 spheres on the colloid surface                                 
+    /* double sqrttwo = std::sqrt(2.0);
+       double dist= (sqrttwo/2.0)*R */
     double x = cc[0], y =  cc[1], z = cc[2];
-    c[0][0]=  x - dist, c[0][1]= y - d - dist,    c[0][2] = z;
-    c[1][0]= x + dist,  c[1][1]= y - d - dist,    c[1][2] = z;
-    c[2][0]= x + dist,  c[2][1]= y - d + dist,    c[2][2] = z;
-    c[3][0]= x - dist,  c[3][1]= y - d + dist,    c[3][2] = z;
-    c[4][0]= x ,        c[4][1]=  y - d ,         c[4][2] = z + R;
-    c[5][0]= x ,        c[5][1]= y - d,           c[5][2] = z - R;
+/*  c[0][0]= x - R,  c[0][1]= y - d - 2.0*R,   c[0][2] = z; //A  base sphere
+    c[1][0]= x ,     c[1][1]= y - d - R,       c[1][2] = z;     //B base sphere
+    c[2][0]= x + R,  c[2][1]= y - d + 2.0*R,   c[2][2] = z;  //C  base sphere
+    c[3][0]= x ,     c[3][1]= y - d + 3.0*R,   c[3][2] = z;     //D base spheres
+    c[4][0]= x ,     c[4][1]= y - d - 2.0*R ,  c[4][2] = z - R; //E bottom sphere
+    c[5][0]= x ,     c[5][1]= y - d - 2.0*R,   c[5][2] = z + R;*/ // top sphere
+    c[0][0]= x, c[0][1]= y - R - d ,    c[0][2] = z;// for a single sphere
     return c;
 }
 /*std::vector< madness::Vector<double,3> > colloid_coordss(const double&d,const double R,std::vector<double> cc) {
@@ -86,7 +88,7 @@ std::vector< madness::Vector<double,3> > colloid_coords(const double&d,const dou
 //colloid radii
 //if number of colloid spheres changes don't forget to change it here
 std::vector<double> colloid_radii(const double& R) {
-    int nsphere = 6; //number of colloid spheres
+    int nsphere = 1; //number of colloid spheres
     std::vector<double> c(nsphere,0.0);
     for(int i=0; i<nsphere; i++)
         c[i] = R;
@@ -104,10 +106,12 @@ class SVPEColloidSolver {
     //std::vector<real_convolution_3d_ptr> gop; //< Gradient of the Coulomb operator
     vector_real_function_3d dlog; //< Log-derivative of the dielectric
     real_function_3d rdielectric; //< Reciprocal of the dielectric
+    real_function_3d volume; //< volume function of the sphere/colloid
+    double L;                            //<half lenght of the simulation volume
+    //    vector_real_function_3d Eind; //<surface induced electric 
     const int maxiter;
-
-    //this is used to perform a binary operation
-    
+    static const double cutrho = 1e-12;  //cutoff value of the surface charge
+    //this is used to perform a pointwise multiplication
     struct Bop {
         void operator()(const Key<3>& key,
                         real_tensor rfunc,
@@ -129,7 +133,7 @@ public:
     SVPEColloidSolver(World& world,
                       double sigma, double epsilon_0, double epsilon_1, 
                       const vector_real& atomic_radii, const vector_coord_3d& atomic_coords,
-                      const double minlen,const int maxiter)
+                      const double minlen,double L, const int maxiter)
         :world(world) 
         ,thresh(FunctionDefaults<3>::get_thresh())
         , minlen(minlen)
@@ -138,6 +142,7 @@ public:
         , epsilon_1(epsilon_1)
         , op(CoulombOperator(world, minlen, thresh))
         , dlog(3)
+        ,L(L)
         , maxiter(maxiter)
     {
         MADNESS_ASSERT(atomic_radii.size() == atomic_coords.size());//check on the consistency
@@ -146,10 +151,11 @@ public:
         real_functor_3d gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,0));
         real_functor_3d grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,1));
         real_functor_3d gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,2));
-        
+        real_functor_3d volume_functor(new MolecularVolumeMask(sigma,atomic_radii, atomic_coords));
         // Make the actual functions
         // const double rfourpi = 1.0/(4.0*constants::pi);
         rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
+        volume = real_factory_3d(world).functor(volume_functor).nofence();
         dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence().truncate_on_project();
         dlog[1] = real_factory_3d(world).functor(grady_functor).nofence().truncate_on_project();
         dlog[2] = real_factory_3d(world).functor(gradz_functor).truncate_on_project(); // FENCE
@@ -163,58 +169,72 @@ public:
         real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
         real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
         real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
-        double fac = -1.0/(4.0*constants::pi);
-        real_function_3d dx = Dx(u);
-        real_function_3d dy = Dy(u);
-        real_function_3d dz = Dz(u);
-        //real_function_3d sc = (dlog[0]*dx + dlog[1]*dy + dlog[2]*dz);//.truncate();
+        //double fac = -1.0/(4.0*constants::pi);
+        real_function_3d dx =  Dx(u);
+        real_function_3d dy =  Dy(u);
+        real_function_3d dz =  Dz(u);
         real_function_3d sc = func_pdt(dlog[0],dx).truncate() + func_pdt(dlog[1],dy).truncate() + func_pdt(dlog[2],dz).truncate();
-        coord_3d lo,hi;
-        lo[1]=-20.0, hi[1]=20.0;
-        plot_line("colloid_surf_charge.dat", 201, lo, hi, sc);
-        return sc.scale(fac);
+        //coord_3d lo,hi;
+        //lo[1]=-L, hi[1]=L;
+        //plot_line("colloid_surf_charge.dat", 1001, lo, hi, sc);
+        return sc; //.scale(fac);
+    }
+    // Given the full Laplace potential compute the surface charge
+    real_function_3d make_Laplace_surface_charge(const real_function_3d& u,std::vector<double> E=std::vector<double>(3,0.0)) const {
+        real_derivative_3d Dx = free_space_derivative<double,3>(world, 0);
+        real_derivative_3d Dy = free_space_derivative<double,3>(world, 1);
+        real_derivative_3d Dz = free_space_derivative<double,3>(world, 2);
+        //double fac = -1.0/(4.0*constants::pi);
+        real_function_3d dx = -E[0] + Dx(u);
+        real_function_3d dy = -E[1] + Dy(u);
+        real_function_3d dz = -E[2] + Dz(u);
+        real_function_3d sc = func_pdt(dlog[0],dx).truncate() + func_pdt(dlog[1],dy).truncate() + func_pdt(dlog[2],dz).truncate();
+        return sc;
     }
     //computes components of the the electric field due to the surface charge 
-    real_function_3d make_electric_field(const real_function_3d& u) const {
+    vector_real_function_3d make_electric_field(const real_function_3d& u) const {
+        // throw "not correct";
+        vector_real_function_3d E(3);// = madness::vector_factory(0.0, 0.0 ,0.0);
         real_derivative_3d Dx = free_space_derivative<double,3>(u.world(), 0);
         real_derivative_3d Dy = free_space_derivative<double,3>(u.world(), 1);
         real_derivative_3d Dz = free_space_derivative<double,3>(u.world(), 2);
         double fac = -1.0/(4.0*constants::pi);
-        real_function_3d Sigma =(Dx(u) + Dy(u) + Dz(u)).scale(fac); //excess charge on colloid surface
-        real_function_3d uxc  = op(Sigma); //coulomb potential due to excess charge
-        real_function_3d dx = Dx(uxc) ;
-        real_function_3d dy = Dy(uxc) ;
-        real_function_3d dz = Dz(uxc) ;
-        return (dx + dy + dz).scale(-1.0);
+        real_function_3d Sigmax =(Dx(u)).scale(fac), Sigmay = (Dy(u)).scale(fac),Sigmaz = (Dz(u)).scale(fac); //excess charge on colloid surface
+        coord_3d lo(0.0),hi(0.0);
+        lo[1]=-L, hi[1]=L;
+        plot_line("ab_sigma.dat", 1001, hi, lo, Sigmax, Sigmay, Sigmaz);
+        E[0] = Dx(op(Sigmax)), E[1] = Dy(op(Sigmay)), E[2] = Dz(op(Sigmaz)) ;
+        return E;
     }
 
     /// Solve for the full Coulomb potential using the free-particle GF
     real_function_3d solve(const real_function_3d& rho) const {
+        const double fac = -1.0/(4.0*constants::pi);
         real_function_3d charge = (rdielectric*rho).scale(-1.0);
-        //charge.truncate();
+
         // Initial guess is constant dielectric        
         real_function_3d u0 = op(charge);//.truncate();
         //real_function_3d u = uguess.is_initialized() ? uguess : u0;
-        real_function_3d u = op(rho); 
-        double unorm = u.norm2();
+        real_function_3d u = u0; // op(rho);  ?? RJH
+        double unorm = u.norm2();///volume.trace();
         if (world.rank()==0)
             print("UNORM IS", unorm);
         NonlinearSolver solver;
         if (world.rank()==0){
             print("\n\n");//for formating output 
-            madness::print("            Computing the Perturbed Potential Near              ");
-            madness::print("                    the Colloid Surface                         ");
-            madness::print("                   ______________________                    \n ");
+            madness::print("              Computing the Perturbed Potential (due to molecule)        ");
+            madness::print("                         Near the Colloid Surface                         ");
+            madness::print("                          ______________________                       \n ");
         }
         for (int iter=0; iter<maxiter; iter++) {
             double start = wall_time();
             real_function_3d surface_charge = make_surface_charge(u);
-            real_function_3d r = (u - u0 - op(surface_charge)).truncate();
-            double sigtot = surface_charge.trace();
+            real_function_3d r = (u - u0 - op(surface_charge).scale(fac)).truncate(.032*FunctionDefaults<3>::get_thresh());
+            double sigtot = surface_charge.trace()*fac;
             //surface_charge.clear();
             // u0.clear();
             real_function_3d unew = solver.update(u,r);
-            double change = (unew-u).norm2();
+            double change = (unew-u).norm2();///volume.trace();
             if(world.rank()==0){
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
@@ -226,37 +246,43 @@ public:
                 u = 0.5*unew + 0.5*u;
             else 
                 u = unew;
-            
-            if (change < std::max(1e-3,10.0*thresh)) break;
+            //if (change < std::max(1e-4,10.0*thresh/volume.trace())) break;
+            if (change < 10.0*thresh) break;
         }
         if(world.rank()==0)
             print("\n\n");//format printing
-        real_function_3d urxn = op(make_surface_charge(u));//u - op(rho);
+        real_function_3d urxn = op(make_surface_charge(u)).scale(fac);//u - op(rho);
         coord_3d lo,hi;
-        lo[1]=-20.0, hi[1]=20.0;
-        plot_line("colloid_rxn_pot.dat", 201, lo, hi, urxn);
+        lo[1]=-L, hi[1]=L;
+        plot_line("colloid_rxn_pot.dat", 1001, lo, hi, urxn);
+        plot_line("colloid_surfcharge.dat", 1001, lo, hi, make_surface_charge(urxn).scale(fac));
+        //real_tensor cell(3,2);
+        // cell(_,0) = -L;
+        //cell(_,1) =  L;
+        // plotdx(volume, "testpot.dx", cell);
         return urxn;
     }
     /// Solve for the full Coulomb potential using the free-particle GF
-    real_function_3d solve_Laplace(const real_function_3d uguess) const {
+    real_function_3d solve_Laplace(std::vector<double>E) const {
         // Initial guess is constant dielectric        
-        real_function_3d u = uguess;
-        double unorm = u.norm2();
+        const double fac = -1.0/(4.0*constants::pi);
+        real_function_3d u(world);//  guess pot is zero;
+        double unorm = 0.0;//u.norm2();
         NonlinearSolver solver;
         //print for formating
         if (world.rank()==0){
             print("\n\n");//for formating output 
-            madness::print("            Computing the Perturbed Potential               ");
-            madness::print("                   ______________________                   \n ");
+            madness::print("            Computing the Perturbed Potential (due to external field)           ");
+            madness::print("                           ______________________                            \n ");
         }
         for (int iter=0; iter<maxiter; iter++) {
             double start = wall_time();
-            real_function_3d surface_charge = make_surface_charge(u);
-            real_function_3d r = (u - op(surface_charge)).truncate();
-            double sigtot = surface_charge.trace();
+            real_function_3d surface_charge = make_Laplace_surface_charge(u,E);
+            real_function_3d r = (u - op(surface_charge).scale(fac)).truncate(.032*FunctionDefaults<3>::get_thresh());
+            double sigtot = surface_charge.trace()*fac;
             //surface_charge.clear();
             real_function_3d unew = solver.update(u, r);
-            double change = (unew-u).norm2();
+            double change = (unew-u).norm2()/volume.trace();///(8.0*std::pow(L,3.0));
             if (world.rank()==0){
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
@@ -268,22 +294,26 @@ public:
             else 
                 u = unew;
             
-            if (change < std::max(1e-3,10.0*thresh)) break;
+            if (change < std::min(1e-5,10.0*thresh)) break;
         }
         if (world.rank()==0)
             print("\n\n");
         coord_3d lo,hi;
-        lo[1]=-20.0, hi[1]=20.0;
-        plot_line("colloid_laplace_pot.dat", 201, lo, hi, make_surface_charge(u));
-        return make_surface_charge(u);
+        lo[1]=-L, hi[1]= L;
+        plot_line("laplace_surfcharge.dat", 1001, lo, hi, make_Laplace_surface_charge(u,E).scale(fac));
+        plot_line("laplace_pot.dat", 1001, lo, hi, u);
+        return u;
     }
     //calculate the average reaction field(\int C(r)F_r(r)d \tau/\int C(r)d\tau
     //the mask is that of the molecule because the average field is that felt by the molecule
-    double ave_rxn_field(const real_function_3d& F_r,const real_function_3d& mask)const {
-        real_function_3d  pdt = mask*F_r; 
-        double numerator = pdt.trace();
+    double ave_rxn_field(const real_function_3d& u,const real_function_3d& mask)const {
+        real_function_3d  pdtx = mask*make_electric_field(u)[0]; 
+        real_function_3d  pdty = mask*make_electric_field(u)[1]; 
+        real_function_3d  pdtz = mask*make_electric_field(u)[2]; 
+        double numx = pdtx.trace(), numy = pdty.trace(), numz = pdtz.trace();
         double denominator = mask.trace();
-        return (numerator/denominator);
+        double Favx = numx/denominator, Favy = numy/denominator,Favz = numz/denominator;
+        return std::sqrt(std::pow(Favx,2.0) + std::pow(Favy,2.0) + std::pow(Favz,2.0));
     }
 };
 
