@@ -61,8 +61,6 @@ def _tester(i, m, trans=False):
     ret = """
     if (mpi_rank=={i}) {{
         for (loop=0; loop<30; ++loop) {{
-            double rate;
-
             rc = pthread_barrier_wait(&barr);
             if(rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {{
                 printf("Could not wait on barrier\\n");
@@ -77,8 +75,9 @@ def _tester(i, m, trans=False):
             {m}(ni,nj,nk,nj,c,a,b);"""
     ret += """
             uint64_t tt = stop_timer(pt);
-            pt->tt = tt < pt->tt ? tt : pt->tt;
+            pt->tt += tt;
         }}
+        pt->tt /= 30;
 
         rc = pthread_barrier_wait(&barr);
         if(rc != 0 && rc != PTHREAD_BARRIER_SERIAL_THREAD) {{
@@ -118,7 +117,7 @@ def _timer(mtxms, complex_c, complex_a, complex_b):
     double nflop = 2.0{}{}*ni*nj*nk*(pt->total_threads);
     long loop;
     int rc;
-    pt->tt = ULONG_MAX;
+    pt->tt = 0;
 """.format(complex_a, complex_b, complex_c, complex_a and "*2.0", complex_b and "*2.0")
 
     for i, m in enumerate(mtxms):
@@ -133,7 +132,7 @@ def _transtimer(mtxms, complex_c, complex_a, complex_b):
     double nflop = 3.0*2.0{}{}*ni*nj*nk*(pt->total_threads);
     long loop;
     int rc;
-    pt->tt = ULONG_MAX;
+    pt->tt = 0;
 """.format(complex_a, complex_b, complex_c, complex_a and "*2.0", complex_b and "*2.0")
 
     for i, m in enumerate(mtxms):
@@ -191,7 +190,7 @@ def _main(mtxms, complex_c, complex_a, complex_b):
     for (ni=2; ni<60; ni+=2) timer(pt, "(m*m)T*(m*m)", ni,ni,ni,a,b,c);
     for ( m=2; m<=30;  m+=2) timer(pt, "(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
 """
-    if complex_a and complex_b:
+    if (complex_a and complex_b) or (not complex_a and not complex_b):
         ret += """    for ( m=2; m<=30;  m+=2) trantimer(pt, "tran(m,m,m)", m*m,m,m,a,b,c);\n"""
     ret += """
     for ( m=2; m<=20;  m+=2) timer(pt, "(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
