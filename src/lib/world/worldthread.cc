@@ -203,9 +203,19 @@ namespace madness {
         if (nthreads < 0) nthreads = default_nthread();
 
 #if HAVE_INTEL_TBB
-        // There are nthreads+2 because the main and communicator thread
-        // are now a part of tbb.
-        tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+        SafeMPI::Intracomm comm = MPI::COMM_WORLD;
+        int nproc = comm.Get_size();
+
+        if (nproc > 1) {
+            // There are nthreads+2 because the main and communicator thread
+            // are now a part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+        }
+        else {
+            // There are nthreads+1 because the main
+            // is now part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+        }
         tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
         tbb_parent_task->increment_ref_count();
 #else
