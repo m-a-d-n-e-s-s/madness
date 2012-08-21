@@ -164,9 +164,18 @@ namespace madness {
         int provided = MPI::Init_thread(argc, argv, required);
         int me = MPI::COMM_WORLD.Get_rank();
         if (provided < required && me == 0 ) {
-            std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality "
-                      << MPI_THREAD_STRING(required)
-                      << " (" << MPI_THREAD_STRING(provided) << ")" << std::endl;
+            std::cout << "!! Error: MPI::Init_thread did not provide requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n" 
+                      << "!! Error: The MPI standard makes no guarentee about the correctness of a program in such circumstances. \n"
+                      << "!! Error: Please reconfigure your MPI to provide proper thread support. \n"
+                      << std::endl;
+            MPI::COMM_WORLD.Abort(1);
+        }
+        else if (provided > required && me == 0 ) {
+            std::cout << "!! Warning: MPI::Init_thread provided more than the requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n" 
+                      << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
+                      << std::endl;
         }
 
         ThreadPool::begin();        // Must have thread pool before any AM arrives
