@@ -1802,7 +1802,6 @@ struct Calculation {
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
-            //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
 #ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
 #else
@@ -1813,21 +1812,15 @@ struct Calculation {
 
 #ifdef MADNESS_HAS_LIBXC
             if (xc.is_gga() ) {
-                if(world.rank() == 0)
-                   print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
-//3                if (xc.is_spin_polarized()) {
-//3                    throw "not yet";
-//3                }
-//3                else {
-                    real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
-                    //print("VSIG", vsig.trace(), vsig.norm2());
-                    real_function_3d vr(world);
-                    for (int axis=0; axis<3; axis++) {
-                        vr += (*gradop[axis])(vsig);
-                    //print("VR", vr.trace(), vr.norm2());
-                    }
-                    vloc = vloc - vr; // need a 2?
-//3                }
+                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
+                real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
+                //print("VSIG", vsig.trace(), vsig.norm2());
+                real_function_3d vr(world);
+                for (int axis=0; axis<3; axis++) {
+                     vr += (*gradop[axis])(vsig);
+                 //print("VR", vr.trace(), vr.norm2());
+                }
+                vloc = vloc - vr; 
             }
 #endif
             END_TIMER(world, "DFT potential");
@@ -2254,7 +2247,7 @@ struct Calculation {
         }
         
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0 && !param.spin_restricted){
             for (int i=0; i<param.nmo_beta; i++) {
                 if (bocc[i] != 1.0) {
                     double tmp = fockb(i,i);
@@ -2405,7 +2398,7 @@ struct Calculation {
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
         normalize(world, amo_new);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0  && !param.spin_restricted){
             normalize(world, bmo_new);
             bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol, true);
             truncate(world, bmo_new);
@@ -2618,7 +2611,7 @@ struct Calculation {
                 truncate(world, amo);
                 normalize(world, amo);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if(!param.spin_restricted && param.nbeta){
+                if(!param.spin_restricted && param.nbeta != 0 ){
                     if (param.localize_pm) {
                         U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
                     }
@@ -2689,29 +2682,34 @@ struct Calculation {
             vecfuncT vf, delrho;
             if (xc.is_dft()) {
                 arho.reconstruct();
-                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
+                // brho.reconstruct();
 
                 vf.push_back(arho);
-                if (xc.is_spin_polarized()) {
-                    vf.push_back(brho);
-                }
+
+                if (xc.is_spin_polarized()) vf.push_back(brho);
 
                 if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
-                    if (xc.is_spin_polarized()) {
-                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-                    }
+
+                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
+                    if (xc.is_spin_polarized()) 
+                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
+                    
+                    
                     world.gop.fence(); // NECESSARY
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
-                    if (xc.is_spin_polarized()) {
+
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
+
+                    if (xc.is_spin_polarized()) 
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                    if (xc.is_spin_polarized()) 
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-                    }
-                    for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]); // dda_x
-                    if (xc.is_spin_polarized()) {
-                       for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); //ddb_x
-                    }
-                //    world.gop.fence(); // NECESSARY
+
+                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
+
+                    if (xc.is_spin_polarized()) 
+                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+                    world.gop.fence(); // NECESSARY
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
@@ -2729,15 +2727,16 @@ struct Calculation {
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
 
-            if (!param.spin_restricted && param.nbeta)
+            if (!param.spin_restricted && param.nbeta != 0)
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-            else
+            else if (param.nbeta != 0) {
                 ekinb = ekina;
+            }
 
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if (!param.spin_restricted && param.nbeta) {
+                if (!param.spin_restricted && param.nbeta != 0) {
                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
@@ -2774,7 +2773,7 @@ struct Calculation {
                         truncate(world, amo);
                         normalize(world, amo);
                     }
-                    if(param.nbeta && !param.spin_restricted){
+                    if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
                         sygv(fockb, overlap, 1, U, beps);
                         if (!param.localize) {
@@ -2788,7 +2787,7 @@ struct Calculation {
                         print(" ");
                         print("alpha eigenvalues");
                         print(aeps);
-                        if(param.nbeta && !param.spin_restricted){
+                        if(param.nbeta != 0.0 && !param.spin_restricted){
                             print("beta eigenvalues");
                             print(beps);
                         }
@@ -2815,7 +2814,7 @@ struct Calculation {
         }
 
         analyze_vectors(world, amo, aocc, aeps);
-        if (param.nbeta && !param.spin_restricted) {
+        if (param.nbeta != 0 && !param.spin_restricted) {
             if (world.rank() == 0)
                 print("Analysis of beta MO vectors");
 
@@ -2943,9 +2942,7 @@ int main(int argc, char** argv) {
                            calc.param.gprec); // grad prec
           geom.set_update(calc.param.algopt);
           geom.set_test(calc.param.gtest);
-        if (world.rank() == 0) {
           geom.optimize(geomcoord);
-        }
         }
         else if (calc.param.tdksprop) {
           print("\n\n Propagation of Kohn-Sham equation                      ");

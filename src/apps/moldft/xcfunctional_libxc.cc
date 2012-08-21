@@ -311,7 +311,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
         }
         else if (is_gga()) {
-            //MADNESS_ASSERT(t.size() == 5);
+            MADNESS_ASSERT(t.size() == 11);
             const double * restrict rhoa  = t[0].ptr();
             const double * restrict rhob  = t[1].ptr();
 
@@ -372,7 +372,7 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             }
         }
         else if (is_gga()) {
-            //MADNESS_ASSERT(t.size() == 2);
+            MADNESS_ASSERT(t.size() == 5);
             const double * restrict rhoa = t[0].ptr();
             const double * restrict sigaa = t[1].ptr();
             const double * restrict drhoax = t[2].ptr();
