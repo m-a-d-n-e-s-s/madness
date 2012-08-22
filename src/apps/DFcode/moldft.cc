@@ -515,7 +515,7 @@ struct CalculationParameters {
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
         ar & td_nstep & td_strength & td_tstep & polar & nosavemo & polarfreq & polarnstep & efield & noorient; 
-        ar & noanalyzevec & alchemy;
+        ar & noanalyzevec & alchemy & dohf;
     }
 
     CalculationParameters()
