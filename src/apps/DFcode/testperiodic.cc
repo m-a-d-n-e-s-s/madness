@@ -13,9 +13,9 @@
 #include <linalg/solvers.h>
 using namespace madness;
 
-#include <moldft/molecule.h>
-#include <moldft/molecularbasis.h>
-#include <moldft/xcfunctional.h>
+#include <DFcode/molecule.h>
+#include <DFcode/molecularbasis.h>
+#include <DFcode/xcfunctional.h>
 
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;

@@ -37,7 +37,7 @@
 
 #include <mra/mra.h>
 #include <linalg/solvers.h>
-#include <moldft/corepotential.h>
+#include <DFcode/corepotential.h>
 #include <iostream>
 #include <iomanip>
 #include <set>

@@ -32,7 +32,7 @@
 */
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
-#include <moldft/pointgroup.h>
+#include <DFcode/pointgroup.h>
 
 using namespace madness;
 

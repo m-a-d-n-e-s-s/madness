@@ -39,7 +39,7 @@
 #include <constants.h>
 #include <mra/mra.h>
 #include <tinyxml/tinyxml.h>
-#include <moldft/corepotential.h>
+#include <DFcode/corepotential.h>
 #include <cstdio>
 #include <cmath>
 #include <string>

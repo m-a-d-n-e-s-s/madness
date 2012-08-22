@@ -502,7 +502,8 @@ struct CalculationParameters {
     double  efield;              ///<  efield
     bool noorient;               ///< No orientation chages
     bool noanalyzevec;               ///< analize vectos
-    int alchemy;               ///< alchemy hack
+    std::vector<int> alchemy;  ///< alchemy hack
+    bool dohf;                  ///< do  HF before
 
 
     template <typename Archive>
@@ -568,7 +569,8 @@ struct CalculationParameters {
         , polarnstep(50)
         , noorient(false)
         , noanalyzevec(false)
-        , alchemy(0)
+        , alchemy(madness::vector_factory(0))
+        , dohf(false)
     {}
         
 
@@ -746,8 +748,16 @@ struct CalculationParameters {
             else if (s == "noanalyzevec") {
                 noanalyzevec=true;
             }
+            else if (s == "dohf") {
+                dohf=true;
+            }
             else if (s == "alchemy") {
-                f >> alchemy;
+                std::string buf;
+                std::getline(f,buf);
+                alchemy = std::vector<int>();
+                int d;
+                std::stringstream s(buf);
+                while (s >> d) alchemy.push_back(d);
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -1863,8 +1873,7 @@ struct Calculation {
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
             START_TIMER(world);
-            //if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
-#ifdef HAVE_LIBXC
+#ifdef MADNESS_HAS_LIBXC
             exc = make_dft_energy(world, vf, ispin);
 #else
             if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
@@ -1872,24 +1881,17 @@ struct Calculation {
             vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
-
-#ifdef HAVE_LIBXC
+#ifdef MADNESS_HAS_LIBXC
             if (xc.is_gga() ) {
-                if(world.rank() == 0)
-                   print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
-//3                if (xc.is_spin_polarized()) {
-//3                    throw "not yet";
-//3                }
-//3                else {
-                    real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
-                    //print("VSIG", vsig.trace(), vsig.norm2());
-                    real_function_3d vr(world);
-                    for (int axis=0; axis<3; axis++) {
-                        vr += (*gradop[axis])(vsig);
-                    //print("VR", vr.trace(), vr.norm2());
-                    }
-                    vloc = vloc - vr; // need a 2?
-//3                }
+                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
+                real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
+                //print("VSIG", vsig.trace(), vsig.norm2());
+                real_function_3d vr(world);
+                for (int axis=0; axis<3; axis++) {
+                     vr += (*gradop[axis])(vsig);
+                 //print("VR", vr.trace(), vr.norm2());
+                }
+                vloc = vloc - vr; 
             }
 #endif
             END_TIMER(world, "DFT potential");
@@ -2316,7 +2318,7 @@ struct Calculation {
         }
         
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0 && !param.spin_restricted){
             for (int i=0; i<param.nmo_beta; i++) {
                 if (bocc[i] != 1.0) {
                     double tmp = fockb(i,i);
@@ -2467,7 +2469,7 @@ struct Calculation {
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
         normalize(world, amo_new);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0  && !param.spin_restricted){
             normalize(world, bmo_new);
             bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol, true);
             truncate(world, bmo_new);
@@ -3480,29 +3482,34 @@ struct Calculation {
             vecfuncT vf, delrho;
             if (xc.is_dft()) {
                 arho.reconstruct();
-                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
+                // brho.reconstruct();
 
                 vf.push_back(arho);
-                if (xc.is_spin_polarized()) {
-                    vf.push_back(brho);
-                }
+
+                if (xc.is_spin_polarized()) vf.push_back(brho);
 
                 if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
-                    if (xc.is_spin_polarized()) {
-                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-                    }
+
+                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
+                    if (xc.is_spin_polarized()) 
+                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
+                    
+                    
                     world.gop.fence(); // NECESSARY
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
-                    if (xc.is_spin_polarized()) {
+
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
+
+                    if (xc.is_spin_polarized()) 
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                    if (xc.is_spin_polarized()) 
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-                    }
-                    for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]); // dda_x
-                    if (xc.is_spin_polarized()) {
-                       for(int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); //ddb_x
-                    }
-                //    world.gop.fence(); // NECESSARY
+
+                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
+
+                    if (xc.is_spin_polarized()) 
+                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+                    world.gop.fence(); // NECESSARY
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
@@ -3520,15 +3527,16 @@ struct Calculation {
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
 
-            if (!param.spin_restricted && param.nbeta)
+            if (!param.spin_restricted && param.nbeta != 0)
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-            else
+            else if (param.nbeta != 0) {
                 ekinb = ekina;
+            }
 
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if (!param.spin_restricted && param.nbeta) {
+                if (!param.spin_restricted && param.nbeta != 0) {
                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
@@ -3565,7 +3573,7 @@ struct Calculation {
                         truncate(world, amo);
                         normalize(world, amo);
                     }
-                    if(param.nbeta && !param.spin_restricted){
+                    if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
                         sygv(fockb, overlap, 1, U, beps);
                         if (!param.localize) {
@@ -3579,7 +3587,7 @@ struct Calculation {
                         print(" ");
                         print("alpha eigenvalues");
                         print(aeps);
-                        if(param.nbeta && !param.spin_restricted){
+                        if(param.nbeta != 0.0 && !param.spin_restricted){
                             print("beta eigenvalues");
                             print(beps);
                         }
@@ -3662,7 +3670,6 @@ public:
         for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
             calc.set_protocol(world,calc.param.protocol_data[proto]);
             calc.make_nuclear_potential(world);
-            calc.project_ao_basis(world);
 
             if (proto == 0) {
                 if (calc.param.restart) {
@@ -3670,6 +3677,7 @@ public:
                 //print("vama loas_mos ");
                 }
                 else {
+            calc.project_ao_basis(world); //temporal alchemical
                     calc.initial_guess(world);
                     calc.param.restart = true;
                 }
@@ -3751,7 +3759,7 @@ int main(int argc, char** argv) {
               MolecularEnergy E(world, calc);
               E.value(calc.molecule.get_all_coords().flat()); // ugh!
 
-              calc.set_protocol(world,1e-6);
+              calc.set_protocol(world,1e-6); //need fix
               calc.param.restart = true;
               QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
                                calc.param.gmaxiter,
@@ -3770,6 +3778,21 @@ int main(int argc, char** argv) {
           }
           else {
                   //print("sobres");
+              {
+              if (calc.param.dohf){
+                 std::vector<double> protocol_data_orig=calc.param.protocol_data;
+                 calc.param.protocol_data=madness::vector_factory(1e-4);
+                 calc.xc.initialize("hf", !calc.param.spin_restricted);
+
+                 MolecularEnergy E(world, calc);
+                 E.value(calc.molecule.get_all_coords().flat()); // ugh!
+
+                 calc.param.protocol_data=protocol_data_orig;
+                 calc.xc.initialize(calc.param.xc_data, !calc.param.spin_restricted);
+                 calc.param.restart=true;
+              }
+
+
               MolecularEnergy E(world, calc);
               E.value(calc.molecule.get_all_coords().flat()); // ugh!
               if (calc.param.derivatives) calc.derivatives(world);
@@ -3779,32 +3802,44 @@ int main(int argc, char** argv) {
                   print(" ----------------------------------------------------------\n");
                   calc.polar_solve(world);
               }
+              }
               //print("sobres",calc.param.alchemy);
               int old_maxiter=calc.param.maxiter;
-              if (calc.param.alchemy !=0) {
+              if (calc.param.alchemy.size()!=1) {
                   if (world.rank() == 0) {
                       print(" MADNESS Alchemical derivatives                              ");
                       print(" ----------------------------------------------------------\n");
                   }
-                  for (int geoms = 1;geoms <= calc.param.alchemy;++geoms){
+                  for (int geoms = 1;geoms <= calc.param.alchemy[1];++geoms) {
+
                       std::stringstream cuc ;
+
                       if (world.rank() == 0)  print(" Geometry name", geoms,"\n" );
+
                       cuc  << geoms;
+
                       if (world.rank() == 0) calc.molecule.read_file(inpname,cuc.str());
-                      if (world.size() > 1) {
-                          calc.make_nuclear_potential(world);
-                          calc.initial_load_bal(world);
+
+
+                      if ( calc.param.alchemy[0] <= geoms ) {
+                        //  if (world.size() > 1) {
+                              calc.make_nuclear_potential(world);
+                          //    calc.initial_load_bal(world);
+                         // }
+                          calc.param.maxiter=0;
+                          calc.param.restart=true;
+                         //calc.initial_load_bal(world);
+                         calc.param.protocol_data=madness::vector_factory(1e-6);
+                         calc.param.nosavemo=true;
+                         MolecularEnergy A(world, calc);
+                         if (world.rank() == 0) calc.molecule.print();
+                         if (world.rank() == 0) calc.param.print(world);
+                         A.value(calc.molecule.get_all_coords().flat()); // ugh!
+                         if (world.rank() == 0) print(" ----------------------------------------------------------\n");
                       }
-                      calc.param.maxiter=0;
-                      calc.param.restart=true;
-                      //calc.initial_load_bal(world);
-                      calc.param.protocol_data=madness::vector_factory(1e-6);
-                      calc.param.nosavemo=true;
-                      MolecularEnergy A(world, calc);
-                      if (world.rank() == 0) calc.molecule.print();
-                      if (world.rank() == 0) calc.param.print(world);
-                      A.value(calc.molecule.get_all_coords().flat()); // ugh!
-                      if (world.rank() == 0) print(" ----------------------------------------------------------\n");
+                      else {
+                      if (world.rank() == 0)  print(" Skip Geometry name", geoms,"\n" );
+                      }
                   }
               calc.param.maxiter=old_maxiter;
               }
@@ -3860,3 +3895,4 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+

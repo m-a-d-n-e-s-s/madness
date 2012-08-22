@@ -36,8 +36,8 @@
 /// \file moldft/molecule.h
 /// \brief Declaration of molecule related classes and functions
 
-#include <moldft/corepotential.h>
-#include <moldft/atomutil.h>
+#include <DFcode/corepotential.h>
+#include <DFcode/atomutil.h>
 #include <world/array.h>
 #include <vector>
 #include <string>

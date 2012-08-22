@@ -1,5 +1,5 @@
 #include <madness_config.h>
-#include <moldft/xcfunctional.h>
+#include <DFcode/xcfunctional.h>
 #include <tensor/tensor.h>
 #include <iostream>
 #include <string>
@@ -331,8 +331,8 @@ void XCfunctional::make_libxc_args(const std::vector< madness::Tensor<double> >&
             sigma = madness::Tensor<double>(np*3L);
             delrho  = madness::Tensor<double>(np*6L);
 
-            double * restrict ddens = delrho.ptr();
             double * restrict dens = rho.ptr();
+            double * restrict ddens = delrho.ptr();
             double * restrict sig  = sigma.ptr();
             for (long i=0; i<np; i++) {
                 double ra=rhoa[i], rb=rhob[i], saa=sigaa[i], sab=sigab[i], sbb=sigbb[i];
@@ -435,8 +435,7 @@ madness::Tensor<double> XCfunctional::exc(const std::vector< madness::Tensor<dou
         }
         if (spin_polarized) {
             for (long j=0; j<np; j++) {
-                res[j] += work[j]*(dens[2*j+ispin])*funcs[i].second;
-                //res[j] += work[j]*(dens[2*j]+dens[2*j+1])*funcs[i].second;
+                res[j] +=  work[j]*(dens[2*j+ispin])*funcs[i].second;
             }
         }
         else {

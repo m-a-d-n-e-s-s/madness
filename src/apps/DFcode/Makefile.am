@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 
-if HAVE_LIBXC
+if MADNESS_HAS_LIBXC
 LDADD = $(MRALIBS) -lxc
 else
 LDADD = $(MRALIBS)
@@ -33,7 +33,7 @@ testxc_SOURCES = testxc.cc xcfunctional.h
 #                 corepotential.h corepotential.cc \
 #                 xcfunctional.h xcfunctional.cc 
 
-if HAVE_LIBXC
+if MADNESS_HAS_LIBXC
 moldft_SOURCES += xcfunctional_libxc.cc
 testperiodic_SOURCES += xcfunctional_libxc.cc lda.cc
 testxc_SOURCES += xcfunctional_libxc.cc
