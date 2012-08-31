@@ -238,11 +238,8 @@ int main(int argc, char**argv) {
 #else
     int required = MPI_THREAD_MULTIPLE;
 #endif
-    int provided = MPI::Init_thread(argc, argv, required);
-    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
-        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
-    }
-    World world(MPI::COMM_WORLD);
+    SafeMPI::Init_thread(argc, argv, required);
+    World world(SafeMPI::COMM_WORLD);
     try {
         startup(world,argc,argv);
 
@@ -251,8 +248,8 @@ int main(int argc, char**argv) {
         //test_chin_chen(world);
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {
@@ -283,7 +280,7 @@ int main(int argc, char**argv) {
         error("caught unhandled exception");
     }
 
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

@@ -72,7 +72,7 @@ hashT hash_value(const Key& key) {
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     WorldContainer<Key,double> fred(world);
 

@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 //\file projPsi.cc
@@ -72,9 +72,9 @@ const complexd one(1,0);
 struct LBCost {
     double leaf_value;
     double parent_value;
-    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
         : leaf_value(leaf_value)
-        , parent_value(parent_value) 
+        , parent_value(parent_value)
     {}
 
     double operator()(const Key<3>& key, const FunctionNode<double_complex,3>& node) const {
@@ -93,9 +93,9 @@ struct LBCost {
 /******************************************************************************************
  * The angular momentum probabilities|<Yl0|Psi(t)>|^2 are dependent on the following files:
  * input
- * input2 
+ * input2
  * Only one time step is done at a time
- * printR = true prints the angular resolved radial wave function 
+ * printR = true prints the angular resolved radial wave function
  *****************************************************************************************/
 void projectL(World& world, const double L, const int wf, const int n, const int lMAX, const double cutoff) {
     PRINTLINE("\t\t\t\t\t\t|<Yl0|Psi(t)>|^2 ");
@@ -112,7 +112,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
         lb.add_tree(psi, LBCost(1.0,0.0));
         FunctionDefaults<3>::redistribute(world, lb.load_balance(2.0,false));
         PRINTLINE("|" << wf << ">\t\t");
-    } 
+    }
     PRINTLINE("");
     double before = 0, after = 0;
     if(world.rank()==0) before =  wall_time();
@@ -129,7 +129,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
     for( int l=0; l<=lMAX; l++) {
         Y.push_back(Yl0(l));
     }
-    psi.reconstruct(); //Transforms to scaling function basis 
+    psi.reconstruct(); //Transforms to scaling function basis
     Tensor<complexd> YlPsi(n,lMAX+1); // initialized to zero
     PRINTLINE("HERE");
     for( int i=0; i<n; i++ ) {
@@ -152,8 +152,8 @@ void projectL(World& world, const double L, const int wf, const int n, const int
                     //double ifEndPtk = 1.0;
                     //if (k==0 || k==(n-1)) ifEndPtk = 0.5;
                     for( int l=0; l<=lMAX; l++) {
-                        R(l) += psiVal.second * Y[l](rVec) * 2.0*3.14159 * sinTH*dTH * ifEndPtj; 
-                        //R(l) += psiVal.second * Y[l](rVec) * dPHI * sinTH*dTH * ifEndPtj*ifEndPtk; 
+                        R(l) += psiVal.second * Y[l](rVec) * 2.0*3.14159 * sinTH*dTH * ifEndPtj;
+                        //R(l) += psiVal.second * Y[l](rVec) * dPHI * sinTH*dTH * ifEndPtj*ifEndPtk;
                     }         //psiVal.second returns psi(rVec)
                 }
             //}
@@ -183,7 +183,7 @@ void projectL(World& world, const double L, const int wf, const int n, const int
 
 
 /***********************************************************
- * Loads wf and prints Psi(r) along the ray defined byth phi 
+ * Loads wf and prints Psi(r) along the ray defined byth phi
  * input
  * input2: n th phi
  * loads wf and prints its values along the z-axis
@@ -278,7 +278,7 @@ void debugSlice(World& world, const int n, double L, double Z, double k) {
 /************************************************************************************
  * The correlation amplitude |<Psi(+)|basis>|^2 are dependent on the following files:
  * wf.num                  Integer time step of the Psi(+) to be loaded
- * bound.num               Integer triplets of quantum numbers   2  1  0 
+ * bound.num               Integer triplets of quantum numbers   2  1  0
  * unbound.num             Double triplets of momentum kx ky kz  0  0  0.5
  ************************************************************************************/
 void projectPsi(World& world, std::vector<std::string> boundList, std::vector<std::string> unboundList, const double Z, double cutoff) {
@@ -317,7 +317,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
             PRINTLINE("Consider changing the restart file to 0 and rerunning tdse");
             exit(1);
         }
-        std::vector<WF>::const_iterator psiIT; 
+        std::vector<WF>::const_iterator psiIT;
         if( !boundList.empty() ) {
             // <phi_bound|Psi(t)>
             std::vector<std::string>::const_iterator boundIT;
@@ -512,7 +512,7 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
 int main(int argc, char**argv) {
     // INITIALIZE the parallel programming environment
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     PRINTLINE("After initialize");
     PRINTLINE("Version: $Rev$");
     // Load info for MADNESS numerical routines
@@ -569,8 +569,8 @@ int main(int argc, char**argv) {
 //             world_mem_info()->print();
 //             WorldProfile::print(world);
 //         }
-    } catch (const MPI::Exception& e) {
-        //print(e);
+    } catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

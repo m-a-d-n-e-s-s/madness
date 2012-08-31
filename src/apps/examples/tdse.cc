@@ -296,7 +296,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     FunctionDefaults<3>::set_k(k);                 // Wavelet order

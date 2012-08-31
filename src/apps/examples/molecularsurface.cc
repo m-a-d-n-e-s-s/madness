@@ -31,7 +31,7 @@ double volume_two_spheres(double r1, double r2, double d) {
 
 int main(int argc, char **argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     const int k = 8; // wavelet order

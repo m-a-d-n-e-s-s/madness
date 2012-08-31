@@ -282,7 +282,7 @@ void test_periodic_bsh(World& world)
 
 int main(int argc, char**argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     FunctionDefaults<1>::set_bc(BC_PERIODIC);
@@ -300,8 +300,8 @@ int main(int argc, char**argv) {
         test_periodic_bsh(world);
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {
@@ -333,7 +333,7 @@ int main(int argc, char**argv) {
     }
 
     world.gop.fence();
-    MPI::Finalize();
+    finalize();
 
     return 0;
 }

@@ -26,7 +26,7 @@ static double u(double r, double c) {
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    
+
     return pot/c;
 }
 
@@ -49,9 +49,9 @@ static double V(const coord_6d& r) {
 struct LBCost {
     double leaf_value;
     double parent_value;
-    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
         : leaf_value(leaf_value)
-        , parent_value(parent_value) 
+        , parent_value(parent_value)
     {}
 
     double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {
@@ -72,7 +72,7 @@ class YetAnotherWrapperClass {
     const Tensor<double>& qx;
 
 public:
-    YetAnotherWrapperClass(const real_function_6d& f) 
+    YetAnotherWrapperClass(const real_function_6d& f)
         : f(f)
         , qx(FunctionCommonData<double,6>::get(k).quad_x)
     {}
@@ -135,18 +135,18 @@ double energy(World& world, const real_function_6d& psi) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     if (world.rank() == 0) printf("starting at time %.1f\n", wall_time());
     startup(world,argc,argv);
     std::cout.precision(6);
 
     FunctionDefaults<6>::set_k(k);
     FunctionDefaults<6>::set_thresh(thresh);
-    FunctionDefaults<6>::set_truncate_mode(0);  
+    FunctionDefaults<6>::set_truncate_mode(0);
     FunctionDefaults<6>::set_truncate_on_project(true);
     FunctionDefaults<6>::set_project_randomize(true);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
-    
+
     if (world.rank() == 0) printf("compressing PSI at time %.1f\n", wall_time());
     real_function_6d psi = real_factory_6d(world).f(f6d);
     if (world.rank() == 0) printf("computing norm at time %.1f\n", wall_time());
@@ -154,11 +154,11 @@ int main(int argc, char** argv) {
     LoadBalanceDeux<6> lb(world);
     lb.add_tree(psi,LBCost(1.0,1.0));
     FunctionDefaults<6>::redistribute(world, lb.load_balance(2.0,false));
-    
+
 
 //     if (world.rank() == 0) print("compressing V");
 //     real_function_6d potn = real_factory_6d(world).f(V);
-    
+
 
     if (world.rank() == 0) printf("computing energy at time %.1f\n", wall_time());
     energy(world, psi);

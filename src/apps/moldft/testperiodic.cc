@@ -138,15 +138,15 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
     complex_derivative_3d Dx(world, 0);
     complex_derivative_3d Dy(world, 1);
     complex_derivative_3d Dz(world, 2);
-    
+
     vector_complex_function_3d dvx = apply(world, Dx, v);
     vector_complex_function_3d dvy = apply(world, Dy, v);
     vector_complex_function_3d dvz = apply(world, Dz, v);
-    
+
     // -1/2 (del + ik)^2 = -1/2 del^2 - i k.del + 1/2 k^2
     // -1/2 <p|del^2|q> = +1/2 <del p | del q>
-    
-    tensor_complex f1 = 0.5 * (matrix_inner(world, dvx, dvx, true) + 
+
+    tensor_complex f1 = 0.5 * (matrix_inner(world, dvx, dvx, true) +
                                matrix_inner(world, dvy, dvy, true) +
                                matrix_inner(world, dvz, dvz, true));
 
@@ -154,7 +154,7 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
         (-I*kx)*matrix_inner(world, v, dvx, false) +
         (-I*ky)*matrix_inner(world, v, dvy, false) +
         (-I*kz)*matrix_inner(world, v, dvz, false);
-    
+
     tensor_complex f3 = (0.5 * (kx*kx + ky*ky + kz*kz)) * matrix_inner(world, v, v, true);
 
     return f1 + f2 + f3;
@@ -163,13 +163,13 @@ tensor_complex make_kinetic_matrix(World& world, const vector_complex_function_3
 vector_complex_function_3d apply_potential(const real_function_3d& potential, const vector_complex_function_3d& psi)
 {
     vector_complex_function_3d vpsi;
-    for (unsigned int i=0; i<psi.size(); i++) 
+    for (unsigned int i=0; i<psi.size(); i++)
         vpsi.push_back(potential*psi[i]);
     return vpsi;
 }
 
 
-real_function_3d make_lda_potential(World& world, const real_function_3d &rho) 
+real_function_3d make_lda_potential(World& world, const real_function_3d &rho)
 {
     real_function_3d vlda = copy(rho);
     vlda.reconstruct();
@@ -177,7 +177,7 @@ real_function_3d make_lda_potential(World& world, const real_function_3d &rho)
     return vlda;
 }
 
-real_function_3d make_coulomb_potential(World& world, const real_function_3d& rho) 
+real_function_3d make_coulomb_potential(World& world, const real_function_3d& rho)
 {
     real_convolution_3d op = CoulombOperator(world, 1e-4, thresh);
     return op(rho);
@@ -210,11 +210,11 @@ void orthogonalize(World& world, vector_complex_function_3d& psi) {
 
 
 // DESTROYS VPSI
-vector_complex_function_3d update(World& world, 
-                                  const vector_complex_function_3d& psi, 
-                                  vector_complex_function_3d& vpsi, 
+vector_complex_function_3d update(World& world,
+                                  const vector_complex_function_3d& psi,
+                                  vector_complex_function_3d& vpsi,
                                   const tensor_real& e,
-                                  int iter) 
+                                  int iter)
 {
     // psi = - 2 G(E+shift) * (V+shift) psi
     int nmo = psi.size();
@@ -243,7 +243,7 @@ vector_complex_function_3d update(World& world,
     truncate(world, vpsi);
     vector<poperatorT> ops = make_bsh_operators(world, e, shift);
     vector_complex_function_3d new_psi = apply(world, ops, vpsi);
-    
+
     // Step restriction
     double damp;
     if (iter < 10) damp = 0.95;
@@ -277,7 +277,7 @@ real_function_3d make_density(World& world, const vector_complex_function_3d& v)
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
     FunctionDefaults<3>::set_thresh(thresh);
@@ -285,7 +285,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_bc(BoundaryConditions<3>(BC_PERIODIC));
     FunctionDefaults<3>::set_cubic_cell(0,L);
     FunctionDefaults<3>::set_truncate_mode(truncate_mode);
-    
+
     // // FCC unit cell for ne
     //molecule.add_atom(  0,  0,  0, 10.0, 10);
     // molecule.add_atom(L/2,L/2,  0, 10.0, 10);
@@ -303,7 +303,7 @@ int main(int argc, char** argv) {
     molecule.add_atom(L/2,L/2,L/2, 3.0, 3);
 
     molecule.set_eprec(1e-3);
-    
+
     // Load basis
     aobasis.read_file("sto-3g");
 
@@ -321,12 +321,12 @@ int main(int argc, char** argv) {
     rho.scale(molecule.total_nuclear_charge()/rhot);
 
     int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
-    
+
     // Make AO basis functions
     vector_complex_function_3d psi = makeao(world);
     vector_real norms = norm2s(world, psi);
     print(norms);
-    
+
     for (int iter=0; iter<100; iter++) {
         print("\n\n  Iteration",iter,"\n");
         real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);

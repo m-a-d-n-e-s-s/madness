@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
 	int n;
 
 	madness::initialize(argc, argv);
-	World world(MPI::COMM_WORLD);
+	World world(SafeMPI::COMM_WORLD);
 	startup(world,argc,argv);
 
 	// get the name of the file to use from the command-line arguments
@@ -138,7 +138,7 @@ pulse.freqs[0] = 41;
 	printf("Sphere conductivity: %.6e au\n", ag_sigma*pulse.eps0);
 
 	// create a World object for my local group
-	World group(MPI::COMM_WORLD);
+	World group(SafeMPI::COMM_WORLD);
 	char str[80];
 	ParallelOutputArchive outarchive;
 	ParallelInputArchive inarchive;

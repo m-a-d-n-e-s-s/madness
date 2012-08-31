@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /*!
@@ -48,19 +48,19 @@
   The Hartree-Fock wave function is computed for the helium atom
   in three dimensions without using spherical symmetry.
 
-  The atomic orbital is an eigenfunction of the Fock operator 
+  The atomic orbital is an eigenfunction of the Fock operator
   \f{eqnarray*}{
      \hat{F} \phi(r) &=& \epsilon \phi(r) \\
      \hat{F} &=& -\frac{1}{2} \nabla^2 - \frac{2}{r} + u(r) \\
      u(r) &=& \int \frac{\rho(s)}{| r - s |} d^3s \\
-     \rho(r) &=& \phi(r)^2 
+     \rho(r) &=& \phi(r)^2
   \f}
   that depends upon the orbital via the Coulomb potential (\f$ u(r) \f$)
-  arising from the electronic density (\f$ \rho(r) \f$).  
+  arising from the electronic density (\f$ \rho(r) \f$).
 
   \par Implementation
 
-  Per the usual MADNESS practice, the equation is rearranged into 
+  Per the usual MADNESS practice, the equation is rearranged into
   integral form
   \f[
       \phi = - 2 G_{\mu} * ( V \phi)
@@ -75,7 +75,7 @@
   Each iteration proceeds by
   - computing the density by squaring the orbital,
   - computing the Coulomb potential by applying the Coulomb Green's function,
-  - multiplying the orbital by the total potential, 
+  - multiplying the orbital by the total potential,
   - updating the orbital by applying the Helmholtz Green's function,
   - updating the energy according to a second-order accurate estimate
     (see the initial MRQC paper), and finally
@@ -89,10 +89,10 @@
   and the kinetic energy is equal to \f$ < \nabla \phi, \nabla \phi >
   \f$.
 
-  
+
 */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 
@@ -130,21 +130,21 @@ void iterate(World& world, real_function_3d& V, real_function_3d& psi, double& e
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
-    FunctionDefaults<3>::set_truncate_mode(1);  
+    FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
-    
+
     real_function_3d Vnuc = real_factory_3d(world).f(V).truncate_mode(0);
     real_function_3d psi  = real_factory_3d(world).f(guess);
     psi.scale(1.0/psi.norm2());
     real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
 
-    double eps = -1.0; 
+    double eps = -1.0;
     for (int iter=0; iter<10; iter++) {
         real_function_3d rho = square(psi).truncate();
         real_function_3d potential = Vnuc + apply(op,rho).truncate();

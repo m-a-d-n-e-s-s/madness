@@ -35,12 +35,12 @@
 /*!
   \file examples/dataloadbal.cc
   \brief Illustrates how to use static data/load balancing of functions
-  \defgroup loadbaleg Data and load balancing 
+  \defgroup loadbaleg Data and load balancing
   \ingroup examples
 
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dataloadbal.cc>here</a>.
 
-  This is one of the more computationally demanding examples - either run it on 
+  This is one of the more computationally demanding examples - either run it on
   50 or more nodes of jaguar or reduce the number of functions employed
   (value of \c NFUNC in the source).
 
@@ -53,14 +53,14 @@
   - Timing to estimate benefit of load balancing
 
   \par Background
-  
+
   Poor distribution of work (load imbalance) is the largest reason for
   inefficient parallel execution within MADNESS.  Poor data distribution
   (data imbalance) contributes to load imbalance and also leads to
   out-of-memory problems due to one or more processes having too much
   data.  Thus, we are interested in uniform distribution of both
   work and data.
-  
+
   Many operations in MADNESS are entirely data driven (i.e.,
   computation occurs in the processor that "owns" the data) since
   there is insufficient work to justify moving data between processes
@@ -71,7 +71,7 @@
   - static and driven by the distribution of data,
   - dynamic via random assignment of work, and
   - dynamic via work stealing (currently only in prototype).
-  
+
   Until the work stealing becomes production quality we must exploit
   the first two forms.  The random work assignment is controlled by
   options in the FunctionDefaults class.
@@ -79,8 +79,8 @@
   randomization in applying integral (convolution) operators. It is
   typically beneficial when computing to medium/high precision.
   - FunctionDefaults::set_project_randomize(bool) constrols the use
-  of randomization in projecting from an analytic form (i.e., C++) 
-  into the discontinuous spectral element basis.  It is typically 
+  of randomization in projecting from an analytic form (i.e., C++)
+  into the discontinuous spectral element basis.  It is typically
   beneficial unless there is already a good static data distribution.
   Since these options are straightforward to enable, this example
   focusses on static data redistribution.
@@ -113,7 +113,7 @@
   \par Results
 
   \verbatim
-  /tmp/work/harrison % aprun -n 50 -d 12 -cc none ./dataloadbal 
+  /tmp/work/harrison % aprun -n 50 -d 12 -cc none ./dataloadbal
   Runtime initialized with 10 threads in the pool and affinity 1 0 2
   Before load balancing
   project 2.57 truncate 9.18 differentiate 11.80 convolve 12.57 balance 0.00
@@ -128,7 +128,7 @@
 */
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <mra/vmra.h>
@@ -149,9 +149,9 @@ public:
     Gaussian(const coord_3d& center, double exponent, double coefficient)
         : center(center), exponent(exponent), coefficient(coefficient), specialpt(1)
     {
-        specialpt[0][0] = center[0]; 
-        specialpt[0][1] = center[1]; 
-        specialpt[0][2] = center[2]; 
+        specialpt[0][0] = center[0];
+        specialpt[0][1] = center[1];
+        specialpt[0][2] = center[2];
     }
 
     // MADNESS will call this interface
@@ -163,7 +163,7 @@ public:
         };
         return coefficient*exp(-exponent*sum);
     }
-    
+
     // By default, adaptive projection into the spectral element basis
     // starts uniformly distributed at the initial level.  However, if
     // a function is "spiky" it may be necessary to project at a finer
@@ -193,7 +193,7 @@ real_functor_3d random_gaussian() {
 
 // This structure is used to estimate the cost of computing on a block of coefficients
 // The constructor saves an estimate of the relative cost of computing on
-// leaf (scaling function) or interior (wavelet) coefficients.  Unless you 
+// leaf (scaling function) or interior (wavelet) coefficients.  Unless you
 // are doing nearly exclusively just one type of operation the speed is
 // not that sensitive to the choice, so the default is usually OK.
 //
@@ -204,9 +204,9 @@ real_functor_3d random_gaussian() {
 struct LBCost {
     double leaf_value;
     double parent_value;
-    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
         : leaf_value(leaf_value)
-        , parent_value(parent_value) 
+        , parent_value(parent_value)
     {}
 
     double operator()(const Key<3>& key, const FunctionNode<double,3>& node) const {
@@ -230,9 +230,9 @@ void test(World& world, bool doloadbal=false) {
 
     // By default a sychronization (fence) is performed after projecting a new function
     // but if you are projecting many functions this is inefficient.  Here we turn
-    // off the fence when projecting, and do it manually just once.  
+    // off the fence when projecting, and do it manually just once.
     start = wall_time();
-    for (int i=0; i<NFUNC; i++) 
+    for (int i=0; i<NFUNC; i++)
         f[i] = real_factory_3d(world).functor(random_gaussian()).nofence();
     world.gop.fence();
     double projection = wall_time() - start;
@@ -276,7 +276,7 @@ void test(World& world, bool doloadbal=false) {
 int main(int argc, char** argv) {
   // Initialize the parallel programming environment
   initialize(argc,argv);
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);

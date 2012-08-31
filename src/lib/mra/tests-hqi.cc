@@ -173,39 +173,39 @@ void test_loadbal(World& world) {
         if (world.rank() == 0) {
             printf("k=%d:\n", k);
         }
-        double t0 = MPI::Wtime();
+        double t0 = SafeMPI::Wtime();
         //Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
         Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
         if (world.rank() == 0) {
             print("just made function f");
         }
-        double t1 = MPI::Wtime();
+        double t1 = SafeMPI::Wtime();
         double err2 = f.err(*functor);
         std::size_t size = f.size();
         std::size_t tree_size = f.tree_size();
         std::size_t maxsize = f.max_nodes();
         std::size_t minsize = f.min_nodes();
         std::size_t maxdepth = f.max_depth();
-        double t2 = MPI::Wtime();
+        double t2 = SafeMPI::Wtime();
         if (world.rank() == 0) {
             printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n",
                    n, err2, double(size), double(tree_size), double(maxdepth), double(maxsize), double(minsize), abs(log(err2)/n/k));
         }
         world.gop.fence();
-        double t3 = MPI::Wtime();
+        double t3 = SafeMPI::Wtime();
         Function<T,NDIM> g = copy(f);
         world.gop.fence();
-        double t4 = MPI::Wtime();
+        double t4 = SafeMPI::Wtime();
         if (world.rank() == 0) print("ABOUT TO COMPRESS");
         f.compress(true);
         if (world.rank() == 0) print("ABOUT TO FENCE");
         world.gop.fence();
-        double t5 = MPI::Wtime();
+        double t5 = SafeMPI::Wtime();
         if (world.rank() == 0) print("ABOUT TO RECON");
         f.reconstruct(true);
         if (world.rank() == 0) print("ABOUT TO FENCE");
         world.gop.fence();
-        double t6 = MPI::Wtime();
+        double t6 = SafeMPI::Wtime();
         if (world.rank() == 0) print("ABOUT TO CREATE LOADBAL");
         //	typedef Cost (*my_default_fun<3,double>) (const Key<3>&, const FunctionNode<double,3>&);
         LoadBalImpl<NDIM> lb(g, lbcost<T,NDIM>(1.0, 1.0));
@@ -213,7 +213,7 @@ void test_loadbal(World& world) {
         //	LoadBalImpl<NDIM> lb(g, &f_ptr);
         if (world.rank() == 0) print("ABOUT TO FENCE");
         world.gop.fence();
-        double t7 = MPI::Wtime();
+        double t7 = SafeMPI::Wtime();
         if (world.rank() == 0) print("ABOUT TO DO LOADBAL");
         FunctionDefaults<NDIM>::set_pmap(lb.load_balance());
         /*
@@ -224,28 +224,28 @@ void test_loadbal(World& world) {
         if (world.rank() == 0) print("ABOUT TO FENCE");
         world.gop.fence();
         Function<T,NDIM> h = FunctionFactory<T,NDIM>(world).functor(functor).thresh(thresh).initial_level(n).k(k);
-        double t8 = MPI::Wtime();
+        double t8 = SafeMPI::Wtime();
         f = copy(g,FunctionDefaults<NDIM>::get_pmap());
-        double t9 = MPI::Wtime();
+        double t9 = SafeMPI::Wtime();
         double err21 = h.err(*functor);
         std::size_t size1 = h.size();
         std::size_t tree_size1 = h.tree_size();
         std::size_t maxsize1 = h.max_nodes();
         std::size_t minsize1 = h.min_nodes();
         std::size_t maxdepth1 = h.max_depth();
-        double t10 = MPI::Wtime();
+        double t10 = SafeMPI::Wtime();
         if (world.rank() == 0) {
             printf("   n=%d err=%.2e #coeff=%.2e tree_size=%.2e max_depth=%.2e max_nodes=%.2e min_nodes=%.2e log(err)/(n*k)=%.2e\n",
                    n, err21, double(size1), double(tree_size1), double(maxdepth1), double(maxsize1), double(minsize1), abs(log(err21)/n/k));
         }
         world.gop.fence();
-        double t11 = MPI::Wtime();
+        double t11 = SafeMPI::Wtime();
         h.compress(true);
         world.gop.fence();
-        double t12 = MPI::Wtime();
+        double t12 = SafeMPI::Wtime();
         h.reconstruct(true);
         world.gop.fence();
-        double t13 = MPI::Wtime();
+        double t13 = SafeMPI::Wtime();
 
 
         if (world.rank() == 0) {
@@ -275,8 +275,8 @@ void test_loadbal(World& world) {
 
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
+    SafeMPI::Init(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         if (world.rank() == 0) print("before startup");
@@ -284,7 +284,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print("before test_loadbal");
         test_loadbal<double, 3>(world);
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
@@ -315,7 +315,7 @@ int main(int argc, char**argv) {
     //    print("entering final fence");
     world.gop.fence();
     //    print("done with final fence");
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

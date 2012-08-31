@@ -1,36 +1,36 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <constants.h>
@@ -51,12 +51,12 @@ The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
 
 \par Background
 
-This adds to the complexity of the other \ref exampleheat "heat equation example" 
-by including a linear term.  Specifically, we solve 
+This adds to the complexity of the other \ref exampleheat "heat equation example"
+by including a linear term.  Specifically, we solve
 \f[
   \frac{\partial u(x,t)}{\partial t} = c \nabla^2 u(x,t) + V_p(x,t) u(x,t)
 \f]
-If \f$ V_p = 0 \f$ time evolution operator is 
+If \f$ V_p = 0 \f$ time evolution operator is
 \f[
   G_0(x,t) = \frac{1}{\sqrt{4 \pi c t}} \exp \frac{-x^2}{4 c t}
 \f]
@@ -74,9 +74,9 @@ using namespace madness;
 static const double L = 20;     // Half box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
-static const double c = 2.0;       // 
+static const double c = 2.0;       //
 static const double tstep = 0.1;
-static const double alpha = 1.9; // Exponent 
+static const double alpha = 1.9; // Exponent
 static const double VVV = 0.2;  // Vp constant value
 
 // Initial Gaussian with exponent alpha
@@ -100,7 +100,7 @@ public:
     double operator()(const coord_3d& r) const {
         const double x=r[0], y=r[1], z=r[2];
         double rsq = (x*x+y*y+z*z);
-        
+
         return exp(VVV*t)*exp(-rsq*alpha/(1.0+4.0*alpha*t*c)) * pow(alpha/((1+4*alpha*t*c)*constants::pi),1.5);
     }
 };
@@ -118,8 +118,8 @@ struct unaryexp {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
-    
+    World world(SafeMPI::COMM_WORLD);
+
     startup(world, argc, argv);
 
     FunctionDefaults<3>::set_k(k);
@@ -127,7 +127,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
-    
+
     real_function_3d u0 = real_factory_3d(world).f(uinitial);
     u0.truncate();
 
@@ -143,7 +143,7 @@ int main(int argc, char** argv) {
     expVp.unaryop(unaryexp<double,3>());
 
     print("Vp(0)", expVp(coord_3d(0.0)));
-    
+
     // Make G(x,t/2)
     real_tensor expnt(1), coeff(1);
     expnt[0] = 1.0/(4.0*c*tstep*0.5);
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
         u = G(u);  u.truncate();
         u = u*expVp;
         u = G(u); u.truncate();
-        
+
         double u_norm = u.norm2();
         double u_trace = u.trace();
         double err = u.err(uexact(tstep*step));

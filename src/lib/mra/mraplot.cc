@@ -429,7 +429,7 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
 
     try {
-        World world(MPI::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
         bool done = false;
         if (world.rank() == 0) {
             for (int i=0; i<argc; ++i) {
@@ -457,8 +457,8 @@ int main(int argc, char**argv) {
 
         world.gop.fence();
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

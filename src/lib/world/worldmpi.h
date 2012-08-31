@@ -65,7 +65,7 @@ namespace madness {
     /// This class wraps/extends the MPI interface for World
     class WorldMpiInterface : public SafeMPI::Intracomm {
     public:
-        WorldMpiInterface(MPI::Intracomm& comm) : SafeMPI::Intracomm(comm) {}
+        WorldMpiInterface(SafeMPI::Intracomm comm) : SafeMPI::Intracomm(comm) {}
 
         /// Returns the associated SafeMPI communicator
         SafeMPI::Intracomm& comm() {

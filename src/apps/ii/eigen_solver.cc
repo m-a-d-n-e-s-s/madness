@@ -183,7 +183,7 @@ double ttt, sss;
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    madness::World world(MPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
 
     //redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
@@ -268,8 +268,8 @@ int main(int argc, char** argv) {
             world.gop.fence();
         }
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

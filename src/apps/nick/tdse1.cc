@@ -808,11 +808,11 @@ void doit(World& world) {
 }
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    SafeMPI::Init(argc, argv);
     ThreadPool::begin();
     RMI::begin();
-    MPI::COMM_WORLD.Barrier();
-    World world(MPI::COMM_WORLD);
+    SafeMPI::COMM_WORLD.Barrier();
+    World world(SafeMPI::COMM_WORLD);
 
     startup(world,argc,argv);
     cout << "in Main" << std::endl;
@@ -820,8 +820,8 @@ int main(int argc, char** argv) {
 
     try {
         doit(world);
-    } catch (const MPI::Exception& e) {
-        //print(e); std::cout.flush();
+    } catch (const SafeMPI::Exception& e) {
+        print(e); std::cout.flush();
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e); std::cout.flush();
@@ -855,7 +855,7 @@ int main(int argc, char** argv) {
 
     WorldProfile::print(world);
 
-    MPI::Finalize();
+    SafeMPI::Finalize();
     return 0;
 }
 

@@ -423,10 +423,10 @@ void test2(World& world) {
     SpectralPropagator P(NPT);
     double t = 0.0;
     for (int step=0; step<nstep; step++) {
-        //if ((step%10) == 0) 
+        //if ((step%10) == 0)
         print_info(world, t, psi, step);
         if (velocity==0) print("PHASE", inner(psi,psi0), exp(double_complex(0.0,-energy_exact*t)));
-        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0); //, true, false); 
+        psi = P.step(t, tstep, psi, applyexpLt, applyN, thresh*10.0); //, true, false);
         psi.truncate();
 
         t += tstep;
@@ -436,7 +436,7 @@ void test2(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     test0(world);

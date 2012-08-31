@@ -222,7 +222,7 @@ template<typename T, int NDIM> inline myfun operator-(const myfun& l, const myfu
 void testNavierStokes(int argc, char**argv) {
 	initialize(argc, argv);
 	try {
-	World world(MPI::COMM_WORLD);
+	World world(SafeMPI::COMM_WORLD);
 
 	pworld = &world;
 	startup(world, argc, argv);
@@ -240,7 +240,7 @@ void testNavierStokes(int argc, char**argv) {
 	double const dum = 1 / deltaT / mu;
 	SeparatedConvolution<double, 3> op1 = BSHOperator<3>(world,	sqrt(dum), uthresh1, uthresh1);
 
-	
+
 	// construct the periodic BSH operator for later use
 	Tensor<double> cellsize = FunctionDefaults<3>::get_cell_width();
 //	SeparatedConvolution<double, 3> op11 = PeriodicBSHOp<double, 3> (world, sqrt(dum), k, uthresh1, uthresh1, cellsize);
@@ -337,8 +337,8 @@ void testNavierStokes(int argc, char**argv) {
 	}
 
 //	RMI::end();
-	} catch (const MPI::Exception& e) {
-        //        print(e);
+	} catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

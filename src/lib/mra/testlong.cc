@@ -403,8 +403,8 @@ void test_ops(Function<T,NDIM>& f) {
 
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
+    SafeMPI::Init(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         if (world.rank() == 0) print("before startup");
@@ -412,7 +412,7 @@ int main(int argc, char**argv) {
         if (world.rank() == 0) print("before test_loadbal");
         test_loadbal<double,3>(world);
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
@@ -443,7 +443,7 @@ int main(int argc, char**argv) {
     //    print("entering final fence");
     world.gop.fence();
     //    print("done with final fence");
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

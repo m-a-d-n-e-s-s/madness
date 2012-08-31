@@ -98,8 +98,8 @@ double evil_g(const Vector<double,3> &r) {
 
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
+    SafeMPI::Init(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         startup(world,argc,argv);
@@ -108,40 +108,40 @@ int main(int argc, char**argv) {
 //	int k = 3;
 //	double thresh = 1e-3;
 
-        double t0 = MPI::Wtime();
+        double t0 = SafeMPI::Wtime();
 //        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(3).thresh(1e-4);
 //        Function<double,3> f = FunctionFactory<double,3>(world).f(myg).k(11).thresh(1e-12);
         Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(k).thresh(thresh);
 //        Function<double,3> f = FunctionFactory<double,3>(world).f(evil_g).k(3).thresh(1e-3);
         world.gop.fence();
-        double t1 = MPI::Wtime();
+        double t1 = SafeMPI::Wtime();
         Function<double,3> g = copy(f);
         world.gop.fence();
 
-        double t2 = MPI::Wtime();
+        double t2 = SafeMPI::Wtime();
         f.compress(false);
         world.gop.fence();
-        double t3 = MPI::Wtime();
+        double t3 = SafeMPI::Wtime();
         f.reconstruct(false);
         world.gop.fence();
-        double t4 = MPI::Wtime();
+        double t4 = SafeMPI::Wtime();
 
         LoadBalImpl<3> lb(g, lbcost<double,3>);
         world.gop.fence();
-        double t5 = MPI::Wtime();
+        double t5 = SafeMPI::Wtime();
         FunctionDefaults<3>::set_pmap(lb.load_balance());
         world.gop.fence();
-        double t6 = MPI::Wtime();
+        double t6 = SafeMPI::Wtime();
         f = copy(g);
         world.gop.fence();
-        double t7 = MPI::Wtime();
+        double t7 = SafeMPI::Wtime();
 
         g.compress(false);
         world.gop.fence();
-        double t8 = MPI::Wtime();
+        double t8 = SafeMPI::Wtime();
         g.reconstruct(false);
         world.gop.fence();
-        double t9 = MPI::Wtime();
+        double t9 = SafeMPI::Wtime();
 
         if (world.mpi.rank() == 0) {
             madness::print("for f with k =", k, "and thresh =", thresh, ":");
@@ -182,7 +182,7 @@ int main(int argc, char**argv) {
 //         print("The tree after reconstruct");
 //         f.print_tree();
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
@@ -213,7 +213,7 @@ int main(int argc, char**argv) {
 //    print("entering final fence");
     world.gop.fence();
 //    print("done with final fence");
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

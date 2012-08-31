@@ -483,8 +483,8 @@ public:
 //*****************************************************************************
 void testPeriodicCoulomb3d(int argc, char**argv)
 {
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
+  SafeMPI::Init(argc, argv);
+  World world(SafeMPI::COMM_WORLD);
   startup(world,argc,argv);
 
   // Function defaults
@@ -536,7 +536,7 @@ void testPeriodicCoulomb3d(int argc, char**argv)
   plotdx(phi_exact, "phiexact.dx", FunctionDefaults<3>::get_cell(), npt);
   plotdx(phi_diff, "phidiff.dx", FunctionDefaults<3>::get_cell(), npt);
 
-  MPI::Finalize();
+  SafeMPI::Finalize();
 }
 //*****************************************************************************
 

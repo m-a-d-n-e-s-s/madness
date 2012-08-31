@@ -64,7 +64,7 @@ void line_plot(World& world, int step, complex_functionT& psi) {
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     //Extract number from the first argument list
     try {
@@ -108,7 +108,8 @@ int main(int argc, char** argv) {
             }
         }
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e); std::cout.flush();

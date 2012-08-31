@@ -288,7 +288,7 @@ namespace madness {
         volatile unsigned long nsent; ///< Counts no. of AM sent for purpose of termination detection
         volatile unsigned long nrecv; ///< Counts no. of AM received for purpose of termination detection
 
-        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to MPI::COMM_WORLD
+        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to SafeMPI::COMM_WORLD
 
         void free_managed_send_buf(int i) {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE

@@ -85,8 +85,8 @@ void vector_myg(long npt, const double *x, const double *y,
 
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
+    SafeMPI::Init(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         startup(world,argc,argv);
@@ -114,7 +114,7 @@ int main(int argc, char**argv) {
         f.print_tree();
 
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     }
@@ -145,7 +145,7 @@ int main(int argc, char**argv) {
     print("entering final fence");
     world.gop.fence();
     print("done with final fence");
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

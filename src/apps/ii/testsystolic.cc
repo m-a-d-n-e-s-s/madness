@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 /* \file testsystolic2.cc
@@ -100,7 +100,7 @@ public:
         env.barrier();
 
         if (id == 0){
-            tol = std::min( tol, std::min(maxdaij*0.1, maxdaij*maxdaij) ); 
+            tol = std::min( tol, std::min(maxdaij*0.1, maxdaij*maxdaij) );
             tol = std::max( tol, 5.0e-16 );
             niter++;
 
@@ -119,7 +119,7 @@ public:
         nrotsum += nrot;
     }
 
-    bool converged(const TaskThreadEnv& env) const; 
+    bool converged(const TaskThreadEnv& env) const;
 
     Tensor<T> get_eval() const;
 
@@ -132,7 +132,7 @@ private:
     DistributedMatrix<T>& AV; /// concatnated two matrix A and V. V will holds eigen vector after calcuration
     World& world;
     volatile int niter;
-    int nrot, nrotsum, size; 
+    int nrot, nrotsum, size;
     T tol, maxd, maxdaij;
 
     inline T inner(const T* a, const T* b ) const{
@@ -149,7 +149,7 @@ SystolicEigensolver<T>::SystolicEigensolver(DistributedMatrix<T>& AV, int tag):
     SystolicMatrixAlgorithm<T>( AV, tag ), AV(AV),
     world(AV.get_world()),
     niter(0),
-    nrot(0), nrotsum(0), size(AV.rowdim()/2), 
+    nrot(0), nrotsum(0), size(AV.rowdim()/2),
     tol((T)1e-2), maxd(0), maxdaij(1e3) // just I want a very big value
 {
     MADNESS_ASSERT(AV.is_column_distributed());
@@ -171,7 +171,7 @@ Tensor<T> SystolicEigensolver<T>::get_eval() const{
     Tensor<T> result(lsize);
 
     for(int64_t i=0; i<lsize; i++){
-        Tensor<T> ai= AV.data()(i, Slice(0, size-1)); 
+        Tensor<T> ai= AV.data()(i, Slice(0, size-1));
         Tensor<T> vi= AV.data()(i, Slice(size, -1));
         result[i] = madness::inner(vi, ai)(0,0);
     }
@@ -193,7 +193,7 @@ bool SystolicEigensolver<T>::converged(const TaskThreadEnv& env) const {
         }
         return true;
     } else
-        return false; 
+        return false;
 }
 /* trial function.
 template <typename T>
@@ -219,7 +219,7 @@ SystolicEigensolver<T> void systolic_eigensolver(DistributedMatrix<T>& A, int ta
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    madness::World world(MPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
 
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
@@ -236,7 +236,7 @@ int main(int argc, char** argv) {
                 for (int i=ilo; i<=ihi; i++) {
                     A.data()(j-jlo, i-ilo) = (i + j) * 0.1 ; //in this way, matrix is symmetric
                 }
-                A.data()(j-jlo,j) = ( A.data()(j-jlo,j)+0.5 ) * n;  
+                A.data()(j-jlo,j) = ( A.data()(j-jlo,j)+0.5 ) * n;
             }
 
             DistributedMatrix<double>  V = idMatrix(A);
@@ -261,7 +261,7 @@ int main(int argc, char** argv) {
                 print("A * U\n", inner(A.data(), transpose(eigvec)));
                 //print("A * U\n", mxm2(A.data(), transpose(eigvec)));
 
-                ///test for mTxm ... O.K. 
+                ///test for mTxm ... O.K.
                 /*
                    Tensor<double> t(2,2);
                    t(0,0) = 1; t(0,1) = 2; t(1,0) = 3; t(1,1) = 4;
@@ -301,8 +301,8 @@ int main(int argc, char** argv) {
              */
         }
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

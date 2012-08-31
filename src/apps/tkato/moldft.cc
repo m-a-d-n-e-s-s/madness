@@ -145,7 +145,7 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
 
     { // limit lifetime of world so that finalize() can execute cleanly
-      World world(MPI::COMM_WORLD);
+      World world(SafeMPI::COMM_WORLD);
 
       try {
         // Load info for MADNESS numerical routines
@@ -205,8 +205,8 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
       }
-      catch (const MPI::Exception& e) {
-        //        print(e);
+      catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
       }
       catch (const madness::MadnessException& e) {

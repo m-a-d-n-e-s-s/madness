@@ -1142,7 +1142,7 @@ void work_even(World& world) {
 int main(int argc, char** argv) {
     initialize(argc,argv);
 
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     redirectio(world);
     print("The processor frequency is",cpu_frequency());
@@ -1180,7 +1180,8 @@ int main(int argc, char** argv) {
         //     test_multi_world(world);
         // }
     }
-    catch (MPI::Exception e) {
+    catch (SafeMPI::Exception e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (madness::MadnessException e) {

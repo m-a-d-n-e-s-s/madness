@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -36,7 +36,7 @@
   \brief Illustrates general composition of two functions
   \defgroup examplebinop Illustrates general composition of two functions
   \ingroup examples
-  
+
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/binaryop.cc>here</a>.
 
   \par Points of interest
@@ -54,7 +54,7 @@
 
   The functions \f$ \Delta \f$ and \f$ \rho \f$ are both expected to go to zero
   at large \f$ r \f$ as is the ratio (i.e., \f$ \Delta \f$ goes to zero faster
-  than \f$ \rho \f$).  Moreover, \f$ \rho \f$ should everywhere be positive 
+  than \f$ \rho \f$).  Moreover, \f$ \rho \f$ should everywhere be positive
   and is not expected to be zero in the interior region (for ground states only?).
 
   \par Implementation
@@ -85,7 +85,7 @@
   \f[
   \Delta(r) = exp(- | r | )
   \f]
-  and 
+  and
   \f[
   \rho(r) = exp(- 2 | r | ) = \Delta^2(r)
   \f]
@@ -103,10 +103,10 @@
   expoentially, which makes \em small noise at long range not
   significant.  By screening to the physically expected value of zero
   we therefore ensure correct physics.
-  
+
 */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 
 using namespace madness;
@@ -128,28 +128,28 @@ double uexact(const coord_3d& r) {
 
 // This functor is used to perform the binary operation
 struct Uop {
-    void operator()(const Key<3>& key, 
+    void operator()(const Key<3>& key,
                     real_tensor U,
-                    const real_tensor& Delta, 
+                    const real_tensor& Delta,
                     const real_tensor& rho) const {
         ITERATOR(U,
                  double d = Delta(IND);
                  double p = rho(IND);
-                 if (p<small || d<small) 
+                 if (p<small || d<small)
                      U(IND) = 0.0;
-                 else 
+                 else
                      U(IND) = d*d/pow(p,2.0/3.0);
                  );
     }
 
-    template <typename Archive> 
+    template <typename Archive>
     void serialize(Archive& ar) {}
 };
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
-    
+    World world(SafeMPI::COMM_WORLD);
+
     startup(world, argc, argv);
     std::cout.precision(6);
 
@@ -157,7 +157,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
     FunctionDefaults<3>::set_initial_level(4);
-    
+
     real_function_3d Delta = real_factory_3d(world).f(delta);
     Delta.truncate(); // Deliberately truncate to introduce numerical noise
 

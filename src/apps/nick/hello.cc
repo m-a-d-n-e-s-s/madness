@@ -98,8 +98,8 @@ void doWork(World& world) {
 
 int main(int argc, char**argv) {
   // Initialize the parallel programming environment
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
+  SafeMPI::Init(argc, argv);
+  World world(SafeMPI::COMM_WORLD);
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);
   // Setup defaults for numerical functions
@@ -109,8 +109,8 @@ int main(int argc, char**argv) {
 
   try {
     doWork(world);
-  } catch (const MPI::Exception& e) {
-    //print(e);
+  } catch (const SafeMPI::Exception& e) {
+    print(e);
     error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
     print(e);
@@ -134,6 +134,6 @@ int main(int argc, char**argv) {
     error("caught unhandled exception");
   }
 
-  MPI::Finalize();				//FLAG
+  SafeMPI::Finalize();				//FLAG
   return 0;
 }

@@ -39,29 +39,30 @@
 using namespace std;
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
-    int np = MPI::COMM_WORLD.Get_size();
+    MPI_Init(&argc, &argv);
+    int np = -1;
+    MPI_Comm_size(MPI_COMM_WORLD, &np);
     if (np != 2) MADNESS_EXCEPTION("2 only", np);
 
-    int me = MPI::COMM_WORLD.Get_rank();
+    int me = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &me);
     int other = me? 0 : 1;
 
     int a=0, b=-1;
-    MPI::Request rsend = MPI::COMM_WORLD.Isend(&a, sizeof(a), MPI::BYTE, other, 1);
-    MPI::Request rrecv = MPI::COMM_WORLD.Irecv(&b, sizeof(b), MPI::BYTE, other, 1);
+    MPI_Request rsend;
+    MPI_Isend(&a, sizeof(a), MPI_BYTE, other, 1, MPI_COMM_WORLD, &rsend);
+    MPI_Request rrecv;
+    MPI_Irecv(&b, sizeof(b), MPI_BYTE, other, 1, MPI_COMM_WORLD, &rrecv);
 
-    MPI::Status status;
-
-    while (!rsend.Get_status(status));
-    while (!rrecv.Get_status(status));
-    rsend.Test(status);
-    rrecv.Test(status);
-
-    //while (!rsend.Test(status)) ;
-    //while (!rrecv.Test(status)) ;
+    MPI_Status status;
+    int done = 0;
+    while (!done) MPI_Request_get_status(rsend, &done, &status);
+    while (!done) MPI_Request_get_status(rrecv, &done, &status));
+    MPI_Test(&rsend, &done, &status);
+    MPI_Test(&rrecv, &done, &status);
 
     cout << me << " got " << b << endl;
 
-    MPI::Finalize();
+    MPI_Finalize();
     return 0;
 }

@@ -76,7 +76,7 @@ int main(int argc, char** argv) {
     const int length = 10000;
 
     initialize(argc, argv);
-    madness::World world(MPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
     Array a(world, length), b(world, length);
 
     if (world.rank() == 0) {

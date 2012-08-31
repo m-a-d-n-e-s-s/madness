@@ -55,6 +55,21 @@
 #include <world/worldmutex.h>
 #include <world/typestuff.h>
 #include <world/enable_if.h>
+#include <world/scopedptr.h>
+#include <iostream>
+
+
+#define MPI_THREAD_STRING(level)  \
+        ( level==MPI_THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
+            ( level==MPI_THREAD_MULTIPLE ? "THREAD_MULTIPLE" : \
+                ( level==MPI_THREAD_FUNNELED ? "THREAD_FUNNELED" : \
+                    ( level==MPI_THREAD_SINGLE ? "THREAD_SINGLE" : "WTF" ) ) ) )
+
+#define MADNESS_MPI_TEST(condition) \
+    { \
+        int mpi_error_code = condition; \
+        if(mpi_error_code != MPI_SUCCESS) throw ::SafeMPI::Exception(mpi_error_code); \
+    }
 
 namespace SafeMPI {
 
@@ -79,127 +94,354 @@ namespace SafeMPI {
     static const int MPIAR_TAG = 1001;
     static const int DEFAULT_SEND_RECV_TAG = 1000;
 
-    class Request : private MPI::Request {
+    inline int Init_thread(int &, char **&, int);
+    inline int Init_thread(int);
+    inline void Init();
+    inline void Init(int &, char **&);
+    inline int Finalize();
+    inline bool Is_finalized();
+
+    class Exception : public std::exception {
+    private:
+        char mpi_error_string_[MPI_MAX_ERROR_STRING];
+
     public:
-        Request() : MPI::Request() {}
 
-        Request(const MPI::Request& request) : MPI::Request(request) {}
+        Exception(const int mpi_error) throw() {
+            int len;
+            if(MPI_Error_string(mpi_error, mpi_error_string_, &len) != MPI_SUCCESS)
+                strncpy(mpi_error_string_, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
+        }
 
-        bool Test() {
+        Exception(const Exception& other) throw() {
+            strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+        }
+
+        Exception& operator=(const Exception& other) {
+            strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+            return *this;
+        }
+
+        virtual ~Exception() throw() { }
+
+        virtual const char* what() const throw() {
+            return mpi_error_string_;
+        }
+
+        friend std::ostream& operator<<(std::ostream& os, const Exception& e) {
+            os << e.what();
+            return os;
+        }
+    }; // class Exception
+
+
+    class Status {
+    private:
+        MPI_Status status_;
+
+    public:
+        // Constructors
+        Status(void) : status_() { }
+        Status(const Status &other) : status_(other.status_) { }
+        Status(MPI_Status other) : status_(other) { }
+
+        // Assignment operators
+        Status& operator=(const Status &other) {
+            status_ = other.status_;
+            return *this;
+        }
+
+        Status& operator=(const MPI_Status other) {
+            status_ = other;
+            return *this;
+        }
+
+        // C/C++ cast and assignment
+        operator MPI_Status*() { return &status_; }
+
+        operator MPI_Status() const { return status_; }
+
+//        bool Is_cancelled() const {
+//            int flag = 0;
+//            MADNESS_MPI_TEST(MPI_Test_cancelled(const_cast<MPI_Status*>(&status_), &flag));
+//            return flag != 0;
+//        }
+//
+//        int Get_elements(const MPI_Datatype datatype) const {
+//            int elements = 0;
+//            MADNESS_MPI_TEST(MPI_Get_elements(const_cast<MPI_Status*>(&status_), datatype, &elements));
+//            return elements;
+//        }
+
+        int Get_count(const MPI_Datatype datatype) const {
+            int count = 0;
+            MADNESS_MPI_TEST(MPI_Get_count(const_cast<MPI_Status*>(&status_), datatype, &count));
+            return count;
+        }
+
+//        void Set_cancelled(bool flag) {
+//            MADNESS_MPI_TEST(MPI_Status_set_cancelled(&status_, flag));
+//        }
+//
+//        void Set_elements( const MPI_Datatype &v2, int v3 ) {
+//            MADNESS_MPI_TEST(MPI_Status_set_elements(&status_, v2, v3 ));
+//        }
+
+        int Get_source() const { return status_.MPI_SOURCE; }
+
+        int Get_tag() const { return status_.MPI_TAG; }
+
+        int Get_error() const { return status_.MPI_ERROR; }
+
+        void Set_source(int source) { status_.MPI_SOURCE = source; }
+
+        void Set_tag(int tag) { status_.MPI_TAG = tag; }
+
+        void Set_error(int error) { status_.MPI_ERROR = error; }
+    }; // class Status
+
+    class Request {
+        // Note: This class was previously derived from MPI::Request, but this
+        // was changed with the removal of the MPI C++ bindings. Now this class
+        // only implements the minumum functionality required by MADNESS. Feel
+        // free to add more functionality as needed.
+
+    private:
+        MPI_Request request_;
+
+    public:
+
+        // Constructors
+        Request() : request_(MPI_REQUEST_NULL) { }
+        Request(MPI_Request other) : request_(other) { }
+        Request(const Request& other) : request_(other.request_) { }
+
+        // Assignment operators
+        Request& operator=(const Request &other) {
+            request_ = other.request_;
+            return *this;
+        }
+
+        Request& operator=(const MPI_Request& other) {
+            request_ = other;
+            return *this;
+        }
+
+        // logical
+        bool operator==(const Request &other) { return (request_ == other.request_); }
+        bool operator!=(const Request &other) { return (request_ != other.request_); }
+
+        // C/C++ cast and assignment
+        operator MPI_Request*() { return &request_; }
+        operator MPI_Request() const { return request_; }
+
+        static bool Testany(int count, Request* requests, int& index, Status& status) {
+            MADNESS_ASSERT(requests != NULL);
+            int flag;
+            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[count]);
+
+            // Copy requests to an array that can be used by MPI
+            for(int i = 0; i < count; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST(MPI_Testany(count, mpi_requests.get(), &index, &flag, status));
+            }
+            // Copy results from MPI back to the original array
+            for(int i = 0; i < count; ++i)
+                requests[i].request_ = mpi_requests[i];
+            return flag != 0;
+        }
+
+        static bool Testany(int count, Request* requests, int& index) {
+            MADNESS_ASSERT(requests != NULL);
+            int flag;
+            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[count]);
+
+            // Copy requests to an array that can be used by MPI
+            for(int i = 0; i < count; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST(MPI_Testany(count, mpi_requests.get(), &index, &flag, MPI_STATUS_IGNORE));
+            }
+            // Copy results from MPI back to the original array
+            for(int i = 0; i < count; ++i)
+                requests[i] = mpi_requests[i];
+            return flag != 0;
+        }
+
+        static int Testsome(int incount, Request* requests, int* indices, Status* statuses) {
+            MADNESS_ASSERT(requests != NULL);
+            MADNESS_ASSERT(indices != NULL);
+            MADNESS_ASSERT(statuses != NULL);
+
+            int outcount = 0;
+            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[incount]);
+            madness::ScopedArray<MPI_Status> mpi_statuses(new MPI_Status[incount]);
+            for(int i = 0; i < incount; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST( MPI_Testsome( incount, mpi_requests.get(), &outcount, indices, mpi_statuses.get()));
+            }
+            for(int i = 0; i < incount; ++i) {
+                requests[i] = mpi_requests[i];
+                statuses[i] = mpi_statuses[i];
+            }
+            return outcount;
+        }
+
+        static int Testsome(int incount, Request* requests, int* indices) {
+            int outcount = 0;
+            madness::ScopedArray<MPI_Request> mpi_requests(new MPI_Request[incount]);
+            for(int i = 0; i < incount; ++i)
+                mpi_requests[i] = requests[i].request_;
+            {
+                SAFE_MPI_GLOBAL_MUTEX;
+                MADNESS_MPI_TEST( MPI_Testsome( incount, mpi_requests.get(), &outcount, indices, MPI_STATUSES_IGNORE));
+            }
+            for(int i = 0; i < incount; ++i)
+                requests[i] = mpi_requests[i];
+            return outcount;
+        }
+
+
+        bool Test_got_lock_already(MPI_Status& status) {
+            int flag;
+            MADNESS_MPI_TEST(MPI_Test(&request_, &flag, &status));
+            return flag != 0;
+        }
+
+        bool Test(MPI_Status& status) {
             SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Test();
+            return Test_got_lock_already(status);
         }
 
         bool Test_got_lock_already() {
-            return MPI::Request::Test();
+            int flag;
+            MADNESS_MPI_TEST(MPI_Test(&request_, &flag, MPI_STATUS_IGNORE));
+            return flag != 0;
         }
 
-        static bool Testany(int n, SafeMPI::Request* request, int& ind) {
+        bool Test() {
             SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testany(n, static_cast<MPI::Request*>(request), ind);
+            return Test_got_lock_already();
         }
-
-        static int Testsome(int n, SafeMPI::Request* request, int* ind, MPI::Status* status) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind, status);
-        }
-
-        static int Testsome(int n, SafeMPI::Request* request, int* ind) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            return MPI::Request::Testsome(n, static_cast<MPI::Request*>(request), ind);
-        }
-
-        // static int Testsome(int n, MPI::Request* request, int* ind, MPI::Status* status) {
-        //     SAFE_MPI_GLOBAL_MUTEX;
-        //     return MPI::Request::Testsome(n, request, ind, status);
-        // }
-    };
+    }; // class Request
 
     class Intracomm {
-        MPI::Intracomm& comm;
+        MPI_Comm comm;
         int me;
         int numproc;
 
+        friend void Init(void);
+        friend void Init(int &, char **& );
+        friend int Init_thread(int);
+        friend int Init_thread(int &, char **&, int );
+
+        Intracomm& operator=(const Intracomm&);
+
     public:
-        Intracomm(MPI::Intracomm& c) : comm(c) {
+        struct WorldInitObject;
+
+        // For internal use only. Do not try to call this constructor. It is
+        // only used to construct COMM_WORLD.
+        Intracomm(const WorldInitObject&);
+
+        Intracomm(MPI_Comm c) : comm(c), me(-1), numproc(-1) {
             SAFE_MPI_GLOBAL_MUTEX;
-            me = comm.Get_rank();
-            numproc = comm.Get_size();
+            MPI_Comm_rank(comm, &me);
+            MPI_Comm_size(comm, &numproc);
         }
 
-        MPI::Intracomm Create(const MPI::Group& group) const {
+        Intracomm(const Intracomm& other) :
+            comm(other.comm), me(other.me), numproc(other.numproc)
+        { }
+
+        Intracomm Create(MPI_Group group) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Create(group);
+            MPI_Comm group_comm;
+            MADNESS_MPI_TEST(MPI_Comm_create(comm, group, &group_comm));
+            return Intracomm(group_comm);
         }
 
-        MPI::Group Get_group() const {
+        MPI_Group Get_group() const {
             SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Get_group();
+            MPI_Group group;
+            MADNESS_MPI_TEST(MPI_Comm_group(comm, &group));
+            return group;
         }
 
         int Get_rank() const { return me; }
 
         int Get_size() const { return numproc; }
 
-        ::SafeMPI::Request Isend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        Request Isend(const void* buf, const int count, const MPI_Datatype datatype, const int dest, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Isend(buf,count,datatype,dest,tag);
+            Request request;
+            MADNESS_MPI_TEST(MPI_Isend(const_cast<void*>(buf), count, datatype, dest,tag, comm, request));
+            return request;
         }
 
-        ::SafeMPI::Request Irecv(void* buf, size_t count, const MPI::Datatype& datatype, int src, int tag) const {
+        Request Irecv(void* buf, const int count, const MPI_Datatype datatype, const int src, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Irecv(buf, count, datatype, src, tag);
+            Request request;
+            MADNESS_MPI_TEST(MPI_Irecv(buf, count, datatype, src, tag, comm, request));
+            return request;
         }
 
-        void Send(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        void Send(const void* buf, const int count, const MPI_Datatype datatype, int dest, int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Send(buf,count,datatype,dest,tag);
+            MADNESS_MPI_TEST(MPI_Send(const_cast<void*>(buf), count, datatype, dest, tag, comm));
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS
-        void Bsend(const void* buf, size_t count, const MPI::Datatype& datatype, int dest, int tag) const {
+        void Bsend(const void* buf, size_t count, const MPI_Datatype datatype, int dest, int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            if (count>10 || datatype!=MPI::BYTE) MADNESS_EXCEPTION("Bsend: this protocol is only for 1-byte acks", count );
-            comm.Bsend(buf,count,datatype,dest,tag);
+            if (count>10 || datatype!=MPI_BYTE) MADNESS_EXCEPTION("Bsend: this protocol is only for 1-byte acks", count );
+            MADNESS_MPI_TEST(MPI_Bsend(const_cast<void*>(buf), count, datatype, dest, tag, comm));
         }
 #endif // MADNESS_USE_BSEND_ACKS
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag, MPI::Status& status) const {
+        void Recv(void* buf, const int count, const MPI_Datatype datatype, const int source, const int tag, MPI_Status& status) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Recv(buf,count,datatype,source,tag,status);
+            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, comm, &status));
         }
 
-        void Recv(void* buf, int count, const MPI::Datatype& datatype, int source, int tag) const {
+        void Recv(void* buf, const int count, const MPI_Datatype datatype, const int source, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Recv(buf,count,datatype,source,tag);
+            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, comm, MPI_STATUS_IGNORE));
         }
 
-        void Bcast(void* buf, size_t count, const MPI::Datatype& datatype, int root) const {
+        void Bcast(void* buf, size_t count, const MPI_Datatype datatype, const int root) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            return comm.Bcast(buf, count, datatype, root);
+            MADNESS_MPI_TEST(MPI_Bcast(buf, count, datatype, root, comm));
         }
 
-        void Reduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op, int root) const {
+        void Reduce(const void* sendbuf, void* recvbuf, const int count, const MPI_Datatype datatype, const MPI_Op op, const int root) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Reduce(sendbuf, recvbuf, count, datatype, op, root);
+            MADNESS_MPI_TEST(MPI_Reduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, root, comm));
         }
 
-        void Allreduce(void* sendbuf, void* recvbuf, int count, const MPI::Datatype& datatype, const MPI::Op& op) const {
+        void Allreduce(const void* sendbuf, void* recvbuf, const int count, const MPI_Datatype datatype, const MPI_Op op) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Allreduce(sendbuf, recvbuf, count, datatype, op);
+            MADNESS_MPI_TEST(MPI_Allreduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, comm));
         }
-        void Get_attr(int key, void* value) const {
+        bool Get_attr(int key, void* value) const {
+            int flag = 0;
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Get_attr(key, value);
+            MADNESS_MPI_TEST(MPI_Comm_get_attr(comm, key, value, &flag));
+            return flag != 0;
         }
 
         void Abort(int code=1) const {
-            comm.Abort(code);
+            MPI_Abort(comm, code);
         }
 
         void Barrier() const {
             SAFE_MPI_GLOBAL_MUTEX;
-            comm.Barrier();
+            MADNESS_MPI_TEST(MPI_Barrier(comm));
         }
 
         /// Returns a unique tag for temporary use (1023<tag<=4095)
@@ -241,31 +483,31 @@ namespace SafeMPI {
         // !! Please ensure any additional routines follow this convention.
         /// Isend one element ... disabled for pointers to reduce accidental misuse.
         template <class T>
-        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, Request>::type
         Isend(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
-            return Isend(&datum, sizeof(T), MPI::BYTE, dest, tag);
+            return Isend(&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
 
         /// Async receive data of up to lenbuf elements from process dest
         template <class T>
-        SafeMPI::Request
+        Request
         Irecv(T* buf, int count, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
-            return Irecv(buf, count*sizeof(T), MPI::BYTE, source, tag);
+            return Irecv(buf, count*sizeof(T), MPI_BYTE, source, tag);
         }
 
 
         /// Async receive datum from process dest with default tag=1
         template <class T>
-        typename madness::enable_if_c< !std::is_pointer<T>::value, SafeMPI::Request>::type
+        typename madness::enable_if_c< !std::is_pointer<T>::value, Request>::type
         Irecv(T& buf, int source, int tag=DEFAULT_SEND_RECV_TAG) const {
-            return Irecv(&buf, sizeof(T), MPI::BYTE, source, tag);
+            return Irecv(&buf, sizeof(T), MPI_BYTE, source, tag);
         }
 
 
         /// Send array of lenbuf elements to process dest
         template <class T>
         void Send(const T* buf, long lenbuf, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
-            Send((void*)buf, lenbuf*sizeof(T), MPI::BYTE, dest, tag);
+            Send((void*)buf, lenbuf*sizeof(T), MPI_BYTE, dest, tag);
         }
 
 
@@ -275,7 +517,7 @@ namespace SafeMPI {
         template <class T>
         typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Send(const T& datum, int dest, int tag=DEFAULT_SEND_RECV_TAG) const {
-            Send((void*)&datum, sizeof(T), MPI::BYTE, dest, tag);
+            Send((void*)&datum, sizeof(T), MPI_BYTE, dest, tag);
         }
 
 
@@ -283,14 +525,14 @@ namespace SafeMPI {
         template <class T>
         void
         Recv(T* buf, long lenbuf, int src, int tag) const {
-            Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag);
+            Recv(buf, lenbuf*sizeof(T), MPI_BYTE, src, tag);
         }
 
         /// Receive data of up to lenbuf elements from process dest with status
         template <class T>
         void
-        Recv(T* buf, long lenbuf, int src, int tag, MPI::Status& status) const {
-            Recv(buf, lenbuf*sizeof(T), MPI::BYTE, src, tag, status);
+        Recv(T* buf, long lenbuf, int src, int tag, Status& status) const {
+            Recv(buf, lenbuf*sizeof(T), MPI_BYTE, src, tag, status);
         }
 
 
@@ -298,7 +540,7 @@ namespace SafeMPI {
         template <class T>
         typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Recv(T& buf, int src, int tag=DEFAULT_SEND_RECV_TAG) const {
-            Recv(&buf, sizeof(T), MPI::BYTE, src, tag);
+            Recv(&buf, sizeof(T), MPI_BYTE, src, tag);
         }
 
 
@@ -307,7 +549,7 @@ namespace SafeMPI {
         /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
         template <class T>
         void Bcast(T* buffer, int count, int root) const {
-            Bcast(buffer,count*sizeof(T),MPI::BYTE,root);
+            Bcast(buffer,count*sizeof(T),MPI_BYTE,root);
         }
 
 
@@ -317,7 +559,7 @@ namespace SafeMPI {
         template <class T>
         typename madness::enable_if_c< !std::is_pointer<T>::value, void>::type
         Bcast(T& buffer, int root) const {
-            Bcast(&buffer, sizeof(T), MPI::BYTE,root);
+            Bcast(&buffer, sizeof(T), MPI_BYTE,root);
         }
 
         int rank() const { return Get_rank(); }
@@ -335,7 +577,88 @@ namespace SafeMPI {
         /// there is no parent/child the value -1 will be set.
         void binary_tree_info(int root, int& parent, int& child0, int& child1);
 
-    };
+    }; // class Intracomm
+
+    extern Intracomm COMM_WORLD;
+
+
+    inline int Init_thread(int & argc, char **& argv, int required) {
+        int provided = 0;
+        MADNESS_MPI_TEST(MPI_Init_thread(&argc, &argv, required, &provided));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        if((provided < required) && (COMM_WORLD.Get_rank() == 0)) {
+            std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                      << "!! Error: The MPI standard makes no guarentee about the correctness of a program in such circumstances. \n"
+                      << "!! Error: Please reconfigure your MPI to provide the proper thread support. \n"
+                      << std::endl;
+            COMM_WORLD.Abort(1);
+        } else if (provided > required && COMM_WORLD.Get_rank() == 0 ) {
+            std::cout << "!! Warning: MPI_Init_thread provided more than the requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                      << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
+                      << std::endl;
+        }
+
+        return provided;
+    }
+
+    inline int Init_thread(int required) {
+        int provided = 0;
+        MADNESS_MPI_TEST(MPI_Init_thread(0, 0, required, &provided));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        if((provided < required) && (COMM_WORLD.Get_rank() == 0)) {
+            std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                      << "!! Error: The MPI standard makes no guarentee about the correctness of a program in such circumstances. \n"
+                      << "!! Error: Please reconfigure your MPI to provide proper thread support. \n"
+                      << std::endl;
+
+            COMM_WORLD.Abort(1);
+        } else if (provided > required && COMM_WORLD.Get_rank() == 0 ) {
+            std::cout << "!! Warning: MPI_Init_thread provided more than the requested functionality: "
+                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                      << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
+                      << std::endl;
+        }
+
+        return provided;
+    }
+
+    inline void Init() {
+        MADNESS_MPI_TEST(MPI_Init(0,0));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+    }
+
+    inline void Init(int & argc, char **& argv) {
+        MADNESS_MPI_TEST(MPI_Init(&argc, &argv));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+    }
+
+    inline int Finalize() { return MPI_Finalize(); }
+
+    inline bool Is_finalized() {
+        int flag = 0;
+        MPI_Finalized(&flag);
+        return flag != 0;
+    }
+
+    inline double Wtime() { return MPI_Wtime(); }
+
+    inline void Attach_buffer(void* buffer, int size) {
+        MADNESS_MPI_TEST(MPI_Buffer_attach(buffer, size));
+    }
+
+
+    inline int Detach_buffer(void *&buffer) {
+        int size = 0;
+        MPI_Buffer_detach(&buffer, &size);
+        return size;
+    }
 }
 
 #endif // MADNESS_WORLD_SAFEMPI_H__INCLUDED

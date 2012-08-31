@@ -54,8 +54,9 @@ namespace madness {
 
         std::vector<int> fred(nproc);
         for (int i=0; i<nproc; ++i) fred[i] = i;
-        MPI::Group::Translate_ranks(world.mpi.comm().Get_group(), nproc, &fred[0],
-                                    MPI::COMM_WORLD.Get_group(), &map_to_comm_world[0]);
+        MADNESS_MPI_TEST(
+                MPI_Group_translate_ranks(world.mpi.comm().Get_group(), nproc,
+                        &fred[0], SafeMPI::COMM_WORLD.Get_group(), &map_to_comm_world[0]));
 
         // for (int i=0; i<nproc; ++i) {
         //     std::cout << "map " << i << " " << map_to_comm_world[i] << std::endl;
@@ -65,7 +66,7 @@ namespace madness {
     }
 
     WorldAmInterface::~WorldAmInterface() {
-        if(MPI::Is_finalized()) {
+        if(SafeMPI::Is_finalized()) {
             for (int i=0; i<NSEND; ++i)
                 free_managed_send_buf(i);
         } else {

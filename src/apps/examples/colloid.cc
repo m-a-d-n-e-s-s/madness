@@ -1,27 +1,27 @@
 /*
-This file is part of MADNESS.                                                                                                                             
+This file is part of MADNESS.
 Copyright (C) 2007,2010 Oak Ridge National Laboratory
 This program is free software; you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by                                                                                      
+it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
-(at your option) any later version.   
-This program is distributed in the hope that it will be useful,                                                                                           
-but WITHOUT ANY WARRANTY; without even the implied warranty of                                                                                            
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the                                                                                              
-GNU General Public License for more details.                                                                                                              
-You should have received a copy of the GNU General Public License                                                                                         
-along with this program; if not, write to the Free Software                                                                                               
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA                                                                                   
+(at your option) any later version.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-For more information please contact:  
-Robert J. Harrison                                                                                                                                        
-Oak Ridge National Laboratory                                                                                                                             
-One Bethel Valley Road                                                                                                                                    
-P.O. Box 2008, MS-6367                                                                                                                                    
+For more information please contact:
+Robert J. Harrison
+Oak Ridge National Laboratory
+One Bethel Valley Road
+P.O. Box 2008, MS-6367
 
-email: harrisonrj@ornl.gov                                                                                                                                
-tel:   865-241-3937                                                                                                                                       
-fax:   865-572-0680                                                                                        
+email: harrisonrj@ornl.gov
+tel:   865-241-3937
+fax:   865-572-0680
 
 
 This proram simulates the effect of surface solute interaction between a colloid and a hydrogen atom
@@ -40,8 +40,8 @@ This proram simulates the effect of surface solute interaction between a colloid
 #include <list>
 #include <jacob/molecule.h>
 #include <mra/sdf_shape_3D.h>
-#include <mra/funcplot.h> 
-#include <constants.h> 
+#include <mra/funcplot.h>
+#include <constants.h>
 #include <cmath>
 #include <vector>
 using namespace madness;
@@ -86,14 +86,14 @@ private:
     World& world;
     const int& maxiter;
     //compute the reciprocal of a madness function
-    template <typename T, int NDIM>               
+    template <typename T, int NDIM>
     struct Reciprocal {
         void operator()(const Key<NDIM>& key, Tensor<T>& t) const {
             UNARY_OPTIMIZED_ITERATOR(T, t, *_p0 = 1.0/(*_p0));
-        } 
+        }
         template <typename Archive> void serialize(Archive& ar) {}
-    }; 
-    
+    };
+
     //this is used to perform a binary operation
     struct Bop {
         void operator()(const Key<3>& key,
@@ -134,7 +134,7 @@ public:
             c[i] = R;
         return c;
     }
-    
+
     //make surface charge
     realfunc make_surfcharge(const realfunc& u,const realfunc& surface,const realfunc& volume) const {
         real_derivative_3d Dx = free_space_derivative<double,3>(rhot.world(), 0);
@@ -166,13 +166,13 @@ public:
         realfunc U = op(charge);
         double unorm = U.norm2();
         if (USE_SOLVER) {
-            madness::NonlinearSolver solver;//(5);                                                                                                       
+            madness::NonlinearSolver solver;//(5);
             realfunc uvec, rvec;
             if (world.rank() == 0){
-                print("\n\n");//for formating output                                                                                                       
+                print("\n\n");//for formating output
                 madness::print("      Computing the perturbed solute potential         ");
                 madness::print("              ______________________           \n ");
-                
+
                 madness::print("iteration ","    "," residue norm2\n");
             }
             realfunc charg = make_surfcharge(U,surface,volume);
@@ -182,7 +182,7 @@ public:
                 //lo[0] = -20.0;
                 // hi[0] = 20.0;
                 // plot_line("imp_Surfacepot.dat",1001,lo,hi,U);
-                
+
                 rvec = (U -op(charg)).truncate() ;
                 realfunc U_new = solver.update(uvec,rvec);
                 double err = rvec.norm2();
@@ -197,8 +197,8 @@ public:
         }
         return U;
     }
-    
-    SurfaceMoleculeInteraction(const double& d, const double& R,const 
+
+    SurfaceMoleculeInteraction(const double& d, const double& R,const
                                std::vector<double>& charge_center,
                                realfunc& rhot, const double& sigma, World& world,const int& maxiter)
         :d(d),R(R),                      //d and R are in a.u
@@ -207,20 +207,20 @@ public:
         MADNESS_ASSERT(colloid_coords().size()==colloid_radii().size());
     }
 };
-    
+
 int main(int argc, char **argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
-    const int k = 6; // wavelet order 
-                                                                                                                      
+    const int k = 6; // wavelet order
+
     const double thresh = 1e-6; // truncation threshold
-                                                                                                     
-    const double L = 50; // box is [-L,L] 
-                                                                                                                  
+
+    const double L = 50; // box is [-L,L]
+
     //const int natom = 6; // number of atoms
-                                                                                                                 
+
     double sigma = 0.5; // Surface width
 
     const double R = 3.2503287; // radius of colloid sphere
@@ -228,10 +228,10 @@ int main(int argc, char **argv) {
     const double d = 6.61404096; // distance between center of charge and coilloid center
 
     const int maxiter = 25; // maximum iteration
-                                                                                                            
 
-    // Function defaults 
-                                                                                                                                   
+
+    // Function defaults
+
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_cubic_cell(-L, L);

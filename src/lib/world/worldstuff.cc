@@ -48,17 +48,12 @@
 #include <windows.h>
 #endif
 
-#define MPI_THREAD_STRING(level)  \
-        ( level==MPI_THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
-            ( level==MPI_THREAD_MULTIPLE ? "THREAD_MULTIPLE" : \
-                ( level==MPI_THREAD_FUNNELED ? "THREAD_FUNNELED" : \
-                    ( level==MPI_THREAD_SINGLE ? "THREAD_SINGLE" : "WTF" ) ) ) )
-
 namespace madness {
 
 #ifdef MADNESS_USE_BSEND_ACKS
+#define MADNESS_ACK_BUFF_SIZE 1000
     namespace {
-        void * mpi_ack_buffer;
+        char* mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
     }
 #endif // MADNESS_USE_BSEND_ACKS
 
@@ -71,7 +66,7 @@ namespace madness {
 
     static int finalizestate = 0;
 
-    World::World(MPI::Intracomm& comm)
+    World::World(const SafeMPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)
             , mpi(*(new WorldMpiInterface(comm)))
@@ -124,7 +119,7 @@ namespace madness {
 
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
-        MPI::COMM_WORLD.Abort(1);
+        SafeMPI::COMM_WORLD.Abort(1);
     }
 
     void initialize(int argc, char** argv) {
@@ -157,40 +152,22 @@ namespace madness {
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
 #ifdef SERIALIZE_MPI
-        int required = MPI::THREAD_SERIALIZED;
+        int required = MPI_THREAD_SERIALIZED;
 #else
-        int required = MPI::THREAD_MULTIPLE;
+        int required = MPI_THREAD_MULTIPLE;
 #endif
-        int provided = MPI::Init_thread(argc, argv, required);
-        int me = MPI::COMM_WORLD.Get_rank();
-        if (provided < required && me == 0 ) {
-            std::cout << "!! Error: MPI::Init_thread did not provide requested functionality: "
-                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n" 
-                      << "!! Error: The MPI standard makes no guarentee about the correctness of a program in such circumstances. \n"
-                      << "!! Error: Please reconfigure your MPI to provide proper thread support. \n"
-                      << std::endl;
-            MPI::COMM_WORLD.Abort(1);
-        }
-        else if (provided > required && me == 0 ) {
-            std::cout << "!! Warning: MPI::Init_thread provided more than the requested functionality: "
-                      << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n" 
-                      << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
-                      << std::endl;
-        }
-
+        SafeMPI::Init_thread(argc, argv, required);
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
 
-        if (me == 0) std::cout << "Runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
+        if (SafeMPI::COMM_WORLD.Get_rank() == 0) std::cout << "Runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
 
 #ifdef MADNESS_USE_BSEND_ACKS
-        mpi_ack_buffer = malloc(1000);
-        MADNESS_ASSERT(mpi_ack_buffer != NULL);
-        MPI::Attach_buffer(mpi_ack_buffer, 1000);
+        SafeMPI::Attach_buffer(mpi_ack_buffer, MADNESS_ACK_BUFF_SIZE);
 #endif // MADNESS_USE_BSEND_ACKS
     }
 
@@ -200,10 +177,10 @@ namespace madness {
 //#endif
         ThreadPool::end(); // 8/Dec/08 : II added this line as trial
 #ifdef MADNESS_USE_BSEND_ACKS
-        MPI::Detach_buffer(mpi_ack_buffer);
-        free(mpi_ack_buffer);
+        void* buff;
+        SafeMPI::Detach_buffer(buff);
 #endif // MADNESS_USE_BSEND_ACKS
-        MPI::Finalize();
+        SafeMPI::Finalize();
         finalizestate = 1;
     }
 

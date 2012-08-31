@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -36,11 +36,11 @@
   \brief Example solution of Poisson's equation in a dielectric (polarizable) medium
   \defgroup exampledielectric Poisson's equation in a dielectric medium
   \ingroup examples
-  
+
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/dielectric.cc>here</a>.
 
   \par Points of interest
-  - use of iterative equation solver 
+  - use of iterative equation solver
   - convolution with the Green's function
   - unary operator to compute reciprocal of a function
   - use of diffuse domain approximation to represent interior surfaces
@@ -48,8 +48,8 @@
 
   \par Background
 
-  We wish to solve Poisson's equation within a non-homogeneous medium, i.e., 
-  in which the permittivity is not constant. 
+  We wish to solve Poisson's equation within a non-homogeneous medium, i.e.,
+  in which the permittivity is not constant.
   \f[
   \nabla . \left( \epsilon(r) \nabla u(r)  \right) = - 4 \pi \rho(r)
   \f]
@@ -61,7 +61,7 @@
   and \f$\nabla \epsilon . \nabla u / \epsilon\f$ as the induced surface charge density.
   Assuming free-space boundary conditions at long range we can invert the Laplacian
   by convolution with the free-space Green's function that is \f$-1 / 4 \pi |r-s|\f$.
-  Note that MADNESS provides convolution with \f$G(r,s) = 1/|r-s|\f$ so you have to 
+  Note that MADNESS provides convolution with \f$G(r,s) = 1/|r-s|\f$ so you have to
   keep track of the \f$-1/4\pi\f$ yourself.
 
   Thus, our equation becomes (deliberately written in the form of a
@@ -71,7 +71,7 @@
   \f[
      u = G * \left(\rho_{\mbox{vol}} + \rho_{\mbox{surf}} \right)
   \f]
-  where 
+  where
   \f[
      \rho_{\mbox{vol}} = \frac{\rho}{\epsilon}
   \f]
@@ -79,20 +79,20 @@
   \f[
      \rho_{\mbox{surf}} = \frac{\nabla \epsilon .  \nabla u}{4 \pi \epsilon}
   \f]
-  
+
   Let's solve a problem to which we know the exact answer --- a point
   charge at the center of a sphere \f$R=2\f$.  Inside the sphere the permittivity
   is \f$\epsilon_1 = 1\f$ and outside it is \f$\epsilon_2 = 10\f$.  The exact
-  solution is 
+  solution is
   \f[
-     u(r) = 
-            \left \lbrace 
+     u(r) =
+            \left \lbrace
                \begin{array}{cc}
                     \frac{1}{\epsilon_2 |r|} & |r| > R \\
                     \frac{1}{\epsilon_1 |r|} + \left( \frac{1}{\epsilon_2} - \frac{1}{\epsilon_1} \right) \frac{1}{R}  & |r| < R
                \end{array}
             \right .
-            
+
   \f]
   The surface charge density integrated over the suface has the value
   \f[
@@ -103,15 +103,15 @@
   as a function over all space, so we define a characteristic function
   \f$C(r)\f$ (or mask) that is defined to be one inside the sphere and
   zero outside
-  \f[ 
-    C(r) = H(R-|r|) 
-  \f] 
+  \f[
+    C(r) = H(R-|r|)
+  \f]
   where \f$H(x)\f$ is the Heaviside step function.  Hence, we have
   \f[
      \epsilon(r) = \epsilon_1 C(r) + \epsilon_2 \left( 1 - C(r) \right)
   \f]
   To smooth the discontinuity we replace the Heaviside step function
-  with 
+  with
   \f[
      H(x,\sigma) = \frac{1}{2} \left( 1 + \mathop{\mathrm{erf}} \frac{x}{\sigma} \right)
   \f]
@@ -132,13 +132,13 @@
   \f]
   with \f$ \alpha \in [0,1]\f$ .  This works (for sufficiently small \f$\alpha\f$)
   and is implemented in the code.
-  
+
   A more robust approach is to use a solver that exploits information
   from previous iterations (the Krylov subspace) to estimate the
-  optimal direction and length of the step to take.  Such a 
+  optimal direction and length of the step to take.  Such a
   solver is provided by nonlinsol.h.  Each iteration we pass
   the current solution and corresponding residual to the solver
-  and it provides the next trial vector. 
+  and it provides the next trial vector.
 
   In the code you can switch between using the solver or simple iteration
   by changing the value of \c USE_SOLVER .
@@ -148,7 +148,7 @@
   in part because even functions that are
   analytically never zero, might be (nearly) zero due to numerical truncation.
   Handling this issue correctly is problem specific.  More generally,
-  we want to compute a function-of-a-function.  If \f$f(r)\f$ 
+  we want to compute a function-of-a-function.  If \f$f(r)\f$
   is a MADNESS function that takes a d-dimensional vector as its
   argument (in this examaple \f$d=3\f$) and \f$F(x)\f$ is computable
   function that takes a scalar argument, we want to compute the
@@ -159,12 +159,12 @@
   There are various ways to do this.  The simplest is employed here ---
   we define a function (\c reciprocal() ) that is passed into the
   \c unaryop() method that modifies the function \em in-place.
-  This simple approach is justified here since we know our 
+  This simple approach is justified here since we know our
   input function is never zero even due to numerical noise,
   and the output function is about as smooth as the input.
   If it were not, we might have to refine the input function
   to obtain the desired precision.
-  
+
 */
 
 
@@ -222,7 +222,7 @@ double exact_function(const coord_3d& x) {
 
 int main(int argc, char **argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     coord_3d lo(0.0), hi(0.0); // Range for line plotting
@@ -272,7 +272,7 @@ int main(int argc, char **argv) {
     TIME("make surface", real_function_3d surface = real_factory_3d(world).functor(surface_functor));
     TIME("make charge ", real_function_3d charge = real_factory_3d(world).f(charge_function));
     TIME("make exact  ", real_function_3d exact = real_factory_3d(world).f(exact_function));
-    
+
     // Reciprocal of the dielectric function
     real_function_3d rdielectric = epsilon_0*volume + epsilon_1*(1.0-volume);
     rdielectric.unaryop(reciprocal);
@@ -309,7 +309,7 @@ int main(int argc, char **argv) {
         // http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
         NonlinearSolver solver;
         for (int iter=0; iter<20; iter++) {
-            real_function_3d surface_charge = 
+            real_function_3d surface_charge =
                 rfourpi*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u));
             real_function_3d r = (u - op(charge + surface_charge)).truncate();
 
@@ -317,13 +317,13 @@ int main(int argc, char **argv) {
 
             double change = (unew-u).norm2();
             double err = (u-exact).norm2();
-            print("iter", iter, "change", change, "err", err, 
+            print("iter", iter, "change", change, "err", err,
                   "exact(3.0)", exact(coord_3d(3.0)), "soln(3.0)", u(coord_3d(3.0)),
                   "surface charge", surface_charge.trace());
 
-            if (change > 0.3*unorm) 
+            if (change > 0.3*unorm)
                 u = 0.5*unew + 0.5*u;
-            else 
+            else
                 u = unew;
 
             if (change < 10.0*thresh) break;
@@ -333,10 +333,10 @@ int main(int argc, char **argv) {
         // This section employs a simple iteration with damping (step restriction)
         for (int iter=0; iter<20; iter++) {
             real_function_3d u_prev = u;
-            real_function_3d surface_charge = 
+            real_function_3d surface_charge =
                 rfourpi*rdielectric*(di_gradx*Dx(u) + di_grady*Dy(u) + di_gradz*Dz(u));
             u = op(charge + surface_charge).truncate();
-            
+
             double change = (u-u_prev).norm2();
             double err = (u-exact).norm2();
             print("iteration", iter, change, err, exact(coord_3d(3.0)), u(coord_3d(3.0)), surface_charge.trace());

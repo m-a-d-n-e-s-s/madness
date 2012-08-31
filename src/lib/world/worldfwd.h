@@ -357,10 +357,10 @@ namespace madness {
 
     void redirectio(World& world);
 
-    /// Call this once at the very top of your main program instead of calling MPI::Init
+    /// Call this once at the very top of your main program instead of calling MPI_Init
     void initialize(int argc, char** argv);
 
-    /// Call this once at the very end of your main program instead of calling MPI::Finalize
+    /// Call this once at the very end of your main program instead of calling MPI_Finalize
     void finalize();
 
     /// Call this to print misc. stats ... collective
@@ -373,7 +373,7 @@ namespace madness {
     template <typename T>
     static void error(const char *msg, const T& data) {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
-        MPI::COMM_WORLD.Abort(1);
+        SafeMPI::COMM_WORLD.Abort();
     }
 
 
@@ -429,7 +429,7 @@ namespace madness {
 
     public:
         /// Give me a communicator and I will give you the world
-        World(MPI::Intracomm& comm);
+        World(const SafeMPI::Intracomm& comm);
 
 
         /// Sets a pointer to user-managed local state
@@ -460,14 +460,14 @@ namespace madness {
         /// Returns the system-wide unique integer ID of this world
         unsigned long id() const { return _id; }
 
-        /// Returns the process rank in this world (same as MPI::Get_rank()))
+        /// Returns the process rank in this world (same as MPI_Comm_rank()))
         ProcessID rank() const { return mpi.rank(); }
 
 
-        /// Returns the number of processes in this world (same as MPI::Get_size())
+        /// Returns the number of processes in this world (same as MPI_Comm_size())
         ProcessID nproc() const { return mpi.nproc(); }
 
-        /// Returns the number of processes in this world (same as MPI::Get_size())
+        /// Returns the number of processes in this world (same as MPI_Comm_size())
         ProcessID size() const { return mpi.size(); }
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
@@ -570,7 +570,7 @@ namespace madness {
         }
 
 
-        // Cannot use bind_nullary here since MPI::Request::Test is non-const
+        // Cannot use bind_nullary here since SafeMPI::Request::Test is non-const
         struct MpiRequestTester {
             mutable SafeMPI::Request* r;
             MpiRequestTester(SafeMPI::Request& r) : r(&r) {}

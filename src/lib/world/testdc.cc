@@ -150,7 +150,7 @@ void test1(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         test0(world);
@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
         test1(world);
         test1(world);
     }
-    catch (MPI::Exception e) {
+    catch (SafeMPI::Exception e) {
         error("caught an MPI exception");
     }
     catch (madness::MadnessException e) {

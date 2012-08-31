@@ -47,7 +47,7 @@
 #include <constants.h> //jacob added
 #include <vector>  //jacob added
 #include <examples/molecularmask.h> //jacob added
-#include <jacob/svpe_molecule_colloid.h> 
+#include <jacob/svpe_molecule_colloid.h>
 #include <examples/nonlinsol.h> //jacob added
 
 using namespace madness;
@@ -130,7 +130,7 @@ class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
   std::vector<coord_3d> specialpts;
 public:
   NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
-  
+
   double operator()(const Vector<double,3>& r) const {
     return molecule.nuclear_charge_density(r[0], r[1], r[2]);
   }
@@ -231,7 +231,7 @@ private:
 public:
   MolecularPotentialFunctor(const Molecule& molecule)
     : molecule(molecule) {}
-  
+
   double operator()(const coordT& x) const {
     return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
   }
@@ -473,7 +473,7 @@ struct CalculationParameters {
     bool solventplot;            ///< to plot the solvation, free space and reaction potentials
     double thresh;               ///<thresh value of the wavelet coefficient
     double dcoll;                ///< value of the distance between center of nuclear charge and colloid center
-    double Rcoll;                ///< value of the radius of the spheres that make up the colloid 
+    double Rcoll;                ///< value of the radius of the spheres that make up the colloid
     double angle;                  ///<angle between the electric field and the axis on the ij-plane
     bool nonaxial;                ///<if true solve for off diagonal terms of the optical ptoperties
     bool opticprop;               ///<if true solve for diagonal terms of the optical ptoperties
@@ -491,7 +491,7 @@ struct CalculationParameters {
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_c & sigma_c & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
 	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & Fx & Fy & Fz & staticprop & optsolvent & optphysisorption_solvent;
-        ar & optphysisorption & physisorption & Rcoll & dcoll ;  
+        ar & optphysisorption & physisorption & Rcoll & dcoll ;
         ar & core_type;
     }
 
@@ -525,17 +525,17 @@ struct CalculationParameters {
         , nmo_alpha(0)
         , nmo_beta(0)
         , lo(1e-10)
-        , epsilon_1(1.0)        
-        , epsilon_c(1600.0)        
-        , sigma_c(0.50)        
-        , epsilon_2(79.304)  
-        , svpe(false)        
+        , epsilon_1(1.0)
+        , epsilon_c(1600.0)
+        , sigma_c(0.50)
+        , epsilon_2(79.304)
+        , svpe(false)
         , absolvent(false)
         , Gamma(0.0)
         , beta(1.3)
         , rho_0(0.00048)
-	, sigma(0.3)         
-	,solventplot(false)  
+	, sigma(0.3)
+	,solventplot(false)
 	,thresh(1e-04)
         , dcoll(20.0)
         , Rcoll(10.25)
@@ -632,16 +632,16 @@ struct CalculationParameters {
                 f >> plot_cell(0,0) >> plot_cell(0,1) >> plot_cell(1,0) >> plot_cell(1,1) >> plot_cell(2,0) >> plot_cell(2,1);
             }
 	    else if (s == "dielectric"|| s == "dielec"){
-               f>>epsilon_2;      
+               f>>epsilon_2;
 	    }
             else if (s == "colloid_dielectric"|| s == "colloid_dielec"){
-               f>>epsilon_c;      
+               f>>epsilon_c;
 	    }
-            else if (s == "sigma_colloid"|| s == "sigma_c"){ 
-                f>>sigma_c;      
+            else if (s == "sigma_colloid"|| s == "sigma_c"){
+                f>>sigma_c;
             }
 	    else if (s == "svpe"|| s == "SVPE"){
-	       svpe = true;   
+	       svpe = true;
 	    }
             else if (s ==" absolvent" || s == "absolvent"){
               absolvent = true;
@@ -657,40 +657,40 @@ struct CalculationParameters {
             }
 	    else if (s == "sigma"){
 	      f>>sigma;
-	    }   
+	    }
 	    else if (s == "angle"){
 	      f>>angle;
-	    }   
+	    }
 	    else if (s == "nonaxial"){
 	      nonaxial = true;
-	    }   
+	    }
 	    else if (s == "opticprop"){
 	      opticprop = true;
-	    }   
+	    }
             else if (s == "Fx"|| s == "fx"){
                 f>> Fx;
-	    }   
+	    }
 	    else if (s == "Fy"|| s == "fy"){
                 f >> Fy;
-	    }   
+	    }
 	    else if (s == "Fz"|| s == "fz"){
                 f>>Fz;
-	    }   
+	    }
             else if (s == "STATICPROP"|| s == "staticprop"){
 	      staticprop= true;
-	    }  
+	    }
             else if (s == "OPTSOLVENT"|| s == "optsolvent"){
 	      optsolvent= true;
-	    }  
+	    }
             else if (s == "PHYSISORPTION"|| s == "physisorption"){
 	      physisorption= true;
-	    }  
+	    }
             else if (s == "OPTPHYSISORPTION"|| s == "optphysisorption"){
 	      optphysisorption= true;
-	    }  
+	    }
             else if (s == "OPTPHYSISORPTION_SOLVENT"|| s == "optphysisorption_solvent"){
                 optphysisorption_solvent= true;
-	    }  
+	    }
             else if (s == "aobasis") {
 	      f >> aobasis;
 	      if (aobasis!="sto-3g" && aobasis!="6-31g") {
@@ -870,7 +870,7 @@ struct Calculation {
     realfunc dfreedrho ;
     double muz, mux, muy;
   // SolventPotential Solvent;
-  
+
     Calculation(World & world, const char *filename)
     {
         if(world.rank() == 0) {
@@ -1542,9 +1542,9 @@ struct Calculation {
 	    LoadBalanceDeux<3> lb(world);
 	    lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
 	    lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
-	    
+
 	    FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-	    
+
 //                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
 //                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -2433,7 +2433,7 @@ struct Calculation {
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 	  if (iter > 0 && update_residual < 0.1) {
 	    //do_this_iter = false;
-	    param.maxsub = maxsub_save;      
+	    param.maxsub = maxsub_save;
 	  }
 	  if(param.localize && do_this_iter) {
 	    tensorT U;
@@ -2460,7 +2460,7 @@ struct Calculation {
 	      rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
 	    }
 	  }
-	  
+
 	  if (diag_rho && param.core_type.substr(0,3) == "mcp") {
 	    START_TIMER(world);
 	    vecfuncT proj_core = core_projection(world, amo, false);
@@ -2486,7 +2486,7 @@ struct Calculation {
             else {
                 brho = functionT(world); // zero
             }
-            
+
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
@@ -2508,7 +2508,7 @@ struct Calculation {
 	    rho.truncate();
 	    vacuo_rho = rho;  //electronic vacuum charge in case of solvation
             double enuclear = inner(rho, vnuc);       //nuclear potential energy
-            START_TIMER(world);                       
+            START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
@@ -2603,7 +2603,7 @@ struct Calculation {
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
     }
-    
+
     if(world.rank() == 0) {
         if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
         else print("Orbitals are eigenvectors - energies are eigenvalues\n");
@@ -2619,10 +2619,10 @@ struct Calculation {
         }
         if((param.absolvent || param.svpe)&&!param.physisorption)
             if(world.rank()==0)
-                print("\n\n                            Entrying Solvation Module                       \n\n");                          
+                print("\n\n                            Entrying Solvation Module                       \n\n");
         if(param.physisorption && !(param.absolvent || param.svpe))
             if(world.rank()==0)
-                print("\n\n                            Entrying Physisorption Module                       \n\n");                          
+                print("\n\n                            Entrying Physisorption Module                       \n\n");
         if(param.physisorption && param.absolvent)
             if(world.rank()==0)
                 print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                          if(param.optphysisorption || param.optphysisorption_solvent){
@@ -2638,7 +2638,7 @@ struct Calculation {
             if(world.rank()==0)
                 print("Ave colloid reflected field experienced by molecule:", Fav);
         }
-    }                                                                                                                                    
+    }
 
     //end solve_vacuo
  void solve(World & world)
@@ -2660,7 +2660,7 @@ struct Calculation {
             realfunct rhon_functor(new NuclearDensityFunctor(molecule));
             if (world.rank()==0)
                 print("starting to project rhon");
-            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added 
+            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added
             rhon.truncate();
             // coord_3d lo(0.0), hi(0.0);
             //lo[0] = -20.0;
@@ -2674,7 +2674,7 @@ struct Calculation {
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 	  if (iter > 0 && update_residual < 0.1) {
 	    //do_this_iter = false;
-	    param.maxsub = maxsub_save;      
+	    param.maxsub = maxsub_save;
 	  }
 	  if(param.localize && do_this_iter) {
 	    tensorT U;
@@ -2701,7 +2701,7 @@ struct Calculation {
 	      rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
 	    }
 	  }
-	  
+
 	  if (diag_rho && param.core_type.substr(0,3) == "mcp") {
 	    START_TIMER(world);
 	    vecfuncT proj_core = core_projection(world, amo, false);
@@ -2727,7 +2727,7 @@ struct Calculation {
             else {
                 brho = functionT(world); // zero
             }
-            
+
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
@@ -2748,9 +2748,9 @@ struct Calculation {
 	    rho.truncate();
             //rhot = rhon - rho;  //total charge for the DFTSolventSolver
             //rhot = rhon - vacuo_rho;
-           
+
             double enuclear = inner(rho, vnuc);       //nuclear potential energy
-            START_TIMER(world);                       
+            START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
@@ -2805,28 +2805,28 @@ struct Calculation {
                 double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
                 if(world.rank()==0)
                     print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
-               
+
            }
             if(param.svpe){
                 rhotp = rhon - vacuo_rho;
                 ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
-                                               molecule.get_all_coords_vec()); 
+                                               molecule.get_all_coords_vec());
                 vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotp,param.solventplot);
             }
-            
+
             /*==========================================================================================
              + Including Solvent Response ,Electric Field and Surface Response to the SCF loop
               ============================================================================================*/
             if((param.absolvent&&!param.physisorption)&&(!param.optsolvent&&!param.optphysisorption_solvent)){//Iso-density solvation response
                 print("I AM HERE DUD!!");
-                vlocal = vcoul + vnuc + Uabinit;//dESPdrho + dfreedrho  ;             
-            } 
+                vlocal = vcoul + vnuc + Uabinit;//dESPdrho + dfreedrho  ;
+            }
             else if (param.svpe){//SVPE solvation
                 vlocal = vcoul + vnuc + vsolvent;// + SMI.pol_pot(mol_pot);
             }
             else if ((param.physisorption&&!param.absolvent)&&(!param.optphysisorption&&!param.optphysisorption_solvent)){//Physisorption
                 vlocal = vcoul + vnuc + Uphysisorb ;
-            } 
+            }
             else if((param.physisorption && param.absolvent)&&(!param.optphysisorption_solvent) ){
                 vlocal = vcoul + vnuc + Uphysisorb + Uabinit; //disolve molecule near acolloid
             }
@@ -2834,7 +2834,7 @@ struct Calculation {
             else if (param.staticprop){
                 vlocal = vcoul + vnuc -  X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
-            
+
         /*============================================================================================================
             Including Solvent Effects to the static Properties. The Abinitio Solvation Model is used
             ==============================================================================================================*/
@@ -2842,16 +2842,16 @@ struct Calculation {
                 vlocal = vcoul + vnuc + Uabinit + Ucontinuum - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
               /*============================================================================================================
-            Including Physisorption Effects to static Properties. 
+            Including Physisorption Effects to static Properties.
             ==============================================================================================================*/
             else if(param.optphysisorption&&param.physisorption) {
                 vlocal = vcoul + vnuc - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz) + Uphysisorb + ULaplace ;
             }
             /*============================================================================================================
-            Including Physisorption and solvation  Effects to static Properties. 
+            Including Physisorption and solvation  Effects to static Properties.
             ==============================================================================================================*/
             else if((param.optphysisorption_solvent&&param.optsolvent)&&(param.absolvent&&param.physisorption)) {
-                vlocal = vcoul + vnuc-X.scale(param.Fx)-Y.scale(param.Fy)-Z.scale(param.Fz)+ Uphysisorb + ULaplace + Uabinit + Ucontinuum ; 
+                vlocal = vcoul + vnuc-X.scale(param.Fx)-Y.scale(param.Fy)-Z.scale(param.Fz)+ Uphysisorb + ULaplace + Uabinit + Ucontinuum ;
             }
             else
                 {
@@ -2916,7 +2916,7 @@ struct Calculation {
 		    printf("mux  %16.8f\n ", mux);
 		    printf("muy  %16.8f\n ", muy);
 		    printf("muz  %16.8f\n ", muz);
-                  }	    
+                  }
 		  // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
@@ -2959,7 +2959,7 @@ struct Calculation {
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
     }
-    
+
     if(world.rank() == 0) {
         if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
         else print("Orbitals are eigenvectors - energies are eigenvalues\n");
@@ -2988,7 +2988,7 @@ struct Calculation {
             E_cav = DFTSsolver.cavitation_energy();
             double E_free = etot - vacuo_energy + 0.5*E_es;
             print("Electrostatic energy ",E_es);
-            
+
             if(world.rank() == 0) {
                 print("\n\n");
                 print("                            MADNESS DFT SOLVATION            ");
@@ -3004,7 +3004,7 @@ struct Calculation {
         if(param.svpe){
             rhot = rhon - vacuo_rho;
             ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,\
-                                           param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec()); 
+                                           param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec());
             vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot);
             double cav_energy = Solvent.make_cav_energy(param.Gamma);
             ereaction = rhot.inner(vsolvent);
@@ -3096,9 +3096,9 @@ public:
             calc.project_ao_basis(world);
         }
 	if(calc.param.absolvent||calc.param.svpe)
-            calc.solve_vacuo(world);// computes vacuo density and energy  
+            calc.solve_vacuo(world);// computes vacuo density and energy
         if(calc.param.physisorption && calc.param.absolvent == false)
-            calc.solve_vacuo(world);// computes vacuo density and energy  
+            calc.solve_vacuo(world);// computes vacuo density and energy
 	calc.solve(world);
         calc.save_mos(world);
 
@@ -3130,7 +3130,7 @@ public:
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         // Load info for MADNESS numerical routines
@@ -3165,8 +3165,8 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

@@ -205,8 +205,8 @@ void test_hf_be(World& world)
 //*****************************************************************************
 int main(int argc, char** argv)
 {
-  MPI::Init(argc, argv);
-  World world(MPI::COMM_WORLD);
+  SafeMPI::Init(argc, argv);
+  World world(SafeMPI::COMM_WORLD);
   if (world.rank() == 0)
   {
     print("");
@@ -251,9 +251,9 @@ int main(int argc, char** argv)
     if (world.rank() == 0) print("Initial tensor instance count", BaseTensor::get_instance_count());
     test_hf_be(world);
   }
-  catch (const MPI::Exception& e)
+  catch (const SafeMPI::Exception& e)
   {
-    //        print(e);
+    print(e);
     error("caught an MPI exception");
   }
   catch (const madness::MadnessException& e)
@@ -293,7 +293,7 @@ int main(int argc, char** argv)
     print("done with final fence");
   if (world.rank() == 0)
     print("Final tensor instance count", BaseTensor::get_instance_count());
-  MPI::Finalize();
+  SafeMPI::Finalize();
 
   return 0;
 }

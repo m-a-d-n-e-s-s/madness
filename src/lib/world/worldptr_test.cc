@@ -513,7 +513,7 @@ namespace {
 
 int main(int argc, char **argv) {
     madness::initialize(argc,argv);
-    madness::World world(MPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
     pworld = &world;
 
     if (world.rank()) madness::redirectio(world);

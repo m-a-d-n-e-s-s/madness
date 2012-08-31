@@ -55,7 +55,7 @@ namespace madness {
         if (debugging)
             std::cerr << rank << ":RMI: server thread is running" << std::endl;
         // The RMI server thread spends its life in here
-        MPI::Status status[NRECV+1];
+        SafeMPI::Status status[NRECV+1];
         int ind[NRECV+1];
         qmsg q[MAXQ];
         int n_in_q = 0;
@@ -91,7 +91,7 @@ namespace madness {
             if (narrived) {
                 for (int m=0; m<narrived; ++m) {
                     int src = status[m].Get_source();
-                    size_t len = status[m].Get_count(MPI::BYTE);
+                    size_t len = status[m].Get_count(MPI_BYTE);
                     int i = ind[m];
 
                     ++(stats.nmsg_recv);
@@ -187,19 +187,19 @@ namespace madness {
             hugeq.pop_front();
             if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte))
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
-            recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
+            recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI_BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
             int nada=0;
 #ifdef MADNESS_USE_BSEND_ACKS
-            comm.Bsend(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
 #else
-            comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
 #endif // MADNESS_USE_BSEND_ACKS
         }
     }
 
     void RMI::post_recv_buf(int i) {
         if (i < NRECV) {
-            recv_req[i] = comm.Irecv(recv_buf[i], MAX_MSG_LEN, MPI::BYTE, MPI::ANY_SOURCE, SafeMPI::RMI_TAG);
+            recv_req[i] = comm.Irecv(recv_buf[i], MAX_MSG_LEN, MPI_BYTE, MPI_ANY_SOURCE, SafeMPI::RMI_TAG);
         }
         else if (i == NRECV) {
             free(recv_buf[i]);
@@ -214,7 +214,7 @@ namespace madness {
     RMI::~RMI() {
         //delete send_counters;
         //delete recv_counters;
-        //         if (!MPI::Is_finalized()) {
+        //         if (!SafeMPI::Is_finalized()) {
         //             for (int i=0; i<NRECV; ++i) {
         //                 if (!recv_req[i].Test())
         //                     recv_req[i].Cancel();
@@ -224,7 +224,7 @@ namespace madness {
     }
 
     RMI::RMI()
-            : comm(MPI::COMM_WORLD)
+            : comm(SafeMPI::COMM_WORLD)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , debugging(false)
@@ -282,7 +282,7 @@ namespace madness {
             info[nword+1] = nbyte;
 
             int ack;
-            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI::BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
+            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
             Request req_send = private_isend(info, sizeof(info), dest, RMI::huge_msg_handler, ATTR_UNORDERED);
 
             MutexWaiter waiter;
@@ -325,7 +325,7 @@ namespace madness {
         ++(stats.nmsg_sent);
         stats.nbyte_sent += nbyte;
 
-        Request result = comm.Isend(buf, nbyte, MPI::BYTE, dest, tag);
+        Request result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
 
         //if (is_ordered(attr)) unlock();
         unlock();
@@ -365,6 +365,6 @@ namespace madness {
 
     const RMIStats& RMI::get_stats() {
         return instance()->stats;
-    } 
+    }
 
 } // namespace madness

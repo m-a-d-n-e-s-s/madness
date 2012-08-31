@@ -532,7 +532,7 @@ void doit(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
 //     cpu_set_t mask;
@@ -544,8 +544,8 @@ int main(int argc, char** argv) {
 
     try {
         doit(world);
-    } catch (const MPI::Exception& e) {
-        //        print(e);
+    } catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

@@ -81,7 +81,7 @@ struct FunctorInterfaceWrapper : public FunctionFunctorInterface<double,NDIM> {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     FunctionDefaults<NDIM>::set_cubic_cell(0.0,L);
 

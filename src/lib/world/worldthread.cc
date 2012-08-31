@@ -63,8 +63,8 @@ namespace madness {
         try {
             ((ThreadBase*)(self))->run();
         }
-        catch (const MPI::Exception& e) {
-            //        print(e);
+        catch (const SafeMPI::Exception& e) {
+            print(e);
             error("caught an MPI exception");
         }
         catch (const madness::MadnessException& e) {
@@ -203,10 +203,8 @@ namespace madness {
         if (nthreads < 0) nthreads = default_nthread();
 
 #if HAVE_INTEL_TBB
-        SafeMPI::Intracomm comm = MPI::COMM_WORLD;
-        int nproc = comm.Get_size();
 
-        if (nproc > 1) {
+        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
             // There are nthreads+2 because the main and communicator thread
             // are now a part of tbb.
             tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);

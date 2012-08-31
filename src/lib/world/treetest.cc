@@ -250,9 +250,9 @@ void doit(World& world) {
 
 
 int main(int argc, char** argv) {
-    MPI::Init(argc, argv);
+    SafeMPI::Init(argc, argv);
     try {
-        World world(MPI::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
         redirectio(world);
 
         world.args(argc,argv);
@@ -263,7 +263,8 @@ int main(int argc, char** argv) {
         print("done with final fence");
 
     }
-    catch (MPI::Exception e) {
+    catch (SafeMPI::Exception e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (madness::MadnessException e) {
@@ -278,7 +279,7 @@ int main(int argc, char** argv) {
         error("caught unhandled exception");
     }
 
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
 
     return 0;

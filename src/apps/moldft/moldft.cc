@@ -284,7 +284,7 @@ private:
 
 public:
     MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-        : molecule(molecule), atom(atom), axis(axis) 
+        : molecule(molecule), atom(atom), axis(axis)
     {}
 
     double operator()(const coordT& x) const {
@@ -486,9 +486,9 @@ struct CalculationParameters {
     bool gopt;                  ///< geometry optimizer
     double gtol;                ///< geometry tolerance
     bool gtest;                 ///< geometry tolerance
-    double gval;                ///< value precision 
-    double gprec;               ///< gradient precision 
-    int  gmaxiter;               ///< optimization maxiter 
+    double gval;                ///< value precision
+    double gprec;               ///< gradient precision
+    int  gmaxiter;               ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
 
@@ -533,7 +533,7 @@ struct CalculationParameters {
         , nbeta(0)
         , nmo_alpha(0)
         , nmo_beta(0)
-        , lo(1e-10) 
+        , lo(1e-10)
         , xc_data("lda")
         , protocol_data(madness::vector_factory(1e-4, 1e-6))
         , gopt(false)
@@ -545,7 +545,7 @@ struct CalculationParameters {
         , algopt("BFGS")
         , tdksprop(false)
     {}
-        
+
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
@@ -1588,7 +1588,7 @@ struct Calculation {
             aset = std::vector<int>(param.nmo_alpha,0);
             if(world.rank() == 0)
                 std::cout << "alpha set " << 0 << " " << 0 << "-";
-            
+
             for(int i = 1;i < param.nmo_alpha;++i) {
                 aset[i] = aset[i - 1];
                 if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
@@ -1614,7 +1614,7 @@ struct Calculation {
                 bset = std::vector<int>(param.nmo_beta,0);
                 if(world.rank() == 0)
                     std::cout << " beta set " << 0 << " " << 0 << "-";
-                
+
                 for(int i = 1;i < param.nmo_beta;++i) {
                     bset[i] = bset[i - 1];
                     if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
@@ -1773,7 +1773,7 @@ struct Calculation {
     }
 
     // Used only for initial guess that is always spin-restricted LDA
-    functionT make_lda_potential(World & world, const functionT & arho) 
+    functionT make_lda_potential(World & world, const functionT & arho)
     {
         functionT vlda = copy(arho);
         vlda.reconstruct();
@@ -1782,7 +1782,7 @@ struct Calculation {
     }
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
     {
         return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
     }
@@ -1793,7 +1793,7 @@ struct Calculation {
         return vlda.trace();
     }
 
-    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
+    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo,
                              const vecfuncT& vf, const vecfuncT& delrho, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
@@ -1812,7 +1812,7 @@ struct Calculation {
 
 #ifdef MADNESS_HAS_LIBXC
             if (xc.is_gga() ) {
-                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n"); 
+                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n");
                 real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
                 //print("VSIG", vsig.trace(), vsig.norm2());
                 real_function_3d vr(world);
@@ -1820,12 +1820,12 @@ struct Calculation {
                      vr += (*gradop[axis])(vsig);
                  //print("VR", vr.trace(), vr.norm2());
                 }
-                vloc = vloc - vr; 
+                vloc = vloc - vr;
             }
 #endif
             END_TIMER(world, "DFT potential");
         }
-        
+
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
@@ -1843,7 +1843,7 @@ struct Calculation {
             END_TIMER(world, "HF exchange");
             exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
-        
+
         if (param.core_type.substr(0,3) == "mcp") {
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
@@ -1997,7 +1997,7 @@ struct Calculation {
         world.gop.fence();
 
         // Thought it was a bad idea to truncate *before* computing the residual
-        // but simple tests suggest otherwise ... no more iterations and 
+        // but simple tests suggest otherwise ... no more iterations and
         // reduced iteration time from truncating.
         START_TIMER(world);
         truncate(world, new_psi);
@@ -2042,7 +2042,7 @@ struct Calculation {
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
         reconstruct(world, psi);
         norm_tree(world, psi);
-        
+
         // Efficient version would use mul_sparse vector interface
         vecfuncT pairs;
         for (unsigned int i=0; i<psi.size(); ++i) {
@@ -2050,7 +2050,7 @@ struct Calculation {
                 pairs.push_back(mul_sparse(psi[i], psi[j], tol, false));
             }
         }
-        
+
         world.gop.fence();
         truncate(world, pairs);
         vecfuncT Vpairs = apply(world, *coulop, pairs);
@@ -2105,7 +2105,7 @@ struct Calculation {
 
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
-        // non-linear solver).  
+        // non-linear solver).
 	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
 	bool switched = true;
 	while (switched) {
@@ -2245,7 +2245,7 @@ struct Calculation {
                 focka(i,i) = tmp;
             }
         }
-        
+
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
         if(param.nbeta != 0 && !param.spin_restricted){
             for (int i=0; i<param.nmo_beta; i++) {
@@ -2633,7 +2633,7 @@ struct Calculation {
                     brho = arho;
                 }
                 else {
-                    brho = make_density(world, bocc, bmo);                    
+                    brho = make_density(world, bocc, bmo);
                 }
             }
             else {
@@ -2692,22 +2692,22 @@ struct Calculation {
                 if (xc.is_gga()) {
 
                     for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
-                    if (xc.is_spin_polarized()) 
+                    if (xc.is_spin_polarized())
                         for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
-                    
-                    
+
+
                     world.gop.fence(); // NECESSARY
 
                     vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
 
-                    if (xc.is_spin_polarized()) 
+                    if (xc.is_spin_polarized())
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                    if (xc.is_spin_polarized()) 
+                    if (xc.is_spin_polarized())
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
 
                     for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
 
-                    if (xc.is_spin_polarized()) 
+                    if (xc.is_spin_polarized())
                         for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
                     world.gop.fence(); // NECESSARY
                 }
@@ -2716,7 +2716,7 @@ struct Calculation {
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                 }
             }
-            
+
             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
             vecfuncT Vpsib;
             if(!param.spin_restricted && param.nbeta) {
@@ -2898,7 +2898,7 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
 
     { // limit lifetime of world so that finalize() can execute cleanly
-      World world(MPI::COMM_WORLD);
+      World world(SafeMPI::COMM_WORLD);
 
       try {
         // Load info for MADNESS numerical routines
@@ -2965,8 +2965,8 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
       }
-      catch (const MPI::Exception& e) {
-        //        print(e);
+      catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
       }
       catch (const madness::MadnessException& e) {

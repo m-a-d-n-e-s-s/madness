@@ -52,7 +52,7 @@ void fred(int i) {
 
 void realmain(int argc, char** argv)
 {
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     for (int i=0; i<1000; ++i)
         fred(i);
 
@@ -65,18 +65,15 @@ int main(int argc, char** argv) {
 #else
     int required = MPI_THREAD_MULTIPLE;
 #endif
-    int provided = MPI::Init_thread(argc, argv, required);
-    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
-        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
-    }
+    SafeMPI::Init_thread(argc, argv, required);
 
     //This programming style guarantees that
     //the world instance is destroyed before
-    //MPI::Finalize().
+    //MPI_Finalize().
     //It is necessary if the destructor of the
     //class World also takes care of MPI status.
     realmain(argc, argv);
 
-    MPI::Finalize();
+    SafeMPI::Finalize();
     return 0;
 }

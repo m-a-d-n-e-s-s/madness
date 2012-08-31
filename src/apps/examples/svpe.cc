@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 
@@ -89,18 +89,18 @@ class SVPESolver {
     vector_real_function_3d dlog; //< Log-derivative of the dielectric
     real_function_3d rdielectric; //< Reciprocal of the dielectric
 
-    // /// Apply Gbar 
+    // /// Apply Gbar
     // real_function_3d gbar(const real_function_3d& f) const {
     //     real_function_3d r = (*gop[0])(f).truncate()*dlog[0] + (*gop[1])(f).truncate()*dlog[1] + (*gop[1])(f).truncate()*dlog[1];
     //     return r.truncate();
     // }
 
-    
+
     // /// Solve for the full Coulomb potential using the other formulation
-    // real_function_3d solve2(const real_function_3d& rho, 
-    //                         const real_function_3d& uguess = real_function_3d(), 
+    // real_function_3d solve2(const real_function_3d& rho,
+    //                         const real_function_3d& uguess = real_function_3d(),
     //                         bool printing = true) const {
-        
+
     //     real_function_3d charge = rdielectric*rho;
     //     charge.truncate();
     //     real_function_3d sig0 = gbar(charge);
@@ -120,7 +120,7 @@ class SVPESolver {
 
 public:
     SVPESolver(World& world,
-               double sigma, double epsilon_0, double epsilon_1, 
+               double sigma, double epsilon_0, double epsilon_1,
                const vector_real& atomic_radii, const vector_coord_3d& atomic_coords,
                const double minlen)
         : thresh(FunctionDefaults<3>::get_thresh())
@@ -137,7 +137,7 @@ public:
         real_functor_3d gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,0));
         real_functor_3d grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,1));
         real_functor_3d gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords,2));
-        
+
         // Make the actual functions
         const double rfourpi = 1.0/(4.0*constants::pi);
         rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
@@ -158,13 +158,13 @@ public:
     }
 
     /// Solve for the full Coulomb potential using the free-particle GF
-    real_function_3d solve(const real_function_3d& rho, 
-                           const real_function_3d uguess = real_function_3d(), 
+    real_function_3d solve(const real_function_3d& rho,
+                           const real_function_3d uguess = real_function_3d(),
                            bool printing = true) const {
         real_function_3d charge = rdielectric*rho;
         charge.truncate();
 
-        // Initial guess is constant dielectric        
+        // Initial guess is constant dielectric
         real_function_3d u0 = op(charge).truncate();
         real_function_3d u = uguess.is_initialized() ? uguess : u0;
         double unorm = u.norm2();
@@ -175,21 +175,21 @@ public:
             real_function_3d r = (u - u0 - op(surface_charge)).truncate();
             double sigtot = surface_charge.trace();
             surface_charge.clear();
-            
+
             real_function_3d unew = solver.update(u, r);
-            
+
             double change = (unew-u).norm2();
-            if (printing) 
+            if (printing)
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
                       "surface charge", sigtot,"used",wall_time()-start);
-            
-            // Step restriction 
-            if (change > 0.3*unorm) 
+
+            // Step restriction
+            if (change > 0.3*unorm)
                 u = 0.5*unew + 0.5*u;
-            else 
+            else
                 u = unew;
-            
+
             if (change < std::max(1e-3,10.0*thresh)) break;
         }
         return u;
@@ -198,7 +198,7 @@ public:
 
 int main(int argc, char **argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     // Function defaults
@@ -220,7 +220,7 @@ int main(int argc, char **argv) {
     print("radii ", atomic_radii);
     print("coords", atomic_coords);
 
-    TIME("make charge ", real_function_3d charge   = real_factory_3d(world).f(charge_function)); 
+    TIME("make charge ", real_function_3d charge   = real_factory_3d(world).f(charge_function));
     charge.truncate();
     SVPESolver solver(world, sigma, epsilon_0, epsilon_1, atomic_radii, atomic_coords, min(1e-3,sigma*0.1));
 
@@ -234,7 +234,7 @@ int main(int argc, char **argv) {
     plot_line("Scharge.dat",401,lo,hi,Scharge);
     // For comparison with Chipman make the reaction potential
     real_convolution_3d op = CoulombOperator(world, min(1e-3,sigma*0.1), thresh);
-    
+
     TIME("make ufree  ", real_function_3d ufree = op(charge).truncate());
     print("<rhotot|ureact>", 0.5*charge.inner((u-ufree)));
     print("free energy(Kcal/mol)", 0.5*charge.inner((u-ufree))*527.5095);

@@ -76,11 +76,8 @@ int main(int argc, char** argv) {
 #else
     int required = MPI_THREAD_MULTIPLE;
 #endif
-    int provided = MPI::Init_thread(argc, argv, required);
-    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
-        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
-    }
-	World world(MPI::COMM_WORLD);
+    SafeMPI::Init_thread(argc, argv, required);
+	World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
         std::cout.precision(6);

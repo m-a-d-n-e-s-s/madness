@@ -1211,7 +1211,7 @@ void test_apply_push_1d(World& world) {
 int main(int argc, char**argv) {
     initialize(argc, argv);
     try {
-        World world(MPI::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
         if (world.rank() == 0) {
             print("");
             print("--------------------------------------------");
@@ -1312,7 +1312,7 @@ int main(int argc, char**argv) {
         print_stats(world);
 
     }
-    catch (const MPI::Exception& e) {
+    catch (const SafeMPI::Exception& e) {
         //        print(e);
         error("caught an MPI exception");
     }

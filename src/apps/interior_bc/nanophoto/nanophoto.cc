@@ -76,7 +76,7 @@ int main(int argc, char **argv) {
     char funcname[15];
 
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     if (world.rank() == 0) {
