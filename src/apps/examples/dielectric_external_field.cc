@@ -107,13 +107,13 @@ using namespace std;
 
 const int k = 6; // wavelet order
 const double thresh = 1e-4; // truncation threshold
-const double L = 20; // box is [-L,L]
-const double sigma = 0.2; // Surface width
+const double L = 50; // box is [-L,L]
+const double sigma = 0.3; // Surface width
 const double Ez = 0.05; // External electric field
 
 const double epsilon_0 = 100.0; // Interior dielectric
 const double epsilon_1 =   1.0; // Exterior dielectric
-const double R = 10.0; // Radius of cavity
+const double R = 20.0; // Radius of cavity
 
 // Adjustment to radius of sphere to enhance accuracy of calculation
 // at finite value of sigma
