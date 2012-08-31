@@ -169,15 +169,15 @@ inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     switch(errorcode) {
         case MPI_SUCCESS:
             *resultlen = 8;
-            strncpy(string, "Success", *resultlen);
+            std::strncpy(string, "Success", *resultlen);
             break;
         case MPI_ERR_COMM:
             *resultlen = 21;
-            strncpy(string, "Invalid communicator", *resultlen);
+            std::strncpy(string, "Invalid communicator", *resultlen);
             break;
         case MPI_ERR_ARG:
             *resultlen = 17;
-            strncpy(string, "Invalid argument", *resultlen);
+            std::strncpy(string, "Invalid argument", *resultlen);
             break;
         default:
             return MPI_ERR_ARG;

@@ -110,15 +110,15 @@ namespace SafeMPI {
         Exception(const int mpi_error) throw() {
             int len;
             if(MPI_Error_string(mpi_error, mpi_error_string_, &len) != MPI_SUCCESS)
-                strncpy(mpi_error_string_, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
+                std::strncpy(mpi_error_string_, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
         }
 
         Exception(const Exception& other) throw() {
-            strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+            std::strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
         }
 
         Exception& operator=(const Exception& other) {
-            strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
+            std::strncpy(mpi_error_string_, other.mpi_error_string_, MPI_MAX_ERROR_STRING);
             return *this;
         }
 
