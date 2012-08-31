@@ -57,7 +57,7 @@
 #include <world/enable_if.h>
 #include <world/scopedptr.h>
 #include <iostream>
-
+#include <cstring>
 
 #define MPI_THREAD_STRING(level)  \
         ( level==MPI_THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
