@@ -234,7 +234,7 @@ public:
             //surface_charge.clear();
             // u0.clear();
             real_function_3d unew = solver.update(u,r);
-            double change = (unew-u).norm2();///volume.trace();
+            double change = 100*(unew-u).norm2()/volume.trace();
             if(world.rank()==0){
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
@@ -282,7 +282,7 @@ public:
             double sigtot = surface_charge.trace()*fac;
             //surface_charge.clear();
             real_function_3d unew = solver.update(u, r);
-            double change = (unew-u).norm2()/volume.trace();///(8.0*std::pow(L,3.0));
+            double change = 100*(unew-u).norm2()/volume.trace();///(8.0*std::pow(L,3.0));
             if (world.rank()==0){
                 print("iter", iter, "change", change,
                       "soln(10.0)", u(coord_3d(10.0)),
@@ -294,7 +294,7 @@ public:
             else 
                 u = unew;
             
-            if (change < std::min(1e-5,10.0*thresh)) break;
+            if (change < std::min(1e-4,10.0*thresh)) break;
         }
         if (world.rank()==0)
             print("\n\n");
