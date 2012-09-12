@@ -2669,6 +2669,18 @@ struct Calculation {
             if(world.rank()==0)
                 print("TRACE OF RHON", total_rhon);
         }
+        if (param.absolvent){
+               //Dielectric response to the external electric field
+                rhotp = rhon - vacuo_rho;
+                DFTSolventSolver DFTSsolver(vacuo_rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
+                                            ,std::max(1e-4,param.thresh));
+                std::vector<double> Eelec = vector_factory(param.Fx, param.Fy,param.Fz);
+                Ucontinuum = DFTSsolver.Laplace_ESP(Eelec);
+                double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
+                if(world.rank()==0)
+                    print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
+
+        }
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
@@ -2795,18 +2807,7 @@ struct Calculation {
                 //dESPdrho = DFTSsolver.dESP_drho(U);
                 //dfreedrho = DFTSsolver.dfree_drho();
             }
-           if (param.optsolvent){
-               //Dielectric response to the external electric field
-                rhotp = rhon - vacuo_rho;
-                DFTSolventSolver DFTSsolver(vacuo_rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
-                                            ,std::max(1e-4,param.thresh));
-                std::vector<double> Eelec = vector_factory(param.Fx, param.Fy,param.Fz);
-                Ucontinuum = DFTSsolver.Laplace_ESP(Eelec);
-                double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
-                if(world.rank()==0)
-                    print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
-
-           }
+           
             if(param.svpe){
                 rhotp = rhon - vacuo_rho;
                 ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
@@ -2850,7 +2851,7 @@ struct Calculation {
             /*============================================================================================================
             Including Physisorption and solvation  Effects to static Properties.
             ==============================================================================================================*/
-            else if((param.optphysisorption_solvent&&param.optsolvent)&&(param.absolvent&&param.physisorption)) {
+            else if((param.optphysisorption_solvent&&!param.optsolvent)&&(param.absolvent&&param.physisorption)) {
                 vlocal = vcoul + vnuc-X.scale(param.Fx)-Y.scale(param.Fy)-Z.scale(param.Fz)+ Uphysisorb + ULaplace + Uabinit + Ucontinuum ;
             }
             else
