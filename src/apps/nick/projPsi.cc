@@ -345,7 +345,7 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
         double before=0, after=0;
         //LOAD unbound states
         if( !unboundList.empty() ) {
-            const double coarseTHRESH = 1e-5;
+            const double coarseTHRESH = 1e-3;
             PRINTLINE( "coarseTHRESH = " << coarseTHRESH);
             std::vector<std::string>::const_iterator unboundIT;
             for( unboundIT=unboundList.begin(); unboundIT !=  unboundList.end(); unboundIT++ ) {
@@ -369,20 +369,20 @@ void projectPsi(World& world, std::vector<std::string> boundList, std::vector<st
                         const double constcutoff = cutoff;
                         PhiK phik = PhiK(world, Z, kVec, constcutoff);
                         phik.Init(world);
-                        PRINTLINE("creating phiK");
+                        //PRINTLINE("creating phiK");
                         phiK = complex_factoryT(world).functor(functorT( new PhiKAdaptor(phik) ));
                     }
                     if(world.rank()==0) after = wall_time();
                     std::cout.precision( 8 );
                      //<phiK|Psi(0)>
-                    PRINTLINE("inner(phiK,psi0)");
+                    //PRINTLINE("inner(phiK,psi0)");
                     complexd k_overlap_0 = inner(phiK,psi0);
                     //complexd k_overlap_0 = phiK.inner(world, "psiK,psi0", psi0);
                     //loop through time steps
                     for( psiIT=psiList.begin(); psiIT !=  psiList.end(); psiIT++ ) {
                         //|PSI(t)> = |Psi(t)> - <phiK|Psi(0)>|Psi(0)>
                         //<phiK|PSI(t)> = <phiK|Psi(t)>   - <phiK||Psi(0)> <Psi(0)|Psi(t)>
-                        PRINTLINE("inner(phiK,psi(T)");
+                        //PRINTLINE("inner(phiK,psi(T)");
                         output =  inner(phiK, psiIT->func) - k_overlap_0  * inner(psi0,psiIT->func);
                         //output =  phiK.inner(world, "phiK,psiT", psiIT->func) - k_overlap_0  * psi0.inner(world, "psi0,psiT",psiIT->func);
                         PRINT( std::scientific << "\t" << real(conj(output)*output) );
