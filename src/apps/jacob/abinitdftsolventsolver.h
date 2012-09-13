@@ -379,7 +379,8 @@ public:
         real_derivative_3d Dy = free_space_derivative<double,3>(rho.world(), 1);
         real_derivative_3d Dz = free_space_derivative<double,3>(rho.world(), 2);
         realfunc grad = (Dx(rho) + Dy(rho) + Dz(rho));
-        realfunc depdrho = copy(rho).unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
+        realfunc depdrho = copy(rho);
+        depdrho.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
         //    return make_depsilon_drho()*grad_of(rhot);
         return grad*depdrho;
   }
