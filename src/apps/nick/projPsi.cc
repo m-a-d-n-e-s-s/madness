@@ -512,7 +512,7 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
 int main(int argc, char**argv) {
     // INITIALIZE the parallel programming environment
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     PRINTLINE("After initialize");
     PRINTLINE("Version: $Rev$");
     // Load info for MADNESS numerical routines
@@ -569,7 +569,7 @@ int main(int argc, char**argv) {
 //             world_mem_info()->print();
 //             WorldProfile::print(world);
 //         }
-    } catch (const MPI::Exception& e) {
+    } catch (const SafeMPI::Exception& e) {
         print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
