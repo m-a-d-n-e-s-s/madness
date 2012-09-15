@@ -194,32 +194,61 @@ private:
     }
   };
     //Compute the surface of the cavity on the go
+    //r = rho/rho0
   template<typename T,int DIM>
   struct dielectric_surface{
     double rho0;
     double beta;
-    double epsilon;
     double cutrho;
       dielectric_surface(){}
-      dielectric_surface(double rho0, double beta, double epsilon, double cutrho)
-          : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
+      dielectric_surface(double rho0, double beta,double cutrho)
+          : rho0(rho0), beta(beta), cutrho(cutrho)
       {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
       UNARY_OPTIMIZED_ITERATOR(T,t,
-                               T rho = std::abs(*_p0)-rho0;
-			       if(rho < cutrho)
+                               T r = std::abs(*_p0)/rho0;
+			       if(r < cutrho)
 				*_p0 = 0.0;
 			       else {
-                                   double fac = 2.0*beta;
+                                   double twobeta = 2.0*beta;
                                    //T ratone = std::pow(rho/rho0,2.0*beta-1);
-                                   T ratio = std::pow(rho,2.0*beta);
-                                   *_p0 = ((fac*ratio)/((1.0 + ratio)*rho*(1.0 + ratio)));
+                                   T r2b = std::pow(r,twobeta);
+                                   *_p0 = twobeta*r2b/(rho0*r*(1.0 + r2b)*(1.0 + r2b));
                                }
                                );
     }
       template<typename Archive>void serialize(Archive& ar) {
           ar & rho0 & beta & epsilon & cutrho;
+    }
+  };
+    //Compute the characteristic function
+    //r = rho/rho0
+  template<typename T,int DIM>
+  struct characteristic_func{
+    double rho0;
+    double beta;
+    double cutrho;
+      characteristic_func(){}
+      characteristic_func(double rho0, double beta, double cutrho)
+          : rho0(rho0), beta(beta), cutrho(cutrho)
+      {}
+
+    void operator()(const Key<DIM>& key,Tensor<T>& t) const {
+      UNARY_OPTIMIZED_ITERATOR(T,t,
+                               T r = std::abs(*_p0)/rho0;
+			       if(r < cutrho)
+				*_p0 = 0.0;
+			       else {
+                                   double twobeta = 2.0*beta;
+                                   //T ratone = std::pow(rho/rho0,2.0*beta-1);
+                                   T r2b = std::pow(r,twobeta);
+                                   *_p0 = r2b/(1.0 + r2b);
+                               }
+                               );
+    }
+      template<typename Archive>void serialize(Archive& ar) {
+          ar & rho0 & beta & cutrho;
     }
   };
   //Compute the ratio of the derivative of epsilon by epsilon on the go
@@ -324,9 +353,16 @@ public:
   //make dielectric surface
   realfunc make_surface() const {
       realfunc value = copy(rho);
-      value.unaryop(dielectric_surface<double,3>(rho_0, beta,epsilon,cutrho));
+      value.unaryop(dielectric_surface<double,3>(rho_0, beta,cutrho));
     return value;
   }
+    //make characteristic function
+  realfunc make_characteristic_func() const {
+      realfunc value = copy(rho);
+      value.unaryop(characteristic_func<double,3>(rho_0, beta,cutrho));
+      return value;
+  }
+  
   //make reciprocal of epsilon
   realfunc make_repsilon() const {
     realfunc value = copy(rho);
