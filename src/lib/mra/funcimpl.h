@@ -1463,6 +1463,103 @@ namespace madness {
             return None;
         }
 
+        /// print the grid (the roots of the quadrature of each leaf box)
+        /// of this function in user xyz coordinates
+        void print_grid(const std::string filename) const {
+
+        	// get the local information
+            std::vector<keyT> local_keys=local_leaf_keys();
+
+            // lump all the local information together, and gather on node0
+            std::vector<keyT> all_keys=world.gop.concat0(local_keys);
+            world.gop.fence();
+
+            // do the actual print
+            if (world.rank()==0) do_print_grid(filename,all_keys);
+
+        }
+
+        /// return the keys of the local leaf boxes
+        std::vector<keyT> local_leaf_keys() const {
+
+        	// coeffs.size is maximum number of keys (includes internal keys)
+        	std::vector<keyT> keys(coeffs.size());
+
+        	// loop over local boxes, if they are leaf boxes add their quadrature roots
+            // to the output tensor
+        	int i=0;
+        	typename dcT::const_iterator end = coeffs.end();
+        	for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+        		const keyT& key = it->first;
+        		const nodeT& node = it->second;
+        		if (node.is_leaf()) keys[i++]=key;
+        	}
+
+        	// shrink the vector to number of leaf keys
+        	keys.resize(i);
+        	return keys;
+        }
+
+        /// print the grid in xyz format
+
+        /// the quadrature points and the key information will be written to file,
+        /// @param[in]	filename	where the quadrature points will be written to
+        /// @param[in]	keys		all leaf keys
+        void do_print_grid(const std::string filename, const std::vector<keyT>& keys) const {
+            // invoke only on master node
+            MADNESS_ASSERT(world.rank()==0);
+
+        	// the quadrature points in simulation coordinates of the root node
+	        const Tensor<double> qx=cdata.quad_x;
+	        const size_t npt = qx.dim(0);
+
+	        // the number of coordinates (grid point tuples) per box ({x1},{x2},{x3},..,{xNDIM})
+        	long npoints=power<NDIM>(npt);
+        	// the number of boxes
+        	long nboxes=keys.size();
+
+            // prepare file
+            FILE * pFile;
+            pFile = fopen(filename.c_str(), "w");
+
+            fprintf(pFile,"%d\n",int(npoints*nboxes));
+            fprintf(pFile,"grid of the MRA function\n");
+
+            // loop over all leaf boxes
+	        typename std::vector<keyT>::const_iterator key_it=keys.begin();
+	        for (key_it=keys.begin(); key_it!=keys.end(); ++key_it) {
+
+	        	const keyT& key=*key_it;
+				fprintf(pFile,"# key: %8d",key.level());
+				for (size_t d=0; d<NDIM; d++) fprintf(pFile,"%8d",int(key.translation()[d]));
+				fprintf(pFile,"\n");
+
+	        	// this is borrowed from fcube
+				const Vector<Translation,NDIM>& l = key.translation();
+				const Level n = key.level();
+				const double h = std::pow(0.5,double(n));
+				coordT c; // will hold the point in user coordinates
+
+				const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+				const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
+
+				if (NDIM == 3) {
+					for (int i=0; i<npt; ++i) {
+						c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+						for (int j=0; j<npt; ++j) {
+							c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+							for (int k=0; k<npt; ++k) {
+								c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
+							}
+						}
+					}
+				} else {
+					MADNESS_EXCEPTION("only NDIM=3 in print_grid",0);
+				}
+	        }
+            fclose(pFile);
+        }
 
         /// Compute by projection the scaling function coeffs in specified box
         tensorT project(const keyT& key) const;
@@ -4474,10 +4571,12 @@ namespace madness {
             coeffT result;
             if (2*OPDIM==NDIM) result= op->apply2_lowdim(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
             if (OPDIM==NDIM) result = op->apply2(args.key, args.d, coeff, args.tol/args.fac/args.cnorm, args.tol/args.fac);
-            double result_norm=-1.0;
-            if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
-            if (result.tensor_type()==TT_FULL) result_norm=result.normf();
-            MADNESS_ASSERT(result_norm>-0.5);
+//            double result_norm=-1.0;
+//            if (result.tensor_type()==TT_2D) result_norm=result.config().svd_normf();
+//            if (result.tensor_type()==TT_FULL) result_norm=result.normf();
+//            MADNESS_ASSERT(result_norm>-0.5);
+
+            const double result_norm=result.svd_normf();
 
             if (result_norm> 0.3*args.tol/args.fac) {
             	small++;
@@ -4606,25 +4705,28 @@ namespace madness {
             // source is that part of key that corresponds to those dimensions being processed
             const opkeyT source=op->get_source_key(key);
 
-      	    // fac is the number of contributing neighbors (approx)
             const double tol = truncate_tol(thresh, key);
 
-            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-//            if (opdim==6) fac=729; //100.0;
-            if (opdim==6) fac=100; //100.0;
-            if (op->modified()) fac*=10.0;
-            fac=10.0;
+//            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
+////            if (opdim==6) fac=729; //100.0;
+//            if (opdim==6) fac=100; //100.0;
+//            if (op->modified()) fac*=10.0;
+////            fac=10.0;
+//            fac=sqrt(729.0);
+
+            // fac is the root of the number of contributing neighbors (1st shell)
+            double fac=std::pow(3,NDIM*0.5);
             double cnorm = coeff.normf();
 
             double wall0=wall_time();
             bool verbose=false;
             long neighbors=0;
-            double maxnorm=0.0;
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
             apply_targs.thresh=tol/fac*0.01;
 
+            double maxnorm=0.0;
             // for the kernel it may be more efficient to do the convolution in full rank
             tensorT coeff_full;
 
@@ -4672,18 +4774,19 @@ namespace madness {
                         if (cost_ratio>0.0) {
 
                             do_op_args<opdim> args(source, d, dest, tol, fac, cnorm);
+                            norm=0.0;
                             if (cost_ratio<1.0) {
                             	if (not coeff_full.has_data()) coeff_full=coeff.full_tensor_copy();
                             	norm=do_apply_kernel2(op, coeff_full,args,apply_targs);
                             } else {
                             	norm=do_apply_kernel3(op,coeff,args,apply_targs);
                             }
+                            maxnorm=std::max(norm,maxnorm);
                         }
 
                     } else if (shell >= 12) {
                         break; // Assumes monotonic decay beyond nearest neighbor
                     }
-                    maxnorm=std::max(norm,maxnorm);
                     if (norm<0.3*tol/fac) blacklist.push_back(d);
                 }
             }

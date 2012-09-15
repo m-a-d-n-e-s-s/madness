@@ -735,13 +735,13 @@ namespace madness {
             double start;
             ProbeAllDone(WorldTaskQueue* tq) : tq(tq),start(cpu_time()) {}
             bool operator()() const {
-                if (cpu_time()-start > 12000) {
+                if (cpu_time()-start > 120000) {
                     for (int loop = 0; loop<3; ++loop) {
                         std::cout << "HUNG Q? " << tq->size() << " " << ThreadPool::queue_size() << std::endl;
                         std::cout.flush();
                         myusleep(1000000);
                     }
-                    MADNESS_ASSERT(cpu_time()-start < 12000);
+                    MADNESS_ASSERT(cpu_time()-start < 120000);
                 }
                 return (tq->size() == 0);
             }

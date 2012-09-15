@@ -73,11 +73,14 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
     FunctionDefaults<3>::set_thresh(pair.thresh());
     FunctionDefaults<6>::set_thresh(pair.thresh());
 
+//    pair.truncate();
+    std::string line="loaded function "+name;
+    pair.print_size(line);
 
 }
 
 template<size_t NDIM>
-void do_plot(World& world, Function<double,NDIM>& pair, const std::string restart_name) {
+void draw_line(World& world, Function<double,NDIM>& pair, const std::string restart_name) {
 
     Vector<double,NDIM> lo(0.0), hi(0.0);
     lo[0]=-8.0;
@@ -91,22 +94,120 @@ void do_plot(World& world, Function<double,NDIM>& pair, const std::string restar
 
 }
 
+template<size_t NDIM>
+void draw_circle(World& world, Function<double,NDIM>& pair, const std::string restart_name) {
+
+	std::string filename="circle_"+restart_name;
+	coord_3d el2(0.0);
+	el2[1]=0.5;
+	trajectory<NDIM> circ(0.5,el2,601);
+	plot_along<NDIM>(world,circ,pair,filename);
+
+}
+
+
+
+template<size_t NDIM>
+void draw_plane(World& world, Function<double,NDIM>& function, const std::string restart_name) {
+
+    std::string filename="plane_"+restart_name;
+    const double scale=0.03;
+    // assume a cubic cell
+    double lo=-FunctionDefaults<6>::get_cell_width()[0]*0.5;
+    lo=lo*scale;
+//    const double hi=FunctionDefaults<6>::get_cell_width()[0]*0.5;
+
+    const long nstep=150;
+    const double stepsize=FunctionDefaults<6>::get_cell_width()[0]*scale/nstep;
+
+    if(world.rank() == 0) {
+      FILE *f =  0;
+      f=fopen(filename.c_str(), "w");
+      if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+
+      for (int i0=0; i0<nstep; i0++) {
+        for (int i1=0; i1<nstep; i1++) {
+          
+          Vector<double,NDIM> coord(0.0);
+
+          // plot x1/y1-plane
+          coord[0]=lo+i0*stepsize;
+          coord[1]=lo+i1*stepsize;
+
+          // other electron
+          coord[3]=0.5;
+
+          fprintf(f,"%4i %4i %12.6f\n",i0,i1,function(coord));
+
+        }
+        // gnuplot-style 
+        fprintf(f,"\n");
+      }
+      fclose(f);
+   }
+
+
+}
+
 
 void do_stuff(World& world, const std::string name) {
 
-    Function<double,6> pair;
-    load_function(world,pair,name);
-    pair.print_size(name);
-   
-    pair.reduce_rank();
-    pair.print_size(name);
-    
-    coord_6d fix_coord(0.0);
-    // electron 2:
-    fix_coord[3]=0.5;
-    fix_coord[4]=2.5;
-    pair.get_impl()->print_plane(name,"xy",fix_coord);
+    Function<double,6> tmp,tmp2,tmp3,tmp4,GVpair,GVpair1;
 
+    load_function(world,tmp,"tmp");
+    draw_plane(world,tmp,"tmp");
+
+    load_function(world,tmp2,"tmp2");
+    draw_plane(world,tmp2,"tmp2");
+
+    load_function(world,tmp3,"tmp3");
+    draw_plane(world,tmp3,"tmp3");
+
+    load_function(world,tmp4,"tmp4");
+    draw_plane(world,tmp4,"tmp4");
+
+    load_function(world,GVpair,"GVpair");
+//    draw_plane(world,GVpair,"GVpair");
+
+    load_function(world,GVpair1,"GVpair1");
+//    draw_plane(world,GVpair1,"GVpair1");
+
+    // add functions
+//    tmp=tmp+tmp2;
+//    draw_plane(world,tmp,"tmp+tmp2");
+//
+//    tmp=tmp+tmp3;
+//    draw_plane(world,tmp,"tmp+tmp2+tmp3");
+//
+    Function<double,6> tmp32=tmp3+tmp2;
+    draw_plane(world,tmp32,"tmp32");
+
+    Function<double,6> tmp21=tmp2+tmp;
+    draw_plane(world,tmp21,"tmp21");
+
+    double tight= FunctionDefaults<6>::get_thresh()*0.1;
+    tmp4=tmp3+tmp2+tmp;
+//    tmp4.truncate(tight).print_size("tmp4");
+    draw_plane(world,tmp4,"tmp3+tmp2+tmp");
+
+
+//    tmp4.truncate();
+//    tmp4.print_size("tmp4.truncate()");
+//    GVpair1.truncate();
+//    GVpair1.print_size("GVpair1.truncate()");
+
+    Function<double,6> aa=(tmp4+GVpair1).reduce_rank();
+    aa.print_size("tmp4+GVpair1");
+    draw_plane(world,aa,"aa");
+    draw_line(world,aa,"tmp4+GVpair1");
+    Function<double,6> a=(tmp4+GVpair1).truncate(); 
+    a.print_size("(tmp4+GVpair1).truncate(eps)");
+    draw_plane(world,a,"(tmp4+GVpair1).truncate(eps)");
+    draw_line(world,a,"(tmp4+GVpair1).truncate(eps)");
+    Function<double,6> b=(tmp4+GVpair1).truncate(FunctionDefaults<6>::get_thresh()*0.1); 
+    b.print_size("(tmp4+GVpair1).truncate(eps*0.1)");
+    draw_line(world,b,"(tmp4+GVpair1).truncate(eps*0.1)");
 
 }
 
@@ -119,7 +220,12 @@ int main(int argc, char** argv) {
     const double L=16;
     FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
     FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
+    FunctionDefaults<6>::set_tensor_type(TT_2D);
 
+
+    if (world.rank()==0) {
+     	    print("cell size:         ", FunctionDefaults<6>::get_cell_width()[0]);
+    }
 
     // load the function of interest
     std::string restart_name;
@@ -158,9 +264,11 @@ int main(int argc, char** argv) {
         print("");
     }
 
-//    if (restart) do_plot(world,pair,restart_name);
+    if (restart) {
+    	draw_line(world,pair,restart_name);
+    	draw_circle(world,pair,restart_name);
+    }
     do_stuff(world,restart_name);
-
 
     return 0;
 }

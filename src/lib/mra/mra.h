@@ -1918,9 +1918,9 @@ namespace madness {
         result.get_impl()->reset_timer();
         op.reset_timer();
 
-        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
-//        result.get_impl()->recursive_apply(op, f.get_impl().get(),
-//        		r1.get_impl().get(),true);			// will fence here
+//        result.get_impl()->apply_source_driven(op, *f.get_impl(), true);
+        result.get_impl()->recursive_apply(op, f.get_impl().get(),
+        		r1.get_impl().get(),true);			// will fence here
 
 
         if (NDIM==6) {

@@ -54,7 +54,7 @@
 
 #include <iostream>
 
-static const double dcut=1.e-6;
+static const double dcut=1.e-7;
 
 using namespace madness;
 
@@ -793,9 +793,9 @@ namespace madness {
             // of the orbital energies of orbitals i and j
             //  -2.0 G = (T - e_i - e_j) ^ -1
             const double eps=zeroth_order_energy(i,j);
-//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
-            		FunctionDefaults<6>::get_thresh()*0.1);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
+//            		FunctionDefaults<6>::get_thresh()*0.1);
 
             if (1) {
 				if (world.rank()==0) print("computing iteratively");
@@ -909,7 +909,7 @@ namespace madness {
         	// do the full comparison
         	if (1) {
 
-//        		real_function_6d Vphi1=CompositeFactory<double,6,3>(world).particle1(JKVphi_i).particle2(phi_j);
+//        		real_function_6d Vphi1=CompositeFactory<double,6,3>(world).particle1(copy(phi_i)).particle2(copy(phi_j));
 //        		real_function_6d Vphi2=CompositeFactory<double,6,3>(world).particle1(phi_i).particle2(JKVphi_j);
 
 //        		Vphi1.fill_tree(green);
@@ -918,6 +918,7 @@ namespace madness {
 //        		result1=result1-2.0*green(Vphi2);
 
         		result1=-2.0*green(JKVphi_i,phi_j).truncate().reduce_rank();
+        		result1.print_size("result1");
         		result1=result1-2.0*green(phi_i,JKVphi_j).truncate().reduce_rank();
             	world.gop.fence();
             	a=result1.norm2();
@@ -939,9 +940,19 @@ namespace madness {
 
         void test(const int i, const int j) {
 
-        	test1(i,j);
-        	return;
+        	const real_function_6d phi0=this->zeroth_order_function(i,j);
+        	phi0.print_size("phi0");
+            real_function_6d r12phi=CompositeFactory<double,6,3>(world)
+                        .g12(corrfac.f()).ket(copy(phi0));
+            r12phi.fill_tree().truncate().reduce_rank();
+            r12phi.print_size("r12phi");
 
+            real_function_6d diff=phi0-r12phi;
+            double n=diff.norm2();
+            print("diffnorm",n);
+
+            return;
+#if 0
 
         	const real_function_3d v=hf->get_nuclear_potential();
         	const real_function_3d f=hf->orbital(0);
@@ -986,7 +997,7 @@ namespace madness {
             real_function_6d r1;
             real_function_6d r2;
 
-        	real_function_6d phi0=this->zeroth_order_function(i,j);
+//        	real_function_6d phi0=this->zeroth_order_function(i,j);
 
             const double eps=zeroth_order_energy(i,j);
             real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
@@ -1016,7 +1027,7 @@ namespace madness {
             real_function_6d diff=r1-r2;
             d=diff.norm2();
             if (world.rank()==0) print("diffnorm",d);
-
+#endif
 
         }
 
@@ -1336,9 +1347,9 @@ namespace madness {
         	if (world.rank()==0) print("in guess_mp1_3");
             // the Green's function
             const double eps=zeroth_order_energy(i,j);
-//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
-            		FunctionDefaults<6>::get_thresh()*0.1);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+//            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
+//            		FunctionDefaults<6>::get_thresh()*0.1);
 
             ElectronPair pair=make_pair(i,j);
 
