@@ -214,6 +214,50 @@ double mask3(const coordT& ruser) {
     return result;
 }
 
+template<int NDIM>
+class DensityIsosurfaceCharacteristic {
+    const double rho0, twobeta;
+
+    double f(double rho) const {
+        double r = std::max(rho,1e-12)/rho0;
+        double r2b = std::pow(r,twobeta);
+        return r2b/(1.0+r2b);
+    }
+    
+public:
+    DensityIsosurfaceCharacteristic(double rho0, double beta)
+        : rho0(rho0), twobeta(2.0*beta)
+    {}
+
+    void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
+        UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
+template<int NDIM>
+class DensityIsosurfaceCharacteristicDerivative {
+    const double rho0, twobeta;
+
+    double f(double rho) const {
+        double r = std::max(rho,1e-12)/rho0;
+        double r2b = std::pow(r,twobeta);
+        return twobeta*r2b/(rho0*r*(1.0+r2b)*(1.0+r2b));
+    }
+    
+public:
+    DensityIsosurfaceCharacteristicDerivative(double rho0, double beta)
+        : rho0(rho0), twobeta(2.0*beta)
+    {}
+
+    void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
+        UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -2805,6 +2849,43 @@ struct Calculation {
             }
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
+        }
+
+
+        {
+            // Analyze molecule volume and surface areas
+            functionT arho = make_density(world, aocc, amo), brho;
+            if (param.nbeta) {
+                if (param.spin_restricted) {
+                    brho = arho;
+                }
+                else {
+                    brho = make_density(world, bocc, bmo);
+                }
+            }
+            //const double rho0 = 0.00048;
+            const double rho0 = 0.00078;
+            const double beta = 1.3;
+            arho += brho; // total density
+            functionT c = copy(arho);
+            c.unaryop(DensityIsosurfaceCharacteristic<3>(rho0,beta));
+            plot_line("density.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), arho);
+            plot_line("volume.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+
+            double volume = c.trace();
+            double facvol = std::pow(constants::atomic_unit_of_length*1e10,3.0);
+            if (world.rank() == 0) print("\nMolecular volume:",volume,"a.u.",volume*facvol,"Angstrom^3");
+            if (world.rank() == 0) print("Equivalent sphere radius",std::pow(3.0*volume/4.0/constants::pi,1.0/3.0),"a.u.");
+
+            c = copy(arho);
+            c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
+            plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+            
+            c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
+            double area = c.trace();
+            double facarea = std::pow(constants::atomic_unit_of_length*1e10,2.0);
+            if (world.rank() == 0) print("\nMolecular surface area:",area,"a.u.",area*facarea,"Angstrom^2");
+            if (world.rank() == 0) print("Equivalent sphere radius",std::sqrt(area/4.0/constants::pi),"a.u.");
         }
 
         if (world.rank() == 0) {
