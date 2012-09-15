@@ -193,29 +193,24 @@ private:
         ar & rho0 & beta & epsilon & cutrho;
     }
   };
-    //Compute the surface of the cavity on the go
+    //Compute the derivative of the characteristic function on the go
     //r = rho/rho0
   template<typename T,int DIM>
-  struct dielectric_surface{
+  struct derivative_characteristic_func{
     double rho0;
     double beta;
     double cutrho;
-      dielectric_surface(){}
-      dielectric_surface(double rho0, double beta,double cutrho)
+      derivative_characteristic_func(){}
+      derivative_characteristic_func(double rho0, double beta,double cutrho)
           : rho0(rho0), beta(beta), cutrho(cutrho)
       {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
       UNARY_OPTIMIZED_ITERATOR(T,t,
-                               T r = std::abs(*_p0)/rho0;
-			       if(r < cutrho)
-				*_p0 = 0.0;
-			       else {
-                                   double twobeta = 2.0*beta;
-                                   //T ratone = std::pow(rho/rho0,2.0*beta-1);
-                                   T r2b = std::pow(r,twobeta);
-                                   *_p0 = twobeta*r2b/(rho0*r*(1.0 + r2b)*(1.0 + r2b));
-                               }
+                               T r = std::max(cutrho,((*_p0)/rho0));
+                               double twobeta = 2.0*beta;
+                               T r2b = std::pow(r,twobeta);
+                               *_p0 = twobeta*r2b/(rho0*r*(1.0 + r2b)*(1.0 + r2b));
                                );
     }
       template<typename Archive>void serialize(Archive& ar) {
@@ -353,8 +348,11 @@ public:
   //make dielectric surface
   realfunc make_surface() const {
       realfunc value = copy(rho);
-      value.unaryop(dielectric_surface<double,3>(rho_0, beta,cutrho));
-    return value;
+      real_derivative_3d Dx = free_space_derivative<double,3>(rho.world(), 0);
+      real_derivative_3d Dy = free_space_derivative<double,3>(rho.world(), 1);
+      real_derivative_3d Dz = free_space_derivative<double,3>(rho.world(), 2);
+      value.unaryop(derivative_characteristic_func<double,3>(rho_0, beta,cutrho));
+      return value*value*(Dx(rho)*Dx(rho) +Dy(rho)*Dy(rho) + Dz(rho)*Dz(rho));
   }
     //make characteristic function
   realfunc make_characteristic_func() const {
@@ -385,7 +383,7 @@ public:
 
   //cavitation energy
   double cavitation_energy() const {
-      double quantum_surface =(make_surface()).norm2()*(grad_of(rho).norm2());
+      double quantum_surface = make_surface().trace();
       double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u 
       return convfact*Gamma*quantum_surface;
   }
@@ -411,6 +409,7 @@ public:
   }
     //compute the gradient of epsilon[rho] 
     realfunc depsilon_dr() const {
+         realfunc value =copy(rho) ;
         real_derivative_3d Dx = free_space_derivative<double,3>(rho.world(), 0);
         real_derivative_3d Dy = free_space_derivative<double,3>(rho.world(), 1);
         real_derivative_3d Dz = free_space_derivative<double,3>(rho.world(), 2);
@@ -418,7 +417,7 @@ public:
         realfunc depdrho = copy(rho);
         depdrho.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
         //    return make_depsilon_drho()*grad_of(rhot);
-        return grad*depdrho;
+        return grad*value;
   }
   //compute the surface charge                                                                                                                            
   realfunc make_surfcharge(const realfunc& u) const {
@@ -451,7 +450,7 @@ public:
     realfunc tcharge = make_normconst()*rhot; //total molecular charge in solvent
     realfunc U0 = op(charge);  //U
     //    double einf = -1.0/epsilon;
-    realfunc U = op(rhot); //Uvac
+    realfunc U = U0;//op(rhot)
     // realfunc Ug = op(tcharge);//U0
     //    realfunc Ur = U;// - Uvac; 
     double unorm = U.norm2();
