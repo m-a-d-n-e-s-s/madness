@@ -2625,7 +2625,8 @@ struct Calculation {
                 print("\n\n                            Entrying Physisorption Module                       \n\n");
         if(param.physisorption && param.absolvent)
             if(world.rank()==0)
-                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                          if(param.optphysisorption || param.optphysisorption_solvent){
+                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                         
+        if(param.optphysisorption || param.optphysisorption_solvent){
             SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
                                      ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
                                      ,std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
@@ -2676,10 +2677,16 @@ struct Calculation {
                                             ,std::max(1e-4,param.thresh));
                 std::vector<double> Eelec = vector_factory(param.Fx, param.Fy,param.Fz);
                 Ucontinuum = DFTSsolver.Laplace_ESP(Eelec);
+                SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll)\
+                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()),\
+                                         std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
+                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii\
+                                                                               ,molecule.get_all_coords_vec()));
+                mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
                 double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
                 if(world.rank()==0)
                     print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
-
+                
         }
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
@@ -2786,7 +2793,7 @@ struct Calculation {
                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
                                                                               ,molecule.get_all_coords_vec()));
                 mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
-               rhotp = rhon - vacuo_rho;
+               rhotp = rhon - rho;
                SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
                                         ,std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
@@ -2797,7 +2804,7 @@ struct Calculation {
               ============================================================================================*/
            if (param.absolvent){
                 //Abinitio Solvation Model
-                rhotp = rhon - vacuo_rho;
+                rhotp = rhon - rho;
                 DFTSolventSolver DFTSsolver(vacuo_rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
                                             ,std::max(1e-4,param.thresh));
                 Uabinit = DFTSsolver.ESP();
@@ -2809,7 +2816,7 @@ struct Calculation {
             }
            
             if(param.svpe){
-                rhotp = rhon - vacuo_rho;
+                rhotp = rhon - rho;
                 ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
                                                molecule.get_all_coords_vec());
                 vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotp,param.solventplot);
@@ -2819,20 +2826,23 @@ struct Calculation {
              + Including Solvent Response ,Electric Field and Surface Response to the SCF loop
               ============================================================================================*/
             if((param.absolvent&&!param.physisorption)&&(!param.optsolvent&&!param.optphysisorption_solvent)){//Iso-density solvation response
-                print("I AM HERE DUD!!");
+                print("ISODENSITY SOLVENT REACTION!!",Uabinit.trace());
                 vlocal = vcoul + vnuc + Uabinit;//dESPdrho + dfreedrho  ;
             }
             else if (param.svpe){//SVPE solvation
                 vlocal = vcoul + vnuc + vsolvent;// + SMI.pol_pot(mol_pot);
             }
             else if ((param.physisorption&&!param.absolvent)&&(!param.optphysisorption&&!param.optphysisorption_solvent)){//Physisorption
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace());
                 vlocal = vcoul + vnuc + Uphysisorb ;
             }
             else if((param.physisorption && param.absolvent)&&(!param.optphysisorption_solvent) ){
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace(), Uabinit.trace());
                 vlocal = vcoul + vnuc + Uphysisorb + Uabinit; //disolve molecule near acolloid
             }
             //put molecule in various components of elecric field and compute energy and dipole moment
             else if (param.staticprop){
+                print("STATICPROP REACTION!!");
                 vlocal = vcoul + vnuc -  X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
 
@@ -2840,18 +2850,21 @@ struct Calculation {
             Including Solvent Effects to the static Properties. The Abinitio Solvation Model is used
             ==============================================================================================================*/
             else if((param.optsolvent&&param.absolvent)&&(!param.optphysisorption_solvent)) {
+                print("OPTSOLVENT REACTION!!", Ucontinuum.trace(), Uabinit.trace());
                 vlocal = vcoul + vnuc + Uabinit + Ucontinuum - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
               /*============================================================================================================
             Including Physisorption Effects to static Properties.
             ==============================================================================================================*/
             else if(param.optphysisorption&&param.physisorption) {
+                print("OPTPHYSISORPTION REACTION!!", Uphysisorb.trace(),ULaplace.trace());
                 vlocal = vcoul + vnuc - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz) + Uphysisorb + ULaplace ;
             }
             /*============================================================================================================
             Including Physisorption and solvation  Effects to static Properties.
             ==============================================================================================================*/
             else if((param.optphysisorption_solvent&&!param.optsolvent)&&(param.absolvent&&param.physisorption)) {
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace(),ULaplace.trace(),Uabinit.trace(),Ucontinuum.trace());
                 vlocal = vcoul + vnuc-X.scale(param.Fx)-Y.scale(param.Fy)-Z.scale(param.Fz)+ Uphysisorb + ULaplace + Uabinit + Ucontinuum ;
             }
             else
@@ -2978,8 +2991,8 @@ struct Calculation {
 	//	functionT brho = make_density(world, bocc, bmo);
 	//	functionT rho = arho + brho;
 	if(param.absolvent){
-            rhot = rhon - vacuo_rho;
-            DFTSolventSolver DFTSsolver(rho,rhot,param.rho_0,param.epsilon_2,param.maxiter,world,\
+            rhot = rhon - rho;
+            DFTSolventSolver DFTSsolver(vacuo_rho,rhot,param.rho_0,param.epsilon_2,param.maxiter,world,\
                                         param.Gamma,param.beta,std::max(1e-3,param.thresh));
             //DFTSsolver.dftsolverplots();
             vsolvent = DFTSsolver.ESP();
@@ -3003,20 +3016,22 @@ struct Calculation {
             }
 	}
         if(param.svpe){
-            rhot = rhon - vacuo_rho;
+            rhot = rhon - rho;
             ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,\
                                            param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec());
             vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot);
             double cav_energy = Solvent.make_cav_energy(param.Gamma);
             ereaction = rhot.inner(vsolvent);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
+            double G_free = E_free + cav_energy;
             if(world.rank() == 0) {
                 print("\n\n");
                 print("                            MADNESS SVPE            ");
                 print("                          _________________         ");
                 print("     (electrostatic) solvation energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
                 print("(electrostatic) solvation free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
-                print("                    cavitation energy:          ",cav_energy*627.503,"kcal/mol");
+                print("               cavitation free energy:          ",cav_energy*627.503,"kcal/mol");
+                print("                solvation free energy:          ",G_free, "(",G_free*627.503,"kcal/mol)");
                 printf("               solution phase energy:%16.8f\n  ",etot);
                 printf("                    gas phase energy:%16.8f\n  ",vacuo_energy);
             }
