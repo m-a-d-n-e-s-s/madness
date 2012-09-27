@@ -600,7 +600,7 @@ namespace SafeMPI {
                       << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
                       << std::endl;
         }
-#if defined(MVAPICH2_VERSION) || 1
+#if defined(MVAPICH2_VERSION)
         char * mv2_string;
         int mv2_affinity = 1; /* this is the default behavior of MVAPICH2 */
 
