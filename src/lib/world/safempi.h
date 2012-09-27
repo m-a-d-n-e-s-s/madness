@@ -600,7 +600,22 @@ namespace SafeMPI {
                       << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
                       << std::endl;
         }
+#if defined(MVAPICH2_VERSION) || 1
+        char * mv2_string;
+        int mv2_affinity = 1; /* this is the default behavior of MVAPICH2 */
 
+        if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != NULL) {
+            mv2_affinity = atoi(mv2_string);
+        }
+
+        if (mv2_affinity!=0) {
+            std::cout << "!! Error: You are using MVAPICH2 with affinity enabled, probably by default. \n" 
+                      << "!! Error: This will cause catastrophic performance issues in MADNESS. \n"
+                      << "!! Error: Rerun your job with MV2_ENABLE_AFFINITY=0 \n"
+                      << std::endl;
+            COMM_WORLD.Abort(1);
+        }
+#endif
         return provided;
     }
 
