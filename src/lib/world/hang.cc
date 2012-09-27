@@ -57,7 +57,7 @@ int main(int argc, char** argv) {
     MPI_Status status;
     int done = 0;
     while (!done) MPI_Request_get_status(rsend, &done, &status);
-    while (!done) MPI_Request_get_status(rrecv, &done, &status));
+    while (!done) MPI_Request_get_status(rrecv, &done, &status);
     MPI_Test(&rsend, &done, &status);
     MPI_Test(&rrecv, &done, &status);
 
