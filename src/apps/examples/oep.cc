@@ -38,7 +38,8 @@
   \file examples/oep.cc
   \brief optimized effective potentials for DFT
 
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
+  The source is
+  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/oep.cc>here</a>.
 
 */
 
@@ -49,11 +50,17 @@
 #include <mra/mraimpl.h>
 #include <mra/operator.h>
 #include <mra/lbdeux.h>
+extern "C" {
+	#include "/Users/fbischoff/devel/version_1/utils.h"
+	#include "/Users/fbischoff/devel/version_1/delaunay.h"
+	#include "/Users/fbischoff/devel/version_1/natural.h"
+}
 
 using namespace madness;
 
 static const double   rcut = 0.01; // Smoothing distance in 1e potential
 static const double d12cut = 0.01; // Smoothing distance in wave function
+static long ngrid=400;
 
 typedef Tensor<double> tensorT;
 
@@ -76,6 +83,37 @@ static double u(double r, double c) {
     return pot/c;
 }
 
+template<size_t NDIM>
+void draw_line(World& world, Function<double,NDIM>& pair, const std::string restart_name) {
+
+    Vector<double,NDIM> lo(0.0), hi(0.0);
+    lo[1]=-8.0;
+    hi[1]=8.0;
+
+    {
+        std::string filename="line_"+restart_name;
+        trajectory<NDIM> line=trajectory<NDIM>::line2(lo,hi,601);
+        plot_along<NDIM>(world,line,pair,filename);
+    }
+
+}
+
+
+template<size_t NDIM>
+void save_function(World& world, Function<double,NDIM>& pair, const std::string name) {
+    pair.print_size("saving function "+name);
+    archive::ParallelOutputArchive ar(world, name.c_str());
+    ar & pair;// & cell;
+}
+
+
+template<size_t NDIM>
+void load_function(World& world, Function<double,NDIM>& pair, const std::string name) {
+    if (world.rank()==0)  print("loading function ", name);
+    archive::ParallelInputArchive ar(world, name.c_str());
+    ar & pair;// & cell;
+    pair.print_size("loaded function "+name);
+}
 
 struct LBCost {
     double leaf_value;
@@ -99,7 +137,7 @@ struct LBCost {
 };
 
 
-static Tensor<double> read_grid(int k, std::string filename) {
+static Tensor<double> read_radial_grid(int k, std::string filename) {
 
     FILE* file = fopen(filename.c_str(),"r");
 
@@ -115,10 +153,58 @@ static Tensor<double> read_grid(int k, std::string filename) {
     return a;
 }
 
-struct coulomb {
-	coulomb() {}
+
+/// xyz coord file starts with two lines of meta-data: # atoms and a comment
+static std::vector<std::pair<coord_3d,double> > read_xyz_coord(std::string filename) {
+
+	typedef std::pair<coord_3d, double> Atom;
+
+    std::ifstream file(filename.c_str());
+    std::string line;
+
+    long k;
+    if (not (std::getline(file,line))) MADNESS_EXCEPTION("failed reading 1st line of coord data",0);
+    if (not (std::istringstream(line) >> k)) MADNESS_EXCEPTION("failed reading k",0);
+    if (not (std::getline(file,line))) MADNESS_EXCEPTION("failed reading 2nd line of coord data",0);
+
+    print("reading ",k,"coordinates from file",filename);
+
+    std::vector<Atom> atoms;
+    int i=0;
+	double x,y,z;
+    std::string element;
+
+    while (file >> element >> x >> y >> z) {
+    	MADNESS_ASSERT(element=="N");
+    	Atom atom;
+    	if (element=="N") atom.second=7.0;
+    	atom.first[0]=x;
+    	atom.first[1]=y;
+    	atom.first[2]=z;
+    	atoms.push_back(atom);
+    	print("read",atom.second,atom.first);
+
+    	// exit if we have read enough data
+    	if ((++i) ==k) break;
+    }
+    MADNESS_ASSERT(i==k);
+    file.close();
+    return atoms;
+}
+
+
+struct molecular_potential {
+	typedef std::pair<coord_3d, double> Atom;
+
+	std::vector<Atom> atoms;
+	molecular_potential() {};
+	molecular_potential(std::vector<Atom>& atoms) : atoms(atoms) {}
 	double operator()(const coord_3d& xyz) const {
-		return -4.0*u(rr(xyz),0.000001);
+		double val=0.0;
+		for (const Atom& atom : atoms) {
+			val+=atom.second*u(rr(xyz-atom.first),0.00001);
+		}
+		return val;
 	}
 };
 
@@ -135,7 +221,7 @@ struct recpot {
 	tensorT potential;
 
 	/// the nuclear charge
-	double Z;
+	double ZZ;
 
 	/// ctor with the nuclear charge to subtract for better interpolation
 
@@ -143,7 +229,31 @@ struct recpot {
 	/// @param[in]	file_pot1 	name of the file with the potential on the grid points
 	/// @param[in]	file_pot2 	name of the other file with the potential on the grid points
 	/// @param[in]	Z			nuclear charge (unused at the moment)
-	recpot(const std::string file_grid, const std::string file_pot1, const std::string file_pot2, const long Z) : Z(double(Z)) {
+	recpot(const std::string file_grid, const std::string file_pot1, const std::string file_pot2,
+					const long ZZ) : ZZ(double(ZZ)) {
+
+		// number of grid points
+		k=ngrid;
+
+		// read the grid points and the potential values
+		potential=tensorT(2,k);
+		// this is an assignment of a slice
+		potential(0,_)=read_radial_grid(k,file_grid);
+		potential(1,_)=read_radial_grid(k,file_pot1);
+		potential(1,_)+=read_radial_grid(k,file_pot2);
+
+		// subtract the nuclear potential; must be consistent with operator()
+		for (int i=0; i<k; ++i) {
+			double r=potential(0,i);
+			potential(1,i)+=ZZ*u(r,1.e-6);
+		}
+	}
+
+	/// ctor with the radial density
+
+	/// @param[in]	file_grid 	name of the file with grid points
+	/// @param[in]	file_pot1 	name of the file with the radial density on the grid points
+	recpot(const std::string file_grid, const std::string file_pot1) : ZZ(-1.0) {
 
 		// number of grid points
 		k=400;
@@ -151,15 +261,8 @@ struct recpot {
 		// read the grid points and the potential values
 		potential=tensorT(2,k);
 		// this is an assignment of a slice
-		potential(0,_)=read_grid(k,file_grid);
-		potential(1,_)=read_grid(k,file_pot1);
-		potential(1,_)+=read_grid(k,file_pot2);
-
-		// subtract the nuclear potential; must be consistent with operator()
-		for (int i=0; i<k; ++i) {
-			double r=potential(0,i);
-			potential(1,i)+=Z*u(r,1.e-6);
-		}
+		potential(0,_)=read_radial_grid(k,file_grid);
+		potential(1,_)=read_radial_grid(k,file_pot1);
 	}
 
 	/// return the value of the potential; interpolate if necessary
@@ -168,7 +271,8 @@ struct recpot {
 	/// @return		the value of the potential at point xyz
 	double operator()(const coord_3d& xyz) const {
 		double r=rr(xyz);
-		return (interpolate(r)- Z* u(r,1.e-6));
+		if (ZZ>0.0) return (interpolate(r)- ZZ* u(r,1.e-6));	// if a potential
+		else return (interpolate(r)/(r*r));						// if a radial density
 	}
 
 	/// interpolate the radial potential from the grid
@@ -197,6 +301,45 @@ struct recpot {
 
 };
 
+
+template<size_t NDIM>
+void draw_plane(World& world, Function<double,NDIM>& function, const std::string restart_name) {
+
+    std::string filename="plane_"+restart_name;
+    const double scale=0.01;
+
+    // assume a cubic cell
+    double hi=FunctionDefaults<NDIM>::get_cell_width()[0]*0.5*scale;
+    double lo=-FunctionDefaults<NDIM>::get_cell_width()[0]*0.5*scale;
+
+    const long nstep=150;
+    const double stepsize=(hi-lo)/nstep;
+
+    if(world.rank() == 0) {
+      FILE *f =  0;
+      f=fopen(filename.c_str(), "w");
+      if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+
+      for (int i0=0; i0<nstep; i0++) {
+        for (int i1=0; i1<nstep; i1++) {
+
+          Vector<double,NDIM> coord(0.0);
+
+          // plot y/z-plane
+          coord[0]=lo+i0*stepsize;
+          coord[2]=lo+i1*stepsize;
+
+          fprintf(f,"%12.6f %12.6f %12.6f\n",coord[0],coord[2],function(coord));
+
+        }
+        // gnuplot-style
+        fprintf(f,"\n");
+      }
+      fclose(f);
+   }
+}
+
 void plot(const real_function_3d& f, const std::string filename, const long k) {
     FILE* file = fopen(filename.c_str(),"w");
 
@@ -221,7 +364,8 @@ void plot_radial_density(const real_function_3d& rho, const std::string filename
 	fclose(file);
 }
 
-void compute_energy(World& world, const real_function_3d& psi, const real_function_3d& pot, double& ke, double& pe) {
+void compute_energy(World& world, const real_function_3d& psi, const real_function_3d& pot,
+double& ke, double& pe) {
 
 	double kinetic_energy = 0.0;
     for (int axis=0; axis<3; axis++) {
@@ -233,20 +377,20 @@ void compute_energy(World& world, const real_function_3d& psi, const real_functi
 
     pe=inner(psi,pot*psi);
     if(world.rank() == 0) {
-        printf("compute the energy at time   %.1fs\n", wall_time());
-        printf("kinetic energy      %12.8f\n", ke);
-        printf("potential energy    %12.8f\n", pe);
-        printf("total energy        %12.8f\n", pe+ke);
+        printf("compute the ke, pe, te at time   %4.1fs %12.8f %12.8f %12.8f\n",
+        		wall_time(),ke,pe,ke+pe);
     }
 }
 
 /// apply the Green's function on V*psi, update psi and the energy
-void iterate(World& world, const real_function_3d& V, real_function_3d& psi, double& eps) {
 
-	real_function_3d Vpsi = (V*psi);
+/// @return the error norm of the orbital
+double iterate(World& world, const real_function_3d& VV, real_function_3d& psi, double& eps) {
+
+	real_function_3d Vpsi = (VV*psi);
     Vpsi.scale(-2.0).truncate();
 
-    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 1.e-6, 1e-6);
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 1.e-6, 1e-5);
     real_function_3d tmp=op(Vpsi).truncate();
 
     double norm = tmp.norm2();
@@ -255,10 +399,10 @@ void iterate(World& world, const real_function_3d& V, real_function_3d& psi, dou
     double eps_new = eps - 0.5*inner(Vpsi,r)/(norm*norm);
     if (world.rank() == 0) {
         print("norm=",norm," eps=",eps," err(psi)=",rnorm," err(eps)=",eps_new-eps);
-        print("eps_new",eps_new);
     }
     psi = tmp.scale(1.0/norm);
     if (eps_new<0.0) eps = eps_new;
+    return rnorm;
 }
 
 /// orthogonalize orbital i against all other orbitals
@@ -283,9 +427,10 @@ void orthogonalize(std::vector<real_function_3d>& orbitals, const int ii) {
 /// solve the residual equations
 
 /// @param[in]		potential	the effective potential
+/// @param[in]		thresh		the threshold for the error in the orbitals
 /// @param[inout]	eps			guesses for the orbital energies
 /// @param[inout]	orbitals	the first n roots of the equation
-void solve(World& world, const real_function_3d& potential, tensorT& eps,
+void solve(World& world, const real_function_3d& potential, const double thresh, tensorT& eps,
 		std::vector<real_function_3d>& orbitals) {
 
 	const long nroots=eps.size();
@@ -296,14 +441,66 @@ void solve(World& world, const real_function_3d& potential, tensorT& eps,
 
 		real_function_3d& phi=orbitals[i];
 		double eiger=eps(i);
+		if (world.rank()==0) print("\nworking on orbital",i);
 
 		double ke=0.0,pe=0.0;
-		for (int j=0; j<10; ++j) {
-			compute_energy(world,phi,potential,ke,pe);
-			iterate(world,potential,phi,eiger);
+		double error=1e4;
+		int ii=0;
+		while (error>thresh and ii++<15) {
+//			compute_energy(world,phi,potential,ke,pe);
+			error=iterate(world,potential,phi,eiger);
 			orthogonalize(orbitals,i);
 		}
+		save_function(world,phi,"orbital"+stringify(i));
+//		load_function(world,phi,"orbital"+stringify(i));
+//		std::string name="orbital"+stringify(i);
+//		draw_plane(world,phi,name);
+//		Tensor<double> S=matrix_inner(world,orbitals,orbitals);
+//		print("overlap");
+//		print(S);
+
 	}
+}
+
+/// solve the residual equations for all orbitals at the same time
+
+/// @param[in]		potential	the effective potential
+/// @param[in]		thresh		the threshold for the error in the orbitals
+/// @param[inout]	eps			guesses for the orbital energies
+/// @param[inout]	orbitals	the first n roots of the equation
+void solve_all(World& world, const real_function_3d& potential, const double thresh, Tensor<double>& eps,
+		std::vector<real_function_3d>& orbitals, Calculation& calc) {
+
+	const long nroots=eps.size();
+	print("solving for",nroots,"roots of the effective potential");
+	typedef std::shared_ptr<operatorT> poperatorT;
+
+	std::vector<real_function_3d> orbitals_new=orbitals;
+	for (int i=0; i<10; ++i) {
+
+		// apply the BSH operator on V*psi
+//		std::vector<real_function_3d> Vpsi=mul(world,-2.0*potential,orbitals_new);
+//		std::vector<poperatorT> ops = calc.make_bsh_operators(world, eps);
+//		std::vector<real_function_3d> orbitals_new = apply(world, ops, Vpsi);
+//		std::vector<real_function_3d> diff=sub(world,orbitals_new,orbitals);
+//		double error=norm2(world,diff);
+//		if (world.rank()==0) print("error in iteration",i,error);
+		int ii=0;
+		double error=0.0;
+		for (real_function_3d& phi : orbitals_new) {
+//			print("ii, eps[ii]",ii, eps[ii]);
+			error+=iterate(world,potential,phi,eps[ii]);
+			orthogonalize(orbitals_new,ii);
+			++ii;
+		}
+//        double trantol = thresh*0.1 / std::min(30.0, double(orbitals.size()));
+//        orbitals_new = transform(world, orbitals_new,
+//        		Q3(matrix_inner(world, orbitals_new, orbitals_new)), trantol, true);
+
+		if (world.rank()==0) print("\nfinished iteration ",i,"with error ",error,"\n");
+
+	}
+    orbitals=orbitals_new;
 }
 
 
@@ -322,39 +519,113 @@ int main(int argc, char** argv) {
 	Calculation calc(world,input.c_str());
 	HartreeFock hf(world,calc);
     hf.value();
+    print("nuclear repulsion: ",hf.get_calc().molecule.nuclear_repulsion_energy());
 
+    std::cout << std::scientific;
+//    hf.get_nuclear_potential().get_impl()->print_grid("vnuc_grid");
 
-    recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
-    real_function_3d potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();;
+    const double thresh=FunctionDefaults<3>::get_thresh();
 
-    tensorT grid(pot_functor.k);
-    grid=pot_functor.potential(0,_);
+    bool radial=false;
+    bool xyz=true;
+	// if the potentials have been previously converted to madness-format
+    bool load_potential=false;
+    std::string keyfile="n2_grid";
+    std::string prefix="n2_";
+//    std::string keyfile="vnuc_grid";
+//    std::string prefix="be_";
+	FunctionDefaults<3>::set_max_refine_level(12);
 
-    {
-		real_function_3d rho=real_factory_3d(world);
-		for (const real_function_3d& orbital : hf.get_calc().amo) {
-			rho+=orbital*orbital;
+	// read in the data
+	real_function_3d potential=real_factory_3d(world).empty();
+	real_function_3d refdens=real_factory_3d(world).empty();
+
+	if (radial) {
+		if (load_potential) {
+			load_function(world,potential,"be_recpot+startpot");
+			load_function(world,refdens,"be_refdens");
+
+		} else {
+			recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
+			potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();
+			save_function(world,potential,"be_recpot+startpot");
+
+			recpot pot_dens("grid.txt","Be_numdens_num.txt");
+			refdens=real_factory_3d(world).functor2(pot_dens).truncate_on_project();
+			save_function(world,refdens,"be_refdens");
+
 		}
-		rho.scale(2.0);
-		plot_radial_density(rho,"r2rho_hf",grid);
-    }
 
-    potential.print_size("potential");
+	} else if (xyz) {
+		if (load_potential) {
+			load_function(world,potential,prefix+"potential");
+			load_function(world,refdens,prefix+"refdens");
 
-    // solve the residual equations
-    std::vector<real_function_3d> orbitals=hf.get_calc().amo;
-    tensorT eps=hf.get_calc().aeps;
+		} else {
+			real_function_3d recpot=real_factory_3d(world).empty();
+			real_function_3d startpot=real_factory_3d(world).empty();
 
-    solve(world,potential,eps,orbitals);
+    		refdens.get_impl()->read_grid<3>(keyfile,prefix+"refdens.xyzv");
+			save_function(world,refdens,prefix+"refdens");
 
-    {
-		real_function_3d rho=real_factory_3d(world);
-		for (const real_function_3d& orbital : orbitals) {
-			rho+=orbital*orbital;
+			recpot.get_impl()->read_grid<3>(keyfile,prefix+"recpot.xyzv");
+			save_function(world,recpot,prefix+"recpot");
+
+    		startpot.get_impl()->read_grid<3>(keyfile,prefix+"startpot.xyzv");
+			save_function(world,startpot,prefix+"startpot");
+
+			potential=(recpot+startpot).truncate();
+			save_function(world,potential,prefix+"potential");
+
 		}
-		rho.scale(2.0);
+
+	} else {
+		MADNESS_EXCEPTION("logic failure",0);
+	}
+	// now we have the functions refdens and potential
+
+	const double n_el_ref=refdens.trace();
+	print("refdens.trace()    ",n_el_ref);
+
+	// solve the residual equations
+	std::vector<real_function_3d> orbitals=copy(world,hf.get_calc().amo);
+	tensorT eps=hf.get_calc().aeps;
+//	solve_all(world,potential,thresh,eps,orbitals,calc);
+	solve(world,potential,thresh,eps,orbitals);
+
+	/*
+	 * here comes the analysis
+	 */
+
+	// make the density
+	real_function_3d rho=real_factory_3d(world);
+	for (const real_function_3d& orbital : orbitals) rho+=2.0*orbital*orbital;
+
+	// make the HF density
+	real_function_3d rho_hf=real_factory_3d(world);
+	for (const real_function_3d& orbital : hf.get_calc().amo) rho_hf+=2.0*orbital*orbital;
+
+	// compare refdens to this density
+	double error=(rho-refdens).abs().trace();
+	double error1=(rho-refdens).norm2();
+	if (world.rank()==0) print("error in the density: int(abs(rho-ref_rho)",error,error1);
+
+	// compare this dens to HF density
+	error=(rho-rho_hf).abs().trace();
+	error1=(rho-rho_hf).norm2();
+	if (world.rank()==0) print("error in the density: int(abs(rho-rho_hf)",error,error1);
+
+	if (world.rank()==0) print("<hf | oep>");
+	Tensor<double> S=matrix_inner(world,orbitals,hf.get_calc().amo);
+	print(S);
+
+	// for plotting
+	if (radial) {
+		Tensor<double> grid=read_radial_grid(ngrid,"grid.txt");
 		plot_radial_density(rho,"r2rho",grid);
-    }
+		plot_radial_density(refdens,"r2rho_refdens",grid);
+		plot_radial_density(rho_hf,"r2rho_hf",grid);
+	}
 
     if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
     finalize();
