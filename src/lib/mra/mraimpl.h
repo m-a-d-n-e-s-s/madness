@@ -949,7 +949,7 @@ namespace madness {
           
         template <typename T, std::size_t NDIM>
         struct absinplace {
-            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {abs(t);}
+            void operator()(const Key<NDIM>& key, Tensor<T>& t) const {t=abs(t);}
             template <typename Archive> void serialize(Archive& ar) {}
         };      
 
