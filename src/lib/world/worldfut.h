@@ -414,12 +414,12 @@ which merely blows instead of sucking.
                 , is_the_default_initializer(false)
         { }
 
-        explicit Future(const AmArg& arg)
+        explicit Future(const archive::BufferInputArchive& input_arch)
                 : f()
                 , value()
                 , is_the_default_initializer(false)
         {
-            arg & value;
+            input_arch & value;
         }
 
         /// Copy constructor is shallow
@@ -607,8 +607,8 @@ which merely blows instead of sucking.
 
         Future(const RemoteReference< FutureImpl<void> >&) {}
 
-        Future(const AmArg& arg) {
-            arg & *this;
+        Future(const archive::BufferInputArchive& input_arch) {
+            input_arch & *this;
         }
 
         inline void set(const Future<void>&) {}

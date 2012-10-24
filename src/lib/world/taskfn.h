@@ -189,23 +189,23 @@ namespace madness {
 
         template <typename T, std::size_t N>
         struct value_type<T[N]> {
-            typedef T* type;
+            typedef T type[N];
         };
 
         template <typename T, std::size_t N>
         struct value_type<const T[N]> {
-            typedef const T* type;
+            typedef const T type[N];
         };
 
-        template <std::size_t N>
-        struct value_type<char[N]> {
-            typedef std::string type;
-        };
-
-        template <std::size_t N>
-        struct value_type<const char[N]> {
-            typedef std::string type;
-        };
+//        template <std::size_t N>
+//        struct value_type<char[N]> {
+//            typedef std::string type;
+//        };
+//
+//        template <std::size_t N>
+//        struct value_type<const char[N]> {
+//            typedef std::string type;
+//        };
 
         template <>
         struct value_type<void> {
@@ -546,9 +546,10 @@ namespace madness {
         }
 
         TaskFn(const futureT& result, functionT func, const TaskAttributes& attr,
-                const AmArg& arg) :
-            TaskInterface(attr), result_(result), func_(func), arg1_(arg), arg2_(arg),
-            arg3_(arg), arg4_(arg), arg5_(arg), arg6_(arg), arg7_(arg), arg8_(arg), arg9_(arg)
+                archive::BufferInputArchive& input_arch) :
+            TaskInterface(attr), result_(result), func_(func), arg1_(input_arch),
+            arg2_(input_arch), arg3_(input_arch), arg4_(input_arch), arg5_(input_arch),
+            arg6_(input_arch), arg7_(input_arch), arg8_(input_arch), arg9_(input_arch)
         {
             // No need to check dependencies since the arguments are from an archive
         }

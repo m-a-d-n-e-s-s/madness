@@ -402,11 +402,11 @@ namespace madness {
             detail::TaskHandlerInfo<typename taskT::futureT::remote_refT,
                     typename taskT::functionT> info;
 
-            arg & info;
+            archive::BufferInputArchive input_arch = arg & info;
 
             // Construct task
             taskT* task = new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(info.ref),
-                    info.func, info.attr, arg);
+                    info.func, info.attr, input_arch);
 
             // Add task to queue
             arg.get_world()->taskq.add(task);

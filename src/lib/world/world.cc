@@ -192,7 +192,7 @@ void test5(World& world) {
     Future<string> kate2;
     Future<double> kate3;
     Future<string> kate = world.taskq.add(TTT::kate,&world,kate2,kate3);
-    Future<string> cute = world.taskq.add(right,TTT::kate,&world,"Boo!",-42.0);
+    Future<string> cute = world.taskq.add(right,TTT::kate,&world,string("Boo!"),-42.0);
     TTT ttt;
     Future<double> jody = world.taskq.add(ttt,&TTT::jody,1.0,2.0,3.0);
     Future<double> duh = world.taskq.add(me,dumb,0,1,2,3,4,5,6);
