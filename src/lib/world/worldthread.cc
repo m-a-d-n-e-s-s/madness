@@ -112,7 +112,18 @@ namespace madness {
 
     /// Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
-#ifdef _SC_NPROCESSORS_CONF
+// JEFF: use sysconf/sysctl until we're sure BG alternatives are correct.
+#if defined(HAVE_IBMBGP) && 0
+         int ncpu=0;
+         _BGP_Personality_t pers;
+         Kernel_GetPersonality(&pers, sizeof(pers));
+              if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
+         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
+         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
+#elif defined(HAVE_IBMBGQ) && 0
+        /* Return number of processors (hardware threads) within the current process. */
+        int ncpu=Kernel_ProcessorCount();
+#elif defined(_SC_NPROCESSORS_CONF)
         int ncpu = sysconf(_SC_NPROCESSORS_CONF);
         if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
 #elif defined(HC_NCPU)
@@ -122,13 +133,7 @@ namespace madness {
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
         std::cout << "NCPU " << ncpu << std::endl;
 #else
-#  if def(HAVE_IBMBGQ) || defined(__bgq__)
-        int ncpu=64;
-#  elif defined(HAVE_IBMBGP) || defined(__bgp__)
-        int ncpu=4;
-#  else
         int ncpu=1;
-#  endif
 #endif
         return ncpu;
     }

@@ -54,6 +54,17 @@
 #include <sys/sysctl.h>
 #endif
 
+#if defined(HAVE_IBMBGP)
+#  include <spi/kernel_interface.h>
+#  include <common/bgp_personality.h>
+#  include <common/bgp_personality_inlines.h>
+#endif
+
+#if defined(HAVE_IBMBGQ)
+#  include <spi/include/kernel/location.h>
+#  include <spi/include/kernel/process.h>
+#endif
+
 namespace madness {
 
     // Forward decl.
