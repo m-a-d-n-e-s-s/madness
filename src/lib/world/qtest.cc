@@ -8,6 +8,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if defined(HAVE_IBMBGP)
+#  include <spi/kernel_interface.h>
+#  include <common/bgp_personality.h>
+#  include <common/bgp_personality_inlines.h>
+#endif
+
 #if defined(HAVE_IBMBGQ)
 #  include <spi/include/kernel/location.h>
 #  include <spi/include/kernel/process.h>
@@ -193,13 +199,17 @@ static thread_local int my_thread_id;
 
 static int __num_hw_processors() {
 // JEFF: use sysconf/sysctl until we're sure BG alternatives are correct.
-//#if defined(HAVE_IBMBGP)
-//#warning Jeff needs to add query for SMP/DUAL/VN here to be sure this is right.
-//    int ncpu=4;
-//#elif defined(HAVE_IBMBGQ)
-//    /* Return number of processors (hardware threads) within the current process. */
-//    int ncpu=Kernel_ProcessorCount();
-//#elif defined(_SC_NPROCESSORS_CONF)
+#if defined(HAVE_IBMBGP) && 0
+     int ncpu=0;
+     _BGP_Personality_t pers;
+     Kernel_GetPersonality(&pers, sizeof(pers));
+          if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
+     else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
+     else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
+#elif defined(HAVE_IBMBGQ) && 0
+    /* Return number of processors (hardware threads) within the current process. */
+    int ncpu=Kernel_ProcessorCount();
+#elif defined(_SC_NPROCESSORS_CONF)
 #if defined(_SC_NPROCESSORS_CONF)
     int ncpu = sysconf(_SC_NPROCESSORS_CONF);
     if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
