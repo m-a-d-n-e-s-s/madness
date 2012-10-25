@@ -49,7 +49,7 @@ namespace madness {
 
 #if defined(HAVE_XTERM) && defined(HAVE_FORK) && defined(HAVE_GDB) && defined(HAVE_SLEEP)
     void xterm_debug(const char* path, const char* display) {
-        int rank = MPI::COMM_WORLD.Get_rank();
+        int rank = SafeMPI::COMM_WORLD.Get_rank();
         pid_t child;
         const char *argv[20], *xterm = "/usr/bin/xterm";
         char title[256], pid[256], geometry[256];
