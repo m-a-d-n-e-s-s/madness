@@ -83,20 +83,20 @@ typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
 
-static const double L = 120.0;     // box is [-L,L]
-static const double zeta = 7.5;   // potential wells at +/-zeta
-static const double R1 = 2.0;     // potential parameter
-static const double R2 = 2.0;     // potential parameter
-static const double a1 = 1.0;     // potential parameter
-static const double a2 = 1.0;     // potential parameter
-static const double reduced = 0.04825964488415279478;
-static const double V1 = -50.0*reduced;   // potential parameter
-static const double V2 = -50.0*reduced;   // potential parameter
-static const double lambda_correct = 0.0026608048208104861/reduced; // SO potential parameter
+const double L = 120.0;     // box is [-L,L]
+const double zeta = 7.5;   // potential wells at +/-zeta
+const double R1 = 2.0;     // potential parameter
+const double R2 = 2.0;     // potential parameter
+const double a1 = 1.0;     // potential parameter
+const double a2 = 1.0;     // potential parameter
+const double reduced = 0.04825964488415279478;
+const double V1 = -50.0*reduced;   // potential parameter
+const double V2 = -50.0*reduced;   // potential parameter
+const double lambda_correct = 0.0026608048208104861/reduced; // SO potential parameter
 
 //static const double lambda_fudge = lambda_correct*100.0;
 
-static       double lambda = lambda_correct;
+static double lambda = lambda_correct;
 static const double fac1=exp(-R1/a1);
 static const double fac2=exp(-R2/a2);
 
