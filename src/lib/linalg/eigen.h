@@ -110,7 +110,6 @@ namespace madness {
 
         Matrix<T, Dynamic, Dynamic> g(n,m);
 
-        Tensor<T> aT= transpose(a);
         copy_mad2eigen2( a.size(), a.ptr(), g.data());
         g.adjointInPlace();
 // use ComputeFullV instead ComputeThinV for V[n,n], same for U
@@ -270,6 +269,7 @@ namespace madness {
         ev.transposeInPlace();
         copy_mad2eigen2( V.size(), ev.data(), V.ptr());
     }
+#ifndef MADNESS_HAS_ELEMANTAL
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This function uses the EIGEN3 GeneralizedSelfAdjointEigenSolver routine.
@@ -314,6 +314,7 @@ namespace madness {
         copy_mad2eigen2( e.size(), sol.eigenvalues().data(), e.ptr());
 
     }
+#endif
     /// Compute the Cholesky factorization of the symmetric positive definite matrix A
     /// This function uses the EIGEN3 LLT routine.
     /// For memory efficiency A is modified inplace.  Its upper

@@ -39,13 +39,32 @@
 
 #include <linalg/tensor_lapack.h>
 #include <iostream>
+#include <madness_config.h>
+
+#ifdef MADNESS_HAS_ELEMENTAL
+#  include "elemental.hpp"
+using namespace elem;
+#endif
+
+//#include <mra/mra.h>
 
 using namespace madness;
 
 int
 main(int argc, char* argv[]) {
+
+#ifdef MADNESS_HAS_ELEMENTAL
+    Initialize( argc, argv );
+    const int myrank = mpi::CommRank( mpi::COMM_WORLD );
+#else
+   const int myrank = 0;
+#endif
+
     bool testok = test_tensor_lapack();
-    std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
+    if ( myrank==0 ) std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
+#ifdef MADNESS_HAS_ELEMENTAL
+    Finalize();
+#endif
     return 0;
 }
 

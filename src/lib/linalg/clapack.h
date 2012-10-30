@@ -42,8 +42,6 @@
 #include <fortran_ctypes.h>
 #include <linalg/lapack_functions.h>
 
-#include <madness_config.h>
-
 #ifdef FORTRAN_LINKAGE_LC
 #  define sgesvd_ sgesvd
 #  define dgesvd_ dgesvd
@@ -65,10 +63,12 @@
 #  define cheev_ cheev
 #  define zheev_ zheev
 
+#ifndef MADNESS_HAS_ELEMENTAL
 #  define ssygv_ ssygv
 #  define dsygv_ dsygv
 #  define chegv_ chegv
 #  define zhegv_ zhegv
+#endif
 
 #  define dpotrf_ dpotrf
 

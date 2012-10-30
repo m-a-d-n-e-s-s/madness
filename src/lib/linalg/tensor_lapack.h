@@ -77,10 +77,12 @@ namespace madness {
 
     /// Solves symmetric or Hermitian generalized eigenvalue problem
     
+#ifndef MADNESS_HAS_ELEMENTAL
     /// \ingroup linalg
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
+#endif
 
     /// Cholesky factorization
     
