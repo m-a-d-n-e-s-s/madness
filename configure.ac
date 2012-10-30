@@ -182,6 +182,9 @@ ACX_POSIX_MEMALIGN
 # Check for EIGEN3
 ACX_WITH_EIGEN3
 
+# Check for Elemental
+ACX_WITH_ELEMENTAL
+
 # Checks for Fortran linking conventions and BLAS+LAPACK at the same time
 ACX_FORTRAN_SYMBOLS
 
