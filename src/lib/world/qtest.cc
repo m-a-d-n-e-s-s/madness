@@ -210,7 +210,7 @@ static int __num_hw_processors() {
     /* Return number of processors (hardware threads) within the current process. */
     int ncpu=Kernel_ProcessorCount();
 #elif defined(_SC_NPROCESSORS_CONF)
-#if defined(_SC_NPROCESSORS_CONF)
+//#if defined(_SC_NPROCESSORS_CONF)
     int ncpu = sysconf(_SC_NPROCESSORS_CONF);
     if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
 #elif defined(HC_NCPU)
