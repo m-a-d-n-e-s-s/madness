@@ -35,8 +35,6 @@
 
 #ifdef MADNESS_HAS_ELEMENTAL
 
-
-
 #include <mra/mra.h>
 
 #include <tensor/tensor.h>
@@ -88,6 +86,7 @@ namespace madness {
 //elemental
         mpi::Comm comm = mpi::COMM_WORLD;
 //madness
+        //World world(SafeMPI::COMM_WORLD);
         World world(mpi::COMM_WORLD);
 
         int blocksize = 128;
@@ -206,6 +205,7 @@ namespace madness {
 //elemental
         mpi::Comm comm = mpi::COMM_WORLD;
 //madness
+        //World world(SafeMPI::COMM_WORLD);
         World world(mpi::COMM_WORLD);
 
         try {
@@ -241,11 +241,20 @@ namespace madness {
                  x = Tensor<T>(n);
                  bT = Tensor<T>(n);
                  bT = copy(b);
+                 x = copy(b); //creating the correct size
             }
             else {
                  x = Tensor<T>(n,nrhs);
                  bT =  transpose(b);
             }
+
+           for(int i=0; i< x.size(); ++i) {
+            double * buffer = x.ptr() ;
+            buffer[i] = 0.0;
+            }
+
+           //cout << "Caught a tensor exception \n";
+           //cout << bT <<endl;
             elem::DistMatrix<T> hd( n, nrhs, GG );
             {
                  const int colShift = hd.ColShift(); // 1st row local
