@@ -112,6 +112,7 @@ void dgesvd_(const char *jobu, const char *jobvt, integer *m, integer *n,
             vt, ldvt, work, lwork, rwork.ptr(), info, jobulen, jobvtlen);
 }
 
+#ifndef MADNESS_HAS_ELEMENTAL
 /// These oddly-named wrappers enable the generic gesv iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -127,6 +128,7 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer
                           integer* piv, double_complex* x, integer* ldx, integer* info) {
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 }
+#endif // MADNESS_HAS_ELEMENTAL
 
 /// These oddly-named wrappers enable the generic gelss iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
@@ -300,6 +302,7 @@ namespace madness {
     }
 
 #ifndef MADNESS_HAS_EIGEN3
+#ifndef MADNESS_HAS_ELEMENTAL
     /** \brief  Solve Ax = b for general A using the LAPACK *gesv routines.
 
     A should be a square matrix (float, double, float_complex,
@@ -337,6 +340,7 @@ namespace madness {
 
         if (b.ndim() == 2) x = transpose(x);
     }
+#endif //MADNESS_HAS_ELEMENTAL
 #endif //MADNESS_HAS_EIGEN3
 
     template <typename T>
@@ -346,6 +350,13 @@ namespace madness {
         a.fillrandom();
         b1.fillrandom();
         b.fillrandom();
+
+#ifdef MADNESS_HAS_ELEMENTAL
+        madness::World world(mpi::COMM_WORLD);
+        world.gop.broadcast_serializable(a, 0);
+        world.gop.broadcast_serializable(b, 0);
+        world.gop.broadcast_serializable(b1, 0);
+#endif //MADNESS_HAS_ELEMENTAL
 
 //         print("A");
 //         print(a);
@@ -367,11 +378,12 @@ namespace madness {
 
 //         print("R");
 //         print(inner(a,x)-b);
-
+//
 //         print("R1");
 //         print(inner(a,x1)-b1);
 
         return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
+//        return 111.0;
     }
 
 
@@ -616,11 +628,13 @@ namespace madness {
         b.fillrandom();
         a += madness::my_conj_transpose(a);
         b += madness::my_conj_transpose(b);
+
 #ifdef MADNESS_HAS_ELEMENTAL
-        madness::World world(MPI::COMM_WORLD);
+        madness::World world(mpi::COMM_WORLD);
         world.gop.broadcast_serializable(a, 0);
         world.gop.broadcast_serializable(b, 0);
 #endif //MADNESS_HAS_ELEMENTAL
+
         for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
         sygv(a,b,1,V,e);
         double err = 0.0;
@@ -696,7 +710,7 @@ namespace madness {
 
 
 #ifdef MADNESS_HAS_ELEMENTAL
-            const int myrank = mpi::CommRank( MPI::COMM_WORLD );
+            const int myrank = mpi::CommRank( mpi::COMM_WORLD );
 #else
             const int myrank = 0;
 #endif
@@ -705,11 +719,6 @@ namespace madness {
                 cout << "error in double svd " << test_svd<double>(30,20) << endl;
                 cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
                 cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
-                cout << endl;
-                cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
-                cout << "error in double gesv " << test_gesv<double>(30,20) << endl;
-                cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
-                cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
                 cout << endl;
                 cout << "error in float gelss " << test_gelss<float>(20,30) << endl;
                 cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
@@ -730,6 +739,15 @@ namespace madness {
             cout << "error in double sygv " << err << endl;
     //        cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
     //        cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+
+            err = test_gesv<double>(30,20);
+            if (myrank == 0) 
+            cout << "error in double gesv " << err << endl;
+    //        cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
+    //        cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
+    //        cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
+            if (myrank == 0) 
+            cout << endl;
         }
         catch (TensorException e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
@@ -782,8 +800,10 @@ namespace madness {
     void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
              Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
 
+#ifndef MADNESS_HAS_ELEMENTAL
     template
     void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
+#endif //MADNESS_HAS_ELEMENTAL
 
     template
     void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,

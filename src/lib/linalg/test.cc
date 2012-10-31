@@ -61,7 +61,7 @@ main(int argc, char* argv[]) {
 #endif
 
     bool testok = test_tensor_lapack();
-    if ( myrank==0 ) std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
+//elem    if ( myrank==0 ) std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
 #ifdef MADNESS_HAS_ELEMENTAL
     Finalize();
 #endif

@@ -183,6 +183,7 @@ namespace madness {
                                                   //                        as zero 
         copy_mad2eigen2( s.size(), svdm.singularValues().data(), s.ptr());
      }
+#ifndef MADNESS_HAS_ELEMENTAL
     /** \brief  Solve Ax = b for general A using the EIGEN3 PartialPivLU routine.
 
     A should be a square matrix (float, double, float_complex,
@@ -191,7 +192,7 @@ namespace madness {
 
     It will solve Ax=b as written.
 
-    Use LU decomposition of a matrix with partial pivotin.
+    Use LU decomposition of a matrix with partial pivoting.
     A must be invertible. A is decomposed as A=PLU
     b can be a vector or a matrix, the only restriction is that satisfies b.rows()==A.rows()
 
@@ -233,6 +234,8 @@ namespace madness {
         sol.transposeInPlace();
         copy_mad2eigen2( b.size(), sol.data(), x.ptr());
     }
+#endif // MADNESS_HAS_ELEMENTAL
+
     /** \brief   Real-symmetric or complex-Hermitian eigenproblem.
 
     A is a real symmetric or complex Hermitian matrix.  Return V and e
