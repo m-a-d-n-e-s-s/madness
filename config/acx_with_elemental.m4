@@ -14,7 +14,7 @@ AC_DEFUN([ACX_WITH_ELEMENTAL],
       *)
         acx_with_elemental=yes
         CPPFLAGS="-I$withval/include $CPPFLAGS"
-        LIBS="$LIBS -L$withval/lib -lelemental -lplcg -lelem-dummy-lib"
+        LIBS="$LIBS -L$withval/lib -lelemental -lplcg  -lpmrrr -lelem-dummy-lib"
       ;;
       esac
     ]
