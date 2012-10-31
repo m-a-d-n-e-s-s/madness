@@ -62,7 +62,7 @@ using madness::Tensor;
 #endif
 
 #ifdef MADNESS_HAS_ELEMENTAL
-#  include <linalg/elemental.h>
+#  include <linalg/elem.h>
 #endif
 
 #ifdef STATIC
