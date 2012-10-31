@@ -364,10 +364,10 @@ namespace madness {
 //         print("B");
 //         print(b);
 
-         print("B1");
-         print(b1);
+//         print("B1");
+//         print(b1);
 
-//        gesv(a,b,x);
+        gesv(a,b,x);
         gesv(a,b1,x1);
 
 //         print("X");
@@ -379,11 +379,11 @@ namespace madness {
 //         print("R");
 //         print(inner(a,x)-b);
 //
-         print("R1");
-         print(inner(a,x1)-b1);
+//         print("R1");
+//         print(inner(a,x1)-b1);
 
-//        return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
-        return 111.0;
+        return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
+//        return 111.0;
     }
 
 
