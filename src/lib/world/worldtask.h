@@ -66,6 +66,9 @@ namespace madness {
 
     namespace detail {
 
+        template <typename ptrT, typename memfnT, typename resT>
+        memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>&);
+
         /// Serialization container for sending tasks to remote nodes
         /// This is for internal use only. You should not use this class directly.
         /// \tparam refT The remote reference type for task result future
@@ -158,6 +161,8 @@ namespace madness {
             ptrT ptr_;
             memfnT memfn_;
 
+            friend memfnT get_mem_func_ptr<ptrT, memfnT, resT>(const MemFuncWrapper<ptrT, memfnT, resT>&);
+
         public:
             typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
             typedef resT result_type;
@@ -246,6 +251,10 @@ namespace madness {
             void serialize(const Archive& ar) {
                 ar & ptr_ & memfn_;
             }
+
+            friend memfnT get_mem_func_ptr(const MemFuncWrapper_& wrapper) {
+                return wrapper.memfn_;
+            }
         };
 
         template <typename ptrT, typename memfnT>
@@ -253,6 +262,8 @@ namespace madness {
         private:
             ptrT ptr_;
             memfnT memfn_;
+
+            friend memfnT get_mem_func_ptr<ptrT, memfnT, void>(const MemFuncWrapper<ptrT, memfnT, void>&);
 
         public:
             typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
@@ -342,6 +353,7 @@ namespace madness {
             void serialize(const Archive& ar) {
                 ar & ptr_ & memfn_;
             }
+
         };
 
         template <typename objT, typename memfnT>
@@ -363,6 +375,11 @@ namespace madness {
         wrap_mem_fn(const std::shared_ptr<objT>& obj, memfnT memfn) {
             return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
                     typename memfunc_traits<memfnT>::result_type>(obj, memfn);
+        }
+
+        template <typename ptrT, typename memfnT, typename resT>
+        memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>& wrapper) {
+            return wrapper.memfn_;
         }
 
     }  // namespace detail
@@ -604,13 +621,7 @@ namespace madness {
             t->set_info(&world, this);       // Stuff info
 
             if (t->ndep() == 0) {
-#if HAVE_INTEL_TBB
-                ThreadPool::tbb_parent_task->increment_ref_count();
-//                ThreadPool::tbb_parent_task->spawn(*t);
-                ThreadPool::tbb_parent_task->enqueue(*t);
-#else
                 ThreadPool::add(t); // If no dependencies directly submit
-#endif
             } else {
                 // With dependencies must use the callback to avoid race condition
                 t->register_submit_callback();

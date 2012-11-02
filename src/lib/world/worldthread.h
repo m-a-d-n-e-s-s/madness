@@ -28,7 +28,7 @@
   tel:   865-241-3937
   fax:   865-572-0680
 
-  $Id$
+  $Id $
 */
 #ifndef MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
 #define MADNESS_WORLD_WORLDTHREAD_H__INCLUDED
@@ -41,6 +41,13 @@
 #include <cstddef>
 #include <cstdio>
 #include <pthread.h>
+#include <world/typestuff.h>
+
+#ifdef MADNESS_TASK_PROFILING
+#include <execinfo.h> // for backtrace_symbols
+#include <cxxabi.h> // for abi::__cxa_demangle
+#include <sstream> // for std::istringstream
+#endif // MADNESS_TASK_PROFILING
 
 #ifdef HAVE_INTEL_TBB
 #include "tbb/tbb.h"
@@ -86,11 +93,24 @@ namespace madness {
         static bool bind[3];
         static int cpulo[3];
         static int cpuhi[3];
+        static pthread_key_t thread_key; ///< Thread id key
 
         static void* main(void* self);
 
         int pool_num; ///< Stores index of thread in pool or -1
         pthread_t id;
+
+        static void init_thread_key() {
+           const int rc = pthread_key_create(&thread_key, NULL);
+           if(rc != 0)
+               MADNESS_EXCEPTION("pthread_key_create failed", rc);
+        }
+
+        static void delete_thread_key() {
+           const int rc = pthread_key_delete(thread_key);
+           if(rc != 0)
+               MADNESS_EXCEPTION("pthread_key_delete failed", rc);
+        }
 
         void set_pool_thread_index(int i) { pool_num = i; }
 
@@ -127,6 +147,10 @@ namespace madness {
         static void set_affinity_pattern(const bool bind[3], const int cpu[3]);
 
         static void set_affinity(int logical_id, int ind=-1);
+
+        static ThreadBase* this_thread() {
+            return static_cast<ThreadBase*>(pthread_getspecific(thread_key));
+        }
     }; // class ThreadBase
 
     /// Simplified thread wrapper to hide pthread complexity
@@ -138,7 +162,7 @@ namespace madness {
 
     public:
         /// Default constructor ... must invoke \c start() to actually begin the thread.
-        Thread() : f(0), args(0) {};
+        Thread() : f(0), args(0) { }
 
         /// Create a thread and start it running f(args)
         Thread(void* (*f)(void *), void* args=0)
@@ -285,14 +309,266 @@ namespace madness {
     };
 
 
+#ifdef MADNESS_TASK_PROFILING
+
+    namespace profiling {
+
+        class TaskEvent {
+        private:
+            std::pair<const void*, unsigned long> id_;
+            double times_[3];
+            unsigned long threads_;
+
+            static void print_demangled(std::ostream& os, const char* symbol) {
+                // Get the demagled symbol name
+                if(symbol) {
+                    int status = 0;
+                    const char* name = abi::__cxa_demangle(symbol, 0, 0, &status);
+
+                    // Append the demangled symbol name to the output stream
+                    if(status == 0) {
+                        os << name << "\t";
+                        free((void*)name);
+                    } else {
+                        os << symbol << "\t";
+                    }
+                } else {
+                    os << "UNKNOWN\t";
+                }
+            }
+
+
+        public:
+
+            /// No constructors are defined.
+//            TaskEvent() : id_(NULL, 0ul), times_(), threads_(0ul) {
+//                times_[0] = times_[1] = times_[2] = 0.0;
+//            }
+
+            /// record the start tiem of the task and collect task information
+            void start(const std::pair<const void*, unsigned int>& id,
+                    const unsigned long threads, const double submit_time)
+            {
+                id_ = id;
+                threads_ = threads;
+                times_[0] = submit_time;
+                times_[1] = wall_time();
+            }
+
+            /// Record the stop time of the task
+            void stop() { times_[2] = wall_time(); }
+
+            friend std::ostream& operator<<(std::ostream& os, const TaskEvent& te) {
+                // Add address to output stream
+                os << std::hex << std::showbase << te.id_.first <<
+                        std::dec << std::noshowbase << "\t";
+
+                // Print the name
+                switch(te.id_.second) {
+                    case 1:
+                        {
+                            // Get the backtrace symbol for the function address,
+                            // which contains the function name.
+                            void* const * func_ptr = const_cast<void* const *>(& te.id_.first);
+                            char** bt_sym = backtrace_symbols(func_ptr, 1);
+
+                            // Extract the mangled function name from the backtrace
+                            // symbol.
+                            std::istringstream iss(bt_sym[0]);
+                            long frame;
+                            std::string file, address, mangled_name;
+                            iss >> frame >> file >> address >> mangled_name;
+                            free(bt_sym);
+
+                            // Print the demangled name
+                            print_demangled(os, mangled_name.c_str());
+                        }
+                        break;
+                    case 2:
+                        print_demangled(os, static_cast<const char*>(te.id_.first));
+                        break;
+                    default:
+                        os << "UNKNOWN\t";
+                }
+
+                // Print:
+                // # of threads, submit time, start time, stop time
+                os << "\t" << te.threads_ << "\t" << te.times_[0]
+                        << "\t" << te.times_[1] << "\t" << te.times_[2];
+                return os;
+            }
+
+        }; // class TaskEvent
+
+        /// Task event list base class
+
+        /// The base class allows the data to be stored in a linked list
+        class TaskEventListBase {
+        private:
+            TaskEventListBase* next_;
+
+            TaskEventListBase(const TaskEventListBase&);
+            TaskEventListBase& operator=(const TaskEventListBase&);
+
+        public:
+
+            /// default constructor
+            TaskEventListBase() : next_(NULL) { }
+
+            /// virtual destructor
+            virtual ~TaskEventListBase() { }
+
+            /// Get the next event list in the linked list
+            TaskEventListBase* next() const { return next_; }
+
+            /// Insert \c list after this list
+
+            /// \param list The list to be inserted
+            void insert(TaskEventListBase* list) {
+                if(next_)
+                    list->next_ = next_;
+                next_ = list;
+            }
+
+            /// Output task event list to an output stream
+
+            /// \param os The ouptut stream
+            /// \param tel The task event list to be output
+            /// \return The modified output stream
+            friend inline std::ostream& operator<<(std::ostream& os, const TaskEventListBase& tel) {
+                return tel.print_events(os);
+            }
+
+        private:
+
+            /// print the events
+            virtual std::ostream& print_events(std::ostream&) const = 0;
+
+        }; // class TaskEventList
+
+        /// A list of task events
+
+        /// \tparam N The maximum number of events held by the list
+        /// This object is used by the thread pool to record task data
+        template <std::size_t N>
+        class TaskEventList : public TaskEventListBase {
+        private:
+            std::size_t n_; ///< The number of events recorded
+            TaskEvent events_[N]; ///< The event list
+
+            // Not allowed
+            TaskEventList(const TaskEventList&);
+            TaskEventList& operator=(const TaskEventList&);
+
+        public:
+
+            /// Default constructor
+            TaskEventList() : TaskEventListBase(), n_(0ul) { }
+
+            /// virtual destructor
+            virtual ~TaskEventList() { }
+
+            /// Get a new event from this list
+
+            /// \warning This function can only be called \c N times. It is the
+            /// callers resonsibility to ensure that it is not called too many
+            /// times.
+            TaskEvent* event() { return events_ + (n_++); }
+
+        private:
+
+            /// Print events recorded in this list.
+            virtual std::ostream& print_events(std::ostream& os) const {
+                const int thread_id = ThreadBase::this_thread()->get_pool_thread_index();
+                for(std::size_t i = 0; i < n_; ++i)
+                    os << thread_id << "\t" << events_[i] << std::endl;
+                return os;
+            }
+
+        }; // class TaskEventList
+
+        /// This object collects and prints task profiling data
+
+        /// \note Each thread has its own \c TaskProfiler object, so only one
+        /// thread will ever operate on this object at a time and all operations
+        /// are inheirently thread safe.
+        class TaskProfiler {
+        private:
+            TaskEventListBase* head_; ///< The head of the linked list of data
+            TaskEventListBase* tail_; ///< The tail of the linked list of data
+
+            static Mutex output_mutex_; ///< Mutex used to lock the output file
+
+            // Not allowed
+            TaskProfiler(const TaskProfiler&);
+            TaskProfiler& operator=(const TaskProfiler&);
+
+        public:
+            static const char* output_file_name_; ///< The output file name
+                                        ///< This variable is initialized by
+                                        ///< \c ThreadPool::begin . This variable
+                                        ///< is assigned the value given by the
+                                        ///< environment variable
+                                        ///< MAD_TASKPROFILER_NAME.
+        public:
+            /// Default constructor
+            TaskProfiler() : head_(NULL), tail_(NULL) { }
+
+            /// TaskProfiler destructor
+            ~TaskProfiler() {
+                // Cleanup linked list
+                TaskEventListBase* next = NULL;
+                while(head_ != NULL) {
+                    next = head_->next();
+                    delete head_;
+                    head_ = next;
+                }
+            }
+
+            /// Create a new task event list
+
+            /// \tparam N The maximum number of elements that the list can contain
+            /// \return A new task event list
+            template <std::size_t N>
+            TaskEventList<N>* new_list() {
+                // Create a new event list
+                TaskEventList<N>* list = new TaskEventList<N>();
+
+                // Append the list to the tail of the linked list
+                if(head_ != NULL) {
+                    tail_->insert(list);
+                    tail_ = list;
+                } else {
+                    head_ = list;
+                    tail_ = list;
+                }
+                return list;
+            }
+
+            /// Write the profile data to file
+
+            /// The data is cleared after it is written to the file, so this
+            /// function may be called more than once.
+            /// \warning This function should only be called from the thread
+            /// that owns it, otherwise data will likely be corrupted.
+            /// \note This function is thread safe, in that it may be called by
+            /// different objects in different threads simultaniously.
+            void write_to_file();
+        }; // class TaskProfiler
+
+    } // namespace profiling
+
+#endif // MADNESS_TASK_PROFILING
+
+
     /// Lowest level task interface
 
     /// The pool invokes run_multi_threaded() that does any necessary
     /// setup for multiple threads and then invokes the users \c run method.
     class PoolTaskInterface :
-        #if HAVE_INTEL_TBB
+#if HAVE_INTEL_TBB
             public tbb::task,
-        #endif
+#endif // HAVE_INTEL_TBB
             public TaskAttributes
     {
         friend class ThreadPool;
@@ -300,6 +576,66 @@ namespace madness {
     private:
         Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
     	AtomicInt count;  //< Used to count threads as they start
+
+#ifdef MADNESS_TASK_PROFILING
+    	profiling::TaskEvent* task_event_;
+    	double submit_time_;
+        std::pair<const void*, unsigned long> id_;
+
+        void set_event(profiling::TaskEvent* task_event) {
+            task_event_ = task_event;
+        }
+
+        /// Collect info on the task and record the sbumit time.
+        void submit() {
+            submit_time_ = wall_time();
+            this->get_id(id_);
+        }
+#endif // MADNESS_TASK_PROFILING
+
+        /// Object that is used to convert function and member function pointers into void*
+
+        /// \note This is technically not supported by the C++ standard but
+        /// it will likely not cause any issues here (Famous last words?).
+        template <typename T>
+        union FunctionPointerGrabber {
+            T in;
+            void* out;
+        };
+
+    protected:
+
+
+        template <typename fnT>
+        static typename enable_if<std::is_function<fnT> >::type
+        make_id(std::pair<const void*,unsigned long>& id, fnT* fn) {
+            id.first = reinterpret_cast<const void*>(fn);
+            id.second = 1ul;
+        }
+
+        template <typename memfnT>
+        static typename enable_if<std::is_member_function_pointer<memfnT> >::type
+        make_id(std::pair<const void*,unsigned long>& id, memfnT memfn) {
+            FunctionPointerGrabber<memfnT> poop;
+            poop.in = memfn;
+            id.first = poop.out;
+            id.second = 1ul;
+        }
+
+        template <typename fnobjT>
+        static typename disable_if_c<std::is_function<fnobjT>::value ||
+                std::is_member_function_pointer<fnobjT>::value>::type
+        make_id(std::pair<const void*,unsigned long>& id, const fnobjT&) {
+            id.first = reinterpret_cast<const void*>(typeid(fnobjT).name());
+            id.second = 2ul;
+        }
+
+    private:
+
+        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+            id.first = NULL;
+            id.second = 0ul;
+        }
 
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
@@ -312,19 +648,36 @@ namespace madness {
             // numbering and the architecture ... more work ahead.
             int nthread = get_nthread();
             if (nthread == 1) {
+#ifdef MADNESS_TASK_PROFILING
+                task_event_->start(id_, nthread, submit_time_);
+#endif // MADNESS_TASK_PROFILING
                 run(TaskThreadEnv(1,0,0));
+#ifdef MADNESS_TASK_PROFILING
+                task_event_->stop();
+#endif // MADNESS_TASK_PROFILING
                 return true;
             }
             else {
                 int id = count++;
                 volatile bool barrier_flag;
                 barrier->register_thread(id, &barrier_flag);
-                
+
+#ifdef MADNESS_TASK_PROFILING
+                if(id == 0)
+                    task_event_->start(id_, nthread, submit_time_);
+#endif // MADNESS_TASK_PROFILING
+
                 run(TaskThreadEnv(nthread, id, barrier));
-                
+
+#ifdef MADNESS_TASK_PROFILING
+                const bool cleanup = barrier->enter(id);
+                if(cleanup) task_event_->stop();
+                return cleanup;
+#else
                 return barrier->enter(id);
+#endif // MADNESS_TASK_PROFILING
             }
-#endif
+#endif // HAVE_INTEL_TBB
         }
 
     public:
@@ -390,24 +743,54 @@ namespace madness {
     public:
         void run(const TaskThreadEnv& /*info*/) {}
         virtual ~PoolTaskNull() {}
+        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+            PoolTaskInterface::make_id(id, &PoolTaskNull::run);
+        }
     };
 
+    /// ThreadPool thread object
+
+    /// This object holds thread local data for thread pool threads. It can be
+    /// accessed via \c ThreadBase::this_thread() .
+    class ThreadPoolThread : public Thread {
+    private:
+        // Thread local data for thread pool
+#ifdef MADNESS_TASK_PROFILING
+        profiling::TaskProfiler profiler_;
+#endif // MADNESS_TASK_PROFILING
+
+    public:
+
+        /// Default constructor
+        ThreadPoolThread() : Thread() { }
+
+        /// Virtual destructor
+        virtual ~ThreadPoolThread() { }
+
+#ifdef MADNESS_TASK_PROFILING
+        /// Task profiler accessor
+        profiling::TaskProfiler& profiler() { return profiler_; }
+#endif // MADNESS_TASK_PROFILING
+    };
 
     /// A singleton pool of threads for dynamic execution of tasks.
 
     /// YOU MUST INSTANTIATE THE POOL WHILE RUNNING WITH JUST ONE THREAD
-    class ThreadPool
-    {
+    class ThreadPool {
     private:
         friend class WorldTaskQueue;
-        Thread *threads;              ///< Array of threads
+
+        // Thread pool data
+        ThreadPoolThread *threads; ///< Array of threads
+        ThreadPoolThread main_thread; ///< Placeholder for main thread tls
         DQueue<PoolTaskInterface*> queue; ///< Queue of tasks
+        int nthreads; ///< No. of threads
+        volatile bool finish; ///< Set to true when time to stop
+        AtomicInt nfinished; ///< Thread pool exit counter
 
-        int nthreads;		  ///< No. of threads
-        volatile bool finish;              ///< Set to true when time to stop
-        AtomicInt nfinished;
-
-        static ThreadPool* instance_ptr;
+        // Static data
+        static ThreadPool* instance_ptr; ///< Singleton pointer
+        static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
 
         /// The constructor is private to enforce the singleton model
         ThreadPool(int nthread=-1);
@@ -419,14 +802,22 @@ namespace madness {
         int default_nthread();
 
         /// Run next task ... returns true if one was run ... blocks if wait is true
-        bool run_task(bool wait) {
+        bool run_task(bool wait, ThreadPoolThread* this_thread) {
 #if HAVE_INTEL_TBB
             MADNESS_EXCEPTION("run_task should not be called when using Intel TBB", 1);
 #else
+
+#ifdef MADNESS_TASK_PROFILING
+            profiling::TaskEventList<1>* event_list =
+                    this_thread->profiler().new_list<1>();
+#endif // MADNESS_TASK_PROFILING
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
             // Task pointer might be zero due to stealing
             if (t.second && t.first) {
+#ifdef MADNESS_TASK_PROFILING
+                t.first->set_event(event_list->event());
+#endif // MADNESS_TASK_PROFILING
                 if (t.first->run_multi_threaded())         // What we are here to do
                     delete t.first;
             }
@@ -434,7 +825,7 @@ namespace madness {
 #endif
         }
 
-        bool run_tasks(bool wait) {
+        bool run_tasks(bool wait, ThreadPoolThread* this_thread) {
 #if HAVE_INTEL_TBB
 //            if (!wait && tbb_task_list->empty()) return false;
 //            tbb::task* t = &tbb_task_list->pop_front();
@@ -448,11 +839,18 @@ namespace madness {
 
             MADNESS_EXCEPTION("run_tasks should not be called when using Intel TBB", 1);
 #else
-            static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
+
+#ifdef MADNESS_TASK_PROFILING
+            profiling::TaskEventList<nmax>* event_list =
+                    this_thread->profiler().new_list<nmax>();
+#endif // MADNESS_TASK_PROFILING
             PoolTaskInterface* taskbuf[nmax];
             int ntask = queue.pop_front(nmax, taskbuf, wait);
             for (int i=0; i<ntask; ++i) {
                 if (taskbuf[i]) { // Task pointer might be zero due to stealing
+#ifdef MADNESS_TASK_PROFILING
+                    taskbuf[i]->set_event(event_list->event());
+#endif // MADNESS_TASK_PROFILING
                     if (taskbuf[i]->run_multi_threaded()) {
                         delete taskbuf[i];
                     }
@@ -462,7 +860,7 @@ namespace madness {
 #endif
         }
 
-        void thread_main(Thread* thread);
+        void thread_main(ThreadPoolThread* const thread);
 
         /// Forwards thread to bound member function
         static void* pool_thread_main(void *v);
@@ -491,8 +889,12 @@ namespace madness {
 
         /// Add a new task to the pool
         static void add(PoolTaskInterface* task) {
+#ifdef MADNESS_TASK_PROFILING
+            task->submit();
+#endif // MADNESS_TASK_PROFILING
 #if HAVE_INTEL_TBB
-            MADNESS_EXCEPTION("Do not add tasks to the madness task queue when using Intel TBB.", 1);
+            ThreadPool::tbb_parent_task->increment_ref_count();
+            ThreadPool::tbb_parent_task->spawn(*t);
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int nthread = task->get_nthread();
@@ -529,7 +931,11 @@ namespace madness {
 
         /// Returns true if one was run
         static bool run_task() {
-            return instance()->run_tasks(false);
+#ifdef MADNESS_TASK_PROFILING
+            return instance()->run_tasks(false, static_cast<ThreadPoolThread*>(ThreadBase::this_thread()));
+#else
+            return instance()->run_tasks(false, NULL);
+#endif // MADNESS_TASK_PROFILING
         }
 
         /// Returns number of threads in the pool

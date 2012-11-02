@@ -118,6 +118,9 @@ ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC
 ACX_WITH_TBB
 
+# Set task profiler option
+ACX_ENABLE_TASK_PROFILER
+
 # Check for basic build functionality
 AC_PROG_RANLIB
 AC_PROG_INSTALL

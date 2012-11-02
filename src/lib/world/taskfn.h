@@ -46,6 +46,12 @@ namespace madness {
     class World;
     class WorldTaskQueue;
 
+    namespace detail {
+        template <typename, typename, typename> class MemFuncWrapper;
+        template <typename ptrT, typename memfnT, typename resT>
+        memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>&);
+    }
+
     /// All world tasks must be derived from this public interface
 
     /// Multiple worlds with independent queues feed tasks into shared task
@@ -274,6 +280,18 @@ namespace madness {
         Future<arg7T> arg7_;///< Argument 7 that will be given to the function
         Future<arg8T> arg8_;///< Argument 8 that will be given to the function
         Future<arg9T> arg9_;///< Argument 9 that will be given to the function
+
+        template <typename fT>
+        static fT& get_func(fT& f) { return f; }
+
+        template <typename ptrT, typename memfnT, typename resT>
+        static memfnT get_func(const detail::MemFuncWrapper<ptrT, memfnT, resT>& wrapper) {
+            return detail::get_mem_func_ptr(wrapper);
+        }
+
+        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+            return make_id(id, get_func(func_));
+        }
 
         // These functions are here because we have to differentiate the call
         // based on the number of arguments passed to the function and the
