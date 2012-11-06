@@ -1,4 +1,7 @@
 AC_DEFUN([ACX_ENABLE_TASK_PROFILER], [
+  AC_LANG_SAVE
+  AC_LANG([C++])
+  
   acx_enable_task_profiler=""
   
   # Allow the user to enable or disable warnings
@@ -27,5 +30,5 @@ AC_DEFUN([ACX_ENABLE_TASK_PROFILER], [
     AC_DEFINE([MADNESS_TASK_PROFILING],[1],[Define to enable task profiler.])
   fi
   
-
+  AC_LANG_RESTORE
 ])
