@@ -55,6 +55,7 @@ using namespace madness;
 #include <elemental.hpp>
 using namespace elem;
 
+
 template<int NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
@@ -2979,10 +2980,11 @@ public:
 
 
 int main(int argc, char** argv) {
-    Initialize(argc, argv);
+    initialize(argc, argv);
+    mpi::Initialized();
 
     { // limit lifetime of world so that finalize() can execute cleanly
-      World world(mpi::COMM_WORLD);
+      World world(SafeMPI::COMM_WORLD);
 
       try {
         // Load info for MADNESS numerical routines
@@ -3049,10 +3051,10 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
       }
-//      catch (const MPI::Exception& e) {
-//        print(e);
-//        error("caught an MPI exception");
-//      }
+      catch (const SafeMPI::Exception& e) {
+        print(e);
+        error("caught an MPI exception");
+      }
       catch (const madness::MadnessException& e) {
         print(e);
         error("caught a MADNESS exception");
@@ -3087,7 +3089,8 @@ int main(int argc, char** argv) {
       ThreadPool::end();
       print_stats(world);
     } // world is dead -- ready to finalize
-    Finalize();
+    mpi::Finalized();
+    finalize();
 
     return 0;
 }
