@@ -331,6 +331,9 @@ namespace SafeMPI {
     }; // class Request
 
     class Intracomm {
+        MPI_Comm comm;
+        int me;
+        int numproc;
 
         friend void Init(void);
         friend void Init(int &, char **& );
@@ -340,10 +343,6 @@ namespace SafeMPI {
         Intracomm& operator=(const Intracomm&);
 
     public:
-        MPI_Comm comm;
-        int me;
-        int numproc;
-
         struct WorldInitObject;
 
         // For internal use only. Do not try to call this constructor. It is
