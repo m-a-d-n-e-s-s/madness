@@ -42,6 +42,7 @@
 #include <cstdio>
 #include <pthread.h>
 #include <world/typestuff.h>
+#include <typeinfo>
 
 #ifdef MADNESS_TASK_PROFILING
 #include <execinfo.h> // for backtrace_symbols
