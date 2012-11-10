@@ -2,7 +2,7 @@ MY_ROOT=.
 DEBUG=YES
 #HPM_PROFILING=YES
 
-TARGET=BGQ
+TARGET=BGP
 
 
 #############################################
@@ -23,7 +23,7 @@ ifeq ($(TARGET),BGP)
 
    CC=mpixlc_r
    CXX=mpixlcxx_r
-   COPT= -O5 -qarch=450d -qtune=450 -qthreaded -qpath=ILbc:/soft/apps/xlC-interim-fix-virtualthunk/exe/
+   COPT= -O5 -qarch=450d -qtune=450 -qthreaded #-qpath=ILbc:/soft/apps/xlC-interim-fix-virtualthunk/exe/
    CXXFLAGS=$(INC) $(COPT) $(HAVE_BGPIBM)
    CPP=$(CC) -E
 
@@ -68,7 +68,7 @@ libMADMTXM.a: $(OBJECTS)
 	$(RANLIB) libMADMTXM.a
 
 $%.o: %.cc
-	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INC) $< -o $@
+	$(CC) -c $(CXXFLAGS) $(CPPFLAGS) $(INC) $< -o $@
 
 clean:
 	$(RM) $(RMFLAGS) *.o
