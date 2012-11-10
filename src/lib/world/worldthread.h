@@ -63,7 +63,8 @@
 #endif
 
 #if defined(HAVE_IBMBGP)
-#  include <spi/kernel_interface.h>
+// This header causes tinyxml.h to barf and we don't need it right now anyways.
+//#  include <spi/kernel_interface.h>
 #  include <common/bgp_personality.h>
 #  include <common/bgp_personality_inlines.h>
 #endif
