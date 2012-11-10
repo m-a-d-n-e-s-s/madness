@@ -2,8 +2,9 @@ MY_ROOT=.
 DEBUG=YES
 #HPM_PROFILING=YES
 
-TARGET=BGP
-
+ifndef TARGET
+$(error You must set TARGET to BGP or BGQ)
+endif
 
 #############################################
 
@@ -68,7 +69,7 @@ libMADMTXM.a: $(OBJECTS)
 	$(RANLIB) libMADMTXM.a
 
 $%.o: %.cc
-	$(CC) -c $(CXXFLAGS) $(CPPFLAGS) $(INC) $< -o $@
+	$(CXX) -c $(CXXFLAGS) $(CPPFLAGS) $(INC) $< -o $@
 
 clean:
 	$(RM) $(RMFLAGS) *.o
