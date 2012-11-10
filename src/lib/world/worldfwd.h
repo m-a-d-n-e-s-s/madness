@@ -336,10 +336,6 @@ instantiate the templates that you are using.
 #include <stdlib.h>
 #endif
 
-#ifdef UINT64_T
-typedef UINT64_T uint64_t;
-#endif
-
 // Madness world header files needed by world
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
