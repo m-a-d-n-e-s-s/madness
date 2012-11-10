@@ -49,7 +49,6 @@
 #ifdef HAVE_IBMBGP
 #  define BG_CYCLES_PER_MICROSECOND 850
 #  define BG_SECONDS_PER_CYCLE 1.176470588235294033e-09
-//#  include <arch/include/bpcore/ppc450_inlines.h>
 #  include </bgsys/drivers/ppcfloor/arch/include/bpcore/ppc450_inlines.h>
 #endif
 
