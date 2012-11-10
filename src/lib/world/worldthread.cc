@@ -44,6 +44,19 @@
 #include <cstring>
 #include <fstream>
 
+#if defined(HAVE_IBMBGP)
+// This header causes tinyxml.h to barf but we only need it in the implementation, not the header.
+#  include <spi/kernel_interface.h>
+#  include <common/bgp_personality.h>
+#  include <common/bgp_personality_inlines.h>
+#endif
+
+#if defined(HAVE_IBMBGQ)
+#  include <spi/include/kernel/location.h>
+#  include <spi/include/kernel/process.h>
+#endif
+
+
 namespace madness {
 
     int ThreadBase::cpulo[3];
@@ -119,33 +132,33 @@ namespace madness {
         pthread_attr_destroy(&attr);
     }
 
-
     /// Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
-// JEFF: use sysconf/sysctl until we're sure BG alternatives are correct.
-#if defined(HAVE_IBMBGP) && 0
+#if defined(HAVE_IBMBGP) 
          int ncpu=0;
          _BGP_Personality_t pers;
          Kernel_GetPersonality(&pers, sizeof(pers));
-              if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
+         if      ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
          else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
          else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
-#elif defined(HAVE_IBMBGQ) && 0
+         return ncpu;
+#elif defined(HAVE_IBMBGQ) 
         /* Return number of processors (hardware threads) within the current process. */
-        int ncpu=Kernel_ProcessorCount();
+        return Kernel_ProcessorCount();
 #elif defined(_SC_NPROCESSORS_CONF)
         int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-        if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+        if (ncpu <= 0) 
+           MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+        return ncpu;
 #elif defined(HC_NCPU)
-        int mib[2]={CTL_HW,HW_NCPU}, ncpu;
+        int mib[2]={CTL_HW,HW_NCPU};
         size_t len = sizeof(ncpu);
         if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
-        std::cout << "NCPU " << ncpu << std::endl;
+        //std::cout << "NCPU " << ncpu << std::endl;
 #else
-        int ncpu=1;
+        return 1;
 #endif
-        return ncpu;
     }
 
     /// Specify the affinity pattern or how to bind threads to cpus
