@@ -76,8 +76,9 @@ namespace madness {
 #if defined(HAVE_IBMBGP)
 #warning Use MPIX to get the actual rank-0-modulo-IO-pset processes...
 		        return ((rank/64)%nio) * 64;
-//#elif defined(HAVE_IBMBGQ)
-// TODO Use MPIX_Hardware to get PSET masters here...
+#elif defined(HAVE_IBMBGQ)
+#warning Use MPIX_Hardware to get PSET masters here...
+		        return ((rank/128)%nio) * 128;
 #else
                 return rank%nio;
 #endif
