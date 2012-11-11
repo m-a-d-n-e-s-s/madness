@@ -417,7 +417,9 @@ namespace madness {
         instance_ptr->main_thread.profiler().write_to_file();
 #endif // MADNESS_TASK_PROFILING
 
+#if !defined(HAVE_IBMBGP)
         ThreadBase::delete_thread_key();
+#endif
 #endif
     }
 
