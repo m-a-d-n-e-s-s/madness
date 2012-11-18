@@ -36,7 +36,6 @@ $Id$
   \brief ab initio computation of the solvent-solute interaction potential
   \defgroup examplegygi compute the dielectric cavity and the electrostatic potential of solute in solvent
   \ingroup examples                     
-                                                                                                                    
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/jacob/abinitdftsolventsolver>here</a>.  
 
   \par Points of interest
@@ -450,7 +449,7 @@ public:
     realfunc tcharge = make_normconst()*rhot; //total molecular charge in solvent
     realfunc U0 = op(charge);  //U
     //    double einf = -1.0/epsilon;
-    realfunc U = U0;//op(rhot)
+    realfunc U = op(rhot);
     // realfunc Ug = op(tcharge);//U0
     //    realfunc Ur = U;// - Uvac; 
     double unorm = U.norm2();
@@ -502,7 +501,7 @@ public:
     //plotdx(U,"iso_total_pot.dx");
     // throw "done";
     realfunc rxtnpot = U - op(rhot);
-    return rxtnpot;
+    return  rxtnpot;
   }
  //Defining the polarization of the dielectric continuum in the presence of 
  // an external electric field. Used in the response of solvated molecule  

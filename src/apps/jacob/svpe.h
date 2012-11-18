@@ -61,6 +61,7 @@ private:
   vector_real_function_3d dlog;
   realfunc rdielectric;
   realfunc surface;
+  realfunc volume;
 public:
   //constructor                                                                                                                                           
  ScreenSolventPotential(World& world,
@@ -83,7 +84,9 @@ public:
      realfunct gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,0));
      realfunct grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,1));
      realfunct gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,2));
-     realfunct surface_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+     realfunct surface_functor(new MolecularSurface(sigma, atomic_radii, atomic_coords));
+
+     realfunct volume_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
    // Make the actual functions                                                                                                                        
    const double rfourpi = -1.0/(4.0*constants::pi);
    rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
@@ -94,6 +97,7 @@ public:
    rdielectric.truncate(false);
    truncate(world, dlog);
    surface = real_factory_3d(world).functor(surface_functor);
+   volume = real_factory_3d(world).functor(volume_functor);
  }
   //make surface charge. life is good!!!uuh!
   /// Given the full Coulomb potential computes the surface charge                                                                                        
@@ -120,8 +124,11 @@ public:
     //    realfunc U = Uguess.is_initialized()? Uguess : U0;
     double unorm = U.norm2();
     double surf = surface.trace();
-    if(world.rank() == 0)
+    double vol = volume.trace();
+    if(world.rank() == 0){
         print("SURFACE ", surf);
+        print("VOLUMEE ", vol);
+    }
     if (USE_SOLVER) {
         madness::NonlinearSolver solver(20);//(5);
       // This section employs a non-linear equation solver from solvers.h                                                                                  
