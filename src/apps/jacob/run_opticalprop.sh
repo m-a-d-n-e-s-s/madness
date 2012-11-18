@@ -1,2 +1,2 @@
 #!/bin/bash
-python opticalproperties.py&
+python MAD_polarizability.py&
