@@ -303,12 +303,24 @@ namespace madness {
 
     namespace profiling {
 
+        /// Task event object
+
+        /// This object is used to record the task trace information, including
+        /// submit, start, and stop times as well as identification information.
         class TaskEvent {
         private:
-            std::pair<const void*, unsigned long> id_;
-            double times_[3];
-            unsigned long threads_;
+            std::pair<const void*, unsigned long> id_; ///< Task identification information
+            double times_[3]; ///< Task trace times: { submit, start, stop }
+            unsigned long threads_; ///< Number of threads used by task
 
+            /// Print demangled symbol name
+
+            /// Add the demangled symbol name to \c os . If demangling fails,
+            /// the unmodified symbol name is used instead. If symbol is NULL,
+            /// "UNKNOWN" is used instead. A tab character is added after the
+            /// symbol name.
+            /// \param os The output stream
+            /// \param symbol The symbol to add to the stream
             static void print_demangled(std::ostream& os, const char* symbol) {
                 // Get the demagled symbol name
                 if(symbol) {
@@ -327,15 +339,67 @@ namespace madness {
                 }
             }
 
+#ifdef ON_A_MAC
+
+            /// Get name of the function pointer
+
+            /// \return The mangled function name
+            std::string get_name() const {
+                // Get the backtrace symbol for the function address,
+                // which contains the function name.
+                void* const * func_ptr = const_cast<void* const *>(& id_.first);
+                char** bt_sym = backtrace_symbols(func_ptr, 1);
+
+                // Extract the mangled function name from the backtrace
+                // symbol.
+                std::istringstream iss(bt_sym[0]);
+                long frame;
+                std::string file, address, mangled_name;
+                iss >> frame >> file >> address >> mangled_name;
+
+                // Free the backtrace buffer
+                free(bt_sym);
+
+                return mangled_name;
+            }
+
+#else // Assume Linux
+
+            /// Get name of the function pointer
+
+            /// \return The mangled function name
+            std::string get_name() const {
+                // Get the backtrace symbol for the function address,
+                // which contains the function name.
+                void* const * func_ptr = const_cast<void* const *>(& id_.first);
+                char** bt_sym = backtrace_symbols(func_ptr, 1);
+
+                // Extract the mangled function name from the backtrace
+                // symbol.
+                std::string mangled_name;
+                const std::size_t pos = strchr(bt_sym[0],'(') - bt_sym[0];
+                const std::size_t n = (strrchr(bt_sym[0],'+') - bt_sym[0]) - pos;
+                mangled_name.copy(bt_sym[0], n, pos);
+                mangled_name += '\0';
+
+                // Free the backtrace buffer
+                free(bt_sym);
+
+                return mangled_name;
+            }
+#endif // ON_A_MAC
 
         public:
 
             /// No constructors are defined.
-//            TaskEvent() : id_(NULL, 0ul), times_(), threads_(0ul) {
-//                times_[0] = times_[1] = times_[2] = 0.0;
-//            }
 
-            /// record the start tiem of the task and collect task information
+            /// Record the start time of the task and collect task information
+
+            /// \param id The task identifier (a function pointer or const char*)
+            /// and an integer to differentiate the different types
+            /// \param threads The number of threads this task uses
+            /// \param submit_time The time that the task was submitted to the
+            /// task queue
             void start(const std::pair<const void*, unsigned int>& id,
                     const unsigned long threads, const double submit_time)
             {
@@ -348,6 +412,14 @@ namespace madness {
             /// Record the stop time of the task
             void stop() { times_[2] = wall_time(); }
 
+            /// Output the task data using a tab seperated list
+
+            /// Output information includes id pointer; the function, member
+            /// function, object type name; number of threads used by the task;
+            /// submit time; start time; and stop time.
+            /// \param os The output stream
+            /// \param te The task event to be output
+            /// \return The \c os reference.
             friend std::ostream& operator<<(std::ostream& os, const TaskEvent& te) {
                 // Add address to output stream
                 os << std::hex << std::showbase << te.id_.first <<
@@ -357,18 +429,7 @@ namespace madness {
                 switch(te.id_.second) {
                     case 1:
                         {
-                            // Get the backtrace symbol for the function address,
-                            // which contains the function name.
-                            void* const * func_ptr = const_cast<void* const *>(& te.id_.first);
-                            char** bt_sym = backtrace_symbols(func_ptr, 1);
-
-                            // Extract the mangled function name from the backtrace
-                            // symbol.
-                            std::istringstream iss(bt_sym[0]);
-                            long frame;
-                            std::string file, address, mangled_name;
-                            iss >> frame >> file >> address >> mangled_name;
-                            free(bt_sym);
+                            const std::string mangled_name = te.get_name();
 
                             // Print the demangled name
                             print_demangled(os, mangled_name.c_str());
@@ -392,7 +453,7 @@ namespace madness {
 
         /// Task event list base class
 
-        /// The base class allows the data to be stored in a linked list
+        /// This base class allows the data to be stored in a linked list
         class TaskEventListBase {
         private:
             TaskEventListBase* next_;
@@ -495,11 +556,9 @@ namespace madness {
 
         public:
             static const char* output_file_name_; ///< The output file name
-                                        ///< This variable is initialized by
-                                        ///< \c ThreadPool::begin . This variable
-                                        ///< is assigned the value given by the
-                                        ///< environment variable
-                                        ///< MAD_TASKPROFILER_NAME.
+                    ///< This variable is initialized by \c ThreadPool::begin .
+                    ///< This variable is assigned the value given by the
+                    ///< environment variable MAD_TASKPROFILER_NAME.
         public:
             /// Default constructor
             TaskProfiler() : head_(NULL), tail_(NULL) { }

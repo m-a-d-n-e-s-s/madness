@@ -28,6 +28,32 @@ AC_DEFUN([ACX_ENABLE_TASK_PROFILER], [
     AC_CHECK_HEADER([execinfo.h], [], [AC_MSG_ERROR([execinfo.h is required by the task profiler.])])
     AC_CHECK_HEADER([cxxabi.h], [], [AC_MSG_ERROR([cxxabi.h is required by the task profiler.])])
     AC_DEFINE([MADNESS_TASK_PROFILING],[1],[Define to enable task profiler.])
+    if test $ON_A_MAC = "no"; then
+      case $acx_enable_optimal_compiler in
+        GNU)
+          LD_FLAGS="$LD_FLAGS -rdynamic"
+        ;;
+        
+        clang)
+          LD_FLAGS="$LD_FLAGS -rdynamic"
+        ;;
+    
+        Pathscale)
+        ;;
+    
+        Portland)
+        ;;
+    
+        Intel)
+        ;;
+          
+        IBM)
+        ;;
+      
+        *)
+        ;;
+      esac
+    fi
   fi
   
   AC_LANG_RESTORE
