@@ -31,11 +31,11 @@ AC_DEFUN([ACX_ENABLE_TASK_PROFILER], [
     if test $ON_A_MAC = "no"; then
       case $acx_enable_optimal_compiler in
         GNU)
-          LD_FLAGS="$LD_FLAGS -rdynamic"
+          LDFLAGS="$LDFLAGS -rdynamic"
         ;;
         
         clang)
-          LD_FLAGS="$LD_FLAGS -rdynamic"
+          LDFLAGS="$LDFLAGS -rdynamic"
         ;;
     
         Pathscale)
