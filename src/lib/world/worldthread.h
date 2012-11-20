@@ -340,59 +340,44 @@ namespace madness {
                 }
             }
 
+            /// Get name of the function pointer
+
+            /// \return The mangled function name
+            std::string get_name() const {
+
+                // Get the backtrace symbol for the function address,
+                // which contains the function name.
+                void* const * func_ptr = const_cast<void* const *>(& id_.first);
+                char** bt_sym = backtrace_symbols(func_ptr, 1);
+
+                // Extract the mangled function name from the backtrace
+                // symbol.
+                std::string mangled_name;
+
 #ifdef ON_A_MAC
-
-            /// Get name of the function pointer
-
-            /// \return The mangled function name
-            void get_name(char* mangled_name, std::size_t max) const {
-                // Get the backtrace symbol for the function address,
-                // which contains the function name.
-                void* const * func_ptr = const_cast<void* const *>(& id_.first);
-                char** bt_sym = backtrace_symbols(func_ptr, 1);
-
-                // Extract the mangled function name from the backtrace
-                // symbol.
-                const char* first = std::strtok(std::strtok(std::strtok(std::strtok(bt_sym[0], " "), " "), " "), " ");
-                std::size_t n = (std::strrchr(first, '+') - first) - 2;
-                n = (n >= (max - 1) ? (max - 1) : n);
-                std::strncpy(mangled_name, first, n);
-                mangled_name[n + 1] = '\0';
-
-                // Free the backtrace buffer
-                free(bt_sym);
-            }
-
+                // Format of bt_sym is:
+                // <frame #> <file name> <address> <mangled name> + <function offset>
+                std::istringstream iss(bt_sym[0]);
+                long frame;
+                std::string file, address;
+                iss >> frame >> file >> address >> mangled_name;
 #else // Assume Linux
-
-            /// Get name of the function pointer
-
-            /// \return The mangled function name
-            void get_name(char* mangled_name, std::size_t max) const {
-                // Get the backtrace symbol for the function address,
-                // which contains the function name.
-                void* const * func_ptr = const_cast<void* const *>(& id_.first);
-                char** bt_sym = backtrace_symbols(func_ptr, 1);
-
-                // Extract the mangled function name from the backtrace
-                // symbol.
-                std::cout << bt_sym[0] << "\n";
-                const char* first = std::strchr(bt_sym[0],'(');
+                // Format of bt_sym is:
+                // <file>(<mangled name>+<function offset>) [<address>]
+                const char* first = strchr(bt_sym[0],'(');
                 if(first) {
-                    if(*first == '(')
-                        first += 1;
-                    std::size_t n = (std::strrchr(bt_sym[0],'+') - first) - 1;
-                    n = (n >= (max - 1) ? (max - 1) : n);
-                    std::cout << bt_sym[0] << "\n" << first << "\n" << n << "\n";
-                    std::strncpy(mangled_name, first, n);
-                    mangled_name[n + 1] = '\0';
-                } else {
-                    std::strncpy(mangled_name, "UNKNOWN", 8);
+                    ++first;
+                    const char* last = strrchr(first,'+');
+                    if(last)
+                        mangled_name.assign(first, (last - first) - 1);
                 }
+#endif // ON_A_MAC
+
                 // Free the backtrace buffer
                 free(bt_sym);
+
+                return mangled_name;
             }
-#endif // ON_A_MAC
 
         public:
 
@@ -431,14 +416,16 @@ namespace madness {
                         std::dec << std::noshowbase << "\t";
 
                 // Print the name
-                char mangled_name[1024];
                 switch(te.id_.second) {
                     case 1:
                         {
-                            te.get_name(mangled_name, 1024);
+                            const std::string mangled_name = te.get_name();
 
                             // Print the demangled name
-                            print_demangled(os, mangled_name);
+                            if(! mangled_name.empty())
+                                print_demangled(os, mangled_name.c_str());
+                            else
+                                os << "UNKNOWN\t";
                         }
                         break;
                     case 2:
