@@ -150,11 +150,11 @@ int main(int argc, char**argv) {
         FunctionDefaults<3>::set_truncate_on_project(true);
 
         // Inner and outer shells
-        functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(), 1.0, sigma)));
-        functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(), 3.0, sigma)));
+        functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(0.0), 1.0, sigma)));
+        functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(0.0), 3.0, sigma)));
 
-        //functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(), 1.0, sigma)));
-        //functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(), 3.0, sigma)));
+        //functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(0.0), 1.0, sigma)));
+        //functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(0.0), 3.0, sigma)));
 
         print("inner shell norm", spha.norm2());
         print("outer shell norm", sphb.norm2());
