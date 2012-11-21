@@ -58,10 +58,10 @@ foreach $file (@ARGV)
     my $thread = $line[0];        # Thread that the task ran on
     my $func_address = $line[1];  # Address of the task function
     my $func_name = $line[2];     # Name of task function
-    my $func_nthreads = $line[4]; # Number of threads used by the task
-    my $func_submit = $line[5];   # Task submit time
-    my $func_start = $line[6];    # Task start time
-    my $func_finish = $line[7];   # Task finish time
+    my $func_nthreads = $line[3]; # Number of threads used by the task
+    my $func_submit = $line[4];   # Task submit time
+    my $func_start = $line[5];    # Task start time
+    my $func_finish = $line[6];   # Task finish time
     #if ($max_nthread < $nthread) {
     #  $max_nthread = $nthread;
     #}
