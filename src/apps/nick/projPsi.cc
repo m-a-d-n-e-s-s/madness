@@ -491,9 +491,10 @@ void loadParameters(World& world, double& thresh, int& kMAD, double& L, double &
                 ///
                 ///FUTURE: Include logic for Tunneling vs Multiphoton regime
                 PRINTLINE( "omega = " << omega );
-                while( 2*(nPhoton*omega - Z*Z) < 0.0 ) nPhoton++; //just in case nPhoton is too small
+                // Keep adding photons until a positive KE is obtained.
+                while( 2*(nPhoton*omega - Z*Z) < 0.0 )  nPhoton++; //just in case nPhoton is too small
                 PRINTLINE("nPhoton = " << nPhoton);
-                PRINTLINE("The following shoud be positive: 2*nPhoton*omega - Z*Z = " << 2*nPhoton*omega - Z*Z);
+                PRINTLINE("Energy = " << std::sqrt( nPhoton*omega - Z*Z/2.0));
                 double dMAX = std::sqrt( 2*(nPhoton*omega - Z*Z)) * tMAX;
                 if(dMAX >= L) {
                     cutoff = L;
