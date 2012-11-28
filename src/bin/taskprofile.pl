@@ -3,7 +3,7 @@
 #
 #  This file is part of MADNESS.
 #
-#  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+#  Copyright (C) 2012 Jinmei Zhang
 #
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #  For more information please contact:
 #
 #  Robert J. Harrison
-# Oak Ridge National Laboratory
+#  Oak Ridge National Laboratory
 #  One Bethel Valley Road
 #  P.O. Box 2008, MS-6367
 #

@@ -123,8 +123,6 @@ namespace madness {
     }
 
     void initialize(int argc, char** argv) {
-        start_cpu_time = cpu_time();
-        start_wall_time = wall_time();
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
@@ -157,6 +155,8 @@ namespace madness {
         int required = MPI_THREAD_MULTIPLE;
 #endif
         SafeMPI::Init_thread(argc, argv, required);
+        start_cpu_time = cpu_time();
+        start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
 

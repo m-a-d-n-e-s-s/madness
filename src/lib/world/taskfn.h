@@ -289,7 +289,7 @@ namespace madness {
             return detail::get_mem_func_ptr(wrapper);
         }
 
-        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+        virtual void get_id(std::pair<void*,unsigned long>& id) const {
             return make_id(id, get_func(func_));
         }
 

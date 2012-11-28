@@ -134,7 +134,7 @@ namespace madness {
 
     /// Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
-#if defined(HAVE_IBMBGP) 
+#if defined(HAVE_IBMBGP)
          int ncpu=0;
          _BGP_Personality_t pers;
          Kernel_GetPersonality(&pers, sizeof(pers));
@@ -142,12 +142,12 @@ namespace madness {
          else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
          else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
          return ncpu;
-#elif defined(HAVE_IBMBGQ) 
+#elif defined(HAVE_IBMBGQ)
         /* Return number of processors (hardware threads) within the current process. */
         return Kernel_ProcessorCount();
 #elif defined(_SC_NPROCESSORS_CONF)
         int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-        if (ncpu <= 0) 
+        if (ncpu <= 0)
            MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
         return ncpu;
 #elif defined(HC_NCPU)
@@ -386,7 +386,8 @@ namespace madness {
         profiling::TaskProfiler::output_file_name_ =
                 getenv("MAD_TASKPROFILER_NAME");
         if(! profiling::TaskProfiler::output_file_name_) {
-            std::cerr
+            if(SafeMPI::COMM_WORLD.rank() == 0)
+                std::cerr
                     << "!!! WARNING: MAD_TASKPROFILER_NAME not set.\n"
                     << "!!! WARNING: There will be no task profile output.\n";
         } else {

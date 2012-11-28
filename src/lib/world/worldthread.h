@@ -310,7 +310,7 @@ namespace madness {
         /// submit, start, and stop times as well as identification information.
         class TaskEvent {
         private:
-            std::pair<const void*, unsigned long> id_; ///< Task identification information
+            std::pair<void*, unsigned long> id_; ///< Task identification information
             double times_[3]; ///< Task trace times: { submit, start, stop }
             unsigned long threads_; ///< Number of threads used by task
 
@@ -390,7 +390,7 @@ namespace madness {
             /// \param threads The number of threads this task uses
             /// \param submit_time The time that the task was submitted to the
             /// task queue
-            void start(const std::pair<const void*, unsigned int>& id,
+            void start(const std::pair<void*, unsigned int>& id,
                     const unsigned long threads, const double submit_time)
             {
                 id_ = id;
@@ -437,8 +437,12 @@ namespace madness {
 
                 // Print:
                 // # of threads, submit time, start time, stop time
-                os << te.threads_ << "\t" << te.times_[0]
+                os << te.threads_;
+                const std::streamsize precision = os.precision();
+                os.precision(6);
+                os << std::fixed << "\t" << te.times_[0]
                         << "\t" << te.times_[1] << "\t" << te.times_[2];
+                os.precision(precision);
                 return os;
             }
 
@@ -622,7 +626,7 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_;
     	double submit_time_;
-        std::pair<const void*, unsigned long> id_;
+        std::pair<void*, unsigned long> id_;
 
         void set_event(profiling::TaskEvent* task_event) {
             task_event_ = task_event;
@@ -650,14 +654,14 @@ namespace madness {
 
         template <typename fnT>
         static typename enable_if<std::is_function<fnT> >::type
-        make_id(std::pair<const void*,unsigned long>& id, fnT* fn) {
-            id.first = reinterpret_cast<const void*>(fn);
+        make_id(std::pair<void*,unsigned long>& id, fnT* fn) {
+            id.first = reinterpret_cast<void*>(fn);
             id.second = 1ul;
         }
 
         template <typename memfnT>
         static typename enable_if<std::is_member_function_pointer<memfnT> >::type
-        make_id(std::pair<const void*,unsigned long>& id, memfnT memfn) {
+        make_id(std::pair<void*,unsigned long>& id, memfnT memfn) {
             FunctionPointerGrabber<memfnT> poop;
             poop.in = memfn;
             id.first = poop.out;
@@ -667,14 +671,14 @@ namespace madness {
         template <typename fnobjT>
         static typename disable_if_c<std::is_function<fnobjT>::value ||
                 std::is_member_function_pointer<fnobjT>::value>::type
-        make_id(std::pair<const void*,unsigned long>& id, const fnobjT&) {
-            id.first = reinterpret_cast<const void*>(typeid(fnobjT).name());
+        make_id(std::pair<void*,unsigned long>& id, const fnobjT&) {
+            id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
             id.second = 2ul;
         }
 
     private:
 
-        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+        virtual void get_id(std::pair<void*,unsigned long>& id) const {
             id.first = NULL;
             id.second = 0ul;
         }
@@ -785,7 +789,7 @@ namespace madness {
     public:
         void run(const TaskThreadEnv& /*info*/) {}
         virtual ~PoolTaskNull() {}
-        virtual void get_id(std::pair<const void*,unsigned long>& id) const {
+        virtual void get_id(std::pair<void*,unsigned long>& id) const {
             PoolTaskInterface::make_id(id, &PoolTaskNull::run);
         }
     };
