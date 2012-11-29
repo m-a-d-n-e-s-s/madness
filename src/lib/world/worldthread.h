@@ -653,24 +653,18 @@ namespace madness {
 
 
         template <typename fnT>
-        static typename enable_if<std::is_function<fnT> >::type
-        make_id(std::pair<void*,unsigned long>& id, fnT* fn) {
-            id.first = reinterpret_cast<void*>(fn);
-            id.second = 1ul;
-        }
-
-        template <typename memfnT>
-        static typename enable_if<std::is_member_function_pointer<memfnT> >::type
-        make_id(std::pair<void*,unsigned long>& id, memfnT memfn) {
-            FunctionPointerGrabber<memfnT> poop;
-            poop.in = memfn;
+        static typename enable_if_c<detail::function_traits<fnT>::value ||
+                detail::memfunc_traits<fnT>::value>::type
+        make_id(std::pair<void*,unsigned long>& id, fnT fn) {
+            FunctionPointerGrabber<fnT> poop;
+            poop.in = fn;
             id.first = poop.out;
             id.second = 1ul;
         }
 
         template <typename fnobjT>
-        static typename disable_if_c<std::is_function<fnobjT>::value ||
-                std::is_member_function_pointer<fnobjT>::value>::type
+        static typename disable_if_c<detail::function_traits<fnobjT>::value ||
+                detail::memfunc_traits<fnobjT>::value>::type
         make_id(std::pair<void*,unsigned long>& id, const fnobjT&) {
             id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
             id.second = 2ul;
