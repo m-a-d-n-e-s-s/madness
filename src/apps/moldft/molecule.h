@@ -148,6 +148,8 @@ public:
 
     std::vector< madness::Vector<double,3> > get_all_coords_vec() const;
 
+    std::vector<double> atomic_radii;
+
     void set_all_coords(const madness::Tensor<double>& newcoords);
 
     void set_eprec(double value);
@@ -181,6 +183,8 @@ public:
     double nuclear_dipole(int axis) const;
 
     double nuclear_charge_density(double x, double y, double z) const;
+
+    double mol_nuclear_charge_density(double x, double y, double z) const;
 
     double smallest_length_scale() const;
 
