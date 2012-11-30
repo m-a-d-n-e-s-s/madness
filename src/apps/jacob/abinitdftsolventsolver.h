@@ -201,6 +201,7 @@ private:
   struct derivative_characteristic_func{
     double rho0;
     double beta;
+    double epsilon;
     double cutrho;
       derivative_characteristic_func(){}
       derivative_characteristic_func(double rho0, double beta,double cutrho)
