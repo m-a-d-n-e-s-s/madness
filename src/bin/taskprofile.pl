@@ -49,8 +49,16 @@ my $make_histo        = 1;
 my $nslices           = 100;
 my $skip_shorter_than =
   0.00;    # skip if task shorter than this fraction of the timeslice
-my $runninghisto_includes = ".*"; # use this search pattern to only include particular tasks in the running histogram
-# e.g. use this to produce histograms of all calls to set_value: $runninghisto_includes = "set_value";
+
+# use this search pattern to only include particular tasks in the running histogram
+my %runninghisto_includes = (
+  "all" => ".*"   # account all tasks 
+# add additional patterns below, e.g. for ta_dgemm these are useful
+#  , "contract" => "contract"
+#  , "setvalue" => "set_value"
+#  , "bcasth" => "bcast_.*_handler"
+#  , "bcastt" => "BcastTask"
+);
 
 foreach $file (@ARGV) {
 
@@ -136,8 +144,12 @@ if ($make_histo) {
 	foreach $ts ( 0 .. $nslices - 1 ) { push @pendinghisto, 0.0; }
 	my @inprogresshisto = ();
 	foreach $ts ( 0 .. $nslices - 1 ) { push @inprogresshisto, 0.0; }
-	my @runninghisto = ();
-	foreach $ts ( 0 .. $nslices - 1 ) { push @runninghisto, 0.0; }
+	my %runninghistos = {};
+    foreach my $key (keys %runninghisto_includes) {
+    	my $values = [];
+        foreach $ts ( 0 .. $nslices - 1 ) { push @$values, 0.0; }
+        $runninghistos{$key} = $values;
+    }
 
 	# not time-weighted
 	my @spawnedhisto = ();
@@ -256,22 +268,29 @@ if ($make_histo) {
                 	
                     my $start_ts_0 = floor( $time_start / $timestep );
                     my $start_ts_1 = floor( $time_finish / $timestep );
+                    
                     if ( $start_ts_0 != $start_ts_1 ) {
-                    	if ($func_name =~ /$runninghisto_includes/) {
-                          $runninghisto[$start_ts_0] +=
-                              ( $start_ts_0 + 1 ) - ( $time_start / $timestep );
-                          foreach my $ts ( $start_ts_0 + 1 .. $start_ts_1 - 1 ) {
-                                $runninghisto[$ts] += 1;
-                          }
-                          $runninghisto[$start_ts_1] +=
-                            ( $time_finish / $timestep ) - $start_ts_1;
-                        }
+                    	foreach my $key (keys %runninghisto_includes) {
+                    		my $func_name_pattern = $runninghisto_includes{$key};
+                            if ($func_name =~ /$func_name_pattern/) {
+                              ${ $runninghistos{$key} }[$start_ts_0] +=
+                                  ( $start_ts_0 + 1 ) - ( $time_start / $timestep );
+                              foreach my $ts ( $start_ts_0 + 1 .. $start_ts_1 - 1 ) {
+                                  ${ $runninghistos{$key} }[$ts] += 1;
+                            }
+                            ${ $runninghistos{$key} }[$start_ts_1] +=
+                              ( $time_finish / $timestep ) - $start_ts_1;
+                            }                    		
+                    	}
                     }
                     else {
-                    	if ($func_name =~ /$runninghisto_includes/) {
-                            $runninghisto[$start_ts_0] +=
-                              ( $time_finish - $time_start ) / $timestep;
-                    	}
+                        foreach my $key (keys %runninghisto_includes) {
+                            my $func_name_pattern = $runninghisto_includes{$key};
+                            if ($func_name =~ /$func_name_pattern/) {
+                                ${ $runninghistos{$key} }[$start_ts_0] +=
+                                  ( $time_finish - $time_start ) / $timestep;
+                         	}
+                        }
                     }
                 	
                 	$time_finish_last = $time_finish;
@@ -282,32 +301,42 @@ if ($make_histo) {
 		# print out the histograms for this trace
 		printf STDOUT "file = %s\n",      $file;
 		printf STDOUT "timestep = %lf\n", $timestep;
-		printf STDOUT "# of spawned tasks\n";
+
+		printf STDOUT "# ts nspawned nstarted nretired\n";
 		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $spawnedhisto[$ts];
+			printf STDOUT "%d\t%lf\t%lf\t%lf\n", $ts, $spawnedhisto[$ts], $startedhisto[$ts], $retiredhisto[$ts];
 		}
-		printf STDOUT "# of started tasks\n";
-		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $startedhisto[$ts];
+#		printf STDOUT "time-weighted # of waiting\n";
+#		foreach my $ts ( 0 .. $nslices - 1 ) {
+#			printf STDOUT "%d %lf\n", $ts, $pendinghisto[$ts];
+#		}
+#		printf STDOUT "time-weighted # of in-progress\n";
+#		foreach my $ts ( 0 .. $nslices - 1 ) {
+#			printf STDOUT "%d %lf\n", $ts, $inprogresshisto[$ts];
+#		}
+
+		# list keys in a reasonable order (keys returns keys in a weird order)
+		# "all" first, then the rest
+		my @running_keys = ("all");
+		foreach my $key (keys %runninghisto_includes) {
+			push @running_keys, $key if $key ne "all";
 		}
-		printf STDOUT "# of retired tasks\n";
+        printf STDOUT "# ts pend";		
+        foreach my $key (@running_keys) {
+        	printf STDOUT " run_%s", $key;
+        }
+        printf STDOUT "\n";
 		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $retiredhisto[$ts];
-		}
-		printf STDOUT "time-weighted # of waiting\n";
-		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $pendinghisto[$ts];
-		}
-		printf STDOUT "time-weighted # of in-progress\n";
-		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $inprogresshisto[$ts];
-		}
-		printf STDOUT "time-weighted # of running\n";
-		foreach my $ts ( 0 .. $nslices - 1 ) {
-			printf STDOUT "%d %lf\n", $ts, $runninghisto[$ts];
+			printf STDOUT "%d", $ts;
+			printf STDOUT "\t%lf", $pendinghisto[$ts];
+			foreach my $key (@running_keys) {
+  			    printf STDOUT "\t%lf", ${ $runninghistos{$key} }[$ts];
+			}
+			printf STDOUT "\n";
 		}
 		
-		open ATFILE, ">active_tasks" || die "could not open active_tasks";
+		my $active_tasks_fname = "$file.active_tasks.log";
+		open ATFILE, ">$active_tasks_fname" || die "could not open $active_tasks_fname";
 		foreach my $ts (0 .. $nslices-1) {
 			printf ATFILE "============================ ts %d: [%lf,%lf] =============================\n",
 			  $ts, $ts*$timestep, ($ts+1)*$timestep;
