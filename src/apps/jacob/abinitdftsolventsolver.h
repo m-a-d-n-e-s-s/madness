@@ -70,7 +70,7 @@ private:
   const double& minlen; // minimul in the coulomb operator
   const double& thresh;
   real_convolution_3d op; //< Coulomb operator
-    // static const double cutrho = 1e-12;  //cutoff value of the density (problematics with some compilers)
+  static const double cutrho;// = 1e-12;  //cutoff value of the density (problematics with some compilers)
   //utility function
 
   //unary operator to determine the reciprocal of a madness function
@@ -90,8 +90,8 @@ private:
             ITERATOR(U,
                      double d = gradu(IND);
                      double p = dedrho(IND);
-                     if (std::abs(p)<1e-12 || std::abs(d)<1e-12)
-                         //if (std::abs(p)<cutrho || std::abs(d)<cutrho)
+                     // if (std::abs(p)<1e-12 || std::abs(d)<1e-12)
+                     if (std::abs(p)<cutrho || std::abs(d)<cutrho)
                          U(IND) = 0.0;
                      else
                          U(IND) = d*d*p;
@@ -100,7 +100,7 @@ private:
 
         template <typename Archive>
         void serialize(Archive& ar) {}
-    };
+  };
 
   //Compute the dielectric cavity on the go
   template<typename T,int DIM>
@@ -108,19 +108,19 @@ private:
     double rho0;
     double beta;
     double epsilon;
-      //double cutrho;
+    double cutrho;
 
     Epsilon_rho() {};
 
-      Epsilon_rho(double rho0, double beta, double epsilon)//, double cutrho)
-          : rho0(rho0), beta(beta), epsilon(epsilon)//, cutrho(cutrho)
+      Epsilon_rho(double rho0, double beta, double epsilon, double cutrho)
+          : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
     {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
       UNARY_OPTIMIZED_ITERATOR(T,t,
                                T rho = std::fabs(*_p0);
-                               //if(rho < cutrho)
-                               if(rho < 1e-12)
+                               if(rho < cutrho)
+                                   //if(rho < 1e-12)
                                *_p0 = epsilon;
 			       else {
 				 T ratio = std::pow(rho/rho0,2.0*beta);
@@ -135,7 +135,7 @@ private:
     }
 
     template <typename Archive>void serialize(Archive& ar) {
-        ar & rho0 & beta & epsilon;// & cutrho;
+        ar & rho0 & beta & epsilon & cutrho;
     }
   };
   //Compute the normalization constant of  the density on the go
@@ -144,17 +144,17 @@ private:
     double rho0;
     double beta;
     double epsilon;
-      // double cutrho;
+    double cutrho;
       normconst(){}
-      normconst(double rho0, double beta, double epsilon)//, double cutrho)
-          : rho0(rho0), beta(beta), epsilon(epsilon)//, cutrho(cutrho)
+      normconst(double rho0, double beta, double epsilon, double cutrho)
+          : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
       {}
 
       void operator()(const Key<DIM>& key,Tensor<T>& t) const {
           UNARY_OPTIMIZED_ITERATOR(T,t,
                                    T rho = std::fabs(*_p0);
-                                   //if(rho < cutrho)
-                                   if(rho < 1e-12)
+                                   if(rho < cutrho)
+                                       //if(rho < 1e-12)
                                        *_p0 = 0.0;
                                    else {
                                        T ratio = std::pow(rho/rho0,2.0*beta);
@@ -163,7 +163,7 @@ private:
                                    );
       }
       template <typename Archive>void serialize(Archive& ar) {
-          ar & rho0 & beta & epsilon;// & cutrho;
+          ar & rho0 & beta & epsilon & cutrho;
       }
   };
   //Compute the derivative of the dielectric cavity on the go
@@ -172,10 +172,10 @@ private:
     double rho0;
     double beta;
     double epsilon;
-      //double cutrho;
+    double cutrho;
     dEpsilon_drho(){}
-      dEpsilon_drho(double rho0, double beta, double epsilon)//, double cutrho)
-          : rho0(rho0), beta(beta), epsilon(epsilon)//, cutrho(cutrho)
+      dEpsilon_drho(double rho0, double beta, double epsilon, double cutrho)
+          : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
     {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
@@ -192,7 +192,7 @@ private:
 			       );
     }
     template <typename Archive>void serialize(Archive& ar) {
-        ar & rho0 & beta & epsilon;// & cutrho;
+        ar & rho0 & beta & epsilon & cutrho;
     }
   };
     //Compute the derivative of the characteristic function on the go
@@ -201,10 +201,10 @@ private:
   struct derivative_characteristic_func{
     double rho0;
     double beta;
-      // double cutrho;
+    double cutrho;
       derivative_characteristic_func(){}
-      derivative_characteristic_func(double rho0, double beta)//,double cutrho)
-          : rho0(rho0), beta(beta)//, cutrho(cutrho)
+      derivative_characteristic_func(double rho0, double beta,double cutrho)
+          : rho0(rho0), beta(beta), cutrho(cutrho)
       {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
@@ -216,7 +216,7 @@ private:
                                );
     }
       template<typename Archive>void serialize(Archive& ar) {
-          ar & rho0 & beta & epsilon;// & cutrho;
+          ar & rho0 & beta & epsilon & cutrho;
     }
   };
     //Compute the characteristic function
@@ -225,10 +225,10 @@ private:
   struct characteristic_func{
     double rho0;
     double beta;
-      //double cutrho;
+    double cutrho;
       characteristic_func(){}
-      characteristic_func(double rho0, double beta)//, double cutrho)
-          : rho0(rho0), beta(beta)//, cutrho(cutrho)
+      characteristic_func(double rho0, double beta, double cutrho)
+          : rho0(rho0), beta(beta), cutrho(cutrho)
       {}
 
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
@@ -245,7 +245,7 @@ private:
                                );
     }
       template<typename Archive>void serialize(Archive& ar) {
-          ar & rho0 & beta;// & cutrho;
+          ar & rho0 & beta & cutrho;
     }
   };
   //Compute the ratio of the derivative of epsilon by epsilon on the go
@@ -254,10 +254,10 @@ private:
         double rho0;
         double beta;
         double epsilon;
-        // double cutrho;
+        double cutrho;
         ratioepsilon(){}
-        ratioepsilon(double rho0, double beta, double epsilon)//, double cutrho)
-            : rho0(rho0), beta(beta), epsilon(epsilon)//, cutrho(cutrho)
+        ratioepsilon(double rho0, double beta, double epsilon, double cutrho)
+            : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
         {}
         
         void operator()(const Key<DIM>& key,Tensor<T>& t) const {
@@ -278,7 +278,7 @@ private:
                                      );
         }
         template <typename Archive>void serialize(Archive& ar) {
-            ar & rho0 & beta & epsilon;// & cutrho;
+            ar & rho0 & beta & epsilon & cutrho;
         }
     };
     //Compute the reciprocal of dielectric cavity on the go
@@ -287,10 +287,10 @@ private:
     double rho0;
     double beta;
     double epsilon;
-      // double cutrho;
+    double cutrho;
       repsilon_rho(){}
-      repsilon_rho(double rho0, double beta, double epsilon)//, double cutrho)
-          : rho0(rho0), beta(beta), epsilon(epsilon)//, cutrho(cutrho)
+      repsilon_rho(double rho0, double beta, double epsilon, double cutrho)
+          : rho0(rho0), beta(beta), epsilon(epsilon), cutrho(cutrho)
     {}
     void operator()(const Key<DIM>& key,Tensor<T>& t) const {
       UNARY_OPTIMIZED_ITERATOR(T,t,
@@ -304,7 +304,7 @@ private:
 			       );
     }
     template <typename Archive>void serialize(Archive& ar) {
-        ar & rho0 & beta & epsilon;// & cutrho;
+        ar & rho0 & beta & epsilon & cutrho;
     }
   };
     //Use UNARY operator to obtain the point-wise norm of the electric field
@@ -338,13 +338,13 @@ public:
   //make epsilon
   realfunc make_epsilon() const {
     realfunc value = copy(rho);
-    value.unaryop(Epsilon_rho<double,3>(rho_0, beta, epsilon));//,cutrho));
+    value.unaryop(Epsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
     return value;
   }
   //make normalization constant
   realfunc make_normconst() const {
     realfunc value = copy(rho);
-    value.unaryop(normconst<double,3>(rho_0, beta, epsilon));//,cutrho));
+    value.unaryop(normconst<double,3>(rho_0, beta, epsilon,cutrho));
     return value;
   }
   //make dielectric surface
@@ -353,33 +353,33 @@ public:
       real_derivative_3d Dx = free_space_derivative<double,3>(rho.world(), 0);
       real_derivative_3d Dy = free_space_derivative<double,3>(rho.world(), 1);
       real_derivative_3d Dz = free_space_derivative<double,3>(rho.world(), 2);
-      value.unaryop(derivative_characteristic_func<double,3>(rho_0, beta));//,cutrho));
+      value.unaryop(derivative_characteristic_func<double,3>(rho_0, beta,cutrho));
       return value*value*(Dx(rho)*Dx(rho) +Dy(rho)*Dy(rho) + Dz(rho)*Dz(rho));
   }
     //make characteristic function
   realfunc make_characteristic_func() const {
       realfunc value = copy(rho);
-      value.unaryop(characteristic_func<double,3>(rho_0, beta));//,cutrho));
+      value.unaryop(characteristic_func<double,3>(rho_0, beta ,cutrho));
       return value;
   }
   
   //make reciprocal of epsilon
   realfunc make_repsilon() const {
     realfunc value = copy(rho);
-    value.unaryop(repsilon_rho<double,3>(rho_0, beta, epsilon));//,cutrho));
+    value.unaryop(repsilon_rho<double,3>(rho_0, beta, epsilon,cutrho));
     return value;
   }
 
   //make derivative of epsilon
   realfunc make_depsilon_drho() const {
     realfunc value = copy(rho);
-    value.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon));//,cutrho));
+    value.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
     return value;
   }
   //make ratio of the derivative of epsilon w.r.t rho by epsilon
   realfunc make_ratioepsilon() const {
     realfunc value = copy(rho);
-    value.unaryop(ratioepsilon<double,3>(rho_0, beta,epsilon));//,cutrho));
+    value.unaryop(ratioepsilon<double,3>(rho_0, beta,epsilon,cutrho));
     return value;
   }
 
@@ -417,7 +417,7 @@ public:
         real_derivative_3d Dz = free_space_derivative<double,3>(rho.world(), 2);
         realfunc grad = (Dx(rho) + Dy(rho) + Dz(rho));
         realfunc depdrho = copy(rho);
-        depdrho.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon));//,cutrho));
+        depdrho.unaryop(dEpsilon_drho<double,3>(rho_0, beta,epsilon,cutrho));
         //    return make_depsilon_drho()*grad_of(rhot);
         return grad*value;
   }
@@ -612,4 +612,5 @@ public:
     thresh(FunctionDefaults<3>::get_thresh()),
     op(CoulombOperator(world, minlen, thresh)){}
 };
+const double DFTSolventSolver::cutrho = 1e-12;  //cutoff value of the density (problematics with some compilers)
 #endif
