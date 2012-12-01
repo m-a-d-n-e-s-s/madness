@@ -377,7 +377,8 @@ void doit(World& world) {
     real_functionT V0, V0x, V0y, V0z;
     //double shift=0.;
     bool doso = false; // turned on once converged to 1e-4
-    print(" u size ",  u.size(), "v size ", v.size(), "\n");
+    if (world.rank() == 0) {
+      print(" u size ",  u.size(), "v size ", v.size(), "\n");
 
     doitagain:
 
