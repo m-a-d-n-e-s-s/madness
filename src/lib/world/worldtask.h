@@ -68,6 +68,7 @@ namespace madness {
 
         template <typename ptrT, typename memfnT, typename resT>
         memfnT get_mem_func_ptr(const MemFuncWrapper<ptrT, memfnT, resT>&);
+        template <typename, typename> class ForEachRootTask;
 
         /// Serialization container for sending tasks to remote nodes
         /// This is for internal use only. You should not use this class directly.
@@ -385,8 +386,6 @@ namespace madness {
     }  // namespace detail
 
 
-
-
     /// Multi-threaded queue to manage and run tasks.
     class WorldTaskQueue : public CallbackInterface, private NO_DEFAULTS {
         friend class TaskInterface;
@@ -699,17 +698,11 @@ namespace madness {
         /// in neither synchronization nor result status.
         template <typename rangeT, typename opT>
         Future<bool> for_each(const rangeT& range, const opT& op) {
-            if (range.size() <= range.get_chunksize()) {
-                bool status = true;
-                for (typename rangeT::iterator it=range.begin();  it != range.end();  ++it) status &= op(it);
-                return Future<bool>(status);
-            } else {
-                rangeT left = range;
-                rangeT right(left,Split());
-                Future<bool>  leftsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, left,  op, TaskAttributes::hipri());
-                Future<bool> rightsum = add(*this, &WorldTaskQueue::for_each<rangeT,opT>, right, op, TaskAttributes::hipri());
-                return add(&WorldTaskQueue::completion_status, leftsum, rightsum);
-            }
+            detail::ForEachRootTask<rangeT, opT>* for_each_root =
+                    new detail::ForEachRootTask<rangeT, opT>(world, range, op);
+            Future<bool> result = for_each_root->result();
+            add(for_each_root);
+            return result;
         }
 
 
@@ -1256,6 +1249,133 @@ namespace madness {
 #endif
         }
     };
+
+    namespace detail {
+
+        /// Apply an operation to a range of iterators
+
+        /// \tparam rangeT The range of iterators type
+        /// \tparam opT The operation type
+        /// This task will progressively split range, spawning leaf for each
+        /// tasks, until the range of iterators is smaller than the range chunck
+        /// size.
+        template <typename rangeT, typename opT>
+        class ForEachTask : public TaskInterface {
+        private:
+            rangeT range_; ///< The range of iterators
+            opT op_; ///< The operation to apply to range
+            ForEachRootTask<rangeT, opT>& root_; ///< The root task that signals completion and status
+
+            // not allowed
+            ForEachTask(const ForEachTask<rangeT, opT>&);
+            ForEachTask& operator=(const ForEachTask<rangeT, opT>&);
+
+        public:
+
+            /// Constructor
+            ForEachTask(const rangeT range, const opT& op, ForEachRootTask<rangeT, opT>& root) :
+                TaskInterface(0, TaskAttributes::hipri()), range_(range), op_(op), root_(root)
+            {
+                // Increment the master task dependency counter for this task
+                root_.inc();
+            }
+
+            /// Virtual destructor
+            virtual ~ForEachTask() { }
+
+
+            virtual void get_id(std::pair<void*,unsigned long>& id) const {
+                return PoolTaskInterface::make_id(id, *this);
+            }
+
+            /// Run the task
+            virtual void run(const TaskThreadEnv&) {
+                // Spawn leaf tasks and split range until it is less than chuncksize
+                while(range_.size() > range_.get_chunksize()) {
+                    rangeT right(range_,Split());
+                    ForEachTask<rangeT,opT>* leaf = new ForEachTask<rangeT,opT>(right, op_, root_);
+                    root_.world().taskq.add(leaf);
+                }
+
+                // Iterate over the remaining chunck of range and call op_ for each element
+                int status = 0;
+                for(typename rangeT::iterator it = range_.begin(); it != range_.end();  ++it)
+                    if(op_(it))
+                        ++status;
+
+                // Notify the root task that this task is done give the status
+                root_.complete(status);
+            }
+
+        }; // class ForEachTask
+
+
+        /// Apply an operation to a range of iterators
+
+        /// \tparam rangeT The range of iterators type
+        /// \tparam opT The operation type
+        /// This task spawns for each tasks and collects information on the
+        /// results of those tasks. Once all tasks have completed it will set
+        /// the result future.
+        template <typename rangeT, typename opT>
+        class ForEachRootTask : public TaskInterface {
+        private:
+            World& world_; ///< The world where this task will run
+            AtomicInt status_; ///< Accumulates the status of each iteration
+            Future<bool> completion_status_; ///< The result of this set of tasks
+
+        public:
+
+            /// Constructor
+
+            /// \param world The world where the tasks will run
+            /// \param range The range of iterators
+            /// \param op The oeration that will be applied to the range of iterators
+            ForEachRootTask(World& world, const rangeT range, const opT& op) :
+                TaskInterface(0, TaskAttributes::hipri()), world_(world)
+            {
+                status_ = - (range.size());
+                // Create the first for each task.
+                world_.taskq.add(new ForEachTask<rangeT,opT>(range, op, *this));
+            }
+
+            /// Virtual destructor
+            virtual ~ForEachRootTask() { }
+
+            /// World accessor
+
+            /// \return A reference to the world
+            World& world() const { return world_; }
+
+            /// Result accessor
+
+            /// \return A const reference to the result future
+            const Future<bool>& result() const { return completion_status_; }
+
+            /// Called by child tasks when they are complete
+
+            /// \param status The number of iterations that returned true
+            void complete(const int status) {
+                status_ += status;
+                DependencyInterface::notify();
+            }
+
+            /// Get the task id
+
+            /// \param id The id to set for this task
+            virtual void get_id(std::pair<void*,unsigned long>& id) const {
+                return PoolTaskInterface::make_id(id, *this);
+            }
+
+            /// Task run work
+
+            /// Sets the result future based on the status of all iterations
+            virtual void run(const TaskThreadEnv&) { completion_status_.set(status_ == 0); }
+
+        }; // class ForEachRootTask
+
+
+    }  // namespace detail
 
 }
 

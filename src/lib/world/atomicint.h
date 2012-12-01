@@ -104,7 +104,7 @@ namespace madness {
     public:
         /// Returns the value of the counter with fence ensuring subsequent operations are not moved before the load
         operator int() const volatile {
-            /* Jeff moved the memory barrier inside of the architecture-specific blocks 
+            /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
 #if defined(MADATOMIC_USE_BGP)
             int result = value.atom;
@@ -124,7 +124,7 @@ namespace madness {
 
         /// Sets the value of the counter with fence ensuring preceding operations are not moved after the store
         int operator=(int other) {
-            /* Jeff moved the memory barrier inside of the architecture-specific blocks 
+            /* Jeff moved the memory barrier inside of the architecture-specific blocks
              * since it may be required to use a heavier hammer on some of them.        */
 #if defined(MADATOMIC_USE_BGP)
 	    // BARRIER to stop instructions migrating down
@@ -164,6 +164,16 @@ namespace madness {
         /// Increments the counter and returns the incremented value
         int operator++() {
             return exchange_and_add(1) + 1;
+        }
+
+        /// Add \c value and returns the new value
+        int operator+=(const int value) {
+            return exchange_and_add(value) + value;
+        }
+
+        /// Subtract \c value and returns the new value
+        int operator-=(const int value) {
+            return exchange_and_add(-value) - value;
         }
 
         /// Decrements the counter and returns true if the new value is zero
