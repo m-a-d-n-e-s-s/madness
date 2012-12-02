@@ -468,6 +468,7 @@ void doit(World& world) {
 	  Vv[i].refine();
 	}
 
+	world.gop.fence();
 	std::vector<poperatorT> ops = make_bsh_operators(world, e1, thresh);
 
 	std::vector<complex_functionT> u_new = apply(world, ops, Vu);
@@ -485,6 +486,7 @@ void doit(World& world) {
 
 	for (int i=0; i<nvec; i++)
 	  rnorm[i] = sqrt(rnormu[i]*rnormu[i] + rnormv[i]*rnormv[i]);
+	world.gop.fence();
 
 	maxerr= 0.;
 	for (int i=0; i<nvec; i++) {
