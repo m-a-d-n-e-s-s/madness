@@ -378,7 +378,7 @@ void doit(World& world) {
     //double shift=0.;
     bool doso = false; // turned on once converged to 1e-4
     if (world.rank() == 0) {
-      print(" u size ",  u.size(), "v size ", v.size(), "\n");
+      print(" u size ",  u.size(), "v size ", v.size()); }
 
     doitagain:
 
