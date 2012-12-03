@@ -38,8 +38,6 @@
 
 /// \ingroup function
 
-//extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
-
 #include <mra/mra.h>
 #include <limits.h>
 #include <mra/adquad.h>
@@ -173,8 +171,6 @@ namespace madness {
             }
             // Assuming here that result is contiguous and aligned
             aligned_axpy(size, result.ptr(), w1, mufac);
-            //    long one = 1;
-            //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
         }
 
         /// Apply one of the separated terms, accumulating into the result
