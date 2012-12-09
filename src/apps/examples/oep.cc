@@ -50,11 +50,6 @@
 #include <mra/mraimpl.h>
 #include <mra/operator.h>
 #include <mra/lbdeux.h>
-extern "C" {
-	#include "/Users/fbischoff/devel/version_1/utils.h"
-	#include "/Users/fbischoff/devel/version_1/delaunay.h"
-	#include "/Users/fbischoff/devel/version_1/natural.h"
-}
 
 using namespace madness;
 
@@ -201,7 +196,9 @@ struct molecular_potential {
 	molecular_potential(std::vector<Atom>& atoms) : atoms(atoms) {}
 	double operator()(const coord_3d& xyz) const {
 		double val=0.0;
-		for (const Atom& atom : atoms) {
+		std::vector<Atom>::const_iterator it;
+		for (it=atoms.begin(); it!=atoms.end(); it++) {
+			const Atom& atom=*it;
 			val+=atom.second*u(rr(xyz-atom.first),0.00001);
 		}
 		return val;
@@ -271,7 +268,8 @@ struct recpot {
 	/// @return		the value of the potential at point xyz
 	double operator()(const coord_3d& xyz) const {
 		double r=rr(xyz);
-		if (ZZ>0.0) return (interpolate(r)- ZZ* u(r,1.e-6));	// if a potential
+		if (ZZ>0.0) return (interpolate(r));	// if a potential
+//		if (ZZ>0.0) return (interpolate(r)- ZZ* u(r,1.e-6));	// if a potential
 		else return (interpolate(r)/(r*r));						// if a radial density
 	}
 
@@ -364,6 +362,19 @@ void plot_radial_density(const real_function_3d& rho, const std::string filename
 	fclose(file);
 }
 
+// print the radial function given on a grid
+void plot_radial_function(const real_function_3d& rho, const std::string filename, const tensorT& grid) {
+	FILE* file = fopen(filename.c_str(),"w");
+	for (int i=0; i<grid.dim(0); ++i) {
+		double r=grid(i);
+		coord_3d xyz=vec(0.0,0.0,r);
+		double c=rho(xyz);
+		fprintf(file,"%lf %lf\n",r,c);
+	}
+	fclose(file);
+}
+
+
 void compute_energy(World& world, const real_function_3d& psi, const real_function_3d& pot,
 double& ke, double& pe) {
 
@@ -387,11 +398,12 @@ double& ke, double& pe) {
 /// @return the error norm of the orbital
 double iterate(World& world, const real_function_3d& VV, real_function_3d& psi, double& eps) {
 
+	const double thresh=FunctionDefaults<3>::get_thresh()*0.1;
 	real_function_3d Vpsi = (VV*psi);
-    Vpsi.scale(-2.0).truncate();
+    Vpsi.scale(-2.0).truncate(thresh);
 
-    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 1.e-6, 1e-5);
-    real_function_3d tmp=op(Vpsi).truncate();
+    real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 1.e-7, 1e-7);
+    real_function_3d tmp=op(Vpsi).truncate(thresh);
 
     double norm = tmp.norm2();
     real_function_3d r = tmp-psi;
@@ -407,7 +419,7 @@ double iterate(World& world, const real_function_3d& VV, real_function_3d& psi, 
 
 /// orthogonalize orbital i against all other orbitals
 void orthogonalize(std::vector<real_function_3d>& orbitals, const int ii) {
-	MADNESS_ASSERT(ii<orbitals.size());
+	MADNESS_ASSERT(size_t(ii)<orbitals.size());
 
 	real_function_3d& phi=orbitals[ii];
 
@@ -415,8 +427,9 @@ void orthogonalize(std::vector<real_function_3d>& orbitals, const int ii) {
 	for (int i=0; i<ii; ++i) {
 		const real_function_3d orbital=orbitals[i];
 		double ovlp=inner(orbital,phi);
-		double norm=orbital.norm2();
-		phi-=(ovlp/norm/norm)*orbital;
+//		double norm=orbital.norm2();
+//		phi-=(ovlp/norm/norm)*orbital;
+		phi=phi-(ovlp)*orbital;
 
 	}
 
@@ -440,10 +453,10 @@ void solve(World& world, const real_function_3d& potential, const double thresh,
 	for (int i=0; i<nroots; ++i) {
 
 		real_function_3d& phi=orbitals[i];
-		double eiger=eps(i);
+		double& eiger=eps(i);
 		if (world.rank()==0) print("\nworking on orbital",i);
 
-		double ke=0.0,pe=0.0;
+//		double ke=0.0,pe=0.0;
 		double error=1e4;
 		int ii=0;
 		while (error>thresh and ii++<15) {
@@ -462,45 +475,18 @@ void solve(World& world, const real_function_3d& potential, const double thresh,
 	}
 }
 
-/// solve the residual equations for all orbitals at the same time
+/// given the density and the trial potential, update the potential to yield the density
 
-/// @param[in]		potential	the effective potential
-/// @param[in]		thresh		the threshold for the error in the orbitals
-/// @param[inout]	eps			guesses for the orbital energies
-/// @param[inout]	orbitals	the first n roots of the equation
-void solve_all(World& world, const real_function_3d& potential, const double thresh, Tensor<double>& eps,
-		std::vector<real_function_3d>& orbitals, Calculation& calc) {
+/// @param[in]		world	the world
+/// @param[in/out]	potential	the potential to be updated
+/// @param[in]		density		the density
+/// @param[in]		refdens		the reference density, or target densiy
+void update_potential(World& world, real_function_3d& potential, const real_function_3d& density,
+		const real_function_3d& refdens, const HartreeFock& hf) {
 
-	const long nroots=eps.size();
-	print("solving for",nroots,"roots of the effective potential");
-	typedef std::shared_ptr<operatorT> poperatorT;
-
-	std::vector<real_function_3d> orbitals_new=orbitals;
-	for (int i=0; i<10; ++i) {
-
-		// apply the BSH operator on V*psi
-//		std::vector<real_function_3d> Vpsi=mul(world,-2.0*potential,orbitals_new);
-//		std::vector<poperatorT> ops = calc.make_bsh_operators(world, eps);
-//		std::vector<real_function_3d> orbitals_new = apply(world, ops, Vpsi);
-//		std::vector<real_function_3d> diff=sub(world,orbitals_new,orbitals);
-//		double error=norm2(world,diff);
-//		if (world.rank()==0) print("error in iteration",i,error);
-		int ii=0;
-		double error=0.0;
-		for (real_function_3d& phi : orbitals_new) {
-//			print("ii, eps[ii]",ii, eps[ii]);
-			error+=iterate(world,potential,phi,eps[ii]);
-			orthogonalize(orbitals_new,ii);
-			++ii;
-		}
-//        double trantol = thresh*0.1 / std::min(30.0, double(orbitals.size()));
-//        orbitals_new = transform(world, orbitals_new,
-//        		Q3(matrix_inner(world, orbitals_new, orbitals_new)), trantol, true);
-
-		if (world.rank()==0) print("\nfinished iteration ",i,"with error ",error,"\n");
-
-	}
-    orbitals=orbitals_new;
+	real_function_3d diff=(refdens-density).truncate();
+//	diff=-0.01*(diff*hf.get_calc().vnuc);
+	potential-=diff;
 }
 
 
@@ -526,19 +512,29 @@ int main(int argc, char** argv) {
 
     const double thresh=FunctionDefaults<3>::get_thresh();
 
-    bool radial=false;
-    bool xyz=true;
+    bool radial=true;
+    bool xyz=false;
+    std::string keyfile, prefix;
+    if (radial) {
+    	keyfile="vnuc_grid";
+    	prefix="be_";
+    } else {
+    	keyfile="n2_grid";
+    	prefix="n2_";
+    }
+
 	// if the potentials have been previously converted to madness-format
     bool load_potential=false;
-    std::string keyfile="n2_grid";
-    std::string prefix="n2_";
-//    std::string keyfile="vnuc_grid";
-//    std::string prefix="be_";
-	FunctionDefaults<3>::set_max_refine_level(12);
+
+    FunctionDefaults<3>::set_max_refine_level(14);
 
 	// read in the data
 	real_function_3d potential=real_factory_3d(world).empty();
 	real_function_3d refdens=real_factory_3d(world).empty();
+
+	// subtract the nuclear potential to regularize the grid values
+	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
+    functorT vnuc_functor(new MolecularPotentialFunctor(calc.molecule));
 
 	if (radial) {
 		if (load_potential) {
@@ -548,7 +544,10 @@ int main(int argc, char** argv) {
 		} else {
 			recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
 			potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();
+			potential+=hf.get_calc().vnuc;
+			potential.truncate(thresh*0.1);
 			save_function(world,potential,"be_recpot+startpot");
+
 
 			recpot pot_dens("grid.txt","Be_numdens_num.txt");
 			refdens=real_factory_3d(world).functor2(pot_dens).truncate_on_project();
@@ -565,18 +564,22 @@ int main(int argc, char** argv) {
 			real_function_3d recpot=real_factory_3d(world).empty();
 			real_function_3d startpot=real_factory_3d(world).empty();
 
-    		refdens.get_impl()->read_grid<3>(keyfile,prefix+"refdens.xyzv");
+			// pass in an empty FunctionFunctorInterface which doesn't do anything
+    		refdens.get_impl()->read_grid<3>(keyfile,prefix+"refdens.xyzv",functorT());
 			save_function(world,refdens,prefix+"refdens");
 
-			recpot.get_impl()->read_grid<3>(keyfile,prefix+"recpot.xyzv");
+			// pass in an empty FunctionFunctorInterface which doesn't do anything
+			recpot.get_impl()->read_grid<3>(keyfile,prefix+"recpot.xyzv",functorT());
 			save_function(world,recpot,prefix+"recpot");
 
-    		startpot.get_impl()->read_grid<3>(keyfile,prefix+"startpot.xyzv");
+			// pass in the nuclear potential to regularize the potential
+			startpot.get_impl()->read_grid<3>(keyfile,prefix+"startpot.xyzv",vnuc_functor);
+//			startpot.get_impl()->read_grid<3>(keyfile,prefix+"startpot.xyzv",functorT());
 			save_function(world,startpot,prefix+"startpot");
 
-			potential=(recpot+startpot).truncate();
+			potential=(recpot+startpot+hf.get_calc().vnuc);
 			save_function(world,potential,prefix+"potential");
-
+//			MADNESS_EXCEPTION("flodbg",0);
 		}
 
 	} else {
@@ -591,23 +594,47 @@ int main(int argc, char** argv) {
 	std::vector<real_function_3d> orbitals=copy(world,hf.get_calc().amo);
 	tensorT eps=hf.get_calc().aeps;
 //	solve_all(world,potential,thresh,eps,orbitals,calc);
-	solve(world,potential,thresh,eps,orbitals);
+	for (int i=0; i<300; ++i) {
+
+		// given the potential, solve for the first roots (the orbitals)
+		solve(world,potential,thresh,eps,orbitals);
+
+		// make the density from the orbitals
+		real_function_3d trial_dens=2.0*hf.get_calc().make_density(world,hf.get_calc().aocc,orbitals);
+
+		// print out the status
+		real_function_3d diffdens=trial_dens-refdens;
+		double error=(diffdens).norm2();
+		if (world.rank()==0) print("error in the density: iteration, diff.norm2()",i,error);
+		save_function(world,diffdens,prefix+"diffdens_iteration"+stringify(i));
+
+		// given the trial density and the target density, update the potential
+		update_potential(world,potential,trial_dens,refdens,hf);
+		save_function(world,potential,prefix+"potential_iteration"+stringify(i));
+	}
+
+	for (size_t i=0; i<orbitals.size(); ++i) {
+		load_function(world,orbitals[i],"orbital"+stringify(i));
+	}
+
 
 	/*
 	 * here comes the analysis
 	 */
 
 	// make the density
-	real_function_3d rho=real_factory_3d(world);
-	for (const real_function_3d& orbital : orbitals) rho+=2.0*orbital*orbital;
+	real_function_3d rho=2.0*hf.get_calc().make_density(world,hf.get_calc().aocc,orbitals);
+	save_function(world,rho,prefix+"density");
 
 	// make the HF density
-	real_function_3d rho_hf=real_factory_3d(world);
-	for (const real_function_3d& orbital : hf.get_calc().amo) rho_hf+=2.0*orbital*orbital;
+	real_function_3d rho_hf=2.0*hf.get_calc().make_density(world,hf.get_calc().aocc,hf.get_calc().amo);
 
 	// compare refdens to this density
-	double error=(rho-refdens).abs().trace();
-	double error1=(rho-refdens).norm2();
+	real_function_3d diffdens=rho-refdens;
+	save_function(world,diffdens,prefix+"diffdens");
+
+	double error=(diffdens).abs().trace();
+	double error1=(diffdens).norm2();
 	if (world.rank()==0) print("error in the density: int(abs(rho-ref_rho)",error,error1);
 
 	// compare this dens to HF density
@@ -625,6 +652,7 @@ int main(int argc, char** argv) {
 		plot_radial_density(rho,"r2rho",grid);
 		plot_radial_density(refdens,"r2rho_refdens",grid);
 		plot_radial_density(rho_hf,"r2rho_hf",grid);
+		plot_radial_function(potential,prefix+"radial_potential",grid);
 	}
 
     if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
