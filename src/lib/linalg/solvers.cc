@@ -156,7 +156,7 @@ namespace madness {
 
         f2p = f0 + dxgrad*a2 + 0.5*hess*a2*a2;
         printf("   line search grad=%.2e hess=%.2e mode=%s newstep=%.3f\n", dxgrad, hess, lsmode, a2);
-        printf("                      predicted %.12f\n", f2p);
+        printf("                      predicted %.12e\n", f2p);
 
         return a2;
     }
@@ -216,23 +216,29 @@ namespace madness {
         Tensor<double> gv = inner(g,v);
 
         // Take step applying restriction
+        int nneg=0, nsmall=0, nrestrict=0;
         for (int i=0; i<n; ++i) {
             if (e[i] < -tol) {
-                printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
-                e[i] = -2.0*e[i]; // Enforce positive search direction
+                if (printtest) printf("   forcing negative eigenvalue to be positive %d %.1e\n", i, e[i]);
+                nneg++;
+                //e[i] = -2.0*e[i]; // Enforce positive search direction
+                e[i] = -0.1*e[i]; // Enforce positive search direction
             }
             else if (e[i] < -tol) {
-                printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
+                if (printtest) printf("   forcing small eigenvalue to be positive %d %.1e\n", i, e[i]);
+                nsmall++;
                 e[i] = tol;
             }
 
             gv[i] = -gv[i] / e[i];
             if (std::abs(gv[i]) > trust) { // Step restriction
                 double gvnew = trust*std::abs(gv(i))/gv[i];
-                printf("   restricting step in spectral direction %d %.1e --> %.1e\n", i, gv[i], gvnew);
+                if (printtest) printf("   restricting step in spectral direction %d %.1e --> %.1e\n", i, gv[i], gvnew);
+                nrestrict++;
                 gv[i] = gvnew;
             }
         }
+        if (nneg || nsmall || nrestrict) printf("   nneg=%d nsmall=%d nrestrict=%d\n", nneg, nsmall, nrestrict);
 
         // Transform back from spectral basis
         return inner(v,gv);
@@ -251,7 +257,7 @@ namespace madness {
         , gradient_precision(gradient_precision)
         , gnorm(tol*1e16)
         , n(0)
-        , printtest(true)
+        , printtest(false)
     {
         if (!target->provides_gradient()) throw "QuasiNewton requires the gradient";
     }
@@ -286,7 +292,7 @@ namespace madness {
             Tensor<double> g;
             target->value_and_gradient(x, f, g);
             gnorm = g.normf();
-            printf(" QuasiNewton iteration %2d value %.12f gradient %.2e\n",iter,f,gnorm);
+            printf(" QuasiNewton iteration %2d value %.12e gradient %.2e\n",iter,f,gnorm);
             if (converged()) break;
 
             if (iter == 1 && h_is_identity) {

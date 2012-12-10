@@ -306,6 +306,12 @@ namespace madness {
         /// @return Value of objective function
         double value() const;
 
+        /// Resets Hessian to default guess
+        void reset_hessian() {h = Tensor<double>();}
+
+        /// Sets Hessian to given matrix
+        void set_hessian(const Tensor<double>& matrix) {h = madness::copy(matrix);}
+
         /// Value of gradient norm
 
         /// @return Norm of gradient of objective function
