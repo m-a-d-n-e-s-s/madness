@@ -59,7 +59,6 @@ namespace madness {
 
     static double start_cpu_time;
     static double start_wall_time;
-    const int WorldAmInterface::NSEND;
 
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
