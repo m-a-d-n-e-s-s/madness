@@ -163,25 +163,46 @@ which merely blows instead of sucking.
         volatile callbackT callbacks;
         volatile mutable assignmentT assignments;
         volatile bool assigned;
-        World * world;
         RemoteReference< FutureImpl<T> > remote_ref;
         volatile T t;
 
         /// Private: AM handler for remote set operations
         static void set_handler(const AmArg& arg) {
             RemoteReference< FutureImpl<T> > ref;
-            T t;
-            arg & ref & t;
-            FutureImpl<T>* f = ref.get();
-            // The remote reference holds a copy of the
-            // sharedptr so no need to take another
-            f->set(t);
+            archive::BufferInputArchive input_arch = arg & ref;
+            // The remote reference holds a copy of the shared_ptr, so no need
+            // to take another.
+            {
+                FutureImpl<T>* pimpl = ref.get();
+
+                ScopedMutex<Spinlock> fred(pimpl);
+                if(pimpl->remote_ref) {
+                    // Unarchive the value to a temporary since it is going to
+                    // be forwarded to another node.
+                    T value;
+                    input_arch & value;
+
+                    // Copy world and owner from remote_ref since sending remote_ref
+                    // will invalidate it.
+                    World& world = pimpl->remote_ref.get_world();
+                    const ProcessID owner = pimpl->remote_ref.owner();
+                    world.am.send(owner, FutureImpl<T>::set_handler,
+                            new_am_arg(pimpl->remote_ref, value));
+
+                    pimpl->set_assigned(value);
+                } else {
+                    // Unarchive the value of the future
+                    input_arch & const_cast<T&>(pimpl->t);
+
+                    pimpl->set_assigned(const_cast<const T&>(pimpl->t));
+                }
+            }
             ref.reset();
         }
 
 
         /// Private:  invoked locally by set routine after assignment
-        inline void set_assigned() {
+        inline void set_assigned(const T& value) {
             // Assume that whoever is invoking this routine is holding
             // a copy of our shared pointer on its *stack* so that
             // if this future is destroyed as a result of a callback
@@ -198,7 +219,7 @@ which merely blows instead of sucking.
 
             while (!as.empty()) {
                 MADNESS_ASSERT(as.front());
-                as.top()->set(const_cast<T&>(t));
+                as.top()->set(value);
                 as.pop();
             }
 
@@ -229,21 +250,9 @@ which merely blows instead of sucking.
                 : callbacks()
                 , assignments()
                 , assigned(false)
-                , world(0)
                 , remote_ref()
                 , t()
         { }
-
-
-        // Local assigned value
-        FutureImpl(const T& t)
-                : callbacks()
-                , assignments()
-                , assigned(false)
-                , world(0)
-                , remote_ref()
-                , t(t)
-        { set_assigned(); }
 
 
         // Wrapper for a remote future
@@ -251,7 +260,6 @@ which merely blows instead of sucking.
                 : callbacks()
                 , assignments()
                 , assigned(false)
-                , world(& remote_ref.get_world())
                 , remote_ref(remote_ref)
                 , t()
         { }
@@ -276,39 +284,31 @@ which merely blows instead of sucking.
         // Sets the value of the future (assignment)
         void set(const T& value) {
             ScopedMutex<Spinlock> fred(this);
-            if (world) {
-                if (remote_ref.owner() == world->rank()) {
-                    // The remote reference holds a copy of the
-                    // shared ptr so lifetime is managed OK
-                    remote_ref.get()->set(value);
-                    set_assigned();
-                    remote_ref.reset();
-                }
-                else {
-                    const ProcessID owner = remote_ref.owner();
-                    world->am.send(owner,
-                                   FutureImpl<T>::set_handler,
-                                   new_am_arg(remote_ref, value));
-                    set_assigned();
-                }
-            }
-            else {
+            if(remote_ref) {
+                // Copy world and owner from remote_ref since sending remote_ref
+                // will invalidate it.
+                World& world = remote_ref.get_world();
+                const ProcessID owner = remote_ref.owner();
+                world.am.send(owner, FutureImpl<T>::set_handler,
+                        new_am_arg(remote_ref, value));
+            } else {
                 const_cast<T&>(t) = value;
-                set_assigned();
             }
+
+            set_assigned(value);
         }
 
 
         // Gets/forces the value, waiting if necessary (error if not local)
         T& get() {
-            MADNESS_ASSERT(!world);  // Only for local futures
+            MADNESS_ASSERT(! remote_ref);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<T*>(&t);
         }
 
         // Gets/forces the value, waiting if necessary (error if not local)
         const T& get() const {
-            MADNESS_ASSERT(!world);  // Only for local futures
+            MADNESS_ASSERT(! remote_ref);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<const T*>(&t);
         }
@@ -322,7 +322,7 @@ which merely blows instead of sucking.
         }
 
         bool is_local() const {
-            return world == 0;
+            return ! remote_ref;
         }
 
         bool replace_with(FutureImpl<T>* f) {
@@ -350,7 +350,7 @@ which merely blows instead of sucking.
                 abort();
             }
         }
-    };
+    }; // class FutureImpl
 
 
     /// A future is a possibly yet unevaluated value
@@ -409,11 +409,17 @@ which merely blows instead of sucking.
 
         /// Makes a future wrapping a remote reference
         explicit Future(const remote_refT& remote_ref)
-                : f(new FutureImpl<T>(remote_ref))
+                : f()
                 , value()
                 , is_the_default_initializer(false)
-        { }
+        {
+            if(remote_ref.is_local())
+                f = remote_ref.get_shared();
+            else
+                f.reset(new FutureImpl<T>(remote_ref));
+        }
 
+        /// Makes an assigned future from an input archive
         explicit Future(const archive::BufferInputArchive& input_arch)
                 : f()
                 , value()
@@ -424,14 +430,14 @@ which merely blows instead of sucking.
 
         /// Copy constructor is shallow
         Future(const Future<T>& other)
-	        : f(other.f)
+                : f(other.f)
                 , value(other.value)
                 , is_the_default_initializer(false)
         {
             if (other.is_the_default_initializer) {
                 f.reset(new FutureImpl<T>());
             }
-	    // Otherwise nothing to do ... done in member initializers
+						// Otherwise nothing to do ... done in member initializers
         }
 
 
@@ -467,7 +473,7 @@ which merely blows instead of sucking.
         /// the same underlying copy of the data and indeed may even
         /// be in different processes).
         void set(const Future<T>& other) {
-            if (this != &other) {
+            if (f != other.f) {
                 MADNESS_ASSERT(!probe());
                 if (other.probe()) {
                     set(other.get());     // The easy case
@@ -490,7 +496,7 @@ which merely blows instead of sucking.
 
         /// Assigns the value ... it can only be set ONCE.
         inline void set(const T& value) {
-	    MADNESS_ASSERT(f);
+            MADNESS_ASSERT(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(value);
         }
@@ -549,7 +555,7 @@ which merely blows instead of sucking.
         /// (i.e., the communication is short circuited).
         inline remote_refT remote_ref(World& world) const {
             MADNESS_ASSERT(!probe());
-            if (f->world)
+            if (f->remote_ref)
                 return f->remote_ref;
             else
                 return RemoteReference< FutureImpl<T> >(world, f);
@@ -576,7 +582,7 @@ which merely blows instead of sucking.
             else
                 f->register_callback(callback);
         }
-    };
+    }; // class Future
 
 
     /// A future of a future is forbidden (by private constructor)
@@ -618,7 +624,9 @@ which merely blows instead of sucking.
         }
 
         inline void set() {}
-    };
+
+        static bool probe() { return true; }
+    }; // class Future<void>
 
     /// Specialization of FutureImpl<Void> for internal convenience ... does nothing useful!
 
@@ -647,7 +655,9 @@ which merely blows instead of sucking.
         }
 
         inline void set(const Void& /*f*/) {}
-    };
+
+        static bool probe() { return true; }
+    }; // class Future<Void>
 
     /// Specialization of Future for vector of Futures
 
@@ -682,37 +692,8 @@ which merely blows instead of sucking.
         operator const vectorT& () const {
             return get();
         }
-    };
+    }; // class Future< std::vector< Future<T> > >
 
-
-    /// Probes a future for readiness, other types are always ready
-
-    /// \ingroup futures
-    template <typename T>
-    ENABLE_IF(is_future<T>,bool) future_probe(const T& t) {
-        return t.probe();
-    }
-
-    /// Probes a future for readiness, other types are always ready
-
-    /// \ingroup futures
-    template <typename T>
-    DISABLE_IF(is_future<T>,bool) future_probe(const T&) {
-        return true;
-    }
-
-
-    /// Friendly I/O to streams for futures
-
-    /// \ingroup futures
-    template <typename T>
-    std::ostream& operator<<(std::ostream& out, const Future<T>& f);
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<void>& f);
-
-    template <>
-    std::ostream& operator<<(std::ostream& out, const Future<Void>& f);
 
     /// Factory for vectors of futures (see section Gotchas on the mainpage)
 
@@ -791,6 +772,9 @@ which merely blows instead of sucking.
         };
     }
 
+    /// Friendly I/O to streams for futures
+
+    /// \ingroup futures
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) ;
 
@@ -801,6 +785,9 @@ which merely blows instead of sucking.
     std::ostream& operator<<(std::ostream& out, const Future<Void>& f) ;
 
 #ifdef WORLD_INSTANTIATE_STATIC_TEMPLATES
+    /// Friendly I/O to streams for futures
+
+    /// \ingroup futures
     template <typename T>
     std::ostream& operator<<(std::ostream& out, const Future<T>& f) {
         if (f.probe()) out << f.get();
