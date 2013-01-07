@@ -49,6 +49,7 @@
 #include <world/worldref.h>
 #include <world/typestuff.h>
 #include <world/worldfwd.h>
+#include <world/move.h>
 
 namespace madness {
 
@@ -200,7 +201,6 @@ which merely blows instead of sucking.
             ref.reset();
         }
 
-
         /// Private:  invoked locally by set routine after assignment
         inline void set_assigned(const T& value) {
             // Assume that whoever is invoking this routine is holding
@@ -282,7 +282,8 @@ which merely blows instead of sucking.
 
 
         // Sets the value of the future (assignment)
-        void set(const T& value) {
+        template <typename U>
+        void set(const U& value) {
             ScopedMutex<Spinlock> fred(this);
             if(remote_ref) {
                 // Copy world and owner from remote_ref since sending remote_ref
@@ -290,7 +291,7 @@ which merely blows instead of sucking.
                 World& world = remote_ref.get_world();
                 const ProcessID owner = remote_ref.owner();
                 world.am.send(owner, FutureImpl<T>::set_handler,
-                        new_am_arg(remote_ref, value));
+                        new_am_arg(remote_ref, unwrap_move(value)));
             } else {
                 const_cast<T&>(t) = value;
             }
@@ -406,6 +407,12 @@ which merely blows instead of sucking.
                 , is_the_default_initializer(false)
         { }
 
+        /// Makes an assigned future from a movable object
+        explicit Future(const detail::MoveWrapper<T>& t)
+                : f()
+                , value(t)
+                , is_the_default_initializer(false)
+        { }
 
         /// Makes a future wrapping a remote reference
         explicit Future(const remote_refT& remote_ref)
@@ -496,6 +503,14 @@ which merely blows instead of sucking.
 
         /// Assigns the value ... it can only be set ONCE.
         inline void set(const T& value) {
+            MADNESS_ASSERT(f);
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            ff->set(value);
+        }
+
+        /// Assigns the value ... it can only be set ONCE.
+        template <typename U>
+        inline void set(const detail::MoveWrapper<U>& value) {
             MADNESS_ASSERT(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
             ff->set(value);
