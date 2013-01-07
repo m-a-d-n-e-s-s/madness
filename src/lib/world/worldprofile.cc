@@ -87,7 +87,6 @@ namespace madness {
         icpu.clear();
     }
 
-
     std::vector<WorldProfileEntry>& WorldProfile::nvitems() {
         return const_cast<std::vector<WorldProfileEntry>&>(items);
     }
@@ -193,6 +192,14 @@ namespace madness {
     }
 #endif
 
+#ifdef WORLD_PROFILE_ENABLE
+    namespace {
+      void est_profile_overhead() {
+        PROFILE_MEMBER_FUNC(WorldProfile);
+      }
+    }
+#endif
+
     void WorldProfile::print(World& world) {
 #ifdef WORLD_PROFILE_ENABLE
         for (int i=0; i<100; ++i) est_profile_overhead();
@@ -208,7 +215,7 @@ namespace madness {
         recv_stats(world, 2*me+2);
 
         if (me) {
-            MPIOutputArchive ar(world, (me-1)/2);
+            archive::MPIOutputArchive ar(world, (me-1)/2);
             ar & nv;
         }
         else {
@@ -315,10 +322,6 @@ namespace madness {
         }
         call_stack = prev;
         if (call_stack) call_stack->resume(now);
-    }
-
-    static void est_profile_overhead() {
-        PROFILE_MEMBER_FUNC(WorldProfile);
     }
 
 } // namespace madness
