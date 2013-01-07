@@ -605,6 +605,8 @@ which merely blows instead of sucking.
     public:
         typedef RemoteReference< FutureImpl<void> > remote_refT;
 
+        static const Future<void> value; // Instantiated in worldstuff.cc
+
         remote_refT remote_ref(World&) const {
             return remote_refT();
         }
@@ -680,6 +682,10 @@ which merely blows instead of sucking.
                 this->v[i].register_callback(this);
             }
         }
+        /// Not implemented
+        explicit Future(const archive::BufferInputArchive& input_arch) {
+            MADNESS_ASSERT(false); // not implemented
+        }
         vectorT& get() {
             return v;
         }
@@ -738,8 +744,7 @@ which merely blows instead of sucking.
         /// \ingroup futures
         template <class Archive>
         struct ArchiveStoreImpl< Archive, Future<void> > {
-            static inline void store(const Archive& ar, const Future<void>& f) {
-            }
+            static inline void store(const Archive&, const Future<void>&) { }
         };
 
 
@@ -748,8 +753,7 @@ which merely blows instead of sucking.
         /// \ingroup futures
         template <class Archive>
         struct ArchiveLoadImpl< Archive, Future<void> > {
-            static inline void load(const Archive& ar, Future<void>& f) {
-            }
+            static inline void load(const Archive&, const Future<void>&) { }
         };
 
         /// Serialize an assigned future
@@ -757,8 +761,7 @@ which merely blows instead of sucking.
         /// \ingroup futures
         template <class Archive>
         struct ArchiveStoreImpl< Archive, Future<Void> > {
-            static inline void store(const Archive& ar, const Future<Void>& f) {
-            }
+            static inline void store(const Archive&, const Future<Void>&) { }
         };
 
 
@@ -767,8 +770,7 @@ which merely blows instead of sucking.
         /// \ingroup futures
         template <class Archive>
         struct ArchiveLoadImpl< Archive, Future<Void> > {
-            static inline void load(const Archive& ar, Future<Void>& f) {
-            }
+            static inline void load(const Archive&, Future<Void>&) { }
         };
     }
 

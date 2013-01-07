@@ -65,6 +65,8 @@ namespace madness {
 
     static int finalizestate = 0;
 
+    const Future<void> Future<void>::value = Future<void>();
+
     World::World(const SafeMPI::Intracomm& comm)
             : obj_id(1)          ///< start from 1 so that 0 is an invalid id
             , user_state(0)

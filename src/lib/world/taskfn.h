@@ -225,6 +225,155 @@ namespace madness {
             typedef futureT type;
         };
 
+        /// Future<void> is an empty object which is used as a placeholder for
+        /// unused arguments.
+        typedef Future<void> voidT;
+
+        /// Add const to Future<void> types. All other types are ignored
+        template <typename T>
+        struct instantiate_const_voidT {
+            typedef T type;
+        };
+
+        template <>
+        struct instantiate_const_voidT<Future<void> > {
+            typedef const Future<void> type;
+        };
+
+        // These functions are used to differentiate the task function calls
+        // based on the number of arguments and return type.
+
+        // Note: voidT arguments must be const or the wrong function will be
+        // selected.
+
+        template <typename fnT>
+        inline void run_function(Future<void>& result, fnT fn, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&)
+        { fn(); result.set(); }
+
+        template <typename fnT, typename a1T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1,
+                const voidT&, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&)
+        { fn(a1); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                const voidT&, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&)
+        { fn(a1, a2); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, const voidT&, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&)
+        { fn(a1, a2, a3); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&)
+        { fn(a1, a2, a3, a4); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, a5T& a5, const voidT&, const voidT&,
+                const voidT&, const voidT&)
+        { fn(a1, a2, a3, a4, a5); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, a5T& a5, a6T& a6, const voidT&, const voidT&,
+                const voidT&)
+        { fn(a1, a2, a3, a4, a5, a6); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T, typename a7T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, const voidT&,
+                const voidT&)
+        { fn(a1, a2, a3, a4, a5, a6, a7); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T, typename a7T, typename a8T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, const voidT&)
+        { fn(a1, a2, a3, a4, a5, a6, a7, a8); result.set(); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+            typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+        inline void run_function(Future<void>& result, fnT fn, a1T& a1, a2T& a2,
+                a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9)
+        { fn(a1, a2, a3, a4, a5, a6, a7, a8, a9); result.set(); }
+
+        template <typename fnT>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, const voidT&, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&, const voidT&)
+        { result.set(fn()); }
+
+        template <typename fnT, typename a1T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1)); }
+
+        template <typename fnT, typename a1T, typename a2T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, const voidT&, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1, a2)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, const voidT&, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1, a2, a3)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, const voidT&,
+                const voidT&, const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1, a2, a3, a4)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, const voidT&,
+                const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1, a2, a3, a4, a5)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
+                const voidT&, const voidT&, const voidT&)
+        { result.set(fn(a1, a2, a3, a4, a5, a6)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T, typename a7T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
+                a7T& a7, const voidT&, const voidT&)
+        { result.set(fn(a1, a2, a3, a4, a5, a6, a7)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T, typename a7T, typename a8T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
+                a7T& a7, a8T& a8, const voidT&)
+        { result.set(fn(a1, a2, a3, a4, a5, a6, a7, a8)); }
+
+        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
+                typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
+        inline void run_function(typename task_result_type<fnT>::futureT& result,
+                fnT fn, a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6,
+                a7T& a7, a8T& a8, a9T& a9)
+        { result.set(fn(a1, a2, a3, a4, a5, a6, a7, a8, a9)); }
+
     } // namespace detail
 
     /// Wrap a callable object and its arguments into a task function
@@ -271,15 +420,15 @@ namespace madness {
         // If the value of the argument is known at the time the
         // Note: The type argNT for argN, where N  is > arity should be void
 
-        Future<arg1T> arg1_;///< Argument 1 that will be given to the function
-        Future<arg2T> arg2_;///< Argument 2 that will be given to the function
-        Future<arg3T> arg3_;///< Argument 3 that will be given to the function
-        Future<arg4T> arg4_;///< Argument 4 that will be given to the function
-        Future<arg5T> arg5_;///< Argument 5 that will be given to the function
-        Future<arg6T> arg6_;///< Argument 6 that will be given to the function
-        Future<arg7T> arg7_;///< Argument 7 that will be given to the function
-        Future<arg8T> arg8_;///< Argument 8 that will be given to the function
-        Future<arg9T> arg9_;///< Argument 9 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg1T> >::type arg1_;///< Argument 1 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg2T> >::type arg2_;///< Argument 2 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg3T> >::type arg3_;///< Argument 3 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg4T> >::type arg4_;///< Argument 4 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg5T> >::type arg5_;///< Argument 5 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg6T> >::type arg6_;///< Argument 6 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg7T> >::type arg7_;///< Argument 7 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg8T> >::type arg8_;///< Argument 8 that will be given to the function
+        typename detail::instantiate_const_voidT<Future<arg9T> >::type arg9_;///< Argument 9 that will be given to the function
 
         template <typename fT>
         static fT& get_func(fT& f) { return f; }
@@ -293,118 +442,6 @@ namespace madness {
             return make_id(id, get_func(func_));
         }
 
-        // These functions are here because we have to differentiate the call
-        // based on the number of arguments passed to the function and the
-        // return type.
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 0u)>::type runner() {
-            result_.set(func_());
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 1u)>::type runner() {
-            result_.set(func_(arg1_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 2u)>::type runner() {
-            result_.set(func_(arg1_, arg2_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 3u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 4u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 5u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_, arg5_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 6u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 7u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 8u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_, arg8_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<(!std::is_void<R>::value) && (N == 9u)>::type runner() {
-            result_.set(func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_, arg8_, arg9_));
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 0u)>::type runner() {
-            result_.set(func_());
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 1u)>::type runner() {
-            func_(arg1_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 2u)>::type runner() {
-            func_(arg1_, arg2_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 3u)>::type runner() {
-            func_(arg1_, arg2_, arg3_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 4u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 5u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_, arg5_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 6u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 7u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 8u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_, arg8_);
-            result_.set();
-        }
-
-        template <unsigned int N, typename R>
-        typename enable_if_c<std::is_void<R>::value && (N == 9u)>::type runner() {
-            func_(arg1_, arg2_, arg3_, arg4_, arg5_, arg6_, arg7_, arg8_, arg9_);
-            result_.set();
-        }
 
         /// Register non-ready future as a dependency
 
@@ -419,36 +456,22 @@ namespace madness {
         }
 
         /// Future<void> is always ready => no op
-        inline void check_dependency(Future<void>&) { }
+        inline void check_dependency(const Future<void>&) { }
 
         /// Future<void> is always ready => no op
-        inline void check_dependency(Future<Void>&) { }
+        inline void check_dependency(const Future<Void>&) { }
 
         /// Check dependencies and register callbacks where necessary
         void check_dependencies() {
-            // Check only what we need
-            switch(arity) {
-                case 9u:
-                    check_dependency(arg9_);
-                case 8u:
-                    check_dependency(arg8_);
-                case 7u:
-                    check_dependency(arg7_);
-                case 6u:
-                    check_dependency(arg6_);
-                case 5u:
-                    check_dependency(arg5_);
-                case 4u:
-                    check_dependency(arg4_);
-                case 3u:
-                    check_dependency(arg3_);
-                case 2u:
-                    check_dependency(arg2_);
-                case 1u:
-                    check_dependency(arg1_);
-                default:
-                    ;
-            }
+            check_dependency(arg1_);
+            check_dependency(arg2_);
+            check_dependency(arg3_);
+            check_dependency(arg4_);
+            check_dependency(arg5_);
+            check_dependency(arg6_);
+            check_dependency(arg7_);
+            check_dependency(arg8_);
+            check_dependency(arg9_);
         }
 
         // Copies are not allowed.
@@ -585,7 +608,8 @@ namespace madness {
 #else
       protected:
         virtual void run(const TaskThreadEnv& env) {
-            runner<arity, resultT> ();
+            detail::run_function(result_, func_, arg1_, arg2_, arg3_, arg4_,
+                    arg5_, arg6_, arg7_, arg8_, arg9_);
         }
 #endif // HAVE_INTEL_TBB
 

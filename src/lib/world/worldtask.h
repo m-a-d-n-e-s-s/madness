@@ -61,8 +61,8 @@ namespace madness {
     // Forward decls
     class World;
     class WorldTaskQueue;
-    template <typename functionT> struct TaskFunction;
-    template <typename memfunT> struct TaskMemfun;
+    template <typename> struct TaskFunction;
+    template <typename> struct TaskMemfun;
 
     namespace detail {
 
@@ -167,6 +167,7 @@ namespace madness {
         public:
             typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
             typedef resT result_type;
+            typedef memfnT memfn_type;
 
             MemFuncWrapper() : ptr_(DefaultInitPtr<ptrT>::init()), memfn_() { }
 
@@ -256,7 +257,7 @@ namespace madness {
             friend memfnT get_mem_func_ptr(const MemFuncWrapper_& wrapper) {
                 return wrapper.memfn_;
             }
-        };
+        }; // class MemFuncWrapper
 
         template <typename ptrT, typename memfnT>
         class MemFuncWrapper<ptrT, memfnT, void> {
@@ -269,6 +270,7 @@ namespace madness {
         public:
             typedef MemFuncWrapper<ptrT, memfnT, void> MemFuncWrapper_;
             typedef void result_type;
+            typedef memfnT memfn_type;
 
             MemFuncWrapper() : ptr_(DefaultInitPtr<ptrT>::init()), memfn_() { }
 
@@ -355,7 +357,7 @@ namespace madness {
                 ar & ptr_ & memfn_;
             }
 
-        };
+        }; // class MemFuncWrapper<ptrT, memfnT, void>
 
         template <typename objT, typename memfnT>
         MemFuncWrapper<objT*, memfnT, typename result_of<memfnT>::type>
@@ -436,15 +438,13 @@ namespace madness {
 
         template <typename T> inline const T& am_arg(const T& t) { return t; }
 
-
-        typedef Future<void> voidT;
-
+        typedef detail::voidT voidT;
 
         template <typename taskT, typename fnT, typename a1T, typename a2T, typename a3T,
                 typename a4T, typename a5T, typename a6T, typename a7T,
                 typename a8T, typename a9T>
         inline typename taskT::futureT
-        task_sender(ProcessID where, fnT fn, const a1T& a1,
+        send_task(ProcessID where, fnT fn, const a1T& a1,
                 const a2T& a2, const a3T& a3, const a4T& a4, const a5T& a5,
                 const a6T& a6, const a7T& a7, const a8T& a8, const a9T& a9,
                 const TaskAttributes& attr)
@@ -456,121 +456,6 @@ namespace madness {
                     a1, a2, a3, a4, a5, a6, a7, a8, a9));
 
             return result;
-        }
-
-        template <typename fnT>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT> taskT;
-            return task_sender<taskT>(dest, fn, voidT(), voidT(), voidT(), voidT(),
-                    voidT(), voidT(), voidT(), voidT(), voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), voidT(), voidT(),
-                    voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task( ProcessID dest, fnT fn,  const a1T& a1, const a2T& a2,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), voidT(),
-                    voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn,  const a1T& a1, const a2T& a2,
-                const a3T& a3, const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    voidT(), voidT(), voidT(), voidT(), voidT(), voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), voidT(), voidT(), voidT(), voidT(), voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4, const a5T& a5,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), am_arg(a5), voidT(), voidT(), voidT(), voidT(),
-                    attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
-                const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), am_arg(a5), am_arg(a6), voidT(), voidT(), voidT(),
-                    attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
-                const TaskAttributes& attr) {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), am_arg(a5), am_arg(a6), am_arg(a7), voidT(), voidT(),
-                    attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
-                const a8T& a8, const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), am_arg(a5), am_arg(a6), am_arg(a7), am_arg(a8),
-                    voidT(), attr);
-        }
-
-        template <typename fnT, typename a1T, typename a2T, typename a3T, typename a4T,
-                typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
-        typename detail::task_result_type<fnT>::futureT
-        send_task(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
-                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
-                const a8T& a8, const a9T& a9, const TaskAttributes& attr)
-        {
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> taskT;
-            return task_sender<taskT>(dest, fn, am_arg(a1), am_arg(a2), am_arg(a3),
-                    am_arg(a4), am_arg(a5), am_arg(a6), am_arg(a7), am_arg(a8),
-                    am_arg(a9), attr);
         }
 
 
@@ -833,38 +718,42 @@ namespace madness {
 
         /// Spawn a remote task
 
-        /// Spawns a task on process \c where , which may or may not be this
+        /// Spawns a task on process \c dest , which may or may not be this
         /// process.
-        /// \param where The process where the task will be spawned
-        /// \param function The function to be called in the task
+        /// \param dest The process where the task will be spawned
+        /// \param fn The function to be called in the task
         /// \param attr The task attributes
         /// \return A future to the task function's results. If the task function
         /// return type is \c void , a \c Future<void> object is return that may
         /// be ignored.
-        template <typename functionT>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function, const TaskAttributes attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, attr);
+        template <typename fnT>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT> taskT;
+            if(dest == me)
+                return add(fn, attr);
             else
-                return send_task(where, function, attr);
+                return send_task<taskT>(dest, fn, voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
         /// Spawn a remote task
 
-        /// Spawns a task on process \c where , which may or may not be this
+        /// Spawns a task on process \c dest , which may or may not be this
         /// process.  An argument that is a future may be used to carry
         /// dependencies for local tasks.  An unready future cannot be used as
         /// an argument for a remote tasks -- i.e., remote  tasks must be ready
         /// to execute (you can work around this by making a local task to
         /// submit the remote task once everything is ready).
-        /// \param where The process where the task will be spawned
-        /// \param function The function to be called in the task
+        /// \param dest The process where the task will be spawned
+        /// \param fn The function to be called in the task
         /// \param attr The task attributes
         /// \return A future to the task function's results. If the task function
         /// return type is \c void , a \c Future<void> object is return that may
         /// be ignored.
-        /// Invoke "resultT (*function)(arg1T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
@@ -874,327 +763,341 @@ namespace madness {
         /// WorldContainer, and user-defined types derived from
         /// WorldObject<> are automatically handled.  Anything else is
         /// your problem.
-        template <typename functionT, typename arg1T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function, const arg1T& arg1,
-                const TaskAttributes attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, attr);
+        template <typename fnT, typename a1T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T> taskT;
+            if(dest == me)
+                return add(fn, a1, attr);
             else
-                return send_task(where, function, arg1, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), voidT::value,
+                        voidT::value, voidT::value, voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2, const TaskAttributes attr=TaskAttributes()) {
-            if (where == me)
-                add(function, arg1, arg2, attr);
+        template <typename fnT, typename a1T, typename a2T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2,
+                const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, attr);
             else
-                return send_task(where, function, arg1, arg2, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        voidT::value, voidT::value, voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const TaskAttributes attr=TaskAttributes()) {
-            if (where == me)
-                return add(function, arg1, arg2, arg3, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), voidT::value, voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes()) {
-            if (where == me)
-                return add(function, arg1, arg2, arg3, arg4, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, arg4, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), voidT::value, voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2, const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const TaskAttributes& attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, arg2, arg3, arg4, arg5, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T, typename a5T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, a5, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, arg4, arg5, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), am_arg(a5), voidT::value,
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6, const TaskAttributes& attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, arg2, arg3, arg4, arg5, arg6, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T, typename a5T, typename a6T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6,
+                const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, a5, a6, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, arg4, arg5, arg6, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
+                        voidT::value, voidT::value, voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6, const arg7T& arg7, const TaskAttributes& attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T, typename a5T, typename a6T, typename a7T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, a5, a6, a7, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
+                        am_arg(a7), voidT::value, voidT::value, attr);
         }
 
-
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6,
-        const arg7T& arg7, const arg8T& arg8, const TaskAttributes& attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T, typename a5T, typename a6T, typename a7T,
+                typename a8T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, a5, a6, a7, a8, attr);
             else
-                send_task(where, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
+                        am_arg(a7), am_arg(a8), voidT::value, attr);
         }
 
-        /// Invoke "resultT (*function)(arg1T,arg2T,arg3T,arg4T,arg5T,arg6T,arg7T,arg8T,arg9T)" as a task, local or remote
+        /// Invoke "resultT (*fn)(a1T,a2T,a3T,a4T,a5T,a6T,a7T,a8T,a9T)" as a task, local or remote
 
         /// A future is returned to hold the eventual result of the
         /// task.  Future<void> is an empty class that may be ignored.
-        template <typename functionT, typename arg1T, typename arg2T, typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T, typename arg8T, typename arg9T>
-        typename detail::function_enabler<functionT>::type
-        add(ProcessID where, functionT function,
-            const arg1T& arg1, const arg2T& arg2,
-            const arg3T& arg3, const arg4T& arg4,
-            const arg5T& arg5, const arg6T& arg6,
-            const arg7T& arg7, const arg8T& arg8,
-            const arg9T& arg9, const TaskAttributes& attr=TaskAttributes()) {
-            if(where == me)
-                return add(function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, attr);
+        template <typename fnT, typename a1T, typename a2T, typename a3T,
+                typename a4T, typename a5T, typename a6T, typename a7T,
+                typename a8T, typename a9T>
+        typename detail::function_enabler<fnT>::type
+        add(ProcessID dest, fnT fn, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const a9T& a9, const TaskAttributes& attr=TaskAttributes())
+        {
+            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> taskT;
+            if(dest == me)
+                return add(fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
             else
-                return send_task(where, function, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, attr);
+                return send_task<taskT>(dest, fn, am_arg(a1), am_arg(a2),
+                        am_arg(a3), am_arg(a4), am_arg(a5), am_arg(a6),
+                        am_arg(a7), am_arg(a8), am_arg(a9), attr);
         }
-
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
-        template <typename objT, typename memfunT>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) {
-            return add(detail::wrap_mem_fn(obj,memfun),attr);;
-        }
+        template <typename objT, typename memfnT>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
-
-        /// Invoke "resultT (obj.*memfun)(arg1T)" as a local task
-        template <typename objT, typename memfunT, typename arg1T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1,
-                const TaskAttributes& attr=TaskAttributes()) {
-            return add(detail::wrap_mem_fn(obj,memfun),arg1,attr);
-        }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
+        /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
+        template <typename objT, typename memfnT, typename a1T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,attr); }
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5,
-                const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,attr); }
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr); }
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T,
-            typename arg8T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const arg8T& arg8, const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,attr); }
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8,arg9)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T,
-            typename arg8T, typename arg9T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT& obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const arg8T& arg8, const arg9T& arg9,
-                const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,attr); }
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8,a9)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T, typename a9T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT& obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const a9T& a9, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
 
         /// Invoke "resultT (obj.*memfun)()" as a local task
-        template <typename objT, typename memfunT>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const TaskAttributes& attr=TaskAttributes()) {
-            return add(detail::wrap_mem_fn(obj,memfun),attr);;
-        }
+        template <typename objT, typename memfnT>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),attr); }
 
-
-        /// Invoke "resultT (obj.*memfun)(arg1T)" as a local task
-        template <typename objT, typename memfunT, typename arg1T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1,
-                const TaskAttributes& attr=TaskAttributes()) {
-            return add(detail::wrap_mem_fn(obj,memfun),arg1,attr);
-        }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
+        /// Invoke "resultT (obj.*memfun)(a1T)" as a local task
+        template <typename objT, typename memfnT, typename a1T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1,
                 const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,attr); }
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,attr); }
 
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5,
-                const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,attr); }
-
-
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
                 const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,attr); }
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const TaskAttributes& attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,attr); }
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T,
-            typename arg8T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const arg8T& arg8, const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,attr); }
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,attr); }
 
-        /// Invoke "resultT (obj.*memfun)(arg1T,arg2T,arg3,arg4,arg5,arg6,arg7,arg8,arg9)" as a local task
-        template <typename objT, typename memfunT, typename arg1T, typename arg2T,
-            typename arg3T, typename arg4T, typename arg5T, typename arg6T, typename arg7T,
-            typename arg8T, typename arg9T>
-        typename detail::memfunc_enabler<memfunT>::type
-        add(objT* obj, memfunT memfun, const arg1T& arg1, const arg2T& arg2,
-                const arg3T& arg3, const arg4T& arg4, const arg5T& arg5, const arg6T& arg6,
-                const arg7T& arg7, const arg8T& arg8, const arg9T& arg9,
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,attr); }
+
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const TaskAttributes& attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2, const a3T& a3,
+                const a4T& a4, const a5T& a5, const a6T& a6, const a7T& a7,
+                const a8T& a8, const TaskAttributes attr=TaskAttributes())
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,attr); }
+
+        /// Invoke "resultT (obj.*memfun)(a1T,a2T,a3,a4,a5,a6,a7,a8,a9)" as a local task
+        template <typename objT, typename memfnT, typename a1T, typename a2T,
+            typename a3T, typename a4T, typename a5T, typename a6T, typename a7T,
+            typename a8T, typename a9T>
+        typename detail::memfunc_enabler<memfnT>::type
+        add(objT* obj, memfnT memfun, const a1T& a1, const a2T& a2,
+                const a3T& a3, const a4T& a4, const a5T& a5, const a6T& a6,
+                const a7T& a7, const a8T& a8, const a9T& a9,
                 const TaskAttributes attr=TaskAttributes())
-        { return add(detail::wrap_mem_fn(obj,memfun),arg1,arg2,arg3,arg4,arg5,arg6,arg7,arg8,arg9,attr); }
+        { return add(detail::wrap_mem_fn(obj,memfun),a1,a2,a3,a4,a5,a6,a7,a8,a9,attr); }
 
         struct ProbeAllDone {
 #if HAVE_INTEL_TBB
