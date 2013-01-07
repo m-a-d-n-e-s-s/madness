@@ -98,9 +98,7 @@ namespace madness {
         }
 
         static void delete_thread_key() {
-           const int rc = pthread_key_delete(thread_key);
-           if(rc != 0)
-               MADNESS_EXCEPTION("pthread_key_delete failed", rc);
+           pthread_key_delete(thread_key);
         }
 
         void set_pool_thread_index(int i) { pool_num = i; }
@@ -194,7 +192,7 @@ namespace madness {
         static const unsigned long STEALABLE    = GENERATOR<<1;  // Mask for stealable bit
         static const unsigned long HIGHPRIORITY = GENERATOR<<2;  // Mask for priority bit
 
-        TaskAttributes(unsigned long flags = 0) : flags(flags) {}
+        explicit TaskAttributes(unsigned long flags = 0) : flags(flags) {}
 
         TaskAttributes(const TaskAttributes& attr) : flags(attr.flags) {}
 
