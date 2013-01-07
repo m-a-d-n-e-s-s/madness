@@ -313,9 +313,10 @@ FLOAT weight(const FLOAT& x) {
 // evaluate the weight function and its first & second derivativse
 template <typename FLOAT>
 void weight(const FLOAT& x, FLOAT& f, FLOAT& d1f, FLOAT& d2f) {
+    static const FLOAT half = convert<FLOAT>("0.5");
     f = sqrt(x);
-    d1f = 0.5*f/x;
-    d2f = -0.5*d1f/x;
+    d1f = half*f/x;
+    d2f = -half*d1f/x;
 }
 
 #endif
@@ -328,7 +329,7 @@ FLOAT fit(const FLOAT& x, const vector<FLOAT>& p) {
     int n = p.size()/2;
     FLOAT sum = zero;
     for (int i=0; i<n; i++) {
-        sum += exp(p[i] - x*p[i+n]);
+        sum += p[i] * exp(- x*p[i+n]);
     }
     return sum;
 }
@@ -342,7 +343,7 @@ void fit(const FLOAT& x, const vector<FLOAT>& p, FLOAT& f, FLOAT& g, FLOAT& h) {
     g = zero;
     h = zero;
     for (int i=0; i<n; i++) {
-        FLOAT term = exp(p[i] - x*p[i+n]);
+        FLOAT term = p[i] * exp( - x*p[i+n]);
         f += term;
         g -= p[i+n]*term;
         h += p[i+n]*p[i+n]*term;
@@ -362,22 +363,23 @@ void plot(int npt, const FLOAT& a, const FLOAT& b, const vector<FLOAT>& p)
 }
 
 
-// basis function mu is g[mu](x) = exp(p[mu] - x*p[mu+n])
+// basis function mu is g[mu](x) = exp( - x*p[mu+n])
+// coeff is p[mu] 
 // 
 // non-zero first derivatives
 // dg[mu]/dp[mu] = g[mu]
-// dg[mu]/dp[mu+n] = -x*g[mu]
+// dg[mu]/dp[mu+n] = -x*p[mu]*g[mu]
 //
 // non-zero second derivatives 
-// d2g[mu]/dp[mu]dp[mu] = g[mu]
-// d2g[mu]/dp[mu]dp[mu+n] = -x*g[mu]
-// d2g[mu]/dp[mu+n]dp[mu+n] = x^2*g[mu]
+// d2g[mu]/dp[mu]dp[mu] = 0
+// d2g[mu]/dp[mu]dp[mu+n] = -x*p[mu]*g[mu]
+// d2g[mu]/dp[mu+n]dp[mu+n] = x^2*p[mu]*g[mu]
 //
 // g(i,mu) = g[mu](x[i])
-// eps[i] = sum(mu, g(i,mu)) - f(x[i])
+// eps[i] = sum(mu, p[mu]*g(i,mu)) - f(x[i])
 //
 // d0 = sum(i=0..npt-2, (eps[i]+eps[i+1])^2)
-// d1_mu = dd0/dp[mu] = 2 sum(i, eps[i] * 
+// d1_mu = dd0/dp[mu] = 2 sum(i, eps[i] * ?????????
 // 
 // x[2*n+1]
 // p[2*n]
@@ -400,8 +402,8 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     for (int i=0; i<npt; i++) {
         FLOAT sum = zero;
         for (int mu=0; mu<n; mu++) {
-            g(i,mu) = exp(p[mu] - x[i]*p[mu+n]); // note constraint of positive coeffs
-            sum += g(i,mu);
+            g(i,mu) = exp(- x[i]*p[mu+n]);
+            sum += p[mu] * g(i,mu);
         }
         w[i] = weight(x[i]);
         eps[i] = (sum - f[i])*w[i];
@@ -421,10 +423,10 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     for (int i=0; i<npt; i++) {
         for (int mu=0; mu<n; mu++) {
             deps1(i,mu) = g(i,mu)*w[i];
-            deps1(i,mu+n) = -x[i]*g(i,mu)*w[i];
-            deps2a(i,mu) = g(i,mu)*w[i];
-            deps2b(i,mu) = -x[i]*g(i,mu)*w[i];
-            deps2c(i,mu) = x[i]*x[i]*g(i,mu)*w[i];
+            deps1(i,mu+n) = -x[i]*p[mu]*g(i,mu)*w[i];
+            deps2a(i,mu) = zero;
+            deps2b(i,mu) = -x[i]*p[mu]*g(i,mu)*w[i];
+            deps2c(i,mu) = x[i]*x[i]*p[mu]*g(i,mu)*w[i];
         }
     }
 
@@ -444,7 +446,7 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     
     for (int i=0; i<(npt-1); i++) {
         for (int mu=0; mu<n; mu++) {
-            d2(mu,mu) += 2 * (eps[i]+eps[i+1]) * (deps2a(i,mu) + deps2a(i+1,mu));
+            d2(mu,mu) += zero;//2 * (eps[i]+eps[i+1]) * (deps2a(i,mu) + deps2a(i+1,mu));
             
             d2(mu+n,mu) += 2 * (eps[i]+eps[i+1]) * (deps2b(i,mu) + deps2b(i+1,mu));
             d2(mu,mu+n) += 2 * (eps[i]+eps[i+1]) * (deps2b(i,mu) + deps2b(i+1,mu));
@@ -801,9 +803,9 @@ void test() {
         
         for (int mu=0; mu<nfunc; mu++) {
 #ifdef RECIPX
-            p[mu] = log(tmin*dt);
+            p[mu] = tmin*dt;
 #else
-            p[mu] = log(tmin*dt)*0.5;
+            p[mu] = sqrt(tmin*dt);
 #endif            
             p[mu+nfunc] = tmin;
             tmin *= dt;
@@ -898,6 +900,7 @@ int main() {
     //test<double>();
     std::cout << "DoubleDOUBLE " << endl;
     test<dd_real>();
+    //test<double>();
     //std::cout << "QuadDOUBLE " << endl;
     //test<qd_real>();
     return 0;

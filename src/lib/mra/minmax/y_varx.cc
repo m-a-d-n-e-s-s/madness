@@ -107,8 +107,8 @@ void jacobi(int n, matrix<FLOAT>& a, vector<FLOAT>& e, matrix<FLOAT>& v) {
     //cout << "tolmin " << tolmin << endl;
     FLOAT tol = convert<FLOAT>("1e-2");
 
-    const FLOAT tolscale = convert<FLOAT>("0.1");
-    const FLOAT quart = convert<FLOAT>("0.25");
+    static const FLOAT tolscale = convert<FLOAT>("0.1");
+    static const FLOAT quart = convert<FLOAT>("0.25");
 
     for (int i=0; i<n; i++) {
         for (int j=0; j<n; j++) {
@@ -689,13 +689,15 @@ vector<FLOAT> updatex(const vector<FLOAT>& x, const vector<FLOAT>& p)
         throw "darn it";
     }
 
+    //cout << "number of new points " << xnew.size() << " maximum is " << p.size()+1 << endl;
+
     return xnew;
 }
 
 template <typename FLOAT>
 void test() {
     const FLOAT zero= convert<FLOAT>("0.0");
-    int n = 5;
+    int n = 2;
     matrix<FLOAT> a(n,n), acopy(n,n);
     vector<FLOAT> x(n), xcopy(n), b(n);
     
@@ -753,7 +755,7 @@ void test() {
         static const FLOAT one = 1;
         static const FLOAT pi = 4*atan(FLOAT(1));
         cout << pi << endl;
-        const FLOAT a = 1e-14;
+        const FLOAT a = 1e-1;
         const FLOAT b = 1e0;
         const int nfunc = 20;
         const int nx = 2*nfunc + 1;
@@ -865,15 +867,18 @@ void test() {
         //             makedata(x, f, p, mm, d1, d2, true);
         //             p[nu] += h;
         //             p[mu] += h;
-        //             cout << (pp + mm - mp - pm)/(4*h*h) << " ";
+        //             cout << (pp + mm - mp - pm)/(4*h*h) << " "; 
         //         }
         //     }
         //     cout << endl;
         // }
         // cout << endl;
 
+        p = opt(x, f, w, p, 400);
+        exit(0);
+
         for (int iter=0; iter<10; iter++) {
-            p = opt(x, f, w, p, 2000000);
+            p = opt(x, f, w, p, 200000);
             cout << "Converged parameters" << endl;
             for (int mu=0; mu<nfunc; mu++) {
                 cout << mu << " " << p[mu] << " " << p[mu+nfunc] << endl;
@@ -883,7 +888,7 @@ void test() {
             cout << endl;
             x = updatex(x, p);
             cout << "Updated x " << x << endl;
-            for (int i=0; i<nx; i++) {
+            for (unsigned int i=0; i<x.size(); i++) {
                 f[i] = target(x[i]);
                 w[i] = weight(x[i]);
             }
@@ -896,7 +901,7 @@ int main() {
     //test<float>();
     //std::cout << "DOUBLE " << endl;
     //test<double>();
-    std::cout << "DoubleDOUBLE " << endl;
+    //std::cout << "DoubleDOUBLE " << endl;
     test<dd_real>();
     //std::cout << "QuadDOUBLE " << endl;
     //test<qd_real>();

@@ -75,6 +75,81 @@ std::ostream& operator<<(std::ostream& s, const std::vector<t>& c) {
     return s;
 }
 
+template <typename FLOAT>
+FLOAT b(int j, FLOAT z) {
+    if (j == 0) return 0;
+    else if (j&1) return z;
+    else return 1;
+}
+
+template <typename FLOAT>
+FLOAT a(int j, FLOAT z) {
+    static const FLOAT v = 1;
+    if (j==1) return exp(-z);
+    else if (j&1) return j/2;
+    else return v+(j-1)/2;
+}
+
+
+template <typename FLOAT>
+FLOAT cfrac(FLOAT z) {
+    static const FLOAT eps = 2.0*numeric_limits<FLOAT>::epsilon();
+    static const FLOAT tiny = eps*eps;
+    static const FLOAT one = 1;
+    FLOAT f = b(0,z);
+    if (f == 0) f = tiny;
+
+    FLOAT cjm1 = f;
+    FLOAT djm1 = 0;
+    
+    for (int j=1; j<100000; j++) {
+        FLOAT aj = a(j,z), bj = b(j,z);
+        FLOAT dj = bj + aj * djm1;
+        if (dj == 0) dj = tiny;
+        dj = one/dj;
+
+        FLOAT cj = bj + aj/cjm1;
+        if (cj == 0) cj = tiny;
+
+        FLOAT delta = cj * dj;
+        f *= delta;
+
+        //cout << "iter " << j << " " << f << endl;
+        if (fabs(delta-one) < eps) return f;
+
+        cjm1 = cj;
+        djm1 = dj;
+    }
+    throw "too many iterations";
+}
+
+template <typename FLOAT>
+FLOAT series(FLOAT z) {
+    static const FLOAT eps = 2.0*numeric_limits<FLOAT>::epsilon();
+    static const FLOAT euler = 0.57721566490153286060651209008240243104215933593992359880576723488;
+    FLOAT sum = -euler - log(z) + z;
+    FLOAT term = z;
+    int n=1;
+    while (1) {
+        n++;
+        term *= -z/n;
+        FLOAT r = term/n;
+        sum += r;
+        //cout << n << " " << sum << endl;
+        if (fabs(r) < sum*eps) return sum;
+    }
+}
+
+template <typename FLOAT>
+FLOAT e1(FLOAT z) {
+    static const FLOAT two = 2;
+    static const FLOAT zero = 0;
+    if (z>two) return cfrac(z);
+    else if (z>zero) return series(z);
+    else throw "e1(z) must have z>0";
+}
+
+
 
 template <typename t>
 t convert(const char* c) {
