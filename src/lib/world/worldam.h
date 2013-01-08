@@ -314,7 +314,7 @@ namespace madness {
             while (!send_req[cur_msg].Test()) {
                 // If the oldest message has still not completed then there is likely
                 // severe network or end-point congestion, so pause for 100us in a rather
-                // abitrary attempt to decrease the injection rate.  The server thread
+                // arbitrary attempt to decrease the injection rate.  The server thread
                 // is still polling every 1us (which is required to suck data off the net
                 // and by some engines to ensure progress on sends).
                 myusleep(100);
