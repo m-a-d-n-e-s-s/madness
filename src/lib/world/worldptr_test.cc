@@ -534,8 +534,8 @@ int main(int argc, char **argv) {
 
 #include <iostream>
 int main() {
-    std::cout << "U need to build with Google test to enable the WorldPtr test code\n";
-    return 0;
+    std::cout << "!!! Error: You need to build with Google test to enable the WorldPtr test code\n";
+    return 1;
 }
 
 #endif

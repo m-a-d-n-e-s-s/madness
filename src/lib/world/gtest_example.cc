@@ -103,8 +103,8 @@ int main(int argc, char **argv) {
 
 #include <iostream>
 int main() {
-    std::cout << "U need to build with Google test to enable the world test code\n";
-    return 0;
+    std::cout << "!!! Error: You need to build with Google test to enable the test code\n";
+    return 1;
 }
 
 #endif
