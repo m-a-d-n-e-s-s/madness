@@ -38,10 +38,10 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
     acx_with_google_test_cxxflags_save=$CXXFLAGS
     acx_with_google_test_ldflags_save=$LDFLAGS
     acx_with_google_test_libs_save=$LIBS
-    CPPFLAGS="$CPPFLAGS $GTEST_CPPFLAGS"
-    CXXFLAGS="$CXXFLAGS $GTEST_CXXFLAGS"
-    LDFLAGS="$LDFLAGS $GTEST_LDFLAGS"
-    LIBS="$LIBS $GTEST_LIBS"
+    CPPFLAGS="$GTEST_CPPFLAGS $CPPFLAGS"
+    CXXFLAGS="$GTEST_CXXFLAGS $CXXFLAGS"
+    LDFLAGS="$GTEST_LDFLAGS $LDFLAGS"
+    LIBS="$GTEST_LIBS $LIBS"
     
     # Check for gtest header
     AC_CHECK_HEADER([gtest/gtest.h], [], [AC_MSG_ERROR([Unable to compile with Google Test.])])
