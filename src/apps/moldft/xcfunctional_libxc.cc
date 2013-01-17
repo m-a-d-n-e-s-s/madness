@@ -219,7 +219,7 @@ static xc_func_type* lookup_func(const std::string& name, bool polarized) {
     return make_func(id, polarized);
 }
 
-XCfunctional::XCfunctional() {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {}
 
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized)

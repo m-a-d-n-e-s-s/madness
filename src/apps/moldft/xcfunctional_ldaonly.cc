@@ -11,7 +11,7 @@ int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 int c_uks_vwn5__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
 
-XCfunctional::XCfunctional() {}
+XCfunctional::XCfunctional() : hf_coeff(0.0) {}
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized) 
 {
@@ -19,14 +19,20 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
     
     std::stringstream s(input_line);
     std::string token;
+    bool found_valid_token = false;
     while (s >> token) {
-        if (token == "lda") {
+        std::transform(token.begin(), token.end(), token.begin(), ::toupper);
+        if (token == "LDA") {
             hf_coeff = 0.0;
+            found_valid_token = true;
         }
-        else if (token == "hf") {
+        else if (token == "HF") {
             hf_coeff = 1.0;
+            found_valid_token = true;
         }
     }
+    if (not found_valid_token)
+        throw "XCfunctional(ldaonly)::initialize() -- did not find a valid XC functional";
 }
 
 XCfunctional::~XCfunctional() {}
