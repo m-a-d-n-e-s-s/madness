@@ -17,7 +17,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worlddc.h deferred_deleter.h scopedptr.h worldtask.h taskfn.h \
 	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
-	function_traits_bits.h integral_constant.h stubmpi.h
+	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
                       
 array_test_SOURCES = array_test.cc
 array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
