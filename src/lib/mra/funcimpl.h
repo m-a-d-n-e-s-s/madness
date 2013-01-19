@@ -2362,7 +2362,8 @@ namespace madness {
 
             const std::vector<keyT>& disp = op->get_disp(key.level());
 
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+	    // use to have static in front, but this is not thread-safe
+            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
             for (typename std::vector<keyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const keyT& d = *it;
