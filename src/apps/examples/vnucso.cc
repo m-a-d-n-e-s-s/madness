@@ -71,7 +71,7 @@
 #include <constants.h>
 
 using namespace madness;
-using namespace std;
+// using namespace std;
 
 typedef Vector<double,3> coordT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > real_functorT;
@@ -389,7 +389,7 @@ void doit(World& world) {
             printf("  ----   ----  ------------------ -------   ------\n");
       }
 
-      V0 = real_factoryT(world).f(V).thresh(thresh);
+      V0 = real_factoryT(world).f(V).thresh(thresh*.1);
       V0x = real_derivative_3d(world,0)(V0);
       V0y = real_derivative_3d(world,1)(V0);
       V0z = real_derivative_3d(world,2)(V0);
@@ -492,7 +492,7 @@ void doit(World& world) {
 	for (int i=0; i<nvec; i++) {
 	  if (world.rank() == 0) printf("  %3d    %3d  %18.12f  %.1e  %7.1f\n",
 					iter, i, e[i]/reduced, rnorm[i], wall_time());
-	  maxerr = max(maxerr,rnorm[i]);
+	  maxerr = std::max(maxerr,rnorm[i]);
 	}
 
 	u = u_new;
@@ -524,7 +524,7 @@ void doit(World& world) {
 	u[i] = madness::project(u[i], k, thresh);
 	v[i] = madness::project(v[i], k, thresh);
       }
-      V0 = real_factoryT(world).f(V).thresh(thresh);
+      V0 = real_factoryT(world).f(V).thresh(thresh*.1);
       V0x = real_derivative_3d(world,0)(V0);
       V0y = real_derivative_3d(world,1)(V0);
       V0z = real_derivative_3d(world,2)(V0);
