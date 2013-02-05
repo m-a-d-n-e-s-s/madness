@@ -1398,7 +1398,7 @@ namespace madness {
                 for (iterator it=begin(); it!=end(); ++it) ar & *it;
             }
             else {
-                long cookie;
+                long cookie = 0l;
                 ar & cookie;
                 MADNESS_ASSERT(cookie == magic);
                 ar & count;
@@ -1487,8 +1487,8 @@ namespace madness {
                         else if (ar.io_node(p) == me) {
                             world->mpi.Send(int(1),p,tag); // Tell client to start sending
                             archive::MPIInputArchive source(*world, p);
-                            long cookie;
-                            unsigned long count;
+                            long cookie = 0l;
+                            unsigned long count = 0ul;
 
                             ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::preamble_store(localar);
 
@@ -1535,8 +1535,8 @@ namespace madness {
                 World* world = ar.get_world();
                 if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
-                    long cookie;
-                    int nclient;
+                    long cookie = 0l;
+                    int nclient = 0;
                     BinaryFstreamInputArchive& localar = ar.local_archive();
                     localar & cookie & nclient;
                     MADNESS_ASSERT(cookie == magic);

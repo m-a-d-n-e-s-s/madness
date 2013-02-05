@@ -445,7 +445,7 @@ struct Calculation {
     {
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
-        unsigned int nmo;
+        unsigned int nmo = 0u;
         amo.clear(); bmo.clear();
 
         std::string refdir = "references/";

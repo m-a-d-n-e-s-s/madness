@@ -121,7 +121,7 @@ namespace madness {
                 }
             }
             else {
-	      df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1, 
+	      df->task(owner, &madness::FunctionImpl<T,NDIM>::forward_do_diff1,
 		       this, f, key, left, center, right, TaskAttributes::hipri());
             }
             return None;
@@ -166,7 +166,7 @@ namespace madness {
 
 
         /// Differentiate w.r.t. given coordinate (x=0, y=1, ...) with optional fence
-	
+
         /// Returns a new function with the same distribution
         Function<T,NDIM>
         operator()(const functionT& f, bool fence=true) const {
@@ -586,7 +586,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const DerivativeBase<T,NDIM>*> {
             static void load(const Archive& ar, const DerivativeBase<T,NDIM>*& ptr) {
-                WorldObject< DerivativeBase<T,NDIM> >* p;
+                WorldObject< DerivativeBase<T,NDIM> >* p = NULL;
                 ar & p;
                 ptr = static_cast< const DerivativeBase<T,NDIM>* >(p);
             }

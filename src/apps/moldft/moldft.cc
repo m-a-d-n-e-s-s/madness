@@ -137,7 +137,7 @@ class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
   std::vector<coord_3d> specialpts;
 public:
   NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
-  
+
   double operator()(const Vector<double,3>& r) const {
     return molecule.mol_nuclear_charge_density(r[0], r[1], r[2]);
   }
@@ -244,7 +244,7 @@ class DensityIsosurfaceCharacteristic {
         double r2b = std::pow(r,twobeta);
         return r2b/(1.0+r2b);
     }
-    
+
 public:
     DensityIsosurfaceCharacteristic(double rho0, double beta)
         : rho0(rho0), twobeta(2.0*beta)
@@ -266,7 +266,7 @@ class DensityIsosurfaceCharacteristicDerivative {
         double r2b = std::pow(r,twobeta);
         return twobeta*r2b/(rho0*r*(1.0+r2b)*(1.0+r2b));
     }
-    
+
 public:
     DensityIsosurfaceCharacteristicDerivative(double rho0, double beta)
         : rho0(rho0), twobeta(2.0*beta)
@@ -1008,8 +1008,8 @@ struct Calculation {
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
-        unsigned int nmo;
-        bool spinrest;
+        unsigned int nmo = 0;
+        bool spinrest = false;
         amo.clear(); bmo.clear();
 
         archive::ParallelInputArchive ar(world, "restartdata");
@@ -2699,7 +2699,7 @@ struct Calculation {
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
-        
+
         for(int iter = 0;iter < param.maxiter;++iter){
             if(world.rank() == 0)
                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
@@ -2948,7 +2948,7 @@ struct Calculation {
             c = copy(arho);
             c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
             plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
-            
+
             c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
             double area = c.trace();
             double facarea = std::pow(constants::atomic_unit_of_length*1e10,2.0);
@@ -2992,12 +2992,12 @@ struct Calculation {
         // Shrink subspace until stop localizing/canonicalizing
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
-        
+
          if(param.absolvent){ //param.physisorption||param.svpe||
             functorT rhon_functor(new NuclearDensityFunctor(molecule));
             if (world.rank()==0)
                 print("Projecting Nuclear Charge Density");
-            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added 
+            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added
             rhon.truncate();
             // coord_3d lo(0.0), hi(0.0);
             //lo[0] = -20.0;
@@ -3005,7 +3005,7 @@ struct Calculation {
             double total_rhon = rhon.trace();
             if(world.rank()==0)
                 print("Nuclear Charge ", total_rhon);
-            
+
         }
          /* //Initial electrostatic potential for DFT solvation moldel
          if(param.absolvent){
@@ -3123,17 +3123,17 @@ struct Calculation {
                 vlocal = vcoul + vnuc + Uabinit;
             else
                 vlocal = vcoul + vnuc ;
-            
+
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
-            
+
             vecfuncT vf, delrho;
             if (xc.is_dft()) {
                 arho.reconstruct();
                 if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
                 // brho.reconstruct();
-                
+
                 vf.push_back(arho);
 
                 if (xc.is_spin_polarized()) vf.push_back(brho);
@@ -3269,10 +3269,10 @@ struct Calculation {
             double E_cav = DFTSsolver.cavitation_energy();
             double Surface = DFTSsolver.make_surface().trace();
             double Volume = DFTSsolver.make_characteristic_func().trace();
-            double E_free = esol + E_es - vacuo_energy; 
+            double E_free = esol + E_es - vacuo_energy;
             double G_sol = E_free + E_cav;
             // print("Electrostatic energy ",E_es);
-            
+
             if(world.rank() == 0) {
                 print("\n\n");
                 print("                            MADNESS SOLVATION RESULTS           ");
@@ -3288,7 +3288,7 @@ struct Calculation {
                 printf("                    Molecular Surface: %16.8f\n\n     ",Surface);
             }
          }
-        
+
         if (world.rank() == 0) {
             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
@@ -3301,11 +3301,11 @@ struct Calculation {
                 print("Analysis of beta MO vectors");
 
             analyze_vectors(world, bmo, bocc, beps);
-        }  
-        
-       
+        }
+
+
     }// end solve function
-    
+
 };
 
 
@@ -3365,9 +3365,9 @@ public:
             }
             //if(proto==0){
             if(calc.param.absolvent)//||calc.param.svpe)
-                calc.solve_gas_phase(world);// computes vacuo density and energy  
+                calc.solve_gas_phase(world);// computes vacuo density and energy
                 //}//  calc.save_mos(world); //debugging
-                
+
             calc.solve(world);
             calc.save_mos(world);
         }

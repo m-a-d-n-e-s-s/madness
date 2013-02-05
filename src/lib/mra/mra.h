@@ -957,7 +957,7 @@ namespace madness {
         void load(World& world, Archive& ar) {
             PROFILE_MEMBER_FUNC(Function);
             // Type checking since we are probably circumventing the archive's own type checking
-            long magic, id, ndim, k;
+            long magic = 0l, id = 0l, ndim = 0l, k = 0l;
             ar & magic & id & ndim & k;
             MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
             MADNESS_ASSERT(id == TensorTypeData<T>::id);
@@ -1023,7 +1023,7 @@ namespace madness {
             vf[0].impl->refine_to_common_level(v, c, key0);
             if (mustfence) vf[0].world().gop.fence();
             if (fence) vf[0].world().gop.fence();
-            //if (VERIFY_TREE) 
+            //if (VERIFY_TREE)
                 for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
         }
 

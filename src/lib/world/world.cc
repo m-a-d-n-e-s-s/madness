@@ -58,8 +58,8 @@ void test0(World& world) {
     arout & 7L & 77.7;
     MADNESS_ASSERT(buf[0]==127 && buf[n+1]==127);
 
-    long i;
-    double a;
+    long i = 0l;
+    double a = 0.0;
 
     archive::BufferInputArchive arin(buf+1,n-2);
     char s[8];
@@ -276,12 +276,12 @@ public:
 };
 
 class TimeBarrier : public TaskInterface {
-    volatile int count;
+//    volatile int count;
 public:
 
     TimeBarrier(const madness::TaskAttributes& attr)
         : TaskInterface(attr)
-        , count(0)
+//        , count(0)
     {
         print("Timing barrier with nthread", attr.get_nthread());
     }
@@ -523,7 +523,7 @@ void test8(World& world) {
     archive::VectorOutputArchive arout(v);
     arout & &world;
 
-    World* p;
+    World* p = NULL;
     archive::VectorInputArchive arin(v);
     arin & p;
     MADNESS_ASSERT(p==&world);

@@ -899,7 +899,7 @@ namespace madness {
         struct ArchiveLoadImpl< Archive, std::complex<T> > {
             static inline void load(const Archive& ar, std::complex<T>& c) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize complex number" << std::endl);
-                T r, i;
+                T r = 0, i = 0;
                 ar & r & i;
                 c = std::complex<T>(r,i);
             }
@@ -922,7 +922,7 @@ namespace madness {
         struct ArchiveLoadImpl< Archive, std::vector<T> > {
             static void load(const Archive& ar, std::vector<T>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
-                std::size_t n;
+                std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
                     v.clear();
@@ -951,7 +951,7 @@ namespace madness {
         struct ArchiveLoadImpl< Archive, std::vector<bool> > {
             static void load(const Archive& ar, std::vector<bool>& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL vector" << std::endl);
-                std::size_t n;
+                std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
                     v.clear();
@@ -980,7 +980,7 @@ namespace madness {
         struct ArchiveLoadImpl< Archive, std::string > {
             static void load(const Archive& ar, std::string& v) {
                 MAD_ARCHIVE_DEBUG(std::cout << "deserialize STL string" << std::endl);
-                std::size_t n;
+                std::size_t n = 0ul;
                 ar & n;
                 if (n != v.size()) {
                     v.clear();

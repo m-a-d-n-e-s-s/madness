@@ -689,7 +689,7 @@ namespace madness {
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
             static inline void load(const Archive& ar, World*& wptr) {
-                unsigned long id;
+                unsigned long id = 0ul;
                 ar & id;
                 wptr = World::world_from_id(id);
                 MADNESS_ASSERT(wptr);

@@ -767,7 +767,7 @@ namespace madness {
         template <typename Archive>
         void load(Archive& ar) {
             // WE RELY ON K BEING STORED FIRST
-            int kk;
+            int kk = 0;
             ar & kk;
 
             MADNESS_ASSERT(kk==k);
