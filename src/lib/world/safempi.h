@@ -330,17 +330,124 @@ namespace SafeMPI {
         }
     }; // class Request
 
-    class Intracomm {
-        MPI_Comm comm;
-        int me;
-        int numproc;
+    ///  Wrapper around MPI_Group. Has a shallow copy constructor. Usually deep copy is not needed, but can be created
+    ///  via Group::Incl().
+    class Group {
+      public:
+        Group Incl(int n, const int* ranks) const {
+          Group result(std::shared_ptr<Impl>(new Impl(*impl, n, ranks)));
+          return result;
+        }
 
+        void Translate_ranks(int nproc, const int* ranks1, const Group& grp2, int* ranks2) const {
+          MADNESS_MPI_TEST(MPI_Group_translate_ranks(this->impl->group, nproc, ranks1,
+                                                     grp2.impl->group, ranks2));
+        }
+
+        MPI_Group group() const {
+          return impl->group;
+        }
+
+      private:
+
+        struct Impl {
+            MPI_Group group;
+
+            Impl(MPI_Comm comm) {
+              MADNESS_MPI_TEST(MPI_Comm_group(comm, &group));
+            }
+
+            Impl(const Impl& other, int n, const int* ranks) {
+              MADNESS_MPI_TEST(MPI_Group_incl(other.group, n, ranks, &this->group));
+            }
+
+            ~Impl() {
+              int initialized;  MPI_Initialized(&initialized);
+              if (initialized) {
+                MADNESS_MPI_TEST(MPI_Group_free(&group));
+              }
+            }
+
+        };
+
+        friend class Intracomm;
+        Group() {}
+        // only Intracomm will use this
+        Group(MPI_Comm comm) : impl(new Impl(comm)) {
+        }
+        // only myself will use this
+        Group(const std::shared_ptr<Impl>& i) : impl(i) {
+        }
+
+        std::shared_ptr<Impl> impl;
+    };
+
+    class Intracomm;
+    extern Intracomm COMM_WORLD;
+
+    ///  Wrapper around MPI_Comm. Has a shallow copy constructor; use Create(Get_group()) for deep copy
+    class Intracomm {
+    	struct Impl {
+	        MPI_Comm comm;
+	        int me;
+    	    int numproc;
+
+    	    volatile int utag;
+    	    volatile int urtag;
+
+    	    Impl(const MPI_Comm& c,
+    	         int m, int n) : comm(c), me(m), numproc(n), utag(1024), urtag(1) {
+    	    }
+    	    ~Impl() {
+              int initialized;  MPI_Initialized(&initialized);
+              if (initialized) {
+                int compare_result;
+                MPI_Comm_compare(comm, MPI_COMM_WORLD, &compare_result);
+                if (compare_result == MPI_IDENT)
+                  MPI_Comm_free(&comm);
+              }
+    	    }
+
+            /// Returns a unique tag for temporary use (1023<tag<=4095)
+
+            /// These tags are intended for one time use to avoid tag
+            /// collisions with other messages around the same time period.
+            /// It simply increments/wraps a counter and returns the next
+            /// legal value.
+            ///
+            /// So that send and receiver agree on the tag all processes
+            /// need to call this routine in the same sequence.
+            int unique_tag() {
+              SAFE_MPI_GLOBAL_MUTEX;
+              int result = utag++;
+              if (utag >= 4095) utag = 1024;
+              return result;
+            }
+
+            /// Returns a unique tag reserved for long-term use (0<tag<1000)
+
+            /// Get a tag from this routine for long-term/repeated use.
+            ///
+            /// Tags in [1000,1023] are statically assigned.
+            int unique_reserved_tag() {
+                SAFE_MPI_GLOBAL_MUTEX;
+                int result = urtag++;
+                if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
+                return result;
+            }
+
+        };
+    	std::shared_ptr<Impl> impl;
+        
         friend void Init(void);
         friend void Init(int &, char **& );
         friend int Init_thread(int);
         friend int Init_thread(int &, char **&, int );
 
-        Intracomm& operator=(const Intracomm&);
+        // For internal use only. Do not try to call this constructor. It is
+        // only used to construct Intarcomm in Create().
+        Intracomm(const std::shared_ptr<Impl>& i) : impl(i) {
+        }
 
     public:
         struct WorldInitObject;
@@ -349,99 +456,104 @@ namespace SafeMPI {
         // only used to construct COMM_WORLD.
         Intracomm(const WorldInitObject&);
 
-        Intracomm(MPI_Comm c) : comm(c), me(-1), numproc(-1) {
-            SAFE_MPI_GLOBAL_MUTEX;
-            MPI_Comm_rank(comm, &me);
-            MPI_Comm_size(comm, &numproc);
-        }
-
-        Intracomm(const Intracomm& other) :
-            comm(other.comm), me(other.me), numproc(other.numproc)
-        { }
-
-        Intracomm Create(MPI_Group group) const {
+        /**
+         * This collective operation creates a new Intracomm from an Intracomm::Group object.
+         * Must be called by all processes that belong to this communicator, but not all
+         * must use the same \c group . Thus this Intracomm can be partitioned into several Intracomm objects
+         * with one call.
+         *
+         * @param group Intracomm::Group describing the Intracomm object to be created (\sa Intracomm::Get_group()
+         *              and Intracomm::Group::Incl() )
+         * @return a new Intracomm object
+         */
+        Intracomm Create(Group group) const {
             SAFE_MPI_GLOBAL_MUTEX;
             MPI_Comm group_comm;
-            MADNESS_MPI_TEST(MPI_Comm_create(comm, group, &group_comm));
-            return Intracomm(group_comm);
+            MADNESS_MPI_TEST(MPI_Comm_create(impl->comm, group.group(), &group_comm));
+            int me; MADNESS_MPI_TEST(MPI_Comm_rank(group_comm, &me));
+            int nproc; MADNESS_MPI_TEST(MPI_Comm_size(group_comm, &nproc));
+            return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc)));
         }
 
-        MPI_Group Get_group() const {
+        /**
+         * This local operation returns the Intracomm::Group object corresponding to this intracommunicator
+         * @return the Intracomm::Group object corresponding to this intracommunicator
+         */
+        Group Get_group() const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MPI_Group group;
-            MADNESS_MPI_TEST(MPI_Comm_group(comm, &group));
+            Group group(impl->comm);
             return group;
         }
 
-        int Get_rank() const { return me; }
+        int Get_rank() const { return impl->me; }
 
-        int Get_size() const { return numproc; }
+        int Get_size() const { return impl->numproc; }
 
         Request Isend(const void* buf, const int count, const MPI_Datatype datatype, const int dest, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
             Request request;
-            MADNESS_MPI_TEST(MPI_Isend(const_cast<void*>(buf), count, datatype, dest,tag, comm, request));
+            MADNESS_MPI_TEST(MPI_Isend(const_cast<void*>(buf), count, datatype, dest,tag, impl->comm, request));
             return request;
         }
 
         Request Irecv(void* buf, const int count, const MPI_Datatype datatype, const int src, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
             Request request;
-            MADNESS_MPI_TEST(MPI_Irecv(buf, count, datatype, src, tag, comm, request));
+            MADNESS_MPI_TEST(MPI_Irecv(buf, count, datatype, src, tag, impl->comm, request));
             return request;
         }
 
         void Send(const void* buf, const int count, const MPI_Datatype datatype, int dest, int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Send(const_cast<void*>(buf), count, datatype, dest, tag, comm));
+            MADNESS_MPI_TEST(MPI_Send(const_cast<void*>(buf), count, datatype, dest, tag, impl->comm));
         }
 
 #ifdef MADNESS_USE_BSEND_ACKS
         void Bsend(const void* buf, size_t count, const MPI_Datatype datatype, int dest, int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
             if (count>10 || datatype!=MPI_BYTE) MADNESS_EXCEPTION("Bsend: this protocol is only for 1-byte acks", count );
-            MADNESS_MPI_TEST(MPI_Bsend(const_cast<void*>(buf), count, datatype, dest, tag, comm));
+            MADNESS_MPI_TEST(MPI_Bsend(const_cast<void*>(buf), count, datatype, dest, tag, impl->comm));
         }
 #endif // MADNESS_USE_BSEND_ACKS
 
         void Recv(void* buf, const int count, const MPI_Datatype datatype, const int source, const int tag, MPI_Status& status) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, comm, &status));
+            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, impl->comm, &status));
         }
 
         void Recv(void* buf, const int count, const MPI_Datatype datatype, const int source, const int tag) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, comm, MPI_STATUS_IGNORE));
+            MADNESS_MPI_TEST(MPI_Recv(buf, count, datatype, source, tag, impl->comm, MPI_STATUS_IGNORE));
         }
 
         void Bcast(void* buf, size_t count, const MPI_Datatype datatype, const int root) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Bcast(buf, count, datatype, root, comm));
+            MADNESS_MPI_TEST(MPI_Bcast(buf, count, datatype, root, impl->comm));
         }
 
         void Reduce(const void* sendbuf, void* recvbuf, const int count, const MPI_Datatype datatype, const MPI_Op op, const int root) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Reduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, root, comm));
+            MADNESS_MPI_TEST(MPI_Reduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, root, impl->comm));
         }
 
         void Allreduce(const void* sendbuf, void* recvbuf, const int count, const MPI_Datatype datatype, const MPI_Op op) const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Allreduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, comm));
+            MADNESS_MPI_TEST(MPI_Allreduce(const_cast<void*>(sendbuf), recvbuf, count, datatype, op, impl->comm));
         }
         bool Get_attr(int key, void* value) const {
             int flag = 0;
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Comm_get_attr(comm, key, value, &flag));
+            MADNESS_MPI_TEST(MPI_Comm_get_attr(impl->comm, key, value, &flag));
             return flag != 0;
         }
 
         void Abort(int code=1) const {
-            MPI_Abort(comm, code);
+            MPI_Abort(impl->comm, code);
         }
 
         void Barrier() const {
             SAFE_MPI_GLOBAL_MUTEX;
-            MADNESS_MPI_TEST(MPI_Barrier(comm));
+            MADNESS_MPI_TEST(MPI_Barrier(impl->comm));
         }
 
         /// Returns a unique tag for temporary use (1023<tag<=4095)
@@ -453,12 +565,8 @@ namespace SafeMPI {
         ///
         /// So that send and receiver agree on the tag all processes
         /// need to call this routine in the same sequence.
-        static int unique_tag() {
-            SAFE_MPI_GLOBAL_MUTEX;
-            static volatile int tag = 1024;
-            int result = tag++;
-            if (tag >= 4095) tag = 1024;
-            return result;
+        int unique_tag() {
+          return impl->unique_tag();
         }
 
         /// Returns a unique tag reserved for long-term use (0<tag<1000)
@@ -466,12 +574,8 @@ namespace SafeMPI {
         /// Get a tag from this routine for long-term/repeated use.
         ///
         /// Tags in [1000,1023] are statically assigned.
-        static int unique_reserved_tag() {
-            SAFE_MPI_GLOBAL_MUTEX;
-            static volatile int tag = 1;
-            int result = tag++;
-            if (result >= 1000) MADNESS_EXCEPTION( "too many reserved tags in use" , result );
-            return result;
+        int unique_reserved_tag() {
+          return impl->unique_reserved_tag();
         }
 
         // Below here are extensions to MPI but have to be here since overload resolution
@@ -579,14 +683,11 @@ namespace SafeMPI {
 
     }; // class Intracomm
 
-    extern Intracomm COMM_WORLD;
-
-
     inline int Init_thread(int & argc, char **& argv, int required) {
         int provided = 0;
         MADNESS_MPI_TEST(MPI_Init_thread(&argc, &argv, required, &provided));
-        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
-        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.impl->comm, & COMM_WORLD.impl->me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.impl->comm, & COMM_WORLD.impl->numproc));
         if((provided < required) && (COMM_WORLD.Get_rank() == 0)) {
             std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
                       << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
@@ -622,8 +723,8 @@ namespace SafeMPI {
     inline int Init_thread(int required) {
         int provided = 0;
         MADNESS_MPI_TEST(MPI_Init_thread(0, 0, required, &provided));
-        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
-        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.impl->comm, & COMM_WORLD.impl->me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.impl->comm, & COMM_WORLD.impl->numproc));
         if((provided < required) && (COMM_WORLD.Get_rank() == 0)) {
             std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
                       << MPI_THREAD_STRING(required) << " (" << MPI_THREAD_STRING(provided) << "). \n"
@@ -644,14 +745,14 @@ namespace SafeMPI {
 
     inline void Init() {
         MADNESS_MPI_TEST(MPI_Init(0,0));
-        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
-        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.impl->comm, & COMM_WORLD.impl->me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.impl->comm, & COMM_WORLD.impl->numproc));
     }
 
     inline void Init(int & argc, char **& argv) {
         MADNESS_MPI_TEST(MPI_Init(&argc, &argv));
-        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.comm, & COMM_WORLD.me));
-        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.comm, & COMM_WORLD.numproc));
+        MADNESS_MPI_TEST(MPI_Comm_rank(COMM_WORLD.impl->comm, & COMM_WORLD.impl->me));
+        MADNESS_MPI_TEST(MPI_Comm_size(COMM_WORLD.impl->comm, & COMM_WORLD.impl->numproc));
     }
 
     inline int Finalize() { return MPI_Finalize(); }

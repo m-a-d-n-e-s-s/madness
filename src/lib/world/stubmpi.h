@@ -97,6 +97,7 @@ inline int MPI_Group_translate_ranks(const MPI_Group&, int, const int*, const MP
 // Initialization and finalize functions
 inline int MPI_Init(int *, char ***) { return MPI_SUCCESS; }
 inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Initialized(int* flag) { *flag = 1; return MPI_SUCCESS; }
 inline int MPI_Finalize() { return MPI_SUCCESS; }
 inline int MPI_Finalized(int* flag) { *flag = 1; return MPI_SUCCESS; }
 

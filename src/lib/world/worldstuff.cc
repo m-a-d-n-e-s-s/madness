@@ -96,7 +96,9 @@ namespace madness {
         gop.barrier();
         am.worldid = _id;
 
-//        std::cout << "JUST MADE WORLD " << id() << std::endl
+        //std::cout << "JUST MADE WORLD " << id() << " with "
+        //          << comm.Get_size() << " members (I am # "
+        //          << comm.Get_rank() << ")"<< std::endl;
     }
 
 
