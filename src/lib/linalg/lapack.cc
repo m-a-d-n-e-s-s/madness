@@ -268,6 +268,37 @@ namespace madness {
 
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
     }
+
+    /// same as svd, but it optimizes away the tensor construction: a = U * diag(s) * VT
+
+    /// note that S and VT are swapped in the calling list for c/fortran consistency!
+    /// @param[inout]	a	a (m,n) matrix to be svd'ed; upon return will hold VT
+    /// 					the first min(m,n) rows of VT, stored rowwise
+    /// @param[inout]	U	left singular vectors, stored columnwise
+    /// @param[inout]	s	the singular values
+    /// @param[inout]	VT	not referenced
+    /// @param[inout]	work work array; optimial length lwork:
+    ///						lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
+    template <typename T>
+    void svd_result(Tensor<T>& a, Tensor<T>& U,
+             Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT, Tensor<T>& work) {
+        TENSOR_ASSERT(a.ndim() == 2, "svd requires matrix",a.ndim(),&a);
+
+        integer m = a.dim(0), n = a.dim(1), rmax = min<integer>(m,n);
+//        integer lwork = max<integer>(3*min(m,n)+max(m,n),5*min(m,n)-4)*32;
+        integer lwork=work.size();
+        integer info;
+
+        // calling list is swapped
+        dgesvd_("O","S", &n, &m, a.ptr(), &n, s.ptr(),
+                VT.ptr(), &n, U.ptr(), &rmax, work.ptr(), &lwork,
+                &info, (char_len) 1, (char_len) 1);
+
+        mask_info(info);
+
+        TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
+    }
+
 #endif //MADNESS_HAS_EIGEN3
 
     /// Example and test code for interface to LAPACK SVD interfae
@@ -727,6 +758,10 @@ namespace madness {
              Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
 
     template
+    void svd_result(Tensor<double>& a, Tensor<double>& U,
+             Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT, Tensor<double>& work);
+
+    template
     void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
 
     template
@@ -752,6 +787,11 @@ namespace madness {
     template
     void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,
              Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT);
+
+    template
+    void svd_result(Tensor<double_complex>& a, Tensor<double_complex>& U,
+             Tensor<Tensor<double_complex>::scalar_type >& s, Tensor<double_complex>& VT,
+             Tensor<double_complex>& work);
 
     template
     void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);

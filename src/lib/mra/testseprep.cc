@@ -696,8 +696,86 @@ int testGenTensor_reduce(const long& k, const long& dim, const double& eps, cons
 	print("all done\n");
 	return nerror;
 
+}
+
+/// test the tensor train representation
+int testTensorTrain(const long k, const long dim, const TensorArgs targs) {
+
+	print("entering testTensorTrain");
+	int nerror=0;
+	double eps=targs.thresh;
+
+	// set up a tensor of full rank
+	{
+		std::vector<long> d(dim,k);
+		Tensor<double> t(d);
+		t.fillrandom();
+
+		TensorTrain<double> tt1(t,targs.thresh);
+		double error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"full rank; k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+	}
+
+	// set up a tensor of low rank
+	{
+		std::vector<long> d(dim,k);
+		Tensor<double> t(d);
+		t.fillindex();
+		t.scale(1.0/t.normf());
+
+		TensorTrain<double> tt1(t,targs.thresh);
+		double error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"low rank;  k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+	}
+
+	// set up a tensor of zero rank
+	{
+		std::vector<long> d(dim,k);
+		Tensor<double> t(d);
+
+		TensorTrain<double> tt1(t,targs.thresh);
+		double error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"low rank;  k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+	}
+
+	return nerror;
+}
+
+/// test arbitrarily
+void test(const long& k, const long& dim, const TensorArgs& targs) {
+
+	print("entering arbitrary test");
+	// set up three tensors (zeros, rank 2, full rank)
+	std::vector<long> d(dim,k);
+	std::vector<Tensor<double> > t(3);
+
+	t[0]=Tensor<double>(d);
+	t[1]=Tensor<double>(d).fillindex();
+	t[2]=Tensor<double>(d).fillrandom();
+	for (std::vector<Tensor<double> >::iterator it=t.begin(); it!=t.end(); ++it) {
+		*it *=1.0/it->normf();
+	}
+
+	GenTensor<double> r(t[2],targs);
+	int maxrank=r.rank();
+	GenTensor<double> rr=copy(r.get_configs(0,maxrank/2));
+	Tensor<double> reftensor=rr.full_tensor_copy();
+
+	TensorTrain<double> tt(reftensor,targs.thresh);
+	GenTensor<double> gt(reftensor,targs);
+	print("tt",tt.size(),tt.real_size());
+	print("gt",gt.size(),gt.real_size(),gt.rank());
+
+	Tensor<double> diff=reftensor-gt.full_tensor_copy();
+	print("error",diff.normf());
+	Tensor<double> diff1=reftensor-tt.reconstruct();
+	print("error",diff1.normf());
 
 }
+
 
 int main(int argc, char**argv) {
 
@@ -707,15 +785,24 @@ int main(int argc, char**argv) {
     std::cout << std::scientific;
 
     // the parameters
-    long k=6;
+    long k=7;
     const unsigned int dim=6;
-    double eps=1.e-10;
+    double eps=1.e-3;
     print("k    ",k);
     print("eps  ",eps);
 
 
     int error=0;
     print("hello world");
+
+    test(k,dim,TensorArgs(eps,TT_2D));
+    for (int kk=4; kk<k+1; ++kk) {
+    	for (int d=2; d<dim+1; ++d) {
+    	    error+=testTensorTrain(kk,d,TensorArgs(eps,TT_2D));
+    	}
+    }
+
+
 #if 1
 //    error+=testGenTensor_ctor(k,dim,eps,TT_FULL);
 ////    error+=testGenTensor_ctor(k,dim,eps,TT_3D);
@@ -745,7 +832,7 @@ int main(int argc, char**argv) {
 ////    error+=testGenTensor_deepcopy(k,dim,eps,TT_3D);
 //    error+=testGenTensor_deepcopy(k,dim,eps,TT_2D);
 //
-    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
+//    error+=testGenTensor_reduce(k,dim,eps,TT_2D);
 
     print(ok(error==0),error,"finished test suite\n");
 #endif

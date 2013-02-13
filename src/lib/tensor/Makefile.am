@@ -27,9 +27,6 @@ test_mtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
-#tensortrain_SOURCES = tensortrain.cc
-#tensortrain_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
-
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM

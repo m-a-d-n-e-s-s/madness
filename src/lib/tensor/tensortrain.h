@@ -60,11 +60,17 @@ namespace madness {
 	 * The "core" tensors G are connected via a linear index network, where the
 	 * first index a1 and the last index a5 are boundary indices and are set to 1.
 	 *
+	 * The tensor train representation is suited for any number of dimensions and
+	 * in general at least as fast as the 2-way decomposition SVD. If the tensor
+	 * has full rank it will need about twice the storage space of the full tensor
+	 *
+	 * TODO: implement tt representation of tensors with unequal dimensions
 	 */
 	template<typename T>
 	class TensorTrain {
 
 		/// holding the core tensors of a tensor train
+		/// the tensors have the shape (k,r0) (r0,k,r1) (r1,k,r2) .. (rn-1,k)
 		std::vector<Tensor<T> > core;
 		/// true if rank is zero
 		bool zero_rank;
@@ -73,8 +79,13 @@ namespace madness {
 
 		/// ctor for a TensorTrain, with the tolerance eps
 
-		/// the tensor train will represent the input tensor with
+		/// The tensor train will represent the input tensor with
 		/// accuracy || t - this ||_2 < eps
+		///
+		/// Note that we rely on specific layout of the memory in the tensors, e.g.
+		/// we pass SliceTensors on to lapack. This will only work if the slices are
+		/// contiguous.
+		///
 		/// @param[in]	t	full representation of a tensor
 		/// @param[in]	eps	the accuracy threshold
 		TensorTrain(const Tensor<T>& t, double eps)
@@ -85,10 +96,31 @@ namespace madness {
 
 			eps=eps/sqrt(t.ndim()-1);	// error is relative
 
-			Tensor<T> u,vt;
-			Tensor< typename Tensor<T>::scalar_type > s;
+			// the maximum rank is the smaller one of the ranks unfolded from the
+			// left and the right.
+			int rmax1=1;
+			int rmax2=1;
+			for (int i=0, j=t.ndim()-1; i<=j; ++i, --j) {
+				rmax1*=t.dim(i);
+				rmax2*=t.dim(j);
+			}
+			const int rmax=std::min(rmax1,rmax2);
 
-			Tensor<T> c=t;
+			// these are max dimensions, so we can avoid frequent reallocation
+			Tensor<T> u(rmax,rmax);
+			Tensor<T> dummy;
+			Tensor< typename Tensor<T>::scalar_type > s(rmax);
+
+			// the dimension of the remainder tensor; will be cut down in each iteration
+			long vtdim=t.size();
+
+			// c will be destroyed, and assignment is only shallow, so need to deep copy
+			Tensor<T> c=copy(t);
+
+			// work array for dgesvd
+			long lwork =std::max(3*std::min(rmax1,rmax2)+std::max(rmax1,rmax2),5*std::min(rmax1,rmax2)-4)*32;
+			Tensor<T> work(lwork);
+
 
 			// this keeps track of the ranks
 			std::vector<long> r(t.ndim()+1,0l);
@@ -96,37 +128,75 @@ namespace madness {
 
 			for (long d=1; d<t.ndim(); ++d) {
 
-	            const long k=t.dim(d-1);
+				// the core tensors will have dimensions c(rank_left,k,rank_right)
+				// or for lapack's purposes c(d1,rank_right)
+				const long k=t.dim(d-1);
 				const long d1=r[d-1]*k;
 				c=c.reshape(d1,c.size()/d1);
+				const long rmax=std::min(c.dim(0),c.dim(1));
+				vtdim=vtdim/k;
 
-				svd(c,u,s,vt);
+				// testing
+#if 0
+				// c will be destroyed upon return
+				Tensor<T> aa=copy(c);
+#endif
+				// The svd routine assumes lda=a etc. Pass in a flat tensor and reshape
+				// and slice it after processing.
+				u=u.flat();
+				svd_result(c,u,s,dummy,work);
 
-				r[d]=SRConf<T>::max_sigma(eps,s.dim(0),s)+1;
+				// this is rank_right
+				r[d]=SRConf<T>::max_sigma(eps,rmax,s)+1;
+				const long rank=r[d];
+
+				// this is for testing
+#if 0
+				if (0) {
+					Tensor<T> uu=(u(Slice(0,c.dim(0)*rmax-1))).reshape(c.dim(0),rmax);
+					Tensor<T> vtt=copy(c(Slice(0,rmax-1),_));
+					Tensor<T> b(d1,vtdim);
+					for (long i=0; i<c.dim(0); ++i)
+						for (long j=0; j<c.dim(1); ++j)
+							for (long k=0; k<rmax; ++k)
+								b(i,j) += uu(i,k) * T(s(k)) * vtt(k,j);
+					b -= aa;
+					print("b.conforms c",b.conforms(c));
+					print("early error:",b.absmax());
+				}
+#endif
+
+				//        U = Tensor<T>(m,rmax);
+				//        VT = Tensor<T>(rmax,n);
 
 				// handle rank=0 explicitly
 				if (r[d]) {
-				  u=copy(u(_,Slice(0,r[d]-1)));
-				  vt=vt(Slice(0,r[d]-1),_);
-				  for (int i=0; i<vt.dim(0); ++i) {
-				    for (int j=0; j<vt.dim(1); ++j) {
-				      vt(i,j)*=s(i);
-				    }
-				  }
-				  core[d-1]=u.reshape(r[d-1],k,r[d]);
-				  c=copy(vt);
-				  if (d == t.ndim()-1)
-				    core[d]=c;
+
+					// done with this dimension -- slice and deep-copy
+					core[d-1]=copy((u(Slice(0,c.dim(0)*rmax-1))).reshape(c.dim(0),rmax)(_,Slice(0,rank-1)));
+					core[d-1]=core[d-1].reshape(r[d-1],k,r[d]);
+
+					// continue with the next dimension
+					c=c(Slice(0,rank-1),_);
+
+					for (int i=0; i<rank; ++i) {
+						for (int j=0; j<c.dim(1); ++j) {
+							c(i,j)*=s(i);
+						}
+					}
+
+					if (d == t.ndim()-1)
+						core[d]=c;
 				}
 				else {
-				  zero_rank = true;
-				  core[d-1] = Tensor<T>(r[d-1],k,long(0));
-				  // iterate through the rest
-				  for(++d; d<t.ndim(); ++d) {
-	                const long k=t.dim(d-1);
-				    core[d-1] = Tensor<T>(long(0),k,long(0));
-				  }
-				  core[t.ndim()-1] = Tensor<T>(long(0),t.dim(t.ndim()-1));
+					zero_rank = true;
+					core[d-1] = Tensor<T>(r[d-1],k,long(0));
+					// iterate through the rest -- fast forward
+					for(++d; d<t.ndim(); ++d) {
+						const long k=t.dim(d-1);
+						core[d-1] = Tensor<T>(long(0),k,long(0));
+					}
+					core[t.ndim()-1] = Tensor<T>(long(0),t.dim(t.ndim()-1));
 				}
 			}
 			core[0]=core[0].fusedim(0);
@@ -136,13 +206,19 @@ namespace madness {
 
 		/// @return	this in full rank representation
 		Tensor<T> reconstruct() const {
+
+			if (zero_rank) {
+				std::vector<long> d(this->ndim());
+				d[0]=core[0].dim(0);	// first core tensor has shape (k,r1)
+				for (int i=1; i<this->ndim(); ++i) d[i]=core[i].dim(1);
+				return Tensor<T>(d);
+			}
 			Tensor<T> result=core.front();
 			typename std::vector<Tensor<T> >::const_iterator it;
 
 			for (it=++core.begin(); it!=core.end(); ++it) {
 				result=inner(result,*it);
 			}
-			print("result.ndim", result.ndim());
 			return result;
 		}
 
@@ -184,6 +260,25 @@ namespace madness {
 		/// return the number of dimensions
 		long ndim() const {return core.size();}
 
+		/// return the number of coefficients in all core tensors
+		long size() const {
+			if (zero_rank) return 0;
+			long n=0;
+			typename std::vector<Tensor<T> >::const_iterator it;
+			for (it=core.begin(); it!=core.end(); ++it) n+=it->size();
+			return n;
+		}
+
+		/// return the size of this instance, including static memory for vectors and such
+		long real_size() const {
+			long n=this->size()*sizeof(T);
+			n+=core.size() * sizeof(Tensor<T>);
+			n+=sizeof(*this);
+			return n;
+		}
+
+		/// if rank is zero
+		bool is_zero_rank() const {return zero_rank;}
 	};
 
 
