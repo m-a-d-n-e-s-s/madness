@@ -334,12 +334,12 @@ namespace SafeMPI {
     ///  via Group::Incl().
     class Group {
       public:
-        Group Incl(int n, const int* ranks) const {
+        Group Incl(int n, int* ranks) const {
           Group result(std::shared_ptr<Impl>(new Impl(*impl, n, ranks)));
           return result;
         }
 
-        void Translate_ranks(int nproc, const int* ranks1, const Group& grp2, int* ranks2) const {
+        void Translate_ranks(int nproc, int* ranks1, const Group& grp2, int* ranks2) const {
           MADNESS_MPI_TEST(MPI_Group_translate_ranks(this->impl->group, nproc, ranks1,
                                                      grp2.impl->group, ranks2));
         }
@@ -357,7 +357,7 @@ namespace SafeMPI {
               MADNESS_MPI_TEST(MPI_Comm_group(comm, &group));
             }
 
-            Impl(const Impl& other, int n, const int* ranks) {
+            Impl(const Impl& other, int n, int* ranks) {
               MADNESS_MPI_TEST(MPI_Group_incl(other.group, n, ranks, &this->group));
             }
 
