@@ -299,6 +299,12 @@ which merely blows instead of sucking.
             set_assigned(value);
         }
 
+        void set(const archive::BufferInputArchive& input_arch) {
+            ScopedMutex<Spinlock> fred(this);
+            MADNESS_ASSERT(! remote_ref);
+            input_arch & const_cast<T&>(t);
+            set_assigned(t);
+        }
 
         // Gets/forces the value, waiting if necessary (error if not local)
         T& get() {
@@ -516,6 +522,12 @@ which merely blows instead of sucking.
             ff->set(value);
         }
 
+        inline void set(const archive::BufferInputArchive& input_arch) {
+            MADNESS_ASSERT(f);
+            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
+            ff->set(input_arch);
+        }
+
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline T& get() {
@@ -699,8 +711,13 @@ which merely blows instead of sucking.
         }
         /// Not implemented
         explicit Future(const archive::BufferInputArchive& input_arch) {
-            MADNESS_ASSERT(false); // not implemented
+            std::size_t n = 0;
+            input_arch & n;
+            v.reserve(n);
+            for(std::size_t i = 0; i < n; ++i)
+                v.push_back(madness::Future<T>(input_arch));
         }
+
         vectorT& get() {
             return v;
         }
@@ -712,6 +729,13 @@ which merely blows instead of sucking.
         }
         operator const vectorT& () const {
             return get();
+        }
+
+        bool probe() const {
+            for(typename std::vector< Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it)
+                if(! it->probe())
+                    return false;
+            return true;
         }
     }; // class Future< std::vector< Future<T> > >
 
@@ -786,6 +810,42 @@ which merely blows instead of sucking.
         template <class Archive>
         struct ArchiveLoadImpl< Archive, Future<Void> > {
             static inline void load(const Archive&, Future<Void>&) { }
+        };
+
+        /// \ingroup futures
+        template <class Archive, typename T>
+        struct ArchiveStoreImpl< Archive, std::vector<Future<T> > > {
+            static inline void store(const Archive& ar, const std::vector<Future<T> >& v) {
+                MAD_ARCHIVE_DEBUG(std::cout << "serializing vector of futures" << std::endl);
+                ar & v.size();
+                for(typename std::vector<Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it) {
+                    MADNESS_ASSERT(it->probe());
+                    ar & it->get();
+                }
+            }
+        };
+
+
+        /// Deserialize a future into an unassigned future
+
+        /// \ingroup futures
+        template <class Archive, typename T>
+        struct ArchiveLoadImpl< Archive, std::vector<Future<T> > > {
+            static inline void load(const Archive& ar, std::vector<Future<T> >& v) {
+                MAD_ARCHIVE_DEBUG(std::cout << "deserializing vector of futures" << std::endl);
+                std::size_t n = 0;
+                ar & n;
+                if(v.size() < n)
+                    v.reserve(n);
+                if(v.size() > n)
+                    v.resize(n);
+                for(typename std::vector<Future<T> >::const_iterator it = v.begin(); it < v.end(); ++it, --n) {
+                    MADNESS_ASSERT(! it->probe());
+                    it->set(ar);
+                }
+                for(; n != 0; --n)
+                    v.push_back(Future<T>(ar));
+            }
         };
     }
 
