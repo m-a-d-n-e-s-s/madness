@@ -334,13 +334,15 @@ namespace SafeMPI {
     ///  via Group::Incl().
     class Group {
       public:
-        Group Incl(int n, int* ranks) const {
-          Group result(std::shared_ptr<Impl>(new Impl(*impl, n, ranks)));
+        Group Incl(int n, const int* ranks) const {
+          // MPI <3 interface lacks explicit const sanitation
+          Group result(std::shared_ptr<Impl>(new Impl(*impl, n, const_cast<int*>(ranks))));
           return result;
         }
 
-        void Translate_ranks(int nproc, int* ranks1, const Group& grp2, int* ranks2) const {
-          MADNESS_MPI_TEST(MPI_Group_translate_ranks(this->impl->group, nproc, ranks1,
+        void Translate_ranks(int nproc, const int* ranks1, const Group& grp2, int* ranks2) const {
+          // MPI <3 interface lacks explicit const sanitation
+          MADNESS_MPI_TEST(MPI_Group_translate_ranks(this->impl->group, nproc, const_cast<int*>(ranks1),
                                                      grp2.impl->group, ranks2));
         }
 
@@ -357,8 +359,9 @@ namespace SafeMPI {
               MADNESS_MPI_TEST(MPI_Comm_group(comm, &group));
             }
 
-            Impl(const Impl& other, int n, int* ranks) {
-              MADNESS_MPI_TEST(MPI_Group_incl(other.group, n, ranks, &this->group));
+            Impl(const Impl& other, int n, const int* ranks) {
+              // MPI <3 interface lacks explicit const sanitation
+              MADNESS_MPI_TEST(MPI_Group_incl(other.group, n, const_cast<int*>(ranks), &this->group));
             }
 
             ~Impl() {
