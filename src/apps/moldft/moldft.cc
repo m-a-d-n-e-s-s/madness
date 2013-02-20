@@ -1373,9 +1373,22 @@ struct Calculation {
 
             }
         }
-        if(world.rank() == 0){
             tensorT C;
+
+            START_TIMER(world);
+#ifdef MADNESS_HAS_ELEMENTAL
+            world.gop.broadcast(Saomo.ptr(), Saomo.size(), 0);
+            world.gop.broadcast(Saoao.ptr(), Saoao.size(), 0);
+            world.gop.fence();
+
+            gesvp(Saoao, Saomo, C);
+
+            world.gop.broadcast(C.ptr(), C.size(), 0);
+#else
             gesv(Saoao, Saomo, C);
+#endif
+            END_TIMER(world, " compute eigen gesv analize vectors");
+        if(world.rank() == 0){
             C = transpose(C);
             long nmo = mo.size();
             for(long i = 0;i < nmo;++i){
@@ -1660,7 +1673,9 @@ struct Calculation {
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
+            START_TIMER(world);
             tensorT kinetic = kinetic_energy_matrix(world, ao);
+            END_TIMER(world, "guess Kinet potn");
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
@@ -1672,9 +1687,23 @@ struct Calculation {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
-            sygv(fock, overlap, 1, c, e);
+
+            START_TIMER(world);
+#ifdef MADNESS_HAS_ELEMENTAL
+            world.gop.broadcast(fock.ptr(), fock.size(), 0);
+            world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+            world.gop.fence();
+
+            sygvp(fock, overlap, 1, c, e);
+
             world.gop.broadcast(c.ptr(), c.size(), 0);
             world.gop.broadcast(e.ptr(), e.size(), 0);
+#else
+            sygv(fock, overlap, 1, c, e);
+#endif
+
+            END_TIMER(world, "guess eigen sol");
+
             if(world.rank() == 0 && 0){
               print("initial eigenvalues");
               print(e);
@@ -1702,6 +1731,7 @@ struct Calculation {
 
             for(int i = 1;i < param.nmo_alpha;++i) {
                 aset[i] = aset[i - 1];
+                //vamastd::cout << "aeps -" << i << "- " << aeps[i] << std::endl;
                 if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
                     ++(aset[i]);
                     if(world.rank() == 0){
@@ -2134,6 +2164,7 @@ struct Calculation {
         START_TIMER(world);
         tensorT ke = kinetic_energy_matrix(world, psi);
         END_TIMER(world, "KE matrix");
+            START_TIMER(world);
         int nocc = occ.size();
         ekinetic = 0.0;
         for(int i = 0;i < nocc;++i){
@@ -2142,6 +2173,7 @@ struct Calculation {
         ke += pe;
         pe = tensorT();
         ke.gaxpy(0.5, transpose(ke), 0.5);
+            END_TIMER(world, "Make fock matrix rest");
         return ke;
     }
 
@@ -2211,9 +2243,21 @@ struct Calculation {
         START_TIMER(world);
         tensorT U;
 
-        sygv(fock, overlap, 1, U, evals);
-        END_TIMER(world, "Diagonalization");
+#ifdef MADNESS_HAS_ELEMENTAL
+        world.gop.broadcast(fock.ptr(), fock.size(), 0);
+        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+        world.gop.fence();
 
+        sygvp(fock, overlap, 1, U, evals);
+
+        world.gop.broadcast(evals.ptr(), evals.size(), 0);
+        world.gop.broadcast(U.ptr(), U.size(), 0);
+#else
+        sygv(fock, overlap, 1, U, evals);
+#endif
+        END_TIMER(world, "Diagonalization Fock-mat w sygv");
+
+        START_TIMER(world);
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
         // non-linear solver).
@@ -2302,6 +2346,7 @@ struct Calculation {
         truncate(world, psi);
         normalize(world, psi);
 
+        END_TIMER(world, "Diagonalization rest");
         return U;
     }
 
@@ -2843,7 +2888,6 @@ struct Calculation {
             else if (param.nbeta != 0) {
                 ekinb = ekina;
             }
-
             if (!param.localize && do_this_iter) {
                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
@@ -2852,6 +2896,7 @@ struct Calculation {
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
+
 
             double enrep = molecule.nuclear_repulsion_energy();
             double ekinetic = ekina + ekinb;
@@ -2877,17 +2922,48 @@ struct Calculation {
                     }
 
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
+            START_TIMER(world);
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
+
+#ifdef MADNESS_HAS_ELEMENTAL
+                    world.gop.broadcast(focka.ptr(), focka.size(), 0);
+                    world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+                    world.gop.fence();
+        
+                    sygvp(focka, overlap, 1, U, aeps);
+        
+                    world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
+                    world.gop.broadcast(U.ptr(), U.size(), 0);
+#else
                     sygv(focka, overlap, 1, U, aeps);
+#endif
+                    END_TIMER(world, " compute eigen alpha sygv ");
+
                     if (!param.localize) {
                         amo = transform(world, amo, U, trantol, true);
                         truncate(world, amo);
                         normalize(world, amo);
                     }
+
                     if(param.nbeta != 0 && !param.spin_restricted){
+                        START_TIMER(world);
                         overlap = matrix_inner(world, bmo, bmo, true);
+
+#ifdef MADNESS_HAS_ELEMENTAL
+                        world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
+                        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+                        world.gop.fence();
+            
+                        sygvp(fockb, overlap, 1, U, beps);
+            
+                        world.gop.broadcast(beps.ptr(), beps.size(), 0);
+                        world.gop.broadcast(U.ptr(), U.size(), 0);
+#else
                         sygv(fockb, overlap, 1, U, beps);
+#endif
+                        END_TIMER(world, " compute eigen beta sygv");
+
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
                             truncate(world, bmo);
@@ -3398,6 +3474,7 @@ int main(int argc, char** argv) {
 
         // Process 0 reads input information and broadcasts
         const char * inpname = (argc>1) ? argv[1] : "input";
+        print(inpname);
         Calculation calc(world, inpname);
 
         // Warm and fuzzy for the user
@@ -3417,6 +3494,9 @@ int main(int argc, char** argv) {
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }
+//vama
+        calc.set_protocol(world,calc.param.protocol_data[0]);
+
 
         if ( calc.param.gopt) {
           print("\n\n Geometry Optimization                      ");
