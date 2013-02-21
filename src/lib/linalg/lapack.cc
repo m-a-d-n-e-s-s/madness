@@ -568,9 +568,6 @@ namespace madness {
 
         b -= a;
 
-        double err =  b.absmax();
-        cout << "eigen err="<< err << endl;
-
         return b.absmax();
     }
 
