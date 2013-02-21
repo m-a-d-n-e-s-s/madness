@@ -54,11 +54,6 @@ namespace madness {
     void svd(const Tensor<T>& a, Tensor<T>& U,
              Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT);
 
-    /// Solves linear equations
-    
-    /// \ingroup linalg
-    template <typename T>
-    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
 
     /// Solves linear equations using least squares
     
@@ -75,14 +70,35 @@ namespace madness {
     void syev(const Tensor<T>& A,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
+    /// Solves linear equations
+    
+    /// \ingroup linalg
+    template <typename T>
+    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
+
+
     /// Solves symmetric or Hermitian generalized eigenvalue problem
     
-//#ifndef MADNESS_HAS_ELEMENTAL
     /// \ingroup linalg
     template <typename T>
     void sygv(const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
-//#endif
+
+#ifdef MADNESS_HAS_ELEMENTAL
+    /// Solves symmetric or Hermitian generalized eigenvalue problem
+    
+    /// \ingroup linalg
+    template <typename T>
+    void sygvp(const Tensor<T>& A, const Tensor<T>& B, int itype,
+              Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
+
+    /// Solves linear equations
+    
+    /// \ingroup linalg
+    template <typename T>
+    void gesvp(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
+
+#endif
 
     /// Cholesky factorization
     

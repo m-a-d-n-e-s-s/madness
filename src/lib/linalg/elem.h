@@ -35,27 +35,91 @@
 
 #ifdef MADNESS_HAS_ELEMENTAL
 
-#include <mra/mra.h>
+
+#include <iostream>
+
 
 #include <tensor/tensor.h>
-using madness::Tensor;
+#include <world/print.h>
 #include <iostream>
-using std::cout;
-using std::endl;
+#include <linalg/tensor_lapack.h>
 
-#include <algorithm>
-using std::min;
-using std::max;
 
+#include <mra/mra.h>
+#include <mra/lbdeux.h>
+
+
+#include <Eigen/Dense>
+
+
+#include <ctime>
 #include "elemental.hpp"
 using namespace elem;
 
 
-#ifdef MADNESS_FORINT
-typedef MADNESS_FORINT integer;
-#else
-typedef long integer;
-#endif //MADNESS_FORINT
+//1#include <linalg/clapack.h>
+
+using namespace madness;
+using namespace std;
+using namespace Eigen;
+using namespace SafeMPI;
+
+
+#ifndef SCALAR
+// #define SCALAR std::complex<float>
+#define SCALAR double
+#endif
+#ifndef REALX
+// #define SCALAR std::complex<float>
+#define REALX real8
+#endif
+
+#ifndef STATIC
+#define STATIC static
+#endif
+
+
+
+//vama11#include <iostream>
+//vama11using std::cout;
+//vama11using std::endl;
+//vama11
+//vama11
+//vama11#include <tensor/tensor.h>
+//vama11#include <world/print.h>
+//vama11#include <algorithm>
+//vama11#include <linalg/tensor_lapack.h>
+//vama11
+//vama11#include <mra/mra.h>
+//vama11#include <mra/lbdeux.h>
+//vama11
+//vama11#ifdef MADNESS_HAS_EIGEN3
+//vama11# include <Eigen/Dense>
+//vama11  using namespace Eigen;
+//vama11#endif
+//vama11
+//vama11#include <ctime>
+//vama11#include "elemental.hpp"
+//vama11using namespace elem;
+//vama11
+//vama11//vama#include <mpi.h>
+//vama11//vamausing namespace SafeMPI;
+//vama11
+//vama11using namespace madness;
+//vama11using namespace std;
+//vama11using namespace SafeMPI;
+//vama11
+//vama11
+//vama11
+//vama11
+//vama11#ifdef MADNESS_FORINT
+//vama11typedef MADNESS_FORINT integer;
+//vama11#else
+//vama11typedef long integer;
+//vama11#endif //MADNESS_FORINT
+
+
+
 
 namespace madness {
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
@@ -73,25 +137,27 @@ namespace madness {
 
     */
     template <typename T>
-    void sygv(const Tensor<T>& a, const Tensor<T>& B, int itype,
+    void sygvp(const Tensor<T>& a, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         TENSOR_ASSERT(a.ndim() == 2, "sygv requires a matrix",a.ndim(),&a);
         TENSOR_ASSERT(a.dim(0) == a.dim(1), "sygv requires square matrix",0,&a);
         TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&a);
         TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&a);
-        const integer n = a.dim(1);
+        const int n = a.dim(1);
 
         e = Tensor<typename Tensor<T>::scalar_type>(n);
         V = Tensor<T>(n,n);
 //elemental
-        mpi::Comm comm = mpi::COMM_WORLD;
+        //mpi::Comm comm = mpi::COMM_WORLD;
+        mpi::Comm comm = COMM_WORLD.comm;
+        //mpi::Comm comm = mpi::COMM_WORLD;
 //madness
-        //World world(SafeMPI::COMM_WORLD);
-        World world(mpi::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
+
+        //const int myrank = mpi::CommRank( COMM_WORLD.comm );
 
         int blocksize = 128;
-
-        SetBlocksize( blocksize );
+        elem::InitBlocksize(blocksize, comm);
 
         try {
             const Grid GG( comm );
@@ -111,11 +177,13 @@ namespace madness {
                    {
                          const int i = colShift + iLocal*colStride;
                          const int j = rowShift + jLocal*rowStride;
+                         //gd.Set( iLocal, jLocal, buffer[i+j*n] );
                          gd.SetLocal( iLocal, jLocal, buffer[i+j*n] );
                    }
                }
             }
             //gd.Print("gs");
+
             elem::DistMatrix<T> hd( n, n, GG );
             {
                const T * buffer = B.ptr();
@@ -125,19 +193,22 @@ namespace madness {
                    {
                          const int i = colShift + iLocal*colStride;
                          const int j = rowShift + jLocal*rowStride;
+                         //hd.Set( iLocal, jLocal, buffer[i+j*(n)] );
                          hd.SetLocal( iLocal, jLocal, buffer[i+j*(n)] );
                    }
                }
             }
-     
+           // hd.Print("hd");
+
             mpi::Barrier( GG.Comm() );
      
-            HermitianGenDefiniteEigType eigType = AXBX;
+            elem::HermitianGenDefiniteEigType eigType = AXBX;
             char* uu="U";
-            UpperOrLower uplo = CharToUpperOrLower( *uu);
+            elem::UpperOrLower uplo = CharToUpperOrLower( *uu);
             elem::DistMatrix<T> Xd( n, n, GG );
-            elem::DistMatrix<T,VR,STAR> wd( n, n);
-            HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
+            elem::DistMatrix<T,VR,STAR> wd( n, n, GG);
+            elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
+            elem::SortEig( wd, Xd );
      
             mpi::Barrier( GG.Comm() );
             //Xd.Print("Xs");
@@ -152,10 +223,13 @@ namespace madness {
                {
                    const int jLocal=0;
                    const int i = colShift1 + iLocal*colStride1;
+                   //buffer[i]= wd.Get( iLocal, jLocal);
                    buffer[i]= wd.GetLocal( iLocal, jLocal);
                }
             }
+            //world.gop.broadcast(e.ptr(),e.size(), 0);
             world.gop.sum(e.ptr(),n);
+            //if(myrank ==0) cout<< e << endl;
      //retrive eigenvectors
             {
                T * buffer = V.ptr();
@@ -165,18 +239,23 @@ namespace madness {
                   {
                      const int i = colShift + iLocal*colStride;
                      const int j = rowShift + jLocal*rowStride;
+                     //buffer[i+j*n]= Xd.Get( iLocal, jLocal);
                      buffer[i+j*n]= Xd.GetLocal( iLocal, jLocal);
                   }
                }
             }
             world.gop.sum(V.ptr(), n*n);
-            V=transpose(V);
+            V=madness::transpose(V);
+            //world.gop.broadcast(V.ptr(),V.size(), 0);
+            //if(myrank ==0)cout<< V << endl;
         }
         catch (TensorException S) {
            cout << "Caught a tensor exception in sygv elemental\n";
            cout << S;
         }
+        elem::FinBlocksize();
     }
+
     /** \brief  Solve Ax = b for general A using the Elemental. 
     The solution is computed through (partially pivoted) Gaussian elimination.
 
@@ -190,11 +269,11 @@ namespace madness {
 
     */
     template <typename T>
-    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
+    void gesvp(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
 
         TENSOR_ASSERT(a.ndim() == 2, "gesv requires matrix",a.ndim(),&a);
 
-        integer n = a.dim(0), m = a.dim(1), nrhs = b.dim(1);
+        int n = a.dim(0), m = a.dim(1), nrhs = b.dim(1);
 
         TENSOR_ASSERT(m == n, "gesv requires square matrix",0,&a);
         TENSOR_ASSERT(b.ndim() <= 2, "gesv require a vector or matrix for the RHS",b.ndim(),&b);
@@ -203,18 +282,20 @@ namespace madness {
         Tensor<T> AT = transpose(a);
 
 //elemental
-        mpi::Comm comm = mpi::COMM_WORLD;
+        //mpi::Comm comm = mpi::COMM_WORLD;
+        mpi::Comm comm = COMM_WORLD.comm;
 //madness
-        //World world(SafeMPI::COMM_WORLD);
-        World world(mpi::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
+        //World world(mpi::COMM_WORLD);
+
+        //const int myrank = mpi::CommRank( COMM_WORLD.comm );
+        int blocksize = 128;
+        InitBlocksize(blocksize, comm);
 
         try {
-            const Grid GG( comm );
+            const elem::Grid GG( comm );
             elem::DistMatrix<T> gd( n, n, GG );
 
-            int blocksize = 128;
-    
-            SetBlocksize( blocksize );
     
             {
                  const int colShift = gd.ColShift(); // 1st row local
@@ -231,6 +312,7 @@ namespace madness {
                         {
                               const int i = colShift + iLocal*colStride;
                               const int j = rowShift + jLocal*rowStride;
+                              //gd.Set( iLocal, jLocal, buffer[i+j*n] );
                               gd.SetLocal( iLocal, jLocal, buffer[i+j*n] );
                         }
                     }
@@ -249,7 +331,7 @@ namespace madness {
             }
 
            for(int i=0; i< x.size(); ++i) {
-            double * buffer = x.ptr() ;
+            T * buffer = x.ptr() ;
             buffer[i] = 0.0;
             }
 
@@ -271,15 +353,16 @@ namespace madness {
                          {
                                const int i = colShift + iLocal*colStride;
                                const int j = rowShift + jLocal*rowStride;
+                               //hd.Set( iLocal, jLocal, buffer[i+j*(n)]);
                                hd.SetLocal( iLocal, jLocal, buffer[i+j*(n)]);
-         
+        
                          }
                      }
                 }
            }
            mpi::Barrier( GG.Comm() );
     
-           GaussianElimination( gd ,hd);
+           elem::GaussianElimination(gd, hd);
     
            mpi::Barrier( GG.Comm() );
            {
@@ -297,17 +380,21 @@ namespace madness {
                     {
                         const int i = colShift + iLocal*colStride;
                         const int j = rowShift + jLocal*rowStride;
+                        //buffer[j+i*nrhs]= hd.Get( iLocal, jLocal);
                         buffer[j+i*nrhs]= hd.GetLocal( iLocal, jLocal);
                     }
                 }
            }
            world.gop.sum(x.ptr(), n*nrhs);
+            //world.gop.broadcast(x.ptr(),x.size(), 0);
+            //if(myrank ==0) cout<< x << endl;
            
        }
        catch (TensorException S) {
            cout << "Caught a tensor exception in gesv elemental\n";
            cout << S;
        }
+       elem::FinBlocksize();
     }
 }
 #endif //MADNESS_HAS_ELEMENTAL
