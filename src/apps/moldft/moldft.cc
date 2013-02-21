@@ -3507,7 +3507,7 @@ int main(int argc, char** argv) {
 
         // Process 0 reads input information and broadcasts
         const char * inpname = (argc>1) ? argv[1] : "input";
-        print(inpname);
+        if (world.rank() == 0) print(inpname);
         Calculation calc(world, inpname);
 
         // Warm and fuzzy for the user
