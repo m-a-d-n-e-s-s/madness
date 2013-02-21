@@ -30,6 +30,8 @@
 
   $Id$
 */
+
+#include <madness_config.h>
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <mra/mra.h>
@@ -262,7 +264,11 @@ int main(int argc, char** argv) {
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
 
+#ifdef MADNESS_HAS_LIBXC
     test_xcfunctional();
+#else
+    std::cout << "WARNING: To run this program you need libXC. All tests will be skipped." << std::endl;
+#endif
 
     madness::finalize();
     return 0;
