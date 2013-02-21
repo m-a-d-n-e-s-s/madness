@@ -3293,7 +3293,22 @@ struct Calculation {
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
+
+                    START_TIMER(world);
+#ifdef MADNESS_HAS_ELEMENTAL
+                    world.gop.broadcast(focka.ptr(), focka.size(), 0);
+                    world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+                    world.gop.fence();
+            
+                    sygvp(focka, overlap, 1, U, aeps);
+            
+                    world.gop.broadcast(U.ptr(), U.size(), 0);
+                    world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
+#else
                     sygv(focka, overlap, 1, U, aeps);
+#endif
+                    END_TIMER(world, "focka eigen sol");
+
                     if (!param.localize) {
                         amo = transform(world, amo, U, trantol, true);
                         truncate(world, amo);
@@ -3301,7 +3316,25 @@ struct Calculation {
                     }
                     if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
+
+                        START_TIMER(world);
+#ifdef MADNESS_HAS_ELEMENTAL
+                        world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
+                        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+                        world.gop.fence();
+            
+                        sygvp(fockb, overlap, 1, U, beps);
+            
+                        world.gop.broadcast(U.ptr(), U.size(), 0);
+                        world.gop.broadcast(beps.ptr(), beps.size(), 0);
+#else
                         sygv(fockb, overlap, 1, U, beps);
+#endif
+                        END_TIMER(world, "fockb eigen sol");
+
+
+
+
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
                             truncate(world, bmo);
