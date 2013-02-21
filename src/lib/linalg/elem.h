@@ -49,7 +49,6 @@
 #include <mra/lbdeux.h>
 
 
-#include <Eigen/Dense>
 
 
 #include <ctime>
@@ -61,7 +60,6 @@ using namespace elem;
 
 using namespace madness;
 using namespace std;
-using namespace Eigen;
 using namespace SafeMPI;
 
 
