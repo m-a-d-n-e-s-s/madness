@@ -77,7 +77,7 @@ namespace madness {
 
 #if defined(MADATOMIC_USE_BGP)
         typedef _BGP_Atomic atomic_int;
-#elif defined(MADATOMIC_USE_BGP)
+#elif defined(MADATOMIC_USE_BGQ)
         typedef volatile int atomic_int;
 #else
         typedef volatile int atomic_int;
