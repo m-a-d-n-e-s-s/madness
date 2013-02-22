@@ -39,10 +39,8 @@
 
 #include <madness_config.h>
 
-#if defined(HAVE_IBMBGP)
-#  ifndef MADATOMIC_USE_GCC
-#    define MADATOMIC_USE_BGP
-#  endif
+#if defined(HAVE_IBMBGP) && !defined(MADATOMIC_USE_GCC)
+#  define MADATOMIC_USE_BGP
 #elif defined(HAVE_IBMBGQ)
 #  define MADATOMIC_USE_BGQ
 #elif defined(USE_X86_32_ASM) || defined(USE_X86_64_ASM) || defined(X86_64) || defined(X86_32)
