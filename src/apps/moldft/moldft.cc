@@ -52,8 +52,8 @@ using namespace madness;
 #include <moldft/corepotential.h>
 #include <moldft/xcfunctional.h>
 
-#include <jacob/abinitdftsolventsolver.h>
-#include <examples/molecularmask.h>
+//#include <jacob/abinitdftsolventsolver.h>
+//#include <examples/molecularmask.h>
 
 template<int NDIM>
 struct unaryexp {
@@ -556,12 +556,12 @@ struct CalculationParameters {
     int  gmaxiter;               ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
-    bool absolvent;             ///< If true calculate solvation effects
-    double epsilon_2;           ///< dielectric constant of solvent
-    double Gamma;               ///< surface tension of solvent
-    double beta;                ///switching parameter controles boundary conditions of solvent cavity
-    double rho_0;               /// threshold density--determines size of molecular cavity
-    double sigma;               ///switching parameter controles boundary conditions of solvent cavity-(SVPE)
+    //bool absolvent;             ///< If true calculate solvation effects
+    //double epsilon_2;           ///< dielectric constant of solvent
+    //double Gamma;               ///< surface tension of solvent
+    //double beta;                ///switching parameter controles boundary conditions of solvent cavity
+    //double rho_0;               /// threshold density--determines size of molecular cavity
+    //double sigma;               ///switching parameter controles boundary conditions of solvent cavity-(SVPE)
 
     template <typename Archive>
     void serialize(Archive& ar) {
@@ -571,7 +571,7 @@ struct CalculationParameters {
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
         ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
-        ar & absolvent & epsilon_2 & Gamma & Gamma & beta & rho_0 & sigma;
+        //ar & absolvent & epsilon_2 & Gamma & Gamma & beta & rho_0 & sigma;
     }
 
     CalculationParameters()
@@ -616,12 +616,12 @@ struct CalculationParameters {
         , gmaxiter(20)
         , algopt("BFGS")
         , tdksprop(false)
-        , absolvent(false)
-        , epsilon_2(78.304)
-        , Gamma(0.0719)
-        , beta(1.3)
-        , rho_0(0.00048)
-        , sigma(0.3)
+          //, absolvent(false)
+          //, epsilon_2(78.304)
+          //, Gamma(0.0719)
+          //, beta(1.3)
+          //, rho_0(0.00048)
+          //, sigma(0.3)
     {}
 
 
@@ -694,24 +694,24 @@ struct CalculationParameters {
             else if (s == "plotdens") {
                 plotdens = true;
             }
-            else if (s == "absolvent") {
-                absolvent = true;
-            }
-            else if (s == "dielec") {
-                f >> epsilon_2;
-            }
-            else if (s == "Gamma") {
-                f >> Gamma;
-            }
-            else if (s == "beta") {
-                f >> beta;
-            }
-            else if (s == "rho_0") {
-                f >> rho_0;
-            }
-            else if (s == "sigma") {
-                f >> sigma;
-            }
+            //            else if (s == "absolvent") {
+            //                absolvent = true;
+            //            }
+            //            else if (s == "dielec") {
+            //                f >> epsilon_2;
+            //            }
+            //            else if (s == "Gamma") {
+            //                f >> Gamma;
+            //            }
+            //            else if (s == "beta") {
+            //                f >> beta;
+            //            }
+            //            else if (s == "rho_0") {
+            //                f >> rho_0;
+            //            }
+            //            else if (s == "sigma") {
+            //                f >> sigma;
+            //            }
             else if (s == "plotcoul") {
                 plotcoul = true;
             }
@@ -884,13 +884,13 @@ struct CalculationParameters {
             madness::print("    calc derivatives ");
         if (dipole)
             madness::print("         calc dipole ");
-        if(absolvent){
-            madness::print("       isodensity solvation ", absolvent);
-            madness::print("       surface tension      ", Gamma);
-            madness::print("       switching param(beta)", beta);
-            madness::print("       dielectric constant  ", epsilon_2);
-            madness::print("       threshold density    ", rho_0);
-        }
+        //        if(absolvent){
+        //            madness::print("       isodensity solvation ", absolvent);
+        //            madness::print("       surface tension      ", Gamma);
+        //            madness::print("       switching param(beta)", beta);
+        //            madness::print("       dielectric constant  ", epsilon_2);
+        //            madness::print("       threshold density    ", rho_0);
+        //        }
     }
 //};
     void gprint(World& world) const {
@@ -3069,22 +3069,22 @@ struct Calculation {
         int maxsub_save = param.maxsub;
         param.maxsub = 2;
 
-         if(param.absolvent){ //param.physisorption||param.svpe||
-            functorT rhon_functor(new NuclearDensityFunctor(molecule));
-            if (world.rank()==0)
-                print("Projecting Nuclear Charge Density");
-            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added
-            rhon.truncate();
-            // coord_3d lo(0.0), hi(0.0);
-            //lo[0] = -20.0;
-            // hi[0] = 20.0;
-            double total_rhon = rhon.trace();
-            if(world.rank()==0)
-                print("Nuclear Charge ", total_rhon);
+        //  if(param.absolvent){ //param.physisorption||param.svpe||
+        //     functorT rhon_functor(new NuclearDensityFunctor(molecule));
+        //     if (world.rank()==0)
+        //         print("Projecting Nuclear Charge Density");
+        //     rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added
+        //     rhon.truncate();
+        //     // coord_3d lo(0.0), hi(0.0);
+        //     //lo[0] = -20.0;
+        //     // hi[0] = 20.0;
+        //     double total_rhon = rhon.trace();
+        //     if(world.rank()==0)
+        //         print("Nuclear Charge ", total_rhon);
 
-        }
+        // }
          /* //Initial electrostatic potential for DFT solvation moldel
-         if(param.absolvent){
+            if(param.absolvent){
                 rhoT = rhon - vacuo_rho;
                 real_convolution_3d op = madness::CoulombOperator(world, param.lo, param.lo);
                 functionT U_guess = op(rhoT);
@@ -3161,7 +3161,7 @@ struct Calculation {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
-            rho_elec = rho;// to be used in the solvent solver
+            //            rho_elec = rho;// to be used in the solvent solver
 	    //print("Rho Elec Solvent , Gas Phase Density ", rho_elec.trace(), vacuo_rho.trace()); // DEBUG
             // double Xrhoetrace = rho_elec.trace(); //DEBUG
             rho.truncate();
@@ -3180,24 +3180,24 @@ struct Calculation {
 
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
-            /*==========================================================================================
-              Instantiating SVPE and Isodensity solvation models
-              ============================================================================================*/
-            if (param.absolvent){
-                //Abinitio Solvation Model
-                rhoT = rhon - rho_elec;
-                //  print("DEBUG TOTAL CHARGE", rhoT.trace());
-                DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
-                                            ,std::max(1e-5,1e-6));
-                Uabinit = DFTSsolver.ESP();
-                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
-                                                                             ,molecule.get_all_coords_vec()));
-                //print("DEBUG Interaction Pot", Uabinit.trace());
-                // mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
-            }
-            if(param.absolvent)
-                vlocal = vcoul + vnuc + Uabinit;
-            else
+            // /*==========================================================================================
+            //   Instantiating SVPE and Isodensity solvation models
+            //   ============================================================================================*/
+            // if (param.absolvent){
+            //     //Abinitio Solvation Model
+            //     rhoT = rhon - rho_elec;
+            //     //  print("DEBUG TOTAL CHARGE", rhoT.trace());
+            //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
+            //                                 ,std::max(1e-5,1e-6));
+            //     Uabinit = DFTSsolver.ESP();
+            //     real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+            //                                                                  ,molecule.get_all_coords_vec()));
+            //     //print("DEBUG Interaction Pot", Uabinit.trace());
+            //     // mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
+            // }
+            // if(param.absolvent)
+            //     vlocal = vcoul + vnuc + Uabinit;
+            // else
                 vlocal = vcoul + vnuc ;
 
             vcoul.clear(false);
@@ -3365,38 +3365,38 @@ struct Calculation {
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
         }
-        if(param.absolvent){
-            rhoT = rhon - rho_elec;
-            // print("TOTAL CHARGE", rhoT.trace());
-            DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world, \
-                                        param.Gamma,param.beta,std::max(1e-5,1e-7));
-            //DFTSsolver.dftsolverplots();
-            //functionT vsolvent = DFTSsolver.ESP();
-            //realfunc FF  = DFTSsolver.make_electric_field(vsolvent);
-            //double Fxyz = DFTSsolver.ave_rxn_field(Uabinit,mol_mask);
-            double E_es = 0.5*rhoT.inner(Uabinit);
-            double E_cav = DFTSsolver.cavitation_energy();
-            double Surface = DFTSsolver.make_surface().trace();
-            double Volume = DFTSsolver.make_characteristic_func().trace();
-            double E_free = esol + E_es - vacuo_energy;
-            double G_sol = E_free + E_cav;
-            // print("Electrostatic energy ",E_es);
+        // if(param.absolvent){
+        //     rhoT = rhon - rho_elec;
+        //     // print("TOTAL CHARGE", rhoT.trace());
+        //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world, \
+        //                                 param.Gamma,param.beta,std::max(1e-5,1e-7));
+        //     //DFTSsolver.dftsolverplots();
+        //     //functionT vsolvent = DFTSsolver.ESP();
+        //     //realfunc FF  = DFTSsolver.make_electric_field(vsolvent);
+        //     //double Fxyz = DFTSsolver.ave_rxn_field(Uabinit,mol_mask);
+        //     double E_es = 0.5*rhoT.inner(Uabinit);
+        //     double E_cav = DFTSsolver.cavitation_energy();
+        //     double Surface = DFTSsolver.make_surface().trace();
+        //     double Volume = DFTSsolver.make_characteristic_func().trace();
+        //     double E_free = esol + E_es - vacuo_energy;
+        //     double G_sol = E_free + E_cav;
+        //     // print("Electrostatic energy ",E_es);
 
-            if(world.rank() == 0) {
-                print("\n\n");
-                print("                            MADNESS SOLVATION RESULTS           ");
-                print("                                _________________              \n ");
-                printf("          (electrostatic) solvation energy: %16.8f %s %12.8f %s\n      ",E_es, "(",E_es*627.503,"kcal/mol)");
-                printf("(electrostatic)solvation free energy: %16.8f %s %12.8f %s\n     ",E_free, "(",E_free*627.503,"kcal/mol)");
-                printf("                solvation free energy: %16.8f %s %12.8f %s\n     ",G_sol, "(",G_sol*627.503,"kcal/mol)");
-                //  print("       solute-solvent reflected field:    ",Fxyz,"a.u.");
-                printf("                    cavitation energy: %16.8f\n     ",E_cav*627.503);
-                printf("                     gas phase energy: %16.8f\n     ",vacuo_energy);
-                printf("                solution phase energy: %16.8f\n     ",esol);
-                printf("                     Molecular Volume: %16.8f\n     ",Volume);
-                printf("                    Molecular Surface: %16.8f\n\n     ",Surface);
-            }
-         }
+        //     if(world.rank() == 0) {
+        //         print("\n\n");
+        //         print("                            MADNESS SOLVATION RESULTS           ");
+        //         print("                                _________________              \n ");
+        //         printf("          (electrostatic) solvation energy: %16.8f %s %12.8f %s\n      ",E_es, "(",E_es*627.503,"kcal/mol)");
+        //         printf("(electrostatic)solvation free energy: %16.8f %s %12.8f %s\n     ",E_free, "(",E_free*627.503,"kcal/mol)");
+        //         printf("                solvation free energy: %16.8f %s %12.8f %s\n     ",G_sol, "(",G_sol*627.503,"kcal/mol)");
+        //         //  print("       solute-solvent reflected field:    ",Fxyz,"a.u.");
+        //         printf("                    cavitation energy: %16.8f\n     ",E_cav*627.503);
+        //         printf("                     gas phase energy: %16.8f\n     ",vacuo_energy);
+        //         printf("                solution phase energy: %16.8f\n     ",esol);
+        //         printf("                     Molecular Volume: %16.8f\n     ",Volume);
+        //         printf("                    Molecular Surface: %16.8f\n\n     ",Surface);
+        //     }
+        //  }
 
         if (world.rank() == 0) {
             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
@@ -3473,9 +3473,9 @@ public:
                 calc.project_ao_basis(world);
             }
             //if(proto==0){
-            if(calc.param.absolvent)//||calc.param.svpe)
-                calc.solve_gas_phase(world);// computes vacuo density and energy
-                //}//  calc.save_mos(world); //debugging
+            // if(calc.param.absolvent)//||calc.param.svpe)
+            //     calc.solve_gas_phase(world);// computes vacuo density and energy
+            //     //}//  calc.save_mos(world); //debugging
 
             calc.solve(world);
             calc.save_mos(world);
