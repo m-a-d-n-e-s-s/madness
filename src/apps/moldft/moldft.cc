@@ -151,25 +151,6 @@ public:
   }
 };
 
-class LevelPmap : public WorldDCPmapInterface< Key<3> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    /// Find the owner of a given key
-    ProcessID owner(const Key<3>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-        if (n <= 3 || (n&0x1)) hash = key.hash();
-        else hash = key.parent().hash();
-        //hashT hash = key.hash();
-        return hash%nproc;
-    }
-};
 
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -3501,7 +3482,7 @@ int main(int argc, char** argv) {
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
         std::cout.precision(6);
 

@@ -44,26 +44,6 @@
 #include <cstdio>
 using namespace madness;
 
-class LevelPmap : public WorldDCPmapInterface< Key<3> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    /// Find the owner of a given key
-    ProcessID owner(const Key<3>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-        if (n <= 3 || (n&0x1)) hash = key.hash();
-        else hash = key.parent().hash();
-        //hashT hash = key.hash();
-        return hash%nproc;
-    }
-};
-
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
@@ -1008,7 +988,6 @@ int main (int argc, char **argv) {
 
         try {
             startup(world, argc, argv);
-            FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
             Calculation calc(world);
             CorePotential cp = calc.corepot.get_potential(calc.atn);
 
