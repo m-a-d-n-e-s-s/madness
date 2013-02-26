@@ -48,7 +48,7 @@ Tensor<double> optimize_coeffs(const Tensor<double>& f,
 
     // print(" solution ", c);
     // print("        s ", s);
-    // print("     rank ", rank);
+    // print("     rank ", rank, A.dim(0), A.dim(1));
     // print("    sumsq ", sumsq);
 
     return c;
@@ -228,19 +228,31 @@ int main() {
     // Tensor<double> expnt = geometric_series(ng,alo,ra);
 
     // This for fitting A(p) over [0,10c]
-    const long ng = 10;
-    const double mu = 1e-14;
-    const double p = 0.0; // was 2
-    const double xlo = 0.0;
-    const double xhi = 10.0*c;
-    const long nx = 1000;
-    const double h = (xhi-xlo)/(nx-1);
-    Tensor<double> x = arithmetic_series(nx,xlo,h);
+    const long ng = 50;
+    const double mu = 1e-12;
+    const double p = 0.0; // was 0
+
+    const long nx = 2000;
+
+    //const double xlo = 0.0;
+    //const double xhi = 10000.0*c;
+    //const double h = (xhi-xlo)/(nx-1);
+    //Tensor<double> x = arithmetic_series(nx,xlo,h);
+
+    const double xlo = 1e-6;
+    const double xhi = 10000.0*c;
+    const double h = pow(xhi/xlo,1.0/(nx-1));
+    Tensor<double> x = geometric_series(nx,xlo,h);
     Tensor<double> f = map_tensor(Akernel, x);
-    Tensor<double> w(nx);
-    w.fill(1.0);
+
+    //Tensor<double> w(nx);
+    //w.fill(1.0);
+
+    Tensor<double> w = map_tensor(sqrt,x);
+    w = map_tensor(reciprocal,w);
+
     const double ahi = 1e-3; //1.0/(mc2); // was mc2**2
-    const double alo = 1e-6; //1e-4*ahi;
+    const double alo = log(2.0)/xhi/xhi; //1e-8; //1e-4*ahi;
     const double ra = pow(ahi/alo,1.0/(ng-1));
     Tensor<double> expnt = geometric_series(ng,alo,ra);
 
@@ -259,7 +271,7 @@ int main() {
         print(x[i], f[i], fit(x[i],c,expnt), f[i] - fit(x[i],c,expnt), (f[i] - fit(x[i],c,expnt))/f[i]);
     }
 
-    shared_ptr<Fred> fptr(new Fred(f, x, w, mu, p));
+    shared_ptr<Fred> fptr(new Fred(f, x, w, mu, p)); 
     print("fred ", fptr->value(expnt));
     fptr->test_gradient(expnt, 1e-12*epssq, true);
     //return 0;
@@ -273,16 +285,27 @@ int main() {
 
     QuasiNewton opt(fptr, 20*ng, 1e-15, 1e-24, 1e-24); opt.set_update("BFGS");
     
-    for (int iter=0; iter<400; iter++) {
+    for (int iter=0; iter<4; iter++) {
         if (opt.optimize(expnt)) break; 
         opt.reset_hessian();
         sort(expnt.ptr(),expnt.ptr()+expnt.size());
         print("\n optimized exponents ", expnt);
         c = optimize_coeffs(f, x, w, expnt, mu, p);
         print("        coefficients ", c);
-
     }
 
+    print("COEFF WEIGHTS");
+    printf("   ");
+    for (double pp=-2; pp<3.01; pp += 0.5) printf("%.1e ",pp);
+    printf("\n");
+    for (int i=0; i<c.size(); i++) {
+        printf("%2d ", i);
+        for (double pp=-2; pp<3.01; pp += 0.5) {
+            printf("%.1e ", c[i]*c[i]*pow(expnt[i],pp));
+        }
+        printf("\n");
+    }
+    
     double maxerr = 0.0;
     for (int i=0; i<nx; i++) {
         double err = f[i] - fit(x[i],c,expnt);
