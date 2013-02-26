@@ -35,6 +35,7 @@
 
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <mra/lbdeux.h>
 #include <mra/mra.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>
@@ -138,8 +139,17 @@ struct unaryexp {
 };
 
 template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
+double lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
   return 1;
+}
+
+
+template <typename T, std::size_t NDIM>
+void load_balance(World& world, const madness::Function<T,NDIM>& psi) {
+    if (world.rank() == 0) print("load balancing");
+    LoadBalanceDeux<3> lb(world); 
+    lb.add_tree(psi, lbcost<T,NDIM>); 
+    FunctionDefaults<NDIM>::redistribute(world, lb.load_balance(2.0,false));
 }
 
 /// Evolve the wave function in imaginary time to converge to ground state
@@ -152,13 +162,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
     // to be circa 10.0.  Hence our largest time step is -ln(10)/V(0).  As we
     // approach convergence we shrink the time step to the desired precision.
 
-    if (world.rank() == 0) print("load balancing");
-    LoadBalImpl<3> lb(psi, lbcost<double,3>);
-    lb.load_balance();
-    FunctionDefaults<3>::set_pmap(lb.load_balance());
-    world.gop.fence();
-    psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-    potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
+    load_balance(world, psi);
 
     double tmax = -2.3/V(coordT(0.0));
     tmax = 0.004;
@@ -186,14 +190,7 @@ void converge(World& world, functionT& potn, functionT& psi, double& eps) {
         psi.scale(1.0/norm);
         eps = energy(world, psi,potn);
         if (((iter+1)%50)==0 && tmax>0.001) {
-            if (world.rank() == 0) print("load balancing");
-            LoadBalImpl<3> lb(psi, lbcost<double,3>);
-            lb.load_balance();
-            FunctionDefaults<3>::set_pmap(lb.load_balance());
-            world.gop.fence();
-            psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-            potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-
+            load_balance(world, psi);
             tmax *= 0.5;
             expV = (-tmax)*potn;
             expV.unaryop(unaryexp<double,3>());
@@ -249,14 +246,7 @@ void propagate(World& world, functionT& potn, functionT& psi0, double& eps) {
         if (world.rank() == 0) print("THE DIPOLE IS", dipole);
 
         if (step > steplo) {
-            if (world.rank() == 0) print("load balancing");
-            LoadBalImpl<3> lb(psi, lbcost<double_complex,3>);
-            lb.load_balance();
-            FunctionDefaults<3>::set_pmap(lb.load_balance());
-            world.gop.fence();
-            psi = copy(psi, FunctionDefaults<3>::get_pmap(), false);
-            potn = copy(potn, FunctionDefaults<3>::get_pmap(), true);
-            zdip = copy(zdip, FunctionDefaults<3>::get_pmap(), true);
+            load_balance(world, psi);
         }
 
         if (world.rank() == 0) print("making expV");

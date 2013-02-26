@@ -200,11 +200,6 @@ Tensor<double_complex> hamiltonian_matrix(World& world,
     return r + matrix_inner(world, u, Vu, true) + matrix_inner(world, v, Vv, true);
 }
 
-template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
-}
-
 void apply_potential(World& world,
                      const real_functionT& V0,
                      const real_functionT& V0x,
