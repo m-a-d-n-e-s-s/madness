@@ -36,6 +36,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
+#include <mra/funcimpl.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>
 #include <constants.h>
@@ -212,40 +213,6 @@ InputParameters param;
 
 static double zero_field_time;      // Laser actually switches on after this time (set by propagate)
                                     // Delay provides for several steps with no field before start
-
-// This controls the distribution of data across the machine
-class LevelPmap : public WorldDCPmapInterface< Key<4> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    // Find the owner of a given key
-    ProcessID owner(const Key<4>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-
-        // This randomly hashes levels 0-2 and then
-        // hashes nodes by their grand-parent key so as
-        // to increase locality separately on each level.
-        //if (n <= 2) hash = key.hash();
-        //else hash = key.parent(2).hash();
-
-        // This randomly hashes levels 0-3 and then
-        // maps nodes on even levels to the same
-        // random node as their parent.
-        // if (n <= 3 || (n&0x1)) hash = key.hash();
-        // else hash = key.parent().hash();
-
-        // This randomly hashes each key
-        hash = key.hash();
-
-        return hash%nproc;
-    }
-};
 
 // Smoothed 1/r potential.
 
@@ -741,7 +708,7 @@ void doit(World& world) {
     FunctionDefaults<4>::set_autorefine(false);
     FunctionDefaults<4>::set_truncate_mode(1);
     FunctionDefaults<4>::set_truncate_on_project(true);
-    FunctionDefaults<4>::set_pmap(pmapT(new LevelPmap(world)));
+    FunctionDefaults<4>::set_pmap(pmapT(new SimplePmap< Key<4> >(world)));
 
     // Read restart information
     int step0;               // Initial time step ... filenames are <prefix>-<step0>
