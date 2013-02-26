@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <qd/qd_real.h>
 #include <ls.h>
+#include <stdlib.h>
 
 using namespace std;
 
@@ -329,7 +330,7 @@ FLOAT fit(const FLOAT& x, const vector<FLOAT>& p) {
     int n = p.size()/2;
     FLOAT sum = zero;
     for (int i=0; i<n; i++) {
-        sum += p[i] * exp(- x*p[i+n]);
+        sum += p[i] * exp(- x*p[i+n]*p[i+n]);
     }
     return sum;
 }
@@ -343,10 +344,10 @@ void fit(const FLOAT& x, const vector<FLOAT>& p, FLOAT& f, FLOAT& g, FLOAT& h) {
     g = zero;
     h = zero;
     for (int i=0; i<n; i++) {
-        FLOAT term = p[i] * exp( - x*p[i+n]);
+        FLOAT term = p[i] * exp( - x*p[i+n]*p[i+n]);
         f += term;
-        g -= p[i+n]*term;
-        h += p[i+n]*p[i+n]*term;
+        g -= p[i+n]*p[i+n]*term;
+        h += p[i+n]*p[i+n]*p[i+n]*p[i+n]*term;
     }
 }
 
@@ -363,17 +364,19 @@ void plot(int npt, const FLOAT& a, const FLOAT& b, const vector<FLOAT>& p)
 }
 
 
-// basis function mu is g[mu](x) = exp( - x*p[mu+n])
+// basis function mu is b[mu](x) = p[mu] * g[mu](x)
 // coeff is p[mu] 
+// exponent is p[mu+n]**2
+// g[mu](x) = exp(- x*p[mu+n]*p[mu+n])
 // 
-// non-zero first derivatives
-// dg[mu]/dp[mu] = g[mu]
-// dg[mu]/dp[mu+n] = -x*p[mu]*g[mu]
+// non-zero first derivatives w.r.t. parameters
+// db[mu]/dp[mu] = g[mu](x)
+// db[mu]/dp[mu+n] = -2*x*p[mu]*p[mu+n]*g[mu]
 //
-// non-zero second derivatives 
-// d2g[mu]/dp[mu]dp[mu] = 0
-// d2g[mu]/dp[mu]dp[mu+n] = -x*p[mu]*g[mu]
-// d2g[mu]/dp[mu+n]dp[mu+n] = x^2*p[mu]*g[mu]
+// non-zero second derivatives  w.r.t. parameters
+// d2b[mu]/dp[mu]dp[mu] = 0
+// d2b[mu]/dp[mu]dp[mu+n] = -2*x*p[mu+n]*g[mu]
+// d2b[mu]/dp[mu+n]dp[mu+n] = -2*x*p[mu]*g[mu]*(1 - 2*p[mu+n]*p[mu+n]*x)
 //
 // g(i,mu) = g[mu](x[i])
 // eps[i] = sum(mu, p[mu]*g(i,mu)) - f(x[i])
@@ -390,6 +393,8 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
               FLOAT& d0, vector<FLOAT>& d1, matrix<FLOAT>& d2, bool d0only=false) 
 {
     static const FLOAT zero = convert<FLOAT>("0.0");
+    static const FLOAT one = convert<FLOAT>("1.0");
+    static const FLOAT two = convert<FLOAT>("2.0");
     const int n = p.size()/2; // number of exponentials
     const int npt = x.size();    // number of values x
     //assert((unsigned) npt == x.size());
@@ -402,7 +407,7 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
     for (int i=0; i<npt; i++) {
         FLOAT sum = zero;
         for (int mu=0; mu<n; mu++) {
-            g(i,mu) = exp(- x[i]*p[mu+n]);
+            g(i,mu) = exp(- x[i]*p[mu+n]*p[mu+n]);
             sum += p[mu] * g(i,mu);
         }
         w[i] = weight(x[i]);
@@ -417,16 +422,15 @@ void makedata(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT
 
     // make derivatives of eps
     matrix<FLOAT> deps1(npt, 2*n, zero);  // d/dp[mu] 
-    matrix<FLOAT> deps2a(npt, n, zero); // d2/dp[mu]^2
+    // matrix<FLOAT> deps2a(npt, n, zero); // d2/dp[mu]^2 = zero
     matrix<FLOAT> deps2b(npt, n, zero); // d2/dp[mu]dp[mu+n]
     matrix<FLOAT> deps2c(npt, n, zero); // d2/dp[mu+n]dp[mu+n]
     for (int i=0; i<npt; i++) {
         for (int mu=0; mu<n; mu++) {
             deps1(i,mu) = g(i,mu)*w[i];
-            deps1(i,mu+n) = -x[i]*p[mu]*g(i,mu)*w[i];
-            deps2a(i,mu) = zero;
-            deps2b(i,mu) = -x[i]*p[mu]*g(i,mu)*w[i];
-            deps2c(i,mu) = x[i]*x[i]*p[mu]*g(i,mu)*w[i];
+            deps1(i,mu+n) = -two*x[i]*p[mu]*p[mu+n]*g(i,mu)*w[i];
+            deps2b(i,mu) = -two*x[i]*p[mu+n]*g(i,mu)*w[i];
+            deps2c(i,mu) = -two*x[i]*p[mu]*g(i,mu)*w[i]*(one - two*x[i]*p[mu+n]*p[mu+n]);
         }
     }
 
@@ -485,7 +489,7 @@ public:
 };
 
 template <typename FLOAT> 
-vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT>& w, const vector<FLOAT>& guess, int maxiter)
+vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<FLOAT>& w, const vector<FLOAT>& guess, int maxiter, bool conly=false)
 {
     static const FLOAT zero= convert<FLOAT>("0.0");
     static const FLOAT one = convert<FLOAT>("1.0");
@@ -494,7 +498,10 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
     const int n = p.size();
 
     const int nprint = 100;
-    
+
+    const int nstuck = 100;
+    FLOAT prev = one;
+
     for (int iter=0; iter<maxiter; iter++) {
         const bool print = (iter%nprint) == 0;
         FLOAT d0;
@@ -564,6 +571,10 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
             for (int i=0; i<n; i++) {
                 dp[i] += v(k,i) * sum;
             }
+
+            if (conly) {
+                for (int i=n/2; i<n; i++) dp[i] = zero;
+            }
         }
 
         //cout << "\ndp " << dp << endl << endl;
@@ -580,10 +591,12 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         FLOAT s = min(one, 0.05*pnorm/dpnorm);
         FLOAT d0new;
         
-        // exponents must be positive
-        for (int i=n/2; i<n; i++) {
-            if (p[i] - s*dp[i] < 0) s = min(s,p[i]/(5*dp[i]));
-        }
+        // // exponents must be positive
+        // for (int i=n/2; i<n; i++) {
+        //     if (p[i] < zero) cout << "NEGATIVE EXPONENT!\n";
+        //     if (p[i] - s*dp[i] < 0) s = 0.5 * p[i] / dp[i];
+        // }
+        // FLOAT maxs = s;
         
         Func<FLOAT> func(x, f, p, dp);
 
@@ -600,13 +613,28 @@ vector<FLOAT> opt(const vector<FLOAT>& x, const vector<FLOAT>& f, const vector<F
         mnbrak(&ax, &bx, &cx, &fa, &fb, &fc, func);
         d0new = brent(ax, bx, cx, func, FLOAT(1e-6), &s);
 
+        // if (s > maxs) s = maxs;
+
         for (int i=0; i<n; i++) {
             pnew[i] = p[i] - s*dp[i];
         }
 
-
         p = pnew;
         if (print) cout << "      s " << s << "  d0 old " << d0 << "  d0 new " << d0new << endl;
+
+        if ((iter%nstuck) == 0 && iter) {
+            if (fabs(prev - d0new) < 1e-10*prev) {
+                cout << "STUCK " << endl;
+                for (int i=n/2; i<n; i++) {
+                    cout << i << " " << p[i] << " ";
+                    p[i] = p[i] * (one + FLOAT(0.125)*(FLOAT(drand48()) - half));
+                    cout << p[i] << endl;
+                }
+            }
+            prev = d0new;
+        }
+
+        cout << "parameters\n" << p << endl;
     }
     return p;
 }
@@ -697,7 +725,7 @@ vector<FLOAT> updatex(const vector<FLOAT>& x, const vector<FLOAT>& p)
 template <typename FLOAT>
 void test() {
     const FLOAT zero= convert<FLOAT>("0.0");
-    int n = 5;
+    int n = 4;
     matrix<FLOAT> a(n,n), acopy(n,n);
     vector<FLOAT> x(n), xcopy(n), b(n);
     
@@ -755,9 +783,9 @@ void test() {
         static const FLOAT one = 1;
         static const FLOAT pi = 4*atan(FLOAT(1));
         cout << pi << endl;
-        const FLOAT a = 1e-14;
+        const FLOAT a = 1e-1;
         const FLOAT b = 1e0;
-        const int nfunc = 20;
+        const int nfunc = 4;
         const int nx = 2*nfunc + 1;
         vector<FLOAT> x(nx), p(2*nfunc), f(nx), w(nx);
         if (nx < 4) throw "nx must be >= 4";
@@ -786,11 +814,11 @@ void test() {
 #endif
 
         // cheby points
-        // for (int i=1; i<=nx; i++) {
-        //     x[i-1] = exp(0.5*(log(a)+log(b)) + 0.5*(log(a)-log(b))*cos((2*i-1)*pi/(2*nx)));
-        // }
-        //x[0] = a;
-        //x[nx-1] = b;
+        for (int i=1; i<=nx; i++) {
+            x[i-1] = exp(0.5*(log(a)+log(b)) + 0.5*(log(a)-log(b))*cos((2*i-1)*pi/(2*nx)));
+        }
+        x[0] = a;
+        x[nx-1] = b;
 
         for (int i=0; i<nx; i++) {
             f[i] = target(x[i]);
@@ -807,7 +835,7 @@ void test() {
 #else
             p[mu] = sqrt(tmin*dt);
 #endif            
-            p[mu+nfunc] = tmin;
+            p[mu+nfunc] = sqrt(tmin);
             tmin *= dt;
         }
 
@@ -829,50 +857,57 @@ void test() {
         // cout << "d2" << endl;
         // cout << d2 << endl << endl;
         
-        // FLOAT h(0.01);//sqrt(numeric_limits<FLOAT>::epsilon()));
-        // FLOAT plus, minus, pp, mp, pm, mm;
+         FLOAT h(0.01);//sqrt(numeric_limits<FLOAT>::epsilon()));
+         FLOAT plus, minus, pp, mp, pm, mm;
 
-        // cout << "numerical d1\n";
-        // for (int mu=0; mu<2*nfunc; mu++) {
-        //     p[mu] += h;
-        //     makedata(x, f, p, plus, d1, d2, true);
-        //     p[mu] -= h+h;
-        //     makedata(x, f, p, minus, d1, d2, true);
-        //     p[mu] += h;
-        //     //cout << plus << " " << minus << endl;
-        //     cout << (plus-minus)/(2*h) << " ";
-        // }
-        // cout << endl << endl;
+         makedata(x, f, p, plus, d1, d2, true);
+         cout << "analytic d1" << endl << d1 << endl;
+         cout << "analytic d2" << endl << d2 << endl;
+         cout << "numerical d1\n";
+         for (int mu=0; mu<2*nfunc; mu++) {
+             p[mu] += h;
+             makedata(x, f, p, plus, d1, d2, true);
+             p[mu] -= h+h;
+             makedata(x, f, p, minus, d1, d2, true);
+             p[mu] += h;
+             //cout << plus << " " << minus << endl;
+             cout << (plus-minus)/(2*h) << " ";
+         }
+         cout << endl << endl;
 
-        // cout << "numerical d2\n";
-        // for (int mu=0; mu<2*nfunc; mu++) {
-        //     for (int nu=0; nu<2*nfunc; nu++) {
-        //         if (mu == nu) {
-        //             p[mu] += h;
-        //             makedata(x, f, p, plus, d1, d2, true);
-        //             p[mu] -= h+h;
-        //             makedata(x, f, p, minus, d1, d2, true);
-        //             p[mu] += h;
-        //             cout << (plus+minus-2*d0)/(h*h) << " ";
-        //         }
-        //         else {
-        //             p[mu] += h; p[nu] += h;
-        //             makedata(x, f, p, pp, d1, d2, true);
-        //             p[mu] -= h+h;
-        //             makedata(x, f, p, mp, d1, d2, true);
-        //             p[mu] += h+h;
-        //             p[nu] -= h+h;
-        //             makedata(x, f, p, pm, d1, d2, true);
-        //             p[mu] -= h+h;
-        //             makedata(x, f, p, mm, d1, d2, true);
-        //             p[nu] += h;
-        //             p[mu] += h;
-        //             cout << (pp + mm - mp - pm)/(4*h*h) << " ";
-        //         }
-        //     }
-        //     cout << endl;
-        // }
-        // cout << endl;
+         cout << "numerical d2\n";
+         for (int mu=0; mu<2*nfunc; mu++) {
+             for (int nu=0; nu<2*nfunc; nu++) {
+                 if (mu == nu) {
+                     p[mu] += h;
+                     makedata(x, f, p, plus, d1, d2, true);
+                     p[mu] -= h+h;
+                     makedata(x, f, p, minus, d1, d2, true);
+                     p[mu] += h;
+                     cout << (plus+minus-2*d0)/(h*h) << " ";
+                 }
+                 else {
+                     p[mu] += h; p[nu] += h;
+                     makedata(x, f, p, pp, d1, d2, true);
+                     p[mu] -= h+h;
+                     makedata(x, f, p, mp, d1, d2, true);
+                     p[mu] += h+h;
+                     p[nu] -= h+h;
+                     makedata(x, f, p, pm, d1, d2, true);
+                     p[mu] -= h+h;
+                     makedata(x, f, p, mm, d1, d2, true);
+                     p[nu] += h;
+                     p[mu] += h;
+                     cout << (pp + mm - mp - pm)/(4*h*h) << " ";
+                 }
+             }
+             cout << endl;
+         }
+         cout << endl;
+         //throw "done";
+
+        //p = opt(x, f, w, p, 2000, true);
+
 
         for (int iter=0; iter<10; iter++) {
             p = opt(x, f, w, p, 2000000);
