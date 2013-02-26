@@ -71,7 +71,6 @@ namespace madness {
 #include <mra/legendre.h>
 #include <mra/indexit.h>
 #include <mra/funcimpl.h>
-#include <mra/loadbal.h>
 
 namespace madness {
 	/// \ingroup mra

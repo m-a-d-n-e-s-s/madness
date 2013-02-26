@@ -46,6 +46,7 @@
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
+#include <mra/indexit.h>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -56,45 +57,50 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     class Function;
-
-    template<int D>
-    class LoadBalImpl;
-
-    template<int D>
-    class LBTree;
-
-    template<int D>
-    class MyPmap;
 }
 
 namespace madness {
 
-    /// A simple process map soon to be supplanted by Rebecca's
+    /// A simple process map
     template<typename keyT>
-    class SimpleMap : public WorldDCPmapInterface<keyT> {
+    class SimplePmap : public WorldDCPmapInterface<keyT> {
     private:
         const int nproc;
         const ProcessID me;
-        const int n;
 
     public:
-        SimpleMap(World& world, int n = 4) :
-                nproc(world.nproc()), me(world.rank()), n(n) {
-        }
+        SimplePmap(World& world) : nproc(world.nproc()), me(world.rank()) 
+        { }
 
-        ProcessID
-        owner(const keyT& key) const {
-            if (key.level() == 0) {
+        ProcessID owner(const keyT& key) const {
+            if (key.level() == 0)
                 return 0;
-            }
-            else if (key.level() <= n) {
-                return hash(key) % nproc;
-            }
-            else {
-                return hash(key.parent(key.level() - n)) % nproc;
-            }
+            else
+                return key.hash() % nproc;
         }
     };
+
+    /// A pmap that locates children on odd levels with their even level parents
+    template <typename keyT>
+    class LevelPmap : public WorldDCPmapInterface<keyT> {
+    private:
+        const int nproc;
+    public:
+        LevelPmap() : nproc(0) {};
+        
+        LevelPmap(World& world) : nproc(world.nproc()) {}
+        
+        /// Find the owner of a given key
+        ProcessID owner(const keyT& key) const {
+            Level n = key.level();
+            if (n == 0) return 0;
+            hashT hash;
+            if (n <= 3 || (n&0x1)) hash = key.hash();
+            else hash = key.parent().hash();
+            return hash%nproc;
+        }
+    };
+
 
     /// FunctionCommonData holds all Function data common for given k
 
@@ -598,9 +604,6 @@ namespace madness {
 
         //template <typename Q, int D> friend class Function;
         template <typename Q, std::size_t D> friend class FunctionImpl;
-
-        friend class LoadBalImpl<NDIM>;
-        friend class LBTree<NDIM>;
 
         World& world;
 

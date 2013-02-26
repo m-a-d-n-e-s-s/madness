@@ -9,7 +9,7 @@ lib_LIBRARIES = libMADmra.a
 data_DATA = autocorr coeffs gaussleg
 
 thisincludedir = $(includedir)/mra
-thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
+thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
                       funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h \
                       funcplot.h
 
@@ -17,9 +17,9 @@ thisinclude_HEADERS = adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  op
 LDADD = libMADmra.a $(LIBLINALG) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBWORLD)
 
 libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
-                      loadbal.cc startup.cc legendre.cc twoscale.cc gfit.cc qmprop.cc \
+                      startup.cc legendre.cc twoscale.cc gfit.cc qmprop.cc \
                       \
-                      adquad.h  funcimpl.h  indexit.h  legendre.h  loadbal.h  operator.h  vmra.h \
+                      adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
                       funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h \
                       funcplot.h
 

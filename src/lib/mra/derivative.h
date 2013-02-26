@@ -43,7 +43,6 @@
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include <mra/funcimpl.h>
-#include <mra/loadbal.h>
 
 /// \file mra/derivative.h
 /// \brief Declaration and initialization of tree traversal functions and generic derivative
