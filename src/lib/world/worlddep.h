@@ -128,7 +128,7 @@ namespace madness {
             if(ndepend != 0)
                 error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
 #else
-            MADNESS_ASSERT(ndepend != 0);
+            MADNESS_ASSERT(ndepend == 0);
 #endif
         }
 
