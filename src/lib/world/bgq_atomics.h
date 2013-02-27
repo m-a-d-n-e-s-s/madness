@@ -71,6 +71,14 @@ __INLINE__ int32_t FetchAndAddSigned32( volatile int32_t *pVar, int32_t value )
 
     return( old_val );
 }
+
+__INLINE__ void MemoryBarrier(void)
+{
+    asm volatile ("msync" : : : "memory");
+
+    return;
+}
+
 #else
 #error You cannot use PowerPC assembly on a non-PowerPC architecture!
 #endif
