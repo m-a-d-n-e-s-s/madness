@@ -30,6 +30,9 @@
 
   $Id$
 */
+
+#include <madness_config.h>
+
 #if !(defined(X86_32) || defined(X86_64))
 
 #include <iostream>
