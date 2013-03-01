@@ -497,7 +497,6 @@ struct CalculationParameters {
     // First list input parameters
     double charge;              ///< Total molecular charge
     double smear;               ///< Smearing parameter
-    double econv;               ///< Energy convergence
     double dconv;               ///< Density convergence
     double L;                   ///< User coordinates box size
     double maxrotn;             ///< Step restriction used in autoshift algorithm
@@ -546,7 +545,7 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
+        ar & charge & smear & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
@@ -558,7 +557,6 @@ struct CalculationParameters {
     CalculationParameters()
         : charge(0.0)
         , smear(0.0)
-        , econv(1e-5)
         , dconv(1e-4)
         , L(0.0)
         , maxrotn(0.25)
@@ -622,9 +620,6 @@ struct CalculationParameters {
             }
             else if (s == "smear") {
                 f >> smear;
-            }
-            else if (s == "econv") {
-                f >> econv;
             }
             else if (s == "dconv") {
                 f >> dconv;
@@ -838,7 +833,6 @@ struct CalculationParameters {
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    compute protocol ", protocol_data);
-        madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
         if (conv_only_dens)
@@ -968,7 +962,7 @@ struct Calculation {
         gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
+            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   dconv", std::max(thresh, param.dconv), "\n");
         }
     }
 
@@ -1381,7 +1375,7 @@ struct Calculation {
                     printf("occ=%.2f : ", occ(i));
 
                 if(energy.size())
-                    printf("energy=%11.6f : ", energy(i));
+                    printf("energy=%13.8f : ", energy(i));
 
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i), dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
@@ -2712,330 +2706,330 @@ struct Calculation {
       }
     }
 
-    void solve_gas_phase(World & world)
-    {
-        functionT arho_old, brho_old;
-        const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
-        const double trantol = vtol / std::min(30.0, double(amo.size()));
-        const double tolloc = 1e-3;
-        double update_residual = 0.0, bsh_residual = 0.0;
-        subspaceT subspace;
-        tensorT Q;
-        bool do_this_iter = true;
-        // Shrink subspace until stop localizing/canonicalizing
-        int maxsub_save = param.maxsub;
-        param.maxsub = 2;
+//     void solve_gas_phase(World & world)
+//     {
+//         functionT arho_old, brho_old;
+//         const double dconv = std::max(FunctionDefaults<3>::get_thresh(), param.dconv);
+//         const double trantol = vtol / std::min(30.0, double(amo.size()));
+//         const double tolloc = 1e-3;
+//         double update_residual = 0.0, bsh_residual = 0.0;
+//         subspaceT subspace;
+//         tensorT Q;
+//         bool do_this_iter = true;
+//         // Shrink subspace until stop localizing/canonicalizing
+//         int maxsub_save = param.maxsub;
+//         param.maxsub = 2;
 
-        for(int iter = 0;iter < param.maxiter;++iter){
-            if(world.rank() == 0)
-                printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
+//         for(int iter = 0;iter < param.maxiter;++iter){
+//             if(world.rank() == 0)
+//                 printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 
-            if (iter > 0 && update_residual < 0.1) {
-                //do_this_iter = false;
-                param.maxsub = maxsub_save;
-            }
+//             if (iter > 0 && update_residual < 0.1) {
+//                 //do_this_iter = false;
+//                 param.maxsub = maxsub_save;
+//             }
 
-            if(param.localize && do_this_iter) {
-                tensorT U;
-                if (param.localize_pm) {
-                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
-                }
-                else {
-                    U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
-                }
-                amo = transform(world, amo, U, trantol, true);
-                truncate(world, amo);
-                normalize(world, amo);
-                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if(!param.spin_restricted && param.nbeta != 0 ){
-                    if (param.localize_pm) {
-                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
-                    }
-                    else {
-                        U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
-                    }
-                    bmo = transform(world, bmo, U, trantol, true);
-                    truncate(world, bmo);
-                    normalize(world, bmo);
-                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
-                }
-            }
+//             if(param.localize && do_this_iter) {
+//                 tensorT U;
+//                 if (param.localize_pm) {
+//                     U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+//                 }
+//                 else {
+//                     U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
+//                 }
+//                 amo = transform(world, amo, U, trantol, true);
+//                 truncate(world, amo);
+//                 normalize(world, amo);
+//                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+//                 if(!param.spin_restricted && param.nbeta != 0 ){
+//                     if (param.localize_pm) {
+//                         U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+//                     }
+//                     else {
+//                         U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
+//                     }
+//                     bmo = transform(world, bmo, U, trantol, true);
+//                     truncate(world, bmo);
+//                     normalize(world, bmo);
+//                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
+//                 }
+//             }
 
-            START_TIMER(world);
-            functionT arho = make_density(world, aocc, amo), brho;
+//             START_TIMER(world);
+//             functionT arho = make_density(world, aocc, amo), brho;
 
-            if (param.nbeta) {
-                if (param.spin_restricted) {
-                    brho = arho;
-                }
-                else {
-                    brho = make_density(world, bocc, bmo);
-                }
-            }
-            else {
-                brho = functionT(world); // zero
-            }
-            END_TIMER(world, "Make densities");
+//             if (param.nbeta) {
+//                 if (param.spin_restricted) {
+//                     brho = arho;
+//                 }
+//                 else {
+//                     brho = make_density(world, bocc, bmo);
+//                 }
+//             }
+//             else {
+//                 brho = functionT(world); // zero
+//             }
+//             END_TIMER(world, "Make densities");
 
-            if(iter < 2 || (iter % 10) == 0){
-                START_TIMER(world);
-                loadbal(world, arho, brho, arho_old, brho_old, subspace);
-                END_TIMER(world, "Load balancing");
-            }
-            double da = 0.0, db = 0.0;
-            if(iter > 0){
-                da = (arho - arho_old).norm2();
-                db = (brho - brho_old).norm2();
-                if(world.rank() == 0)
-                    print("delta rho", da, db, "residuals", bsh_residual, update_residual);
+//             if(iter < 2 || (iter % 10) == 0){
+//                 START_TIMER(world);
+//                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
+//                 END_TIMER(world, "Load balancing");
+//             }
+//             double da = 0.0, db = 0.0;
+//             if(iter > 0){
+//                 da = (arho - arho_old).norm2();
+//                 db = (brho - brho_old).norm2();
+//                 if(world.rank() == 0)
+//                     print("delta rho", da, db, "residuals", bsh_residual, update_residual);
 
-            }
+//             }
 
-            arho_old = arho;
-            brho_old = brho;
-            functionT rho = arho + brho;
-            vacuo_rho = arho + brho;
-	    //double Xrhotrace = rho.trace(); // DEBUG
-            rho.truncate();
-            double enuclear = inner(rho, vnuc);
+//             arho_old = arho;
+//             brho_old = brho;
+//             functionT rho = arho + brho;
+//             vacuo_rho = arho + brho;
+// 	    //double Xrhotrace = rho.trace(); // DEBUG
+//             rho.truncate();
+//             double enuclear = inner(rho, vnuc);
 
-	    // DEBUG
-// 	    double rhotrace = rho.trace();
-// 	    double vnuctrace = vnuc.trace();
-// 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
-	    // END DEBUG
+// 	    // DEBUG
+// // 	    double rhotrace = rho.trace();
+// // 	    double vnuctrace = vnuc.trace();
+// // 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+// 	    // END DEBUG
 
-            START_TIMER(world);
-            functionT vcoul = apply(*coulop, rho);
-            END_TIMER(world, "Coulomb");
+//             START_TIMER(world);
+//             functionT vcoul = apply(*coulop, rho);
+//             END_TIMER(world, "Coulomb");
 
-            double ecoulomb = 0.5 * inner(rho, vcoul);
-            rho.clear(false);
-            functionT vlocal = vcoul + vnuc;
-            vcoul.clear(false);
-            vlocal.truncate();
-            double exca = 0.0, excb = 0.0;
+//             double ecoulomb = 0.5 * inner(rho, vcoul);
+//             rho.clear(false);
+//             functionT vlocal = vcoul + vnuc;
+//             vcoul.clear(false);
+//             vlocal.truncate();
+//             double exca = 0.0, excb = 0.0;
 
-            vecfuncT vf, delrho;
-            if (xc.is_dft()) {
-                arho.reconstruct();
-                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
-                // brho.reconstruct();
+//             vecfuncT vf, delrho;
+//             if (xc.is_dft()) {
+//                 arho.reconstruct();
+//                 if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
+//                 // brho.reconstruct();
 
-                vf.push_back(arho);
+//                 vf.push_back(arho);
 
-                if (xc.is_spin_polarized()) vf.push_back(brho);
+//                 if (xc.is_spin_polarized()) vf.push_back(brho);
 
-                if (xc.is_gga()) {
+//                 if (xc.is_gga()) {
 
-                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
-                    if (xc.is_spin_polarized())
-                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
-
-
-                    world.gop.fence(); // NECESSARY
-
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
-
-                    if (xc.is_spin_polarized())
-                        vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
-                    if (xc.is_spin_polarized())
-                        vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-
-                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
-
-                    if (xc.is_spin_polarized())
-                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
-                    world.gop.fence(); // NECESSARY
-                }
-                if (vf.size()) {
-                    reconstruct(world, vf);
-                    arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
-                }
-            }
-
-            vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
-            vecfuncT Vpsib;
-            if(!param.spin_restricted && param.nbeta) {
-                Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
-            }
-
-            double ekina = 0.0, ekinb = 0.0;
-            tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
-            tensorT fockb = focka;
-
-            if (!param.spin_restricted && param.nbeta != 0)
-                fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-            else if (param.nbeta != 0) {
-                ekinb = ekina;
-            }
-            if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
-                rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if (!param.spin_restricted && param.nbeta != 0) {
-                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
-                    rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
-                }
-            }
+//                     for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
+//                     if (xc.is_spin_polarized())
+//                         for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
 
 
-            double enrep = molecule.nuclear_repulsion_energy();
-            double ekinetic = ekina + ekinb;
-            double exc = exca + excb;
-            double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
-            current_energy = etot;
-            vacuo_energy = etot;
+//                     world.gop.fence(); // NECESSARY
 
-            if(world.rank() == 0){
-                printf("\n              kinetic %16.8f\n", ekinetic);
-                printf("   nuclear attraction %16.8f\n", enuclear);
-                printf("              coulomb %16.8f\n", ecoulomb);
-                printf(" exchange-correlation %16.8f\n", exc);
-                printf("    nuclear-repulsion %16.8f\n", enrep);
-                printf("                total %16.8f\n\n", etot);
-            }
+//                     vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
 
-            if(iter > 0){
-                //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
-                if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && (param.conv_only_dens || bsh_residual < 5.0*dconv)){
-                    if(world.rank() == 0) {
-                        print("\nConverged!\n");
-                    }
+//                     if (xc.is_spin_polarized())
+//                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+//                     if (xc.is_spin_polarized())
+//                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
 
-                    // Diagonalize to get the eigenvalues and if desired the final eigenvectors
-            START_TIMER(world);
-                    tensorT U;
-                    tensorT overlap = matrix_inner(world, amo, amo, true);
+//                     for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
 
-#ifdef MADNESS_HAS_ELEMENTAL
-                    world.gop.broadcast(focka.ptr(), focka.size(), 0);
-                    world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-                    world.gop.fence();
+//                     if (xc.is_spin_polarized())
+//                         for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+//                     world.gop.fence(); // NECESSARY
+//                 }
+//                 if (vf.size()) {
+//                     reconstruct(world, vf);
+//                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+//                 }
+//             }
+
+//             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
+//             vecfuncT Vpsib;
+//             if(!param.spin_restricted && param.nbeta) {
+//                 Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb, 1);
+//             }
+
+//             double ekina = 0.0, ekinb = 0.0;
+//             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
+//             tensorT fockb = focka;
+
+//             if (!param.spin_restricted && param.nbeta != 0)
+//                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
+//             else if (param.nbeta != 0) {
+//                 ekinb = ekina;
+//             }
+//             if (!param.localize && do_this_iter) {
+//                 tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, FunctionDefaults<3>::get_thresh());
+//                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
+//                 if (!param.spin_restricted && param.nbeta != 0) {
+//                     U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, FunctionDefaults<3>::get_thresh());
+//                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
+//                 }
+//             }
+
+
+//             double enrep = molecule.nuclear_repulsion_energy();
+//             double ekinetic = ekina + ekinb;
+//             double exc = exca + excb;
+//             double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+//             current_energy = etot;
+//             vacuo_energy = etot;
+
+//             if(world.rank() == 0){
+//                 printf("\n              kinetic %16.8f\n", ekinetic);
+//                 printf("   nuclear attraction %16.8f\n", enuclear);
+//                 printf("              coulomb %16.8f\n", ecoulomb);
+//                 printf(" exchange-correlation %16.8f\n", exc);
+//                 printf("    nuclear-repulsion %16.8f\n", enrep);
+//                 printf("                total %16.8f\n\n", etot);
+//             }
+
+//             if(iter > 0){
+//                 //print("##convergence criteria: density delta=", da < dconv * molecule.natom() && db < dconv * molecule.natom(), ", bsh_residual=", (param.conv_only_dens || bsh_residual < 5.0*dconv));
+//                 if(da < dconv * molecule.natom() && db < dconv * molecule.natom() && (param.conv_only_dens || bsh_residual < 5.0*dconv)){
+//                     if(world.rank() == 0) {
+//                         print("\nConverged!\n");
+//                     }
+
+//                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
+//             START_TIMER(world);
+//                     tensorT U;
+//                     tensorT overlap = matrix_inner(world, amo, amo, true);
+
+// #ifdef MADNESS_HAS_ELEMENTAL
+//                     world.gop.broadcast(focka.ptr(), focka.size(), 0);
+//                     world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+//                     world.gop.fence();
         
-                    sygvp(focka, overlap, 1, U, aeps);
+//                     sygvp(focka, overlap, 1, U, aeps);
         
-                    world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
-                    world.gop.broadcast(U.ptr(), U.size(), 0);
-#else
-                    sygv(focka, overlap, 1, U, aeps);
-#endif
-                    END_TIMER(world, " compute eigen alpha sygv ");
+//                     world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
+//                     world.gop.broadcast(U.ptr(), U.size(), 0);
+// #else
+//                     sygv(focka, overlap, 1, U, aeps);
+// #endif
+//                     END_TIMER(world, " compute eigen alpha sygv ");
 
-                    if (!param.localize) {
-                        amo = transform(world, amo, U, trantol, true);
-                        truncate(world, amo);
-                        normalize(world, amo);
-                    }
+//                     if (!param.localize) {
+//                         amo = transform(world, amo, U, trantol, true);
+//                         truncate(world, amo);
+//                         normalize(world, amo);
+//                     }
 
-                    if(param.nbeta != 0 && !param.spin_restricted){
-                        START_TIMER(world);
-                        overlap = matrix_inner(world, bmo, bmo, true);
+//                     if(param.nbeta != 0 && !param.spin_restricted){
+//                         START_TIMER(world);
+//                         overlap = matrix_inner(world, bmo, bmo, true);
 
-#ifdef MADNESS_HAS_ELEMENTAL
-                        world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
-                        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-                        world.gop.fence();
+// #ifdef MADNESS_HAS_ELEMENTAL
+//                         world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
+//                         world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
+//                         world.gop.fence();
             
-                        sygvp(fockb, overlap, 1, U, beps);
+//                         sygvp(fockb, overlap, 1, U, beps);
             
-                        world.gop.broadcast(beps.ptr(), beps.size(), 0);
-                        world.gop.broadcast(U.ptr(), U.size(), 0);
-#else
-                        sygv(fockb, overlap, 1, U, beps);
-#endif
-                        END_TIMER(world, " compute eigen beta sygv");
+//                         world.gop.broadcast(beps.ptr(), beps.size(), 0);
+//                         world.gop.broadcast(U.ptr(), U.size(), 0);
+// #else
+//                         sygv(fockb, overlap, 1, U, beps);
+// #endif
+//                         END_TIMER(world, " compute eigen beta sygv");
 
-                        if (!param.localize) {
-                            bmo = transform(world, bmo, U, trantol, true);
-                            truncate(world, bmo);
-                            normalize(world, bmo);
-                        }
-                    }
+//                         if (!param.localize) {
+//                             bmo = transform(world, bmo, U, trantol, true);
+//                             truncate(world, bmo);
+//                             normalize(world, bmo);
+//                         }
+//                     }
 
-                    if(world.rank() == 0) {
-                        print(" ");
-                        print("alpha eigenvalues");
-                        print(aeps);
-                        if(param.nbeta != 0.0 && !param.spin_restricted){
-                            print("beta eigenvalues");
-                            print(beps);
-                        }
-                    }
+//                     if(world.rank() == 0) {
+//                         print(" ");
+//                         print("alpha eigenvalues");
+//                         print(aeps);
+//                         if(param.nbeta != 0.0 && !param.spin_restricted){
+//                             print("beta eigenvalues");
+//                             print(beps);
+//                         }
+//                     }
 
-                    if (param.localize) {
-                        // Restore the diagonal elements for the analysis
-                        for (unsigned int i=0; i<amo.size(); ++i) aeps[i] = focka(i,i);
-                        for (unsigned int i=0; i<bmo.size(); ++i) beps[i] = fockb(i,i);
-                    }
+//                     if (param.localize) {
+//                         // Restore the diagonal elements for the analysis
+//                         for (unsigned int i=0; i<amo.size(); ++i) aeps[i] = focka(i,i);
+//                         for (unsigned int i=0; i<bmo.size(); ++i) beps[i] = fockb(i,i);
+//                     }
 
-                    break;
-                }
+//                     break;
+//                 }
 
-            }
+//             }
 
-            update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
-        }
+//             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
+//         }
 
 
-        {
-            // Analyze molecule volume and surface areas
-            functionT arho = make_density(world, aocc, amo), brho;
-            if (param.nbeta) {
-                if (param.spin_restricted) {
-                    brho = arho;
-                }
-                else {
-                    brho = make_density(world, bocc, bmo);
-                }
-            }
-            //const double rho0 = 0.00048;
-            const double rho0 = 0.00078;
-            const double beta = 1.3;
-            arho += brho; // total density
-            functionT c = copy(arho);
-            c.unaryop(DensityIsosurfaceCharacteristic<3>(rho0,beta));
-            plot_line("density.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), arho);
-            plot_line("volume.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+//         {
+//             // Analyze molecule volume and surface areas
+//             functionT arho = make_density(world, aocc, amo), brho;
+//             if (param.nbeta) {
+//                 if (param.spin_restricted) {
+//                     brho = arho;
+//                 }
+//                 else {
+//                     brho = make_density(world, bocc, bmo);
+//                 }
+//             }
+//             //const double rho0 = 0.00048;
+//             const double rho0 = 0.00078;
+//             const double beta = 1.3;
+//             arho += brho; // total density
+//             functionT c = copy(arho);
+//             c.unaryop(DensityIsosurfaceCharacteristic<3>(rho0,beta));
+//             plot_line("density.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), arho);
+//             plot_line("volume.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
 
-            double volume = c.trace();
-            double facvol = std::pow(constants::atomic_unit_of_length*1e10,3.0);
-            if (world.rank() == 0) print("\nMolecular volume:",volume,"a.u.",volume*facvol,"Angstrom^3");
-            if (world.rank() == 0) print("Equivalent sphere radius",std::pow(3.0*volume/4.0/constants::pi,1.0/3.0),"a.u.");
+//             double volume = c.trace();
+//             double facvol = std::pow(constants::atomic_unit_of_length*1e10,3.0);
+//             if (world.rank() == 0) print("\nMolecular volume:",volume,"a.u.",volume*facvol,"Angstrom^3");
+//             if (world.rank() == 0) print("Equivalent sphere radius",std::pow(3.0*volume/4.0/constants::pi,1.0/3.0),"a.u.");
 
-            c = copy(arho);
-            c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
-            plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
+//             c = copy(arho);
+//             c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
+//             plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
 
-            c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
-            double area = c.trace();
-            double facarea = std::pow(constants::atomic_unit_of_length*1e10,2.0);
-            if (world.rank() == 0) print("\nMolecular surface area:",area,"a.u.",area*facarea,"Angstrom^2");
-            if (world.rank() == 0) print("Equivalent sphere radius",std::sqrt(area/4.0/constants::pi),"a.u.");
-        }
+//             c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
+//             double area = c.trace();
+//             double facarea = std::pow(constants::atomic_unit_of_length*1e10,2.0);
+//             if (world.rank() == 0) print("\nMolecular surface area:",area,"a.u.",area*facarea,"Angstrom^2");
+//             if (world.rank() == 0) print("Equivalent sphere radius",std::sqrt(area/4.0/constants::pi),"a.u.");
+//         }
 
-        if (world.rank() == 0) {
-            if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
-            else print("Orbitals are eigenvectors - energies are eigenvalues\n");
-            print("Analysis of alpha MO vectors");
-        }
+//         if (world.rank() == 0) {
+//             if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
+//             else print("Orbitals are eigenvectors - energies are eigenvalues\n");
+//             print("Analysis of alpha MO vectors");
+//         }
 
-        analyze_vectors(world, amo, aocc, aeps);
-        if (param.nbeta != 0 && !param.spin_restricted) {
-            if (world.rank() == 0)
-                print("Analysis of beta MO vectors");
+//         analyze_vectors(world, amo, aocc, aeps);
+//         if (param.nbeta != 0 && !param.spin_restricted) {
+//             if (world.rank() == 0)
+//                 print("Analysis of beta MO vectors");
 
-            analyze_vectors(world, bmo, bocc, beps);
-        }
-        if(world.rank()==0){
-            print("\n\n\n");
-            print(" ------------------------------------------------------------------------------");
-            print(" |                              MADNESS SOLVATION MODULE                      |");
-            print(" ------------------------------------------------------------------------------");
-            print(" \n\n");
-        }
-        //print("Entrying Solvation Module \n\n");
-    }// end gas_phase function
-    // For given protocol, solve the DFT/HF/response equations
+//             analyze_vectors(world, bmo, bocc, beps);
+//         }
+//         if(world.rank()==0){
+//             print("\n\n\n");
+//             print(" ------------------------------------------------------------------------------");
+//             print(" |                              MADNESS SOLVATION MODULE                      |");
+//             print(" ------------------------------------------------------------------------------");
+//             print(" \n\n");
+//         }
+//         //print("Entrying Solvation Module \n\n");
+//     }// end gas_phase function
+//     // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
         functionT arho_old, brho_old;
@@ -3240,10 +3234,10 @@ struct Calculation {
             }
 
             if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
+                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, FunctionDefaults<3>::get_thresh());
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if (!param.spin_restricted && param.nbeta != 0) {
-                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
+                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, FunctionDefaults<3>::get_thresh());
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
