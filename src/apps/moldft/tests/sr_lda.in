@@ -1,0 +1,16 @@
+# reference value from http://physics.nist.gov/PhysRefData/DFTdata/Tables/ptable.html
+
+# Correct energy to 6d.p. -3129.453161
+# Should reproduce to at least 5dp
+
+dft
+  aobasis sto-3g
+  xc lda
+  canon
+end
+
+geometry
+  eprec 1e-7
+  sr 0 0 0
+end
+
