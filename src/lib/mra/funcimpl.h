@@ -869,16 +869,22 @@ namespace madness {
 
         /// Returns the truncation threshold according to truncate_method
         double truncate_tol(double tol, const keyT& key) const {
+            // RJH ... introduced max level here to avoid runaway
+            // refinement due to truncation threshold going down to
+            // intrinsic numerical error
+            const int MAXLEVEL1 = 20; // 0.5**20 ~= 1e-6
+            const int MAXLEVEL2 = 10; // 0.25**10 ~= 1e-6
+
             if (truncate_mode == 0) {
                 return tol;
             }
             else if (truncate_mode == 1) {
                 double L = FunctionDefaults<NDIM>::get_cell_min_width();
-                return tol*std::min(1.0,pow(0.5,double(key.level()))*L);
+                return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
             }
             else if (truncate_mode == 2) {
                 double L = FunctionDefaults<NDIM>::get_cell_min_width();
-                return tol*std::min(1.0,pow(0.25,double(key.level()))*L*L);
+                return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
             }
             else {
                 MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
