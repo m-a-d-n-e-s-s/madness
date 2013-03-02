@@ -81,7 +81,7 @@ namespace madness {
      */
     template <typename aT, typename bT, typename cT>
     void mTxmq_padding(long dimi, long dimj, long dimk, long ext_b,
-               cT* restrict c, const aT* a, const bT* b) {
+               cT* c, const aT* a, const bT* b) {
         const int alignment = 4;
         bool free_b = false;
         long effj = dimj;

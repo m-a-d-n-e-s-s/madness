@@ -66,7 +66,7 @@ namespace madness {
 
     /// a(n,m) --> b(m,n) ... optimized for smallish matrices
     template <typename T>
-    inline void fast_transpose(long n, long m, const T* restrict a, T* restrict b) {
+    inline void fast_transpose(long n, long m, const T* a, T* restrict b) {
         // n will always be k or 2k (k=wavelet order) and m will be anywhere
         // from 2^(NDIM-1) to (2k)^(NDIM-1).
 
@@ -83,11 +83,11 @@ namespace madness {
 
         long n4 = (n>>2)<<2;
         long m4 = m<<2;
-        const T* restrict a0 = a;
+        const T* a0 = a;
         for (long i=0; i<n4; i+=4, a0+=m4) {
-            const T* restrict a1 = a0+m;
-            const T* restrict a2 = a1+m;
-            const T* restrict a3 = a2+m;
+            const T* a1 = a0+m;
+            const T* a2 = a1+m;
+            const T* a3 = a2+m;
             T* restrict bi = b+i;
             for (long j=0; j<m; ++j, bi+=n) {
                 T tmp0 = a0[j];
