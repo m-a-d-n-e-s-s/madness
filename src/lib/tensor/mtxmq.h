@@ -35,19 +35,8 @@
 
 #include <madness_config.h>
 
-#ifdef HAVE_IBMBGP
-#include <linalg/cblas.h>
-#endif
-
 namespace madness {
-#ifdef HAVE_IBMBGP
-  extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
-                       const double* a, const double* b);
-  extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
-                       const double_complex* a, const double_complex* b);
-#endif
     /// Matrix = Matrix transpose * matrix ... reference implementation
-
     /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  It also supposed
     /// to be fast which it achieves thru restrictions
     ///   * All dimensions even
@@ -165,22 +154,19 @@ namespace madness {
             bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
         }
 #elif defined(HAVE_IBMBGP)
+    extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
+                         const double* a, const double* b);
+    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
+                         const double_complex* a, const double_complex* b);
+ 
     template <>
     inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
-        /* uncomment below to use vendor supplied DGEMM instead */
-//	double one=1.0;
-//	double zero=0.0;
-//	dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
     template <>
     inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
-        /* uncomment below to use vendor supplied ZGEMM instead */
-//	double_complex one=1.0;
-//	double_complex zero=0.0;
-//      zgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
 #elif defined(X86_64) && !defined(DISABLE_SSE3)
