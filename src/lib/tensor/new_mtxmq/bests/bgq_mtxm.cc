@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <complex>
+#if !defined(__xlc__) && !defined(__xlC__)
+#include <qpxintrin.h>
+#endif
 
 namespace madness {
     void bgq_mtxmq_padded(long dimi, long dimj, long dimk, long extb, __complex__ double *  c_x,  const __complex__ double *  a_x,  const __complex__ double *  b_x) {
@@ -37,27 +40,27 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
-                _c_0_24 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_1_20 = (vector4double)(0.0);
-                _c_1_24 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_2_20 = (vector4double)(0.0);
-                _c_2_24 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
+                _c_0_24 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_1_20 = vec_splats(0.0);
+                _c_1_24 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_2_20 = vec_splats(0.0);
+                _c_2_24 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -137,13 +140,13 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
-                _c_0_24 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
+                _c_0_24 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -181,27 +184,27 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
-                _c_0_24 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_1_20 = (vector4double)(0.0);
-                _c_1_24 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_2_20 = (vector4double)(0.0);
-                _c_2_24 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
+                _c_0_24 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_1_20 = vec_splats(0.0);
+                _c_1_24 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_2_20 = vec_splats(0.0);
+                _c_2_24 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -281,13 +284,13 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
-                _c_0_24 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
+                _c_0_24 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -325,24 +328,24 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_1_20 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_2_20 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_1_20 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_2_20 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -412,12 +415,12 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_0_20 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_0_20 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -451,21 +454,21 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -525,11 +528,11 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -559,18 +562,18 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -620,10 +623,10 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -649,15 +652,15 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -697,9 +700,9 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -721,12 +724,12 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -756,8 +759,8 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -775,9 +778,9 @@ namespace madness {
             for (i=0; i+3<=dimi; i+=3) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _a_0_1 = vec_ld2(0, (pa+2));
@@ -797,7 +800,7 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi*2) {
                     _a_0_0 = vec_ld2(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -855,18 +858,18 @@ namespace madness {
             for (j=effj; j>4; j-=4,xc+=4*2,xb+=4) {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_4_0 = (vector4double)(0.0);
-                _c_4_4 = (vector4double)(0.0);
-                _c_5_0 = (vector4double)(0.0);
-                _c_5_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_4_0 = vec_splats(0.0);
+                _c_4_4 = vec_splats(0.0);
+                _c_5_0 = vec_splats(0.0);
+                _c_5_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _az_0_1 = vec_ld2(0, (pa+2));
@@ -907,18 +910,18 @@ namespace madness {
             if (j>2) {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_4_0 = (vector4double)(0.0);
-                _c_4_4 = (vector4double)(0.0);
-                _c_5_0 = (vector4double)(0.0);
-                _c_5_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_4_0 = vec_splats(0.0);
+                _c_4_4 = vec_splats(0.0);
+                _c_5_0 = vec_splats(0.0);
+                _c_5_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _az_0_1 = vec_ld2(0, (pa+2));
@@ -959,12 +962,12 @@ namespace madness {
             else {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_4_0 = (vector4double)(0.0);
-                _c_5_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_4_0 = vec_splats(0.0);
+                _c_5_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _az_0_1 = vec_ld2(0, (pa+2));
@@ -995,8 +998,8 @@ namespace madness {
             for (j=effj; j>4; j-=4,xc+=4*2,xb+=4) {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _bz_0_0 = vec_ld2(0, pb+0);
@@ -1012,8 +1015,8 @@ namespace madness {
             if (j>2) {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _bz_0_0 = vec_ld2(0, pb+0);
@@ -1029,7 +1032,7 @@ namespace madness {
             else {
                 double*  pb = xb;
                 double*  pa = a+i*2;
-                _c_0_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi*2) {
                     _az_0_0 = vec_ld2(0, (pa+0));
                     _bz_0_0 = vec_ld2(0, pb+0);
@@ -1082,26 +1085,26 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
-                _c_3_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
+                _c_3_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1157,11 +1160,11 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1186,26 +1189,26 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
-                _c_3_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
+                _c_3_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1261,11 +1264,11 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1290,22 +1293,22 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1352,10 +1355,10 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1377,18 +1380,18 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1426,9 +1429,9 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1447,14 +1450,14 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1483,8 +1486,8 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1500,10 +1503,10 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1523,7 +1526,7 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb*2,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1575,26 +1578,26 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
-                _c_3_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
+                _c_3_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1650,11 +1653,11 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1679,26 +1682,26 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_1_16 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_2_16 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
-                _c_3_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_1_16 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_2_16 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
+                _c_3_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1754,11 +1757,11 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_0_16 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_0_16 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1783,22 +1786,22 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_1_12 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_2_12 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
-                _c_3_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_1_12 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_2_12 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
+                _c_3_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1845,10 +1848,10 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_0_12 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_0_12 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1870,18 +1873,18 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_1_8 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_2_8 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
-                _c_3_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_1_8 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_2_8 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
+                _c_3_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1919,9 +1922,9 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_0_8 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_0_8 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1940,14 +1943,14 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_1_4 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_2_4 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
-                _c_3_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_1_4 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_2_4 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
+                _c_3_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -1976,8 +1979,8 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_0_4 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_0_4 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);
@@ -1993,10 +1996,10 @@ namespace madness {
             for (i=0; i+4<=dimi; i+=4) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
-                _c_1_0 = (vector4double)(0.0);
-                _c_2_0 = (vector4double)(0.0);
-                _c_3_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
+                _c_1_0 = vec_splats(0.0);
+                _c_2_0 = vec_splats(0.0);
+                _c_3_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _a_0_1 = vec_lds(0, (pa+1));
@@ -2016,7 +2019,7 @@ namespace madness {
             for (; i+1<=dimi; i+=1) {
                 double*  pb = b;
                 double*  pa = a+i;
-                _c_0_0 = (vector4double)(0.0);
+                _c_0_0 = vec_splats(0.0);
                 for (k=0; k<dimk; k+=1,pb+=extb,pa+=dimi) {
                     _a_0_0 = vec_lds(0, (pa+0));
                     _b_0_0 = vec_ld(0, pb+0);

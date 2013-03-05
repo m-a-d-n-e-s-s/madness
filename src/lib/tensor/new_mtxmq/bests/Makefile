@@ -47,14 +47,19 @@ ifeq ($(TARGET),BGQ)
    LIB=-L$(MY_ROOT)
    INC=-I$(MY_ROOT) -I/bgsys/drivers/ppcfloor/
 
+   #CC=/home/projects/llvm/bin/bgclang
+   #CXX=/home/projects/llvm/bin/bgclang++
+   #COPT= -O3
+   #LDFLAGS= -O3
+
    CC=bgxlc_r
    CXX=bgxlc++_r
    COPT= -O5 -qhot=level=1 -qsimd=auto -qtune=qp -qarch=qp
-   CXXFLAGS=$(INC) $(COPT) $(HAVE_BGPIBM)
+   CXXFLAGS=$(INC) $(COPT) $(HAVE_BGQIBM)
+   LDFLAGS= -O3 -qarch=qp -qtune=qp -qthreaded
    CPP=$(CC) -E
 
    LD=$(CC)
-   LDFLAGS= -O3 -qarch=qp -qtune=qp -qthreaded
 
    OBJECTS = bgq_mtxm.o
 endif

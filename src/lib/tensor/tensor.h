@@ -2339,6 +2339,24 @@ namespace madness {
                 mTxmq(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
             }
+#elif HAVE_IBMBGQ
+            long nij = dimi*dimj;
+            if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+                for (long i=0; i<nij; ++i) t0[i] = 0.0;
+                mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+                for (int n=1; n<t.ndim(); ++n) {
+                    for (long i=0; i<nij; ++i) t1[i] = 0.0;
+                    mTxm(dimi, dimj, dimj, t1, t0, pc);
+                    std::swap(t0,t1);
+                }
+            }
+            else {
+                mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
+                for (int n=1; n<t.ndim(); ++n) {
+                    mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
+                    std::swap(t0,t1);
+                }
+            }
 #else
         long nij = dimi*dimj;
         if (IS_ODD(dimi) || IS_ODD(dimj) ||
