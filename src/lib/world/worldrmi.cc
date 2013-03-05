@@ -131,7 +131,7 @@ namespace madness {
                                       << std::endl;
                         // Shove it in the queue
                         int n = n_in_q++;
-                        if (n >= maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
+                        if (n >= (int)maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
                         q[n] = qmsg(len, func, i, src, attr, count);
                     }
                 }
@@ -200,10 +200,10 @@ namespace madness {
     }
 
     void RMI::post_recv_buf(int i) {
-        if (i < nrecv_) {
+        if (i < (int)nrecv_) {
             recv_req[i] = comm.Irecv(recv_buf[i], max_msg_len_, MPI_BYTE, MPI_ANY_SOURCE, SafeMPI::RMI_TAG);
         }
-        else if (i == nrecv_) {
+        else if (i == (int)nrecv_) {
             free(recv_buf[i]);
             recv_buf[i] = 0;
             post_pending_huge_msg();
@@ -279,7 +279,7 @@ namespace madness {
             std::stringstream ss(mad_recv_buffs);
             ss >> nrecv_;
             // Check that the number of receive buffers is reasonable.
-            if(nrecv_ < DEFAULT_NRECV) {
+            if(nrecv_ < (int)DEFAULT_NRECV) {
                 nrecv_ = DEFAULT_NRECV;
                 std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least " << DEFAULT_NRECV << ".\n"
                           << "!!! WARNING: Increasing MAD_RECV_BUFFERS to " << nrecv_ << ".\n";
@@ -297,7 +297,7 @@ namespace madness {
 
         // Allocate recive buffers
         if(nproc > 1) {
-            for(int i = 0; i < nrecv_; ++i) {
+            for(int i = 0; i < (int)nrecv_; ++i) {
                 if(posix_memalign(&recv_buf[i], ALIGNMENT, max_msg_len_))
                     MADNESS_EXCEPTION("RMI:initialize:failed allocating aligned recv buffer", 1);
                 post_recv_buf(i);
