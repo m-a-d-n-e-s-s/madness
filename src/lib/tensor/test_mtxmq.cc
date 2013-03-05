@@ -54,7 +54,7 @@ using namespace madness;
 
 #ifdef TIME_DGEMM
 #ifndef FORTRAN_INTEGER
-#define FORTRAN_INTEGER long
+#define FORTRAN_INTEGER MADNESS_FORINT
 #endif
 typedef FORTRAN_INTEGER integer;
 extern "C" void dgemm(const char *transa, const char *transb,
