@@ -828,6 +828,9 @@ namespace madness {
 
         // Static data
         static ThreadPool* instance_ptr; ///< Singleton pointer
+#ifdef __bgq__
+#warning WE NEED TO TUNE THE nmax PARAMETER
+#endif
         static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
 
         /// The constructor is private to enforce the singleton model
