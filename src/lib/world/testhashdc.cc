@@ -94,6 +94,7 @@ int main(int argc, char** argv) {
     cout << *it << endl;
     cout << *c_it << endl;
 
+    world.gop.fence();
     finalize();
     return 0;
 }
