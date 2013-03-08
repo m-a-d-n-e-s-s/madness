@@ -47,6 +47,7 @@ AtomicInt sum;
 AtomicInt ndone;
 
 void* doit(void *args) {
+    int* a = new int; // work around libtcmalloc bug?
     for (int j=0; j<1000; ++j) {
         for (int i=0; i<100000; ++i) {
             sum++;
@@ -54,6 +55,8 @@ void* doit(void *args) {
         sched_yield();
     }
     ndone++;
+
+    delete a;
 
     return 0;
 }
