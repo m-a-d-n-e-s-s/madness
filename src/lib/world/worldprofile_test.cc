@@ -57,15 +57,12 @@ void realmain(int argc, char** argv)
         fred(i);
 
     WorldProfile::print(world);
+
+    world.gop.fence();
 }
 
 int main(int argc, char** argv) {
-#ifdef SERIALIZE_MPI
-    int required = MPI_THREAD_SERIALIZED;
-#else
-    int required = MPI_THREAD_MULTIPLE;
-#endif
-    SafeMPI::Init_thread(argc, argv, required);
+    initialize(argc,argv);
 
     //This programming style guarantees that
     //the world instance is destroyed before
@@ -74,6 +71,6 @@ int main(int argc, char** argv) {
     //class World also takes care of MPI status.
     realmain(argc, argv);
 
-    SafeMPI::Finalize();
+    finalize();
     return 0;
 }
