@@ -30,7 +30,7 @@
 
   $Id$
 */
-
+#include <world/worldfwd.h>
 #include <world/worldthread.h>
 #include <world/worldhash.h>
 #include <world/worldhashmap.h>
@@ -396,8 +396,8 @@ void test_integer_range() {
 
 }
 
-int main() {
-
+int main(int argc, char** argv) {
+    madness::initialize(argc,argv);
     try {
         test_coverage();
         test_random();
@@ -415,5 +415,6 @@ int main() {
         cout << "UNKNOWN EXCEPTION: " << endl;
     }
 
+    madness::finalize();
     return 0;
 }

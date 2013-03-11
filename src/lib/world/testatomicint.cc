@@ -30,6 +30,7 @@
 
   $Id$
 */
+#include <world/worldfwd.h>
 #include <world/worldthread.h>
 #include <iostream>
 #include <pthread.h>
@@ -40,14 +41,14 @@
 
 #define MAX_NUM_THREADS 1000
 
-using namespace std;
 using namespace madness;
+using namespace std;
 
 AtomicInt sum;
 AtomicInt ndone;
 
 void* doit(void *args) {
-    int* a = new int; // work around libtcmalloc bug?
+  // int* a = new int; // work around libtcmalloc bug?
     for (int j=0; j<1000; ++j) {
         for (int i=0; i<100000; ++i) {
             sum++;
@@ -56,7 +57,7 @@ void* doit(void *args) {
     }
     ndone++;
 
-    delete a;
+    // delete a; // NAR 3/11/2013, probably caused from missing madness::initialize
 
     return 0;
 }
@@ -99,7 +100,8 @@ int get_nthread() {
     return nthread;
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char** argv) {
+    madness::initialize(argc,argv);
     const int nthread = get_nthread();
     if (nthread > MAX_NUM_THREADS)
         MADNESS_EXCEPTION("MAD_NUM_THREADS is too large", nthread);
@@ -127,5 +129,6 @@ int main(int argc, char* argv[]) {
 
     delete [] threads;
 
+    madness::finalize();
     return 0;
 }
