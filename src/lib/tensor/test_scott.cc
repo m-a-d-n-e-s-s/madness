@@ -30,6 +30,7 @@
 
   $Id$
 */
+#include <madness_config.h>
 #ifdef X86_64
 
 #include <tensor/tensor.h>
@@ -300,7 +301,7 @@ int main(int argc, char** argv)
 	mTxmq(k*k, k, k, res.ptr(), dc.ptr(), d.ptr());
 	mtxmGooberSaysHey(k*k, k, k, res2.ptr(), dc.ptr(), d.ptr());
 	//mTxmSCOTT(k*k, k, k, res2.ptr(), dc.ptr(), d.ptr());
-	print("ERROR IS", (res-res2).normf());
+	printf("ERROR IS %e\n", (res-res2).normf());
 
 //	double start = cpu_time();
 //	for (int i = 0; i < 10000; ++i)
@@ -316,7 +317,7 @@ int main(int argc, char** argv)
 #else
 #include <iostream>
 int main() {
-    std::cout << "only on x8664" << std::endl;
+    std::cout << "only on x86_64" << std::endl;
     return 0;
 }
 #endif
