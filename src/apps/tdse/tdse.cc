@@ -1058,7 +1058,6 @@ int main(int argc, char** argv) {
 
     world.gop.fence();
 
-    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;

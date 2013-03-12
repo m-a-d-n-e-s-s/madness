@@ -227,7 +227,7 @@ class DensityIsosurfaceCharacteristic {
         double r2b = std::pow(r,twobeta);
         return r2b/(1.0+r2b);
     }
-    
+
 public:
     DensityIsosurfaceCharacteristic(double rho0, double beta)
         : rho0(rho0), twobeta(2.0*beta)
@@ -249,7 +249,7 @@ class DensityIsosurfaceCharacteristicDerivative {
         double r2b = std::pow(r,twobeta);
         return twobeta*r2b/(rho0*r*(1.0+r2b)*(1.0+r2b));
     }
-    
+
 public:
     DensityIsosurfaceCharacteristicDerivative(double rho0, double beta)
         : rho0(rho0), twobeta(2.0*beta)
@@ -2884,7 +2884,7 @@ struct Calculation {
             c = copy(arho);
             c.unaryop(DensityIsosurfaceCharacteristicDerivative<3>(rho0,beta));
             plot_line("surface.dat",1001, vec(0.0,0.0,-20.0),  vec(0.0,0.0,20.0), c);
-            
+
             c = c*c*((*gradop[0])(arho).square() + (*gradop[1])(arho).square() + (*gradop[2])(arho).square());
             double area = c.trace();
             double facarea = std::pow(constants::atomic_unit_of_length*1e10,2.0);
@@ -3086,7 +3086,6 @@ int main(int argc, char** argv) {
       // Nearly all memory will be freed at this point
       world.gop.fence();
       world.gop.fence();
-      ThreadPool::end();
       print_stats(world);
     } // world is dead -- ready to finalize
     mpi::Finalized();

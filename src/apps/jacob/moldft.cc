@@ -2625,7 +2625,7 @@ struct Calculation {
                 print("\n\n                            Entrying Physisorption Module                       \n\n");
         if(param.physisorption && param.absolvent)
             if(world.rank()==0)
-                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                         
+                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");
         if(param.optphysisorption || param.optphysisorption_solvent){
             SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
                                      ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
@@ -2686,7 +2686,7 @@ struct Calculation {
                 double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
                 if(world.rank()==0)
                     print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
-                
+
         }
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
@@ -2814,7 +2814,7 @@ struct Calculation {
                 //dESPdrho = DFTSsolver.dESP_drho(U);
                 //dfreedrho = DFTSsolver.dfree_drho();
             }
-           
+
             if(param.svpe){
                 rhotp = rhon - rho;
                 ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
@@ -3216,7 +3216,6 @@ int main(int argc, char** argv) {
     // Nearly all memory will be freed at this point
     world.gop.fence();
     world.gop.fence();
-    ThreadPool::end();
     print_stats(world);
 
     finalize();

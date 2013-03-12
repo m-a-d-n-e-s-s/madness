@@ -2905,9 +2905,9 @@ struct Calculation {
 //                     world.gop.broadcast(focka.ptr(), focka.size(), 0);
 //                     world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
 //                     world.gop.fence();
-        
+
 //                     sygvp(focka, overlap, 1, U, aeps);
-        
+
 //                     world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
 //                     world.gop.broadcast(U.ptr(), U.size(), 0);
 // #else
@@ -2929,9 +2929,9 @@ struct Calculation {
 //                         world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
 //                         world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
 //                         world.gop.fence();
-            
+
 //                         sygvp(fockb, overlap, 1, U, beps);
-            
+
 //                         world.gop.broadcast(beps.ptr(), beps.size(), 0);
 //                         world.gop.broadcast(U.ptr(), U.size(), 0);
 // #else
@@ -3274,9 +3274,9 @@ struct Calculation {
                     world.gop.broadcast(focka.ptr(), focka.size(), 0);
                     world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
                     world.gop.fence();
-            
+
                     sygvp(focka, overlap, 1, U, aeps);
-            
+
                     world.gop.broadcast(U.ptr(), U.size(), 0);
                     world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
 #else
@@ -3297,9 +3297,9 @@ struct Calculation {
                         world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
                         world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
                         world.gop.fence();
-            
+
                         sygvp(fockb, overlap, 1, U, beps);
-            
+
                         world.gop.broadcast(U.ptr(), U.size(), 0);
                         world.gop.broadcast(beps.ptr(), beps.size(), 0);
 #else
@@ -3577,7 +3577,6 @@ int main(int argc, char** argv) {
       // Nearly all memory will be freed at this point
       world.gop.fence();
       world.gop.fence();
-      ThreadPool::end();
       print_stats(world);
     } // world is dead -- ready to finalize
     finalize();

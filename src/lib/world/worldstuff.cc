@@ -263,6 +263,8 @@ namespace madness {
     }
 
     void print_stats(World& world) {
+        world.gop.fence();
+
         double total_wall_time = wall_time()-start_wall_time;
         double total_cpu_time = cpu_time()-start_cpu_time;
         RMIStats rmi = RMI::get_stats();

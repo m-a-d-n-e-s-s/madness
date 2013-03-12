@@ -64,7 +64,6 @@ int main(int argc, char** argv) {
         a();
     }
 
-    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;

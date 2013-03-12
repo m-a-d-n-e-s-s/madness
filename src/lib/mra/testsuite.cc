@@ -1308,7 +1308,6 @@ int main(int argc, char**argv) {
             print("Final tensor instance count", BaseTensor::get_instance_count());
         }
 
-        ThreadPool::end();
         print_stats(world);
 
     }

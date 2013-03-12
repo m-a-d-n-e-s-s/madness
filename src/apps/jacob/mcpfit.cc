@@ -1080,7 +1080,6 @@ int main (int argc, char **argv) {
         // Nearly all memory will be freed at this point
         world.gop.fence();
         world.gop.fence();
-        ThreadPool::end();
         print_stats(world);
     }
 
