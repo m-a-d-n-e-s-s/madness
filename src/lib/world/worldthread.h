@@ -908,8 +908,14 @@ namespace madness {
 
 
         /// Return a pointer to the only instance constructing as necessary
-        static ThreadPool* instance(int nthread=-1) {
-            if (!instance_ptr) instance_ptr = new ThreadPool(nthread);
+        static ThreadPool* instance() {
+#ifndef MADNESS_ASSERTIONS_DISABLE
+            if(! instance_ptr) {
+                std::cerr << "!!! ERROR: The thread pool has not been initialized.\n"
+                          << "!!! ERROR: Call madness::initialize before submitting tasks to the task queue.\n";
+                MADNESS_EXCEPTION("ThreadPool::instance_ptr is NULL", 0);
+            }
+#endif
             return instance_ptr;
         }
 

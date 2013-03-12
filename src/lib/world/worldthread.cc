@@ -380,6 +380,9 @@ namespace madness {
     }
 
     void ThreadPool::begin(int nthread) {
+        // Check that the singleton has not been previously initialized
+        if(instance_ptr) return;
+
         ThreadBase::init_thread_key();
 #ifdef MADNESS_TASK_PROFILING
         // Initialize the output file name for the task profiler.
@@ -402,7 +405,9 @@ namespace madness {
             file.close();
         }
 #endif  // MADNESS_TASK_PROFILING
-        instance(nthread);
+
+        // Construct the thread pool singleton
+        instance_ptr = new ThreadPool(nthread);
     }
 
     void ThreadPool::end() {
@@ -420,6 +425,8 @@ namespace madness {
 
         ThreadBase::delete_thread_key();
 #endif
+        delete instance_ptr;
+        instance_ptr = NULL;
     }
 
     /// Returns queue statistics
