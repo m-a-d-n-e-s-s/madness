@@ -941,7 +941,7 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 #if HAVE_INTEL_TBB
             ThreadPool::tbb_parent_task->increment_ref_count();
-            ThreadPool::tbb_parent_task->spawn(*t);
+            ThreadPool::tbb_parent_task->spawn(*task);
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
             int nthread = task->get_nthread();
