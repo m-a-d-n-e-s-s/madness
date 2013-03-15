@@ -35,6 +35,8 @@
 
 #include <madness_config.h>
 
+typedef std::complex<double> double_complex;
+
 namespace madness {
     /// Matrix = Matrix transpose * matrix ... reference implementation
     /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  It also supposed
