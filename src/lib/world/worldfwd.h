@@ -610,9 +610,9 @@ namespace madness {
                 tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
                 local_wait_task->set_ref_count(2); // 1 for child, 1 for blocking
                 tbb::task* pt = new (local_wait_task->allocate_child()) probe_task<Probe>(probe);
-//                local_wait_task->spawn_and_wait_for_all(*pt);
                 local_wait_task->enqueue(*pt);
                 local_wait_task->wait_for_all(); // will only return when the probe is true.
+                tbb::task::destroy(*local_wait_task);
             }
         }
 #else

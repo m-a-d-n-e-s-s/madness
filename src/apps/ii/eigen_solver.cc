@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
             AV.copyin(sym_tensor);
             //if( n < 4 ) print(AV.data()); // for check
 
-            world.taskq.add(new MADNESS_ALLOC_CHILD_TASK SystolicEigensolver<double>(AV, 3333));
+            world.taskq.add(new SystolicEigensolver<double>(AV, 3333));
             world.taskq.fence();
 
             // gather all data on whole porcessors

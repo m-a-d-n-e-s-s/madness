@@ -76,14 +76,7 @@ namespace madness {
             PoolTaskInterface* p;
             Submit(PoolTaskInterface* p) : p(p) {}
             void notify() {
-#if HAVE_INTEL_TBB
-                ThreadPool::tbb_parent_task->increment_ref_count();
-//                ThreadPool::tbb_parent_task->spawn(*p);
-                ThreadPool::tbb_parent_task->enqueue(*p);
-#else
-
                 ThreadPool::add(p);
-#endif
             }
         } submit;
 

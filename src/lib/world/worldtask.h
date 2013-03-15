@@ -50,12 +50,6 @@
 #include <world/worldtime.h>
 #include <world/taskfn.h>
 
-#if HAVE_INTEL_TBB
-#define MADNESS_ALLOC_CHILD_TASK ( ThreadPool::tbb_parent_task->allocate_child() )
-#else
-#define MADNESS_ALLOC_CHILD_TASK
-#endif
-
 namespace madness {
 
     // Forward decls
@@ -423,7 +417,7 @@ namespace madness {
             archive::BufferInputArchive input_arch = arg & info;
 
             // Construct task
-            taskT* task = new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(info.ref),
+            taskT* task = new taskT(typename taskT::futureT(info.ref),
                     info.func, info.attr, input_arch);
 
             // Add task to queue
@@ -616,7 +610,7 @@ namespace madness {
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, attr));
         }
 
@@ -624,7 +618,7 @@ namespace madness {
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, attr));
         }
 
@@ -632,7 +626,7 @@ namespace madness {
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const a1T& a1, const a2T& a2, const TaskAttributes& attr=TaskAttributes()) {
             typedef TaskFn<fnT, a1T, a2T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, attr));
         }
 
@@ -642,7 +636,7 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, attr));
         }
 
@@ -652,7 +646,7 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, attr));
         }
 
@@ -663,7 +657,7 @@ namespace madness {
             const a5T& a5, const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, attr));
         }
 
@@ -674,7 +668,7 @@ namespace madness {
             const a5T& a5, const a6T& a6, const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, attr));
         }
 
@@ -686,7 +680,7 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, a7, attr));
         }
 
@@ -698,7 +692,7 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, a7, a8, attr));
         }
 
@@ -711,7 +705,7 @@ namespace madness {
             const TaskAttributes& attr=TaskAttributes())
         {
             typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> taskT;
-            return add(new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(),
+            return add(new taskT(typename taskT::futureT(),
                     fn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr));
         }
 
@@ -1267,7 +1261,7 @@ namespace madness {
 
             /// \param id The id to set for this task
             virtual void get_id(std::pair<void*,unsigned long>& id) const {
-                return PoolTaskInterface::make_id(id, *this);
+                PoolTaskInterface::make_id(id, *this);
             }
 
             /// Task run work

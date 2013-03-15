@@ -254,7 +254,7 @@ namespace madness {
                 archive::BufferInputArchive input_arch = arg & info;
 
                 // Construct task
-                taskT* task = new MADNESS_ALLOC_CHILD_TASK taskT(typename taskT::futureT(info.ref),
+                taskT* task = new taskT(typename taskT::futureT(info.ref),
                         detail::wrap_mem_fn(obj,info.memfun), info.attr, input_arch);
                 typename taskT::futureT result(info.ref);
 

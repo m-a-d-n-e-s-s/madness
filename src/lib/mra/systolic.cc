@@ -633,7 +633,7 @@ int main(int argc, char** argv) {
             A.local_colrange(ilo, ihi);
             for (int i=ilo; i<=ihi; ++i) A.data()(i-ilo,_) = i;
 
-            world.taskq.add(new MADNESS_ALLOC_CHILD_TASK TestSystolicMatrixAlgorithm<double>(A, 3333));
+            world.taskq.add(new TestSystolicMatrixAlgorithm<double>(A, 3333));
             world.taskq.fence();
 
             for (int i=ilo; i<=ihi; ++i) {

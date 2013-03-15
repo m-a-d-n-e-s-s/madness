@@ -43,6 +43,7 @@
 #include <pthread.h>
 #include <world/typestuff.h>
 #include <typeinfo>
+#include <new>
 
 #ifdef MADNESS_TASK_PROFILING
 #include <execinfo.h> // for backtrace_symbols
@@ -610,7 +611,7 @@ namespace madness {
     /// The pool invokes run_multi_threaded() that does any necessary
     /// setup for multiple threads and then invokes the users \c run method.
     class PoolTaskInterface :
-#if HAVE_INTEL_TBB
+#ifdef HAVE_INTEL_TBB
             public tbb::task,
 #endif // HAVE_INTEL_TBB
             public TaskAttributes
@@ -677,7 +678,7 @@ namespace madness {
 
     	/// Returns true for the one thread that should invoke the destructor
     	bool run_multi_threaded() {
-#if HAVE_INTEL_TBB
+#ifdef HAVE_INTEL_TBB
             MADNESS_EXCEPTION("run_multi_threaded should not be called when using Intel TBB", 1);
 #else
             // As a thread enters this routine it increments the shared counter
@@ -759,7 +760,20 @@ namespace madness {
             run( TaskThreadEnv(nthread, id) );
             return NULL;
         }
-#endif
+#endif // HAVE_INTEL_TBB
+
+        static inline void * operator new(std::size_t size) throw(std::bad_alloc);
+
+        /// Destroy task object
+        static inline void operator delete(void* p, std::size_t size) throw() {
+            if(p != NULL) {
+#ifdef HAVE_INTEL_TBB
+                tbb::task::destroy(*reinterpret_cast<tbb::task*>(p));
+#else
+                ::operator delete(p);
+#endif // HAVE_INTEL_TBB
+            }
+        }
 
         /// Override this method to implement a multi-threaded task
 
@@ -1000,12 +1014,26 @@ namespace madness {
 
         ~ThreadPool() {
 #if HAVE_INTEL_TBB
-            delete(tbb_parent_task);
+            tbb_parent_task->decrement_ref_count();
+            tbb::task::destroy(*tbb_parent_task);
             tbb_scheduler->terminate();
             delete(tbb_scheduler);
 #endif
         }
     };
+
+    inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
+    {
+#ifdef HAVE_INTEL_TBB
+        if(! ThreadPool::tbb_parent_task) {
+            std::cerr << "!!! Error: Cannot allocate task object because the thread pool has not been initialized.\n";
+            throw std::bad_alloc();
+        }
+        return ::operator new(size, ThreadPool::tbb_parent_task->allocate_child());
+#else
+        return ::operator new(size);
+#endif // HAVE_INTEL_TBB
+    }
 
 }
 
