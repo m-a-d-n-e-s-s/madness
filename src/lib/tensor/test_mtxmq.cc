@@ -40,13 +40,14 @@ int main() {std::cout << "x86 only\n"; return 0;}
 
 #else
 
-#include <tensor/tensor.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 //#include <xmmintrin.h>
 
+#include <world/safempi.h>
+#include <world/posixmem.h>
+#include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 
 using namespace madness;
@@ -97,13 +98,8 @@ void mTxm(long dimi, long dimj, long dimk,
     }
 }
 
-long long rdtsc() {
-  long long x = 0;
-  return x;
-}
-
-void crap(double rate, double fastest, long long start) {
-    if (rate == 0) printf("darn compiler bug %e %e %lld\n",rate,fastest,start);
+void crap(double rate, double fastest, double start) {
+    if (rate == 0) printf("darn compiler bug %e %e %lf\n",rate,fastest,start);
 }
 
 
@@ -114,20 +110,20 @@ void timer(const char* s, long ni, long nj, long nk, double *a, double *b, doubl
   long loop;
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxmq(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxm_dgemm(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
@@ -142,24 +138,24 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   long loop;
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxmq(ni,nj,nk,c,a,b);
     mTxmq(ni,nj,nk,a,c,b);
     mTxmq(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxm_dgemm(ni,nj,nk,c,a,b);
     mTxm_dgemm(ni,nj,nk,a,c,b);
     mTxm_dgemm(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
@@ -167,13 +163,15 @@ void trantimer(const char* s, long ni, long nj, long nk, double *a, double *b, d
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
-int main() {
+int main(int argc, char * argv[]) {
     const long nimax=30*30;
     const long njmax=100;
     const long nkmax=100;
     long ni, nj, nk, i, m;
-
     double *a, *b, *c, *d;
+
+    SafeMPI::Init_thread(argc, argv, MPI_THREAD_SINGLE);
+
     posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double));
     posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double));
     posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double));
@@ -224,6 +222,9 @@ int main() {
     for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
     for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
     for (m=2; m<=20; m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+
+    SafeMPI::Finalize();
+
     return 0;
 }
 
