@@ -53,6 +53,10 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+    if (world.rank()==0) print("using gperftools, clearing memory at each fence()");
+#endif
+
     CorrelationFactor f12(world,1.0);
 
     MP2 mp2(world,f12,"input");
@@ -65,10 +69,13 @@ int main(int argc, char** argv) {
     position_stream(f, "mp2");
     std::string s;
 
+    int iteration;
+
     int i=0,j=0;
     while (f >> s) {
         if (s == "end") break;
         else if (s == "pair") f >> i >> j;
+        else if (s == "iteration") f >> iteration;
         else continue;
     }
 
@@ -108,7 +115,7 @@ int main(int argc, char** argv) {
 
     if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-    if (do_test) mp2.test(i,j);
+    if (do_test) mp2.test(i,j,iteration);
     else mp2.solve_residual_equations(i,j);
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());

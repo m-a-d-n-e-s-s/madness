@@ -315,8 +315,8 @@ int test_convolution(World& world, const long& k, const double thresh) {
 	real_function_3d vphi=v*phi;
 
     v.print_size("v");
-    real_convolution_3d poisson = CoulombOperator(world,0.0001,thresh);
-    real_convolution_3d green = BSHOperator<3>(world, sqrt(-2.0*eps), 1.e-8, thresh);
+//    real_convolution_3d poisson = CoulombOperator(world,0.0001,thresh);
+    real_convolution_3d green = BSHOperator<3>(world, sqrt(-2.0*eps), 1.e-8, 1.e-6);
 
     for (int i=0; i<10; ++i) {
 
@@ -337,11 +337,19 @@ int test_convolution(World& world, const long& k, const double thresh) {
     	print("phi.norm2()",norm);
     }
 
-    // solve the H-atom in 6D
-    real_convolution_6d green6 = BSHOperator<6>(world, sqrt(-2.0*eps), 1.e-8, thresh);
+    vphi=v*phi;
+    double PE=inner(vphi,phi);
+   	print("<phi | V | phi>: ",PE);
 
-	real_function_6d result1=-2.0*green6(vphi,phi).truncate().reduce_rank();
-	result1=result1-2.0*green6(phi,vphi).truncate().reduce_rank();
+    // solve the H-atom in 6D
+    real_convolution_6d green6 = BSHOperator<6>(world, sqrt(-2.0*(eps+eps)), 1.e-8, 1.e-6);
+
+	real_function_6d result1=-2.0*green6(copy(vphi),copy(phi)).truncate().reduce_rank();
+	result1=result1-2.0*green6(copy(phi),copy(vphi)).truncate().reduce_rank();
+	world.gop.fence();
+
+	double a=result1.norm2();
+	if (world.rank()==0) print("<GVphi | GVphi> ",a);
 
 	real_function_6d diff=result1-hartree_product(phi,phi);
 	double norm=diff.norm2();

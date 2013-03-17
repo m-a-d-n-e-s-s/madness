@@ -1428,6 +1428,16 @@ namespace madness {
             return asy;
         }
 
+        /// check symmetry of a function by computing the 2nd derivative
+        long do_something() const {
+
+            if (VERIFY_TREE) verify_tree();
+            long local = impl->something_local();
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            return local;
+        }
+
         /// reduce the rank of the coefficient tensors
         Function<T,NDIM>& reduce_rank(const bool fence=true) {
             verify();
@@ -1961,7 +1971,8 @@ namespace madness {
     	} else {
 
     		// saves the standard() step, which is very expensive in 6D
-    		Function<R,NDIM> fff=copy(ff);
+//    		Function<R,NDIM> fff=copy(ff);
+    		Function<R,NDIM> fff=(ff);
             fff.nonstandard(op.doleaves, true);
             if (NDIM==6) fff.print_size("ff in apply after nonstandard");
             if ((NDIM==6) and (f.world().rank()==0)) {
@@ -1970,8 +1981,8 @@ namespace madness {
             }
             result = apply_only(op, fff, fence);
             result.reconstruct();
-            fff.clear();
-//            ff.standard();
+//            fff.clear();
+            ff.standard();
 
     	}
         if (NDIM==6) result.print_size("result after reconstruction");

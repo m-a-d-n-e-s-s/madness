@@ -59,13 +59,7 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
     if (world.rank()==0)  print("loading function ", name);
 
     archive::ParallelInputArchive ar(world, name.c_str());
-
-//    Tensor<double> cell;
-    ar & pair;// & cell;
-
-    // set the defaults
-//    if (NDIM==3) FunctionDefaults<3>::set_cell(cell);
-//    if (NDIM==6) FunctionDefaults<6>::set_cell(cell);
+    ar & pair;
 
     FunctionDefaults<3>::set_k(pair.k());
     FunctionDefaults<6>::set_k(pair.k());
@@ -73,18 +67,29 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
     FunctionDefaults<3>::set_thresh(pair.thresh());
     FunctionDefaults<6>::set_thresh(pair.thresh());
 
-//    pair.truncate();
     std::string line="loaded function "+name;
     pair.print_size(line);
 
 }
+template<size_t NDIM>
+void save_function(World& world, Function<double,NDIM>& pair, const std::string name) {
+    if (world.rank()==0)  print("loading function ", name);
+
+    archive::ParallelOutputArchive ar(world, name.c_str());
+    ar & pair;
+
+    std::string line="saved function "+name;
+    pair.print_size(line);
+
+}
+
 
 template<size_t NDIM>
 void draw_line(World& world, Function<double,NDIM>& pair, const std::string restart_name) {
 
     Vector<double,NDIM> lo(0.0), hi(0.0);
-    lo[0]=-8.0;
-    hi[0]=8.0;
+    lo[2]=-8.0;
+    hi[2]=8.0;
 
     {
         std::string filename="line_"+restart_name;
@@ -110,8 +115,35 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 template<size_t NDIM>
 void draw_plane(World& world, Function<double,NDIM>& function, const std::string restart_name) {
 
-    std::string filename="plane_"+restart_name;
-    const double scale=0.03;
+    // determine the plot plane
+    std::string c1, c2;	// the coordinates for the two electrons in human form ("x1" or "z2" or so)
+    std::ifstream f("input");
+    position_stream(f, "plot");
+    std::string s;
+    while (f >> s) {
+    	if (s == "end") {
+    		break;
+    	} else if (s == "plane") {
+    		f >> c1 >> c2;
+    	}
+    }
+    // convert human to mad form
+    int cc1, cc2;
+    if (c1=="x1") cc1=0;
+    if (c1=="y1") cc1=1;
+    if (c1=="z1") cc1=2;
+    if (c1=="x2") cc1=3;
+    if (c1=="y2") cc1=4;
+    if (c1=="z2") cc1=5;
+    if (c2=="x1") cc2=0;
+    if (c2=="y1") cc2=1;
+    if (c2=="z1") cc2=2;
+    if (c2=="x2") cc2=3;
+    if (c2=="y2") cc2=4;
+    if (c2=="z2") cc2=5;
+
+    std::string filename="plane_"+c1+c2+"_"+restart_name;
+    const double scale=0.25;
     // assume a cubic cell
     double lo=-FunctionDefaults<6>::get_cell_width()[0]*0.5;
     lo=lo*scale;
@@ -131,18 +163,18 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
           
           Vector<double,NDIM> coord(0.0);
 
-          // plot x1/y1-plane
-          coord[0]=lo+i0*stepsize;
-          coord[1]=lo+i1*stepsize;
+          // plot plane
+          coord[cc1]=lo+i0*stepsize;
+          coord[cc2]=lo+i1*stepsize;
 
           // other electron
-          coord[3]=0.5;
+//          coord[3]=0.5;
 
-          fprintf(f,"%4i %4i %12.6f\n",i0,i1,function(coord));
+          fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],function(coord));
 
         }
-        // gnuplot-style 
-        fprintf(f,"\n");
+        // uncomment for gnuplot-style; leave commented out for mathematica
+//        fprintf(f,"\n");
       }
       fclose(f);
    }
@@ -151,76 +183,29 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
 }
 
 
-void do_stuff(World& world, const std::string name) {
-
-    Function<double,6> tmp,tmp2,tmp3,tmp4,GVpair,GVpair1;
-
-    load_function(world,tmp,"tmp");
-    draw_plane(world,tmp,"tmp");
-
-    load_function(world,tmp2,"tmp2");
-    draw_plane(world,tmp2,"tmp2");
-
-    load_function(world,tmp3,"tmp3");
-    draw_plane(world,tmp3,"tmp3");
-
-    load_function(world,tmp4,"tmp4");
-    draw_plane(world,tmp4,"tmp4");
-
-    load_function(world,GVpair,"GVpair");
-//    draw_plane(world,GVpair,"GVpair");
-
-    load_function(world,GVpair1,"GVpair1");
-//    draw_plane(world,GVpair1,"GVpair1");
-
-    // add functions
-//    tmp=tmp+tmp2;
-//    draw_plane(world,tmp,"tmp+tmp2");
-//
-//    tmp=tmp+tmp3;
-//    draw_plane(world,tmp,"tmp+tmp2+tmp3");
-//
-    Function<double,6> tmp32=tmp3+tmp2;
-    draw_plane(world,tmp32,"tmp32");
-
-    Function<double,6> tmp21=tmp2+tmp;
-    draw_plane(world,tmp21,"tmp21");
-
-    double tight= FunctionDefaults<6>::get_thresh()*0.1;
-    tmp4=tmp3+tmp2+tmp;
-//    tmp4.truncate(tight).print_size("tmp4");
-    draw_plane(world,tmp4,"tmp3+tmp2+tmp");
-
-
-//    tmp4.truncate();
-//    tmp4.print_size("tmp4.truncate()");
-//    GVpair1.truncate();
-//    GVpair1.print_size("GVpair1.truncate()");
-
-    Function<double,6> aa=(tmp4+GVpair1).reduce_rank();
-    aa.print_size("tmp4+GVpair1");
-    draw_plane(world,aa,"aa");
-    draw_line(world,aa,"tmp4+GVpair1");
-    Function<double,6> a=(tmp4+GVpair1).truncate(); 
-    a.print_size("(tmp4+GVpair1).truncate(eps)");
-    draw_plane(world,a,"(tmp4+GVpair1).truncate(eps)");
-    draw_line(world,a,"(tmp4+GVpair1).truncate(eps)");
-    Function<double,6> b=(tmp4+GVpair1).truncate(FunctionDefaults<6>::get_thresh()*0.1); 
-    b.print_size("(tmp4+GVpair1).truncate(eps*0.1)");
-    draw_line(world,b,"(tmp4+GVpair1).truncate(eps*0.1)");
-
-}
-
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
 
-    const double L=16;
-    FunctionDefaults<3>::set_cubic_cell(-L/2,L/2);
-    FunctionDefaults<6>::set_cubic_cell(-L/2,L/2);
-    FunctionDefaults<6>::set_tensor_type(TT_2D);
+    // determine the box size L
+    double L=-1.0;
+    std::ifstream f("input");
+    position_stream(f, "dft");
+    std::string s;
+    while (f >> s) {
+    	if (s == "end") {
+    		break;
+    	} else if (s == "L") {
+    		f >> L;
+    	}
+    }
+    if (L<0.0) MADNESS_EXCEPTION("box size indetermined",1);
+    FunctionDefaults<3>::set_cubic_cell(-L,L);
+    FunctionDefaults<6>::set_cubic_cell(-L,L);
+//    FunctionDefaults<6>::set_tensor_type(TT_2D);
+    FunctionDefaults<6>::set_tensor_type(TT_FULL);
 
 
     if (world.rank()==0) {
@@ -264,11 +249,15 @@ int main(int argc, char** argv) {
         print("");
     }
 
-    if (restart) {
-    	draw_line(world,pair,restart_name);
-    	draw_circle(world,pair,restart_name);
-    }
-    do_stuff(world,restart_name);
+//    if (restart) {
+//    	draw_line(world,pair,restart_name);
+//    	draw_circle(world,pair,restart_name);
+//    }
+    draw_plane(world,pair,restart_name);
+    draw_line(world,pair,restart_name);
+
+    world.gop.fence();
+    print("exiting tiny");
 
     return 0;
 }

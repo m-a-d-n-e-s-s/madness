@@ -1509,6 +1509,10 @@ namespace madness {
                                                   const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
                                                   int k=FunctionDefaults<NDIM>::get_k())
     {
+    	if (eps>1.e-4) {
+    		if (world.rank()==0) print("the accuracy in BSHOperator is too small, tighten the threshold",eps);
+    		MADNESS_EXCEPTION("0",1);
+    	}
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation

@@ -34,7 +34,9 @@
 
 #include <world/worldgop.h>
 #include <world/world.h> // for World, WorldTaskQueue, and WorldAmInterface
-
+#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+#include <gperftools/malloc_extension.h>
+#endif
 namespace madness {
 
 
@@ -137,6 +139,10 @@ namespace madness {
         };
         world.am.free_managed_buffers(); // free up communication buffers
         deferred->do_cleanup();
+#ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
+        MallocExtension::instance()->ReleaseFreeMemory();
+//        print("clearing memory");
+#endif
     }
 
 
