@@ -242,20 +242,23 @@ namespace madness {
             const double fnorm=fcoeff.normf();
             const double gnorm=gcoeff.normf();
 
-            // norm of the scaling function coefficients
-            const double sfnorm=fcoeff(s0).normf();
-            const double sgnorm=gcoeff(s0).normf();
-
             // if the final norm is small, perform the hartree product and return
             const double norm=fnorm*gnorm;  // computing the outer product
             if (norm < thresh) return true;
 
-            // get the error of both functions and of the pair function
-            const double ferror=sqrt(fnorm*fnorm-sfnorm*sfnorm);
-            const double gerror=sqrt(gnorm*gnorm-sgnorm*sgnorm);
+            // norm of the scaling function coefficients
+            const double sfnorm=fcoeff(s0).normf();
+            const double sgnorm=gcoeff(s0).normf();
+
+            // get the error of both functions and of the pair function;
+            // need the abs for numerics: sfnorm might be equal fnorm.
+            const double ferror=sqrt(std::abs(fnorm*fnorm-sfnorm*sfnorm));
+            const double gerror=sqrt(std::abs(gnorm*gnorm-sgnorm*sgnorm));
 
             // if the expected error is small, perform the hartree product and return
             const double error=fnorm*gerror + ferror*gnorm + ferror*gerror;
+//            const double error=sqrt(fnorm*fnorm*gnorm*gnorm - sfnorm*sfnorm*sgnorm*sgnorm);
+
             if (error < thresh) return true;
             return false;
         }
@@ -3460,25 +3463,22 @@ namespace madness {
 
             std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
 
-                const coeffT& fcoeff=p1.coeff();
-                const coeffT& gcoeff=p2.coeff();
-                bool is_leaf=leaf_op(key,fcoeff.full_tensor(),gcoeff.full_tensor());
-                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
-
                 // break key into particles (these are the child keys, with datum1/2 come the parent keys)
                 Key<LDIM> key1,key2;
                 key.break_apart(key1,key2);
 
-                // iterators point to nodes in nonstandard representation: get the sum coeffs
+                // this returns the appropriate NS coeffs for key1 and key2 resp.
+            	const coeffT fcoeff=p1.coeff(key1);
+                const coeffT gcoeff=p2.coeff(key2);
+                bool is_leaf=leaf_op(key,fcoeff.full_tensor(),gcoeff.full_tensor());
+                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
+
+                // extract the sum coeffs from the NS coeffs
                 const coeffT s1=fcoeff(p1.get_impl()->cdata.s0);
                 const coeffT s2=gcoeff(p2.get_impl()->cdata.s0);
 
-                const coeffT coeff1=p1.get_impl()->parent_to_child(s1,p1.key(),key1);
-                const coeffT coeff2=p2.get_impl()->parent_to_child(s2,p2.key(),key2);
-
                 // new coeffs are simply the hartree/kronecker/outer product --
-                coeffT coeff=outer(coeff1,coeff2);
-
+                coeffT coeff=outer(s1,s2);
                 // no post-determination
 //                is_leaf=leaf_op(key,coeff);
                 return std::pair<bool,coeffT>(is_leaf,coeff);
@@ -3564,7 +3564,7 @@ namespace madness {
             MADNESS_ASSERT(p1->is_nonstandard());
             MADNESS_ASSERT(p2->is_nonstandard());
 
-            keyT key0=cdata.key0;
+            const keyT key0=cdata.key0;
 
             if (world.rank() == this->get_coeffs().owner(key0)) {
 
