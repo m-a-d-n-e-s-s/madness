@@ -117,9 +117,10 @@ namespace madness {
             void open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
-#ifdef HAVE_IBMBGP
-#warning See previous comment about PSETs...
-                int maxio = (world.size()-1)/64 + 1;
+#elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
+                /* Jeff believes that BG is designed to handle up to *
+                 * one file per node and I assume no more than 8 ppn */
+                int maxio = world.size()/8;
 #else
                 int maxio = 50;
 #endif
