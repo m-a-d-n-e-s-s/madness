@@ -62,10 +62,6 @@ inline void pthread_spin_destroy(pthread_spinlock_t* /*p*/) {}
 #include <world/atomicint.h>
 #include <world/worldexc.h>
 
-#ifdef HAVE_IBMBGQ
-#  include <hwi/include/bqc/A2_inlines.h>
-#endif
-
 /// \file worldmutex.h
 /// \brief Implements Mutex, MutexFair, Spinlock, ConditionVariable
 
