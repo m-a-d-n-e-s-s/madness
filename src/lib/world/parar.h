@@ -73,15 +73,7 @@ namespace madness {
             /// Currently assigned in round-robin-fashion to the first nio processes except
             /// on IBM BG/P where use every 64'th
             ProcessID io_node(ProcessID rank) const {
-#if defined(HAVE_IBMBGP)
-#warning Use MPIX to get the actual rank-0-modulo-IO-pset processes...
-		        return ((rank/64)%nio) * 64;
-#elif defined(HAVE_IBMBGQ)
-#warning Use MPIX_Hardware to get PSET masters here...
-		        return ((rank/128)%nio) * 128;
-#else
                 return rank%nio;
-#endif
             }
 
             /// Returns the process doing IO for this node
