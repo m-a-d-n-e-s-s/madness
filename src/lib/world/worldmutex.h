@@ -77,14 +77,9 @@ namespace madness {
         unsigned int count;
 
         /// Yield for specified number of microseconds unless dedicated CPU
+        /// Blue Gene always has a dedicated hw thread
         void yield(int us) { 
-#if defined(HAVE_IBMBGP)
-            //cpu_relax();
-	        myusleep(us); /* Jeff: is there a reason we were not using this before on BGP? */
-#elif defined(HAVE_IBMBGQ)
-            /* 1600 GHz means 1600 cyles in a microsecond */
-            Delay(1600*us);
-#else
+#if !defined(HAVE_IBMBGP) && !defined(HAVE_IBMBGQ)
 	        myusleep(us); 
 #endif
 	    }
