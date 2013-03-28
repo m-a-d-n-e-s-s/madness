@@ -488,6 +488,10 @@ namespace SafeMPI {
             return group;
         }
 
+        MPI_Comm& Get_mpi_comm() const {
+            return impl->comm;
+        }
+
         int Get_rank() const { return impl->me; }
 
         int Get_size() const { return impl->numproc; }
