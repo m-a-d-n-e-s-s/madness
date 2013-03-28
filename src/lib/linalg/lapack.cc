@@ -52,11 +52,6 @@ using std::max;
 
 using madness::Tensor;
 
-#ifdef MADNESS_HAS_ELEMENTAL
-//#if 0
-#include <linalg/elem.h>
-#endif
-
 #ifdef MADNESS_HAS_EIGEN3
 #  include <linalg/eigen.h>
 #endif
@@ -69,11 +64,6 @@ using madness::Tensor;
 
 
 double tt1, ss1;
-#ifdef MADNESS_HAS_ELEMENTAL
-#define START_TIMER world.gop.fence(); tt1=wall_time(); ss1=cpu_time()
-#define END_TIMER(msg) tt1=wall_time()-tt1; ss1=cpu_time()-ss1; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, ss1, tt1)
-#endif
-
 
 #ifdef STATIC
 #  undef STATIC
@@ -601,56 +591,6 @@ namespace madness {
         }
         return err;
     }
-#ifdef MADNESS_HAS_ELEMENTAL
-    template <typename T>
-    double test_gesvp(int n, int nrhs) {
-        Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
-
-        a.fillrandom();
-        b1.fillrandom();
-        b.fillrandom();
-
-        madness::World world(SafeMPI::COMM_WORLD);
-        //madness::World world(mpi::COMM_WORLD);
-        world.gop.broadcast(a.ptr(),a.size(), 0);
-        world.gop.broadcast(b.ptr(),b.size(), 0);
-        world.gop.broadcast(b1.ptr(),b1.size(), 0);
-        world.gop.fence();
-
-//         print("A");
-//         print(a);
-
-//         print("B");
-//         print(b);
-
-//         print("B1");
-//         print(b1);
-
-        START_TIMER;
-        gesvp(a,b,x);
-        gesvp(a,b1,x1);
-        END_TIMER(" call gesvp");
-
-//         print("X");
-//         print(x);
-
-//         print("X1");
-//         print(x1);
-
-//         print("R");
-//         print(inner(a,x)-b);
-//
-//         print("R1");
-//         print(inner(a,x1)-b1);
-
-        double err = 0;
-        START_TIMER;
-        err = (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
-        END_TIMER("error gesvp");
-        return err;
-//        return 111.0;
-    }
-#endif //MADNESS_HAS_ELEMENTAL
 
     template <typename T>
     double test_gelss(int n, int nrhs) {
@@ -686,37 +626,7 @@ namespace madness {
         }
         return err;
     }
-#ifdef MADNESS_HAS_ELEMENTAL
-    template <typename T>
-    double test_sygvp(int n) {
-        Tensor<T> a(n,n), V, b(n,n);
-        Tensor< typename Tensor<T>::scalar_type > e;
 
-        a.fillrandom();
-        b.fillrandom();
-        a += madness::my_conj_transpose(a);
-        b += madness::my_conj_transpose(b);
-
-        madness::World world(SafeMPI::COMM_WORLD);
-        //madness::World world(mpi::COMM_WORLD);
-        world.gop.broadcast(a.ptr(),a.size(), 0);
-        world.gop.broadcast(b.ptr(),b.size(), 0);
-        world.gop.fence();
-
-        for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
-        START_TIMER;
-        sygvp(a,b,1,V,e);
-        END_TIMER("call sygvp");
-
-        START_TIMER;
-        double err = 0.0;
-        for (int i=0; i<n; ++i) {
-            err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());
-        }
-        END_TIMER("error sygvp");
-        return err;
-    }
-#endif //MADNESS_HAS_ELEMENTAL
     template <typename T>
     double test_cholesky(int n) {
         Tensor<T> a(n,n);
@@ -747,80 +657,51 @@ namespace madness {
     /// Test the Tensor-LAPACK interface ... currently always returns true!
     bool test_tensor_lapack() {
         try {
-
-#ifdef MADNESS_HAS_ELEMENTAL
-            World world(SafeMPI::COMM_WORLD);
-            const int myrank = world.rank();
-#else
-            const int myrank = 0;
-#endif
-
-            if (myrank == 0) {
-                cout << "error in float svd " << test_svd<float>(20,30) << endl;
-                cout << "error in double svd " << test_svd<double>(30,20) << endl;
+            cout << "error in float svd " << test_svd<float>(20,30) << endl;
+            cout << "error in double svd " << test_svd<double>(30,20) << endl;
 #ifndef MADNESS_HAS_EIGEN3
-                cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
-                cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
+            cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
+            cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
 #endif
-                cout << endl;
-
-
-                cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
-                cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
+            cout << endl;
+            
+            
+            cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
+            cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
 #ifndef MADNESS_HAS_EIGEN3
-                cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
-                cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
+            cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
+            cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
 #endif
-                cout << endl;
-
-                cout << "error in double syev " << test_syev<double>(21) << endl;
-                cout << "error in float syev " << test_syev<float>(21) << endl;
+            cout << endl;
+            
+            cout << "error in double syev " << test_syev<double>(21) << endl;
+            cout << "error in float syev " << test_syev<float>(21) << endl;
 #ifndef MADNESS_HAS_EIGEN3
-                cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
-                cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
+            cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
+            cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
 #endif
-                cout << endl;
-
-
-                cout << "error in float sygv " << test_sygv<float>(20) << endl;
-                cout << "error in double sygv " << test_sygv<double>(20) << endl;
+            cout << endl;
+            
+            
+            cout << "error in float sygv " << test_sygv<float>(20) << endl;
+            cout << "error in double sygv " << test_sygv<double>(20) << endl;
 #ifndef MADNESS_HAS_EIGEN3
-                cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
-                cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+            cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
+            cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
 #endif
-                cout << endl;
-
-                cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
-                cout << "error in double gesv " << test_gesv<double>(20,30) << endl;
+            cout << endl;
+            
+            cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
+            cout << "error in double gesv " << test_gesv<double>(20,30) << endl;
 #ifndef MADNESS_HAS_EIGEN3
-                cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
-                cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
+            cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
+            cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
 #endif
-                cout << endl;
-                cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
-                cout << endl;
-            }
-
-#ifdef MADNESS_HAS_ELEMENTAL
-            double err  = 999.99;
-
-//vama11            err = test_sygvp<float>(20);
-//vama11            if (myrank == 0)  cout << "error in float sygvp " << err << endl;
-            err = test_sygvp<double>(1000);
-            if (myrank == 0)  cout << "error in double sygvp " << err << endl;
-            if (myrank == 0)  cout << endl; 
-
-            //err = test_gesvp<double>(6,4);
-              err = test_gesvp<double>(1800,1200);
-//vama11            if (myrank == 0)  cout << "error in double gesvp " << err << endl;
-//vama11            err = test_gesv<float>(6,4);
-//            err = test_gesv<float>(1800,1200);
-            if (myrank == 0)  cout << "error in float gesvp " << err << endl;
-            if (myrank == 0)  cout << endl; 
-#endif
-
-
+            cout << endl;
+            cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
+            cout << endl;
         }
+
         catch (TensorException e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
@@ -891,13 +772,5 @@ namespace madness {
     void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 //#endif //MADNESS_HAS_EIGEN
-#ifdef MADNESS_HAS_ELEMENTAL
-    template
-    void gesvp(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
 
-    template
-    void sygvp(const Tensor<double>& A, const Tensor<double>& B, int itype,
-              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
-
-#endif //MADNESS_HAS_ELEMENTAL
 }

@@ -33,6 +33,7 @@
 */
 
 
+#include <madness_config.h>
 #ifdef MADNESS_HAS_ELEMENTAL
 
 
@@ -40,19 +41,16 @@
 
 
 #include <tensor/tensor.h>
+#include <world/world.h>
 #include <world/print.h>
 #include <iostream>
 #include <linalg/tensor_lapack.h>
 
-
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 
-
-
-
 #include <ctime>
-#include "elemental.hpp"
+#include <elemental.hpp>
 using namespace elem;
 
 
@@ -135,30 +133,31 @@ namespace madness {
 
     */
     template <typename T>
-    void sygvp(const Tensor<T>& a, const Tensor<T>& B, int itype,
+    void sygvp(World& world,
+               const Tensor<T>& a, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
         TENSOR_ASSERT(a.ndim() == 2, "sygv requires a matrix",a.ndim(),&a);
         TENSOR_ASSERT(a.dim(0) == a.dim(1), "sygv requires square matrix",0,&a);
         TENSOR_ASSERT(B.ndim() == 2, "sygv requires a matrix",B.ndim(),&a);
         TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&a);
+        TENSOR_ASSERT(a.iscontiguous(),"sygvp requires a contiguous matrix (a)",0,&a);
+        TENSOR_ASSERT(B.iscontiguous(),"sygvp requires a contiguous matrix (B)",0,&B);
+        world.gop.broadcast(a.ptr(), a.size(), 0);
+        world.gop.broadcast(B.ptr(), B.size(), 0);
+
         const int n = a.dim(1);
 
         e = Tensor<typename Tensor<T>::scalar_type>(n);
         V = Tensor<T>(n,n);
-//elemental
-        //mpi::Comm comm = mpi::COMM_WORLD;
-        mpi::Comm comm = COMM_WORLD.comm;
-        //mpi::Comm comm = mpi::COMM_WORLD;
-//madness
-        World world(SafeMPI::COMM_WORLD);
 
-        //const int myrank = mpi::CommRank( COMM_WORLD.comm );
 
-        int blocksize = 128;
-        elem::InitBlocksize(blocksize, comm);
+        world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
 
+        const int blocksize = 128;
         try {
-            const Grid GG( comm );
+            const Grid GG( world.mpi.comm().Get_mpi_comm() );
+            elem::SetBlocksize(blocksize);
+
             elem::DistMatrix<T> gd( n, n, GG );
     
             const int colShift = gd.ColShift(); // first row we own
@@ -201,8 +200,8 @@ namespace madness {
             mpi::Barrier( GG.Comm() );
      
             elem::HermitianGenDefiniteEigType eigType = AXBX;
-            char* uu="U";
-            elem::UpperOrLower uplo = CharToUpperOrLower( *uu);
+            //const char* uu="U";
+            elem::UpperOrLower uplo = CharToUpperOrLower('U');
             elem::DistMatrix<T> Xd( n, n, GG );
             elem::DistMatrix<T,VR,STAR> wd( n, n, GG);
             elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
@@ -251,7 +250,8 @@ namespace madness {
            cout << "Caught a tensor exception in sygv elemental\n";
            cout << S;
         }
-        elem::FinBlocksize();
+
+        world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
     }
 
     /** \brief  Solve Ax = b for general A using the Elemental. 
@@ -267,7 +267,7 @@ namespace madness {
 
     */
     template <typename T>
-    void gesvp(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
+    void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
 
         TENSOR_ASSERT(a.ndim() == 2, "gesv requires matrix",a.ndim(),&a);
 
@@ -276,22 +276,19 @@ namespace madness {
         TENSOR_ASSERT(m == n, "gesv requires square matrix",0,&a);
         TENSOR_ASSERT(b.ndim() <= 2, "gesv require a vector or matrix for the RHS",b.ndim(),&b);
         TENSOR_ASSERT(a.dim(0) == b.dim(0), "gesv matrix and RHS must conform",b.ndim(),&b);
+        TENSOR_ASSERT(a.iscontiguous(),"gesvp requires a contiguous matrix (a)",0,&a);
+        TENSOR_ASSERT(b.iscontiguous(),"gesvp requires a contiguous matrix (b)",0,&b);
+        world.gop.broadcast(a.ptr(), a.size(), 0);
+        world.gop.broadcast(b.ptr(), b.size(), 0);
 
         Tensor<T> AT = transpose(a);
 
-//elemental
-        //mpi::Comm comm = mpi::COMM_WORLD;
-        mpi::Comm comm = COMM_WORLD.comm;
-//madness
-        World world(SafeMPI::COMM_WORLD);
-        //World world(mpi::COMM_WORLD);
+        world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
 
-        //const int myrank = mpi::CommRank( COMM_WORLD.comm );
         int blocksize = 128;
-        InitBlocksize(blocksize, comm);
-
         try {
-            const elem::Grid GG( comm );
+            const Grid GG( world.mpi.comm().Get_mpi_comm() );
+            elem::SetBlocksize(blocksize);
             elem::DistMatrix<T> gd( n, n, GG );
 
     
@@ -392,7 +389,7 @@ namespace madness {
            cout << "Caught a tensor exception in gesv elemental\n";
            cout << S;
        }
-       elem::FinBlocksize();
+        world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
     }
 }
 #endif //MADNESS_HAS_ELEMENTAL

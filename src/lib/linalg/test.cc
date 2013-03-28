@@ -41,13 +41,6 @@
 #include <iostream>
 #include <madness_config.h>
 
-#ifdef MADNESS_HAS_ELEMENTAL
-//#if 0
-#include <mra/mra.h>
-#include "elemental.hpp"
-using namespace elem;
-using namespace SafeMPI;
-#endif
 
 //#include <mra/mra.h>
 
@@ -72,25 +65,8 @@ main(int argc, char* argv[]) {
 //vama    const int myrank = 0;
 //vama#endif
 
-#ifdef MADNESS_HAS_ELEMENTAL
-    initialize( argc, argv );
-    World world(SafeMPI::COMM_WORLD);
-    const int myrank = world.rank();
-#else
-    const int myrank = 0;
-#endif
-
-
     bool testok = test_tensor_lapack();
-    if ( myrank==0 ) std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
-
-
-
-
-
-#ifdef MADNESS_HAS_ELEMENTAL
-    finalize();
-#endif
+    std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
 
     return 0;
 }

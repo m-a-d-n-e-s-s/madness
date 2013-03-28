@@ -85,18 +85,19 @@ namespace madness {
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
 #ifdef MADNESS_HAS_ELEMENTAL
+    class World; // UGH!
     /// Solves symmetric or Hermitian generalized eigenvalue problem
     
     /// \ingroup linalg
     template <typename T>
-    void sygvp(const Tensor<T>& A, const Tensor<T>& B, int itype,
+    void sygvp(World& world, const Tensor<T>& A, const Tensor<T>& B, int itype,
               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e);
 
     /// Solves linear equations
     
     /// \ingroup linalg
     template <typename T>
-    void gesvp(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
+    void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
 
 #endif
 
