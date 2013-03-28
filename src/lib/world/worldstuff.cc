@@ -44,6 +44,11 @@
 /// \file worldstuff.cc
 /// \brief Static variables/functions that must be linked in
 
+#ifdef MADNESS_HAS_ELEMENTAL
+#include <elemental.hpp>
+#endif
+
+
 #ifdef __CYGWIN__
 #include <windows.h>
 #endif
@@ -172,9 +177,20 @@ namespace madness {
 #ifdef MADNESS_USE_BSEND_ACKS
         SafeMPI::Attach_buffer(mpi_ack_buffer, MADNESS_ACK_BUFF_SIZE);
 #endif // MADNESS_USE_BSEND_ACKS
+
+
+
+#ifdef MADNESS_HAS_ELEMENTAL
+        elem::Initialize(argc,argv);
+#endif
+
     }
 
     void finalize() {
+#ifdef MADNESS_HAS_ELEMENTAL
+        elem::Finalize();
+#endif
+
 //#if !HAVE_INTEL_TBB
         RMI::end();
 //#endif
