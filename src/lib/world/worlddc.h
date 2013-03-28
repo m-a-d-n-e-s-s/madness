@@ -1471,7 +1471,7 @@ namespace madness {
             static void store(const ParallelOutputArchive& ar, const WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
                 typedef WorldContainer<keyT,valueT> dcT;
-                typedef typename dcT::const_iterator iterator;
+                // typedef typename dcT::const_iterator iterator; // unused?
                 typedef typename dcT::pairT pairT;
                 World* world = ar.get_world();
                 Tag tag = world->mpi.unique_tag();
@@ -1529,9 +1529,9 @@ namespace madness {
             /// The IO node simply reads all data and inserts entries.
             static void load(const ParallelInputArchive& ar, WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
-                typedef WorldContainer<keyT,valueT> dcT;
-                typedef typename dcT::iterator iterator;
-                typedef typename dcT::pairT pairT;
+                // typedef WorldContainer<keyT,valueT> dcT; // unused
+                // typedef typename dcT::iterator iterator; // unused
+                // typedef typename dcT::pairT pairT; // unused
                 World* world = ar.get_world();
                 if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
