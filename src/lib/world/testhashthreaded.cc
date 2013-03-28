@@ -303,9 +303,9 @@ public:
 
 void test_thread() {
     ConcurrentHashMap<int,double> a(131);
-    typedef ConcurrentHashMap<int,double>::datumT datumT;
+    //typedef ConcurrentHashMap<int,double>::datumT datumT; // unused
     typedef ConcurrentHashMap<int,double>::iterator iteratorT;
-    typedef ConcurrentHashMap<int,double>::const_iterator const_iteratorT;
+    // typedef ConcurrentHashMap<int,double>::const_iterator const_iteratorT; // unused
     const int nthread = 2;
     size_t counts[nthread];
     double sums[nthread];
@@ -361,7 +361,7 @@ public:
 
 void test_accessors() {
     ConcurrentHashMap<int,double> a(131);
-    typedef ConcurrentHashMap<int,double>::datumT datumT;
+    // typedef ConcurrentHashMap<int,double>::datumT datumT; // unused
     typedef ConcurrentHashMap<int,double>::accessor accessorT;
 
     ndone = 0;
