@@ -156,5 +156,9 @@ int main(int argc, char** argv) {
     return 0;
 }
 
+#else
+
+int this_is_not_used_junk_junk_junk2;
+
 
 #endif

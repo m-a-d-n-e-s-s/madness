@@ -13,4 +13,8 @@ namespace madness {
               Tensor<double>& V, Tensor<double>& e);
 }
 
+#else 
+
+int this_is_not_used_junk_junk_junk;
+
 #endif //MADNESS_HAS_ELEMENTAL
