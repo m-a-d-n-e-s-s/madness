@@ -1352,13 +1352,7 @@ struct Calculation {
 
             START_TIMER(world);
 #ifdef MADNESS_HAS_ELEMENTAL
-            world.gop.broadcast(Saomo.ptr(), Saomo.size(), 0);
-            world.gop.broadcast(Saoao.ptr(), Saoao.size(), 0);
-            world.gop.fence();
-
-            gesvp(Saoao, Saomo, C);
-
-            world.gop.broadcast(C.ptr(), C.size(), 0);
+            gesvp(world, Saoao, Saomo, C);
 #else
             gesv(Saoao, Saomo, C);
 #endif
@@ -1665,14 +1659,7 @@ struct Calculation {
 
             START_TIMER(world);
 #ifdef MADNESS_HAS_ELEMENTAL
-            world.gop.broadcast(fock.ptr(), fock.size(), 0);
-            world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-            world.gop.fence();
-
-            sygvp(fock, overlap, 1, c, e);
-
-            world.gop.broadcast(c.ptr(), c.size(), 0);
-            world.gop.broadcast(e.ptr(), e.size(), 0);
+            sygvp(world, fock, overlap, 1, c, e);
 #else
             sygv(fock, overlap, 1, c, e);
 #endif
@@ -1757,6 +1744,7 @@ struct Calculation {
 
     functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
     {
+        print("OCC", occ);
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
         functionT rho = factoryT(world);
@@ -2219,14 +2207,7 @@ struct Calculation {
         tensorT U;
 
 #ifdef MADNESS_HAS_ELEMENTAL
-        world.gop.broadcast(fock.ptr(), fock.size(), 0);
-        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-        world.gop.fence();
-
-        sygvp(fock, overlap, 1, U, evals);
-
-        world.gop.broadcast(evals.ptr(), evals.size(), 0);
-        world.gop.broadcast(U.ptr(), U.size(), 0);
+        sygvp(world, fock, overlap, 1, U, evals);
 #else
         sygv(fock, overlap, 1, U, evals);
 #endif
@@ -2300,14 +2281,14 @@ struct Calculation {
             ilo = ihi+1;
         }
 
-	//if (world.rank() == 0) {
-	  // print("Fock");
-	  // print(fock);
-	  //print("Evec");
-	  //print(U);;
-	  //print("Eval");
-	  //print(evals);
-	//}
+	// if (world.rank() == 0) {
+	//   print("Fock");
+	//   print(fock);
+	//   print("Evec");
+	//   print(U);;
+	//   print("Eval");
+	//   print(evals);
+	// }
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2906,7 +2887,7 @@ struct Calculation {
 //                     world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
 //                     world.gop.fence();
 
-//                     sygvp(focka, overlap, 1, U, aeps);
+//                     sygvp(world, focka, overlap, 1, U, aeps);
 
 //                     world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
 //                     world.gop.broadcast(U.ptr(), U.size(), 0);
@@ -2930,7 +2911,7 @@ struct Calculation {
 //                         world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
 //                         world.gop.fence();
 
-//                         sygvp(fockb, overlap, 1, U, beps);
+//                         sygvp(world, fockb, overlap, 1, U, beps);
 
 //                         world.gop.broadcast(beps.ptr(), beps.size(), 0);
 //                         world.gop.broadcast(U.ptr(), U.size(), 0);
@@ -3193,7 +3174,7 @@ struct Calculation {
 
                     for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
                     if (xc.is_spin_polarized())
-                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,true));
+                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
 
 
                     world.gop.fence(); // NECESSARY
@@ -3271,14 +3252,7 @@ struct Calculation {
 
                     START_TIMER(world);
 #ifdef MADNESS_HAS_ELEMENTAL
-                    world.gop.broadcast(focka.ptr(), focka.size(), 0);
-                    world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-                    world.gop.fence();
-
-                    sygvp(focka, overlap, 1, U, aeps);
-
-                    world.gop.broadcast(U.ptr(), U.size(), 0);
-                    world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
+                    sygvp(world, focka, overlap, 1, U, aeps);
 #else
                     sygv(focka, overlap, 1, U, aeps);
 #endif
@@ -3294,14 +3268,7 @@ struct Calculation {
 
                         START_TIMER(world);
 #ifdef MADNESS_HAS_ELEMENTAL
-                        world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
-                        world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-                        world.gop.fence();
-
-                        sygvp(fockb, overlap, 1, U, beps);
-
-                        world.gop.broadcast(U.ptr(), U.size(), 0);
-                        world.gop.broadcast(beps.ptr(), beps.size(), 0);
+                        sygvp(world, fockb, overlap, 1, U, beps);
 #else
                         sygv(fockb, overlap, 1, U, beps);
 #endif
