@@ -47,6 +47,7 @@
 #if defined(HAVE_IBMBGP)
 // This header causes tinyxml.h to barf but we only need it in the implementation, not the header.
 #  include <spi/kernel_interface.h>
+#  include <spi/bgp_kernel_inlines.h>
 #  include <common/bgp_personality.h>
 #  include <common/bgp_personality_inlines.h>
 #endif
@@ -135,13 +136,18 @@ namespace madness {
     /// Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
 #if defined(HAVE_IBMBGP)
-         int ncpu=0;
-         _BGP_Personality_t pers;
-         Kernel_GetPersonality(&pers, sizeof(pers));
-         if      ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
-         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
-         else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
-         return ncpu;
+    #if 0 /* total overkill - what was i thinking? */
+        int ncpu=0;
+        _BGP_Personality_t pers;
+        Kernel_GetPersonality(&pers, sizeof(pers));
+        if      ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
+        else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
+        else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
+        return ncpu;
+    #else
+        /* Returns the number of Processes (Virtual Nodes) running on this Physical Node. */
+        return 4/Kernel_ProcessCount();
+    #endif
 #elif defined(HAVE_IBMBGQ)
         /* Return number of processors (hardware threads) within the current process. */
         return Kernel_ProcessorCount();
