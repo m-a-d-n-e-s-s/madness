@@ -261,15 +261,15 @@ namespace madness {
             dimj = dim[jdim];
 
             // Collapse stride and dimension info for remaining dimensions
-            for (int i=jdim+1; i<ndim; ++i) { // WAS <=ndim
+            for (int i=jdim+1; i<=ndim; ++i) { // GCC COMPILER WARNING ... but need <= ... why?  
                 dim[i-1] = dim[i];
                 stride0[i-1] = stride0[i];
             }
             if (t1) {
-                for (int i=jdim+1; i<ndim; ++i) stride1[i-1] = stride1[i]; // WAS <=ndim
+                for (int i=jdim+1; i<=ndim; ++i) stride1[i-1] = stride1[i]; //  GCC COMPILER WARNING ... but need <= ... why?  
             }
             if (t2) {
-                for (int i=jdim+1; i<ndim; ++i) stride2[i-1] = stride2[i]; // WAS <=ndim
+                for (int i=jdim+1; i<=ndim; ++i) stride2[i-1] = stride2[i]; //  GCC COMPILER WARNING ... but need <= ... why?  
             }
 
             if (fusedim) {		// Only if jdim=default_jdim && iterlevel=1
