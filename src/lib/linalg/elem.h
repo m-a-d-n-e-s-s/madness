@@ -34,17 +34,15 @@
 
 
 #include <madness_config.h>
-#ifdef MADNESS_HAS_ELEMENTAL
-
-
-#include <iostream>
-
-
 #include <tensor/tensor.h>
 #include <world/world.h>
+#include <linalg/tensor_lapack.h>
+
+#ifdef MADNESS_HAS_ELEMENTAL
+
+#include <iostream>
 #include <world/print.h>
 #include <iostream>
-#include <linalg/tensor_lapack.h>
 
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
@@ -53,76 +51,21 @@
 #include <elemental.hpp>
 using namespace elem;
 
-
-//1#include <linalg/clapack.h>
-
 using namespace madness;
 using namespace std;
 using namespace SafeMPI;
 
 
-#ifndef SCALAR
-// #define SCALAR std::complex<float>
-#define SCALAR double
-#endif
-#ifndef REALX
-// #define SCALAR std::complex<float>
-#define REALX real8
-#endif
-
 #ifndef STATIC
 #define STATIC static
 #endif
-
-
-
-//vama11#include <iostream>
-//vama11using std::cout;
-//vama11using std::endl;
-//vama11
-//vama11
-//vama11#include <tensor/tensor.h>
-//vama11#include <world/print.h>
-//vama11#include <algorithm>
-//vama11#include <linalg/tensor_lapack.h>
-//vama11
-//vama11#include <mra/mra.h>
-//vama11#include <mra/lbdeux.h>
-//vama11
-//vama11#ifdef MADNESS_HAS_EIGEN3
-//vama11# include <Eigen/Dense>
-//vama11  using namespace Eigen;
-//vama11#endif
-//vama11
-//vama11#include <ctime>
-//vama11#include "elemental.hpp"
-//vama11using namespace elem;
-//vama11
-//vama11//vama#include <mpi.h>
-//vama11//vamausing namespace SafeMPI;
-//vama11
-//vama11using namespace madness;
-//vama11using namespace std;
-//vama11using namespace SafeMPI;
-//vama11
-//vama11
-//vama11
-//vama11
-//vama11#ifdef MADNESS_FORINT
-//vama11typedef MADNESS_FORINT integer;
-//vama11#else
-//vama11typedef long integer;
-//vama11#endif //MADNESS_FORINT
-
-
-
 
 namespace madness {
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This function uses the Elemental HermitianGenDefiniteEig routine.
 
-    A should be selfadjoint and B positive definide.
+    A should be selfadjoint and B positive definite.
 
     \verbatim
     Specifies the problem type to be solved:
@@ -392,4 +335,21 @@ namespace madness {
         world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
     }
 }
+
+#else
+
+// sequential fall back code
+template <typename T>
+void sygvp(World& world,
+           const Tensor<T>& a, const Tensor<T>& B, int itype,
+           Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
+    sygv(a, B, itype, V, e);
+}
+
+// sequential fall back code
+template <typename T>
+void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
+    gesv(a, b, x);
+}
+
 #endif //MADNESS_HAS_ELEMENTAL

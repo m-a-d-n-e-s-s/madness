@@ -128,11 +128,11 @@ int main(int argc, char** argv) {
     try {
         double err  = 999.99;
         
-        err = test_sygvp<double>(world, 100);
+        err = test_sygvp<double>(world, 1000);
         if (myrank == 0)  cout << "error in double sygvp " << err << endl;
         if (myrank == 0)  cout << endl; 
         
-        err = test_gesvp<double>(world, 180,120);
+        err = test_gesvp<double>(world, 1800,1200);
         if (myrank == 0)  cout << "error in float gesvp " << err << endl;
         if (myrank == 0)  cout << endl; 
         
