@@ -1351,11 +1351,7 @@ struct Calculation {
             tensorT C;
 
             START_TIMER(world);
-#ifdef MADNESS_HAS_ELEMENTAL
             gesvp(world, Saoao, Saomo, C);
-#else
-            gesv(Saoao, Saomo, C);
-#endif
             END_TIMER(world, " compute eigen gesv analize vectors");
         if(world.rank() == 0){
             C = transpose(C);
@@ -1658,12 +1654,7 @@ struct Calculation {
             tensorT c, e;
 
             START_TIMER(world);
-#ifdef MADNESS_HAS_ELEMENTAL
             sygvp(world, fock, overlap, 1, c, e);
-#else
-            sygv(fock, overlap, 1, c, e);
-#endif
-
             END_TIMER(world, "guess eigen sol");
 
             if(world.rank() == 0 && 0){
@@ -2203,14 +2194,10 @@ struct Calculation {
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
+
         START_TIMER(world);
         tensorT U;
-
-#ifdef MADNESS_HAS_ELEMENTAL
         sygvp(world, fock, overlap, 1, U, evals);
-#else
-        sygv(fock, overlap, 1, U, evals);
-#endif
         END_TIMER(world, "Diagonalization Fock-mat w sygv");
 
         START_TIMER(world);
@@ -2882,18 +2869,7 @@ struct Calculation {
 //                     tensorT U;
 //                     tensorT overlap = matrix_inner(world, amo, amo, true);
 
-// #ifdef MADNESS_HAS_ELEMENTAL
-//                     world.gop.broadcast(focka.ptr(), focka.size(), 0);
-//                     world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-//                     world.gop.fence();
-
 //                     sygvp(world, focka, overlap, 1, U, aeps);
-
-//                     world.gop.broadcast(aeps.ptr(), aeps.size(), 0);
-//                     world.gop.broadcast(U.ptr(), U.size(), 0);
-// #else
-//                     sygv(focka, overlap, 1, U, aeps);
-// #endif
 //                     END_TIMER(world, " compute eigen alpha sygv ");
 
 //                     if (!param.localize) {
@@ -2906,18 +2882,7 @@ struct Calculation {
 //                         START_TIMER(world);
 //                         overlap = matrix_inner(world, bmo, bmo, true);
 
-// #ifdef MADNESS_HAS_ELEMENTAL
-//                         world.gop.broadcast(fockb.ptr(), fockb.size(), 0);
-//                         world.gop.broadcast(overlap.ptr(), overlap.size(), 0);
-//                         world.gop.fence();
-
 //                         sygvp(world, fockb, overlap, 1, U, beps);
-
-//                         world.gop.broadcast(beps.ptr(), beps.size(), 0);
-//                         world.gop.broadcast(U.ptr(), U.size(), 0);
-// #else
-//                         sygv(fockb, overlap, 1, U, beps);
-// #endif
 //                         END_TIMER(world, " compute eigen beta sygv");
 
 //                         if (!param.localize) {
@@ -3251,11 +3216,7 @@ struct Calculation {
                     tensorT overlap = matrix_inner(world, amo, amo, true);
 
                     START_TIMER(world);
-#ifdef MADNESS_HAS_ELEMENTAL
                     sygvp(world, focka, overlap, 1, U, aeps);
-#else
-                    sygv(focka, overlap, 1, U, aeps);
-#endif
                     END_TIMER(world, "focka eigen sol");
 
                     if (!param.localize) {
@@ -3267,15 +3228,8 @@ struct Calculation {
                         overlap = matrix_inner(world, bmo, bmo, true);
 
                         START_TIMER(world);
-#ifdef MADNESS_HAS_ELEMENTAL
                         sygvp(world, fockb, overlap, 1, U, beps);
-#else
-                        sygv(fockb, overlap, 1, U, beps);
-#endif
                         END_TIMER(world, "fockb eigen sol");
-
-
-
 
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
