@@ -49,13 +49,6 @@
 #include <ctime>
 #include <elemental.hpp>
 
-//using namespace elem;
-
-//using namespace madness;
-//using namespace std;
-//using namespace SafeMPI;
-
-
 namespace madness {
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
@@ -94,7 +87,7 @@ namespace madness {
 
         const int blocksize = 128;
         try {
-            const Grid GG( world.mpi.comm().Get_mpi_comm() );
+            const elem::Grid GG( world.mpi.comm().Get_mpi_comm() );
             elem::SetBlocksize(blocksize);
 
             elem::DistMatrix<T> gd( n, n, GG );
@@ -136,17 +129,17 @@ namespace madness {
             }
            // hd.Print("hd");
 
-            mpi::Barrier( GG.Comm() );
+            world.mpi.Barrier();
      
-            elem::HermitianGenDefiniteEigType eigType = AXBX;
+            elem::HermitianGenDefiniteEigType eigType = elem::AXBX;
             //const char* uu="U";
-            elem::UpperOrLower uplo = CharToUpperOrLower('U');
+            elem::UpperOrLower uplo = elem::CharToUpperOrLower('U');
             elem::DistMatrix<T> Xd( n, n, GG );
-            elem::DistMatrix<T,VR,STAR> wd( n, n, GG);
+            elem::DistMatrix<T,elem::VR,elem::STAR> wd( n, n, GG);
             elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
             elem::SortEig( wd, Xd );
      
-            mpi::Barrier( GG.Comm() );
+            world.mpi.Barrier();
             //Xd.Print("Xs");
      
      //retrive eigenvalues
@@ -186,8 +179,7 @@ namespace madness {
             //if(myrank ==0)cout<< V << endl;
         }
         catch (TensorException S) {
-           cout << "Caught a tensor exception in sygv elemental\n";
-           cout << S;
+            std::cerr << S << std::endl;
         }
 
         world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
@@ -226,7 +218,7 @@ namespace madness {
 
         int blocksize = 128;
         try {
-            const Grid GG( world.mpi.comm().Get_mpi_comm() );
+            const elem::Grid GG( world.mpi.comm().Get_mpi_comm() );
             elem::SetBlocksize(blocksize);
             elem::DistMatrix<T> gd( n, n, GG );
 
@@ -294,11 +286,11 @@ namespace madness {
                      }
                 }
            }
-           mpi::Barrier( GG.Comm() );
+            world.mpi.Barrier();
     
            elem::GaussianElimination(gd, hd);
     
-           mpi::Barrier( GG.Comm() );
+            world.mpi.Barrier();
            {
                 const int colShift = hd.ColShift(); // 1st row local
                 const int rowShift = hd.RowShift(); // 1st col local
@@ -325,8 +317,7 @@ namespace madness {
            
        }
        catch (TensorException S) {
-           cout << "Caught a tensor exception in gesv elemental\n";
-           cout << S;
+           std::cerr << S << std::endl;
        }
         world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
     }
