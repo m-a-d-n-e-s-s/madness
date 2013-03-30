@@ -37,7 +37,6 @@
 #include <tensor/tensor.h>
 #include <world/world.h>
 #include <linalg/tensor_lapack.h>
-
 #ifdef MADNESS_HAS_ELEMENTAL
 
 #include <iostream>
@@ -49,16 +48,13 @@
 
 #include <ctime>
 #include <elemental.hpp>
-using namespace elem;
 
-using namespace madness;
-using namespace std;
-using namespace SafeMPI;
+//using namespace elem;
 
+//using namespace madness;
+//using namespace std;
+//using namespace SafeMPI;
 
-#ifndef STATIC
-#define STATIC static
-#endif
 
 namespace madness {
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
@@ -338,18 +334,20 @@ namespace madness {
 
 #else
 
-// sequential fall back code
-template <typename T>
-void sygvp(World& world,
-           const Tensor<T>& a, const Tensor<T>& B, int itype,
-           Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
-    sygv(a, B, itype, V, e);
-}
-
-// sequential fall back code
-template <typename T>
-void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
-    gesv(a, b, x);
+namespace madness {
+    // sequential fall back code
+    template <typename T>
+    void sygvp(World& world,
+               const Tensor<T>& a, const Tensor<T>& B, int itype,
+               Tensor<T>& V, Tensor< typename Tensor<T>::scalar_type >& e) {
+        sygv(a, B, itype, V, e);
+    }
+    
+    // sequential fall back code
+    template <typename T>
+    void gesvp(World& world, const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x) {
+        gesv(a, b, x);
+    }
 }
 
 #endif //MADNESS_HAS_ELEMENTAL
