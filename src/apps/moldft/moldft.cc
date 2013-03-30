@@ -44,6 +44,7 @@
 #include <mra/qmprop.h>
 #include <ctime>
 #include <list>
+#include <linalg/elem.h>
 using namespace madness;
 
 
@@ -3354,7 +3355,7 @@ public:
                 }
                 else {
                     calc.initial_guess(world);
-                    calc.param.restart = true;
+                    //calc.param.restart = true;
                 }
             }
             else {
@@ -3440,6 +3441,10 @@ int main(int argc, char** argv) {
                            calc.param.gprec); // grad prec
           geom.set_update(calc.param.algopt);
           geom.set_test(calc.param.gtest);
+          long ncoord = calc.molecule.natom()*3;
+          Tensor<double> h(ncoord,ncoord);
+          for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
+          geom.set_hessian(h);
           geom.optimize(geomcoord);
         }
         else if (calc.param.tdksprop) {
