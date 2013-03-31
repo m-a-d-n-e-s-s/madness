@@ -49,14 +49,12 @@
 
 #include <world/world.h>
 
-using namespace madness;
-
-int main(int argc, char**argv) {
-    initialize(argc, argv);
-    World world(SafeMPI::COMM_WORLD);
+int main(int argc, char** argv) {
+    madness::initialize(argc,argv);
+    madness::World world(SafeMPI::COMM_WORLD);
 
     print("Hello from processor",world.rank());
 
-    finalize();
+    madness::finalize();
     return 0;
 }
