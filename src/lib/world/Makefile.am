@@ -1,8 +1,8 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = world testhashthreaded testdc objexample objexample2 testprof \
-               helloworld taskexample testatomicint testhashdc array_test \
-               gtest_example qtest worldprofile_test worldptr_test worldref_test
+bin_PROGRAMS = test_world test_hashthreaded test_dc test_future2 test_future3 test_prof \
+               test_hello test_future test_atomicint test_hashdc test_array \
+               test_googletest test_queue test_worldprofile test_worldptr test_worldref
 
 lib_LIBRARIES = libMADworld.a
 
@@ -19,67 +19,67 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
                       
-array_test_SOURCES = array_test.cc
-array_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-array_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-array_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+test_array_SOURCES = test_array.cc
+test_array_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+test_array_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+test_array_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
-gtest_example_SOURCES = gtest_example.cc
-gtest_example_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-gtest_example_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-gtest_example_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+test_googletest_SOURCES = test_googletest.cc
+test_googletest_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+test_googletest_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+test_googletest_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
-worldptr_test_SOURCES = worldptr_test.cc
-worldptr_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-worldptr_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-worldptr_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+test_worldptr_SOURCES = test_worldptr.cc
+test_worldptr_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+test_worldptr_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+test_worldptr_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
-worldref_test_SOURCES = worldref_test.cc
-worldref_test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-worldref_test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-worldref_test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+test_worldref_SOURCES = test_worldref.cc
+test_worldref_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
+test_worldref_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
+test_worldref_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
-testprof_SOURCES = testprof.cc
-testprof_LDADD = libMADworld.a
+test_prof_SOURCES = test_prof.cc
+test_prof_LDADD = libMADworld.a
 
-testhashdc_SOURCES = testhashdc.cc
-testhashdc_LDADD = libMADworld.a
+test_hashdc_SOURCES = test_hashdc.cc
+test_hashdc_LDADD = libMADworld.a
 
-taskexample_SOURCES = taskexample.cc
-taskexample_LDADD = libMADworld.a
+test_future_SOURCES = test_future.cc
+test_future_LDADD = libMADworld.a
 
-helloworld_SOURCES = helloworld.cc
-helloworld_LDADD = libMADworld.a
+test_hello_SOURCES = test_hello.cc
+test_hello_LDADD = libMADworld.a
 
-testatomicint_SOURCES = testatomicint.cc
-testatomicint_LDADD = libMADworld.a
+test_atomicint_SOURCES = test_atomicint.cc
+test_atomicint_LDADD = libMADworld.a
 
-objexample_SOURCES = objexample.cc
-objexample_LDADD = libMADworld.a
+test_future2_SOURCES = test_future2.cc
+test_future2_LDADD = libMADworld.a
 
-objexample2_SOURCES = objexample2.cc
-objexample2_LDADD = libMADworld.a
+test_future3_SOURCES = test_future3.cc
+test_future3_LDADD = libMADworld.a
 
-testdc_SOURCES = testdc.cc
-testdc_LDADD = libMADworld.a
+test_dc_SOURCES = test_dc.cc
+test_dc_LDADD = libMADworld.a
 
-testhashthreaded_SOURCES = testhashthreaded.cc
-testhashthreaded_LDADD = libMADworld.a
+test_hashthreaded_SOURCES = test_hashthreaded.cc
+test_hashthreaded_LDADD = libMADworld.a
 
-qtest_SOURCES = qtest.cc
-qtest_LDADD = libMADworld.a
+test_queue_SOURCES = test_queue.cc
+test_queue_LDADD = libMADworld.a
 
+test_world_SOURCES = test_world.cc
+test_world_LDADD = libMADworld.a
 
-world_SOURCES = world.cc
-world_LDADD = libMADworld.a
+test_worldprofile_SOURCES = test_worldprofile.cc
+test_worldprofile_LDADD = libMADworld.a
 
-worldprofile_test_SOURCES = worldprofile_test.cc
-worldprofile_test_LDADD = libMADworld.a
-
-libMADworld_a_SOURCES = worldstuff.cc redirectio.cc archive_type_names.cc \
-	debug.cc print.cc worldmem.cc lookup3.c worldrmi.cc safempi.cc worldpapi.cc \
+libMADworld_a_SOURCES = world.cc redirectio.cc archive_type_names.cc \
+	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc textfsar.cc \
+        lookup3.c \
 	$(thisinclude_HEADERS)
 
 
