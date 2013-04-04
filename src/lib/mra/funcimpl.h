@@ -6112,8 +6112,8 @@ namespace madness {
             const double fac=1024*1024*1024;
 
             if (this->world.rank()==0) {
-                printf("%s at time %.1fs: treesize: %zu, real size: %6.3f and size: %6.3f GByte\n",(name.c_str()),wall,
-                		tsize,double(rsize)/fac,double(size)/fac*d);
+                printf("%s at time %.1fs: tree/real/size: %zu, %6.3f, %6.3f GByte\n",
+                		(name.c_str()), wall, tsize,double(rsize)/fac,double(size)/fac*d);
             }
         }
 
