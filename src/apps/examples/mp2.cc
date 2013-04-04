@@ -57,30 +57,9 @@ int main(int argc, char** argv) {
     if (world.rank()==0) print("using gperftools, clearing memory at each fence()");
 #endif
 
-    CorrelationFactor f12(world,1.0);
-
-    MP2 mp2(world,f12,"input");
-
     TensorType tt=TT_2D;
     FunctionDefaults<6>::set_tensor_type(tt);
-
-	// find the pair to compute
-    std::ifstream f("input");
-    position_stream(f, "mp2");
-    std::string s;
-
-    int iteration;
-
-    int i=0,j=0;
-    while (f >> s) {
-        if (s == "end") break;
-        else if (s == "pair") f >> i >> j;
-        else if (s == "iteration") f >> iteration;
-        else continue;
-    }
-
-    if(world.rank() == 0) printf("\ncomputing pair (%d,%d)\n\n", i,j);
-
+    FunctionDefaults<6>::set_apply_randomize(true);
 
     // get command line parameters (overrides input file)
     bool do_test=false;
@@ -96,27 +75,20 @@ int main(int argc, char** argv) {
     }
 
 
-    FunctionDefaults<6>::set_apply_randomize(true);
-    if (world.rank()==0) {
-        print("polynomial order:  ", FunctionDefaults<6>::get_k());
-        print("threshold 3D:      ", FunctionDefaults<3>::get_thresh());
-        print("threshold 6D:      ", FunctionDefaults<6>::get_thresh());
-        print("cell size:         ", FunctionDefaults<6>::get_cell_width()[0]);
-        print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
-        print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
-        print("");
-        print("orthogonalization  ", OrthoMethod());
-        print("facReduce          ", GenTensor<double>::fac_reduce());
-        print("max displacement   ", Displacements<6>::bmax_default());
-        print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
-        print("world.size()       ", world.size());
-        print("");
-    }
+    CorrelationFactor f12(world,1.0);
+    MP2 mp2(world,f12,"input");
 
     if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-    if (do_test) mp2.test(i,j,iteration);
-    else mp2.solve_residual_equations(i,j);
+    if (do_test) mp2.test();
+    else {
+    	const double hf_energy=mp2.get_hf().value();
+    	const double mp2_energy=mp2.value();
+    	if(world.rank() == 0) {
+    		printf("final hf/mp2/total energy %12.8f %12.8f %12.8f\n",
+    				hf_energy,mp2_energy,hf_energy+mp2_energy);
+    	}
+    }
 
     if(world.rank() == 0) printf("\nfinished at time %.1fs\n\n", wall_time());
     world.gop.fence();

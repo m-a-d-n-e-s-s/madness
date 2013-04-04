@@ -381,53 +381,55 @@ namespace madness {
         }
 
         double value(const Tensor<double>& x) {
+
+        	// fast return if the reference is already solved at this geometry
             double xsq = x.sumsq();
-//            if (xsq == coords_sum) {
-//                return calc.current_energy;
-//            }
+            if (xsq == coords_sum) return calc.current_energy;
+
             calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(),3));
             coords_sum = xsq;
-
-            // The below is missing convergence test logic, etc.
 
             // Make the nuclear potential, initial orbitals, etc.
             calc.make_nuclear_potential(world);
             calc.vnuc.print_size("vnuc");
             calc.project_ao_basis(world);
 
-            //calc.project(world);
-            if (calc.param.restart or calc.param.no_compute) {
+            // read converged wave function from disk if there is one
+            if (calc.param.no_compute) {
                 calc.load_mos(world);
+                return calc.current_energy;
             }
-            else {
+
+            if (calc.param.restart) {
+                calc.load_mos(world);
+            } else {
                 calc.initial_guess(world);
                 calc.param.restart = true;
             }
 
-            if (not calc.param.no_compute) {
-				// If the basis for the inital guess was not sto-3g
-				// switch to sto-3g since this is needed for analysis
-				// of the MOs and orbital localization
-				if (calc.param.aobasis != "sto-3g") {
-					calc.param.aobasis = "sto-3g";
-					calc.project_ao_basis(world);
-				}
-
-				calc.solve(world);
-				calc.save_mos(world);
-
-				// successively tighten threshold
-				if (calc.param.econv<1.1e-6) {
-					calc.set_protocol<3>(world,1e-6);
-					calc.make_nuclear_potential(world);
-					calc.project_ao_basis(world);
-					calc.project(world);
-					calc.solve(world);
-					calc.save_mos(world);
-				}
-
-				calc.save_mos(world);
+            // If the basis for the inital guess was not sto-3g
+            // switch to sto-3g since this is needed for analysis
+            // of the MOs and orbital localization
+            if (calc.param.aobasis != "sto-3g") {
+            	calc.param.aobasis = "sto-3g";
+            	calc.project_ao_basis(world);
             }
+
+            calc.solve(world);
+            calc.save_mos(world);
+
+            // successively tighten threshold
+            if (calc.param.econv<1.1e-6) {
+            	calc.set_protocol<3>(world,1e-6);
+            	calc.make_nuclear_potential(world);
+            	calc.project_ao_basis(world);
+            	calc.project(world);
+            	calc.solve(world);
+            	calc.save_mos(world);
+            }
+
+            calc.save_mos(world);
+
             return calc.current_energy;
         }
 
@@ -436,6 +438,8 @@ namespace madness {
             value(x); // Ensures DFT equations are solved at this geometry
             return calc.derivatives(world);
         }
+
+        double coord_chksum() const {return coords_sum;}
 
         const Calculation& get_calc() const {return calc;}
         Calculation& get_calc() {return calc;}
@@ -483,56 +487,98 @@ namespace madness {
     };
 
 
+    /// enhanced POD for the pair functions
+    class ElectronPair : public archive::ParallelSerializableObject {
+
+    public:
+    	/// default ctor; initialize energies with a large number
+    	ElectronPair()
+    		: i(-1), j(-1), e_singlet(uninitialized), e_triplet(uninitialized),
+    			ij_gQf_ij(uninitialized), ji_gQf_ij(uninitialized), iteration(0), converged(false) {
+    	}
+
+    	/// ctor; initialize energies with a large number
+    	ElectronPair(const int i, const int j)
+    		: i(i), j(j), e_singlet(uninitialized), e_triplet(uninitialized),
+    		  ij_gQf_ij(uninitialized), ji_gQf_ij(uninitialized), iteration(0), converged(false) {
+    	}
+
+    	const static double uninitialized=1.e10;
+
+        int i, j;                       ///< orbitals i and j
+        real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
+        real_function_6d r12phi;       ///< orbital product multiplied with the correlation factor
+
+        real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
+        real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
+        std::vector<real_function_3d> phi_k_UK_phi0;	///< < k(1) | U-K | phi^0(1,2)>
+        std::vector<real_function_3d> phi_l_UK_phi0;	///< < l(2) | U-K | phi^0(1,2)>
+
+        double e_singlet;				///< the energy of the singlet pair ij
+        double e_triplet;				///< the energy of the triplet pair ij
+
+        double ij_gQf_ij;         	  	///< <ij | g12 Q12 f12 | ij>
+        double ji_gQf_ij;          		///< <ji | g12 Q12 f12 | ij>
+
+        int iteration;					///< current iteration for restart
+        bool converged;					///< is the pair function converged
+
+        /// serialize this ElectronPair
+
+        /// store the function only if it has been initialized
+        /// load the function only if there is one
+        /// don't serialize recomputable intermediates r12phi, Uphi, KffKphi
+        template <typename Archive> void serialize (Archive& ar) {
+        	bool exist=function.is_initialized();
+			ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged & iteration & exist;
+			if (exist) ar & function;
+        }
+
+        void load_pair(World& world) {
+        	std::string name="pair_"+stringify(i)+stringify(j);
+        	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
+            archive::ParallelInputArchive ar(world, name.c_str(), 1);
+        	ar & *this;
+        	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
+        }
+
+        void store_pair(World& world) {
+        	std::string name="pair_"+stringify(i)+stringify(j);
+        	if (world.rank()==0) printf("storing matrix elements %s\n",name.c_str());
+            archive::ParallelOutputArchive ar(world, name.c_str(), 1);
+        	ar & *this;
+        }
+    };
 
 
     /// a class for computing the first order wave function and MP2 pair energies
     class MP2 : public OptimizationTargetInterface {
 
-        struct ElectronPair {
-            int i, j;                       ///< orbitals i and j
-            real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
-            real_function_6d latest_increment; ///< in the iterative residual equation
-            real_function_6d r12phi;       ///< orbital product multiplied with the correlation factor
-
-            real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
-            real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
-            std::vector<real_function_3d> phi_k_UK_phi0;	///< < k(1) | U-K | phi^0(1,2)>
-            std::vector<real_function_3d> phi_l_UK_phi0;	///< < l(2) | U-K | phi^0(1,2)>
-
-            double ij_gQf_ij;           ///< <phi^0 | g12 Q12 f12 | phi^0>
-            double ji_gQf_ij;           ///< <phi^0 | g12 Q12 f12 | phi^0>
-            bool solved;                    ///< has the residual equation been solved for this pair?
-
-            template <typename Archive> void serialize (Archive& ar) {
-                ar & ij_gQf_ij & ji_gQf_ij & solved;
-            }
-
-            size_t size() const {
-            	return function.size() + latest_increment.size() + r12phi.size()
-            			+ Uphi0.size() + KffKphi0.size();
-            }
-
-            void save_matrix_elements(World& world) const {
-            	std::string name="pair_"+stringify(i)+stringify(j);
-            	if (world.rank()==0) print("saving matrix elements",name);
-                archive::ParallelOutputArchive ar(world, name.c_str(), 1);
-                ar & *this;
-            }
-
-            void load_matrix_elements(World& world) {
-            	std::string name="pair_"+stringify(i)+stringify(j);
-            	if (world.rank()==0) print("loading matrix elements",name);
-                archive::ParallelInputArchive ar(world, name.c_str(), 1);
-                ar & *this;
-            }
-
-
-        };
-
+    	/// POD for MP2 keywords
         struct Parameters {
         	double thresh_;			///< the accuracy threshold
-        	Parameters(const std::string& input) : thresh_(-1.0) {
-            	// get the parameters from the input file
+        	int i; 					///< electron 1, used only if a specific pair is requested
+        	int j; 					///< electron 2, used only if a specific pair is requested
+
+        	/// number of frozen orbitals; note the difference to the "pair" keyword where you
+        	/// request a specific orbital. Here you freeze lowest orbitals, i.e. if you find
+        	///  freeze 1
+        	/// in the input file the 0th orbital is kept frozen, and orbital 1 is the first to
+        	/// be correlated.
+        	int freeze;
+
+        	/// the restart flag initiates the loading of the pair functions
+
+        	/// if this flag is set the program expect for each pair a file named
+        	///  pair_ij.00000
+        	/// where ij is to be replaced by the values of i and j.
+        	/// These files contain the restart information for each pair.
+        	bool restart;
+
+        	/// ctor reading out the input file
+        	Parameters(const std::string& input) : thresh_(-1.0), i(-1), j(-1), freeze(0), restart(false) {
+
+        		// get the parameters from the input file
                 std::ifstream f(input.c_str());
                 position_stream(f, "mp2");
                 std::string s;
@@ -540,9 +586,19 @@ namespace madness {
                 while (f >> s) {
                     if (s == "end") break;
                     else if (s == "econv") f >> thresh_;
+                    else if (s == "pair") f >> i >> j;
+                    else if (s == "freeze") f >> freeze;
+                    else if (s == "restart") restart=true;
                     else continue;
                 }
-                if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",0);
+        	}
+
+            /// check the user input
+        	void check_input(const std::shared_ptr<HartreeFock> hf) const {
+                if (freeze>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
+                if (i>hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j>hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
         };
 
@@ -550,27 +606,25 @@ namespace madness {
         World& world;                           ///< the world
         Parameters param;						///< calculation parameters for MP2
         std::shared_ptr<HartreeFock> hf;        ///< our reference
-        CorrelationFactor corrfac;              ///< correlation factor: Slater or linear
+        CorrelationFactor corrfac;              ///< correlation factor: Slater
 
         std::vector<ElectronPair> pairs;        ///< pair functions and energies
-        Projector<double,3> O1;                 ///< projector on occupied orbitals, electron 1
-        Projector<double,3> O2;                 ///< projector on occupied orbitals, electron 2
-        bool solved;                            ///< flag if the residual equations are already solved
+        double correlation_energy;				///< the correlation energy
+        double coords_sum;						///< check sum for the geometry
 
     private:
         struct Intermediates {
             std::string function;      ///< pair function for a specific pair w/o correlation factor part
-            std::string r12phi;       ///< orbital product multiplied with the correlation factor
-            std::string latest_increment;
+            std::string r12phi;        ///< orbital product multiplied with the correlation factor
             std::string Kfphi0;        ///< the function K f12 |phi^0>
             std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
             std::string KffKphi0;      ///< the function [K,f12] |phi^0>
             std::string matrix_elements; ///< the matrix elements of a pair
             std::string OUKphi0;		///< < k(1) | U-K | phi^0(1,2) >
 
-            Intermediates() : r12phi(), latest_increment(), Kfphi0(), Uphi0(), KffKphi0() {};
+            Intermediates() : r12phi(), Kfphi0(), Uphi0(), KffKphi0() {};
 
-            Intermediates(World& world, const std::string& filename) : function(), r12phi(), latest_increment(),
+            Intermediates(World& world, const std::string& filename) : function(), r12phi(),
                     Kfphi0(), Uphi0(), KffKphi0(), matrix_elements() {
                 std::ifstream f(filename.c_str());
                 position_stream(f, "mp2");
@@ -580,7 +634,6 @@ namespace madness {
                     if (s == "end") break;
                     else if (s == "function") f >> function;
                     else if (s == "r12phi") f >> r12phi;
-                    else if (s == "latest_increment") f >> latest_increment;
                     else if (s == "Kfphi0") f >> Kfphi0;
                     else if (s == "Uphi0") f >> Uphi0;
                     else if (s == "KffKphi0") f >> KffKphi0;
@@ -592,7 +645,7 @@ namespace madness {
             }
 
             template <typename Archive> void serialize (Archive& ar) {
-                ar & function & r12phi & latest_increment & Kfphi0 & Uphi0 & KffKphi0 & matrix_elements;
+                ar & function & r12phi & Kfphi0 & Uphi0 & KffKphi0 & matrix_elements;
             }
 
         };
@@ -607,7 +660,8 @@ namespace madness {
         	, param(input.c_str())
 //            , hf(world,Calculation(world,input.c_str()))
             , corrfac(corrfac)
-            , solved(false)
+        	, correlation_energy(0.0)
+    		, coords_sum(-1.0)
             , intermediates() {
 //            , poisson(CoulombOperator(world,0.0001,param.thresh_*0.01)) {
 
@@ -620,76 +674,133 @@ namespace madness {
                 calc.param.econv=thresh()*0.01;
                 calc.set_protocol<3>(world,calc.param.econv);
                 calc.molecule.set_eprec(calc.param.econv*0.1);
+                calc.molecule.print();
 
                 hf=std::shared_ptr<HartreeFock>(new HartreeFock(world,calc));
                 poisson=std::shared_ptr<real_convolution_3d>
                 	(CoulombOperatorPtr(world,0.0001,calc.param.econv));
         	}
 
+        	// print some output for the user
+            if (world.rank()==0) {
+            	hf->get_calc().param.print(world);
+            	this->print_info(world);
+            }
 
-            if (world.rank()==0) hf->get_calc().param.print(world);
-            hf->value();
+            // check the user input for consistency
+            param.check_input(hf);
 
             // number of pairs:
-            const int nocc=hf->nocc();
-            const int npairs=nocc*(nocc+1)/2;
+            const int noct=hf->nocc()-param.freeze;
+            const int npairs=noct*(noct+1)/2;
             pairs.resize(npairs);
+
+            // initialize the electron pairs with NaNs and store restart info
+            // or load previous restart information
+    		for (int i=param.freeze; i<hf->nocc(); ++i) {
+    			for (int j=i; j<hf->nocc(); ++j) {
+    				int ij=make_ij(i,j);
+    				MADNESS_ASSERT(ij<npairs);
+    				pairs[ij]=ElectronPair(i,j);
+
+    				if (param.restart) {
+    					pairs[ij].load_pair(world);
+    				} else {
+    					pairs[ij].store_pair(world);
+    				}
+				}
+			}
 
             if (world.rank()==0) intermediates=Intermediates(world,input);
             world.gop.broadcast_serializable(intermediates, 0);
 
-            O1=Projector<double,3>(hf->get_calc().amo,0);
-            O2=Projector<double,3>(hf->get_calc().amo,1);
-
         }
 
-        /// return the molecular energy as a function of the coordinates
+        /// return a checksum for the geometry
+        double coord_chksum() const {return coords_sum;}
+
+        /// return the molecular correlation energy energy (without the HF energy)
+        double value() {
+        	hf->value();		// make sure the reference is converged
+            return value(hf->get_calc().molecule.get_all_coords());
+        }
+
+        /// return the molecular correlation energy as a function of the coordinates
         double value(const Tensor<double>& x)  {
 
-            // solve the residual equations for all pairs ij
-            if (not residual_equations_solved(x)) {
-                for (int i=0; i<hf->nocc(); ++i) {
-                    for (int j=i; j<hf->nocc(); ++j) {
-                        solve_residual_equations(i,j);
-                    }
-                }
-            }
+        	// fast return if the MP2 energy is already solved at this geometry
+            double xsq = x.sumsq();
+            if (xsq == coord_chksum()) return correlation_energy;
 
-            double energy=0.0;
-            const int npair=hf->nocc()*(hf->nocc()+1)/2;
-            for (int ij=0; ij<npair; ++ij) {
-                // we consider this an essential:
-                MADNESS_ASSERT(pairs[ij].solved);
-//                energy+=pairs[ij].second_order_energy;
-            }
-            return energy;
+            // make sure HF used the same geometry as we do
+            coords_sum=xsq;
+            MADNESS_ASSERT(std::fabs(coord_chksum()-hf->coord_chksum())<1.e-14);
+
+
+        	correlation_energy=0.0;
+        	Projector<double,3> O1=O(0);
+        	Projector<double,3> O2=O(1);
+
+        	// compute only one single pair
+        	if ((param.i>-1) and (param.j>-1)) {
+                ElectronPair ij=solve_residual_equations(param.i,param.j);
+                correlation_energy+=ij.e_singlet+ij.e_triplet;
+
+            // solve the residual equations for all pairs ij
+        	} else {
+        		for (int i=param.freeze; i<hf->nocc(); ++i) {
+        			for (int j=i; j<hf->nocc(); ++j) {
+        				int ij=make_ij(i,j);
+        				if (pairs[ij].converged) {
+							correlation_energy+=pairs[ij].e_singlet+pairs[ij].e_triplet;
+        				} else {
+							ElectronPair pair=solve_residual_equations(i,j);
+							correlation_energy+=pair.e_singlet+pair.e_triplet;
+							pairs[ij]=pair;
+        				}
+					}
+				}
+        	}
+            return correlation_energy;
         }
+
+        /// print the calculation parameters
+        void print_info(World& world) const {
+            if (world.rank()==0) {
+                madness::print("\n === MP2 info === \n");
+                madness::print("         MP2 restart ", param.restart);
+                madness::print("        threshold 3D ", FunctionDefaults<3>::get_thresh());
+                madness::print("        threshold 6D ", FunctionDefaults<6>::get_thresh());
+                madness::print("     truncation mode ", FunctionDefaults<6>::get_truncate_mode());
+                madness::print("         tensor type ", FunctionDefaults<6>::get_tensor_type());
+                madness::print("           facReduce ", GenTensor<double>::fac_reduce());
+                madness::print("    max displacement ", Displacements<6>::bmax_default());
+                madness::print("     apply randomize ", FunctionDefaults<6>::get_apply_randomize());
+            	if (param.i>=0 and param.j>=0) {
+            		madness::print("      computing pair ", param.i,param.j);
+            	} else if (param.i<0 and param.j<0) {
+            		if (param.freeze==0) madness::print("   # frozen orbitals ","none");
+            		if (param.freeze>0) madness::print("   # frozen orbitals ",0, " to ",param.freeze-1);
+					madness::print(" correlated orbitals ", param.freeze," to ",hf->nocc()-1);
+            	}
+            }
+        }
+
+        /// return the underlying HF reference
+        HartreeFock& get_hf() {return *hf;}
 
         /// return the accuracy
         double thresh() const {return param.thresh_;}
-
-        /// return if the equations are solved given a set of coordinates
-        bool residual_equations_solved(const Tensor<double>& x) const {
-            if (world.rank()==0) print("MP2::residual_equations_solved ignores the set of coordinates");
-            return solved;
-        }
 
         /// return the 0th order energy of pair ij (= sum of orbital energies)
         double zeroth_order_energy(const int i, const int j) const {
             return hf->orbital_energy(i)+hf->orbital_energy(j);
         }
 
-        /// return the first order wave function for pair ij
-        real_function_6d first_order_function(const int i, const int j) const {
-            int ij=make_ij(i,j);
-            // we consider this an essential:
-            MADNESS_ASSERT(pairs[ij].solved);
-            return pairs[ij].function+pairs[ij].r12phi;
-        }
-
         /// solve the residual equation for electron pair (i,j)
-        void solve_residual_equations(const int i, const int j) {
+        ElectronPair solve_residual_equations(const int i, const int j) {
 
+        	if (world.rank()==0) printf("\n\nsolving electron pair (%d, %d)\n\n",i,j);
             ElectronPair result=guess_mp1_3(i,j);
             double energy=compute_energy(result);
             if (world.rank()==0) printf("finished with prep step at time %6.1fs with energy %12.8f\n\n",
@@ -707,84 +818,90 @@ namespace madness {
 				if (world.rank()==0) print("computing iteratively");
 				real_function_6d constant_term;
 				load_function(constant_term,"GVpair");
-				for (int ii=1; ii<20; ++ii) {
 
+				// increment iteration counter upon entry
+				for (++result.iteration; result.iteration<20; ++result.iteration) {
+
+					// apply the convolution
 					real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
-					double fnorm=result.function.norm2();
-
-						/// apply the convolution
 					vphi.scale(-2.0).truncate();
-					double vnorm=vphi.norm2();
-					if (world.rank()==0) printf("function.norm2(), vphi.norm2() %12.8f %12.8f\n",fnorm,vnorm);
-	                load_balance(vphi,false);
-					const real_function_6d tmp=green(vphi).truncate();
-					tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-					result.function=(constant_term+tmp).truncate();
-					result.function=Q12(result.function);
+					load_balance(vphi,false);
 
+					real_function_6d tmp=green(vphi).truncate();
+					tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+					tmp=Q12(constant_term+tmp);
+
+					// check convergence
+					const double fnorm=tmp.norm2();
+					const double rnorm=(result.function-tmp).norm2();
+					if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
+							fnorm,rnorm);
+
+					result.function=tmp;
 					double old_energy=energy;
 					energy=compute_energy(result);
 
-					const std::string name="psi1_it"+stringify(ii);
-					save_function(result.function,name);
+		            result.store_pair(world);
 					if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
-							ii, wall_time(),energy);
+							result.iteration, wall_time(),energy);
 					if (std::abs(old_energy-energy)<result.function.thresh()*0.01) break;
 
 				}
             } else {
 
 
-            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
-            if (world.rank()==0) print("computing increments");
-            real_function_6d& latest_increment=result.latest_increment;
-
-            for (int ii=1; ii<20; ++ii) {
-
-                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment,i,j);
-                load_balance(vphi,false);
-
-                /// apply the convolution
-                vphi.scale(-2.0).truncate();
-                latest_increment=green(vphi).truncate().reduce_rank();
-                latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
-                latest_increment=Q12(latest_increment);
-
-                result.function=(result.function+latest_increment).truncate().reduce_rank();
-
-                // compute the energy
-                compute_V(result);
-
-                // save for possible later use
-                std::string name="psi1_it"+stringify(ii);
-                save_function(result.function,name);
-                name="incremental_psi1_it"+stringify(ii);
-                save_function(latest_increment,name);
-
-                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-                const double residual_norm=latest_increment.norm2();
-                if (residual_norm<result.function.thresh()*0.01) break;
-	   		}
+//            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
+//            if (world.rank()==0) print("computing increments");
+//            real_function_6d& latest_increment=result.latest_increment;
+//
+//            for (int ii=1; ii<20; ++ii) {
+//
+//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment,i,j);
+//                load_balance(vphi,false);
+//
+//                /// apply the convolution
+//                vphi.scale(-2.0).truncate();
+//                latest_increment=green(vphi).truncate().reduce_rank();
+//                latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
+//                latest_increment=Q12(latest_increment);
+//
+//                result.function=(result.function+latest_increment).truncate().reduce_rank();
+//
+//                // compute the energy
+//                compute_V(result);
+//
+//                // save for possible later use
+//                std::string name="psi1_it"+stringify(ii);
+//                save_function(result.function,name);
+//                name="incremental_psi1_it"+stringify(ii);
+//                save_function(latest_increment,name);
+//
+//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
+//                const double residual_norm=latest_increment.norm2();
+//                if (residual_norm<result.function.thresh()*0.01) break;
+//	   		}
             }
 
-//            compute_second_order_correction_with_Hylleraas(result);
-            result.solved=true;
+            // save the converged first order pair function separately for easier access
+        	std::string name="pair_"+stringify(i)+stringify(j)+"_psi1_converged";
+            save_function(result.function,name);
+
+            // print the final pair energies
+            if (world.rank()==0) {
+            	printf("final correlation energy %2d %2d %12.8f %12.8f\n",result.i,result.j,
+            			result.e_singlet,result.e_triplet);
+            }
+
+            return result;
 
         }
 
-        void test(const int i, const int j, const int iteration) {
-        	ElectronPair pair=make_pair(i,j);
-			const std::string name="psi1_it"+stringify(iteration);
-        	load_function(pair.function,name);
-			pair.function=Q12(pair.function);
-			compute_energy(pair);
+        void test() {
        }
 
         /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
         /// as for the formulas cf the article mra_molecule
-        /// We compute the MP2 energy in a spin-free(?) formalism, because singlet/triplet
-        /// spin adaption is numerically instable.
         /// @return 	the energy <ij | g Q f | kl>
         double compute_gQf(const int i, const int j, ElectronPair& pair) const {
 
@@ -865,16 +982,26 @@ namespace madness {
     private:
 
         /// helper function to map indices i, j to a pair index ij, with i<=j
+
+        /// distinguish between occupied (nocc), frozen occupied (freeze) and
+        /// active occupied (noct) orbitals; note the counting issue: if no orbitals
+        /// are frozen we start with correlating orbitals 0
+        /// @param[in]	i	orbital index 1, closed interval [freeze,nocc[
+        /// @param[in]	i	orbital index 2, closed interval [freeze,nocc[
+        /// @return 	ij	index pair in the open interval [0,noct*(noct+1)/2[
         int make_ij(const int i, const int j) const {
 
+        	// nocc is the number of (frozen and active) orbitals
             const int nocc=hf->nocc();
-            MADNESS_ASSERT(i<nocc and j<nocc and i>=0 and j>=0 and i<=j);
+            // freeze is the number of frozen orbitals
+            const int freeze=param.freeze;
+
+            MADNESS_ASSERT(i<nocc and j<nocc and i>=freeze and j>=freeze and i<=j);
 
             int ij=0;
-            for (int ii=0; ii<j; ++ii) {ij+=(ii+1);}    // column index j: will yield ij=0,1,3,6
-            ij+=i;                                      // row index i
+            for (int ii=0; ii<i-freeze; ++ii) {ij+=(ii+1);}    // column index j: will yield ij=0,1,3,6
+            ij+=j-freeze;                                      // row index i
 
-            print("i,j,ij",i,j,ij);
             return ij;
         }
 
@@ -896,6 +1023,15 @@ namespace madness {
             f.print_size(name);
         }
 
+        /// return the projector on the occupied orbitals
+
+        /// need to encapsulate because the projector can only be constructed after
+        /// an HF calculation has been performed
+        const Projector<double,3> O(const int particle) const {
+        	hf->value();	// make sure there is a converged reference
+        	return Projector<double,3>(hf->get_calc().amo,particle);
+        }
+
         /// apply the strong orthogonality operator Q12 on a function f
         real_function_6d Q12(const real_function_6d& f) const {
 
@@ -906,6 +1042,8 @@ namespace madness {
         	const double thresh=FunctionDefaults<6>::get_thresh();
         	const double tight_thresh=FunctionDefaults<6>::get_thresh()*0.1;
 
+        	Projector<double,3> O1=O(0);
+        	Projector<double,3> O2=O(1);
         	const std::vector<real_function_3d>& O1_mos=O1.p();
         	const std::vector<real_function_3d>& O2_mos=O2.p();
 
@@ -931,6 +1069,8 @@ namespace madness {
             	FunctionDefaults<6>::set_thresh(tight_thresh);
             	r1=(r1+hartree_product(O1_mos[k],h2));
             	FunctionDefaults<6>::set_thresh(thresh);
+            	r1.set_thresh(thresh);
+            	r1.print_size("r1"+stringify(k));
         	}
 
         	// project out the mainly second particle: O2 (1 - 1/2 O1)
@@ -943,10 +1083,13 @@ namespace madness {
             	// the hartree product tends to be inaccurate; tighten threshold
             	FunctionDefaults<6>::set_thresh(tight_thresh);
             	r2=(r2+hartree_product(h1,O2_mos[l]));
+            	r2.set_thresh(thresh);
             	FunctionDefaults<6>::set_thresh(thresh);
+            	r2.print_size("r2"+stringify(l));
         	}
-        	real_function_6d result=(f-r1-r2);
-        	result.truncate().reduce_rank();
+        	FunctionDefaults<6>::set_thresh(tight_thresh);
+        	real_function_6d result=(f-r1-r2).truncate().reduce_rank();
+        	FunctionDefaults<6>::set_thresh(thresh);
 
 //        	// for debugging purposes only: check orthogonality
 //        	for (size_t k=0; k<hf->nocc(); ++k) {
@@ -972,10 +1115,20 @@ namespace madness {
                 Uphi0=corrfac.apply_U(hf->orbital(i),hf->orbital(j));
                 save_function(Uphi0,"Uphi0");
             }
-//            const double a=inner(pair.phi0,Uphi0);
+
+            // sanity check: <ij| [T,g12] |ij> = <ij | U |ij> - <ij| g12 | ij> = 0
             real_function_6d phi0=this->phi0_on_demand(i,j);
             const double a=inner(Uphi0,phi0);
-            if (world.rank()==0) printf("< phi0 | U     | phi0 >  %12.8f\n",a);
+            const real_function_3d ii=hf->orbital(i)*hf->orbital(i);
+            const real_function_3d jj=hf->orbital(j)*hf->orbital(j);
+            const real_function_3d gii=(*poisson)(ii);
+            const double aa=inner(jj,gii);
+            const double error=std::fabs(a-aa);
+            if (world.rank()==0) {
+            	printf("< phi0 | U     | phi0 >  %12.8f\n",a);
+                if (error>thresh()) print("WARNING : Kutzelnigg's potential inaccurate");
+                if (error>thresh()*10.0) MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong",1);
+            }
             return Uphi0;
         }
 
@@ -1005,19 +1158,23 @@ namespace madness {
 	            KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
 				save_function(KffKphi0,"KffKphi0");
 			}
+
+			// sanity check
             real_function_6d phi0=this->phi0_on_demand(pair.i,pair.j);
             const double a=inner(KffKphi0,phi0);
-            if (world.rank()==0) printf("< phi0 | [K,f]  | phi0 >  %12.8f\n",a);
+            if (world.rank()==0) {
+            	printf("< phi0 | [K,f]  | phi0 >  %12.8f\n",a);
+                if (a>thresh()) print("WARNING : exchange commutator inaccurate");
+                if (a>thresh()*10.0) MADNESS_EXCEPTION("exchange commutator plain wrong",1);
+            }
+
 			return KffKphi0;
         }
 
         /// compute some matrix elements that don't change during the calculation
         ElectronPair make_pair(const int i, const int j) const {
 
-            ElectronPair pair;
-            pair.i=i;
-            pair.j=j;
-            const bool r0=world.rank()==0;
+            ElectronPair pair(i,j);
 
             // some functions repeatedly used
             if (intermediates.r12phi.empty()) {
@@ -1027,32 +1184,19 @@ namespace madness {
                             .particle2(copy(hf->orbital(j)));
                 pair.r12phi.fill_tree().truncate().reduce_rank();
                 save_function(pair.r12phi,"r12phi");
-            }
-            else load_function(pair.r12phi,intermediates.r12phi);
-
-            if (not intermediates.latest_increment.empty()) {
-                load_function(pair.latest_increment,intermediates.latest_increment);
-            }
-
-            if (not intermediates.function.empty()) {
-                load_function(pair.function,intermediates.function);
-            }
-
-            // compute the matrix elements <phi^0 | g Q f | phi^0>
-            if (not intermediates.matrix_elements.empty()) {
-            	pair.load_matrix_elements(world);
-            	if (r0) {
-            		print("loading matrix elements");
-            		printf("<ij | H^1 Q12 f12       | ij>  %12.8f\n",pair.ij_gQf_ij);
-            		printf("<ji | H^1 Q12 f12       | ij>  %12.8f\n",pair.ji_gQf_ij);
-            	}
             } else {
-				pair.ij_gQf_ij=compute_gQf(i,j,pair);
-				if (i!=j) pair.ji_gQf_ij=compute_gQf(j,i,pair);
-				pair.save_matrix_elements(world);
+            	load_function(pair.r12phi,intermediates.r12phi);
             }
 
-            if (r0) printf("done with matrix elements at time %.1fs\n\n", wall_time());
+            // compute and store them if they have not been read from disk
+            if (pair.ij_gQf_ij==ElectronPair::uninitialized) {
+				pair.ij_gQf_ij=compute_gQf(i,j,pair);
+				pair.ji_gQf_ij=0.0;
+				if (i!=j) pair.ji_gQf_ij=compute_gQf(j,i,pair);
+				pair.store_pair(world);
+            }
+
+            if (world.rank()==0) printf("done with matrix elements at time %.1fs\n\n", wall_time());
             return pair;
         }
 
@@ -1068,7 +1212,7 @@ namespace madness {
             ElectronPair pair=make_pair(i,j);
 
             // fast return if possible
-            if (pair.latest_increment.is_initialized() and pair.function.is_initialized()) return pair;
+            if (pair.function.is_initialized()) return pair;
 
 			pair.KffKphi0=make_KffKphi0(pair);
             pair.Uphi0=make_Uphi0(pair);
@@ -1086,7 +1230,7 @@ namespace madness {
 			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
 			save_function(GVpair,"GVpair1");
-//			load_function(world,GVpair,"GVpair1");
+//			load_function(GVpair,"GVpair1");
 
 			// make the terms with low ranks and largish trees: G (- O1 - O2 + O1O2) (U-K) |phi0>
 			real_function_6d tmp=real_factory_6d(world);
@@ -1123,8 +1267,8 @@ namespace madness {
 			GVpair=(GVpair+tmp).truncate().reduce_rank();
 			GVpair=Q12(GVpair);
             pair.function=GVpair;
-            pair.latest_increment=copy(pair.function);
             save_function(GVpair,"GVpair");
+            pair.store_pair(world);
 
             return pair;
         }
@@ -1214,30 +1358,23 @@ namespace madness {
             const double ji_g_uij= (pair.i==pair.j) ? 0 : inner(pair.function,ji_g);
             if (world.rank()==0) printf("<ji | g12       | psi^1>  %12.8f\n",ji_g_uij);
 
-            double e_total=0.0;
-            double e_singlet,e_triplet;
-
+            // the singlet and triplet triplet pair energies
             if (pair.i==pair.j) {
-            	e_total=ij_g_uij + pair.ij_gQf_ij;
-                if (world.rank()==0) {
-                	printf("singlet pair %2d %2d %12.8f\n",pair.i,pair.j,e_total);
-                }
+            	pair.e_singlet=ij_g_uij + pair.ij_gQf_ij;
+            	pair.e_triplet=0.0;
             } else {
-                // the singlet and triplet triplet pair energies
-                e_singlet=(ij_g_uij + pair.ij_gQf_ij) + (ji_g_uij + pair.ji_gQf_ij);
-                e_triplet=3.0*((ij_g_uij - ji_g_uij) + (pair.ij_gQf_ij - pair.ji_gQf_ij));
-                e_total=4.0*(ij_g_uij + pair.ij_gQf_ij) - 2.0*(ji_g_uij + pair.ji_gQf_ij);
+                pair.e_singlet=(ij_g_uij + pair.ij_gQf_ij) + (ji_g_uij + pair.ji_gQf_ij);
+                pair.e_triplet=3.0*((ij_g_uij - ji_g_uij) + (pair.ij_gQf_ij - pair.ji_gQf_ij));
+            }
 
-                if (world.rank()==0) {
-                	printf("singlet pair %2d %2d %12.8f\n",pair.i,pair.j,e_singlet);
-                	printf("triplet pair %2d %2d %12.8f\n",pair.i,pair.j,e_triplet);
-                }
-            }
+            // print the pair energies
             if (world.rank()==0) {
-            	printf("total energy %2d %2d %12.8f %12.8f\n",pair.i,pair.j,
-            			e_singlet,e_triplet);
+            	printf("current energy %2d %2d %12.8f %12.8f\n",pair.i,pair.j,
+            			pair.e_singlet,pair.e_triplet);
             }
-            return e_total;
+
+            // return the total energy of this pair
+            return pair.e_singlet+pair.e_triplet;
         }
 
         /// compute the B matrix for a given electron pair
@@ -1246,7 +1383,6 @@ namespace madness {
             MADNESS_EXCEPTION("no compute_B for the time being",1);
             // first the terms  <phi^0| f12 Q (H-E^0) Q f12 |phi^0>
             double B=0.0;
-            double tmp=0.0;
 
 #if 0
             const double e0=zeroth_order_energy(i,j);
@@ -1439,41 +1575,32 @@ namespace madness {
         real_function_6d apply_exchange(const real_function_6d& f, const real_function_3d& orbital,
                 const int particle) const {
 
+        	MADNESS_ASSERT((particle==1) or (particle==2));
             real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
             op.particle()=particle;
-            real_function_6d result;
 
-            if (particle==1) {
-                real_function_6d x=CompositeFactory<double,6,3>(world)
-    						.ket(copy(f)).V_for_particle1(copy(orbital));
-                x.fill_tree().truncate();
-                load_balance(x,false);
-                x=op(x).truncate();
-                real_function_6d x2=CompositeFactory<double,6,3>(world)
-    						.ket(copy(x)).V_for_particle1(copy(orbital));
-            	x2.fill_tree().truncate().reduce_rank();
-            	result=x2;
-            }
+            if (world.rank()==0) printf("start multiplication before K at time %.1f\n",wall_time());
 
-            if (particle==2) {
-                real_function_6d x=CompositeFactory<double,6,3>(world)
-    						.ket(copy(f)).V_for_particle2(copy(orbital));
-                x.fill_tree().truncate();
-                load_balance(x,false);
-                x=op(x).truncate();
-                real_function_6d x2=CompositeFactory<double,6,3>(world)
-    						.ket(copy(x)).V_for_particle2(copy(orbital));
-            	x2.fill_tree().truncate().reduce_rank();
-            	result=x2;
-            }
+            // multiply the orbital to the pair function
+            real_function_6d x=(particle==1)
+            		? CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle1(copy(orbital))
+            		: CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle2(copy(orbital));
+            x.fill_tree().truncate();
+
+            // apply the Poisson operator
+            if (world.rank()==0) printf("start exchange at time %.1f\n",wall_time());
+            load_balance(x,false);
+            x=op(x).truncate();
+
+            // do the final multiplication with the orbital
+            if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
+            real_function_6d result= (particle==1)
+            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital))
+            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital));
+            result.fill_tree().truncate().reduce_rank();
+
+            if (world.rank()==0) printf("end multiplication after K at time %.1f\n",wall_time());
             return result;
-
-
-//            real_function_6d x=multiply(f,orbital,particle).truncate();
-//            x=op(x);
-//            x=multiply(x,orbital,particle);
-//            x.truncate().reduce_rank();
-//            return x;
         }
 
         /// make the quantity chi_k
@@ -1606,7 +1733,8 @@ namespace madness {
 
         /// @param[in]  f   the function we apply H^0 on
         /// @return     the function g=H^0 f, which is NOT orthogonalized against f
-        real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f, const int i, const int j) const {
+        real_function_6d multiply_with_0th_order_Hamiltonian(const real_function_6d& f,
+        		const int i, const int j) const {
 
             const double eps=zeroth_order_energy(i,j);
             real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
