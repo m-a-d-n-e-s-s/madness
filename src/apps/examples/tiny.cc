@@ -117,6 +117,10 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
 
     // determine the plot plane
     std::string c1, c2;	// the coordinates for the two electrons in human form ("x1" or "z2" or so)
+
+    // the coordinates to be plotted
+    Vector<double,NDIM> coord(0.0);
+
     std::ifstream f("input");
     position_stream(f, "plot");
     std::string s;
@@ -125,6 +129,10 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
     		break;
     	} else if (s == "plane") {
     		f >> c1 >> c2;
+    	} else if (s == "electron1") {
+    		f >> coord[0] >> coord[1] >> coord[2];
+    	} else if (s == "electron2") {
+    		f >> coord[3] >> coord[4] >> coord[5];
     	}
     }
     // convert human to mad form
@@ -149,7 +157,7 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
     lo=lo*scale;
 //    const double hi=FunctionDefaults<6>::get_cell_width()[0]*0.5;
 
-    const long nstep=150;
+    const long nstep=100;
     const double stepsize=FunctionDefaults<6>::get_cell_width()[0]*scale/nstep;
 
     if(world.rank() == 0) {
@@ -161,7 +169,7 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
       for (int i0=0; i0<nstep; i0++) {
         for (int i1=0; i1<nstep; i1++) {
           
-          Vector<double,NDIM> coord(0.0);
+
 
           // plot plane
           coord[cc1]=lo+i0*stepsize;
@@ -231,7 +239,12 @@ int main(int argc, char** argv) {
     }
 
     Function<double,6> pair;
-    if (restart) load_function(world,pair,restart_name);
+    if (restart) {
+    	Function<double,6> r12phi;
+    	load_function(world,pair,restart_name);
+//    	load_function(world,r12phi,"r12phi");
+//    	pair=pair+r12phi;
+    }
 
     // make sure we're doing what we want to do
     if (world.rank()==0) {
