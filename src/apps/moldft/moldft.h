@@ -881,7 +881,7 @@ struct Calculation {
         	FunctionDefaults<NDIM>::set_k(param.k);
         }
         // don't forget to adapt the molecular smoothing parameter!!
-        molecule.set_eprec(thresh);
+        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
         FunctionDefaults<NDIM>::set_thresh(thresh);
         FunctionDefaults<NDIM>::set_refine(true);
         FunctionDefaults<NDIM>::set_initial_level(2);
@@ -903,7 +903,7 @@ struct Calculation {
 
     void save_mos(World& world) {
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
-        ar & param.spin_restricted;
+        ar & current_energy & param.spin_restricted;
         ar & (unsigned int)(amo.size());
         ar & aeps & aocc & aset;
         for (unsigned int i=0; i<amo.size(); ++i) ar & amo[i];
@@ -943,7 +943,7 @@ struct Calculation {
         // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
         // EPS, SWAP, ... sigh
 
-        ar & spinrest;
+        ar & current_energy & spinrest;
 
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
