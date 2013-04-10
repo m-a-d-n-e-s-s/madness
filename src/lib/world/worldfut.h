@@ -292,11 +292,10 @@ which merely blows instead of sucking.
                 const ProcessID owner = remote_ref.owner();
                 world.am.send(owner, FutureImpl<T>::set_handler,
                         new_am_arg(remote_ref, unwrap_move(value)));
+                set_assigned(value);
             } else {
-                const_cast<T&>(t) = value;
+                set_assigned((const_cast<T&>(t) = value));
             }
-
-            set_assigned(value);
         }
 
         void set(const archive::BufferInputArchive& input_arch) {
