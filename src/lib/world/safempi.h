@@ -403,10 +403,11 @@ namespace SafeMPI {
     	    }
     	    ~Impl() {
               int initialized;  MPI_Initialized(&initialized);
-              if (initialized) {
+              int finalized;  MPI_Finalized(&finalized);
+              if (initialized && !finalized) {
                 int compare_result;
-                MPI_Comm_compare(comm, MPI_COMM_WORLD, &compare_result);
-                if (compare_result == MPI_IDENT)
+                const int result = MPI_Comm_compare(comm, MPI_COMM_WORLD, &compare_result);
+                if (result == MPI_SUCCESS && compare_result != MPI_IDENT)
                   MPI_Comm_free(&comm);
               }
     	    }
