@@ -513,6 +513,7 @@ struct CalculationParameters {
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
+    bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
@@ -547,7 +548,7 @@ struct CalculationParameters {
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -574,6 +575,7 @@ struct CalculationParameters {
         , localize(true)
         , localize_pm(true)
         , restart(false)
+        , save(true)
         , maxsub(8)
         , npt_plot(101)
         , aobasis("6-31g")
@@ -720,6 +722,9 @@ struct CalculationParameters {
             }
             else if (s == "restart") {
                 restart = true;
+            }
+            else if (s == "save") {
+                f >> save;
             }
             else if (s == "maxsub") {
                 f >> maxsub;
@@ -3375,7 +3380,8 @@ public:
             //     //}//  calc.save_mos(world); //debugging
 
             calc.solve(world);
-            calc.save_mos(world);
+            if (calc.param.save)
+              calc.save_mos(world);
         }
         return calc.current_energy;
     }
