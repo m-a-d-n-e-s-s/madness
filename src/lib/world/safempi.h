@@ -559,6 +559,12 @@ namespace SafeMPI {
             MPI_Abort(impl->comm, code);
         }
 
+        bool Is_initialized(void) const {
+            int initialized;
+            MPI_Initialized(&initialized);
+            return (initialized==1);
+        }
+
         void Barrier() const {
             SAFE_MPI_GLOBAL_MUTEX;
             MADNESS_MPI_TEST(MPI_Barrier(impl->comm));
