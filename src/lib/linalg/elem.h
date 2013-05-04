@@ -137,7 +137,7 @@ namespace madness {
             elem::DistMatrix<T> Xd( n, n, GG );
             elem::DistMatrix<T,elem::VR,elem::STAR> wd( n, n, GG);
             elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
-            elem::SortEig( wd, Xd );
+            elem::hermitian_eig::Sort( wd, Xd );
      
             world.mpi.Barrier();
             //Xd.Print("Xs");
