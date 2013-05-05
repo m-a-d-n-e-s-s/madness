@@ -75,18 +75,25 @@ int main(int argc, char** argv) {
     }
 
 
-    CorrelationFactor f12(world,1.0);
-    MP2 mp2(world,f12,"input");
+    try {
+    	CorrelationFactor f12(world,1.0);
+    	MP2 mp2(world,f12,"input");
 
-    if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
+    	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-    if (do_test) mp2.test();
-    else {
-    	const double hf_energy=mp2.get_hf().value();
-    	const double mp2_energy=mp2.value();
-    	if(world.rank() == 0) {
-    		printf("final hf/mp2/total energy %12.8f %12.8f %12.8f\n",
-    				hf_energy,mp2_energy,hf_energy+mp2_energy);
+		if (do_test) mp2.test();
+		else {
+			const double hf_energy=mp2.get_hf().value();
+			const double mp2_energy=mp2.value();
+			if(world.rank() == 0) {
+				printf("final hf/mp2/total energy %12.8f %12.8f %12.8f\n",
+						hf_energy,mp2_energy,hf_energy+mp2_energy);
+			}
+		}
+    } catch (std::exception& e) {
+
+    	if (world.rank()==0) {
+    		print("\ncaught an exception: \n",e.what());
     	}
     }
 

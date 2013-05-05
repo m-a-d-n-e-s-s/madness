@@ -31,7 +31,7 @@
   $Id$
 */
 /*!
-  \file mp2.cc
+  \file mp2.h
   \brief Solves molecular MP2 equations
   \defgroup Solves molecular MP2 equations
   \ingroup examples
@@ -55,6 +55,8 @@
 #include <iostream>
 
 static const double dcut=1.e-7;
+static const double lo=1.e-6;
+static const double bsh_eps=1.e-7;
 
 using namespace madness;
 
@@ -91,6 +93,35 @@ namespace madness {
         if(f.world().rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
     }
 
+    class R1AFactor {
+
+    public:
+    	R1AFactor(const Molecule& mol, const bool inv) : inverse(inv) {
+    		for (int i=0; i<mol.natom(); ++i) atoms.push_back(mol.get_atom(i));
+    		print("inverse ", inverse);
+    	}
+    	std::vector<Atom> atoms;
+    	bool inverse;
+
+    	double operator()(const coord_3d& r) const {
+
+    		double result=1.0;
+//    		double exponent=0.0;
+    		const double x=r[0], y=r[1], z=r[2];
+    		for (std::vector<Atom>::const_iterator atom=atoms.begin(); atom!=atoms.end(); ++atom) {
+    			const double& xA=atom->x;
+    			const double& yA=atom->y;
+    			const double& zA=atom->z;
+            	const double rr=sqrt((x-xA)*(x-xA) + (y-yA)*(y-yA) + (z-zA)*(z-zA));
+            	const double exponent=atom->q*rr;
+            	result*=(1.0-exp(-exponent));
+    		}
+    		if (inverse) return 1.0/result;
+    		return result;
+        }
+
+
+    };
 
     /// a class holding the correlation factor for R12 theory
     class CorrelationFactor {
@@ -119,11 +150,11 @@ namespace madness {
         }
 
         /// apply Kutzelnigg's regularized potential to an orbital product
-        real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j) const {
+        real_function_6d apply_U(const real_function_3d& phi_i, const real_function_3d& phi_j,
+        		const double eps) const {
             real_function_6d result=real_factory_6d(world);
 
-            const double eps=-1.8;
-            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_eps);
             op_mod.modified()=true;
 
             for (int axis=0; axis<3; ++axis) {
@@ -493,17 +524,17 @@ namespace madness {
     public:
     	/// default ctor; initialize energies with a large number
     	ElectronPair()
-    		: i(-1), j(-1), e_singlet(uninitialized), e_triplet(uninitialized),
-    			ij_gQf_ij(uninitialized), ji_gQf_ij(uninitialized), iteration(0), converged(false) {
+    		: i(-1), j(-1), e_singlet(uninitialized()), e_triplet(uninitialized()),
+    			ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
     	}
 
     	/// ctor; initialize energies with a large number
     	ElectronPair(const int i, const int j)
-    		: i(i), j(j), e_singlet(uninitialized), e_triplet(uninitialized),
-    		  ij_gQf_ij(uninitialized), ji_gQf_ij(uninitialized), iteration(0), converged(false) {
+    		: i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()),
+    		  ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
     	}
 
-    	const static double uninitialized=1.e10;
+    	static double uninitialized() {return 1.e10;}
 
         int i, j;                       ///< orbitals i and j
         real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
@@ -596,8 +627,8 @@ namespace madness {
             /// check the user input
         	void check_input(const std::shared_ptr<HartreeFock> hf) const {
                 if (freeze>hf->nocc()) MADNESS_EXCEPTION("you froze more orbitals than you have",1);
-                if (i>hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
-                if (j>hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
+                if (i>=hf->nocc()) MADNESS_EXCEPTION("there is no i-th orbital",1);
+                if (j>=hf->nocc()) MADNESS_EXCEPTION("there is no j-th orbital",1);
                 if (thresh_<0.0) MADNESS_EXCEPTION("please provide the accuracy threshold for MP2",1);
         	}
         };
@@ -619,13 +650,12 @@ namespace madness {
             std::string Kfphi0;        ///< the function K f12 |phi^0>
             std::string Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
             std::string KffKphi0;      ///< the function [K,f12] |phi^0>
-            std::string matrix_elements; ///< the matrix elements of a pair
             std::string OUKphi0;		///< < k(1) | U-K | phi^0(1,2) >
 
             Intermediates() : r12phi(), Kfphi0(), Uphi0(), KffKphi0() {};
 
             Intermediates(World& world, const std::string& filename) : function(), r12phi(),
-                    Kfphi0(), Uphi0(), KffKphi0(), matrix_elements() {
+                    Kfphi0(), Uphi0(), KffKphi0() {
                 std::ifstream f(filename.c_str());
                 position_stream(f, "mp2");
                 std::string s;
@@ -637,7 +667,6 @@ namespace madness {
                     else if (s == "Kfphi0") f >> Kfphi0;
                     else if (s == "Uphi0") f >> Uphi0;
                     else if (s == "KffKphi0") f >> KffKphi0;
-                    else if (s == "matrix_elements") f >> matrix_elements;
                     else {continue;
                     }
                     if (world.rank()==0) print("found intermediate in control file: ",s);
@@ -645,7 +674,7 @@ namespace madness {
             }
 
             template <typename Archive> void serialize (Archive& ar) {
-                ar & function & r12phi & Kfphi0 & Uphi0 & KffKphi0 & matrix_elements;
+                ar & function & r12phi & Kfphi0 & Uphi0 & KffKphi0;
             }
 
         };
@@ -673,7 +702,23 @@ namespace madness {
                 calc.set_protocol<6>(world,thresh());
                 calc.param.econv=thresh()*0.01;
                 calc.set_protocol<3>(world,calc.param.econv);
-                calc.molecule.set_eprec(calc.param.econv*0.1);
+
+        		// override computed parameters if they are provided explicitly
+                double eprec=calc.param.econv*0.1;
+
+                std::ifstream f(input.c_str());
+                position_stream(f, "geometry");
+                std::string s;
+                while (std::getline(f,s)) {
+                    std::istringstream ss(s);
+                    std::string tag;
+                    ss >> tag;
+                    if (tag == "end") break;
+                    else if (tag == "eprec") ss >> eprec;
+                    else continue;
+                }
+
+                calc.molecule.set_eprec(eprec);
                 calc.molecule.print();
 
                 hf=std::shared_ptr<HartreeFock>(new HartreeFock(world,calc));
@@ -704,9 +749,11 @@ namespace madness {
     				pairs[ij]=ElectronPair(i,j);
 
     				if (param.restart) {
-    					pairs[ij].load_pair(world);
-    				} else {
-    					pairs[ij].store_pair(world);
+    					try {
+        					pairs[ij].load_pair(world);
+    				    } catch (std::exception& e) {
+    				    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+    				    }
     				}
 				}
 			}
@@ -810,77 +857,49 @@ namespace madness {
             // of the orbital energies of orbitals i and j
             //  -2.0 G = (T - e_i - e_j) ^ -1
             const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), lo, bsh_eps);
+            green.destructive()=true;
 //            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2*eps), 0.00001,
 //            		FunctionDefaults<6>::get_thresh()*0.1);
 
-            if (1) {
-				if (world.rank()==0) print("computing iteratively");
-				real_function_6d constant_term;
-				load_function(constant_term,"GVpair");
+            // do some preiterations using increments
+            increment(result,green);
 
-				// increment iteration counter upon entry
-				for (++result.iteration; result.iteration<20; ++result.iteration) {
+			if (world.rank()==0) print("computing iteratively");
+			real_function_6d constant_term;
+			load_function(constant_term,"GVpair");
 
-					// apply the convolution
-					real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
-					vphi.scale(-2.0).truncate();
-					load_balance(vphi,false);
+			// increment iteration counter upon entry
+			for (++result.iteration; result.iteration<20; ++result.iteration) {
 
-					real_function_6d tmp=green(vphi).truncate();
-					tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-					tmp=Q12(constant_term+tmp);
+				// apply the convolution
+				real_function_6d vphi=multiply_with_0th_order_Hamiltonian(result.function,i,j);
+				vphi.scale(-2.0).truncate();
+				load_balance(vphi,false);
 
-					// check convergence
-					const double fnorm=tmp.norm2();
-					const double rnorm=(result.function-tmp).norm2();
-					if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
-							fnorm,rnorm);
+				real_function_6d tmp=green(vphi).truncate();	// green is destructive
+				tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
+				tmp=Q12(constant_term+tmp);
 
-					result.function=tmp;
-					double old_energy=energy;
-					energy=compute_energy(result);
+				// check convergence
+				const double fnorm=tmp.norm2();
+				const double rnorm=(result.function-tmp).norm2();
+				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
+						fnorm,rnorm);
 
-		            result.store_pair(world);
-					if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
-							result.iteration, wall_time(),energy);
-					if (std::abs(old_energy-energy)<result.function.thresh()*0.01) break;
+				result.function=tmp;
+				double old_energy=energy;
+				energy=compute_energy(result);
 
-				}
-            } else {
+				if (std::abs(old_energy-energy)<result.function.thresh()*0.01) result.converged=true;
+				result.store_pair(world);
 
+				if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
+						result.iteration, wall_time(),energy);
 
-//            // compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
-//            if (world.rank()==0) print("computing increments");
-//            real_function_6d& latest_increment=result.latest_increment;
-//
-//            for (int ii=1; ii<20; ++ii) {
-//
-//                real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment,i,j);
-//                load_balance(vphi,false);
-//
-//                /// apply the convolution
-//                vphi.scale(-2.0).truncate();
-//                latest_increment=green(vphi).truncate().reduce_rank();
-//                latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
-//                latest_increment=Q12(latest_increment);
-//
-//                result.function=(result.function+latest_increment).truncate().reduce_rank();
-//
-//                // compute the energy
-//                compute_V(result);
-//
-//                // save for possible later use
-//                std::string name="psi1_it"+stringify(ii);
-//                save_function(result.function,name);
-//                name="incremental_psi1_it"+stringify(ii);
-//                save_function(latest_increment,name);
-//
-//                if (world.rank()==0) printf("finished iteration %2d at time %.1fs\n\n", ii, wall_time());
-//                const double residual_norm=latest_increment.norm2();
-//                if (residual_norm<result.function.thresh()*0.01) break;
-//	   		}
-            }
+				if (result.converged) break;
+
+			}
 
             // save the converged first order pair function separately for easier access
         	std::string name="pair_"+stringify(i)+stringify(j)+"_psi1_converged";
@@ -896,9 +915,61 @@ namespace madness {
 
         }
 
-        void test() {
-       }
+		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
 
+        /// for pre-optimization of the mp1 wave function
+    	/// no restart option here for now
+        /// param[inout]	pair	the electron pair
+        /// param[in]		green	the Green's function
+        void increment(ElectronPair& pair, real_convolution_6d& green) {
+
+        	// don't mess up if we've already done some iterations!
+        	if (pair.iteration>0) return;
+
+			if (world.rank()==0) print("computing increments");
+			real_function_6d latest_increment;
+			load_function(latest_increment,"GVpair");
+
+			for (int ii=1; ii<20; ++ii) {
+
+				real_function_6d vphi=multiply_with_0th_order_Hamiltonian(latest_increment,pair.i,pair.j);
+				load_balance(vphi,false);
+
+				/// apply the convolution
+				vphi.scale(-2.0).truncate();
+				latest_increment=green(vphi).truncate();		// green is destructive
+				latest_increment.print_size("result of applying 0th order Hamiltonian on latest increment");
+
+				latest_increment=Q12(latest_increment);
+				pair.function=pair.function+latest_increment;
+
+				// compute the energy
+				compute_energy(pair);
+
+				if (world.rank()==0) printf("finished increment %2d at time %.1fs\n\n", ii, wall_time());
+				const double residual_norm=latest_increment.norm2();
+				if (residual_norm<pair.function.thresh()*0.01) break;
+			}
+        }
+
+        /// swap particles 1 and 2
+
+        /// param[in]	f	a function of 2 particles f(1,2)
+        /// return	the input function with particles swapped g(1,2) = f(2,1)
+        real_function_6d swap_particles(const real_function_6d& f) const {
+
+        	// this could be done more efficiently for SVD, but it works decently
+        	std::vector<long> map(6);
+        	map[0]=3; map[1]=4; map[2]=5;	// 2 -> 1
+        	map[3]=0; map[4]=1; map[5]=2;	// 1 -> 2
+        	return mapdim(f,map);
+        }
+
+
+
+		void test() {
+		}
+		
         /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
         /// as for the formulas cf the article mra_molecule
@@ -921,8 +992,8 @@ namespace madness {
             const real_function_3d jl=phi_j*phi_l;
 
             const double fourpi=4.0*constants::pi;
-            real_convolution_3d fg = BSHOperator<3>(world, corrfac.gamma(), 0.00001, 1e-6/fourpi);
-            real_convolution_3d gg = CoulombOperator(world,0.00001,1.e-6);
+            real_convolution_3d fg = BSHOperator<3>(world, corrfac.gamma(), lo, bsh_eps/fourpi);
+            real_convolution_3d gg = CoulombOperator(world,lo,bsh_eps);
             const real_function_3d ik_fg=(gg)(ik) - fourpi*fg(ik);
             const double a=inner(ik_fg,jl)/(2.0*corrfac.gamma());
 
@@ -1112,7 +1183,8 @@ namespace madness {
             if (not intermediates.Uphi0.empty()) {
                 load_function(Uphi0,intermediates.Uphi0);
             } else {
-                Uphi0=corrfac.apply_U(hf->orbital(i),hf->orbital(j));
+            	const double eps=this->zeroth_order_energy(i,j);
+                Uphi0=corrfac.apply_U(hf->orbital(i),hf->orbital(j),eps);
                 save_function(Uphi0,"Uphi0");
             }
 
@@ -1134,27 +1206,31 @@ namespace madness {
 
         /// return the function [K,f] phi0; load from disk if available
         real_function_6d make_KffKphi0(const ElectronPair& pair) const {
-        	real_function_6d Kfphi0;
-			if (not intermediates.Kfphi0.empty()) {
-				load_function(Kfphi0,intermediates.Kfphi0);
-			} else {
-				Kfphi0=K(pair.r12phi);
-//				double a1=inner(pair.phi0,Kfphi0);
-	            real_function_6d phi0=this->phi0_on_demand(pair.i,pair.j);
-				double a1=inner(Kfphi0,phi0);
-	            if (world.rank()==0) printf("< phi0 | K f    | phi0 >  %12.8f\n",a1);
-				save_function(Kfphi0,"Kfphi0");
-			}
 
         	real_function_6d KffKphi0;
 			if (not intermediates.KffKphi0.empty()) {
 				load_function(KffKphi0,intermediates.KffKphi0);
-			} else {
-				const real_function_6d fKphi0=make_fKphi0(pair.i,pair.j);
-	            real_function_6d phi0=this->phi0_on_demand(pair.i,pair.j);
-				double a2=inner(fKphi0,phi0);
-	            if (world.rank()==0) printf("< phi0 | f K    | phi0 >  %12.8f\n",a2);
 
+			} else {
+				real_function_6d Kfphi0;
+				if (not intermediates.Kfphi0.empty()) {
+					load_function(Kfphi0,intermediates.Kfphi0);
+				} else {
+					Kfphi0=K(pair.r12phi,pair.i==pair.j);
+				}
+
+				{
+					real_function_6d phi0=this->phi0_on_demand(pair.i,pair.j);
+					double a1=inner(Kfphi0,phi0);
+					if (world.rank()==0) printf("< phi0 | K f    | phi0 >  %12.8f\n",a1);
+					save_function(Kfphi0,"Kfphi0");
+				}
+				const real_function_6d fKphi0=make_fKphi0(pair.i,pair.j);
+				{
+					real_function_6d phi0=this->phi0_on_demand(pair.i,pair.j);
+					double a2=inner(fKphi0,phi0);
+					if (world.rank()==0) printf("< phi0 | f K    | phi0 >  %12.8f\n",a2);
+				}
 	            KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
 				save_function(KffKphi0,"KffKphi0");
 			}
@@ -1164,8 +1240,8 @@ namespace madness {
             const double a=inner(KffKphi0,phi0);
             if (world.rank()==0) {
             	printf("< phi0 | [K,f]  | phi0 >  %12.8f\n",a);
-                if (a>thresh()) print("WARNING : exchange commutator inaccurate");
-                if (a>thresh()*10.0) MADNESS_EXCEPTION("exchange commutator plain wrong",1);
+                if (std::fabs(a)>thresh()) print("WARNING : exchange commutator inaccurate");
+                if (std::fabs(a)>thresh()*10.0) MADNESS_EXCEPTION("exchange commutator plain wrong",1);
             }
 
 			return KffKphi0;
@@ -1174,7 +1250,7 @@ namespace madness {
         /// compute some matrix elements that don't change during the calculation
         ElectronPair make_pair(const int i, const int j) const {
 
-            ElectronPair pair(i,j);
+            ElectronPair pair=pairs[make_ij(i,j)];
 
             // some functions repeatedly used
             if (intermediates.r12phi.empty()) {
@@ -1189,7 +1265,7 @@ namespace madness {
             }
 
             // compute and store them if they have not been read from disk
-            if (pair.ij_gQf_ij==ElectronPair::uninitialized) {
+            if (pair.ij_gQf_ij==ElectronPair::uninitialized()) {
 				pair.ij_gQf_ij=compute_gQf(i,j,pair);
 				pair.ji_gQf_ij=0.0;
 				if (i!=j) pair.ji_gQf_ij=compute_gQf(j,i,pair);
@@ -1205,7 +1281,7 @@ namespace madness {
 
             // the Green's function
             const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001, 1e-6);
+            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps),lo,bsh_eps);
 //            real_convolution_6d green = BSHOperator<6>(world, sqrt(-2.0*eps), 0.00001,
 //            		FunctionDefaults<6>::get_thresh()*0.1);
 
@@ -1227,44 +1303,71 @@ namespace madness {
 			pair.KffKphi0.clear();
 			load_balance(Vpair1,false);
 			real_function_6d GVpair;
+            green.destructive()=true;			// green will destroy Vpair1
 			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
 			save_function(GVpair,"GVpair1");
 //			load_function(GVpair,"GVpair1");
 
-			// make the terms with low ranks and largish trees: G (- O1 - O2 + O1O2) (U-K) |phi0>
-			real_function_6d tmp=real_factory_6d(world);
+			// make the terms with low ranks and largish trees:
+			// - G ( O1 + O2 - O1O2) (U-K) | phi0 >
+			// With the notations
+			//  | UK_k(1) > = < k(2) | U-K | phi0 >		// these have been computed in OUKphi0()
+			//  h(kl) = <kl|[H,f] + 1/r12| phi0>
+			// we get
+			// G ( O1 + O2 - O1O2) (U-K) | phi0 >
+			//  = |k(1)>|UK_k(2)> - |l(2)>|UK_l(1)> + |k(1)l(2)> (<kl|[H,f] + 1/r12| phi0> )
+			//  = |k(1)> ( |UK_k(2)> - 1/2 |l(2)> h(kl) ) - |l(2)> ( |UK_l(1) - 1/2 |k(1)> h(kl) )
+			// which scales cubicly but for the computation of h(kl)
+
+			// compute the matrix elements h(kl) = <k(1) l(2) | [H,f] + 1/r12 | phi0 >
+			Tensor<double> h(hf->nocc(),hf->nocc());
 			for (int k=0; k<hf->nocc(); ++k) {
-				tmp=tmp-green(-2.0*hf->orbital(k),pair.phi_k_UK_phi0[k]);
-				tmp=tmp-green(pair.phi_l_UK_phi0[k],-2.0*hf->orbital(k));
-				tmp.truncate().reduce_rank();
-			}
-			for (int k=0; k<hf->nocc(); ++k) {
+
+	            // for the matrix element <ij|kl> = (ik|jl)
+	            const real_function_3d ik=hf->orbital(i)*hf->orbital(k);
+	            const real_function_3d gik=(*poisson)(ik).truncate();
+
+	            // the function Of(2) = <k(1) | f12 | phi0 >
+	            const real_function_3d Of=pair.r12phi.project_out(hf->orbital(k),0);
+
 				for (int l=0; l<hf->nocc(); ++l) {
 
-		            real_function_6d kl=CompositeFactory<double,6,3>(world)
-		                    .particle1(copy(hf->orbital(k))).particle2(copy(hf->orbital(l)));
-
-		            // for the matrix element <ij|kl> = (ik|jl)
-		            real_function_3d ik=hf->orbital(i)*hf->orbital(k);
-		            real_function_3d jl=hf->orbital(j)*hf->orbital(l);
-		            real_function_3d tmp2=(*poisson)(ik).truncate();
-		            const double g_ijkl=inner(jl,tmp2);
+					const real_function_3d jl=hf->orbital(j)*hf->orbital(l);
+		            const double g_ijkl=inner(jl,gik);
 
 		            // the matrix element <kl | f12 | ij>
-                    const double f_ijkl=inner(pair.r12phi,kl);
+		            const double f_ijkl=inner(hf->orbital(l),Of);
                     const double e_kl=zeroth_order_energy(k,l);
                     const double e_ij=zeroth_order_energy(i,j);
 
-                    const double fac=f_ijkl*(e_kl-e_ij)+g_ijkl;
-                    if (std::abs(fac)>1.e-10) {
-                    	tmp=tmp+fac*green(hf->orbital(k),-2.0*hf->orbital(l));
-    					tmp.truncate().reduce_rank();
-                    }
+                    h(k,l)=f_ijkl*(e_kl-e_ij)+g_ijkl;
 				}
 			}
 
-			GVpair=(GVpair+tmp).truncate().reduce_rank();
+			// the result function
+        	real_function_6d r1=real_factory_6d(world);
+        	for (int k=0; k<hf->nocc(); ++k) {
+
+        		// make the term  tmp2(2) = |UK_k(2)> - 1/2 |l(2)> h(kl)
+        		real_function_3d tmp2=pair.phi_k_UK_phi0[k];
+        		for (int l=0; l<hf->nocc(); ++l) tmp2-= 0.5*h(k,l)*hf->orbital(l);
+
+        		// now apply the Greens' function (including the -2.0 factor in one term)
+				r1=r1-green(-2.0*hf->orbital(k),tmp2);
+        	}
+
+        	for (int l=0; l<hf->nocc(); ++l) {
+
+        		// make the term  tmp1(1) = |UK_l(1) - 1/2 |k(1)> h(kl)
+        		real_function_3d tmp1=pair.phi_l_UK_phi0[l];
+        		for (int k=0; k<hf->nocc(); ++k) tmp1-= 0.5*h(k,l)*hf->orbital(k);
+
+        		// now apply the Greens' function (including the -2.0 factor in one term)
+				r1=r1-green(tmp1,-2.0*hf->orbital(l));
+        	}
+        	GVpair=(GVpair+r1).truncate().reduce_rank();
+
 			GVpair=Q12(GVpair);
             pair.function=GVpair;
             save_function(GVpair,"GVpair");
@@ -1549,12 +1652,19 @@ namespace madness {
         /// apply the exchange operator on a pair function
 
         /// @param[in]	phi the pair function
+        /// @param[in]	is_symmetric is the function symmetric wrt particle exchange
         /// @return 	(K1 + K2) |phi >
-        real_function_6d K(const real_function_6d& phi) const {
+        real_function_6d K(const real_function_6d& phi, const bool is_symmetric=false) const {
         	real_function_6d result=real_factory_6d(world);
+        	// loop over all orbitals of the reference
         	for (int i=0; i<hf->nocc(); ++i) {
-        		result=(result+apply_exchange(phi,hf->orbital(i),1)).truncate();
-        		result=(result+apply_exchange(phi,hf->orbital(i),2)).truncate();
+        		real_function_6d tmp=apply_exchange(phi,hf->orbital(i),1);
+        		if (is_symmetric) {
+        			tmp=tmp+swap_particles(tmp);
+        		} else {
+        			tmp=tmp+apply_exchange(phi,hf->orbital(i),2);
+        		}
+        		result=(result+tmp).truncate();
         	}
         	return result;
         }
@@ -1737,7 +1847,7 @@ namespace madness {
         		const int i, const int j) const {
 
             const double eps=zeroth_order_energy(i,j);
-            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
+            real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps),lo,bsh_eps);
             op_mod.modified()=true;
 
             real_function_3d v_total=hf->get_nuclear_potential()+hf->get_coulomb_potential();
@@ -1751,7 +1861,7 @@ namespace madness {
             vphi.fill_tree(op_mod).truncate();
             vphi.print_size("(V_nuc + J1 + J2) |ket>:  made V tree");
 
-            vphi=(vphi-K(f)).truncate().reduce_rank();
+            vphi=(vphi-K(f,i==j)).truncate().reduce_rank();
             vphi.print_size("(V_nuc + J - K) |ket>: the tree");
 
             return vphi;
