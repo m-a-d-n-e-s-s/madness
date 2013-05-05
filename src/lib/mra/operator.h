@@ -132,6 +132,7 @@ namespace madness {
                            ///< and may be non-zero at both ends of the unit cell
         bool modified_;     ///< use modified NS form
         int particle_;
+        bool destructive_;	///< destroy the argument or restore it (expensive for 6d functions)
 
         typedef Key<NDIM> keyT;
         const static size_t opdim=NDIM;
@@ -162,6 +163,10 @@ namespace madness {
 
         int& particle() {return particle_;}
         const int& particle() const {return particle_;}
+
+        bool& destructive() {return destructive_;}
+        const bool& destructive() const {return destructive_;}
+
     private:
 
         /// laziness for calling lists: which terms to apply
@@ -863,6 +868,7 @@ namespace madness {
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
                 , modified_(false)
                 , particle_(1)
+                , destructive_(false)
                 , bc(bc)
                 , k(k)
                 , cdata(FunctionCommonData<Q,NDIM>::get(k))
@@ -895,6 +901,7 @@ namespace madness {
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
                 , modified_(false)
                 , particle_(1)
+                , destructive_(false)
                 , ops(argops)
                 , bc(bc)
                 , k(k)
@@ -922,6 +929,7 @@ namespace madness {
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
                 , modified_(false)
                 , particle_(1)
+                , destructive_(false)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -964,6 +972,7 @@ namespace madness {
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
                 , modified_(false)
                 , particle_(1)
+                , destructive_(false)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)

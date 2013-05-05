@@ -1982,7 +1982,12 @@ namespace madness {
             result = apply_only(op, fff, fence);
             result.reconstruct();
 //            fff.clear();
-            ff.standard();
+            if (op.destructive()) {
+            	ff.world().gop.fence();
+            	ff.clear();
+            } else {
+            	ff.standard();
+            }
 
     	}
         if (NDIM==6) result.print_size("result after reconstruction");
