@@ -639,7 +639,7 @@ namespace madness {
         std::shared_ptr<HartreeFock> hf;        ///< our reference
         CorrelationFactor corrfac;              ///< correlation factor: Slater
 
-        std::vector<ElectronPair> pairs;        ///< pair functions and energies
+        std::map<std::pair<int,int>,ElectronPair> pairs;       ///< pair functions and energies
         double correlation_energy;				///< the correlation energy
         double coords_sum;						///< check sum for the geometry
 
@@ -735,22 +735,15 @@ namespace madness {
             // check the user input for consistency
             param.check_input(hf);
 
-            // number of pairs:
-            const int noct=hf->nocc()-param.freeze;
-            const int npairs=noct*(noct+1)/2;
-            pairs.resize(npairs);
-
-            // initialize the electron pairs with NaNs and store restart info
+            // initialize the electron pairs and store restart info
             // or load previous restart information
     		for (int i=param.freeze; i<hf->nocc(); ++i) {
     			for (int j=i; j<hf->nocc(); ++j) {
-    				int ij=make_ij(i,j);
-    				MADNESS_ASSERT(ij<npairs);
-    				pairs[ij]=ElectronPair(i,j);
-
+    	        	std::pair<int,int> key=std::make_pair(i,j);
+    	        	pairs.insert(std::make_pair(key,ElectronPair(i,j)));
     				if (param.restart) {
     					try {
-        					pairs[ij].load_pair(world);
+        					pair(i,j).load_pair(world);
     				    } catch (std::exception& e) {
     				    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
     				    }
@@ -761,6 +754,17 @@ namespace madness {
             if (world.rank()==0) intermediates=Intermediates(world,input);
             world.gop.broadcast_serializable(intermediates, 0);
 
+        }
+
+        /// return a reference to the electron pair for electrons i and j
+
+        /// @param[in]	i	index for electron 1
+        /// @param[in]	j	index for electron 2
+        /// @return		reference to the electron pair ij
+        ElectronPair& pair(const int i, const int j) {
+        	// since we return a reference the keyval must already exist in the map
+        	MADNESS_ASSERT(pairs.find(std::make_pair(i,j)) != pairs.end());
+        	return pairs.find(std::make_pair(i,j))->second;
         }
 
         /// return a checksum for the geometry
@@ -790,20 +794,18 @@ namespace madness {
 
         	// compute only one single pair
         	if ((param.i>-1) and (param.j>-1)) {
-                ElectronPair ij=solve_residual_equations(param.i,param.j);
-                correlation_energy+=ij.e_singlet+ij.e_triplet;
+                pair(param.i,param.j)=solve_residual_equations(param.i,param.j);
+                correlation_energy+=pair(param.i,param.j).e_singlet+pair(param.i,param.j).e_triplet;
 
             // solve the residual equations for all pairs ij
         	} else {
         		for (int i=param.freeze; i<hf->nocc(); ++i) {
         			for (int j=i; j<hf->nocc(); ++j) {
-        				int ij=make_ij(i,j);
-        				if (pairs[ij].converged) {
-							correlation_energy+=pairs[ij].e_singlet+pairs[ij].e_triplet;
+        				if (pair(i,j).converged) {
+							correlation_energy+=pair(i,j).e_singlet+pair(i,j).e_triplet;
         				} else {
-							ElectronPair pair=solve_residual_equations(i,j);
-							correlation_energy+=pair.e_singlet+pair.e_triplet;
-							pairs[ij]=pair;
+							pair(i,j)=solve_residual_equations(i,j);
+							correlation_energy+=pair(i,j).e_singlet+pair(i,j).e_triplet;
         				}
 					}
 				}
@@ -965,8 +967,6 @@ namespace madness {
         	return mapdim(f,map);
         }
 
-
-
 		void test() {
 		}
 		
@@ -1051,30 +1051,6 @@ namespace madness {
         }
 
     private:
-
-        /// helper function to map indices i, j to a pair index ij, with i<=j
-
-        /// distinguish between occupied (nocc), frozen occupied (freeze) and
-        /// active occupied (noct) orbitals; note the counting issue: if no orbitals
-        /// are frozen we start with correlating orbitals 0
-        /// @param[in]	i	orbital index 1, closed interval [freeze,nocc[
-        /// @param[in]	i	orbital index 2, closed interval [freeze,nocc[
-        /// @return 	ij	index pair in the open interval [0,noct*(noct+1)/2[
-        int make_ij(const int i, const int j) const {
-
-        	// nocc is the number of (frozen and active) orbitals
-            const int nocc=hf->nocc();
-            // freeze is the number of frozen orbitals
-            const int freeze=param.freeze;
-
-            MADNESS_ASSERT(i<nocc and j<nocc and i>=freeze and j>=freeze and i<=j);
-
-            int ij=0;
-            for (int ii=0; ii<i-freeze; ++ii) {ij+=(ii+1);}    // column index j: will yield ij=0,1,3,6
-            ij+=j-freeze;                                      // row index i
-
-            return ij;
-        }
 
         /// save a function
         template<typename T, size_t NDIM>
@@ -1250,30 +1226,30 @@ namespace madness {
         /// compute some matrix elements that don't change during the calculation
         ElectronPair make_pair(const int i, const int j) const {
 
-            ElectronPair pair=pairs[make_ij(i,j)];
+            ElectronPair p=ElectronPair(i,j);
 
             // some functions repeatedly used
             if (intermediates.r12phi.empty()) {
-                pair.r12phi=CompositeFactory<double,6,3>(world)
+                p.r12phi=CompositeFactory<double,6,3>(world)
                             .g12(corrfac.f())
                             .particle1(copy(hf->orbital(i)))
                             .particle2(copy(hf->orbital(j)));
-                pair.r12phi.fill_tree().truncate().reduce_rank();
-                save_function(pair.r12phi,"r12phi");
+                p.r12phi.fill_tree().truncate().reduce_rank();
+                save_function(p.r12phi,"r12phi");
             } else {
-            	load_function(pair.r12phi,intermediates.r12phi);
+            	load_function(p.r12phi,intermediates.r12phi);
             }
 
             // compute and store them if they have not been read from disk
-            if (pair.ij_gQf_ij==ElectronPair::uninitialized()) {
-				pair.ij_gQf_ij=compute_gQf(i,j,pair);
-				pair.ji_gQf_ij=0.0;
-				if (i!=j) pair.ji_gQf_ij=compute_gQf(j,i,pair);
-				pair.store_pair(world);
+            if (p.ij_gQf_ij==ElectronPair::uninitialized()) {
+				p.ij_gQf_ij=compute_gQf(i,j,p);
+				p.ji_gQf_ij=0.0;
+				if (i!=j) p.ji_gQf_ij=compute_gQf(j,i,p);
+				p.store_pair(world);
             }
 
             if (world.rank()==0) printf("done with matrix elements at time %.1fs\n\n", wall_time());
-            return pair;
+            return p;
         }
 
         /// compute the first iteration of the residual equations and all intermediates
