@@ -1,7 +1,7 @@
 #include <world/world.h>
 #include <utility>
 #include <tensor/tensor.h>
-#include <misc/systolic.h>
+#include <tensor/systolic.h>
 
 using namespace madness;
 

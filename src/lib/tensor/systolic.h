@@ -37,7 +37,7 @@
 #include <world/world.h>
 #include <utility>
 #include <tensor/tensor.h>
-#include <misc/distributed_matrix.h>
+#include <tensor/distributed_matrix.h>
 
 namespace madness {
 

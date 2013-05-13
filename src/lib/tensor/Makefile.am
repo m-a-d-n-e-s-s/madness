@@ -1,12 +1,13 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott
+bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic
 lib_LIBRARIES = libMADtensor.a
 
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h systolic.h \
+                        distributed_matrix.h
 
 test_SOURCES = test.cc
 test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
@@ -31,11 +32,15 @@ test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
 test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
+test_systolic_SOURCES = test_systolic.cc
+test_systolic_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
+
 libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \
                          \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
-                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h
+                        mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h systolic.h \
+                        distributed_matrix.h
 
 if USE_X86_64_ASM
   libMADtensor_a_SOURCES += mtxmq_asm.S mtxm_gen.h genmtxm.py
