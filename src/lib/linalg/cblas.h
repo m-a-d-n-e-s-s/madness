@@ -366,7 +366,7 @@ namespace cblas {
     /// \param m Rows in matrix \f$ \mathbf{A} \f$
     /// \param n Columns in matrix \f$ \mathbf{A} \f$
     /// \param alpha Scaling factor applied to \f$ \mathbf{x} \mathbf{y}^{\mathrm{T}} \f$
-    /// \param A Pointer to vector \f$ \mathbf{x} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
     /// \param incx Stride of vector \f$ \mathbf{x} \f$
     /// \param y Pointer to vector \f$ \mathbf{y} \f$
     /// \param incy Stride of vector \f$ \mathbf{y} \f$
@@ -399,6 +399,47 @@ namespace cblas {
         const integer incy, complex_real8 *A, const integer lda)
     {
         F77_ZGER(&m, &n, &alpha, x, &incx, y, &incy, A, &lda);
+    }
+    ///@}
+
+    /// Compute the dot product of vectors \f$ \mathbf{x} \f$ and \f$ \mathbf{y} \f$
+
+    /// \f[
+    /// u \leftarrow  \alpha \mathbf{x} \cdot \mathbf{y}
+    /// \f]
+    /// \param n Size of the vectors  \f$ \mathbf{x} \f$ and \f$ \mathbf{y} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride of vector \f$ \mathbf{x} \f$
+    /// \param y Pointer to vector \f$ \mathbf{y} \f$
+    /// \param incy Stride of vector \f$ \mathbf{y} \f$
+    /// \return \f$ \mathbf{x} \cdot \mathbf{y} \f$
+    ///@{
+    inline float dot(const integer n, const float* x, const integer incx,
+        const float* y, const integer incy)
+    {
+        return F77_SDOT(&n, x, &incx, y, &incy);
+    }
+
+    inline double dot(const integer n, const double* x, const integer incx,
+        const double* y, const integer incy)
+    {
+        return F77_DDOT(&n, x, &incx, y, &incy);
+    }
+
+    inline complex_real4 dot(const integer n, const complex_real4* x,
+        const integer incx, const complex_real4* y, const integer incy)
+    {
+        complex_real4 result(0.0, 0.0);
+        F77_CDOTU(&n, x, &incx, y, &incy, &result);
+        return result;
+    }
+
+    inline complex_real8 dot(const integer n, const complex_real8* x,
+        const integer incx, const complex_real8* y, const integer incy)
+    {
+        complex_real8 result(0.0, 0.0);
+        F77_ZDOTU(&n, x, &incy, y, &incy, &result);
+        return result;
     }
     ///@}
 
