@@ -7,10 +7,7 @@ thisincludedir = $(includedir)/linalg
 thisinclude_HEADERS = tensor_lapack.h clapack.h  lapack_functions.h \
                          solvers.cc solvers.h gmres.h elem.h
 
-# cblas.h and cblas.cc temporarily removed
-
-libMADlinalg_a_SOURCES = lapack.cc \
-                         \
+libMADlinalg_a_SOURCES = lapack.cc cblas.h \
                          tensor_lapack.h clapack.h  lapack_functions.h \
                          solvers.cc solvers.h elem.cc
 

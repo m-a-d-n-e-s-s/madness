@@ -46,6 +46,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 
 #include <world/posixmem.h>
 #include <world/safempi.h>
+#include <linalg/cblas.h>
 #include <tensor/mtxmq.h>
 #include <tensor/tensor.h>
 
@@ -54,21 +55,10 @@ typedef std::complex<double> double_complex;
 using namespace madness;
 
 #ifdef TIME_DGEMM
-#ifndef FORTRAN_INTEGER
-#define FORTRAN_INTEGER long
-#endif
-typedef FORTRAN_INTEGER integer;
-extern "C" void zgemm(const char *transa, const char *transb,
-                   const integer *m, const integer *n, const integer *k,
-                   const double_complex *alpha, const double_complex *a, const integer *lda,
-                   const double_complex *b, const integer *ldb, const double_complex *beta,
-                   double_complex *c, const integer *ldc, int la, int lb);
+
 void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
-  integer fni=ni;
-  integer fnj=nj;
-  integer fnk=nk;
   double_complex one=1.0;
-  zgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  madness::cblas::gemm(madness::cblas::NoTrans,madness::cblas::Trans,nj,ni,nk,one,b,nj,a,ni,one,c,nj);
 }
 
 #endif

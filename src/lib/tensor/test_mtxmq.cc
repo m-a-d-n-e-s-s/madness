@@ -47,6 +47,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 
 #include <world/safempi.h>
 #include <world/posixmem.h>
+#include <linalg/cblas.h>
 #include <tensor/tensor.h>
 #include <tensor/mtxmq.h>
 
@@ -54,21 +55,10 @@ using namespace madness;
 
 
 #ifdef TIME_DGEMM
-#ifndef FORTRAN_INTEGER
-#define FORTRAN_INTEGER MADNESS_FORINT
-#endif
-typedef FORTRAN_INTEGER integer;
-extern "C" void dgemm(const char *transa, const char *transb,
-                   const integer *m, const integer *n, const integer *k,
-                   const double *alpha, const double *a, const integer *lda,
-                   const double *b, const integer *ldb, const double *beta,
-                   double *c, const integer *ldc, int la, int lb);
+
 void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
-  integer fni=ni;
-  integer fnj=nj;
-  integer fnk=nk;
   double one=1.0;
-  dgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  cblas::gemm(cblas::NoTrans,cblas::Trans,nj,ni,nk,one,b,nj,a,ni,one,c,nj);
 }
 
 #endif

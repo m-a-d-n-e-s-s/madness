@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
+#include <linalg/cblas.h>
 
 #ifdef __bgp__
 extern "C" {
@@ -52,22 +53,12 @@ extern "C" void HPM_Print(void);          // print counters for all blocks
 extern "C" void HPM_Print_Flops(void);
 #endif
 
-#define DGEMM_FNAME dgemm_
-
-extern "C" void DGEMM_FNAME(const char *transa, const char *transb, const int *m, const int *n, const int *k,
-                            const double *alpha, const double *a, const int *lda,
-                            const double *b, const int *ldb, const double *beta,
-                            double *c, const int *ldc, int la, int lb);
-
 void mTxmq(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
 void mTxm_tune(long dimi, long dimj, long dimk, double* c, const double* a, const double* b);
 
 void mTxm_dgemm(long ni, long nj, long nk, double* c, const double* a, const double*b ) {
-  int fni=ni;
-  int fnj=nj;
-  int fnk=nk;
   double one=1.0;
-  DGEMM_FNAME("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  madness::cblas::gemm(madness::cblas::NoTrans,madness::cblas::Trans,nj,ni,nk,one,b,nj,a,ni,one,c,nj);
 }
 
 double ran()

@@ -1,22 +1,22 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
 
   Robert J. Harrison
@@ -24,60 +24,421 @@
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
 
-  email: harrisonrj@ornl.gov 
+  email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
 
-  
+
   $Id$
 */
 
-  
+
 #ifndef MADNESS_LINALG_CBLAS_H__INCLUDED
 #define MADNESS_LINALG_CBLAS_H__INCLUDED
 
 #include <fortran_ctypes.h>
+#include <madness_config.h>
+#include <world/worldexc.h>
 
-#ifdef FORTRAN_LINKAGE_LC
-#  define sgemm_ sgemm
-#  define dgemm_ dgemm
-#  define cgemm_ cgemm
-#  define zgemm_ zgemm
+#if defined(FORTRAN_LINKAGE_LC)
+
+#   define F77_SGEMM sgemm
+#   define F77_DGEMM dgemm
+#   define F77_CGEMM cgemm
+#   define F77_ZGEMM zgemm
+#   define F77_SGEMV sgemv
+#   define F77_DGEMV dgemv
+#   define F77_CGEMV cgemv
+#   define F77_ZGEMV zgemv
+#   define F77_SGER sger
+#   define F77_DGER dger
+#   define F77_CGER cger
+#   define F77_ZGER zger
+#   define F77_SSCAL sscal
+#   define F77_DSCAL dscal
+#   define F77_CSCAL cscal
+#   define F77_ZSCAL zscal
+#   define F77_CSSCAL csscal
+#   define F77_ZDSCAL zdscal
+#   define F77_SDOT sdot
+#   define F77_DDOT ddot
+#   define F77_CDOTU cdotu
+#   define F77_ZDOTU zdotu
+
+#elif defined(FORTRAN_LINKAGE_LCU)
+
+#   define F77_SGEMM sgemm_
+#   define F77_DGEMM dgemm_
+#   define F77_CGEMM cgemm_
+#   define F77_ZGEMM zgemm_
+#   define F77_SGEMV sgemv_
+#   define F77_DGEMV dgemv_
+#   define F77_CGEMV cgemv_
+#   define F77_ZGEMV zgemv_
+#   define F77_SGER sger_
+#   define F77_DGER dger_
+#   define F77_CGER cger_
+#   define F77_ZGER zger_
+#   define F77_SSCAL sscal_
+#   define F77_DSCAL dscal_
+#   define F77_CSCAL cscal_
+#   define F77_ZSCAL zscal_
+#   define F77_CSSCAL csscal_
+#   define F77_ZDSCAL zdscal_
+#   define F77_SDOT sdot_
+#   define F77_DDOT ddot_
+#   define F77_CDOTU cdotu_
+#   define F77_ZDOTU zdotu_
+
+#elif defined(FORTRAN_LINKAGE_LCUU)
+
+#   define F77_SGEMM  sgemm__
+#   define F77_DGEMM  dgemm__
+#   define F77_CGEMM  cgemm__
+#   define F77_ZGEMM  zgemm__
+#   define F77_SGEMV  sgemv__
+#   define F77_DGEMV  dgemv__
+#   define F77_CGEMV  cgemv__
+#   define F77_ZGEMV  zgemv__
+#   define F77_SGER   sger__
+#   define F77_DGER   dger__
+#   define F77_CGER   cger__
+#   define F77_ZGER   zger__
+#   define F77_SSCAL  sscal__
+#   define F77_DSCAL  dscal__
+#   define F77_CSCAL  cscal__
+#   define F77_ZSCAL  zscal__
+#   define F77_CSSCAL csscal__
+#   define F77_ZDSCAL zdscal__
+#   define F77_SDOT   sdot__
+#   define F77_DDOT   ddot__
+#   define F77_CDOTU  cdotu__
+#   define F77_ZDOTU  zdotu__
+
+#elif defined(FORTRAN_LINKAGE_UC)
+
+#   define F77_SGEMM  SGEMM
+#   define F77_DGEMM  DGEMM
+#   define F77_CGEMM  CGEMM
+#   define F77_ZGEMM  ZGEMM
+#   define F77_SGEMV  SGEMV
+#   define F77_DGEMV  DGEMV
+#   define F77_CGEMV  CGEMV
+#   define F77_ZGEMV  ZGEMV
+#   define F77_SGER   SGER
+#   define F77_DGER   DGER
+#   define F77_CGER   CGER
+#   define F77_ZGER   ZGER
+#   define F77_SSCAL  SSCAL
+#   define F77_DSCAL  DSCAL
+#   define F77_CSCAL  CSCAL
+#   define F77_ZSCAL  ZSCAL
+#   define F77_CSSCAL CSSCAL
+#   define F77_ZDSCAL ZDSCAL
+#   define F77_SDOT   SDOTU
+#   define F77_DDOT   DDOTU
+#   define F77_CDOTU  CDOTU
+#   define F77_ZDOTU  ZDOTU
+
+#elif defined(FORTRAN_LINKAGE_UCU)
+
+#   define F77_SGEMM  SGEMM_
+#   define F77_DGEMM  DGEMM_
+#   define F77_CGEMM  CGEMM_
+#   define F77_ZGEMM  ZGEMM_
+#   define F77_SGEMV  SGEMV_
+#   define F77_DGEMV  DGEMV_
+#   define F77_CGEMV  CGEMV_
+#   define F77_ZGEMV  ZGEMV_
+#   define F77_SGER   SGER_
+#   define F77_DGER   DGER_
+#   define F77_CGER   CGER_
+#   define F77_ZGER   ZGER_
+#   define F77_SSCAL  SSCAL_
+#   define F77_DSCAL  DSCAL_
+#   define F77_CSCAL  CSCAL_
+#   define F77_ZSCAL  ZSCAL_
+#   define F77_CSSCAL CSSCAL_
+#   define F77_ZDSCAL ZDSCAL_
+#   define F77_SDOT   SDOT_
+#   define F77_DDOT   DDOTSUB_
+#   define F77_CDOTU  CDOTU_
+#   define F77_ZDOTU  ZDOTU_
+
 #else
-  // only lowercase with zero and one underscores are handled -- if detected another convention complain loudly
-#  ifndef FORTRAN_LINKAGE_LCU
-#    error "cblas.h does not support the current Fortran symbol convention -- please, edit and check in the changes."
-#  endif
+// If detected another convention complain loudly.
+#   error "cblas.h does not support the current Fortran symbol convention -- please, edit and check in the changes."
 #endif
 
-extern "C" void dgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
-                       const real8 *alpha, const real8 *a, const integer *lda, const real8 *b, const integer *ldb,
-                       const real8 *beta, real8 *c, const integer *ldc, char_len opalen, char_len opblen);
+extern "C" {
 
-extern "C" void sgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
-                       const real4 *alpha, const real4 *a, const integer *lda, const real4 *b, const integer *ldb,
-                       const real4 *beta, real4 *c, const integer *ldc, char_len opalen, char_len opblen);
+    // BLAS _GEMM declarations
+    void F77_SGEMM(const char*, const char*, const integer*, const integer*,
+            const integer*, const float*, const float*, const integer*,
+            const float*, const integer*, const float*, float*, const integer*);
+    void F77_DGEMM(const char*, const char*, const integer*, const integer*,
+            const integer*, const double*, const double*, const integer*,
+            const double*, const integer*, const double*, double*, const integer*);
+    void F77_CGEMM(const char*, const char*, const integer*, const integer*,
+            const integer*, const complex_real4*, const complex_real4*,
+            const integer*, const complex_real4*, const integer*,
+            const complex_real4*, complex_real4*, const integer*);
+    void F77_ZGEMM(const char*, const char*, const integer*, const integer*,
+            const integer*, const complex_real8*, const complex_real8*,
+            const integer*, const complex_real8*, const integer*,
+            const complex_real8*, complex_real8*, const integer*);
 
-extern "C" void zgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
-                       const complex_real8 *alpha,
-                       const complex_real8 *a, const integer *lda, const complex_real8 *b, const integer *ldb,
-                       const complex_real8 *beta, complex_real8 *c, const integer *ldc,  char_len opalen, char_len opblen);
+    // BLAS _GEMV declarations
+    void F77_SGEMV(const char*, const integer*, const integer*, const float*,
+            const float*, const integer*, const float*, const integer*,
+            const float*, float*, const integer*);
+    void F77_DGEMV(const char*, const integer*, const integer*, const double*,
+            const double*, const integer*, const double*, const integer*,
+            const double*, double*, const integer*);
+    void F77_CGEMV(const char*, const integer*, const integer*, const complex_real4*,
+            const complex_real4*, const integer*, const complex_real4*,
+            const integer*, const complex_real4*, complex_real4*, const integer*);
+    void F77_ZGEMV(const char*, const integer*, const integer*, const complex_real8*,
+            const complex_real8*, const integer*, const complex_real8*,
+            const integer*, const complex_real8*, complex_real8*, const integer*);
 
-extern "C" void cgemm_(const char *opa, const char *opb, const integer *m, const integer *n, const integer *k,
-                       const complex_real4 *alpha,
-                       const complex_real4 *a, const integer *lda, const complex_real4 *b, const integer *ldb,
-                       const complex_real4 *beta, complex_real4 *c, const integer *ldc, char_len opalen, char_len opblen);
+    // BLAS _GER declarations
+    void F77_SGER(const integer*, const integer*, const float*, const float*,
+            const integer*, const float*, const integer*, float*, const integer*);
+    void F77_DGER(const integer*, const integer*, const double*, const double*,
+            const integer*, const double*, const integer*, double*, const integer*);
+    void F77_CGER(const integer*, const integer*, const complex_real4*,
+            const complex_real4*, const integer*, const complex_real4*,
+            const integer*, complex_real4*, const integer*);
+    void F77_ZGER(const integer*, const integer*, const complex_real8*,
+            const complex_real8*, const integer*, const complex_real8*,
+            const integer*, complex_real8*, const integer*);
+
+    // BLAS _SCAL declarations
+    void F77_SSCAL(const integer*, const float*, float*, const integer*);
+    void F77_DSCAL(const integer*, const double*, double*, const integer*);
+    void F77_CSCAL(const integer*, const complex_real4*, complex_real4*, const integer*);
+    void F77_CSSCAL(const integer*, const float*, complex_real4*, const integer*);
+    void F77_ZSCAL(const integer*, const complex_real8*, complex_real8*, const integer*);
+    void F77_ZDSCAL(const integer*, const double*, complex_real8*, const integer*);
+
+    // BLAS _DOT declarations
+    float F77_SDOT(const integer*, const float*, const integer*, const float*,
+            const integer*);
+    double F77_DDOT(const integer*, const double *, const integer*,
+            const double *, const integer*);
+    void F77_CDOTU(const integer*, const complex_real4*, const integer*,
+            const complex_real4*, const integer*, complex_real4*);
+    void F77_ZDOTU(const integer*, const complex_real8*, const integer*,
+            const complex_real8*, const integer*, complex_real8*);
+}
+
 
 namespace madness {
+namespace cblas {
 
-    /// BLAS gemm exists only for float, double, complex<float> and complex<double>
-    /// these types are defined in fortran_ctypes.h
+    /// Matrix operations for BLAS function calls
+    typedef enum {
+       NoTrans=0,
+       Trans=1,
+       ConjTrans=2,
+    }  CBLAS_TRANSPOSE;
 
-    template <typename T> void gemm(bool transa, bool transb,
-                                    integer m, integer n, integer k,
-                                    T alpha, const T* a, integer lda, const T*b, integer ldb,
-                                    T beta, T* c, integer ldc);
-}
+    /// Multiplies a matrix by a vector
+
+    /// \f[
+    /// \mathbf{C} \leftarrow \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{B}^{\mathrm{OpB}} + \beta \mathbf{C}
+    /// \f]
+    /// \param OpA Operation to be applied to matrix \f$ \mathbf{A} \f$
+    /// \param OpB Operation to be applied to matrix \f$ \mathbf{B} \f$
+    /// \param m Rows in matrix \f$ \mathbf{C} \f$
+    /// \param n Columns in matrix \f$ \mathbf{C} \f$
+    /// \param k Inner dimension size for matrices \f$ \mathbf{A} \f$ and \f$ \mathbf{B} \f$
+    /// \param alpha Scaling factor applied to \f$ \mathbf{A} \f$ \c * \f$ \mathbf{B} \f$
+    /// \param A Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param lda The size of the leading-order dimension of matrix \f$ \mathbf{A} \f$
+    /// \param B Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param ldb The size of the leading-order dimension of matrix \f$ \mathbf{B} \f$
+    /// \param beta Scaling factor for matrix \f$ \mathbf{C} \f$
+    /// \param C Pointer to matrix \f$ \mathbf{C} \f$
+    /// \param ldc The size of the leading-order dimension of matrix \f$ \mathbf{C} \f$
+    ///@{
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+            const integer m, const integer n, const integer k, const float alpha,
+            const float* a, const integer lda, const float* b, const integer ldb,
+            const float beta, float* c, const integer ldc)
+    {
+        MADNESS_ASSERT(OpA != ConjTrans);
+        MADNESS_ASSERT(OpB != ConjTrans);
+        static const char *op[] = { "n","t" };
+        F77_SGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+    }
+
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+            const integer m, const integer n, const integer k, const double alpha,
+            const double* a, const integer lda, const double* b, const integer ldb,
+            const double beta, double* c, const integer ldc) {
+        MADNESS_ASSERT(OpA != ConjTrans);
+        MADNESS_ASSERT(OpB != ConjTrans);
+        static const char *op[] = { "n","t" };
+        F77_DGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+    }
+
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+            const integer m, const integer n, const integer k,
+            const complex_real4 alpha, const complex_real4* a, const integer lda,
+            const complex_real4* b, const integer ldb, const complex_real4 beta,
+            complex_real4* c, const integer ldc)
+    {
+      static const char *op[] = { "n","t","c" };
+      F77_CGEMM(op[0], op[0], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+    }
+
+    inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
+            const integer m, const integer n, const integer k,
+            const complex_real8 alpha, const complex_real8* a, const integer lda,
+            const complex_real8* b, const integer ldb, const complex_real8 beta,
+            complex_real8* c, const integer ldc) {
+      static const char *op[] = { "n","t","c" };
+      F77_ZGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+    }
+    ///@}
+
+    /// Multiplies a matrix by a vector
+
+    /// \f[
+    /// \mathbf{y} \leftarrow  \alpha \mathbf{A}^{\mathrm{OpA}} \mathbf{x} + \beta \mathbf{y}
+    /// \f]
+    /// \param OpA Operation to be applied to matrix \f$ \mathbf{A} \f$
+    /// \param m Rows in matrix \f$ \mathbf{A} \f$
+    /// \param n Columns in matrix \f$ \mathbf{A} \f$
+    /// \param alpha Scaling factor applied to \f$ \mathbf{A} \f$ \c * \f$ \mathbf{x} \f$
+    /// \param A Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param lda The size of the leading-order dimension of matrix \f$ \mathbf{A} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride of vector \f$ \mathbf{x} \f$
+    /// \param beta Scaling factor for vector \f$ \mathbf{y} \f$
+    /// \param y Pointer to vector \f$ \mathbf{y} \f$
+    /// \param incy Stride of vector \f$ \mathbf{y} \f$
+    ///@{
+    inline void gemv(const CBLAS_TRANSPOSE OpA, const integer m, const integer n,
+       const float alpha, const float *A, const integer lda, const float *x,
+       const integer incx, const float beta, float *y, const integer incy)
+    {
+        MADNESS_ASSERT(OpA != ConjTrans);
+        static const char *op[] = { "n","t" };
+        F77_SGEMV(op[OpA], &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy);
+    }
+
+    inline void gemv(const CBLAS_TRANSPOSE OpA, const integer m, const integer n,
+       const double alpha, const double *A, const integer lda, const double *x,
+       const integer incx, const double beta, double *y, const integer incy)
+    {
+        MADNESS_ASSERT(OpA != ConjTrans);
+        static const char *op[] = { "n","t" };
+        F77_DGEMV(op[OpA], &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy);
+    }
+
+    inline void gemv(const CBLAS_TRANSPOSE OpA, const integer m, const integer n,
+       const complex_real4 alpha, const complex_real4 *A, const integer lda,
+       const complex_real4 *x, const integer incx, const complex_real4 beta,
+       complex_real4 *y, const integer incy)
+    {
+        static const char *op[] = { "n","t","c" };
+        F77_CGEMV(op[OpA], &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy);
+    }
+
+    inline void gemv(const CBLAS_TRANSPOSE OpA, const integer m, const integer n,
+       const complex_real8 alpha, const complex_real8 *A, const integer lda,
+       const complex_real8 *x, const integer incx, const complex_real8 beta,
+       complex_real8 *y, const integer incy)
+    {
+        static const char *op[] = { "n","t","c" };
+        F77_ZGEMV(op[OpA], &m, &n, &alpha, A, &lda, x, &incx, &beta, y, &incy);
+    }
+    ///@}
+
+    /// Multiplies vector \f$ \mathbf{x} \f$ by the transform of vector \f$ \mathbf{y} \f$
+
+    /// \f[
+    /// \mathbf{A} \leftarrow  \alpha \mathbf{x} \mathbf{y}^{\mathrm{T}} + \mathbf{A}
+    /// \f]
+    /// \param m Rows in matrix \f$ \mathbf{A} \f$
+    /// \param n Columns in matrix \f$ \mathbf{A} \f$
+    /// \param alpha Scaling factor applied to \f$ \mathbf{x} \mathbf{y}^{\mathrm{T}} \f$
+    /// \param A Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride of vector \f$ \mathbf{x} \f$
+    /// \param y Pointer to vector \f$ \mathbf{y} \f$
+    /// \param incy Stride of vector \f$ \mathbf{y} \f$
+    /// \param A Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param lda The size of the leading-order dimension of matrix \f$ \mathbf{A} \f$
+    ///@{
+    inline void ger(const integer m, const integer n, const float alpha,
+        const float *x, const integer incx, const float *y, const integer incy,
+        float *A, const integer lda)
+    {
+        F77_SGER(&m, &n, &alpha, x, &incx, y, &incy, A, &lda);
+    }
+
+    inline void ger(const integer m, const integer n, const double alpha,
+        const double *x, const integer incx, const double *y, const integer incy,
+        double *A, const integer lda)
+    {
+        F77_DGER(&m, &n, &alpha, x, &incx, y, &incy, A, &lda);
+    }
+
+    inline void ger(const integer m, const integer n, const complex_real4 alpha,
+        const complex_real4 *x, const integer incx, const complex_real4 *y,
+        const integer incy, complex_real4 *A, const integer lda)
+    {
+        F77_CGER(&m, &n, &alpha, x, &incx, y, &incy, A, &lda);
+    }
+
+    inline void ger(const integer m, const integer n, const complex_real8 alpha,
+        const complex_real8 *x, const integer incx, const complex_real8 *y,
+        const integer incy, complex_real8 *A, const integer lda)
+    {
+        F77_ZGER(&m, &n, &alpha, x, &incx, y, &incy, A, &lda);
+    }
+    ///@}
+
+    /// Scale a vector
+
+    /// \f[
+    /// \mathbf{x} \leftarrow \alpha \mathbf{x}
+    /// \f]
+    /// \param n The size of the vector
+    /// \param alpha The scaling factor for vector \f$ \mathbf{x} \f$
+    /// \param x Pointer to vector \f$ \mathbf{x} \f$
+    /// \param incx Stride for vector \f$ \mathbf{x} \f$
+    ///@{
+    inline void scal(const integer n, const float alpha, float* x, const integer incx) {
+      F77_SSCAL(&n, &alpha, x, &incx);
+    }
+
+    inline void scal(const integer n, const double alpha, double* x, const integer incx) {
+      F77_DSCAL(&n, &alpha, x, &incx);
+    }
+
+    inline void scal(const integer n, const complex_real4 alpha, complex_real4* x, const integer incx) {
+      F77_CSCAL(&n, &alpha, x, &incx);
+    }
+
+    inline void scal(const integer n, const complex_real8 alpha, complex_real8* x, const integer incx) {
+      F77_ZSCAL(&n, &alpha, x, &incx);
+    }
+
+    inline void scal(const integer n, const float alpha, complex_real4* x, const integer incx) {
+      F77_CSSCAL(&n, &alpha, x, &incx);
+    }
+
+    inline void scal(const integer n, const double alpha, complex_real8* x, const integer incx) {
+      F77_ZDSCAL(&n, &alpha, x, &incx);
+    }
+    ///@}
+
+} // namespace cblas
+} // namespace madness
 
 #endif // MADNESS_LINALG_CBLAS_H__INCLUDED
 
