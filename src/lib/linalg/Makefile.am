@@ -4,7 +4,7 @@ bin_PROGRAMS = test  test_solvers test_elemental
 lib_LIBRARIES = libMADlinalg.a
 
 thisincludedir = $(includedir)/linalg
-thisinclude_HEADERS = tensor_lapack.h clapack.h  lapack_functions.h \
+thisinclude_HEADERS = tensor_lapack.h cblas.h clapack.h  lapack_functions.h \
                          solvers.cc solvers.h gmres.h elem.h
 
 libMADlinalg_a_SOURCES = lapack.cc cblas.h \
