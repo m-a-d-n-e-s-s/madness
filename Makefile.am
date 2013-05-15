@@ -9,3 +9,11 @@ doc:
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+
+
+.PHONY: world install-world
+world:
+	cd src/lib/world && $(MAKE) libraries
+
+install-world: world
+	cd src/lib/world && $(MAKE) install-libLIBRARIES install-thisincludeHEADERS
