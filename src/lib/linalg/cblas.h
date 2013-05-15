@@ -36,6 +36,10 @@
 #ifndef MADNESS_LINALG_CBLAS_H__INCLUDED
 #define MADNESS_LINALG_CBLAS_H__INCLUDED
 
+/// \file cblas.h
+/// \brief Define BLAS like functions
+
+
 #include <fortran_ctypes.h>
 #include <madness_config.h>
 #include <world/worldexc.h>
@@ -241,7 +245,7 @@ namespace cblas {
     typedef enum {
        NoTrans=0,
        Trans=1,
-       ConjTrans=2,
+       ConjTrans=2
     }  CBLAS_TRANSPOSE;
 
     /// Multiplies a matrix by a vector
@@ -255,12 +259,12 @@ namespace cblas {
     /// \param n Columns in matrix \f$ \mathbf{C} \f$
     /// \param k Inner dimension size for matrices \f$ \mathbf{A} \f$ and \f$ \mathbf{B} \f$
     /// \param alpha Scaling factor applied to \f$ \mathbf{A} \f$ \c * \f$ \mathbf{B} \f$
-    /// \param A Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param a Pointer to matrix \f$ \mathbf{A} \f$
     /// \param lda The size of the leading-order dimension of matrix \f$ \mathbf{A} \f$
-    /// \param B Pointer to matrix \f$ \mathbf{A} \f$
+    /// \param b Pointer to matrix \f$ \mathbf{A} \f$
     /// \param ldb The size of the leading-order dimension of matrix \f$ \mathbf{B} \f$
     /// \param beta Scaling factor for matrix \f$ \mathbf{C} \f$
-    /// \param C Pointer to matrix \f$ \mathbf{C} \f$
+    /// \param c Pointer to matrix \f$ \mathbf{C} \f$
     /// \param ldc The size of the leading-order dimension of matrix \f$ \mathbf{C} \f$
     ///@{
     inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
@@ -291,7 +295,7 @@ namespace cblas {
             complex_real4* c, const integer ldc)
     {
       static const char *op[] = { "n","t","c" };
-      F77_CGEMM(op[0], op[0], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
+      F77_CGEMM(op[OpA], op[OpB], &m, &n, &k, &alpha, a, &lda, b, &ldb, &beta, c, &ldc);
     }
 
     inline void gemm(const CBLAS_TRANSPOSE OpA, const CBLAS_TRANSPOSE OpB,
@@ -412,7 +416,7 @@ namespace cblas {
     /// \param incx Stride of vector \f$ \mathbf{x} \f$
     /// \param y Pointer to vector \f$ \mathbf{y} \f$
     /// \param incy Stride of vector \f$ \mathbf{y} \f$
-    /// \return \f$ \mathbf{x} \cdot \mathbf{y} \f$
+    /// \return The dot product of \c x and \c y
     ///@{
     inline float dot(const integer n, const float* x, const integer incx,
         const float* y, const integer incy)
@@ -438,7 +442,7 @@ namespace cblas {
         const integer incx, const complex_real8* y, const integer incy)
     {
         complex_real8 result(0.0, 0.0);
-        F77_ZDOTU(&n, x, &incy, y, &incy, &result);
+        F77_ZDOTU(&n, x, &incx, y, &incy, &result);
         return result;
     }
     ///@}
