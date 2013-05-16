@@ -21,3 +21,6 @@ libMADmuparser_a_SOURCES = muParserBase.cpp muParserBytecode.cpp \
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+
+install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

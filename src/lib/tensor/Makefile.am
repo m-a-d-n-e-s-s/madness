@@ -74,3 +74,6 @@ tensoriter_spec.h tensor_spec.h:	tempspec.py
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+
+install-libraries: install-libLIBRARIES install-thisincludeHEADERS
+	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
