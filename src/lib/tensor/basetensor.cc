@@ -47,7 +47,7 @@
 namespace madness {
 
 #ifdef TENSOR_INSTANCE_COUNT
-    MADATOMIC_INT BaseTensor::instance_count;
+  madness::AtomicInt BaseTensor::instance_count;
 #endif
 
 
