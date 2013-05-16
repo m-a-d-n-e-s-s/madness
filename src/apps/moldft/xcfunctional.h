@@ -55,12 +55,12 @@ protected:
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
 
     /// \f[
-    ///  f(x,x_{min},x_{max}) = \left\{
-    /// \begin{array}{ll}
-    ///   x_{min} & x < x_{min}  \
-    ///   p(x,x_{min},x_{max}) &  x_{min} \leq x \leq x_{max} \
-    ///   x & x_{max} < x
-    /// \end{array}
+    /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
+    ///   \begin{array}{ll}
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}                   \\
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    ///     x                                      & x_{\mathrm{max}} < x
+    ///   \end{array}
     /// \right.
     /// \f]
     /// where \f$p(x)\f$ is the unique quintic polynomial that
