@@ -158,7 +158,7 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     /// Sleep or spin for specified no. of microseconds
 
     /// Wrapper to ensure desired behavior (and what is that one might ask??)
-    static inline void myusleep(int us) {
+    static inline void myusleep(unsigned int us) {
 #if defined(HAVE_CRAYXT)
         double secs = us*1e-6;
         double start = cpu_time();

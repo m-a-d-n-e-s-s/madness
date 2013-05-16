@@ -60,14 +60,14 @@ namespace madness {
         const char *filename;
 
         // Capturing the line/function/filename info is best done with the macros below
-        MadnessException(const char* msg, const char *assertion, int value,
-                         int line, const char *function, const char *file)
-                : msg(msg)
-                , assertion(assertion)
-                , value(value)
-                , line(line)
-                , function(function)
-                , filename(file) {};
+        MadnessException(const char* m, const char *a, int v,
+                         int l, const char *fn, const char *f)
+                : msg(m)
+                , assertion(a)
+                , value(v)
+                , line(l)
+                , function(fn)
+                , filename(f) {}
 
         virtual const char* what() const throw() {
             return msg;
