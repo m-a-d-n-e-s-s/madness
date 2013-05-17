@@ -96,7 +96,7 @@ namespace madness {
 
             /// Identify function and member function pointers
 
-            /// \tparam T The function to identify
+            /// \tparam fnT The function to identify
             template <typename fnT>
             struct is_func_ptr {
                 static const bool value =
@@ -587,25 +587,14 @@ namespace madness {
 
         /// Spawn a local task
 
-        /// Spawns a task on process \c where , which may or may not be this
-        /// process.  An argument that is a future may be used to carry
-        /// dependencies for local tasks.  An unready future cannot be used as
-        /// an argument for a remote tasks -- i.e., remote  tasks must be ready
-        /// to execute (you can work around this by making a local task to
-        /// submit the remote task once everything is ready).
-        /// \tparam functionT A function pointer or functor
-        /// \param where The process where the task will be spawned
-        /// \param function The function to be called in the task
+        /// Spawns a task on on process.  An argument that is a future may be
+        /// used to carry dependencies tasks.
+        /// \tparam fnT A function pointer or functor
+        /// \param fn The function to be called in the task
         /// \param attr The task attributes
         /// \return A future to the task function's results. If the task function
         /// return type is \c void , a \c Future<void> object is return that may
         /// be ignored.
-        /// \note Arguments must be (de)serializable and must of course make
-        /// sense at the remote destination.  Fundamental types,
-        /// simple STL containers, and pointers to World,
-        /// WorldContainer, and user-defined types derived from
-        /// WorldObject<> are automatically handled.  Anything else is
-        /// your problem.
         template <typename fnT>
         typename detail::function_enabler<fnT>::type
         add(fnT fn, const TaskAttributes& attr=TaskAttributes()) {
@@ -713,13 +702,24 @@ namespace madness {
         /// Spawn a remote task
 
         /// Spawns a task on process \c dest , which may or may not be this
-        /// process.
+        /// process. An argument that is a future may be used to carry
+        /// dependencies for local tasks. An future that is not ready cannot be
+        /// used as an argument for a remote tasks -- i.e., remote  tasks must
+        /// be ready to execute (you can work around this by making a local task
+        /// to submit the remote task once everything is ready).
+        /// \tparam fnT A function pointer or functor type
         /// \param dest The process where the task will be spawned
         /// \param fn The function to be called in the task
         /// \param attr The task attributes
         /// \return A future to the task function's results. If the task function
         /// return type is \c void , a \c Future<void> object is return that may
         /// be ignored.
+        /// \note Arguments must be (de)serializable and must of course make
+        /// sense at the remote destination.  Fundamental types,
+        /// simple STL containers, and pointers to World,
+        /// WorldContainer, and user-defined types derived from
+        /// WorldObject<> are automatically handled.  Anything else is
+        /// your problem.
         template <typename fnT>
         typename detail::function_enabler<fnT>::type
         add(ProcessID dest, fnT fn, const TaskAttributes& attr=TaskAttributes())

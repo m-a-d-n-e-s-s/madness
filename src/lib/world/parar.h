@@ -56,12 +56,12 @@ namespace madness {
         /// Templated by the local archive (only tested for BinaryFstream(In/Out)putArchive).
         template <typename Archive>
         class BaseParallelArchive {
-            World* world;       //< Yep, the world.
-            mutable Archive ar; //< The local archive
-            int nio;            //< Number of IO nodes (always includes node zero)
-            bool do_fence;      //< If true (default) read/write of parallel objects fence before and after IO
-            char fname[256];    //< Name of the archive
-            int nclient;        //< Number of clients of this node including self.  Zero if not IO node.
+            World* world;       ///< Yep, the world.
+            mutable Archive ar; ///< The local archive
+            int nio;            ///< Number of IO nodes (always includes node zero)
+            bool do_fence;      ///< If true (default) read/write of parallel objects fence before and after IO
+            char fname[256];    ///< Name of the archive
+            int nclient;        ///< Number of clients of this node including self.  Zero if not IO node.
 
         public:
             static const bool is_parallel_archive = true;

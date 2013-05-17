@@ -267,9 +267,9 @@ namespace madness {
 
     /// Used to pass info about thread environment into users task
     class TaskThreadEnv {
-        const int _nthread; //< No. of threads collaborating on task
-        const int _id;      //< Id of this thread (0,...,nthread-1)
-        Barrier* _barrier;  //< Pointer to shared barrier, null if single thread
+        const int _nthread; ///< No. of threads collaborating on task
+        const int _id;      ///< Id of this thread (0,...,nthread-1)
+        Barrier* _barrier;  ///< Pointer to shared barrier, null if single thread
 
     public:
         TaskThreadEnv(int nthread, int id, Barrier* barrier)
@@ -619,8 +619,8 @@ namespace madness {
         friend class ThreadPool;
 
     private:
-        Barrier* barrier;     //< Barrier, only allocated for multithreaded tasks
-    	AtomicInt count;  //< Used to count threads as they start
+        Barrier* barrier;     ///< Barrier, only allocated for multithreaded tasks
+    	AtomicInt count;  ///< Used to count threads as they start
 
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_;

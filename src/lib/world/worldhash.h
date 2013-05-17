@@ -228,10 +228,13 @@ namespace madness {
     /// \endcode
     /// or you can specialize this functor directly.
     /// \tparam T The object type to hash
-    /// \param t The object to be hashed
-    /// \return The hashed value
     template <typename T>
     struct Hash {
+
+        /// Hashing function wrapper
+
+        /// \param t The object to be hashed
+        /// \return The hashed value
         hashT operator()(const T& t) const {
             return hash_value(t);
         }
@@ -311,7 +314,6 @@ namespace madness {
     /// Combine the hash values of a pointer range
 
     /// \tparam T The type to be hashed
-    /// \tparam n The size of the C-style array
     /// \param[in,out] seed The initial hash seed value
     /// \param[in] t A pointer to the beginning of the range to be hashed
     /// \param[in] n The number of elements to hashed
@@ -330,7 +332,6 @@ namespace madness {
     /// Combine the hash values of a pointer range
 
     /// \tparam T The type to be hashed
-    /// \tparam n The size of the C-style array
     /// \param[in,out] seed The initial hash seed value
     /// \param[in] t A pointer to the beginning of the range to be hashed
     /// \param[in] n The number of elements to hashed
@@ -343,7 +344,6 @@ namespace madness {
     /// Combine the hash values of a pointer range
 
     /// \tparam T The type to be hashed
-    /// \tparam n The size of the C-style array
     /// \param t A pointer to the beginning of the range to be hashed
     /// \param n The number of elements to hashed
     /// \return The hashed pointer range value

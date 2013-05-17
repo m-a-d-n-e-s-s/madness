@@ -142,7 +142,7 @@ namespace madness {
 
     /// The pointer passed to the defered deleter will be deleted with the
     /// \c delete operator.
-    /// \tparam T The pointer type that the deleter function will delete
+    /// \tparam ptrT The pointer type that the deleter function will delete
     /// pointer type.
     /// \param w The world object that will be responsible for deleting the
     /// pointer at global sync points.
