@@ -1923,6 +1923,122 @@ namespace madness {
             return transform(coeff,cdata.quad_phit).scale(scale);
         }
 
+        /// convert S or NS coeffs to values on a 2k grid of the children
+
+        /// equivalent to unfiltering the NS coeffs and then converting all child S-coeffs
+        /// to values in their respective boxes. If only S coeffs are provided d coeffs are
+        /// assumed to be zero. Reverse operation to values2NScoeffs().
+        /// @param[in]	key	the key of the current S or NS coeffs, level n
+        /// @param[in]	coeff coeffs in S or NS form; if S then d coeffs are assumed zero
+        /// @param[in]	s_only	sanity check to avoid unintended discard of d coeffs
+        /// @return		function values on the quadrature points of the children of child (!)
+        template <typename Q>
+        GenTensor<Q> NScoeffs2values(const keyT& key, const GenTensor<Q>& coeff,
+        		const bool s_only) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            // sanity checks
+            MADNESS_ASSERT((coeff.dim(0)==this->get_k()) == s_only);
+            MADNESS_ASSERT((coeff.dim(0)==this->get_k()) or (coeff.dim(0)==2*this->get_k()));
+
+            // this is a block-diagonal matrix with the quadrature points on the diagonal
+            Tensor<double> quad_phit_2k(2*cdata.k,2*cdata.npt);
+            quad_phit_2k(cdata.s[0],cdata.s[0])=cdata.quad_phit;
+            quad_phit_2k(cdata.s[1],cdata.s[1])=cdata.quad_phit;
+
+            // the transformation matrix unfilters (cdata.hg) and transforms to values in one step
+            const Tensor<double> transf = (s_only)
+            		? inner(cdata.hg(Slice(0,k-1),_),quad_phit_2k)	// S coeffs
+            		: inner(cdata.hg,quad_phit_2k);					// NS coeffs
+
+            // increment the level since the coeffs2values part happens on level n+1
+            const double scale = pow(2.0,0.5*NDIM*(key.level()+1))/
+            		sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+
+            return transform(coeff,transf).scale(scale);
+        }
+
+        /// Compute the function values for multiplication
+
+        /// Given S or NS coefficients from a parent cell, compute the value of
+        /// the functions at the quadrature points of a child
+        /// currently restricted to special cases
+        /// @param[in]	child	key of the box in which we compute values
+        /// @param[in]	parent	key of the parent box holding the coeffs
+        ///	@param[in]	coeff	coeffs of the parent box
+        /// @param[in]	s_only	sanity check to avoid unintended discard of d coeffs
+        /// @return		function values on the quadrature points of the children of child (!)
+        template <typename Q>
+        GenTensor<Q> NS_fcube_for_mul(const keyT& child, const keyT& parent,
+        		const GenTensor<Q>& coeff, const bool s_only) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            // sanity checks
+            MADNESS_ASSERT((coeff.dim(0)==this->get_k()) == s_only);
+            MADNESS_ASSERT((coeff.dim(0)==this->get_k()) or (coeff.dim(0)==2*this->get_k()));
+
+            // fast return if possible
+//            if (child.level()==parent.level()) return NScoeffs2values(child,coeff,s_only);
+
+            if (s_only) {
+
+				Tensor<double> quad_phi[NDIM];
+				// tmp tensor
+				Tensor<double> phi1(cdata.k,cdata.npt);
+
+				for (std::size_t d=0; d<NDIM; ++d) {
+
+					// input is S coeffs (dimension k), output is values on 2*npt grid points
+					quad_phi[d]=Tensor<double>(cdata.k,2*cdata.npt);
+
+					// for both children of "child" evaluate the Legendre polynomials
+					// first the left child on level n+1 and translations 2l
+					phi_for_mul(parent.level(),parent.translation()[d],
+								child.level()+1, 2*child.translation()[d], phi1);
+					quad_phi[d](_,Slice(0,k-1))=phi1;
+
+					// next the right child on level n+1 and translations 2l+1
+					phi_for_mul(parent.level(),parent.translation()[d],
+								child.level()+1, 2*child.translation()[d]+1, phi1);
+					quad_phi[d](_,Slice(k,2*k-1))=phi1;
+				}
+
+				const double scale = 1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+				return general_transform(coeff,quad_phi).scale(scale);
+            }
+            MADNESS_EXCEPTION("you should not be here in NS_fcube_for_mul",1);
+            return GenTensor<Q>();
+        }
+
+        /// convert function values of the a child generation directly to NS coeffs
+
+        /// equivalent to converting the function values to 2^NDIM S coeffs and then
+        /// filtering them to NS coeffs. Reverse operation to NScoeffs2values().
+        /// @param[in]	key		key of the parent of the generation
+        /// @param[in]	values	tensor holding function values of the 2^NDIM children of key
+        /// @return		NS coeffs belonging to key
+        template <typename Q>
+        GenTensor<Q> values2NScoeffs(const keyT& key, const GenTensor<Q>& values) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+
+            // sanity checks
+            MADNESS_ASSERT(values.dim(0)==2*this->get_k());
+
+            // this is a block-diagonal matrix with the quadrature points on the diagonal
+            Tensor<double> quad_phit_2k(2*cdata.npt,2*cdata.k);
+            quad_phit_2k(cdata.s[0],cdata.s[0])=cdata.quad_phiw;
+            quad_phit_2k(cdata.s[1],cdata.s[1])=cdata.quad_phiw;
+
+            // the transformation matrix unfilters (cdata.hg) and transforms to values in one step
+            const Tensor<double> transf=inner(quad_phit_2k,cdata.hgT);
+
+            // increment the level since the values2coeffs part happens on level n+1
+            const double scale = pow(0.5,0.5*NDIM*(key.level()+1))
+            		*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+
+            return transform(values,transf).scale(scale);
+        }
+
         template <typename Q>
         Tensor<Q> coeffs2values(const keyT& key, const Tensor<Q>& coeff) const {
             PROFILE_MEMBER_FUNC(FunctionImpl);
@@ -1968,7 +2084,6 @@ namespace madness {
                 return general_transform(coeff,phi).scale(1.0/sqrt(FunctionDefaults<NDIM>::get_cell_volume()));;
             }
         }
-
 
         /// Compute the function values for multiplication
 
@@ -3256,8 +3371,8 @@ namespace madness {
             /// return true if this will be a leaf node
 
             /// use generalization of tnorm for a GenTensor
-            bool screen(coeffT& fcoeff, const coeffT& gcoeff) const {
-                double glo, ghi, flo, fhi;
+            bool screen(const coeffT& fcoeff, const coeffT& gcoeff, const keyT& key) const {
+                double glo=0.0, ghi=0.0, flo=0.0, fhi=0.0;
                 MADNESS_ASSERT(gcoeff.tensor_type()==TT_FULL);
                 g.get_impl()->tnorm(gcoeff.full_tensor(), &glo, &ghi);
 
@@ -3274,7 +3389,7 @@ namespace madness {
                     fhi+=hi*fcoeff.config().weights(i);
                 }
                 double total_hi=glo*fhi + ghi*flo + fhi*ghi;
-                return (total_hi<(h->get_thresh()));
+                return (total_hi<h->truncate_tol(h->get_thresh(),key));
 
             }
 
@@ -3299,7 +3414,7 @@ namespace madness {
 
                 coeffT hcoeff;
 
-                bool is_leaf=screen(coeff1,coeff2);
+                bool is_leaf=screen(coeff1,coeff2,key);
                 if (key.level()<2) is_leaf=false;
 
                 if (is_leaf) {
@@ -3326,6 +3441,91 @@ namespace madness {
                 }
 
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
+            }
+
+            this_type make_child(const keyT& child) const {
+
+                // break key into particles
+                Key<LDIM> key1, key2;
+                child.break_apart(key1,key2);
+                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
+
+                return this_type(h,f.make_child(child),g.make_child(gkey),particle);
+            }
+
+            Future<this_type> activate() const {
+            	Future<ctT> f1=f.activate();
+            	Future<ctL> g1=g.activate();
+                return h->world.taskq.add(*const_cast<this_type *> (this),
+                        &this_type::forward_ctor,h,f1,g1,particle);
+            }
+
+            this_type forward_ctor(implT* h1, const ctT& f1, const ctL& g1, const int particle) {
+            	return this_type(h1,f1,g1,particle);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                ar & h & f & g;
+            }
+        };
+
+
+        /// perform this multiplication: h(1,2) = f(1,2) * g(1)
+        template<size_t LDIM>
+        struct multiply_op2 {
+
+        	static bool randomize() {return false;}
+        	typedef CoeffTracker<T,NDIM> ctT;
+        	typedef CoeffTracker<T,LDIM> ctL;
+        	typedef FunctionImpl<T,LDIM> implL;
+        	typedef multiply_op2<LDIM> this_type;
+
+            implT* h;     ///< the result function h(1,2) = f(1,2) * g(1)
+            ctT f;
+            ctL g;
+            int particle;       ///< if g is g(1) or g(2)
+
+            multiply_op2() : particle(1) {}
+
+            multiply_op2(implT* h, const ctT& f, const ctL& g, const int particle)
+                : h(h), f(f), g(g), particle(particle) {
+            };
+
+            /// apply this on a FunctionNode of f and g of Key key
+
+            /// @param[in]  key key for FunctionNode in f and g, (g: broken into particles)
+            /// @return <this node is a leaf, coefficients of this node>
+            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
+
+                // break key into particles (these are the child keys, with f/gdatum come the parent keys)
+                Key<LDIM> key1,key2;
+                key.break_apart(key1,key2);
+                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
+
+                const implT* fimpl=f.get_impl();
+                const implL* gimpl=g.get_impl();
+
+                // compute the function values of the hi-dim function f at key
+                bool f_is_leaf=(f.coeff().dim(0)==fimpl->get_k());
+                coeffT fvalues=fimpl->NS_fcube_for_mul(key,f.key(),f.coeff(),f_is_leaf);
+
+                // compute the function values of the lo-dim function g at key
+                bool g_is_leaf=(g.coeff().dim(0)==gimpl->get_k());
+                coeffT gvalues=gimpl->NS_fcube_for_mul(gkey,g.key(),g.coeff(),g_is_leaf);
+
+                // multiply f and g to yield h
+                const coeffT hvalues=fimpl->multiply(fvalues,gvalues,particle-1);
+                coeffT hcoeff=fimpl->values2NScoeffs(key,hvalues);
+
+                // determine error thru d coeffs
+                const coeffT sum_coeff=hcoeff(fimpl->get_cdata().s0);
+                hcoeff.scale(-1.0)+=sum_coeff;
+                const double error=hcoeff.normf();
+
+                bool is_leaf=(error<h->truncate_tol(h->get_thresh(),key));
+                if (key.level()<2) is_leaf=false;
+
+                return std::pair<bool,coeffT> (is_leaf,sum_coeff);
             }
 
             this_type make_child(const keyT& child) const {

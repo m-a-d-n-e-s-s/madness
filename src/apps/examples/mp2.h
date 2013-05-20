@@ -884,8 +884,9 @@ namespace madness {
 				tmp=Q12(constant_term+tmp);
 
 				// check convergence
-				const double fnorm=tmp.norm2();
 				const double rnorm=(result.function-tmp).norm2();
+				const double old_fnorm=result.function.norm2();
+				const double fnorm=tmp.norm2();
 				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
 						fnorm,rnorm);
 
@@ -893,7 +894,8 @@ namespace madness {
 				double old_energy=energy;
 				energy=compute_energy(result);
 
-				if (std::abs(old_energy-energy)<result.function.thresh()*0.01) result.converged=true;
+				result.converged=((std::abs(old_energy-energy)<result.function.thresh()*0.01)
+						and (std::abs(old_fnorm-fnorm)<result.function.thresh()*0.1));
 				result.store_pair(world);
 
 				if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
@@ -1668,10 +1670,11 @@ namespace madness {
             if (world.rank()==0) printf("start multiplication before K at time %.1f\n",wall_time());
 
             // multiply the orbital to the pair function
-            real_function_6d x=(particle==1)
-            		? CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle1(copy(orbital))
-            		: CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle2(copy(orbital));
-            x.fill_tree().truncate();
+//            real_function_6d x=(particle==1)
+//            		? CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle1(copy(orbital))
+//            		: CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle2(copy(orbital));
+//            x.fill_tree().truncate();
+            real_function_6d x=multiply(copy(f),copy(orbital),particle).truncate();
 
             // apply the Poisson operator
             if (world.rank()==0) printf("start exchange at time %.1f\n",wall_time());
@@ -1680,10 +1683,11 @@ namespace madness {
 
             // do the final multiplication with the orbital
             if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
-            real_function_6d result= (particle==1)
-            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital))
-            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital));
-            result.fill_tree().truncate().reduce_rank();
+//            real_function_6d result= (particle==1)
+//            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital))
+//            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital));
+//            result.fill_tree().truncate().reduce_rank();
+            real_function_6d result=multiply(copy(x),copy(orbital),particle).truncate();
 
             if (world.rank()==0) printf("end multiplication after K at time %.1f\n",wall_time());
             return result;

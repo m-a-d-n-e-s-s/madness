@@ -1598,10 +1598,6 @@ namespace madness {
                 .k(left.k()).thresh(thresh);
         Function<T,KDIM+LDIM> result=factory.empty();
 
-//        if (result.world().rank()==0) {
-//            print("incomplete FunctionFactory in Function::hartree_product");
-//            print("thresh: ", thresh);
-//        }
         bool same=(left2.get_impl()==right2.get_impl());
 
         // some prep work
@@ -2092,16 +2088,32 @@ namespace madness {
         Function<T,NDIM>& ff = const_cast< Function<T,NDIM>& >(f);
         Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
+        if (0) {
+        gg.nonstandard(true,false);
+        ff.nonstandard(true,false);
+        result.world().gop.fence();
+
+        result.get_impl()->multiply(ff.get_impl().get(),gg.get_impl().get(),particle);
+        result.world().gop.fence();
+
+        gg.standard(false);
+        ff.standard(false);
+        result.world().gop.fence();
+
+        } else {
         FunctionImpl<T,NDIM>* fimpl=ff.get_impl().get();
         FunctionImpl<T,LDIM>* gimpl=gg.get_impl().get();
-        fimpl->make_redundant(false);
         gimpl->make_redundant(true);
+        fimpl->make_redundant(false);
+        result.world().gop.fence();
 
         result.get_impl()->multiply(fimpl,gimpl,particle);
         result.world().gop.fence();
 
         fimpl->undo_redundant(false);
         gimpl->undo_redundant(fence);
+        }
+
         if (particle==1) result.print_size("finished multiplication f(1,2)*g(1)");
         if (particle==2) result.print_size("finished multiplication f(1,2)*g(2)");
 
