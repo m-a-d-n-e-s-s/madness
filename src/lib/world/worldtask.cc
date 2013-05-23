@@ -32,6 +32,8 @@
   $Id: $
 */
 
+#include <TAU.h>
+
 #include <world/worldtask.h>
 //#include <world/worldmpi.h>
 
@@ -40,12 +42,14 @@ namespace madness {
     bool TaskInterface::debug = false;
 
     void TaskInterface::run(const TaskThreadEnv& env) { // This is what thread pool will invoke
+	TAU_START("TaskInterface::run()");
         MADNESS_ASSERT(world);
         MADNESS_ASSERT(completion);
         World* w = const_cast<World*>(world);
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " is now running" << std::endl;
         run(*w, env);
         if (debug) std::cerr << w->rank() << ": Task " << (void*) this << " has completed" << std::endl;
+	TAU_STOP("TaskInterface::run()");
     }
 
     WorldTaskQueue::WorldTaskQueue(World& world)
@@ -55,6 +59,7 @@ namespace madness {
     }
 
     bool WorldTaskQueue::Stealer::operator()(PoolTaskInterface** pt) {
+        TAU_START("WorldTaskQueue::Stealer::operator()");
         madness::print("IN STEAL");
         PoolTaskInterface* t = *pt;
         if (t->is_stealable()) {
@@ -67,13 +72,16 @@ namespace madness {
                 }
             }
         }
+        TAU_STOP("WorldTaskQueue::Stealer::operator()");
         return true;
     }
 
     std::vector<TaskInterface*> WorldTaskQueue::steal(int nsteal) {
+      TAU_START("WorldTaskQueue::steal()");
         std::vector<TaskInterface*> v;
         Stealer xxx(*this, v, nsteal);
         ThreadPool::instance()->scan(xxx);
+      TAU_STOP("WorldTaskQueue::steal()");
         return v;
     }
 

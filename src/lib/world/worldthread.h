@@ -36,6 +36,7 @@
 /// \file worldthread.h
 /// \brief Implements Dqueue, Thread, ThreadBase and ThreadPool
 
+#include <TAU.h>
 #include <world/dqueue.h>
 #include <vector>
 #include <cstddef>
@@ -690,7 +691,9 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
                 task_event_->start(id_, nthread, submit_time_);
 #endif // MADNESS_TASK_PROFILING
+		TAU_START("PoolTaskInterface::run_multithreaded run(TaskThreadEnv)");
                 run(TaskThreadEnv(1,0,0));
+		TAU_STOP("PoolTaskInterface::run_multithreaded run(TaskThreadEnv)");
 #ifdef MADNESS_TASK_PROFILING
                 task_event_->stop();
 #endif // MADNESS_TASK_PROFILING
@@ -706,7 +709,9 @@ namespace madness {
                     task_event_->start(id_, nthread, submit_time_);
 #endif // MADNESS_TASK_PROFILING
 
+		TAU_START("PoolTaskInterface::run_multithreaded run(TaskThreadEnv)");
                 run(TaskThreadEnv(nthread, id, barrier));
+		TAU_STOP("PoolTaskInterface::run_multithreaded run(TaskThreadEnv)");
 
 #ifdef MADNESS_TASK_PROFILING
                 const bool cleanup = barrier->enter(id);
