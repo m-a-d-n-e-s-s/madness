@@ -359,6 +359,9 @@ namespace madness {
     /// Call this once at the very end of your main program instead of calling MPI_Finalize
     void finalize();
 
+    /// @return true if madness::initialize() had been called more recently than finalize(), false otherwise
+    bool initialized();
+
     /// Call this to print misc. stats ... collective
     void print_stats(World& world);
 
@@ -424,9 +427,16 @@ namespace madness {
         unsigned int myrand_next;///< State of crude internal random number generator
 
     public:
-        /// Give me a communicator and I will give you the world
+        /// Give me a communicator and I will give you the world.
+        /// Does not check if another world using the same comm already exists (use instance() to check that)
         World(const SafeMPI::Intracomm& comm);
 
+        /**
+         * Find the World corresponding to the given communicator
+         * @param comm the communicator
+         * @return nonzero pointer to the World that was constructed from comm; if it does not exist, return 0
+         */
+        static World* find_instance(const SafeMPI::Intracomm& comm);
 
         /// Sets a pointer to user-managed local state
 

@@ -68,7 +68,12 @@ namespace madness {
     std::list<World*> World::worlds;
     unsigned long World::idbase = 0;
 
-    static int finalizestate = 0;
+    namespace {
+      static bool madness_initialized_ = false;
+    }
+    bool initialized() {
+      return madness_initialized_;
+    }
 
     const Future<void> Future<void>::value = Future<void>();
 
@@ -117,12 +122,22 @@ namespace madness {
     }
 
     World::~World() {
-        if (finalizestate == 1) return;
+        if (not initialized()) return;
         worlds.remove(this);
         delete &taskq;
         delete &gop;
         delete &am;
         delete &mpi;
+    }
+
+    World*
+    World::find_instance(const SafeMPI::Intracomm& comm) {
+      typedef std::list<World*>::const_iterator citer;
+      for(citer i=worlds.begin(); i!=worlds.end(); ++i) {
+        if ((*i)->mpi.comm() == comm)
+          return *i;
+      }
+      return 0;
     }
 
     void error(const char *msg) {
@@ -168,9 +183,6 @@ namespace madness {
         ThreadPool::begin();        // Must have thread pool before any AM arrives
         RMI::begin();               // Must have RMI while still running single threaded
 
-        if (SafeMPI::COMM_WORLD.Get_rank() == 0)
-          std::cout << "MADNESS runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
-
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
@@ -184,6 +196,10 @@ namespace madness {
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Initialize(argc,argv);
 #endif
+
+        madness_initialized_ = true;
+        if (SafeMPI::COMM_WORLD.Get_rank() == 0)
+          std::cout << "MADNESS runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
 
     }
 
@@ -201,7 +217,7 @@ namespace madness {
         SafeMPI::Detach_buffer(buff);
 #endif // MADNESS_USE_BSEND_ACKS
         SafeMPI::Finalize();
-        finalizestate = 1;
+        madness_initialized_ = false;
     }
 
     // Enables easy printing of MadnessExceptions

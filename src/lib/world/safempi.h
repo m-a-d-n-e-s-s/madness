@@ -479,6 +479,10 @@ namespace SafeMPI {
             return Intracomm(std::shared_ptr<Impl>(new Impl(group_comm, me, nproc)));
         }
 
+        bool operator==(const Intracomm& other) const {
+          return impl->comm == other.impl->comm;
+        }
+
         /**
          * This local operation returns the Intracomm::Group object corresponding to this intracommunicator
          * @return the Intracomm::Group object corresponding to this intracommunicator
