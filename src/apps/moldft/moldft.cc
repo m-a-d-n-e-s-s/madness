@@ -39,6 +39,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
+#include <misc/misc.h>
 #include <misc/ran.h>
 #include <linalg/solvers.h>
 #include <mra/qmprop.h>
@@ -914,14 +915,10 @@ struct Calculation {
 
     Calculation(World & world, const char *filename)
     {
-     TAU_START("Calculation (World &, const char *");
+        TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
-	    TAU_START("molecule.read_file");
             molecule.read_file(filename);
-	    TAU_STOP("molecule.read_file");
-	    TAU_START("param.read_file");
             param.read_file(filename);
-	    TAU_STOP("param.read_file");
             unsigned int n_core = 0;
             if (param.core_type != "") {
                 molecule.read_core_file(param.core_type);
@@ -929,25 +926,14 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
-	    TAU_START("molecule.orient");
             molecule.orient();
-	    TAU_STOP("molecule.orient");
-	    TAU_START("aobasis.read_file");
             aobasis.read_file(param.aobasis);
-	    TAU_STOP("aobasis.read_file");
-	    TAU_START("param.set_molecular_info");
+
             param.set_molecular_info(molecule, aobasis, n_core);
-	    TAU_STOP("param.set_molecular_info");
         }
-	TAU_START("world.gop.broadcast_serializable(molecule,0)");
         world.gop.broadcast_serializable(molecule, 0);
-	TAU_STOP("world.gop.broadcast_serializable(molecule,0)");
-	TAU_START("world.gop.broadcast_serializable(param,0)");
         world.gop.broadcast_serializable(param, 0);
-	TAU_STOP("world.gop.broadcast_serializable(param,0)");
-	TAU_START("world.gop.broadcast_serializable(aobasis,0)");
         world.gop.broadcast_serializable(aobasis, 0);
-	TAU_STOP("world.gop.broadcast_serializable(aobasis,0)");
 
 	TAU_START("xc.initialize");
         xc.initialize(param.xc_data, !param.spin_restricted);
@@ -956,7 +942,7 @@ struct Calculation {
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
-     TAU_STOP("Calculation (World &, const char *");
+        TAU_STOP("Calculation (World &, const char *");
     }
 
     void set_protocol(World & world, double thresh)
@@ -1009,7 +995,7 @@ struct Calculation {
     }
 
     void load_mos(World& world) {
-      TAU_START("load_mos");
+        TAU_START("load_mos");
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
@@ -1100,7 +1086,7 @@ struct Calculation {
 
             }
         }
-      TAU_STOP("load_mos");
+        TAU_STOP("load_mos");
     }
 
     void do_plots(World& world) {
@@ -1209,6 +1195,7 @@ struct Calculation {
         normalize(world, ao);
         END_TIMER(world, "project ao basis");
         TAU_STOP("project ao basis");
+	print_meminfo(world.rank(), "project ao basis");
     }
 
     double PM_q(const tensorT & S, const tensorT & C, int i, int j, int lo, int nbf)
@@ -1369,6 +1356,7 @@ struct Calculation {
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
         TAU_STOP("Pipek-Mezy localize");
+	print_meminfo(world.rank(), "Pipek-Mezy localize");
         return U;
     }
 
@@ -1709,6 +1697,7 @@ struct Calculation {
             sygvp(world, fock, overlap, 1, c, e);
             END_TIMER(world, "guess eigen sol");
             TAU_STOP("guess eigen sol");
+	    print_meminfo(world.rank(), "guess eigen sol");
 
             if(world.rank() == 0 && 0){
               print("initial eigenvalues");
@@ -3151,11 +3140,14 @@ struct Calculation {
             }
             END_TIMER(world, "Make densities");
             TAU_STOP("Make densities");
+	    print_meminfo(world.rank(), "Make Densities");
 
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
                 END_TIMER(world, "Load balancing");
+		print_meminfo(world.rank(), "Load balancing");
+
             }
             double da = 0.0, db = 0.0;
             if(iter > 0){
@@ -3187,7 +3179,7 @@ struct Calculation {
             functionT vlocal;
             END_TIMER(world, "Coulomb");
             TAU_STOP("Coulomb");
-
+	    print_meminfo(world.rank(), "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             // /*==========================================================================================
@@ -3495,6 +3487,7 @@ int main(int argc, char** argv) {
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
+	print_meminfo(world.rank(), "startup");
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
         std::cout.precision(6);
@@ -3603,9 +3596,7 @@ int main(int argc, char** argv) {
       print_stats(world);
     } // world is dead -- ready to finalize
   TAU_STOP("World lifetime");
-  TAU_START("finalize()");
     finalize();
-  TAU_STOP("finalize()");
   TAU_STOP("main()");
 
     return 0;

@@ -8,7 +8,7 @@ thisincludedir = $(includedir)/misc/
 thisinclude_HEADERS = misc.h ran.h phandler.h cfft.h
 
 
-libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc\
+libMADmisc_a_SOURCES = checksum_file.cc position_stream.cc gprofexit.cc ran.cc cfft.cc meminfo.cc\
                        misc.h ran.h cfft.h phandler.h
 
 interp3_SOURCES = interp3.cc
