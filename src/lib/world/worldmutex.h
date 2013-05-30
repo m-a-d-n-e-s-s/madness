@@ -495,7 +495,7 @@ namespace madness {
         MutexFair() : n(0), front(0), back(0) {};
         
         void lock() const {
-	  TAU_START("MutexFair::lock()");
+	  //	  TAU_START("MutexFair::lock()");
             volatile bool myturn = false;
             Spinlock::lock();
             ++n;
@@ -511,11 +511,11 @@ namespace madness {
             Spinlock::unlock();
             
             while (!myturn) cpu_relax();
-	  TAU_STOP("MutexFair::lock()");
+	    //   TAU_STOP("MutexFair::lock()");
         }
         
         void unlock() const {
-	  TAU_START("MutexFair::unlock()");
+	  //TAU_START("MutexFair::unlock()");
             volatile bool* p = 0;
             Spinlock::lock();
             n--;
@@ -527,7 +527,7 @@ namespace madness {
             }
             Spinlock::unlock();
             if (p) *p = true;
-	  TAU_STOP("MutexFair::unlock()");
+	    //TAU_STOP("MutexFair::unlock()");
         }
         
         bool try_lock() const {
