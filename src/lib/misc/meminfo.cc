@@ -46,8 +46,12 @@
 #include <fstream>
 #include <sstream>
 
-#ifdef HAVE_IBMBGQ
+#if defined(HAVE_IBMBGQ)
 #include <spi/include/kernel/memory.h>
+#elif defined(ON_A_MAC) 
+#include <malloc/malloc.h>
+#elif defined(X86_32) || defined(X86_64)
+#include <malloc.h>
 #endif
 
 
@@ -60,7 +64,17 @@ using namespace std;
 namespace madness {
 
   void print_meminfo(int id, const std::string& tag) {
-#if defined(HAVE_IBMBGQ) && defined(MEMINFO)
+#if defined(MEMINFO)
+    ofstream memoryfile;
+    ostringstream filename;
+
+    filename << "MEMORY." << id;
+
+    memoryfile.open(filename.str().c_str(), ios::out | ios::app);
+    memoryfile << tag << endl;
+
+    const double fac = 1024.0*1024.0; /* Convert from bytes to megabytes */
+#if defined(HAVE_IBMBGQ)
     uint64_t shared, persist, heapavail, stackavail, stack, heap, guard, mmap;
 
     Kernel_GetMemorySize(KERNEL_MEMSIZE_SHARED, &shared);
@@ -72,19 +86,28 @@ namespace madness {
     Kernel_GetMemorySize(KERNEL_MEMSIZE_GUARD, &guard);
     Kernel_GetMemorySize(KERNEL_MEMSIZE_MMAP, &mmap);
 
-    ofstream memoryfile;
-    ostringstream filename;
+    memoryfile << "Allocated heap (MB): " << (heap/fac) << ", avail. heap: " << (heapavail/fac) << endl;
+    memoryfile << "Allocated stack (MB): " << (stack/fac) << ", avail. stack: " << (stackavail/fac) << endl;
+    memoryfile << "Memory: shared: " << (shared/fac) << ", persist: " << (persist/fac) << ", guard: " << (guard/fac) << ", mmap: " << (mmap/fac) << endl;
+#elif defined(ON_A_MAC)
+  /* Mac OS X specific hack - un-tested post Snow Leopard */
+  struct malloc_statistics_t mi; /* structure in bytes */
 
-    filename << "MEMORY." << id;
+  malloc_zone_statistics(NULL, &mi);
 
-    memoryfile.open(filename.str().c_str(), ios::out | ios::app);
-    memoryfile << tag << endl;
-    memoryfile << "Allocated heap (MB): " << ((double)heap/(1024*1024)) << ", avail. heap: " << ((double)heapavail/(1024*1024)) << endl;
-    memoryfile << "Allocated stack (MB): " << ((double)stack/(1024*1024)) << ", avail. stack: " << ((double)stackavail/(1024*1024)) << endl;
-    memoryfile << "Memory: shared: " << ((double)shared/(1024*1024)) << ", persist: " << ((double)persist/(1024*1024)) << ", guard: " << ((double)guard/(1024*1024)) << ", mmap: " << ((double)mmap/(1024*1024)) << endl;
-    
+  memoryfile << "Allocate heap (MB): " << (mi.size_in_use/fac) << endl; 
+#elif defined(X86_32) || defined(X86_64)
+  struct mallinfo mi; /* structure in bytes */
+  
+  mi = mallinfo();
+  
+  memoryfile << "Small heap (MB): " << (mi.usmblks/fac) << endl;
+  memoryfile << "Arena heap (MB): " << (mi.uordblks/fac) << endl;
+  memoryfile << "Mmap heap (MB): " << (mi.hblkhd/fac) << endl;
+#endif // platform specific
     memoryfile.close();
-#endif
+#else // MEMINFO
     return;
+#endif 
   }
 }
