@@ -21,7 +21,6 @@ AC_DEFUN([ACX_WITH_ELEMENTAL],
   )
   
   if test "$acx_with_elemental" != no; then
-    echo "Eigen3 option required"
     # Check for the pressence of Elemental header files.
     AC_CHECK_HEADER([elemental.hpp], [],
       [AC_MSG_ERROR([Unable to find the elemental.hpp  header file.])])
