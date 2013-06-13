@@ -61,8 +61,8 @@
   induced surface charge density.
 
   MADNESS's default Coulomb Green's function (\f$-1 / |r-s|\f$) corresponds to the free-space
-  Dirichlet boundary condition \f$v(\infnty)=0\f$.  But we wish to
-  impose the Neumann condition \f$- \partial v / \partial z(\infnty) = E\f$.
+  Dirichlet boundary condition \f$v(\infty)=0\f$.  But we wish to
+  impose the Neumann condition \f$- \partial v / \partial z(\infty) = E\f$.
   Thus, we write our solution as the sum of the asymptotic solution
   (\f$v = - E z\f$) and a component that goes to zero at infinity so that
   our MADNESS Green's function can be used.  Substituting
