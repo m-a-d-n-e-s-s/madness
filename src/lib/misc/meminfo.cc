@@ -101,9 +101,11 @@ namespace madness {
   
   mi = mallinfo();
   
-  memoryfile << "Small heap (MB): " << (mi.usmblks/fac) << endl;
-  memoryfile << "Arena heap (MB): " << (mi.uordblks/fac) << endl;
-  memoryfile << "Mmap heap (MB): " << (mi.hblkhd/fac) << endl;
+  memoryfile << "Non-mmap (MB): " << (mi.arena/fac) << endl;
+  memoryfile << "Mmap (MB): " << (mi.hblkhd/fac) << endl;
+  memoryfile << "Fastbin (MB): " << (mi.fsmblks/fac) << endl;
+  memoryfile << "Highwater Mark (MB): " << (mi.usmblks/fac) << endl;
+  memoryfile << "Total allocated space (MB): " << (mi.uordblks/fac) << endl;
 #endif // platform specific
     memoryfile.close();
 #else // MEMINFO
