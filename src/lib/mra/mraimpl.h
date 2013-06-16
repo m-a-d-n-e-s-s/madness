@@ -504,6 +504,8 @@ namespace madness {
     template <typename T, std::size_t NDIM>
     void FunctionImpl<T,NDIM>::add_scalar_inplace(T t, bool fence) {
         std::vector<long> v0(NDIM,0L);
+        std::vector<long> v1(NDIM,1L);
+        std::vector<Slice> s(NDIM,Slice(0,0));
         const TensorArgs full_args(-1.0,TT_FULL);
         if (is_compressed()) {
             if (world.rank() == coeffs.owner(cdata.key0)) {
@@ -524,12 +526,16 @@ namespace madness {
                 Level n = it->first.level();
                 nodeT& node = it->second;
                 if (node.has_coeff()) {
-//                	node.node_to_full_rank();
-//                    node.full_tensor_reference()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
-//                    node.node_to_low_rank();
-                    change_tensor_type(node.coeff(),full_args);
-                    node.coeff().full_tensor()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
-                    change_tensor_type(node.coeff(),targs);
+                	// this looks funny, but is necessary for GenTensor, since you can't access a
+                	// single matrix element. Therefore make a (1^NDIM) tensor, convert to GenTensor, then
+                	// add to the original one by adding a slice.
+                	tensorT ttt(v1);
+                	ttt=t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+                	coeffT tt(ttt,get_tensor_args());
+                    node.coeff()(s) += tt;
+                    // this was the original line:
+                    // node.coeff().full_tensor()(v0) += t*sqrt(FunctionDefaults<NDIM>::get_cell_volume()*pow(0.5,double(NDIM*n)));
+
                 }
             }
         }

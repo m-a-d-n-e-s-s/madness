@@ -942,8 +942,9 @@ namespace madness {
             PROFILE_MEMBER_FUNC(Function);
             verify();
             other.verify();
-            MADNESS_ASSERT(is_compressed() && other.is_compressed());
-            impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            MADNESS_ASSERT(is_compressed() == other.is_compressed());
+            if (is_compressed()) impl->gaxpy_inplace(alpha,*other.get_impl(),beta,fence);
+            if (not is_compressed()) impl->gaxpy_inplace_reconstructed(alpha,*other.get_impl(),beta,fence);
             return *this;
         }
 
@@ -951,12 +952,15 @@ namespace madness {
         /// Inplace addition of functions in the wavelet basis
 
         /// Using operator notation forces a global fence after every operation.
-        /// Functions are compressed if not already so.
+        /// Functions don't need to be compressed, it's the caller's responsibility
+        /// to choose an appropriate state with performance, usually compressed for 3d,
+        /// reconstructed for 6d)
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-            if (!is_compressed()) compress();
-            if (!other.is_compressed()) other.compress();
+//            if (!is_compressed()) compress();
+//            if (!other.is_compressed()) other.compress();
+            MADNESS_ASSERT(is_compressed() == other.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(1.0), true);
@@ -969,8 +973,9 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-            if (!is_compressed()) compress();
-            if (!other.is_compressed()) other.compress();
+//            if (!is_compressed()) compress();
+//            if (!other.is_compressed()) other.compress();
+            MADNESS_ASSERT(is_compressed() == other.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
             return gaxpy(T(1.0), other, Q(-1.0), true);
@@ -1140,48 +1145,67 @@ namespace madness {
                 return norm*norm;
             }
 
-            FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
-
-            bool g_on_demand=g.is_on_demand();
-            // save for later
-            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func;
-            if (g_on_demand) func=gimpl->get_functor();
-
-            if (g_on_demand) {
-
-                // it does work, but it might not give you the precision
-                // have to think more about this
-
-                MADNESS_ASSERT(not gimpl->is_redundant());
-                this->reconstruct();
-                leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
-                gimpl->make_Vphi(fnode_is_leaf,true);  // fence here
-//                gimpl->print_size("gimpl");
-//                this->print_size("f");
-
-            } else {
-
-//                if (!is_compressed()) compress(false);
-//                if (!g.is_compressed()) g.compress();
-                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
-                if (not gimpl->is_redundant()) gimpl->make_redundant(true);
-            }
+            // do it case-by-case
+            if (this->is_on_demand()) return this->inner_on_demand(g);
+            if (g.is_on_demand()) return g.inner_on_demand(*this);
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();
-            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*gimpl);
+
+            // compression is more efficient for 3D
+            if (NDIM==3) {
+            	if (!is_compressed()) compress(false);
+            	if (!g.is_compressed()) g.compress(false);
+                impl->world.gop.fence();
+           }
+
+            if (this->is_compressed() and g.is_compressed()) {
+            } else {
+                if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
+                if (not g.get_impl()->is_redundant()) g.get_impl()->make_redundant(false);
+                impl->world.gop.fence();
+            }
+
+
+            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
             impl->world.gop.sum(local);
             impl->world.gop.fence();
 
-            // bring g to original state
-            if (g_on_demand) {
-                gimpl->set_functor(func);
-                gimpl->get_coeffs().clear();
-                gimpl->is_on_demand()=true;
-            } else {
-                if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
-                if (gimpl->is_redundant()) gimpl->undo_redundant(true);
-            }
+            if (this->get_impl()->is_redundant()) this->get_impl()->undo_redundant(false);
+            if (g.get_impl()->is_redundant()) g.get_impl()->undo_redundant(false);
+            impl->world.gop.fence();
+
+            return local;
+        }
+
+        /// Returns the inner product for one on-demand function
+
+        /// It does work, but it might not give you the precision you expect.
+        /// The assumption is that the function g returns proper sum
+        /// coefficients on the MRA tree of this. This might not be the case if
+        /// g is constructed with an implicit multiplication, e.g.
+        ///  result = <this|g>,   with g = 1/r12 | gg>
+        /// @param[in]  g	on-demand function
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_on_demand(const Function<R,NDIM>& g) const {
+        	MADNESS_ASSERT(g.is_on_demand() and (not this->is_on_demand()));
+
+            this->reconstruct();
+
+        	// save for later, will be removed by make_Vphi
+            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func=g.get_impl()->get_functor();
+            leaf_op<T,NDIM> fnode_is_leaf(this->get_impl().get());
+            g.get_impl()->make_Vphi(fnode_is_leaf,true);  // fence here
+
+            if (VERIFY_TREE) verify_tree();
+            TENSOR_RESULT_TYPE(T,R) local = impl->inner_local(*g.get_impl());
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+
+            // restore original state
+            g.get_impl()->set_functor(func);
+            g.get_impl()->get_coeffs().clear();
+            g.get_impl()->is_on_demand()=true;
 
             return local;
         }

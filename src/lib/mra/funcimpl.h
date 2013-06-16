@@ -1087,6 +1087,31 @@ namespace madness {
                 world.gop.fence();
         }
 
+        /// perform inplace gaxpy: this = alpha*this + beta*other
+        void gaxpy_inplace_reconstructed(const double alpha, const implT& g, const double beta, const bool fence) {
+
+        	// merge g's tree into this' tree
+        	this->merge_trees(alpha,beta,g,true);
+
+        	// sum down the sum coeffs into the leafs
+        	if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
+        }
+
+        /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
+
+        /// first step in an inplace gaxpy operation for reconstructed functions; assuming the same
+        /// distribution for this and other
+        /// @param[in]	alpha	prefactor for this
+        /// @param[in]	beta	prefactor for other
+        /// @param[in]	other	the other function, reconstructed
+        /// @return *this = alpha* *this + beta * other
+        template<typename R>
+        void merge_trees(const R alpha, const R beta, const implT& other, const bool fence=true) {
+            MADNESS_ASSERT(get_pmap() == other.get_pmap());
+            other.flo_unary_op_node_inplace(do_merge_trees<R>(alpha,beta,*this),fence);
+            if (fence) world.gop.fence();
+        }
+
         /// perform: this= alpha*f + beta*g, invoked by result
 
         /// f and g are reconstructed, so we can save on the compress operation,
@@ -1342,10 +1367,10 @@ namespace madness {
 
         /// works for all dimensions; we walk through the tree, and if a leaf node
         /// inside the sub-cell touches the plane we print it in pstricks format
-        void print_plane(const std::string filename, const std::string plane, const coordT& x_user) {
+        void print_plane(const std::string filename, const int xaxis, const int yaxis, const coordT& el2) {
 
             // get the local information
-            Tensor<double> localinfo=print_plane_local(plane,x_user);
+            Tensor<double> localinfo=print_plane_local(xaxis,yaxis,el2);
 
             // lump all the local information together, and gather on node0
             std::vector<Tensor<double> > localinfo_vec(1,localinfo);
@@ -1353,32 +1378,20 @@ namespace madness {
             world.gop.fence();
 
             // do the actual print
-            if (world.rank()==0) do_print_plane(filename,printinfo);
+            if (world.rank()==0) do_print_plane(filename,printinfo,xaxis,yaxis,el2);
 
         }
 
 
         /// collect the data for a plot of the MRA structure locally on each node
-        Tensor<double> print_plane_local(const std::string plane, const coordT& x_user) {
 
-            // translate verbose plane to something computer-readable
-            int dim0, dim1;
-            if (plane=="xy") {
-                dim0=0;
-                dim1=1;
-            } else if (plane=="xz") {
-                dim0=0;
-                dim1=2;
-            } else if (plane=="yz") {
-                dim0=1;
-                dim1=2;
-            } else {
-                print("unknown slice in WF::printSlice: ", plane);
-                MADNESS_ASSERT(0);
-            }
+        /// @param[in]	xaxis	the x-axis in the plot (can be any axis of the MRA box)
+        /// @param[in]	yaxis	the y-axis in the plot (can be any axis of the MRA box)
+        /// @param[in]	el2
+        Tensor<double> print_plane_local(const int xaxis, const int yaxis, const coordT& el2) {
 
             coordT x_sim;
-            user_to_sim<NDIM>(x_user,x_sim);
+            user_to_sim<NDIM>(el2,x_sim);
             x_sim[2]+=1.e-10;
 
             // dimensions are: (# boxes)(hue, x lo left, y lo left, x hi right, y hi right)
@@ -1392,16 +1405,24 @@ namespace madness {
                 const nodeT& node = it->second;
 
                 // thisKeyContains ignores dim0 and dim1
-                if (key.thisKeyContains(x_sim,dim0,dim1) and node.is_leaf() and (node.has_coeff())) {
+                if (key.thisKeyContains(x_sim,xaxis,yaxis) and node.is_leaf() and (node.has_coeff())) {
 
                     Level n=key.level();
                     Vector<Translation,NDIM> l=key.translation();
                     // get the diametral edges of the node in the plotting plane
                     double scale=std::pow(0.5,double(n));
-                    double xloleft = scale*l[dim0];
-                    double yloleft = scale*l[dim1];
-                    double xhiright = scale*(l[dim0]+1);
-                    double yhiright = scale*(l[dim1]+1);
+                    double xloleft = scale*l[xaxis];
+                    double yloleft = scale*l[yaxis];
+                    double xhiright = scale*(l[xaxis]+1);
+                    double yhiright = scale*(l[yaxis]+1);
+
+                    // convert back to user coordinates
+                    Vector<double,6> sim, user;
+                    sim[0]=xloleft; sim[1]=yloleft; sim[2]=xhiright; sim[3]=yhiright;
+                    sim_to_user<6>(sim,user);
+
+//                    if ((xloleft<-5.0) or (yloleft<-5.0) or (xhiright>5.0) or (yhiright>5.0)) continue;
+                    if ((user[0]<-5.0) or (user[1]<-5.0) or (user[2]>5.0) or (user[3]>5.0)) continue;
 
                     // do rank or do error
                     double color=0.0;
@@ -1425,10 +1446,10 @@ namespace madness {
                     }
 
                     plotinfo(counter,0)=color;
-                    plotinfo(counter,1)=xloleft;
-                    plotinfo(counter,2)=yloleft;
-                    plotinfo(counter,3)=xhiright;
-                    plotinfo(counter,4)=yhiright;
+                    plotinfo(counter,1)=user[0];
+                    plotinfo(counter,2)=user[1];
+                    plotinfo(counter,3)=user[2];
+                    plotinfo(counter,4)=user[3];
                     ++counter;
                 }
             }
@@ -1440,7 +1461,8 @@ namespace madness {
         }
 
         /// print the MRA structure
-        Void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo) {
+        Void do_print_plane(const std::string filename, std::vector<Tensor<double> > plotinfo,
+        		const int xaxis, const int yaxis, const coordT el2) {
 
             // invoke only on master node
             MADNESS_ASSERT(world.rank()==0);
@@ -1451,9 +1473,11 @@ namespace madness {
             Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
 
 
-            fprintf(pFile,"\\psset{unit=10cm}\n");
-            fprintf(pFile,"\\begin{pspicture}(0,0)(1,1)\n");
-            fprintf(pFile,"\\pslinewidth=0.005pt\n");
+            fprintf(pFile,"\\psset{unit=0.1cm}\n");
+            fprintf(pFile,"\\begin{pspicture}(%4.2f,%4.2f)(%4.2f,%4.2f)\n",
+//            		cell(xaxis,0),cell(xaxis,1),cell(yaxis,0),cell(yaxis,1));
+            		-5.0,5.0,-5.0,5.0);
+            fprintf(pFile,"\\pslinewidth=0.1pt\n");
 
             for (std::vector<Tensor<double> >::const_iterator it=plotinfo.begin(); it!=plotinfo.end(); ++it) {
 
@@ -2508,6 +2532,44 @@ namespace madness {
 
         };
 
+        /// merge the coefficent boxes of this into other's tree
+
+        /// no comm, and the tree should be in an consistent state by virtue
+        /// of FunctionNode::gaxpy_inplace
+        template<typename R>
+        struct do_merge_trees {
+            typedef Range<typename dcT::const_iterator> rangeT;
+            implT* other;
+            R alpha, beta;
+            do_merge_trees() {}
+            do_merge_trees(const R alpha, const R beta, implT& other)
+            : other(&other), alpha(alpha), beta(beta) {}
+
+            /// return the norm of the difference of this node and its "mirror" node
+            bool operator()(typename rangeT::iterator& it) const {
+
+                const keyT& key = it->first;
+                const nodeT& fnode = it->second;
+
+                // if other's node exists: add this' coeffs to it
+                // otherwise insert this' node into other's tree
+                typename dcT::accessor acc;
+                if (other->get_coeffs().find(acc,key)) {
+                	nodeT& gnode=acc->second;
+                	gnode.gaxpy_inplace(beta,fnode,alpha);
+				} else {
+					nodeT gnode=fnode;
+					gnode.scale(alpha);
+					other->get_coeffs().replace(key,gnode);
+				}
+                return true;
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                MADNESS_EXCEPTION("no serialization of do_merge_trees",1);
+            }
+        };
+
 
         /// map this on f
         struct do_mapdim {
@@ -3323,7 +3385,7 @@ namespace madness {
                 coeffT d;
                 if (c.size() > 0) {
                     d = coeffT(cdata.v2k,targs);
-                    d(cdata.s0) = c;
+                    d(cdata.s0) += c;
                     d = unfilter(d);
                     node.clear_coeff();
                 }
