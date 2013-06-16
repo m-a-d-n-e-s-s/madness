@@ -51,59 +51,66 @@
 #include <linalg/solvers.h>
 
 namespace madness {
-    /// A simple Krylov-subspace nonlinear equation solver
+
+	/// A simple Krylov-subspace nonlinear equation solver
 
     /// \ingroup nonlinearsolve
-    class NonlinearSolver {
-        const unsigned int maxsub; //< Maximum size of subspace dimension
-	vector_real_function_3d ulist, rlist; ///< Subspace information
-	real_tensor Q;
-    public:
-	NonlinearSolver(unsigned int maxsub = 10) : maxsub(maxsub) {}
+	template<size_t NDIM>
+	class NonlinearSolverND {
+		const unsigned int maxsub; //< Maximum size of subspace dimension
+		std::vector<Function<double,NDIM> > ulist, rlist;
+		real_tensor Q;
 
-	/// Computes next trial solution vector
+	public:
+		NonlinearSolverND(unsigned int maxsub = 10) : maxsub(maxsub) {}
 
-	/// You are responsible for performing step restriction or line search
-	/// (not necessary for linear problems).
-	///
-	/// @param u Current solution vector
-	/// @param r Corresponding residual
-	/// @return Next trial solution vector
-	real_function_3d update(const real_function_3d& u, const real_function_3d& r) {
-	    int iter = ulist.size();
-	    ulist.push_back(u);
-	    rlist.push_back(r);
+		/// Computes next trial solution vector
 
-	    // Solve subspace equations
-	    real_tensor Qnew(iter+1,iter+1);
-	    if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
-	    for (int i=0; i<=iter; i++) {
-		Qnew(i,iter) = inner(ulist[i],rlist[iter]);
-		Qnew(iter,i) = inner(ulist[iter],rlist[i]);
-	    }
-	    Q = Qnew;
-	    real_tensor c = KAIN(Q);
+		/// You are responsible for performing step restriction or line search
+		/// (not necessary for linear problems).
+		///
+		/// @param u Current solution vector
+		/// @param r Corresponding residual
+		/// @return Next trial solution vector
+		Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r) {
+			int iter = ulist.size();
+			ulist.push_back(u);
+			rlist.push_back(r);
 
-	    // Form new solution in u
-	    real_function_3d unew = real_factory_3d(u.world());
-	    unew.compress();
-	    for (int i=0; i<=iter; i++) {
-		unew.gaxpy(1.0,ulist[i], c[i]); 
-		unew.gaxpy(1.0,rlist[i],-c[i]); 
-	    }
-	    unew.truncate();
+			// Solve subspace equations
+			real_tensor Qnew(iter+1,iter+1);
+			if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+			for (int i=0; i<=iter; i++) {
+				Qnew(i,iter) = inner(ulist[i],rlist[iter]);
+				Qnew(iter,i) = inner(ulist[iter],rlist[i]);
+			}
+			Q = Qnew;
+			real_tensor c = KAIN(Q);
 
-            if (ulist.size() == maxsub) {
-                ulist.erase(ulist.begin());
-                rlist.erase(rlist.begin());
-                Q = copy(Q(Slice(1,-1),Slice(1,-1)));
-            }
-	    return unew;
-	}
-    };
+			// Form new solution in u
+			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
+			if (ulist[0].is_compressed()) unew.compress();
+			for (int i=0; i<=iter; i++) {
+				unew.gaxpy(1.0,ulist[i], c[i]);
+				unew.gaxpy(1.0,rlist[i],-c[i]);
+			}
+			unew.truncate();
 
-    template <class T>
-    struct default_allocator {
+			if (ulist.size() == maxsub) {
+				ulist.erase(ulist.begin());
+				rlist.erase(rlist.begin());
+				Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+			}
+			return unew;
+		}
+	};
+
+	// backwards compatibility
+	typedef NonlinearSolverND<3> NonlinearSolver;
+
+
+	template <class T>
+	struct default_allocator {
         T operator()() {return T();}
     };
     

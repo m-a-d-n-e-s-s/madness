@@ -51,6 +51,7 @@
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <moldft/moldft.h>
+#include <examples/nonlinsol.h>
 
 #include <iostream>
 
@@ -871,6 +872,7 @@ namespace madness {
 			real_function_6d constant_term;
 			load_function(constant_term,"GVpair");
 
+			NonlinearSolverND<6> solver;
 			// increment iteration counter upon entry
 			for (++result.iteration; result.iteration<20; ++result.iteration) {
 
@@ -884,13 +886,14 @@ namespace madness {
 				tmp=Q12(constant_term+tmp);
 
 				// check convergence
-				const double rnorm=(result.function-tmp).norm2();
+				real_function_6d residual=tmp-result.function;
+				const double rnorm=residual.norm2();
 				const double old_fnorm=result.function.norm2();
 				const double fnorm=tmp.norm2();
-				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
-						fnorm,rnorm);
+				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",fnorm,rnorm);
 
-				result.function=tmp;
+				result.function=solver.update(result.function,residual);
+//				result.function=tmp;
 				double old_energy=energy;
 				energy=compute_energy(result);
 
@@ -967,6 +970,101 @@ namespace madness {
         	map[0]=3; map[1]=4; map[2]=5;	// 2 -> 1
         	map[3]=0; map[4]=1; map[5]=2;	// 1 -> 2
         	return mapdim(f,map);
+        }
+
+        void test3() {
+        	hf->value();
+        	Projector<double,3> O1(hf->get_calc().amo);
+        	real_function_3d vnuc=hf->get_nuclear_potential();
+        	save_function(hf->get_nuclear_potential(),"vnuc");
+        	real_function_3d phi=hf->orbital(param.i);
+        	real_function_3d f1a=real_factory_3d(world).functor2(R1AFactor(hf->get_calc().molecule,false));
+        	real_function_3d f1a_inv=real_factory_3d(world).functor2(R1AFactor(hf->get_calc().molecule,true));
+        	real_function_3d f1a_phi=f1a*phi;
+        	save_function(f1a,"f1a");
+        	save_function(f1a_inv,"f1a_inv");
+        	save_function(f1a_phi,"f1a_phi");
+
+        	real_function_3d OR=(f1a-O1(f1a));
+        	save_function(OR,"OR");
+
+        	real_function_3d f1a_vnuc=vnuc*f1a;
+        	save_function(f1a_vnuc,"f1a_vnuc");
+
+        	real_function_3d OR_vnuc=vnuc*OR;
+        	save_function(OR_vnuc,"OR_vnuc");
+
+        	real_function_3d f1a_inv_phi=f1a_inv*phi;
+        	save_function(f1a_inv,"f1a_inv");
+        	save_function(f1a_inv_phi,"f1a_inv_phi");
+        }
+
+        void test2() {
+
+        	real_function_6d psi, r12phi;
+        	load_function(psi,"psi1_it15");
+        	load_function(r12phi,"r12phi");
+        	r12phi=Q12(r12phi);
+
+        	const real_function_6d psi_singlet=(psi+swap_particles(psi)).truncate();
+        	const real_function_6d psi_triplet=(psi-swap_particles(psi)).truncate();
+
+        	save_function(psi_singlet,"psi1_singlet");
+        	save_function(psi_triplet,"psi1_triplet");
+
+        	const real_function_6d r12phi_singlet=(r12phi+swap_particles(r12phi)).truncate();
+        	const real_function_6d r12phi_triplet=(r12phi-swap_particles(r12phi)).truncate();
+
+        	const real_function_6d singlet=(r12phi_singlet+psi_singlet).truncate();
+        	const real_function_6d triplet=(r12phi_triplet+psi_triplet).truncate();
+
+        	save_function(singlet,"phi1_singlet");
+        	save_function(triplet,"phi1_triplet");
+        }
+
+        void test4() {
+
+        	hf->value();
+        	ElectronPair pair=make_pair(1,1);
+
+        	const double thresh=FunctionDefaults<6>::get_thresh();
+        	const double tight_thresh=thresh*0.1;
+        	FunctionDefaults<6>::set_thresh(tight_thresh);
+        	real_function_6d phi0=hartree_product(hf->orbital(pair.i),hf->orbital(pair.j));
+        	FunctionDefaults<6>::set_thresh(thresh);
+
+
+            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+            real_function_6d ij_g=CompositeFactory<double,6,3>(world)
+						.g12(eri).ket(phi0);
+
+            // compute < ij | g12 | psi >
+            const double ij_g_uij=inner(pair.function,ij_g);
+            if (world.rank()==0) printf("<ij | g12       | psi^1>  %12.8f\n",ij_g_uij);
+
+
+            const double ji_g_uij= (pair.i==pair.j) ? 0 : -100.0;
+            if (world.rank()==0) printf("<ji | g12       | psi^1>  %12.8f\n",ji_g_uij);
+
+            // the singlet and triplet triplet pair energies
+            if (pair.i==pair.j) {
+            	pair.e_singlet=ij_g_uij + pair.ij_gQf_ij;
+            	pair.e_triplet=0.0;
+            } else {
+                pair.e_singlet=(ij_g_uij + pair.ij_gQf_ij) + (ji_g_uij + pair.ji_gQf_ij);
+                pair.e_triplet=3.0*((ij_g_uij - ji_g_uij) + (pair.ij_gQf_ij - pair.ji_gQf_ij));
+            }
+
+            // print the pair energies
+            if (world.rank()==0) {
+            	printf("current energy %2d %2d %12.8f %12.8f\n",pair.i,pair.j,
+            			pair.e_singlet,pair.e_triplet);
+            }
+
+            // compute < ji | g12 | psi > if (i/=j)
+
+        	real_function_6d phi1=Q12(pair.r12phi+pair.function);
+        	save_function(phi1,"pair11_phi1_full_singlet");
         }
 
 		void test() {
@@ -1229,6 +1327,13 @@ namespace madness {
         ElectronPair make_pair(const int i, const int j) const {
 
             ElectronPair p=ElectronPair(i,j);
+			try {
+				p.load_pair(world);
+		    } catch (std::exception& e) {
+		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+		    }
+
+//        	ElectronPair p=pair(i,j);
 
             // some functions repeatedly used
             if (intermediates.r12phi.empty()) {
