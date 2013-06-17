@@ -105,9 +105,7 @@ namespace madness {
   
   memoryfile << "Non-mmap (MB): " << (mi.arena/fac) << endl;
   memoryfile << "Mmap (MB): " << (mi.hblkhd/fac) << endl;
-  memoryfile << "Fastbin (MB): " << (mi.fsmblks/fac) << endl;
-  memoryfile << "Highwater Mark (MB): " << (mi.usmblks/fac) << endl;
-  memoryfile << "Total allocated space (MB): " << (mi.uordblks/fac) << endl;
+  memoryfile << "Total malloc chunks (MB): " << (mi.uordblks/fac) << endl;
 #elif defined(X86_64)
   /* Better than nothing, mallinfo unreliable on 64-bit machine due to
      use of int in mallinfo data structure. Requires Linux
