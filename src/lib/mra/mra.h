@@ -1146,8 +1146,8 @@ namespace madness {
             }
 
             // do it case-by-case
-            if (this->is_on_demand()) return this->inner_on_demand(g);
-            if (g.is_on_demand()) return g.inner_on_demand(*this);
+            if (this->is_on_demand()) return g.inner_on_demand(*this);
+            if (g.is_on_demand()) return this->inner_on_demand(g);
 
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) g.verify_tree();

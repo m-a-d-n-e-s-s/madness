@@ -1095,6 +1095,8 @@ namespace madness {
 
         	// sum down the sum coeffs into the leafs
         	if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
+            if (fence) world.gop.fence();
+
         }
 
         /// merge the trees of this and other, while multiplying them with the alpha or beta, resp
@@ -3383,7 +3385,7 @@ namespace madness {
 
             if (node.has_children()) {
                 coeffT d;
-                if (c.size() > 0) {
+                if (c.has_data()) {
                     d = coeffT(cdata.v2k,targs);
                     d(cdata.s0) += c;
                     d = unfilter(d);
