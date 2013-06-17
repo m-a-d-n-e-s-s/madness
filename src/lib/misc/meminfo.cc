@@ -52,6 +52,8 @@
 #include <malloc/malloc.h>
 #elif defined(X86_32) 
 #include <malloc.h>
+#elif defined(X86_64)
+#include <sys/sysinfo.h>
 #endif
 
 
@@ -106,6 +108,19 @@ namespace madness {
   memoryfile << "Fastbin (MB): " << (mi.fsmblks/fac) << endl;
   memoryfile << "Highwater Mark (MB): " << (mi.usmblks/fac) << endl;
   memoryfile << "Total allocated space (MB): " << (mi.uordblks/fac) << endl;
+#elif defined(X86_64)
+  /* Better than nothing, mallinfo unreliable on 64-bit machine due to
+     use of int in mallinfo data structure. Requires Linux
+     kernel. Inaccurate if other processes besides MADNESS are
+     running. Memory differences appear to be reliable. */
+  struct sysinfo si; /* structure in bytes */
+
+  sysinfo(&si);
+
+  memoryfile << "Total RAM (MB): " << (si.totalram/fac) << endl;
+  memoryfile << "Free RAM (MB): " << (si.freeram/fac) << endl;
+  memoryfile << "Buffer (MB): " << (si.bufferram/fac) << endl;
+  memoryfile << "RAM in use (MB): " << ((si.totalram - si.freeram + si.bufferram)/fac) << endl;
 #endif // platform specific
     memoryfile.close();
 #else // MEMINFO
