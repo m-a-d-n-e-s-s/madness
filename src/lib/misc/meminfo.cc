@@ -50,7 +50,7 @@
 #include <spi/include/kernel/memory.h>
 #elif defined(ON_A_MAC) 
 #include <malloc/malloc.h>
-#elif defined(X86_32) || defined(X86_64)
+#elif defined(X86_32) 
 #include <malloc.h>
 #endif
 
@@ -96,7 +96,7 @@ namespace madness {
   malloc_zone_statistics(NULL, &mi);
 
   memoryfile << "Allocate heap (MB): " << (mi.size_in_use/fac) << endl; 
-#elif defined(X86_32) || defined(X86_64)
+#elif defined(X86_32) 
   struct mallinfo mi; /* structure in bytes */
   
   mi = mallinfo();
