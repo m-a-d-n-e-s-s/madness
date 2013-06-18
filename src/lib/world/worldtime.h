@@ -148,7 +148,9 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         asm volatile ("nop\n"); /* this might be dangerous */
 #elif defined(HAVE_IBMBGQ)
         //Delay(200); /* this is calling asm nop */
-        asm volatile ("nop\n"); /* this might be dangerous */
+        for (int i=0; i<1000; i++) {
+            asm volatile ("nop\n");
+        }
 #else
 #error cpu_relax is not implemented!
 #endif
