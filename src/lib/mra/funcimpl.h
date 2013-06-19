@@ -1091,7 +1091,7 @@ namespace madness {
         void gaxpy_inplace_reconstructed(const double alpha, const implT& g, const double beta, const bool fence) {
 
         	// merge g's tree into this' tree
-        	this->merge_trees(alpha,beta,g,true);
+        	this->merge_trees(beta,alpha,g,true);
 
         	// sum down the sum coeffs into the leafs
         	if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());

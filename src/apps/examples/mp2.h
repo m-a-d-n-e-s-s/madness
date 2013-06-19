@@ -872,7 +872,7 @@ namespace madness {
 			real_function_6d constant_term;
 			load_function(constant_term,"GVpair");
 
-			NonlinearSolverND<6> solver;
+//			NonlinearSolverND<6> solver;
 			// increment iteration counter upon entry
 			for (++result.iteration; result.iteration<20; ++result.iteration) {
 
@@ -886,14 +886,21 @@ namespace madness {
 				tmp=Q12(constant_term+tmp);
 
 				// check convergence
-				real_function_6d residual=tmp-result.function;
-				const double rnorm=residual.norm2();
+				const double rnorm=(result.function-tmp).norm2();
 				const double old_fnorm=result.function.norm2();
 				const double fnorm=tmp.norm2();
-				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",fnorm,rnorm);
+				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
+						fnorm,rnorm);
 
-				result.function=solver.update(result.function,residual);
-//				result.function=tmp;
+				result.function=tmp;
+//				real_function_6d residual=tmp-result.function;
+//				const double rnorm=residual.norm2();
+//				const double old_fnorm=result.function.norm2();
+//				const double fnorm=tmp.norm2();
+//				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",fnorm,rnorm);
+//
+//				result.function=solver.update(result.function,residual);
+////				result.function=tmp;
 				double old_energy=energy;
 				energy=compute_energy(result);
 
@@ -1387,10 +1394,10 @@ namespace madness {
 			load_balance(Vpair1,false);
 			real_function_6d GVpair;
             green.destructive()=true;			// green will destroy Vpair1
-			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
+//			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
-			save_function(GVpair,"GVpair1");
-//			load_function(GVpair,"GVpair1");
+//			save_function(GVpair,"GVpair1");
+			load_function(GVpair,"GVpair1");
 
 			// make the terms with low ranks and largish trees:
 			// - G ( O1 + O2 - O1O2) (U-K) | phi0 >
