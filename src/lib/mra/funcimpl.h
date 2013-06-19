@@ -1088,10 +1088,11 @@ namespace madness {
         }
 
         /// perform inplace gaxpy: this = alpha*this + beta*other
-        void gaxpy_inplace_reconstructed(const double alpha, const implT& g, const double beta, const bool fence) {
+        template<typename Q, typename R>
+        void gaxpy_inplace_reconstructed(const T& alpha, const FunctionImpl<Q,NDIM>& g, const R& beta, const bool fence) {
 
         	// merge g's tree into this' tree
-        	this->merge_trees(beta,alpha,g,true);
+        	this->merge_trees(beta,g,alpha,true);
 
         	// sum down the sum coeffs into the leafs
         	if (world.rank() == coeffs.owner(cdata.key0)) sum_down_spawn(cdata.key0, coeffT());
@@ -1107,8 +1108,8 @@ namespace madness {
         /// @param[in]	beta	prefactor for other
         /// @param[in]	other	the other function, reconstructed
         /// @return *this = alpha* *this + beta * other
-        template<typename R>
-        void merge_trees(const R alpha, const R beta, const implT& other, const bool fence=true) {
+        template<typename Q, typename R>
+        void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
             other.flo_unary_op_node_inplace(do_merge_trees<R>(alpha,beta,*this),fence);
             if (fence) world.gop.fence();

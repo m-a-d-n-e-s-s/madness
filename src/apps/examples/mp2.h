@@ -1394,10 +1394,10 @@ namespace madness {
 			load_balance(Vpair1,false);
 			real_function_6d GVpair;
             green.destructive()=true;			// green will destroy Vpair1
-//			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
+			GVpair=green(-2.0*Vpair1).truncate().reduce_rank();
 			Vpair1.clear(true);
-//			save_function(GVpair,"GVpair1");
-			load_function(GVpair,"GVpair1");
+			save_function(GVpair,"GVpair1");
+//			load_function(GVpair,"GVpair1");
 
 			// make the terms with low ranks and largish trees:
 			// - G ( O1 + O2 - O1O2) (U-K) | phi0 >
