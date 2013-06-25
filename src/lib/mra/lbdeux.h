@@ -37,6 +37,7 @@
 #include <madness_config.h>
 #include <map>
 #include <queue>
+#include <world/atomicint.h>
 
 /// \file mra/lbdeux.h
 /// \brief Implements (2nd generation) static load/data balancing for functions
@@ -92,7 +93,7 @@ namespace madness {
         volatile double my_cost;
         volatile double total_cost;
         volatile bool gotkids;
-        volatile int nsummed;
+        AtomicInt nsummed;
 
         /// Computes index of child key in this node using last bit of translations
         int index(const keyT& key) {
@@ -103,14 +104,16 @@ namespace madness {
 
     public:
         LBNodeDeux()
-                : my_cost(0.0), total_cost(0.0), gotkids(false), nsummed(0) {
+                : my_cost(0.0), total_cost(0.0), gotkids(false) {
+            nsummed = 0;
             for (int i=0; i<nchild; ++i)
                 child_cost[i] = 0.0;
         }
 
         LBNodeDeux(const LBNodeDeux<NDIM>& other) :
-            my_cost(other.my_cost), total_cost(other.total_cost), gotkids(other.gotkids), nsummed(other.nsummed)
+            my_cost(other.my_cost), total_cost(other.total_cost), gotkids(other.gotkids)
         {
+            nsummed = other.nsummed;
             for (int i=0; i<nchild; ++i)
                 child_cost[i] = other.child_cost[i];
         }
