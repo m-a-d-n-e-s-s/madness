@@ -2380,6 +2380,14 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
             }
         }
+        for (unsigned int iter=0; iter<subspace.size(); ++iter) {
+            vecfuncT& v = subspace[iter].first;
+            vecfuncT& r = subspace[iter].second;
+            for (unsigned int i=0; i<v.size(); ++i) {
+                lb.add_tree(v[i], lbcost<double,3>(1.0,8.0), false);
+                lb.add_tree(r[i], lbcost<double,3>(1.0,8.0), false);
+            }
+        }
 	world.gop.fence();
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
