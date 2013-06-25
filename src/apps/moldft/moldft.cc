@@ -477,7 +477,7 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (key.level() <= 1) {
+        if (key.level() < 1) {
             return 100.0*(leaf_value+parent_value);
         }
         else if (node.is_leaf()) {
@@ -1638,8 +1638,8 @@ struct Calculation {
                 TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
@@ -1666,9 +1666,9 @@ struct Calculation {
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
-                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
+                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
@@ -1770,7 +1770,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
+        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
@@ -1970,6 +1970,7 @@ struct Calculation {
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
 	TAU_STOP("V*psi");
+	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
 	    TAU_START("HF exchange");
             START_TIMER(world);
@@ -2000,6 +2001,7 @@ struct Calculation {
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
         TAU_STOP("Truncate Vpsi");
+	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
     }
@@ -2369,15 +2371,15 @@ struct Calculation {
             return;
 
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-        lb.add_tree(arho, lbcost<double,3>(1.0, 1.0), false);
+        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
+        lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
         for(unsigned int i = 0;i < amo.size();++i){
-            lb.add_tree(amo[i], lbcost<double,3>(1.0, 1.0), false);
+            lb.add_tree(amo[i], lbcost<double,3>(1.0, 8.0), false);
         }
         if(param.nbeta && !param.spin_restricted){
-            lb.add_tree(brho, lbcost<double,3>(1.0, 1.0), false);
+            lb.add_tree(brho, lbcost<double,3>(1.0, 8.0), false);
             for(unsigned int i = 0;i < bmo.size();++i){
-                lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(bmo[i], lbcost<double,3>(1.0, 8.0), false);
             }
         }
         for (unsigned int iter=0; iter<subspace.size(); ++iter) {
@@ -3150,7 +3152,7 @@ struct Calculation {
             TAU_STOP("Make densities");
 	    print_meminfo(world.rank(), "Make Densities");
 
-            if(iter < 2 || (iter % 10) == 0){
+            if(iter < 10 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
                 END_TIMER(world, "Load balancing");
