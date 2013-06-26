@@ -567,7 +567,9 @@ namespace madness {
         double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12)
             norm = 0.0;
-        s << norm << ")";
+        double nt = node.get_norm_tree();
+        if (nt == 1e300) nt = 0.0;
+        s << norm << ", norm_tree=" << nt << ")";
         return s;
     }
 
@@ -1402,14 +1404,14 @@ namespace madness {
                     rnorm = rc.normf();
                 }
 
-                if (rc.size() && lc.size()) { // Yipee!
+                if (tol && lnorm*rnorm < truncate_tol(tol, key)) {  // Zero leaf
+                    result->coeffs.replace(key, nodeT(tensorT(cdata.vk),false));
+                }
+                else if (rc.size() && lc.size()) { // Yipee!
                     result->task(world.rank(), &implT:: template do_mul<L,R>, key, lc, std::make_pair(key,rc));
                 }
-                else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
-                    result->coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf
-                }
-                else {
-                    result->coeffs.replace(key, nodeT(tensorT(),true)); // Interior node
+                else {  // Interior node
+                    result->coeffs.replace(key, nodeT(tensorT(),true));
                     vresult.push_back(result);
                     vright.push_back(right);
                     vrc.push_back(rc);
@@ -1483,11 +1485,6 @@ namespace madness {
                     rc = it->second.coeff();
             }
 
-            if (rc.size() && lc.size()) { // Yipee!
-                do_mul<L,R>(key, lc, std::make_pair(key,rc));
-                return None;
-            }
-
             if (tol) {
                 if (lc.size())
                     lnorm = lc.normf(); // Otherwise got from norm tree above
@@ -1497,6 +1494,12 @@ namespace madness {
                     coeffs.replace(key, nodeT(tensorT(cdata.vk),false)); // Zero leaf node
                     return None;
                 }
+            }
+
+            // WAS ABOVE tol test but this is 8x more work and non-zeroes
+            if (rc.size() && lc.size()) { // Yipee!
+                do_mul<L,R>(key, lc, std::make_pair(key,rc));
+                return None;
             }
 
             // Recur down
@@ -2250,7 +2253,7 @@ namespace madness {
                 sum += value*value;
             }
             sum = sqrt(sum);
-            coeffs.task(key, &nodeT::set_norm_tree, sum);
+            coeffs.task(key, &nodeT::set_norm_tree, sum); // why a task?????????????????????
             //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
             return sum;
         }
@@ -2266,7 +2269,9 @@ namespace madness {
                 return world.taskq.add(*this,&implT::norm_tree_op, key, v);
             }
             else {
-                return Future<double>(node.coeff().normf());
+                double sum = node.coeff().normf();
+                node.set_norm_tree(sum);
+                return Future<double>(sum);
             }
         }
 
