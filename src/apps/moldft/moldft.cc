@@ -912,6 +912,7 @@ struct Calculation {
     double current_energy;
     double esol;//etot;
     double vacuo_energy;
+    static const double vnucextra = 12.0;
 
     Calculation(World & world, const char *filename)
     {
@@ -1638,7 +1639,7 @@ struct Calculation {
                 TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
@@ -1666,7 +1667,7 @@ struct Calculation {
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
                     lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
                 }
@@ -1770,7 +1771,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0));
+        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
@@ -2371,7 +2372,7 @@ struct Calculation {
             return;
 
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0), false);
+        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
         lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
         for(unsigned int i = 0;i < amo.size();++i){
             lb.add_tree(amo[i], lbcost<double,3>(1.0, 8.0), false);
@@ -2382,14 +2383,16 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 8.0), false);
             }
         }
-        for (unsigned int iter=0; iter<subspace.size(); ++iter) {
-            vecfuncT& v = subspace[iter].first;
-            vecfuncT& r = subspace[iter].second;
-            for (unsigned int i=0; i<v.size(); ++i) {
-                lb.add_tree(v[i], lbcost<double,3>(1.0,8.0), false);
-                lb.add_tree(r[i], lbcost<double,3>(1.0,8.0), false);
-            }
-        }
+	// Leads to large memory memory imbalance. Comment out for now.
+	// NAR, June 26, 2013
+	//        for (unsigned int iter=0; iter<subspace.size(); ++iter) {
+	//            vecfuncT& v = subspace[iter].first;
+	//            vecfuncT& r = subspace[iter].second;
+	//            for (unsigned int i=0; i<v.size(); ++i) {
+	//                lb.add_tree(v[i], lbcost<double,3>(1.0,8.0), false);
+	//                lb.add_tree(r[i], lbcost<double,3>(1.0,8.0), false);
+	//            }
+	//        }
 	world.gop.fence();
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
