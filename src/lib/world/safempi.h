@@ -44,7 +44,9 @@
 //  Jeff's new comments:
 //  I can't remember where the static stuff is that scared me but it must be found and properly
 //  protected.  We really need to be able to use MPI_THREAD_MULTIPLE on BGQ.
-#define SERIALIZE_MPI
+#if MADNESS_MPI_THREAD_LEVEL == MPI_THREAD_SERIALIZED
+#  define MADNESS_SERIALIZES_MPI
+#endif
 
 #ifdef STUBOUTMPI
 #include <world/stubmpi.h>
@@ -63,7 +65,7 @@
         ( level==MPI_THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
             ( level==MPI_THREAD_MULTIPLE ? "THREAD_MULTIPLE" : \
                 ( level==MPI_THREAD_FUNNELED ? "THREAD_FUNNELED" : \
-                    ( level==MPI_THREAD_SINGLE ? "THREAD_SINGLE" : "WTF" ) ) ) )
+                    ( level==MPI_THREAD_SINGLE ? "THREAD_SINGLE" : "THREAD_UNKNOWN" ) ) ) )
 
 #define MADNESS_MPI_TEST(condition) \
     { \
@@ -73,7 +75,7 @@
 
 namespace SafeMPI {
 
-#ifdef SERIALIZE_MPI
+#ifdef MADNESS_SERIALIZES_MPI
     extern madness::SCALABLE_MUTEX_TYPE charon;      // Inside safempi.cc
 #define SAFE_MPI_GLOBAL_MUTEX madness::ScopedMutex<madness::SCALABLE_MUTEX_TYPE> obolus(SafeMPI::charon)
 #else

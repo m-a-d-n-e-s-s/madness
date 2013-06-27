@@ -172,11 +172,7 @@ namespace madness {
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
-#if defined(SERIALIZE_MPI) && !defined(MADNESS_HAS_ELEMENTAL)
-        int required = MPI_THREAD_SERIALIZED;
-#else
-        int required = MPI_THREAD_MULTIPLE;
-#endif
+        const int required = MADNESS_MPI_THREAD_LEVEL;
         SafeMPI::Init_thread(argc, argv, required);
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();

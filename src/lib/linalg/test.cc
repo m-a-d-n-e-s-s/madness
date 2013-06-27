@@ -51,11 +51,7 @@ using namespace madness;
 int
 main(int argc, char* argv[]) {
 
-//vama#if defined(SERIALIZE_MPI) && !defined(MADNESS_HAS_ELEMENTAL)
-//vama    int required = MPI_THREAD_SERIALIZED;
-//vama#else
-//vama    int required = MPI_THREAD_MULTIPLE;
-//vama#endif
+//vama    const int required = MADNESS_MPI_THREAD_LEVEL;
 //vama
 //vama
 //vama#ifdef MADNESS_HAS_ELEMENTAL

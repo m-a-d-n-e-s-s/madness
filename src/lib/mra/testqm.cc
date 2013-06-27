@@ -233,11 +233,7 @@ void test_chin_chen(World& world) {
 }
 
 int main(int argc, char**argv) {
-#ifdef SERIALIZE_MPI
-    int required = MPI_THREAD_SERIALIZED;
-#else
-    int required = MPI_THREAD_MULTIPLE;
-#endif
+    const int required = MADNESS_MPI_THREAD_LEVEL;
     SafeMPI::Init_thread(argc, argv, required);
     World world(SafeMPI::COMM_WORLD);
     try {

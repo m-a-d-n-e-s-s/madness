@@ -30,5 +30,6 @@ AC_DEFUN([ACX_WITH_ELEMENTAL],
       [AC_MSG_ERROR([Unable to find the elemental.hpp  header file.])])
     AC_DEFINE([MADNESS_HAS_ELEMENTAL], [1], 
       [Madness will use Elemental for parallel linear algebra operations])
+    MADNESS_HAS_ELEMENTAL=1
   fi
 ])

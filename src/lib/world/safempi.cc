@@ -35,7 +35,7 @@
 
 namespace SafeMPI {
 
-#ifdef SERIALIZE_MPI
+#ifdef MADNESS_SERIALIZES_MPI
     madness::SCALABLE_MUTEX_TYPE charon;
 #endif
 
