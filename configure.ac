@@ -321,27 +321,27 @@ AC_ARG_WITH([fortran-int32],
              AC_MSG_NOTICE([Fortran integer: long])
             ])
 
+# Set the MPI thread level used by MADNESS
 MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
 if test X$MADNESS_HAS_ELEMENTAL = X1; then
   MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
 fi
-AC_ARG_WITH(mpi-thread,
-[  --with-mpi-thread       Thread level for MPI (multiple,serialized)],
-[
-   case $withval in
-   multiple)
-        MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
-   ;;
-   serialized)
-        MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
-   ;;
-   *)
-     AC_MSG_ERROR([Invalid value for --with-mpi-thread ($withval)])
-   ;;
-   esac
-]
-)
-AC_DEFINE_UNQUOTED(MADNESS_MPI_THREAD_LEVEL, [$MADNESS_MPI_THREAD_LEVEL], [Thread-safety level requested from MPI by MADNESS])
+AC_ARG_WITH([mpi-thread],
+            [AC_HELP_STRING([--with-mpi-thread], [Thread level for MPI (multiple,serialized)])],
+            [
+              case $withval in
+                multiple)
+                  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
+                  ;;
+                serialized)
+                  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
+                  ;;
+                *)
+                  AC_MSG_ERROR([Invalid value for --with-mpi-thread ($withval)])
+                  ;;
+              esac
+            ])
+AC_DEFINE_UNQUOTED([MADNESS_MPI_THREAD_LEVEL], [$MADNESS_MPI_THREAD_LEVEL], [Thread-safety level requested from MPI by MADNESS])
 AC_MSG_NOTICE([MPI thread-safety requested: $MADNESS_MPI_THREAD_LEVEL])
 
 # Stuff that either does not work or is ill-advised
