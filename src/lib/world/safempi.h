@@ -444,7 +444,7 @@ namespace SafeMPI {
 
         };
     	std::shared_ptr<Impl> impl;
-        
+
         friend void Init(void);
         friend void Init(int &, char **& );
         friend int Init_thread(int);
@@ -482,7 +482,9 @@ namespace SafeMPI {
         }
 
         bool operator==(const Intracomm& other) const {
-          return impl->comm == other.impl->comm;
+            int compare_result;
+            const int result = MPI_Comm_compare(impl->comm, other.impl->comm, &compare_result);
+            return ((result == MPI_SUCCESS) && (compare_result == MPI_IDENT));
         }
 
         /**
@@ -730,7 +732,7 @@ namespace SafeMPI {
         }
 
         if (mv2_affinity!=0) {
-            std::cout << "!! Error: You are using MVAPICH2 with affinity enabled, probably by default. \n" 
+            std::cout << "!! Error: You are using MVAPICH2 with affinity enabled, probably by default. \n"
                       << "!! Error: This will cause catastrophic performance issues in MADNESS. \n"
                       << "!! Error: Rerun your job with MV2_ENABLE_AFFINITY=0 \n"
                       << std::endl;
