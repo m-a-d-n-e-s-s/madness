@@ -96,11 +96,45 @@ namespace SafeMPI {
     static const int MPIAR_TAG = 1001;
     static const int DEFAULT_SEND_RECV_TAG = 1000;
 
+    /**
+     * analogous to MPI_Init_thread
+     * @param argc the number of arguments in argv
+     * @param argv the vector of command-line arguments
+     * @param requested the desired thread level
+     * @return provided thread level
+     */
     inline int Init_thread(int &, char **&, int);
-    inline int Init_thread(int);
+    /**
+     * analogous to MPI_Init_thread
+     * @param requested the desired thread level
+     * @return provided thread level
+     */
+    inline int Init_thread(int requested);
+    /**
+     * analogous to MPI_Query_thread
+     * @return the MPI thread level provided by SafeMPI::Init_thread()
+     */
+    inline int Query_thread();
+    /**
+     * analogous to MPI_Init
+     */
     inline void Init();
-    inline void Init(int &, char **&);
+    /**
+     * analogous to MPI_Init
+     * @param argc the number of arguments in argv
+     * @param argv the vector of command-line arguments
+     */
+    inline void Init(int &argc, char **&argv);
+    /**
+     * analogous to MPI_Finalize. This returns status rather than throw an exception upon failure because
+     * this is a "destructor", and throwing from destructors is evil.
+     * @return 0 if successful, nonzero otherwise (see MPI_Finalize() for the return codes).
+     */
     inline int Finalize();
+    /**
+     * analogous to MPI_Finalized()
+     * @return true is SafeMPI::Finalize() has been called, false otherwise
+     */
     inline bool Is_finalized();
 
     class Exception : public std::exception {
@@ -763,6 +797,12 @@ namespace SafeMPI {
         }
 
         return provided;
+    }
+
+    inline int Query_thread() {
+      int provided;
+      MADNESS_MPI_TEST(MPI_Query_thread(&provided));
+      return provided;
     }
 
     inline void Init() {
