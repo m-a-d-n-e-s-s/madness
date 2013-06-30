@@ -4,6 +4,15 @@ dft
 end
   #xc GGA_X_PBE .75 GGA_C_PBE 1. HF_X .25
 
+geometry
+  Be 0 0 0
+  Be 0 0 5
+  Be 0 0 10
+  Be 0 0 15
+  Be 0 0 20
+end
+
+
 # water dimer
 geometry
   units angstrom

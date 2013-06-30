@@ -39,13 +39,17 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <misc/misc.h>
-#include <misc/ran.h>
-#include <linalg/solvers.h>
 #include <mra/qmprop.h>
+
+#include <misc/ran.h>
+
+#include <tensor/systolic.h>
+#include <linalg/solvers.h>
+#include <linalg/elem.h>
+
 #include <ctime>
 #include <list>
-#include <linalg/elem.h>
+
 #include <TAU.h>
 using namespace madness;
 
@@ -77,26 +81,7 @@ Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
     return expV;
 }
 
-
-/// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
-void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
-    if (inc == 1) {
-        for (long i=0; i<n; ++i) {
-            double aa = a[i]*c - b[i]*s;
-            double bb = b[i]*c + a[i]*s;
-            a[i] = aa;
-            b[i] = bb;
-        }
-    }
-    else {
-        for (long i=0; i<(n*inc); i+=inc) {
-            double aa = a[i]*c - b[i]*s;
-            double bb = b[i]*c + a[i]*s;
-            a[i] = aa;
-            b[i] = bb;
-        }
-    }
-}
+extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
 
 void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
@@ -135,24 +120,25 @@ void drot3(long n, double* restrict a, double* restrict b, double s, double c, l
         }
     }
 }
-class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
-  Molecule molecule;
-  std::vector<coord_3d> specialpts;
-public:
-  NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
 
-  double operator()(const Vector<double,3>& r) const {
-    return molecule.mol_nuclear_charge_density(r[0], r[1], r[2]);
-  }
+// class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
+//   Molecule molecule;
+//   std::vector<coord_3d> specialpts;
+// public:
+//   NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
 
-  std::vector<coord_3d> special_points() const{
-    return molecule.get_all_coords_vec();
-  }
+//   double operator()(const Vector<double,3>& r) const {
+//     return molecule.mol_nuclear_charge_density(r[0], r[1], r[2]);
+//   }
 
-  Level special_level() {
-    return 15;
-  }
-};
+//   std::vector<coord_3d> special_points() const{
+//     return molecule.get_all_coords_vec();
+//   }
+
+//   Level special_level() {
+//     return 15;
+//   }
+// };
 
 
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
@@ -170,9 +156,18 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
+extern tensorT distributed_localize_PM(World & world, 
+                                const vecfuncT & mo, 
+                                const vecfuncT & ao, 
+                                const std::vector<int> & set, 
+                                const std::vector<int> & at_to_bf,
+                                const std::vector<int> & at_nbf, 
+                                const double thresh = 1e-9, 
+                                const double thetamax = 0.5, 
+                                const bool randomize = true, 
+                                       const bool doprint = false);
 
-
-double ttt, sss;
+static double ttt, sss;
 void START_TIMER(World& world) {
     world.gop.fence(); ttt=wall_time(); sss=cpu_time();
 }
@@ -219,49 +214,49 @@ double mask3(const coordT& ruser) {
     return result;
 }
 
-template<int NDIM>
-class DensityIsosurfaceCharacteristic {
-    const double rho0, twobeta;
+// template<int NDIM>
+// class DensityIsosurfaceCharacteristic {
+//     const double rho0, twobeta;
 
-    double f(double rho) const {
-        double r = std::max(rho,1e-12)/rho0;
-        double r2b = std::pow(r,twobeta);
-        return r2b/(1.0+r2b);
-    }
+//     double f(double rho) const {
+//         double r = std::max(rho,1e-12)/rho0;
+//         double r2b = std::pow(r,twobeta);
+//         return r2b/(1.0+r2b);
+//     }
 
-public:
-    DensityIsosurfaceCharacteristic(double rho0, double beta)
-        : rho0(rho0), twobeta(2.0*beta)
-    {}
+// public:
+//     DensityIsosurfaceCharacteristic(double rho0, double beta)
+//         : rho0(rho0), twobeta(2.0*beta)
+//     {}
 
-    void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
-        UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
-    }
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-};
+//     void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
+//         UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
+//     }
+//     template <typename Archive>
+//     void serialize(Archive& ar) {}
+// };
 
-template<int NDIM>
-class DensityIsosurfaceCharacteristicDerivative {
-    const double rho0, twobeta;
+// template<int NDIM>
+// class DensityIsosurfaceCharacteristicDerivative {
+//     const double rho0, twobeta;
 
-    double f(double rho) const {
-        double r = std::max(rho,1e-12)/rho0;
-        double r2b = std::pow(r,twobeta);
-        return twobeta*r2b/(rho0*r*(1.0+r2b)*(1.0+r2b));
-    }
+//     double f(double rho) const {
+//         double r = std::max(rho,1e-12)/rho0;
+//         double r2b = std::pow(r,twobeta);
+//         return twobeta*r2b/(rho0*r*(1.0+r2b)*(1.0+r2b));
+//     }
 
-public:
-    DensityIsosurfaceCharacteristicDerivative(double rho0, double beta)
-        : rho0(rho0), twobeta(2.0*beta)
-    {}
+// public:
+//     DensityIsosurfaceCharacteristicDerivative(double rho0, double beta)
+//         : rho0(rho0), twobeta(2.0*beta)
+//     {}
 
-    void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
-        UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
-    }
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-};
+//     void operator()(const Key<NDIM>& key, Tensor<double>& t) const {
+//         UNARY_OPTIMIZED_ITERATOR(double, t, *_p0 = f(*_p0););
+//     }
+//     template <typename Archive>
+//     void serialize(Archive& ar) {}
+// };
 
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -477,7 +472,7 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (key.level() < 1) {
+        if (key.level() <= 1) {
             return 100.0*(leaf_value+parent_value);
         }
         else if (node.is_leaf()) {
@@ -912,14 +907,17 @@ struct Calculation {
     double current_energy;
     double esol;//etot;
     double vacuo_energy;
-    static const double vnucextra = 12.0;
 
     Calculation(World & world, const char *filename)
     {
-        TAU_START("Calculation (World &, const char *");
+     TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
+	    TAU_START("molecule.read_file");
             molecule.read_file(filename);
+	    TAU_STOP("molecule.read_file");
+	    TAU_START("param.read_file");
             param.read_file(filename);
+	    TAU_STOP("param.read_file");
             unsigned int n_core = 0;
             if (param.core_type != "") {
                 molecule.read_core_file(param.core_type);
@@ -927,14 +925,25 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
+	    TAU_START("molecule.orient");
             molecule.orient();
+	    TAU_STOP("molecule.orient");
+	    TAU_START("aobasis.read_file");
             aobasis.read_file(param.aobasis);
-
+	    TAU_STOP("aobasis.read_file");
+	    TAU_START("param.set_molecular_info");
             param.set_molecular_info(molecule, aobasis, n_core);
+	    TAU_STOP("param.set_molecular_info");
         }
+	TAU_START("world.gop.broadcast_serializable(molecule,0)");
         world.gop.broadcast_serializable(molecule, 0);
+	TAU_STOP("world.gop.broadcast_serializable(molecule,0)");
+	TAU_START("world.gop.broadcast_serializable(param,0)");
         world.gop.broadcast_serializable(param, 0);
+	TAU_STOP("world.gop.broadcast_serializable(param,0)");
+	TAU_START("world.gop.broadcast_serializable(aobasis,0)");
         world.gop.broadcast_serializable(aobasis, 0);
+	TAU_STOP("world.gop.broadcast_serializable(aobasis,0)");
 
 	TAU_START("xc.initialize");
         xc.initialize(param.xc_data, !param.spin_restricted);
@@ -943,7 +952,7 @@ struct Calculation {
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
-        TAU_STOP("Calculation (World &, const char *");
+     TAU_STOP("Calculation (World &, const char *");
     }
 
     void set_protocol(World & world, double thresh)
@@ -996,7 +1005,7 @@ struct Calculation {
     }
 
     void load_mos(World& world) {
-        TAU_START("load_mos");
+      TAU_START("load_mos");
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
@@ -1087,7 +1096,7 @@ struct Calculation {
 
             }
         }
-        TAU_STOP("load_mos");
+      TAU_STOP("load_mos");
     }
 
     void do_plots(World& world) {
@@ -1196,27 +1205,89 @@ struct Calculation {
         normalize(world, ao);
         END_TIMER(world, "project ao basis");
         TAU_STOP("project ao basis");
-	print_meminfo(world.rank(), "project ao basis");
     }
 
-    double PM_q(const tensorT & S, const tensorT & C, int i, int j, int lo, int nbf)
+    double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj, int lo, int nbf)
     {
         double qij = 0.0;
         if (nbf == 1) { // H atom in STO-3G ... often lots of these!
-            qij = C(i,lo)*S(0,0)*C(j,lo);
+            qij = Ci[lo]*S(0,0)*Cj[lo];
         }
         else {
             for(int mu = 0;mu < nbf;++mu){
                 double Smuj = 0.0;
                 for(int nu = 0;nu < nbf;++nu){
-                    Smuj += S(mu, nu) * C(j, nu + lo);
+                    Smuj += S(mu, nu) * Cj[nu + lo];
                 }
-                qij += C(i, mu + lo) * Smuj;
+                qij += Ci[mu + lo] * Smuj;
             }
         }
 
         return qij;
     }
+
+
+    void localize_PM_ij(const int seti, const int setj, 
+                        const double tol, const double thetamax,
+                        const int natom, const int nao,  const int nmo,
+                        const std::vector<tensorT>& Svec, 
+                        const std::vector<int>& at_to_bf, const std::vector<int>& at_nbf, 
+                        long& ndone_iter, double& maxtheta, 
+                        double * restrict Qi, double * restrict Qj,  
+                        double * restrict Ci, double * restrict Cj, 
+                        double * restrict Ui, double * restrict Uj)
+    {
+        if(seti == setj){
+            // Q could be recomputed for each ij, but by saving it we reduce computation by a factor
+            // of 2 when far from convergence, and as we approach convergence we save more since
+            // most work is associated with computing ovij.
+
+            double ovij = 0.0;
+            for(long a = 0;a < natom;++a)
+                ovij += Qi[a] * Qj[a];
+            
+            print("ovij", ovij);
+            if(fabs(ovij) > tol * tol){
+                double aij = 0.0;
+                double bij = 0.0;
+                for(long a = 0;a < natom;++a){
+                    double qiia = Qi[a];
+                    double qija = PM_q(Svec[a], Ci, Cj, at_to_bf[a], at_nbf[a]);
+                    double qjja = Qj[a];
+                    double d = qiia - qjja;
+                    aij += qija * qija - 0.25 * d * d;
+                    bij += qija * d;
+                }
+                double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
+
+                if(bij > 0.0)
+                    theta = -theta;
+                
+                print("theta", theta);
+                if(theta > thetamax)
+                    theta = thetamax;
+                else
+                    if(theta < -thetamax)
+                        theta = -thetamax;
+                
+                maxtheta = std::max(fabs(theta), maxtheta);
+                if(fabs(theta) >= tol){
+                    ++ndone_iter;
+                    double c = cos(theta);
+                    double s = sin(theta);
+                    print(c,s);
+                    drot(nao, Ci, Cj, s, c, 1);
+                    drot(nmo, Ui, Uj, s, c, 1);
+                    for(long a = 0;a < natom;++a){
+                        Qi[a] = PM_q(Svec[a], Ci, Ci, at_to_bf[a], at_nbf[a]);
+                        Qj[a] = PM_q(Svec[a], Cj, Cj, at_to_bf[a], at_nbf[a]);
+                    }
+                }
+            }
+        }
+    }
+    
+
 
     void localize_PM_task_kernel(tensorT & Q, std::vector<tensorT> & Svec, tensorT & C,
                                  const bool & doprint, const std::vector<int> & set,
@@ -1228,13 +1299,17 @@ struct Calculation {
 
         for(long i = 0;i < nmo;++i){
             for(long a = 0;a < natom;++a){
-                Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
+                Q(i, a) = PM_q(Svec[a], &C(i,0), &C(i,0), at_to_bf[a], at_nbf[a]);
             }
         }
+
+        print("Q\n", Q);
 
         double tol = 0.1;
         long ndone = 0;
         for(long iter = 0;iter < 100;++iter){
+
+            // Diagnostics at bgeinning of iteration
             double sum = 0.0;
             for(long i = 0;i < nmo;++i){
                 for(long a = 0;a < natom;++a){
@@ -1242,54 +1317,26 @@ struct Calculation {
                     sum += qiia * qiia;
                 }
             }
-
-            long ndone_iter = 0;
-            double maxtheta = 0.0;
             if(doprint)
                 printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
+            // End diagnostics at beginning of iteration
 
+            // Initialize variables for convergence test
+            long ndone_iter = 0;
+            double maxtheta = 0.0;
             for(long i = 0;i < nmo;++i){
                 for(long j = 0;j < i;++j){
-                    if(set[i] == set[j]){
-                        double ovij = 0.0;
-                        for(long a = 0;a < natom;++a)
-                            ovij += Q(i, a) * Q(j, a);
 
-                        if(fabs(ovij) > tol * tol){
-                            double aij = 0.0;
-                            double bij = 0.0;
-                            for(long a = 0;a < natom;++a){
-                                double qiia = Q(i, a);
-                                double qija = PM_q(Svec[a], C, i, j, at_to_bf[a], at_nbf[a]);
-                                double qjja = Q(j, a);
-                                double d = qiia - qjja;
-                                aij += qija * qija - 0.25 * d * d;
-                                bij += qija * d;
-                            }
-                            double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
-                            if(bij > 0.0)
-                                theta = -theta;
+                    localize_PM_ij(set[i], set[j], 
+                                   tol, thetamax, 
+                                   natom, nao, nmo, 
+                                   Svec, 
+                                   at_to_bf, at_nbf, 
+                                   ndone_iter, maxtheta, 
+                                   &Q(i,0), &Q(j,0),
+                                   &C(i,0), &C(j,0),
+                                   &U(i,0), &U(j,0));
 
-                            if(theta > thetamax)
-                                theta = thetamax;
-                            else
-                                if(theta < -thetamax)
-                                    theta = -thetamax;
-
-                            maxtheta = std::max(fabs(theta), maxtheta);
-                            if(fabs(theta) >= tol){
-                                ++ndone_iter;
-                                double c = cos(theta);
-                                double s = sin(theta);
-                                drot(nao, &C(i, 0), &C(j, 0), s, c, 1);
-                                drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
-                                for(long a = 0;a < natom;++a){
-                                    Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
-                                    Q(j, a) = PM_q(Svec[a], C, j, j, at_to_bf[a], at_nbf[a]);
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -1302,12 +1349,19 @@ struct Calculation {
             }
             tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
         }
-
     }
 
     tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false)
     {
         TAU_START("Pipek-Mezy localize");
+        START_TIMER(world);
+        tensorT UT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf, thresh, thetamax, randomize, doprint);
+        END_TIMER(world, "Pipek-Mezy distributed ");
+        print(UT);
+
+        return UT;
+
+
         START_TIMER(world);
         long nmo = mo.size();
         long natom = molecule.natom();
@@ -1357,7 +1411,6 @@ struct Calculation {
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
         TAU_STOP("Pipek-Mezy localize");
-	print_meminfo(world.rank(), "Pipek-Mezy localize");
         return U;
     }
 
@@ -1639,8 +1692,8 @@ struct Calculation {
                 TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
@@ -1667,9 +1720,9 @@ struct Calculation {
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
-                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
+                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
@@ -1698,7 +1751,6 @@ struct Calculation {
             sygvp(world, fock, overlap, 1, c, e);
             END_TIMER(world, "guess eigen sol");
             TAU_STOP("guess eigen sol");
-	    print_meminfo(world.rank(), "guess eigen sol");
 
             if(world.rank() == 0 && 0){
               print("initial eigenvalues");
@@ -1771,7 +1823,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0));
+        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
@@ -1971,7 +2023,6 @@ struct Calculation {
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
 	TAU_STOP("V*psi");
-	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
 	    TAU_START("HF exchange");
             START_TIMER(world);
@@ -2002,7 +2053,6 @@ struct Calculation {
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
         TAU_STOP("Truncate Vpsi");
-	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
     }
@@ -2371,6 +2421,7 @@ struct Calculation {
         if(world.size() == 1)
             return;
 
+        const double vnucextra = 12.0;
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
         lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
@@ -2383,20 +2434,9 @@ struct Calculation {
                 lb.add_tree(bmo[i], lbcost<double,3>(1.0, 8.0), false);
             }
         }
-	// Leads to large memory memory imbalance. Comment out for now.
-	// NAR, June 26, 2013
-	//        for (unsigned int iter=0; iter<subspace.size(); ++iter) {
-	//            vecfuncT& v = subspace[iter].first;
-	//            vecfuncT& r = subspace[iter].second;
-	//            for (unsigned int i=0; i<v.size(); ++i) {
-	//                lb.add_tree(v[i], lbcost<double,3>(1.0,8.0), false);
-	//                lb.add_tree(r[i], lbcost<double,3>(1.0,8.0), false);
-	//            }
-	//        }
 	world.gop.fence();
 
-        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
     }
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
@@ -3113,7 +3153,7 @@ struct Calculation {
             if(param.localize && do_this_iter) {
                 tensorT U;
                 if (param.localize_pm) {
-                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
                 }
                 else {
                     U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
@@ -3124,7 +3164,7 @@ struct Calculation {
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
                 if(!param.spin_restricted && param.nbeta != 0 ){
                     if (param.localize_pm) {
-                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
                     }
                     else {
                         U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
@@ -3153,14 +3193,11 @@ struct Calculation {
             }
             END_TIMER(world, "Make densities");
             TAU_STOP("Make densities");
-	    print_meminfo(world.rank(), "Make Densities");
 
-            if(iter < 10 || (iter % 10) == 0){
+            if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
                 END_TIMER(world, "Load balancing");
-		print_meminfo(world.rank(), "Load balancing");
-
             }
             double da = 0.0, db = 0.0;
             if(iter > 0){
@@ -3192,7 +3229,7 @@ struct Calculation {
             functionT vlocal;
             END_TIMER(world, "Coulomb");
             TAU_STOP("Coulomb");
-	    print_meminfo(world.rank(), "Coulomb");
+
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
             // /*==========================================================================================
@@ -3500,13 +3537,18 @@ int main(int argc, char** argv) {
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
-	print_meminfo(world.rank(), "startup");
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
         std::cout.precision(6);
 
         // Process 0 reads input information and broadcasts
-        const char * inpname = (argc>1) ? argv[1] : "input";
+        char * inpname = "input";
+        for (int i=1; i<argc; i++) {
+            if (argv[i][0] != '-') {
+                inpname = argv[i];
+                break;
+            }
+        }
         if (world.rank() == 0) print(inpname);
         Calculation calc(world, inpname);
 
@@ -3609,7 +3651,9 @@ int main(int argc, char** argv) {
       print_stats(world);
     } // world is dead -- ready to finalize
   TAU_STOP("World lifetime");
+  TAU_START("finalize()");
     finalize();
+  TAU_STOP("finalize()");
   TAU_STOP("main()");
 
     return 0;
