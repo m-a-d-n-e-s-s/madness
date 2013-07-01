@@ -1830,7 +1830,6 @@ struct Calculation {
 
     functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
     {
-        print("OCC", occ);
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
         functionT rho = factoryT(world);
