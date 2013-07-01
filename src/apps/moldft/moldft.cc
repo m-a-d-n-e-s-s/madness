@@ -1357,7 +1357,7 @@ struct Calculation {
         START_TIMER(world);
         tensorT UT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf, thresh, thetamax, randomize, doprint);
         END_TIMER(world, "Pipek-Mezy distributed ");
-        print(UT);
+        //print(UT);
 
         return UT;
 

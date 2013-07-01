@@ -111,7 +111,7 @@ public:
         double snew = Ui[j]*Ui[j] + Uj[i]*Uj[i];
         if (snew > sold) {
             nswitched++;
-            print("rotation", i, j, sold, snew);
+            //print("rotation", i, j, sold, snew);
             double tmp[m];
             memcpy(tmp, Ui, m*sizeof(double));
             memcpy(Ui, Uj, m*sizeof(double));
@@ -119,11 +119,11 @@ public:
         }
         // While here fix the phases
         if (Ui[i] < 0) {
-            print("fixing sign", i);
+            //print("fixing sign", i);
             for (int i=0; i<m; i++) Ui[i]*=-1.0;
         }
         if (Uj[j] < 0) {
-            print("fixing sign", j);
+            //print("fixing sign", j);
             for (int j=0; j<m; j++) Uj[j]*=-1.0;
         }
     }
@@ -303,7 +303,7 @@ tensorT distributed_localize_PM(World & world,
     world.taskq.add(new SystolicPMOrbitalLocalize(dA, set, at_to_bf, at_nbf, Svec, thresh, thetamax, natom, nao, nmo));
     world.taskq.fence();
 
-    print("DONE",world.rank());
+    //print("DONE",world.rank());
 
     // Copy the data out
     Tensor<double> A(nmo, nao+nmo+natom);
