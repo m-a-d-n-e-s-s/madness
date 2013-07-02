@@ -42,7 +42,7 @@ void matrix_inner(DistributedMatrix<T>& A,
 {
     const int64_t n = A.coldim();
     const int64_t m = A.rowdim();
-    MADNESS_ASSERT(f.size() == n && g.size() == m);
+    MADNESS_ASSERT(int64_t(f.size()) == n && int64_t(g.size()) == m);
     
     // Assume we can always create an ichunk*jchunk matrix locally
     const int ichunk = 1000;
@@ -96,7 +96,7 @@ public:
     void end_iteration_hook(const TaskThreadEnv& env) {
         if (env.id() == 0) {
             int nsw = nswitched;
-            SystolicMatrixAlgorithm::get_world().gop.sum(nsw);
+            SystolicMatrixAlgorithm<double>::get_world().gop.sum(nsw);
             nswitched = nsw;
         }
     }
@@ -241,7 +241,7 @@ public:
     void end_iteration_hook(const TaskThreadEnv& env) {
         if(env.id() == 0) {
             int ndone = ndone_iter;
-            SystolicMatrixAlgorithm::get_world().gop.sum(ndone);
+            SystolicMatrixAlgorithm<double>::get_world().gop.sum(ndone);
             ndone_iter = ndone;
             //madness::print("end", SystolicMatrixAlgorithm::get_world().rank(),iter,ndone);
         }
