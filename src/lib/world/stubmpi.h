@@ -100,6 +100,7 @@ inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MP
 inline int MPI_Initialized(int* flag) { *flag = 1; return MPI_SUCCESS; }
 inline int MPI_Finalize() { return MPI_SUCCESS; }
 inline int MPI_Finalized(int* flag) { *flag = 1; return MPI_SUCCESS; }
+inline int MPI_Query_thread(int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
 
 // Buffer functions (do nothing since no messages may be sent)
 inline int MPI_Buffer_attach(void*, int) { return MPI_SUCCESS; }
