@@ -60,9 +60,9 @@ namespace SafeMPI {
         MPI_Comm comm_world() const { return MPI_COMM_WORLD; }
     };
 
-    Intracomm::Intracomm(const WorldInitObject& init) {
-      impl = std::shared_ptr<Impl>(new Impl(init.comm_world(), -1, -1));
-    }
+    Intracomm::Intracomm(const WorldInitObject& init) :
+        pimpl(new Impl(init.comm_world(), -1, -1))
+    { }
 
     Intracomm COMM_WORLD = Intracomm::WorldInitObject();
 
