@@ -41,6 +41,7 @@
 #include <mra/lbdeux.h>
 #include <mra/qmprop.h>
 
+#include <misc/misc.h>
 #include <misc/ran.h>
 
 #include <tensor/systolic.h>
@@ -472,7 +473,7 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (key.level() <= 1) {
+        if (key.level() < 1) {
             return 100.0*(leaf_value+parent_value);
         }
         else if (node.is_leaf()) {
@@ -907,17 +908,14 @@ struct Calculation {
     double current_energy;
     double esol;//etot;
     double vacuo_energy;
+    static const double vnucextra = 12.0;
 
     Calculation(World & world, const char *filename)
     {
-     TAU_START("Calculation (World &, const char *");
+        TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
-	    TAU_START("molecule.read_file");
             molecule.read_file(filename);
-	    TAU_STOP("molecule.read_file");
-	    TAU_START("param.read_file");
             param.read_file(filename);
-	    TAU_STOP("param.read_file");
             unsigned int n_core = 0;
             if (param.core_type != "") {
                 molecule.read_core_file(param.core_type);
@@ -925,25 +923,13 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
-	    TAU_START("molecule.orient");
             molecule.orient();
-	    TAU_STOP("molecule.orient");
-	    TAU_START("aobasis.read_file");
             aobasis.read_file(param.aobasis);
-	    TAU_STOP("aobasis.read_file");
-	    TAU_START("param.set_molecular_info");
             param.set_molecular_info(molecule, aobasis, n_core);
-	    TAU_STOP("param.set_molecular_info");
         }
-	TAU_START("world.gop.broadcast_serializable(molecule,0)");
         world.gop.broadcast_serializable(molecule, 0);
-	TAU_STOP("world.gop.broadcast_serializable(molecule,0)");
-	TAU_START("world.gop.broadcast_serializable(param,0)");
         world.gop.broadcast_serializable(param, 0);
-	TAU_STOP("world.gop.broadcast_serializable(param,0)");
-	TAU_START("world.gop.broadcast_serializable(aobasis,0)");
         world.gop.broadcast_serializable(aobasis, 0);
-	TAU_STOP("world.gop.broadcast_serializable(aobasis,0)");
 
 	TAU_START("xc.initialize");
         xc.initialize(param.xc_data, !param.spin_restricted);
@@ -952,7 +938,7 @@ struct Calculation {
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
-     TAU_STOP("Calculation (World &, const char *");
+        TAU_STOP("Calculation (World &, const char *");
     }
 
     void set_protocol(World & world, double thresh)
@@ -1005,7 +991,7 @@ struct Calculation {
     }
 
     void load_mos(World& world) {
-      TAU_START("load_mos");
+	TAU_START("load_mos");
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
@@ -1096,7 +1082,7 @@ struct Calculation {
 
             }
         }
-      TAU_STOP("load_mos");
+	TAU_STOP("load_mos");
     }
 
     void do_plots(World& world) {
@@ -1205,6 +1191,7 @@ struct Calculation {
         normalize(world, ao);
         END_TIMER(world, "project ao basis");
         TAU_STOP("project ao basis");
+	print_meminfo(world.rank(), "project ao basis");
     }
 
     double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj, int lo, int nbf)
@@ -1309,7 +1296,7 @@ struct Calculation {
         long ndone = 0;
         for(long iter = 0;iter < 100;++iter){
 
-            // Diagnostics at bgeinning of iteration
+            // Diagnostics at beginning of iteration
             double sum = 0.0;
             for(long i = 0;i < nmo;++i){
                 for(long a = 0;a < natom;++a){
@@ -1353,7 +1340,7 @@ struct Calculation {
 
     tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false)
     {
-        TAU_START("Pipek-Mezy localize");
+	TAU_START("Pipek-Mezy localize");
         START_TIMER(world);
         tensorT UT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf, thresh, thetamax, randomize, doprint);
         END_TIMER(world, "Pipek-Mezy distributed ");
@@ -1411,6 +1398,7 @@ struct Calculation {
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
         TAU_STOP("Pipek-Mezy localize");
+	print_meminfo(world.rank(), "Pipek-Mezy localize");
         return U;
     }
 
@@ -1692,8 +1680,8 @@ struct Calculation {
                 TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
@@ -1720,9 +1708,9 @@ struct Calculation {
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
-                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
+                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
@@ -1751,13 +1739,17 @@ struct Calculation {
             sygvp(world, fock, overlap, 1, c, e);
             END_TIMER(world, "guess eigen sol");
             TAU_STOP("guess eigen sol");
+	    print_meminfo(world.rank(), "guess eigen sol");
 
-            if(world.rank() == 0 && 0){
-              print("initial eigenvalues");
-              print(e);
-              print("\n\nWSTHORNTON: initial eigenvectors");
-              print(c);
-            }
+	    // NAR 7/5/2013
+            // commented out because it generated a lot of output
+            // if(world.rank() == 0 && 0){
+            //   print("initial eigenvalues");
+            //   print(e);
+            //   print("\n\nWSTHORNTON: initial eigenvectors");
+            //   print(c);
+            // }
+
             compress(world, ao);
 
             unsigned int ncore = 0;
@@ -1823,7 +1815,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 8.0));
+        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
@@ -2022,6 +2014,7 @@ struct Calculation {
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
 	TAU_STOP("V*psi");
+	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
 	    TAU_START("HF exchange");
             START_TIMER(world);
@@ -2052,6 +2045,7 @@ struct Calculation {
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
         TAU_STOP("Truncate Vpsi");
+	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
     }
@@ -2420,7 +2414,6 @@ struct Calculation {
         if(world.size() == 1)
             return;
 
-        const double vnucextra = 12.0;
         LoadBalanceDeux<3> lb(world);
         lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
         lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
@@ -3192,11 +3185,13 @@ struct Calculation {
             }
             END_TIMER(world, "Make densities");
             TAU_STOP("Make densities");
+	    print_meminfo(world.rank(), "Make densities");
 
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
                 END_TIMER(world, "Load balancing");
+		print_meminfo(world.rank(), "Load balancing");
             }
             double da = 0.0, db = 0.0;
             if(iter > 0){
@@ -3228,6 +3223,7 @@ struct Calculation {
             functionT vlocal;
             END_TIMER(world, "Coulomb");
             TAU_STOP("Coulomb");
+	    print_meminfo(world.rank(), "Coulomb");
 
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
@@ -3524,18 +3520,19 @@ public:
 
 
 int main(int argc, char** argv) {
-  TAU_START("main()");
-  TAU_START("initialize()");
+    TAU_START("main()");
+    TAU_START("initialize()");
     initialize(argc, argv);
-  TAU_STOP("initialize()");
+    TAU_STOP("initialize()");
 
-  TAU_START("World lifetime");
+    TAU_START("World lifetime");
     { // limit lifetime of world so that finalize() can execute cleanly
       World world(SafeMPI::COMM_WORLD);
 
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
+	print_meminfo(world.rank(), "startup");
         FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
         std::cout.precision(6);
@@ -3649,11 +3646,9 @@ int main(int argc, char** argv) {
       world.gop.fence();
       print_stats(world);
     } // world is dead -- ready to finalize
-  TAU_STOP("World lifetime");
-  TAU_START("finalize()");
+    TAU_STOP("World lifetime");
     finalize();
-  TAU_STOP("finalize()");
-  TAU_STOP("main()");
+    TAU_STOP("main()");
 
     return 0;
 }
