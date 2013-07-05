@@ -1,7 +1,7 @@
 /*
   This file is part of MADNESS.
 
-  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+  Copyright (C) 2013  Virginia Tech
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -16,7 +16,6 @@
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-
   For more information please contact:
 
   Robert J. Harrison
@@ -28,16 +27,20 @@
   tel:   865-241-3937
   fax:   865-572-0680
 
-  $Id$
-*/
-#include <iostream>
-#include <world/world.h>
 
-int main(int argc, char** argv) {
-    madness::World& world = madness::initialize(argc,argv);
+  $Id: worldmpi.h 3011 2012-08-31 12:44:47Z justus.c79@gmail.com $
 
-    std::cout << "Hello from " << world.rank() << std::endl;
+ */
 
-    madness::finalize();
-    return 0;
-}
+#include <world/worldmpi.h>
+
+namespace madness {
+    namespace detail {
+
+        std::shared_ptr<WorldMpi> WorldMpi::world_mpi;
+#ifdef MADNESS_USE_BSEND_ACKS
+        char* WorldMpi::mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
+#endif // MADNESS_USE_BSEND_ACKS
+
+    } // namespace detail
+} // namespace madness

@@ -55,22 +55,18 @@
 
 namespace madness {
 
-#ifdef MADNESS_USE_BSEND_ACKS
-#define MADNESS_ACK_BUFF_SIZE 1000
+    // File scope variables
     namespace {
-        char* mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
-    }
-#endif // MADNESS_USE_BSEND_ACKS
+        double start_cpu_time;
+        double start_wall_time;
+        bool madness_initialized_ = false;
+    } // namespace
 
-    static double start_cpu_time;
-    static double start_wall_time;
-
+    // World static member variables
     std::list<World*> World::worlds;
+    World* World::default_world = NULL;
     unsigned long World::idbase = 0;
 
-    namespace {
-      static bool madness_initialized_ = false;
-    }
     bool initialized() {
       return madness_initialized_;
     }
@@ -122,7 +118,6 @@ namespace madness {
     }
 
     World::~World() {
-        if (not initialized()) return;
         worlds.remove(this);
         delete &taskq;
         delete &gop;
@@ -130,22 +125,21 @@ namespace madness {
         delete &mpi;
     }
 
-    World*
-    World::find_instance(const SafeMPI::Intracomm& comm) {
-      typedef std::list<World*>::const_iterator citer;
-      for(citer i=worlds.begin(); i!=worlds.end(); ++i) {
-        if ((*i)->mpi.comm() == comm)
-          return *i;
-      }
-      return 0;
-    }
-
     void error(const char *msg) {
         std::cerr << "MADNESS: fatal error: " << msg << std::endl;
         SafeMPI::COMM_WORLD.Abort(1);
     }
 
-    void initialize(int argc, char** argv) {
+
+    World& initialize(int& argc, char**& argv) {
+        return initialize(argc, argv, SafeMPI::COMM_WORLD);
+    }
+
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm) {
+        return initialize(argc, argv, SafeMPI::Intracomm(comm));
+    }
+
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm) {
 #ifdef HAVE_PAPI
         initialize_papi();
 #endif
@@ -172,8 +166,7 @@ namespace madness {
         ThreadBase::set_affinity_pattern(bind, cpulo); // Decide how to locate threads before doing anything
         ThreadBase::set_affinity(0);         // The main thread is logical thread 0
 
-        const int required = MADNESS_MPI_THREAD_LEVEL;
-        SafeMPI::Init_thread(argc, argv, required);
+        detail::WorldMpi::initialize(argc, argv, MADNESS_MPI_THREAD_LEVEL);
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
@@ -181,38 +174,35 @@ namespace madness {
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
-#endif
-
-#ifdef MADNESS_USE_BSEND_ACKS
-        SafeMPI::Attach_buffer(mpi_ack_buffer, MADNESS_ACK_BUFF_SIZE);
-#endif // MADNESS_USE_BSEND_ACKS
-
-
+#endif // HAVE_PAPI
 
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Initialize(argc,argv);
-#endif
+#endif // HAVE_ELEMENTAL
+
+        // Construct the default world
+        World::default_world = new World(comm);
 
         madness_initialized_ = true;
-        if (SafeMPI::COMM_WORLD.Get_rank() == 0)
-          std::cout << "MADNESS runtime initialized with " << ThreadPool::size() << " threads in the pool and affinity " << sbind << "\n";
+        if(SafeMPI::COMM_WORLD.Get_rank() == 0)
+            std::cout << "MADNESS runtime initialized with " << ThreadPool::size()
+                << " threads in the pool and affinity " << sbind << "\n";
 
+        return * World::default_world;
     }
 
     void finalize() {
+        // Destroy the default world
+        delete World::default_world;
+        World::default_world = NULL;
+
 #ifdef MADNESS_HAS_ELEMENTAL
         elem::Finalize();
 #endif
 
-//#if !HAVE_INTEL_TBB
         RMI::end();
-//#endif
-        ThreadPool::end(); // 8/Dec/08 : II added this line as trial
-#ifdef MADNESS_USE_BSEND_ACKS
-        void* buff;
-        SafeMPI::Detach_buffer(buff);
-#endif // MADNESS_USE_BSEND_ACKS
-        SafeMPI::Finalize();
+        ThreadPool::end();
+        detail::WorldMpi::finalize();
         madness_initialized_ = false;
     }
 

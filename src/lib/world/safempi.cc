@@ -40,8 +40,8 @@ namespace SafeMPI {
 #endif
 
     void Intracomm::binary_tree_info(int root, int& parent, int& child0, int& child1) {
-        int np = nproc();
-        int me = (rank()+np-root)%np;   // Renumber processes so root has me=0
+        int np = Get_size();
+        int me = (Get_rank()+np-root)%np;   // Renumber processes so root has me=0
         parent = (((me-1)>>1)+root)%np;        // Parent in binary tree
         child0 = (me<<1)+1+root;        // Left child
         child1 = (me<<1)+2+root;        // Right child
@@ -61,7 +61,7 @@ namespace SafeMPI {
     };
 
     Intracomm::Intracomm(const WorldInitObject& init) :
-        pimpl(new Impl(init.comm_world(), -1, -1))
+        pimpl(new Impl(init.comm_world(), -1, -1, false))
     { }
 
     Intracomm COMM_WORLD = Intracomm::WorldInitObject();

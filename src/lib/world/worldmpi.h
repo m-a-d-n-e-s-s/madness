@@ -54,24 +54,262 @@
 
 #include <world/safempi.h>
 #include <world/worldtypes.h>
+#include <world/shared_ptr.h>
+
+
+#ifdef MADNESS_USE_BSEND_ACKS
+#define MADNESS_ACK_BUFF_SIZE 1000
+#endif // MADNESS_USE_BSEND_ACKS
+
+#define MPI_THREAD_STRING(level)  \
+        ( level==MPI_THREAD_SERIALIZED ? "THREAD_SERIALIZED" : \
+            ( level==MPI_THREAD_MULTIPLE ? "THREAD_MULTIPLE" : \
+                ( level==MPI_THREAD_FUNNELED ? "THREAD_FUNNELED" : \
+                    ( level==MPI_THREAD_SINGLE ? "THREAD_SINGLE" : "THREAD_UNKNOWN" ) ) ) )
 
 namespace madness {
 
+    // Forward declarations
+    class World;
+    World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+    void finalize();
+
     static const Tag DYNAMIC_TAG_BASE = 1024;
 
-    class WorldAmInterface;
-    class WorldGopInterface;
+    namespace detail {
+
+        class WorldMpiRuntime;
+
+        class WorldMpi {
+        private:
+            // Friends of MpiWorld
+            friend class WorldMpiRuntime;
+
+            // This shared pointer is used to manage the lifetime of the MPI
+            // within MADNESS. It ensures that MPI is destroyed only after the
+            // last world object is destroyed.
+            static std::shared_ptr<WorldMpi> world_mpi;
+
+#ifdef MADNESS_USE_BSEND_ACKS
+            static char* mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
+#endif // MADNESS_USE_BSEND_ACKS
+
+            WorldMpi() {
+#ifdef MADNESS_USE_BSEND_ACKS
+                SafeMPI::Attach_buffer(mpi_ack_buffer, MADNESS_ACK_BUFF_SIZE);
+#endif // MADNESS_USE_BSEND_ACKS
+            }
+
+            // Not allowed
+            WorldMpi(const WorldMpi&);
+            WorldMpi& operator=(const WorldMpi&);
+
+        public:
+
+            ~WorldMpi() {
+#ifdef MADNESS_USE_BSEND_ACKS
+                void* buff = NULL;
+                SafeMPI::Detach_buffer(buff);
+#endif // MADNESS_USE_BSEND_ACKS
+                SafeMPI::Finalize();
+            }
+
+            /// Initialize the MPI runtime
+
+            /// This function starts the MPI runtime. If MPI is already running
+            /// \param agrc The number of command line arguments
+            /// \param argv The values of command line arguments
+            /// \param requested The requested thread support for MPI runtime
+            static void initialize(int& argc, char**& argv, int requested) {
+                int provided = -1;
+                if(!SafeMPI::Is_initialized()) {
+                    // Assume that MADNESS is managing MPI.
+                    provided = SafeMPI::Init_thread(argc, argv, requested);
+                    world_mpi.reset(new WorldMpi());
+                } else {
+                    // MPI has already been initialized, so it is the user's
+                    // responsibility to manage MPI and MADNESS world objects.
+                    MADNESS_ASSERT(! SafeMPI::Is_finalized());
+                    provided = SafeMPI::Query_thread();
+                    SafeMPI::detail::init_comm_world();
+                }
+
+                // Get MPI rank
+                const int rank = SafeMPI::COMM_WORLD.Get_rank();
+
+                // Check that the thread support provided by MPI matches the
+                // requested and required thread support.
+                if((provided < requested) && (rank == 0)) {
+                    std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
+                              << MPI_THREAD_STRING(requested) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                              << "!! Error: The MPI standard makes no guarantee about the correctness of a program in such circumstances. \n"
+                              << "!! Error: Please reconfigure your MPI to provide the proper thread support. \n"
+                              << std::endl;
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                } else if((provided > requested) && (rank == 0)) {
+                    std::cout << "!! Warning: MPI_Init_thread provided more than the requested functionality: "
+                              << MPI_THREAD_STRING(requested) << " (" << MPI_THREAD_STRING(provided) << "). \n"
+                              << "!! Warning: You are likely using an MPI implementation with mediocre thread support. \n"
+                              << std::endl;
+                }
+
+#if defined(MVAPICH2_VERSION)
+                // Check that MVAPICH2 has has the correct thread affinity
+                char * mv2_string = NULL;
+                int mv2_affinity = 1; /* this is the default behavior of MVAPICH2 */
+
+                if ((mv2_string = getenv("MV2_ENABLE_AFFINITY")) != NULL) {
+                    mv2_affinity = atoi(mv2_string);
+                }
+
+                if (mv2_affinity!=0) {
+                    std::cout << "!! Error: You are using MVAPICH2 with affinity enabled, probably by default. \n"
+                              << "!! Error: This will cause catastrophic performance issues in MADNESS. \n"
+                              << "!! Error: Rerun your job with MV2_ENABLE_AFFINITY=0 \n"
+                              << std::endl;
+                    MPI_Abort(MPI_COMM_WORLD, 1);
+                }
+#endif // defined(MVAPICH2_VERSION)
+            }
+
+            /// Finalize the MPI runtime
+
+            /// This function starts the teardown process of the MPI runtime.
+            /// The actual MPI_Finalize will only be called when all the objects
+            /// using MPI have been destroyed.
+            static void finalize() {
+                world_mpi.reset();
+            }
+        }; // class WorldMpi
+
+        /// MPI runtime reference counter
+
+        /// This object is used to manage the lifetime of the MPI runtime by
+        /// holding a reference to the WorldMpi::world_mpi pointer.
+        class WorldMpiRuntime {
+        private:
+            std::shared_ptr<WorldMpi> world_mpi;
+
+        public:
+            WorldMpiRuntime() : world_mpi(WorldMpi::world_mpi) { }
+            ~WorldMpiRuntime() { world_mpi.reset(); }
+        }; // class WorldMpiInstance
+
+    }  // namespace detail
+
 
     /// This class wraps/extends the MPI interface for World
-    class WorldMpiInterface : public SafeMPI::Intracomm {
+    class WorldMpiInterface : private detail::WorldMpiRuntime, public SafeMPI::Intracomm {
+
+        // Not allowed
+        WorldMpiInterface(const WorldMpiInterface&);
+        WorldMpiInterface& operator=(const WorldMpiInterface&);
+
     public:
-        WorldMpiInterface(SafeMPI::Intracomm comm) : SafeMPI::Intracomm(comm) {}
+        WorldMpiInterface(const SafeMPI::Intracomm& comm) :
+            detail::WorldMpiRuntime(), SafeMPI::Intracomm(comm)
+        { }
+
+        ~WorldMpiInterface() { }
 
         /// Returns the associated SafeMPI communicator
         SafeMPI::Intracomm& comm() {
             return *static_cast<SafeMPI::Intracomm*>(this);
         }
-    };
+
+        using SafeMPI::Intracomm::Isend;
+        using SafeMPI::Intracomm::Irecv;
+        using SafeMPI::Intracomm::Send;
+        using SafeMPI::Intracomm::Recv;
+        using SafeMPI::Intracomm::Bcast;
+
+        // !! All of the routines below call the protected interfaces provided above.
+        // !! Please ensure any additional routines follow this convention.
+        /// Isend one element ... disabled for pointers to reduce accidental misuse.
+        template <typename T>
+        typename madness::disable_if<std::is_pointer<T>, SafeMPI::Request>::type
+        Isend(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            return SafeMPI::Intracomm::Isend(&datum, sizeof(T), MPI_BYTE, dest, tag);
+        }
+
+        /// Async receive data of up to lenbuf elements from process dest
+        template <typename T>
+        SafeMPI::Request
+        Irecv(T* buf, int count, int source, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            return SafeMPI::Intracomm::Irecv(buf, count*sizeof(T), MPI_BYTE, source, tag);
+        }
+
+
+        /// Async receive datum from process dest with default tag=1
+        template <typename T>
+        typename madness::disable_if<std::is_pointer<T>, SafeMPI::Request>::type
+        Irecv(T& buf, int source, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            return SafeMPI::Intracomm::Irecv(&buf, sizeof(T), MPI_BYTE, source, tag);
+        }
+
+
+        /// Send array of lenbuf elements to process dest
+        template <class T>
+        void Send(const T* buf, long lenbuf, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            SafeMPI::Intracomm::Send((void*)buf, lenbuf*sizeof(T), MPI_BYTE, dest, tag);
+        }
+
+
+        /// Send element to process dest with default tag=1001
+
+        /// Disabled for pointers to reduce accidental misuse.
+        template <typename T>
+        typename madness::disable_if<std::is_pointer<T>, void>::type
+        Send(const T& datum, int dest, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            SafeMPI::Intracomm::Send((void*)&datum, sizeof(T), MPI_BYTE, dest, tag);
+        }
+
+
+        /// Receive data of up to lenbuf elements from process dest
+        template <typename T>
+        void Recv(T* buf, long lenbuf, int src, int tag) const {
+            SafeMPI::Intracomm::Recv(buf, lenbuf*sizeof(T), MPI_BYTE, src, tag);
+        }
+
+        /// Receive data of up to lenbuf elements from process dest with status
+        template <typename T>
+        void Recv(T* buf, long lenbuf, int src, int tag, SafeMPI::Status& status) const {
+            SafeMPI::Intracomm::Recv(buf, lenbuf*sizeof(T), MPI_BYTE, src, tag, status);
+        }
+
+
+        /// Receive datum from process src
+        template <typename T>
+        typename madness::disable_if<std::is_pointer<T>, void>::type
+        Recv(T& buf, int src, int tag=SafeMPI::DEFAULT_SEND_RECV_TAG) const {
+            SafeMPI::Intracomm::Recv(&buf, sizeof(T), MPI_BYTE, src, tag);
+        }
+
+
+        /// MPI broadcast an array of count elements
+
+        /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
+        template <typename T>
+        void Bcast(T* buffer, int count, int root) const {
+            SafeMPI::Intracomm::Bcast(buffer,count*sizeof(T),MPI_BYTE,root);
+        }
+
+
+        /// MPI broadcast a datum
+
+        /// NB.  Read documentation about interaction of MPI collectives and AM/task handling.
+        template <typename T>
+        typename madness::disable_if<std::is_pointer<T>, void>::type
+        Bcast(T& buffer, int root) const {
+            SafeMPI::Intracomm::Bcast(&buffer, sizeof(T), MPI_BYTE,root);
+        }
+
+        int rank() const { return SafeMPI::Intracomm::Get_rank(); }
+
+        int nproc() const { return SafeMPI::Intracomm::Get_size(); }
+
+        int size() const { return SafeMPI::Intracomm::Get_size(); }
+    }; // class WorldMpiInterface
 
 }
 

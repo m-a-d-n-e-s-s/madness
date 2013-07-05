@@ -353,8 +353,42 @@ namespace madness {
 
     void redirectio(World& world);
 
-    /// Call this once at the very top of your main program instead of calling MPI_Init
-    void initialize(int argc, char** argv);
+    /// Initialize the MADNESS runtime
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \return A reference to the default world which is constructed with
+    /// \c MPI_COMM_WORLD .
+    World& initialize(int& argc, char**& argv);
+
+    /// Initialize the MADNESS runtime
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \param comm The communicator that should be used to construct the
+    /// default \c World object.
+    /// \return A reference to the default world which is constructed with
+    /// \c comm .
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm);
+
+    /// Initialize the MADNESS runtime
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \param comm The MPI communicator that should be used to construct the
+    /// default \c World object.
+    /// \return A reference to the default world which is constructed with
+    /// \c comm .
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm);
 
     /// Call this once at the very end of your main program instead of calling MPI_Finalize
     void finalize();
@@ -383,8 +417,12 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
+        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+        friend void finalize();
 
+        // Static member variables
         static unsigned long idbase;        ///< Base for unique world ID range for this process
+        static World* default_world;        ///< Default world
         static std::list<World*> worlds;    ///< Maintains list of active worlds
 
         struct hashvoidp {
@@ -431,12 +469,30 @@ namespace madness {
         /// Does not check if another world using the same comm already exists (use instance() to check that)
         World(const SafeMPI::Intracomm& comm);
 
-        /**
-         * Find the World corresponding to the given communicator
-         * @param comm the communicator
-         * @return nonzero pointer to the World that was constructed from comm; if it does not exist, return 0
-         */
-        static World* find_instance(const SafeMPI::Intracomm& comm);
+        /// Find the World corresponding to the given communicator
+
+        /// \param comm the communicator
+        /// \return nonzero pointer to the World that was constructed from
+        /// \c comm ; if it does not exist, return 0.
+        static World* find_instance(const SafeMPI::Intracomm& comm) {
+            typedef std::list<World*>::const_iterator citer;
+            for(citer it = worlds.begin(); it != worlds.end(); ++it) {
+                if ((*it)->mpi.comm() == comm)
+                    return *it;
+            }
+            return 0;
+        }
+
+        /// Default \c World object accessor
+
+        /// This function returns a reference to the default world object; this
+        /// is the same \c World object that was returned by
+        /// \c madness::initialize().
+        /// \return A reference to the default world.
+        static World& get_default() {
+            MADNESS_ASSERT(default_world);
+            return *default_world;
+        }
 
         /// Sets a pointer to user-managed local state
 
@@ -641,7 +697,7 @@ namespace madness {
                 else waiter.wait();
             }
         }
-#endif
+#endif // HAVE_INTEL_TBB
 
         void srand(unsigned long seed = 0ul) {
             if (seed == 0) seed = rank();
@@ -650,7 +706,7 @@ namespace madness {
 #else
             myrand_next = seed;
             for (int i=0; i<1000; ++i) rand(); // Warmup
-#endif
+#endif // HAVE_RANDOM
         }
 
 
@@ -663,7 +719,7 @@ namespace madness {
 #else
             myrand_next = myrand_next * 1103515245UL + 12345UL;
             return int((myrand_next>>8) & 0xfffffful);
-#endif
+#endif // HAVE_RANDOM
         }
 
 
