@@ -701,8 +701,8 @@ struct CalculationParameters {
             }
             else if (s == "aobasis") {
                 f >> aobasis;
-                if (aobasis!="sto-3g" && aobasis!="6-31g") {
-                    std::cout << "moldft: unrecognized aobasis (sto-3g or 6-31g only): " << aobasis << std::endl;
+                if (aobasis!="sto-3g" && aobasis!="sto-6g" && aobasis!="6-31g") {
+                    std::cout << "moldft: unrecognized aobasis (sto-3g or sto-6g or 6-31g only): " << aobasis << std::endl;
                     MADNESS_EXCEPTION("input_error", 0);
                 }
             }
