@@ -49,6 +49,8 @@ namespace madness {
         for (int arg=1; arg<argc; ++arg) {
             if (strcmp(argv[arg],"-dx")==0)
                 xterm_debug(argv[0], 0);
+            else if (strcmp(argv[arg],"-lf")==0)
+                redirectio(world);
             else if (strcmp(argv[arg],"-dn") ==0 &&
                      std::atoi(argv[arg+1])==world.rank())
                 xterm_debug("world",0);
