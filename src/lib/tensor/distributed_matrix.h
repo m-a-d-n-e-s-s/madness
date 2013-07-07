@@ -538,8 +538,13 @@ namespace madness {
         int64_t mb = b.rowdim();
 
         DistributedMatrix<T> c(a.get_world(), a.coldim(), ma+mb, a.coltile(), ma+mb);
-        c.data()(_,Slice(0,ma-1)) = a.data()(___);
-        c.data()(_,Slice(ma,-1))  = b.data()(___);
+        
+        int64_t ilow, ihigh;
+        a.local_colrange(ilow, ihigh);
+        if (ilow <= ihigh) {
+            c.data()(_,Slice(0,ma-1)) = a.data()(___);
+            c.data()(_,Slice(ma,-1))  = b.data()(___);
+        }
 
         return c;
     }
