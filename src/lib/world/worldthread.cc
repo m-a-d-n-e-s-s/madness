@@ -243,7 +243,7 @@ namespace madness {
                 // Construct the actual output filename
                 std::stringstream file_name;
                 file_name << output_file_name_ << "_"
-                        << SafeMPI::COMM_WORLD.rank() << "x"
+                        << SafeMPI::COMM_WORLD.Get_rank() << "x"
                         << ThreadPool::size() + 1;
 
                 // Lock file for output
@@ -400,7 +400,7 @@ namespace madness {
         profiling::TaskProfiler::output_file_name_ =
                 getenv("MAD_TASKPROFILER_NAME");
         if(! profiling::TaskProfiler::output_file_name_) {
-            if(SafeMPI::COMM_WORLD.rank() == 0)
+            if(SafeMPI::COMM_WORLD.Get_rank() == 0)
                 std::cerr
                     << "!!! WARNING: MAD_TASKPROFILER_NAME not set.\n"
                     << "!!! WARNING: There will be no task profile output.\n";
@@ -408,7 +408,7 @@ namespace madness {
             // Construct the actual output filename
             std::stringstream file_name;
             file_name << profiling::TaskProfiler::output_file_name_ << "_"
-                    << SafeMPI::COMM_WORLD.rank() << "x"
+                    << SafeMPI::COMM_WORLD.Get_rank() << "x"
                     << ThreadPool::size() + 1;
 
             // Erase the profiler output file
