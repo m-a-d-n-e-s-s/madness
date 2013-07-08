@@ -80,6 +80,10 @@ namespace madness {
 
         class WorldMpiRuntime;
 
+        /// MPI singleton that manages MPI setup and teardown for MADNESS
+
+        /// MADNESS will call \c WorldMpi::initialize and \c WorldMpi::finalize
+        /// to setup and teardown the MPI runtime.
         class WorldMpi {
         private:
             // Friends of MpiWorld
@@ -89,13 +93,29 @@ namespace madness {
             // within MADNESS. It ensures that MPI is destroyed only after the
             // last world object is destroyed.
             static std::shared_ptr<WorldMpi> world_mpi;
+            static bool own_mpi;
 
 #ifdef MADNESS_USE_BSEND_ACKS
             static char* mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
 #endif // MADNESS_USE_BSEND_ACKS
 
-            WorldMpi() {
+            /// WorldMpi constructor
+
+            /// Initialize the MPI runtime for MADNESS.
+            /// \note This constructor is private to prevent incorrect
+            /// initialization.
+            WorldMpi(int& argc, char**& argv, int requested) {
+                if(own_mpi) {
+                    // Assume that MADNESS is managing MPI.
+                    SafeMPI::Init_thread(argc, argv, requested);
+                } else {
+                    // MPI has already been initialized, so it is the user's
+                    // responsibility to manage MPI and MADNESS world objects.
+                    SafeMPI::detail::init_comm_world();
+                }
+
 #ifdef MADNESS_USE_BSEND_ACKS
+                // Register the acknowlegement buffer for RMI
                 SafeMPI::Attach_buffer(mpi_ack_buffer, MADNESS_ACK_BUFF_SIZE);
 #endif // MADNESS_USE_BSEND_ACKS
             }
@@ -106,39 +126,61 @@ namespace madness {
 
         public:
 
+            /// WorldMpi destructor
+
+            /// This will teardown the MPI, SafeMPI
             ~WorldMpi() {
 #ifdef MADNESS_USE_BSEND_ACKS
+                // Unregister the acknowlegement buffer for RMI
                 void* buff = NULL;
                 SafeMPI::Detach_buffer(buff);
 #endif // MADNESS_USE_BSEND_ACKS
-                SafeMPI::Finalize();
+
+                // Teardown MPI/SafeMPI
+                if(own_mpi) {
+                    const int result = SafeMPI::Finalize();
+
+                    // Check that MPI exited cleanly.
+                    if(result != MPI_SUCCESS) {
+                        // Print the error message returned by MPI_Finalize().
+                        char mpi_error_string[MPI_MAX_ERROR_STRING];
+                        int len = 0;
+                        if(MPI_Error_string(result, mpi_error_string, &len) != MPI_SUCCESS) {
+                                std::strncpy(mpi_error_string, "UNKNOWN MPI ERROR!", MPI_MAX_ERROR_STRING);
+                        }
+                        std::cout << "!! MPI Error: " << mpi_error_string << "\n";
+                    }
+                }
             }
 
             /// Initialize the MPI runtime
 
-            /// This function starts the MPI runtime. If MPI is already running
-            /// \param agrc The number of command line arguments
+            /// This function starts the MPI runtime. If MPI is already running,
+            /// then MADNESS delegate responsibility for MPI to the user. In
+            /// either case, MPI thread support is checked to make sure MPI will
+            /// play nice with MADNESS.
+            /// \param argc The number of command line arguments
             /// \param argv The values of command line arguments
             /// \param requested The requested thread support for MPI runtime
+            /// \throw madness::Exception When MADNESS has already been initialized.
+            /// \throw madness::Exception When MPI has already been finalized.
+            /// \throw SafeMPI::Exception When an MPI error occurs.
             static void initialize(int& argc, char**& argv, int requested) {
-                int provided = -1;
-                if(!SafeMPI::Is_initialized()) {
-                    // Assume that MADNESS is managing MPI.
-                    provided = SafeMPI::Init_thread(argc, argv, requested);
-                    world_mpi.reset(new WorldMpi());
-                } else {
-                    // MPI has already been initialized, so it is the user's
-                    // responsibility to manage MPI and MADNESS world objects.
-                    MADNESS_ASSERT(! SafeMPI::Is_finalized());
-                    provided = SafeMPI::Query_thread();
-                    SafeMPI::detail::init_comm_world();
-                }
+                // Check that world_mpi has not been initialized yet and that
+                // MPI has not been finalized
+                MADNESS_ASSERT(! world_mpi);
+                MADNESS_ASSERT(! SafeMPI::Is_finalized());
 
-                // Get MPI rank
-                const int rank = SafeMPI::COMM_WORLD.Get_rank();
+                // Check for ownership of MPI (user or MADNESS runtime).
+                own_mpi = ! SafeMPI::Is_initialized();
+
+                // Initialize the MPI runtime
+                world_mpi.reset(new WorldMpi(argc, argv, requested));
 
                 // Check that the thread support provided by MPI matches the
                 // requested and required thread support.
+                const int provided = SafeMPI::Query_thread();
+                const int rank = SafeMPI::COMM_WORLD.Get_rank();
                 if((provided < requested) && (rank == 0)) {
                     std::cout << "!! Error: MPI_Init_thread did not provide requested functionality: "
                               << MPI_THREAD_STRING(requested) << " (" << MPI_THREAD_STRING(provided) << "). \n"
@@ -195,7 +237,7 @@ namespace madness {
             ~WorldMpiRuntime() { world_mpi.reset(); }
         }; // class WorldMpiInstance
 
-    }  // namespace detail
+    } // namespace detail
 
 
     /// This class wraps/extends the MPI interface for World

@@ -38,6 +38,7 @@ namespace madness {
     namespace detail {
 
         std::shared_ptr<WorldMpi> WorldMpi::world_mpi;
+        bool WorldMpi::own_mpi = false;
 #ifdef MADNESS_USE_BSEND_ACKS
         char* WorldMpi::mpi_ack_buffer[MADNESS_ACK_BUFF_SIZE];
 #endif // MADNESS_USE_BSEND_ACKS
