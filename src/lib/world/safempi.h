@@ -465,7 +465,7 @@ namespace SafeMPI {
         std::shared_ptr<Impl> pimpl;
 
         friend void SafeMPI::detail::init_comm_world();
-        friend int SafeMPI::Finalize();
+        friend int Finalize();
 
         // For internal use only. Do not try to call this constructor. It is
         // only used to construct Intarcomm in Create().
@@ -711,7 +711,7 @@ namespace SafeMPI {
         SafeMPI::Init(argc,argv);
     }
 
-    /// analogous to MPI_Finalize
+    /// Analogous to MPI_Finalize
 
     /// This returns status rather than throw an
     /// exception upon failure because this is a "destructor", and throwing from
