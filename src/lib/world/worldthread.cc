@@ -395,6 +395,10 @@ namespace madness {
         if(instance_ptr) return;
 
         ThreadBase::init_thread_key();
+
+        // Construct the thread pool singleton
+        instance_ptr = new ThreadPool(nthread);
+
 #ifdef MADNESS_TASK_PROFILING
         // Initialize the output file name for the task profiler.
         profiling::TaskProfiler::output_file_name_ =
@@ -416,9 +420,6 @@ namespace madness {
             file.close();
         }
 #endif  // MADNESS_TASK_PROFILING
-
-        // Construct the thread pool singleton
-        instance_ptr = new ThreadPool(nthread);
     }
 
     void ThreadPool::end() {
