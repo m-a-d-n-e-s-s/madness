@@ -307,7 +307,7 @@ namespace madness {
         };
 
         /// Actually does the partitioning of the tree
-        std::shared_ptr< WorldDCPmapInterface<keyT> > load_balance(double fac = 1.0, bool printstuff=true) {
+        std::shared_ptr< WorldDCPmapInterface<keyT> > load_balance(double fac = 1.0, bool printstuff=false) {
             world.gop.fence();
             // Compute full tree of costs
             double avg = sum()/(world.size()*fac);
