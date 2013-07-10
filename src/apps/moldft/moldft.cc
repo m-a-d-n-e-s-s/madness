@@ -908,11 +908,10 @@ struct Calculation {
     double current_energy;
     double esol;//etot;
     double vacuo_energy;
-    double vnucextra;
+    static const int vnucextra = 12; // load balance parameter for nuclear pot.
 
     Calculation(World & world, const char *filename)
     {
-	vnucextra = 12.0; // set default load balance parameter in constructor
         TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
             molecule.read_file(filename);
