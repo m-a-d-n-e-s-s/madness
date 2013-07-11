@@ -299,7 +299,7 @@ AC_ARG_ENABLE([bsend-ack],
              AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
             ])
 AC_ARG_WITH([fortran-int32],
-            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit.])],
+            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
             [
               case $withval in
                 yes)
