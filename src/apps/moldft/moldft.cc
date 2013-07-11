@@ -3538,7 +3538,7 @@ int main(int argc, char** argv) {
         std::cout.precision(6);
 
         // Process 0 reads input information and broadcasts
-        char * inpname = "input";
+        const char * inpname = "input";
         for (int i=1; i<argc; i++) {
             if (argv[i][0] != '-') {
                 inpname = argv[i];
