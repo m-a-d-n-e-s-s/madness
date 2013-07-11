@@ -663,7 +663,8 @@ namespace madness {
         }
 
         virtual ~WorldObject() {
-            world.unregister_ptr(static_cast<Derived*>(this));
+            if(initialized())
+                world.unregister_ptr(static_cast<Derived*>(this));
         }
     };
 
