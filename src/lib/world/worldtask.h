@@ -1180,11 +1180,6 @@ namespace madness {
             /// Virtual destructor
             virtual ~ForEachTask() { }
 
-
-            virtual void get_id(std::pair<void*,unsigned long>& id) const {
-                return PoolTaskInterface::make_id(id, *this);
-            }
-
             /// Run the task
             virtual void run(const TaskThreadEnv&) {
                 // Spawn leaf tasks and split range until it is less than chuncksize
@@ -1204,6 +1199,13 @@ namespace madness {
                 root_.complete(status);
             }
 
+        private:
+            /// Get the task id
+
+            /// \param id The id to set for this task
+            virtual void get_id(std::pair<void*,unsigned short>& id) const {
+                PoolTaskInterface::make_id(id, *this);
+            }
         }; // class ForEachTask
 
 
@@ -1257,18 +1259,18 @@ namespace madness {
                 DependencyInterface::notify();
             }
 
-            /// Get the task id
-
-            /// \param id The id to set for this task
-            virtual void get_id(std::pair<void*,unsigned long>& id) const {
-                PoolTaskInterface::make_id(id, *this);
-            }
-
             /// Task run work
 
             /// Sets the result future based on the status of all iterations
             virtual void run(const TaskThreadEnv&) { completion_status_.set(status_ == 0); }
 
+        private:
+            /// Get the task id
+
+            /// \param id The id to set for this task
+            virtual void get_id(std::pair<void*,unsigned short>& id) const {
+                PoolTaskInterface::make_id(id, *this);
+            }
         }; // class ForEachRootTask
 
 

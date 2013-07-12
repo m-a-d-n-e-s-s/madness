@@ -1,33 +1,33 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
 #ifndef MADNESS_SYSTOLIC_H
@@ -38,14 +38,14 @@
 #include <tensor/tensor.h>
 
 namespace madness {
-    
+
     /// Manages data associated with a row/column/block distributed array
-    
+
     /// The class itself provides limited functionality for accessing the
     /// data and is primarily intended to provide base functionality for
     /// use by matrix algorithms and other matrix classes.
     ///
-    /// The constructor is deliberately simple.  Factory functions 
+    /// The constructor is deliberately simple.  Factory functions
     /// are expected to be the main construction tool.
     template <typename T>
     class DistributedMatrix {
@@ -70,41 +70,41 @@ namespace madness {
             , jdim(std::max(jhi-jlo+1,int64_t(0)))
         {
             //print("DM: dims", n, m, "tiles", tilen, tilem, "ilo ihi jlo jhi", ilo, ihi, jlo, jhi, "idim jdim", idim, jdim);
-            
+
             if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
         }
-        
+
         virtual ~DistributedMatrix() {}
 
         /// Returns the column dimension of the matrix ... i.e., n for A(n,m)
         int64_t coldim() const { return n; }
-        
+
         /// Returns the row dimension of the matrix ... i.e., m for A(n,m)
         int64_t rowdim() const { return m; }
-        
+
         /// Returns the column tile size
         int64_t coltile() const { return tilen; }
-        
+
         /// Returns the row tile size
         int64_t rowtile() const { return tilem; }
-        
+
         /// Returns the no. of processors in the column dimension
         int64_t process_coldim() const {return Pcoldim;}
-        
+
         /// Returns the no. of processors in the row dimension
         int64_t process_rowdim() const {return Prowdim;}
-        
+
         /// Returns the total no. of elements stored on this processor
         int64_t local_size() const {return idim*jdim;}
-        
+
         /// Returns the no. of column elements stored on this processor
         int64_t local_coldim() const {return idim;}
-        
+
         /// Returns the no. of row elements stored on this processor
         int64_t local_rowdim() const {return jdim;}
-        
+
         /// Returns the inclusive range of column indices on this processor
-        
+
         /// If there is no data on this processor it returns ilow=0 and ihigh=-1
         void local_colrange(int64_t& ilow, int64_t& ihigh) const {
             if (ilo <= ihi) {
@@ -116,9 +116,9 @@ namespace madness {
                 ihigh = -1;
             }
         }
-        
+
         /// Returns the inclusive range of row indices on this processor
-        
+
         /// If there is no data on this processor it returns jlow=0 and jhigh=-1
         void local_rowrange(int64_t& jlow, int64_t& jhigh) const {
             if (jlo <= jhi) {
@@ -147,27 +147,27 @@ namespace madness {
             }
             return;
         }
-        
+
         /// Returns associated world
         World& get_world() const {return _world;}
-        
+
         /// Returns reference to data
         Tensor<T>& data()  {return t;}
-        
+
         /// Returns const reference to data
         const Tensor<T>& data() const {return t;}
-        
+
         /// Returns true if the matrix is column distributed (i.e., row dimension not distributed)
         bool is_column_distributed() const {return process_rowdim()==1;}
-        
+
         /// Returns true if the matrix is row distributed (i.e., column dimension not distributed)
         bool is_row_distributed() const {return process_coldim()==1;}
-        
+
         /// Given the full matrix(n,m), copy in the data range local to this processor
         void copyin(const Tensor<T>& s) {
             if (local_size() > 0) t(___) = s(Slice(ilo,ihi),Slice(jlo,jhi));
         }
-        
+
         /// Given the full matrix s(n,m), copy out the data range local to this processor
         void copyout(Tensor<T>& s) const {
             if (local_size() > 0) s(Slice(ilo,ihi),Slice(jlo,jhi)) = t(___);
@@ -188,43 +188,43 @@ namespace madness {
         const int64_t ilo,ihi;          //< Range of column indices on this processor
         const int64_t jlo,jhi;          //< Range of row indices on this processor
         const int64_t idim,jdim;        //< Dimension of data on this processor
-        
+
         Tensor<T> t;                    //< The data
-        
+
     };
-    
-    
+
+
     /// Generates an (n,m) matrix distributed by columns (row dimension is not distributed)
 
     /// Quietly forces an even column tile size for ease of use in the systolic matrix algorithms
     template <typename T>
     DistributedMatrix<T> column_distributed_matrix(World& world, int64_t n, int64_t m, int64_t coltile=0) {
-        /* 
+        /*
            if given coltile is not enough to hold entire data of matrix or used default coltile = 0,
            recalculate it.
         */
         if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
         if ((coltile&0x1)) coltile++;
         coltile = std::min(coltile,n);
-        
+
         return DistributedMatrix<T>(world, n, m, coltile, m);
     }
-    
-    
+
+
     /// Generates an (n,m) matrix distributed by rows (column dimension is not distributed)
     template <typename T>
     DistributedMatrix<T> row_distributed_matrix(World& world, int64_t n, int64_t m, int64_t rowtile=0) {
         if (world.size()*rowtile < m) rowtile = (n-1)/world.size() + 1;
         rowtile = std::min(rowtile,m);
-        
+
         return DistributedMatrix<T>(world, n, m, n, rowtile);
     }
-    
-    
+
+
     /// Generates a distributed matrix with rows of \c a and \c b interleaved
-    
+
     /// I.e., the even rows of the result will be rows of \c a , and the
-    /// odd rows those of \c b .  
+    /// odd rows those of \c b .
     ///
     /// The matrices a and b must have the same dimensions and be
     /// identically distributed.  The result will have a doubled column
@@ -232,28 +232,28 @@ namespace madness {
     template <typename T>
     DistributedMatrix<T> interleave_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
         MADNESS_ASSERT(a.rowdim()==b.rowdim() && a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.rowtile()==b.rowtile());
-        
+
         DistributedMatrix<T> c(a.get_world(), a.coldim()*2, a.rowdim(), a.coltile()*2, a.rowtile());
         c.data()(Slice(0,-1,2),_) = a.data()(___);
         c.data()(Slice(1,-1,2),_) = b.data()(___);
     }
-    
-    
+
+
     /// Generates a distributed matrix with rows of \c a and \c b concatenated
-    
+
     /// I.e., c[i,j] = a[i,j] if n<na or b[i,j] if j>=na
     ///
     /// The matrices a and b must have the same column size (i.e., the
     /// same number of rows) and be column distributed with the same
-    /// column tilesze.  The result is also column distributed with 
+    /// column tilesze.  The result is also column distributed with
     /// the same column tilesize as the input matrices.
     template <typename T>
     DistributedMatrix<T> concatenate_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b) {
         MADNESS_ASSERT(a.coldim()==b.coldim() && a.coltile()==b.coltile() && a.is_column_distributed() && b.is_column_distributed());
-        
+
         int64_t ma = a.rowdim();
         int64_t mb = b.rowdim();
-        
+
         DistributedMatrix<T> c(a.get_world(), a.coldim(), ma+mb, a.coltile(), ma+mb);
 
         if(a.local_size() > 0) c.data()( _ , Slice(0,ma-1) ) = a.data()(___);
@@ -267,12 +267,12 @@ namespace madness {
         MADNESS_ASSERT(a.coldim()==b.coldim() && b.coldim()==c.coldim() && c.coldim()==d.coldim());
         MADNESS_ASSERT(a.coltile()==b.coltile() && b.coltile()==c.coltile() && c.coltile()==d.coltile());
         MADNESS_ASSERT(a.is_column_distributed() && b.is_column_distributed() && c.is_column_distributed() && d.is_column_distributed());
-        
+
         int64_t ma = a.rowdim();
         int64_t mb = b.rowdim();
         int64_t mc = c.rowdim();
         int64_t md = d.rowdim();
-        
+
         DistributedMatrix<T> result(a.get_world(), a.coldim(), ma+mb+mc+md, a.coltile(), ma+mb+mc+md);
 
         if(a.local_size() > 0) result.data()( _ , Slice(0,ma-1) ) = a.data()(___);
@@ -298,7 +298,7 @@ namespace madness {
 
         return c;
     }
-    
+
     /// make identity matrix with same propaties of A
     template <typename T>
     DistributedMatrix<T> idMatrix(const DistributedMatrix<T>& A){
@@ -338,7 +338,7 @@ namespace madness {
 
             int64_t ilo, ihi;
             A.local_colrange(ilo, ihi);
-            
+
             int neven = coldim + (coldim&0x1);
 
             int pairlo = rank*A.coltile()/2;
@@ -350,7 +350,7 @@ namespace madness {
 
                 // This loop is parallelized over threads
                 for (int pair=env.id(); pair<nlocal; pair+=nthread) {
-                    
+
                     int rp = neven/2-1-(pair+pairlo);
                     int iii = (rp+loop)%(neven-1);
                     int jjj = (2*neven-2-rp+loop)%(neven-1);
@@ -369,15 +369,15 @@ namespace madness {
 
                 env.barrier();
             }
-            
+
             end_iteration_hook(env);
             env.barrier();
         }
 
         /// Call this after iterating to restore correct order of rows in original matrix
-        
+
         /// At the end of each iteration the matrix rows are logically back in
-        /// their correct order.  However, due to indirection to reduce data motion, 
+        /// their correct order.  However, due to indirection to reduce data motion,
         /// if the local column dimension is not a factor of the number of cycles
         /// the underlying data may be in a different order.  This restores sanity.
         ///
@@ -394,10 +394,10 @@ namespace madness {
                     memcpy(tp+(i+nlocal)*rowdim, jptr[i], rowdim*sizeof(T));
                 }
                 iptr[i] = &t(i,0);
-                jptr[i] = &t(i+nlocal,0); 
+                jptr[i] = &t(i+nlocal,0);
             }
             memcpy(t.ptr(), tmp.ptr(), t.size()*sizeof(T));
-            
+
             if (rank==(nproc-1) && (coldim&0x1)) jptr[nlocal-1] = 0;
         }
 
@@ -408,22 +408,22 @@ namespace madness {
                 MADNESS_ASSERT(rank >= nproc);
                 return;
             }
-            
+
             // Check assumption that tiling put incomplete tile at the end
             MADNESS_ASSERT(A.local_coldim() == A.coltile()  ||  rank == (nproc-1));
-            
+
             const ProcessID left = rank-1; //Invalid values are not used
             const ProcessID right = rank+1;
 
             /*
               Consider matrix (10,*) distributed with coltile=4 over
               three processors.
-              
+
               .   0 1 2 3      4 5 6 7      8 9
-              
+
               This is divided up as follows into this initial
               configuration for the loop
-              
+
               .            P=0          P=1         P=2
               .                  msg          msg
               .   i    -->0-->1  -->   4-->5  -->    8  -->
@@ -431,61 +431,61 @@ namespace madness {
               .       |                         <---------
               .   j    <--2<--3  <--   6<--7  <--|   9
               msg          msg
-              
+
               The first and last processes in the loop have to wrap ... others
-              just pass left and right.  Note that 9 stays put. 
-              
+              just pass left and right.  Note that 9 stays put.
+
               Note that the algorithm is assuming distribution puts equal
               amount of data on all nodes except the last.
-              
+
               The i data is considered as flowing to the right.
               The j data is considered as flowing to the left.
-              
-              
+
+
               Hence, we should explore the pairs in this order
               (n-1 sets of n/2 pairs)
-              
+
               .          P=0         P=1        P=2
               .          0  1        4  5       8
               .          2  3        6  7       9
-              
+
               .          2  0        1  4       5
               .          3  6        7  8       9
-              
+
               .          3  2        0  1       4
               .          6  7        8  5       9
-              
+
               .          6  3        2  0       1
               .          7  8        5  4       9
-              
+
               .          7  6        3  2       0
               .          8  5        4  1       9
-              
+
               .          8  7        6  3       2
               .          5  4        1  0       9
-              
+
               .          5  8        7  6       3
               .          4  1        0  2       9
-              
+
               .          4  5        8  7       6
               .          1  0        2  3       9
-              
+
               .          1  4        5  8       7
               .          0  2        3  6       9
             */
-            
+
             // Copy end elements before they are overwritten
             T* ilast  = iptr[nlocal-1];
             T* jfirst = jptr[0];
-            
+
             // Cycle local pointers
             for (int64_t i=0; i<nlocal-1; i++) {
                 iptr[nlocal-i-1] = iptr[nlocal-i-2];
                 jptr[i] = jptr[i+1];
             }
-            
+
             World& world = A.get_world();
-            
+
             // Lazily program unsafely assuming enough MPI buffering available
             if (nproc == 1) {
                 iptr[0] = jfirst;
@@ -515,10 +515,16 @@ namespace madness {
             }
         }
 
+        /// Get the task id
+
+        /// \param id The id to set for this task
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
+            PoolTaskInterface::make_id(id, *this);
+        }
 
     public:
         /// A must be a column distributed matrix with an even column tile >= 2
-        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag, int nthread=ThreadPool::size()+1) 
+        SystolicMatrixAlgorithm(DistributedMatrix<T>& A, int tag, int nthread=ThreadPool::size()+1)
             : A(A)
             , nproc(A.process_coldim()*A.process_rowdim())
             , coldim(A.coldim())
@@ -533,12 +539,12 @@ namespace madness {
             TaskInterface::set_nthread(nthread);
 
             MADNESS_ASSERT(A.is_column_distributed() && (nproc==1 || (A.coltile()&0x1)==0));
-            
+
             // Initialize vectors of pointers to matrix rows
             Tensor<T>& t = A.data();
-            
+
             //madness::print(nproc, coldim, rowdim, nlocal, rank, tag);
-            
+
             for (int64_t i=0; i<nlocal; i++) {
                 iptr[i] = &t(i,0);
                 jptr[i] = &t(i+nlocal,0);
@@ -565,11 +571,11 @@ namespace madness {
             }
 
             std::reverse(map.begin(),map.begin()+neven);
-            
+
             //print("MAP", map);
         }
 
-        virtual ~SystolicMatrixAlgorithm() {}   
+        virtual ~SystolicMatrixAlgorithm() {}
 
         /// Threadsafe routine to apply the operation to rows i and j of the matrix
         virtual void kernel(int i, int j, T* rowi, T* rowj) = 0;
@@ -579,7 +585,7 @@ namespace madness {
 
         /// There is a thread barrier before and after the invocation of this routine
         virtual bool converged(const TaskThreadEnv& env) const = 0;
-        
+
 
         /// Invoked by all threads at the start of each iteration
 
@@ -596,7 +602,7 @@ namespace madness {
         /// Invoked by the task queue to run the algorithm with multiple threads
         void run(World& world, const TaskThreadEnv& env) {
             //if (nlocal <= 0) return; // Nothing to do
-            
+
             do {
                 env.barrier();
                 iteration(env);
@@ -604,7 +610,7 @@ namespace madness {
             } while (!converged(env));
 
             if (env.id() == 0) unshuffle();
-            env.barrier(); 
+            env.barrier();
         }
 
         /// Invoked by the user to run the algorithm with one thread
@@ -642,7 +648,7 @@ namespace madness {
             nmo(nmo), // number of molecule
             niter(0), // number of iteration
             ndone(0), // number of rotation
-            nrot(0), 
+            nrot(0),
             thetamax(thetamax),
             thresh(thresh),
             tol(thetamax),
@@ -652,7 +658,7 @@ namespace madness {
             if (doprint) madness::print("Start boys localization\n");
         }
 
-        virtual ~LocalizeBoys() {}   
+        virtual ~LocalizeBoys() {}
 
         void start_iteration_hook(const TaskThreadEnv& env);
         void kernel(int i, int j, T* rowi, T* rowj);
@@ -670,7 +676,7 @@ namespace madness {
         volatile double maxtheta; // max rotation angle
         const bool randomized, doprint;
 
-        void drot(T restrict a[], T restrict b[], double sin, double cos); 
+        void drot(T restrict a[], T restrict b[], double sin, double cos);
         inline T DIP(const T ij[], const T kl[]) const;
         inline T inner(const T a[], const T b[] ) const;
     };
@@ -746,7 +752,7 @@ namespace madness {
 
             double c = cos(theta);
             double s = sin(theta);
-            drot(ri[0], rj[0], s, c); 
+            drot(ri[0], rj[0], s, c);
             drot(ri[1], rj[1], s, c);
             drot(ri[2], rj[2], s, c);
             drot(ui, uj, s, c);
@@ -805,5 +811,5 @@ namespace madness {
         }
         return s;
     }
-}    
+}
 #endif

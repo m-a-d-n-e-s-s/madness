@@ -310,9 +310,9 @@ namespace madness {
         /// submit, start, and stop times as well as identification information.
         class TaskEvent {
         private:
-            std::pair<void*, unsigned long> id_; ///< Task identification information
             double times_[3]; ///< Task trace times: { submit, start, stop }
-            unsigned long threads_; ///< Number of threads used by task
+            std::pair<void*, unsigned short> id_; ///< Task identification information
+            unsigned short threads_; ///< Number of threads used by task
 
             /// Print demangled symbol name
 
@@ -390,8 +390,8 @@ namespace madness {
             /// \param threads The number of threads this task uses
             /// \param submit_time The time that the task was submitted to the
             /// task queue
-            void start(const std::pair<void*, unsigned int>& id,
-                    const unsigned long threads, const double submit_time)
+            void start(const std::pair<void*, unsigned short>& id,
+                    const unsigned short threads, const double submit_time)
             {
                 id_ = id;
                 threads_ = threads;
@@ -498,11 +498,10 @@ namespace madness {
 
         /// \tparam N The maximum number of events held by the list
         /// This object is used by the thread pool to record task data
-        template <std::size_t N>
         class TaskEventList : public TaskEventListBase {
         private:
-            std::size_t n_; ///< The number of events recorded
-            TaskEvent events_[N]; ///< The event list
+            unsigned int n_; ///< The number of events recorded
+            TaskEvent* events_; ///< The event list
 
             // Not allowed
             TaskEventList(const TaskEventList&);
@@ -511,10 +510,12 @@ namespace madness {
         public:
 
             /// Default constructor
-            TaskEventList() : TaskEventListBase(), n_(0ul) { }
+            TaskEventList(const unsigned int nmax) :
+                TaskEventListBase(), n_(0ul), events_(new TaskEvent[nmax])
+            { }
 
             /// virtual destructor
-            virtual ~TaskEventList() { }
+            virtual ~TaskEventList() { delete [] events_; }
 
             /// Get a new event from this list
 
@@ -575,10 +576,9 @@ namespace madness {
 
             /// \tparam N The maximum number of elements that the list can contain
             /// \return A new task event list
-            template <std::size_t N>
-            TaskEventList<N>* new_list() {
+            TaskEventList* new_list(const std::size_t nmax) {
                 // Create a new event list
-                TaskEventList<N>* list = new TaskEventList<N>();
+                TaskEventList* list = new TaskEventList(nmax);
 
                 // Append the list to the tail of the linked list
                 if(head_ != NULL) {
@@ -626,7 +626,7 @@ namespace madness {
 #ifdef MADNESS_TASK_PROFILING
     	profiling::TaskEvent* task_event_;
     	double submit_time_;
-        std::pair<void*, unsigned long> id_;
+        std::pair<void*, unsigned short> id_;
 
         void set_event(profiling::TaskEvent* task_event) {
             task_event_ = task_event;
@@ -655,7 +655,7 @@ namespace madness {
         template <typename fnT>
         static typename enable_if_c<detail::function_traits<fnT>::value ||
                 detail::memfunc_traits<fnT>::value>::type
-        make_id(std::pair<void*,unsigned long>& id, fnT fn) {
+        make_id(std::pair<void*,unsigned short>& id, fnT fn) {
             FunctionPointerGrabber<fnT> poop;
             poop.in = fn;
             id.first = poop.out;
@@ -665,14 +665,14 @@ namespace madness {
         template <typename fnobjT>
         static typename disable_if_c<detail::function_traits<fnobjT>::value ||
                 detail::memfunc_traits<fnobjT>::value>::type
-        make_id(std::pair<void*,unsigned long>& id, const fnobjT&) {
+        make_id(std::pair<void*,unsigned short>& id, const fnobjT&) {
             id.first = reinterpret_cast<void*>(const_cast<char*>(typeid(fnobjT).name()));
             id.second = 2ul;
         }
 
     private:
 
-        virtual void get_id(std::pair<void*,unsigned long>& id) const {
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
             id.first = NULL;
             id.second = 0ul;
         }
@@ -800,7 +800,8 @@ namespace madness {
     public:
         void run(const TaskThreadEnv& /*info*/) {}
         virtual ~PoolTaskNull() {}
-        virtual void get_id(std::pair<void*,unsigned long>& id) const {
+    private:
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
             PoolTaskInterface::make_id(id, &PoolTaskNull::run);
         }
     };
@@ -867,12 +868,12 @@ namespace madness {
             MADNESS_EXCEPTION("run_task should not be called when using Intel TBB", 1);
 #else
 
-#ifdef MADNESS_TASK_PROFILING
-            profiling::TaskEventList<1>* event_list =
-                    this_thread->profiler().new_list<1>();
-#endif // MADNESS_TASK_PROFILING
             if (!wait && queue.empty()) return false;
             std::pair<PoolTaskInterface*,bool> t = queue.pop_front(wait);
+#ifdef MADNESS_TASK_PROFILING
+            profiling::TaskEventList* event_list =
+                    this_thread->profiler().new_list(1);
+#endif // MADNESS_TASK_PROFILING
             // Task pointer might be zero due to stealing
             if (t.second && t.first) {
 #ifdef MADNESS_TASK_PROFILING
@@ -900,12 +901,12 @@ namespace madness {
             MADNESS_EXCEPTION("run_tasks should not be called when using Intel TBB", 1);
 #else
 
-#ifdef MADNESS_TASK_PROFILING
-            profiling::TaskEventList<nmax>* event_list =
-                    this_thread->profiler().new_list<nmax>();
-#endif // MADNESS_TASK_PROFILING
             PoolTaskInterface* taskbuf[nmax];
             int ntask = queue.pop_front(nmax, taskbuf, wait);
+#ifdef MADNESS_TASK_PROFILING
+            profiling::TaskEventList* event_list =
+                    this_thread->profiler().new_list(ntask);
+#endif // MADNESS_TASK_PROFILING
             for (int i=0; i<ntask; ++i) {
                 if (taskbuf[i]) { // Task pointer might be zero due to stealing
 #ifdef MADNESS_TASK_PROFILING

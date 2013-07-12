@@ -461,24 +461,32 @@ namespace madness {
 
 
     template <typename T, typename R, std::size_t NDIM>
-      struct MatrixInnerTask : public TaskInterface {
-      Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
-      const Function<T,NDIM>& f;
-      const std::vector< Function<R,NDIM> >& g;
-      long jtop;
+    struct MatrixInnerTask : public TaskInterface {
+        Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
+        const Function<T,NDIM>& f;
+        const std::vector< Function<R,NDIM> >& g;
+        long jtop;
 
-    MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
-		    const Function<T,NDIM>& f,
-		    const std::vector< Function<R,NDIM> >& g,
-		    long jtop)
-      : result(result), f(f), g(g), jtop(jtop) {}
+        MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
+                const Function<T,NDIM>& f,
+                const std::vector< Function<R,NDIM> >& g,
+                long jtop)
+        : result(result), f(f), g(g), jtop(jtop) {}
 
-      void run(World& world) {
-	for (long j=0; j<jtop; ++j) {
-	  result(j) = f.inner_local(g[j]);
-	}
-      }
-    };
+        void run(World& world) {
+            for (long j=0; j<jtop; ++j) {
+                result(j) = f.inner_local(g[j]);
+            }
+        }
+
+    private:
+        /// Get the task id
+
+        /// \param id The id to set for this task
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
+            PoolTaskInterface::make_id(id, *this);
+        }
+    }; // struct MatrixInnerTask
 
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
 

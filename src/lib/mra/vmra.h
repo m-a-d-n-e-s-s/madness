@@ -360,7 +360,15 @@ namespace madness {
                 result(j) = f.inner_local(g[j]);
             }
         }
-    };
+
+    private:
+        /// Get the task id
+
+        /// \param id The id to set for this task
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
+            PoolTaskInterface::make_id(id, *this);
+        }
+    }; // struct MatrixInnerTask
 
 
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])

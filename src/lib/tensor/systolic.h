@@ -64,39 +64,39 @@ namespace madness {
             if (nlocal > 0) {
                 int64_t ilo, ihi;
                 A.local_colrange(ilo, ihi);
-                
+
                 int neven = coldim + (coldim&0x1);
-                
+
                 int pairlo = rank*A.coltile()/2;
-                
+
                 int threadid = env.id();
                 int nthread = env.nthread();
-                
+
                 for (int loop=0; loop<(neven-1); ++loop) {
-                    
+
                     // This loop is parallelized over threads
                     for (int pair=env.id(); pair<nlocal; pair+=nthread) {
-                        
+
                         int rp = neven/2-1-(pair+pairlo);
                         int iii = (rp+loop)%(neven-1);
                         int jjj = (2*neven-2-rp+loop)%(neven-1);
                         if (rp == 0) jjj = neven-1;
-                        
+
                         iii = map[iii];
                         jjj = map[jjj];
-                        
+
                         if (jptr[pair]) {
                             kernel(iii, jjj, iptr[pair], jptr[pair]);
                         }
                     }
                     env.barrier();
-                    
+
                     if (threadid == 0) cycle();
-                    
+
                     env.barrier();
                 }
             }
-            
+
             end_iteration_hook(env);
 
             env.barrier();
@@ -245,12 +245,18 @@ namespace madness {
                 world.await(req2,false);
                 std::memcpy(ilast, &buf2[0], rowdim*sizeof(T)); //world.mpi.Recv( ilast, rowdim, right, tag);
                 std::memcpy(jfirst, &buf1[0], rowdim*sizeof(T)); //world.mpi.Recv(jfirst, rowdim,  left, tag);
-                
+
                 iptr[0] = jfirst;
                 jptr[nlocal-1] = ilast;
             }
         }
 
+        /// Get the task id
+
+        /// \param id The id to set for this task
+        virtual void get_id(std::pair<void*,unsigned short>& id) const {
+            PoolTaskInterface::make_id(id, *this);
+        }
 
     public:
         /// A must be a column distributed matrix with an even column tile >= 2
@@ -335,7 +341,7 @@ namespace madness {
         virtual void start_iteration_hook(const TaskThreadEnv& env) {}
 
 
-        /// Invoked by all threads at the end of each iteration before convergence test 
+        /// Invoked by all threads at the end of each iteration before convergence test
 
         /// There is a thread barrier before and after the invocation of this routine.
         /// Note that the \c converged() method is \c const whereas this can modify the class.
