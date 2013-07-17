@@ -393,13 +393,6 @@ namespace madness {
             return result;
         }
 
-        /// Create and zero new 1-d tensor
-
-        /// @param[in] d0 Size of dimension 0
-        explicit Tensor(int d0) : _p(0) {
-            _dim[0] = d0;
-            allocate(1, _dim, true);
-        }
 
         /// Create and zero new 1-d tensor
 
@@ -469,7 +462,7 @@ namespace madness {
         /// @param[in] d Vector containing size of each dimension, number of dimensions inferred from vcector size.
         /// @param[in] dozero If true (default) the tensor is initialized to zero
         explicit Tensor(const std::vector<long>& d, bool dozero=true) : _p(0) {
-	  allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);
+            allocate(d.size(), d.size() ? &(d[0]) : 0, dozero);
         }
 
         /// Politically incorrect general constructor.

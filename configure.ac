@@ -169,7 +169,7 @@ AC_TYPE_SIZE_T
 AC_HEADER_TIME
 #AC_TYPE_UINT64_T
 #AC_TYPE_INT64_T
-AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t])
+AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t, long long])
 AC_C_VOLATILE
 AC_C_CONST
 AC_C_INLINE
@@ -298,28 +298,29 @@ AC_ARG_ENABLE([bsend-ack],
             [
              AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
             ])
+     
+# Set the default fortran integer type       
+acx_fortran_int32=no
 AC_ARG_WITH([fortran-int32],
             [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
             [
-              case $withval in
-                yes)
-                  AC_DEFINE([MADNESS_FORINT],[int],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: int])
-                  ;;
-                no)
-                  AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: long])
-                  ;;
-                *)
-                  AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: long])
-                  ;;
-              esac
-            ],
-            [
-             AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-             AC_MSG_NOTICE([Fortran integer: long])
+              if test "x$withval" = xyes; then
+                acx_fortran_int32=yes
+              fi
             ])
+
+if test "x$acx_fortran_int32" = xyes; then
+  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
+  AC_MSG_NOTICE([Fortran integer: integer*4])
+else
+  if test "x$ac_cv_type_int64_t" = xyes; then
+    AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8],[Default Fortran integer size.])
+    AC_MSG_NOTICE([Fortran integer: integer*8])
+  else
+    AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
+    AC_MSG_NOTICE([Fortran integer: integer*4])
+  fi
+fi
 
 # Set the MPI thread level used by MADNESS
 MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
