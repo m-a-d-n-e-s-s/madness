@@ -363,20 +363,13 @@ int test_add(World& world, const long& k, const double thresh) {
 
 
     // 6d tests; mainly consistency checks since err() function is very expensive in 6d
-//    real_function_3d gauss3=real_factory_3d(world).f(gauss_3d);
-//    real_function_3d phisq=gauss_6d*gauss_6d;
-
     real_function_6d f=hartree_product(gauss3,gauss3);
-//    real_function_6d g=hartree_product(phisq,gauss_6d);
     real_function_6d one6=real_factory_6d(world).f(one_6d);
-//
-//    real_function_6d ff=copy(f);
-//    real_function_6d gg=copy(g);
 
     {
     	real_function_6d r=copy(f);
     	r.add_scalar(1.0);
-    	real_function_6d r2=f+one6;
+    	real_function_6d r2=one6+f;
     	double error=(r2-r).norm2();
     	nerror+=check_small(error,thresh,"6d add_scalar/operator+/-");
     }

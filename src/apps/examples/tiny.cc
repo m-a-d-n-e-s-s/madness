@@ -161,32 +161,36 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
     const double stepsize=FunctionDefaults<6>::get_cell_width()[0]*scale/nstep;
 
     if(world.rank() == 0) {
-      FILE *f =  0;
-      f=fopen(filename.c_str(), "w");
-      if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
 
+    	// plot 3d plot
+    	FILE *f =  0;
+    	f=fopen(filename.c_str(), "w");
+    	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
 
-      for (int i0=0; i0<nstep; i0++) {
-        for (int i1=0; i1<nstep; i1++) {
-          
+    	for (int i0=0; i0<nstep; i0++) {
+    		for (int i1=0; i1<nstep; i1++) {
+    			// plot plane
+    			coord[cc1]=lo+i0*stepsize;
+    			coord[cc2]=lo+i1*stepsize;
 
+    			// other electron
+    			fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],function(coord));
 
-          // plot plane
-          coord[cc1]=lo+i0*stepsize;
-          coord[cc2]=lo+i1*stepsize;
+    		}
+    		// uncomment for gnuplot-style; leave commented out for mathematica
+    		//        fprintf(f,"\n");
+    	}
+    	fclose(f);
 
-          // other electron
-//          coord[3]=0.5;
+    }
 
-          fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],function(coord));
-
-        }
-        // uncomment for gnuplot-style; leave commented out for mathematica
-//        fprintf(f,"\n");
-      }
-      fclose(f);
-   }
-
+    // plot mra structure
+	FILE *file =  0;
+	filename="mra_structure_"+c1+c2+"_"+restart_name;
+//	file=fopen(filename.c_str(), "w");
+	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
+//	fclose(file);
 
 }
 
@@ -196,6 +200,8 @@ int main(int argc, char** argv) {
     World world(MPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
+
+    static const size_t NDIM=6;
 
     // determine the box size L
     double L=-1.0;
@@ -238,9 +244,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    Function<double,6> pair;
+    Function<double,NDIM> pair;
     if (restart) {
-    	Function<double,6> r12phi;
+    	Function<double,NDIM> r12phi;
     	load_function(world,pair,restart_name);
 //    	load_function(world,r12phi,"r12phi");
 //    	pair=pair+r12phi;

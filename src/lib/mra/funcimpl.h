@@ -1111,7 +1111,7 @@ namespace madness {
         template<typename Q, typename R>
         void merge_trees(const T alpha, const FunctionImpl<Q,NDIM>& other, const R beta, const bool fence=true) {
             MADNESS_ASSERT(get_pmap() == other.get_pmap());
-            other.flo_unary_op_node_inplace(do_merge_trees<R>(alpha,beta,*this),fence);
+            other.flo_unary_op_node_inplace(do_merge_trees<Q,R>(alpha,beta,*this),fence);
             if (fence) world.gop.fence();
         }
 
@@ -2323,14 +2323,6 @@ namespace madness {
                     do_check_symmetry_local(*this));
         }
 
-        /// Returns something ... no comms
-        long something_local() const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
-            typedef Range<typename dcT::const_iterator> rangeT;
-            return world.taskq.reduce<long,rangeT,do_something_local>(rangeT(coeffs.begin(),coeffs.end()),
-                    do_something_local(*this));
-        }
-
         /// given an NS tree resulting from a convolution, truncate leafs if appropriate
         struct do_truncate_NS_leafs {
             typedef Range<typename dcT::iterator> rangeT;
@@ -2355,44 +2347,6 @@ namespace madness {
             template <typename Archive> void serialize(const Archive& ar) {}
 
         };
-
-        struct do_stuff {
-            typedef Range<typename dcT::iterator> rangeT;
-            FunctionCommonData<T,NDIM> cdata;
-            TensorType tt;
-            int k;
-
-            // constructor takes target precision
-            do_stuff()
-                : cdata(FunctionCommonData<T,NDIM>::get(FunctionDefaults<NDIM>::get_k()))
-                , tt(FunctionDefaults<NDIM>::get_tensor_type())
-                , k(FunctionDefaults<NDIM>::get_k())
-            {
-            }
-
-            bool operator()(typename rangeT::iterator& it) const {
-
-                nodeT& node = it->second;
-                const keyT& key = it->first;
-                if (0) print("key",key);
-                if (node.coeff().rank()==0) {
-//                    print("empty key in do_stuffq",key);
-                    node.coeff()=coeffT(cdata.v2k,tt);
-                } else {
-//                    if (node.has_children()) {
-                    MADNESS_ASSERT(node.coeff().dim(0)==k);
-                        TensorType tt=node.coeff().tensor_type();
-                        coeffT d(cdata.v2k,tt);
-                        d(cdata.s0)+=node.coeff();
-                        node.coeff()=d;
-//                    }
-                }
-                return true;
-            }
-            template <typename Archive> void serialize(const Archive& ar) {}
-        };
-
-
 
         /// remove all coefficients of internal nodes
         /// presumably to switch from redundant to reconstructed state
@@ -2507,45 +2461,18 @@ namespace madness {
 
         };
 
-        /// check symmetry wrt particle exchange
-        struct do_something_local {
-            typedef Range<typename dcT::const_iterator> rangeT;
-            typedef long resultT;
-            const implT* f;
-            do_something_local() {}
-            do_something_local(const implT& f) : f(&f) {}
-
-            /// return the norm of the difference of this node and its "mirror" node
-            resultT operator()(typename rangeT::iterator& it) const {
-
-                const coeffT& coeff=it->second.coeff();
-                long thissize=sizeof(it->second);
-                if (coeff.has_no_data()) return 0;//thissize;
-                MADNESS_ASSERT(f);
-                TensorTrain<T> tt(coeff.full_tensor_copy(),f->targs.thresh*GenTensor<T>::fac_reduce());
-                return tt.real_size() + thissize;
-            }
-
-            resultT operator()(resultT a, resultT b) const {return (a+b);}
-
-            template <typename Archive> void serialize(const Archive& ar) {
-                MADNESS_EXCEPTION("no serialization of do_something_local yet",1);
-            }
-
-
-        };
-
         /// merge the coefficent boxes of this into other's tree
 
         /// no comm, and the tree should be in an consistent state by virtue
         /// of FunctionNode::gaxpy_inplace
-        template<typename R>
+        template<typename Q, typename R>
         struct do_merge_trees {
             typedef Range<typename dcT::const_iterator> rangeT;
-            implT* other;
-            R alpha, beta;
+            FunctionImpl<Q,NDIM>* other;
+            T alpha;
+            R beta;
             do_merge_trees() {}
-            do_merge_trees(const R alpha, const R beta, implT& other)
+            do_merge_trees(const T alpha, const R beta, FunctionImpl<Q,NDIM>& other)
             : other(&other), alpha(alpha), beta(beta) {}
 
             /// return the norm of the difference of this node and its "mirror" node
@@ -3369,6 +3296,7 @@ namespace madness {
         void abs_inplace(bool fence);
         void abs_square_inplace(bool fence);
 
+        /// is this the same as trickle_down() ?
         Void sum_down_spawn(const keyT& key, const coeffT& s) {
             typename dcT::accessor acc;
             coeffs.insert(acc,key);
@@ -3535,92 +3463,7 @@ namespace madness {
         };
 
 
-        /// perform this multiplication: h(1,2) = f(1,2) * g(1)
-        template<size_t LDIM>
-        struct multiply_op2 {
-
-        	static bool randomize() {return false;}
-        	typedef CoeffTracker<T,NDIM> ctT;
-        	typedef CoeffTracker<T,LDIM> ctL;
-        	typedef FunctionImpl<T,LDIM> implL;
-        	typedef multiply_op2<LDIM> this_type;
-
-            implT* h;     ///< the result function h(1,2) = f(1,2) * g(1)
-            ctT f;
-            ctL g;
-            int particle;       ///< if g is g(1) or g(2)
-
-            multiply_op2() : particle(1) {}
-
-            multiply_op2(implT* h, const ctT& f, const ctL& g, const int particle)
-                : h(h), f(f), g(g), particle(particle) {
-            };
-
-            /// apply this on a FunctionNode of f and g of Key key
-
-            /// @param[in]  key key for FunctionNode in f and g, (g: broken into particles)
-            /// @return <this node is a leaf, coefficients of this node>
-            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
-
-                // break key into particles (these are the child keys, with f/gdatum come the parent keys)
-                Key<LDIM> key1,key2;
-                key.break_apart(key1,key2);
-                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
-
-                const implT* fimpl=f.get_impl();
-                const implL* gimpl=g.get_impl();
-
-                // compute the function values of the hi-dim function f at key
-                bool f_is_leaf=(f.coeff().dim(0)==fimpl->get_k());
-                coeffT fvalues=fimpl->NS_fcube_for_mul(key,f.key(),f.coeff(),f_is_leaf);
-
-                // compute the function values of the lo-dim function g at key
-                bool g_is_leaf=(g.coeff().dim(0)==gimpl->get_k());
-                coeffT gvalues=gimpl->NS_fcube_for_mul(gkey,g.key(),g.coeff(),g_is_leaf);
-
-                // multiply f and g to yield h
-                const coeffT hvalues=fimpl->multiply(fvalues,gvalues,particle-1);
-                coeffT hcoeff=fimpl->values2NScoeffs(key,hvalues);
-
-                // determine error thru d coeffs
-                const coeffT sum_coeff=hcoeff(fimpl->get_cdata().s0);
-                hcoeff.scale(-1.0)+=sum_coeff;
-                const double error=hcoeff.normf();
-
-                bool is_leaf=(error<h->truncate_tol(h->get_thresh(),key));
-                if (key.level()<2) is_leaf=false;
-
-                return std::pair<bool,coeffT> (is_leaf,sum_coeff);
-            }
-
-            this_type make_child(const keyT& child) const {
-
-                // break key into particles
-                Key<LDIM> key1, key2;
-                child.break_apart(key1,key2);
-                const Key<LDIM> gkey= (particle==1) ? key1 : key2;
-
-                return this_type(h,f.make_child(child),g.make_child(gkey),particle);
-            }
-
-            Future<this_type> activate() const {
-            	Future<ctT> f1=f.activate();
-            	Future<ctL> g1=g.activate();
-                return h->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::forward_ctor,h,f1,g1,particle);
-            }
-
-            this_type forward_ctor(implT* h1, const ctT& f1, const ctL& g1, const int particle) {
-            	return this_type(h1,f1,g1,particle);
-            }
-
-            template <typename Archive> void serialize(const Archive& ar) {
-                ar & h & f & g;
-            }
-        };
-
-
-        /// add two functions f and g: result=alpha * f  +  beta * g
+         /// add two functions f and g: result=alpha * f  +  beta * g
         struct add_op {
 
         	typedef CoeffTracker<T,NDIM> ctT;
@@ -4058,133 +3901,6 @@ namespace madness {
         }
 
         /// given a ket and the 1- and 2-electron potentials, construct the function V phi
-        template<typename opT, size_t LDIM>
-        struct Vphi_op {
-
-        	bool randomize() const {return false;}
-
-            typedef Vphi_op<opT,LDIM> this_type;
-            typedef FunctionImpl<T,LDIM> implL;
-            typedef CoeffTracker<T,NDIM> ctT;
-            typedef CoeffTracker<T,LDIM> ctL;
-
-            ctT result;    ///< where to construct Vphi, and parent node
-            opT leaf_op;               ///< deciding if a given FunctionNode will be a leaf node
-            ctT iaket;
-            ctL iap1;
-            ctL iap2;
-            ctL iav1;
-            ctL iav2;
-            ctT iaeri;
-
-            // ctor
-            Vphi_op() {}
-            Vphi_op(const ctT& result, const opT& leaf_op, const ctT& iaket,
-                    const ctL& iap1, const ctL& iap2, const ctL& iav1, const ctL& iav2,
-                    const ctT& iaeri)
-                : result(result), leaf_op(leaf_op), iaket(iaket), iap1(iap1), iap2(iap2)
-                , iav1(iav1), iav2(iav2), iaeri(iaeri) {
-            }
-
-            /// assemble the coefficients
-            std::pair<bool,coeffT> operator()(const Key<NDIM>& key) const {
-
-                // pre-determination: fast return if possible
-                bool is_leaf=leaf_op(key);
-                if (not is_leaf) return std::pair<bool,coeffT> (is_leaf,coeffT());
-
-				// break key into particles (these are the child keys, with datum1/2 come the parent keys)
-				Key<LDIM> key1, key2;
-				key.break_apart(key1,key2);
-
-				// get the coefficient and functions value tensors
-				coeffT val_potential1, val_potential2;
-				if (iav1.get_impl()) val_potential1=iav1.get_impl()->fcube_for_mul(key1,iav1.key(),iav1.coeff());
-				if (iav2.get_impl()) val_potential2=iav2.get_impl()->fcube_for_mul(key2,iav2.key(),iav2.coeff());
-
-				tensorT val_eri;
-				if (iaeri.get_impl() and iaeri.get_impl()->is_on_demand()) {
-					if (iaeri.get_impl()->get_functor()->provides_coeff()) {
-						val_eri=iaeri.get_impl()->coeffs2values(
-								key,iaeri.get_impl()->get_functor()->coeff(key).full_tensor());
-					} else {
-						val_eri=tensorT(result.get_impl()->cdata.vk);
-						result.get_impl()->fcube(key, *(iaeri.get_impl()->get_functor()),
-								iaeri.get_impl()->cdata.quad_x, val_eri);
-					}
-				}
-
-				coeffT coeff_result, dummy;
-				if (iaket.get_impl()) {
-					const coeffT coeff_ket=iaket.get_impl()->parent_to_child(iaket.coeff(),iaket.key(),key);
-
-					coeff_result=result.get_impl()->assemble_coefficients(
-							key,coeff_ket,
-							val_potential1,val_potential2,val_eri);
-				} else {
-					const coeffT c1=iap1.get_impl()->parent_to_child(iap1.coeff(),iap1.key(),key1);
-					const coeffT c2=iap2.get_impl()->parent_to_child(iap2.coeff(),iap2.key(),key2);
-
-					// use the ket coeffs if they are there, or make them by hartree product
-		        	const coeffT coeff_ket=outer(c1,c2);
-					coeff_result=result.get_impl()->assemble_coefficients(
-							key,coeff_ket,
-							val_potential1,val_potential2,val_eri);
-				}
-
-                // post-determination
-                is_leaf=leaf_op(key,coeff_result);
-
-                // compare to parent
-                if (leaf_op.do_error_leaf_op()) {
-                    error_leaf_op<T,NDIM> elop(result.get_impl());
-                    MADNESS_ASSERT(key.parent()==result.key());
-                    is_leaf=is_leaf or elop(key,coeff_result,result.coeff());
-                }
-
-                return std::pair<bool,coeffT> (is_leaf,coeff_result);
-            }
-
-            this_type make_child(const keyT& child) const {
-
-                // break key into particles
-                Key<LDIM> key1, key2;
-                child.break_apart(key1,key2);
-
-                // result coeffs lag behing by one scale: always compare to parents.
-                ctT result1=(leaf_op.do_error_leaf_op())
-				    			? result.make_child(child.parent()) : ctT(result);
-
-                return this_type(result1,leaf_op,iaket.make_child(child),
-                		iap1.make_child(key1),iap2.make_child(key2),
-                		iav1.make_child(key1),iav2.make_child(key2),iaeri.make_child(child));
-            }
-
-            Future<this_type> activate() const {
-            	Future<ctT> iaresult1=result.activate();
-            	Future<ctT> iaket1=iaket.activate();
-            	Future<ctT> iaeri1=iaeri.activate();
-            	Future<ctL> iap11=iap1.activate();
-            	Future<ctL> iap21=iap2.activate();
-            	Future<ctL> iav11=iav1.activate();
-            	Future<ctL> iav21=iav2.activate();
-                return result.get_impl()->world.taskq.add(*const_cast<this_type *> (this),
-                        &this_type::forward_ctor,iaresult1,leaf_op,iaket1,iap11,iap21,iav11,iav21,iaeri1);
-            }
-
-            this_type forward_ctor(const ctT& result1, const opT& leaf_op, const ctT& iaket1,
-                    const ctL& iap11, const ctL& iap21, const ctL& iav11, const ctL& iav21,
-                    const ctT& iaeri1) {
-            	return this_type(result1,leaf_op,iaket1,iap11,iap21,iav11,iav21,iaeri1);
-            }
-
-            /// serialize this (needed for use in recursive_op)
-            template <typename Archive> void serialize(const Archive& ar) {
-                ar & iaket & iaeri & result & leaf_op & iap1 & iap2 & iav1 & iav2;
-            }
-        };
-
-        /// given a ket and the 1- and 2-electron potentials, construct the function V phi
 
         /// small memory footstep version of Vphi_op: use the NS form to have information
         /// about parent and children to determine if a box is a leaf. This will require
@@ -4458,86 +4174,6 @@ namespace madness {
         /// @param[in]  fence   global fence
         template<typename opT>
         void make_Vphi(const opT& leaf_op, const bool fence=true) {
-
-        	make_Vphi_NS(leaf_op,fence);
-        	return;
-
-            const size_t LDIM=3;
-
-            // keep the functor available, but remove it from the result
-            // result will return false upon is_on_demand(), which is necessary for the
-            // CoeffTracker to track the parent coeffs correctly for error_leaf_op
-            std::shared_ptr< FunctionFunctorInterface<T,NDIM> > func2(this->get_functor());
-            this->unset_functor();
-
-            CompositeFunctorInterface<T,NDIM,LDIM>* func=
-                    dynamic_cast<CompositeFunctorInterface<T,NDIM,LDIM>* >(&(*func2));
-            MADNESS_ASSERT(func);
-
-            coeffs.clear();
-            const keyT& key0=cdata.key0;
-
-
-            const FunctionImpl<T,NDIM>* ket=func->impl_ket.get();
-            const FunctionImpl<T,NDIM>* eri=func->impl_eri.get();
-            const FunctionImpl<T,LDIM>* v1=func->impl_m1.get();
-            const FunctionImpl<T,LDIM>* v2=func->impl_m2.get();
-            const FunctionImpl<T,LDIM>* p1=func->impl_p1.get();
-            const FunctionImpl<T,LDIM>* p2=func->impl_p2.get();
-
-            if (world.rank() == coeffs.owner(key0)) {
-
-                // insert an empty internal node for comparison
-                this->coeffs.replace(key0,nodeT(coeffT(),true));
-
-
-				// prepare the CoeffTracker
-				CoeffTracker<T,NDIM> iaket(ket);
-				CoeffTracker<T,NDIM> iaeri(eri);
-				CoeffTracker<T,LDIM> iap1(p1);
-				CoeffTracker<T,LDIM> iap2(p2);
-				CoeffTracker<T,LDIM> iav1(v1);
-				CoeffTracker<T,LDIM> iav2(v2);
-
-				CoeffTracker<T,NDIM> iaresult(this);
-
-				// the operator making the coefficients
-                typedef Vphi_op<opT,LDIM> coeff_opT;
-                coeff_opT coeff_op(iaresult,leaf_op,iaket,iap1,iap2,iav1,iav2,eri);
-
-				// this operator simply inserts the coeffs into this' tree
-				typedef insert_op<T,NDIM> apply_opT;
-				apply_opT apply_op(this);
-
-				woT::task(world.rank(), &implT:: template forward_traverse<coeff_opT,apply_opT>,
-						coeff_op, apply_op, cdata.key0);
-            }
-
-            world.gop.fence();
-
-            // remove internal coefficients
-            this->redundant=true;
-            this->undo_redundant(false);
-
-            // set right state
-            this->compressed=false;
-            this->on_demand=false;
-            this->redundant=false;
-            this->nonstandard=false;
-            if (fence) world.gop.fence();
-
-        }
-
-
-        /// assemble the function V*phi using V and phi given from the functor
-
-        /// this function must have been constructed using the CompositeFunctorInterface.
-        /// The interface provides one- and two-electron potentials, and the ket, which are
-        /// assembled to give V*phi.
-        /// @param[in]  leaf_op  operator to decide if a given node is a leaf node
-        /// @param[in]  fence   global fence
-        template<typename opT>
-        void make_Vphi_NS(const opT& leaf_op, const bool fence=true) {
 
             const size_t LDIM=3;
 
@@ -5014,18 +4650,15 @@ namespace madness {
             // fast return if possible
         	if (is_redundant()) return;
 
-            // this is easy: just get rid of difference coefficients
-            if (is_nonstandard()) {
-                redundant=true;
-                compressed=false;
-                nonstandard=false;
-                flo_unary_op_node_inplace(do_keep_sum_coeffs(this),fence);
+        	// NS form might have leaf sum coeffs, but we don't know
+        	// change to standard compressed form
+            if (is_nonstandard()) this->standard(true);
 
-            } else {
-        		if (is_compressed()) reconstruct(true);
-        		compress(false,true,true,fence);
-        		compressed=false;
-        	}
+            // we need the leaf sum coeffs, so reconstruct
+            if (is_compressed()) reconstruct(true);
+
+            compress(false,true,true,fence);
+            compressed=false;
 
         }
 
@@ -5459,6 +5092,7 @@ namespace madness {
         template <typename opT, typename R>
         void apply(opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
+            MADNESS_ASSERT(!op.modified());
             typename dcT::const_iterator end = f.coeffs.end();
             for (typename dcT::const_iterator it=f.coeffs.begin(); it!=end; ++it) {
                 // looping through all the coefficients in the source
@@ -5474,7 +5108,6 @@ namespace madness {
             if (fence)
                 world.gop.fence();
 
-//            if (op.modified) flo_unary_op_node_inplace(do_stuff(),true);
             this->compressed=true;
             this->nonstandard=true;
             this->redundant=false;
@@ -5604,9 +5237,6 @@ namespace madness {
         void apply_source_driven(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
-            small=0;
-            large=0;
-
             MADNESS_ASSERT(not op.modified());
             // looping through all the coefficients of the source f
             typename dcT::const_iterator end = f.get_coeffs().end();
@@ -5615,12 +5245,6 @@ namespace madness {
                 const keyT& key = it->first;
                 const coeffT& coeff = it->second.coeff();
 
-//                Translation l1=2;
-//                const Vector<Translation,6> l=vec(l1,l1,l1,l1,l1,l1);
-//                bool doit=(NDIM==6);
-//                for (int i=0; i<NDIM; ++i) doit=(doit and (key.translation()[i]==l[i]));
-
-//                if (coeff.has_data() and (coeff.rank()!=0) and doit) {
                 if (coeff.has_data() and (coeff.rank()!=0)) {
                     ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
                     woT::task(p, &implT:: template do_apply_directed_screening<opT,R>, &op, key, coeff, true);
@@ -5628,11 +5252,6 @@ namespace madness {
                 }
             }
             if (fence) world.gop.fence();
-//            if (world.rank()==0) {
-//            	print("small wavelet coeffs",small);
-//            	print("large wavelet coeffs",large);
-//            }
-
         }
 
 

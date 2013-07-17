@@ -866,13 +866,13 @@ namespace madness {
 //            		FunctionDefaults<6>::get_thresh()*0.1);
 
             // do some preiterations using increments
-            increment(result,green);
+//            increment(result,green);
 
 			if (world.rank()==0) print("computing iteratively");
 			real_function_6d constant_term;
 			load_function(constant_term,"GVpair");
 
-//			NonlinearSolverND<6> solver;
+			NonlinearSolverND<6> solver;
 			// increment iteration counter upon entry
 			for (++result.iteration; result.iteration<20; ++result.iteration) {
 
@@ -882,25 +882,20 @@ namespace madness {
 				load_balance(vphi,false);
 
 				real_function_6d tmp=green(vphi).truncate();	// green is destructive
-				tmp.print_size("result of applying 0th order Hamiltonian on 1st order wave function");
-				tmp=Q12(constant_term+tmp);
+				tmp.print_size("GV psi");
 
-				// check convergence
-				const double rnorm=(result.function-tmp).norm2();
+				// we have to solve this equation:
+				// psi1 = psi0 + GVpsi1 <=> psi0 + GVpsi1 - psi1 = r =0
+				tmp=Q12(constant_term + tmp);
 				const double old_fnorm=result.function.norm2();
-				const double fnorm=tmp.norm2();
-				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",
-						fnorm,rnorm);
 
-				result.function=tmp;
-//				real_function_6d residual=tmp-result.function;
-//				const double rnorm=residual.norm2();
-//				const double old_fnorm=result.function.norm2();
-//				const double fnorm=tmp.norm2();
-//				if (world.rank()==0) printf("norm2 of psi, residual %12.8f %12.8f\n",fnorm,rnorm);
-//
-//				result.function=solver.update(result.function,residual);
-////				result.function=tmp;
+				real_function_6d residual=result.function - tmp;
+				result.function=Q12(solver.update(tmp,residual));
+				const double rnorm=residual.norm2();
+				const double fnorm=result.function.norm2();
+				if (world.rank()==0)
+					printf("norm2 of psi, residual %12.8f %12.8f\n",fnorm,rnorm);
+
 				double old_energy=energy;
 				energy=compute_energy(result);
 

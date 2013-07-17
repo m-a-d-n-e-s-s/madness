@@ -1452,16 +1452,6 @@ namespace madness {
             return asy;
         }
 
-        /// check symmetry of a function by computing the 2nd derivative
-        long do_something() const {
-
-            if (VERIFY_TREE) verify_tree();
-            long local = impl->something_local();
-            impl->world.gop.sum(local);
-            impl->world.gop.fence();
-            return local;
-        }
-
         /// reduce the rank of the coefficient tensors
         Function<T,NDIM>& reduce_rank(const bool fence=true) {
             verify();
