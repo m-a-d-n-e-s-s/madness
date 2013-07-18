@@ -1,7 +1,7 @@
 /// \file testdiff3D.cc
 /// \brief testing for diff() in 3D
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/mraimpl.h>
 #include <string>
@@ -16,8 +16,8 @@ typedef Tensor<double> tensorT;
 static const double PI = 3.1415926535897932384;
 static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
-static const int init_lev = 2; 
-static int test_axis = 0; 
+static const int init_lev = 2;
+static int test_axis = 0;
 static const double Length = 4.0;
 
 void compare(World& world, functionT test, functionT exact, const char *str)
@@ -101,9 +101,9 @@ static double zright_neumann  (const coordT &pt) {
 
 
 int main(int argc, char** argv) {
-    
+
     initialize(argc, argv);
-	World world(MPI::COMM_WORLD);
+	World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
         std::cout.precision(12);
@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
         functionT dudx1 = dx1(u) ;
         compare(world, dudx1, dudxe, "dudx1") ;
         print("D1Unorm", dudx1.norm2());
-        
+
 
         // X Right B.C.: Free
         // X Left  B.C.: Dirichlet
@@ -276,9 +276,9 @@ int main(int argc, char** argv) {
          world.gop.fence();
 
     finalize();
-    
+
     return 0;
 }
 
-        
-        
+
+

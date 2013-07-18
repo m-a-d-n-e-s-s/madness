@@ -46,10 +46,17 @@
 #include <catamount/dclock.h>
 #endif
 
-// #ifdef UINT64_T
-// typedef UINT64_T uint64_t;
-// #endif
+#ifdef HAVE_IBMBGP
+#  define BG_CYCLES_PER_MICROSECOND 850
+#  define BG_SECONDS_PER_CYCLE 1.176470588235294033e-09
+#  include </bgsys/drivers/ppcfloor/arch/include/bpcore/ppc450_inlines.h>
+#endif
 
+#ifdef HAVE_IBMBGQ
+#  define BG_CYCLES_PER_MICROSECOND 1600
+#  define BG_SECONDS_PER_CYCLE 6.25e-10
+#  include <hwi/include/bqc/A2_inlines.h>
+#endif
 
 /// \file worldtime.h
 /// \brief Wrappers around platform dependent timers and performance info
@@ -71,7 +78,7 @@ namespace madness {
     /// Otherwise uses wall_time() in nanoseconds.
     static inline uint64_t cycle_count() {
         uint64_t x;
-#ifdef HAVE_IBMBGP
+#if defined(HAVE_IBMBGP)
      unsigned int rx, ry, rz;
      do
      {
@@ -82,6 +89,9 @@ namespace madness {
      while ( rx != rz );
      x = rx;
      x = (x << 32) | ry;
+#elif defined(HAVE_IBMBGQ)
+/* Jeff could use the asm above but is pretending this is more portable */
+    x = GetTimeBase();
 #elif defined(X86_32)
 __asm__ volatile(".byte 0x0f, 0x31" : "=A"(x));
 #elif defined(X86_64)
@@ -117,6 +127,10 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return cycle_count()*rfreq;
 #elif defined(_CRAY)
         return dclock();
+#elif defined(HAVE_IBMBGP)
+        return BG_SECONDS_PER_CYCLE * _bgp_GetTimeBase();
+#elif defined(HAVE_IBMBGQ)
+        return BG_SECONDS_PER_CYCLE * GetTimeBase();
 #else
         return double(clock())/CLOCKS_PER_SEC;
 #endif
@@ -128,10 +142,17 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
 #if defined(X86_32) || defined(X86_64)
         asm volatile("rep;nop" : : : "memory");
 #elif defined(HAVE_IBMBGP)
-	for (int i=0; i<25; i++) {
-	    asm volatile ("nop\n");
-	}
+        //for (int i=0; i<25; i++) {
+        //    asm volatile ("nop\n");
+        //}
+        asm volatile ("nop\n"); /* this might be dangerous */
+#elif defined(HAVE_IBMBGQ)
+        //Delay(200); /* this is calling asm nop */
+        // for (int i=0; i<10; i++) {
+	asm volatile ("nop\n");
+	//}
 #else
+#error cpu_relax is not implemented!
 #endif
     }
 
@@ -139,12 +160,17 @@ __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
     /// Sleep or spin for specified no. of microseconds
 
     /// Wrapper to ensure desired behavior (and what is that one might ask??)
-    static inline void myusleep(int us) {
-#if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
+    static inline void myusleep(unsigned int us) {
+#if defined(HAVE_CRAYXT)
         double secs = us*1e-6;
         double start = cpu_time();
         while (cpu_time()-start < secs) {
             for (int i=0; i<100; ++i) cpu_relax();
+        }
+#elif defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
+        int count = BG_CYCLES_PER_MICROSECOND*us;
+        for (int i=0; i<count; i++) {
+            asm volatile ("nop\n");
         }
 #else
         usleep(us);

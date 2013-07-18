@@ -107,7 +107,7 @@ static double function(const coord_3d& r) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world, argc, argv);
     FunctionDefaults<3>::set_cubic_cell(-L, L);
     const char filename[] = "mi_casa_es_su_casa";

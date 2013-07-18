@@ -30,8 +30,10 @@
 
   $Id$
 */
+#include <madness_config.h>
 #ifdef X86_64
 
+#include <world/print.h>
 #include <tensor/tensor.h>
 #include <locale>
 #include <stdio.h>
@@ -316,7 +318,7 @@ int main(int argc, char** argv)
 #else
 #include <iostream>
 int main() {
-    std::cout << "only on x8664" << std::endl;
+    std::cout << "only on x86_64" << std::endl;
     return 0;
 }
 #endif

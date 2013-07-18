@@ -49,15 +49,16 @@
 namespace madness {
 
     struct DQStats { // Dilly bar, blizzard, ...
-        uint64_t npush_back;    //< #calls to push_back
-        uint64_t npush_front;   //< #calls to push_front
-        uint64_t npop_front;    //< #calls to pop_front
-        uint64_t ngrow;         //< #calls to grow
-        uint64_t nmax;          //< Lifetime max. entries in the queue
+        uint64_t npush_back;    ///< #calls to push_back
+        uint64_t npush_front;   ///< #calls to push_front
+        uint64_t npop_front;    ///< #calls to pop_front
+        uint64_t ngrow;         ///< #calls to grow
+        uint64_t nmax;          ///< Lifetime max. entries in the queue
 
         DQStats()
                 : npush_back(0), npush_front(0), npop_front(0), ngrow(0), nmax(0) {}
     };
+
 
     /// A thread safe, fast but simple doubled-ended queue.
 
@@ -69,7 +70,7 @@ namespace madness {
     /// It is now rather heavily specialized to its only use.
     template <typename T>
     class DQueue : private CONDITION_VARIABLE_TYPE {
-        char pad[64]; // To put the lock and the data in separate cache lines
+        char pad[64]; ///< To put the lock and the data in separate cache lines
         volatile size_t n __attribute__((aligned(64)));        ///< Number of elements in the buffer
         volatile size_t sz;              ///< Current capacity
         volatile T* volatile buf;        ///< Actual buffer

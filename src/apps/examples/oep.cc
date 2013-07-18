@@ -492,7 +492,7 @@ void update_potential(World& world, real_function_3d& potential, const real_func
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     if (world.rank() == 0) {
     	print("\n  OEP -- optimized effective potentials for DFT  \n");
     	printf("starting at time %.1f\n", wall_time());

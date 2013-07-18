@@ -53,7 +53,7 @@
 #define FUNCTION_INSTANTIATE_1
 #define FUNCTION_INSTANTIATE_2
 #define FUNCTION_INSTANTIATE_3
-#ifndef HAVE_IBMBGP
+#if !defined(HAVE_IBMBGP) || !defined(HAVE_IBMBGQ)
 #define FUNCTION_INSTANTIATE_4
 #define FUNCTION_INSTANTIATE_5
 #define FUNCTION_INSTANTIATE_6
@@ -76,6 +76,7 @@ namespace madness {
 #include <mra/derivative.h>
 #include <mra/function_factory_and_interface.h>
 #include <mra/lbdeux.h>
+#include <mra/funcimpl.h>
 
 // some forward declarations
 namespace madness {
@@ -1272,7 +1273,7 @@ namespace madness {
         void load(World& world, Archive& ar) {
             PROFILE_MEMBER_FUNC(Function);
             // Type checking since we are probably circumventing the archive's own type checking
-            long magic, id, ndim, k;
+            long magic = 0l, id = 0l, ndim = 0l, k = 0l;
             ar & magic & id & ndim & k;
             MADNESS_ASSERT(magic == 7776768); // Mellow Mushroom Pizza tel.# in Knoxville
             MADNESS_ASSERT(id == TensorTypeData<T>::id);
@@ -1346,7 +1347,7 @@ namespace madness {
             vf[0].impl->refine_to_common_level(v, c, key0);
             if (mustfence) vf[0].world().gop.fence();
             if (fence) vf[0].world().gop.fence();
-            //if (VERIFY_TREE) 
+            //if (VERIFY_TREE)
                 for (unsigned int i=0; i<vf.size(); i++) vf[i].verify_tree();
         }
 

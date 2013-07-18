@@ -336,10 +336,6 @@ instantiate the templates that you are using.
 #include <stdlib.h>
 #endif
 
-#ifdef UINT64_T
-typedef UINT64_T uint64_t;
-#endif
-
 // Madness world header files needed by world
 #include <world/worldmpi.h>
 #include <world/worldhashmap.h>
@@ -357,11 +353,48 @@ namespace madness {
 
     void redirectio(World& world);
 
-    /// Call this once at the very top of your main program instead of calling MPI::Init
-    void initialize(int argc, char** argv);
+    /// Initialize the MADNESS runtime
 
-    /// Call this once at the very end of your main program instead of calling MPI::Finalize
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \return A reference to the default world which is constructed with
+    /// \c MPI_COMM_WORLD .
+    World& initialize(int& argc, char**& argv);
+
+    /// Initialize the MADNESS runtime
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \param comm The communicator that should be used to construct the
+    /// default \c World object.
+    /// \return A reference to the default world which is constructed with
+    /// \c comm .
+    World& initialize(int& argc, char**& argv, const SafeMPI::Intracomm& comm);
+
+    /// Initialize the MADNESS runtime
+
+    /// Call this once at the very top of your main program to initialize the
+    /// MADNESS runtime. Call this function instead of \c MPI_Init() or
+    /// \c MPI_Init_thread() .
+    /// \param argc Application argument count
+    /// \param argv Application argument values
+    /// \param comm The MPI communicator that should be used to construct the
+    /// default \c World object.
+    /// \return A reference to the default world which is constructed with
+    /// \c comm .
+    World& initialize(int& argc, char**& argv, const MPI_Comm& comm);
+
+    /// Call this once at the very end of your main program instead of calling MPI_Finalize
     void finalize();
+
+    /// @return true if madness::initialize() had been called more recently than finalize(), false otherwise
+    bool initialized();
 
     /// Call this to print misc. stats ... collective
     void print_stats(World& world);
@@ -373,7 +406,7 @@ namespace madness {
     template <typename T>
     static void error(const char *msg, const T& data) {
         std::cerr << "MADNESS: fatal error: " << msg << " " << data << std::endl;
-        MPI::COMM_WORLD.Abort(1);
+        SafeMPI::COMM_WORLD.Abort();
     }
 
 
@@ -384,8 +417,12 @@ namespace madness {
     private:
         friend class WorldAmInterface;
         friend class WorldGopInterface;
+        friend World& initialize(int&, char**&, const SafeMPI::Intracomm&);
+        friend void finalize();
 
+        // Static member variables
         static unsigned long idbase;        ///< Base for unique world ID range for this process
+        static World* default_world;        ///< Default world
         static std::list<World*> worlds;    ///< Maintains list of active worlds
 
         struct hashvoidp {
@@ -428,9 +465,34 @@ namespace madness {
         unsigned int myrand_next;///< State of crude internal random number generator
 
     public:
-        /// Give me a communicator and I will give you the world
-        World(MPI::Intracomm& comm);
+        /// Give me a communicator and I will give you the world.
+        /// Does not check if another world using the same comm already exists (use instance() to check that)
+        World(const SafeMPI::Intracomm& comm);
 
+        /// Find the World corresponding to the given communicator
+
+        /// \param comm the communicator
+        /// \return nonzero pointer to the World that was constructed from
+        /// \c comm ; if it does not exist, return 0.
+        static World* find_instance(const SafeMPI::Intracomm& comm) {
+            typedef std::list<World*>::const_iterator citer;
+            for(citer it = worlds.begin(); it != worlds.end(); ++it) {
+                if ((*it)->mpi.comm() == comm)
+                    return *it;
+            }
+            return 0;
+        }
+
+        /// Default \c World object accessor
+
+        /// This function returns a reference to the default world object; this
+        /// is the same \c World object that was returned by
+        /// \c madness::initialize().
+        /// \return A reference to the default world.
+        static World& get_default() {
+            MADNESS_ASSERT(default_world);
+            return *default_world;
+        }
 
         /// Sets a pointer to user-managed local state
 
@@ -460,14 +522,14 @@ namespace madness {
         /// Returns the system-wide unique integer ID of this world
         unsigned long id() const { return _id; }
 
-        /// Returns the process rank in this world (same as MPI::Get_rank()))
+        /// Returns the process rank in this world (same as MPI_Comm_rank()))
         ProcessID rank() const { return mpi.rank(); }
 
 
-        /// Returns the number of processes in this world (same as MPI::Get_size())
+        /// Returns the number of processes in this world (same as MPI_Comm_size())
         ProcessID nproc() const { return mpi.nproc(); }
 
-        /// Returns the number of processes in this world (same as MPI::Get_size())
+        /// Returns the number of processes in this world (same as MPI_Comm_size())
         ProcessID size() const { return mpi.size(); }
 
         /// Returns new universe-wide unique ID for objects created in this world.  No comms.
@@ -570,10 +632,10 @@ namespace madness {
         }
 
 
-        // Cannot use bind_nullary here since MPI::Request::Test is non-const
+        // Cannot use bind_nullary here since SafeMPI::Request::Test is non-const
         struct MpiRequestTester {
             mutable SafeMPI::Request* r;
-            MpiRequestTester(SafeMPI::Request& r) : r(&r) {};
+            MpiRequestTester(SafeMPI::Request& r) : r(&r) {}
             bool operator()() const {
                 return r->Test();
             }
@@ -585,7 +647,41 @@ namespace madness {
             await(MpiRequestTester(request), dowork);
         }
 
+#if HAVE_INTEL_TBB
 
+        template<typename Probe>
+        class probe_task : public tbb::task {
+        private:
+            const Probe& my_probe;
+        public:
+            probe_task( const Probe &p ) : my_probe(p) {}
+            tbb::task* execute() {
+               if( !my_probe() ) {
+                   probe_task* new_task = new (allocate_continuation()) probe_task(my_probe); // a continuation “inherits” the parent and keeps its ref count the same
+//                   spawn(*new_task);
+                   enqueue(*new_task);
+                }
+                return NULL;
+            }
+        };
+
+        /// Gracefully wait for a condition to become true ... executes tasks if any in queue
+
+        /// Probe should be an object that when called returns the status.
+        template <typename Probe>
+        static void inline await(const Probe& probe, bool dowork = true) {
+            PROFILE_MEMBER_FUNC(World);
+            // NEED TO RESTORE THE WATCHDOG STUFF
+            if (!probe()) {
+                tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
+                local_wait_task->set_ref_count(2); // 1 for child, 1 for blocking
+                tbb::task* pt = new (local_wait_task->allocate_child()) probe_task<Probe>(probe);
+                local_wait_task->enqueue(*pt);
+                local_wait_task->wait_for_all(); // will only return when the probe is true.
+                tbb::task::destroy(*local_wait_task);
+            }
+        }
+#else
         /// Gracefully wait for a condition to become true ... executes tasks if any in queue
 
         /// Probe should be an object that when called returns the status.
@@ -601,6 +697,7 @@ namespace madness {
                 else waiter.wait();
             }
         }
+#endif // HAVE_INTEL_TBB
 
         void srand(unsigned long seed = 0ul) {
             if (seed == 0) seed = rank();
@@ -609,7 +706,7 @@ namespace madness {
 #else
             myrand_next = seed;
             for (int i=0; i<1000; ++i) rand(); // Warmup
-#endif
+#endif // HAVE_RANDOM
         }
 
 
@@ -622,7 +719,7 @@ namespace madness {
 #else
             myrand_next = myrand_next * 1103515245UL + 12345UL;
             return int((myrand_next>>8) & 0xfffffful);
-#endif
+#endif // HAVE_RANDOM
         }
 
 
@@ -658,7 +755,7 @@ namespace madness {
         template <class Archive>
         struct ArchiveLoadImpl<Archive,World*> {
             static inline void load(const Archive& ar, World*& wptr) {
-                unsigned long id;
+                unsigned long id = 0ul;
                 ar & id;
                 wptr = World::world_from_id(id);
                 MADNESS_ASSERT(wptr);

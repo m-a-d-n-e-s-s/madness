@@ -1093,7 +1093,7 @@ void test_compress(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
 

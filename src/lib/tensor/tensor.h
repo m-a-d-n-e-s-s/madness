@@ -1839,11 +1839,11 @@ namespace madness {
         template <class Archive, typename T>
         struct ArchiveLoadImpl< Archive, Tensor<T> > {
             static void load(const Archive& s, Tensor<T>& t) {
-                long sz, id;
+                long sz = 0l, id = 0l;
                 s & sz & id;
                 if (id != t.id()) throw "type mismatch deserializing a tensor";
                 if (sz) {
-                    long _ndim, _dim[TENSOR_MAXDIM];
+                    long _ndim = 0l, _dim[TENSOR_MAXDIM];
                     s & _ndim & wrap(_dim,TENSOR_MAXDIM);
                     t = Tensor<T>(_ndim, _dim, false);
                     if (sz != t.size()) throw "size mismatch deserializing a tensor";
@@ -2352,6 +2352,24 @@ namespace madness {
             for (int n=1; n<t.ndim(); ++n) {
                 mTxmq(dimi, dimj, dimj, t1, t0, pc);
                 std::swap(t0,t1);
+            }
+#elif HAVE_IBMBGQ
+            long nij = dimi*dimj;
+            if (IS_UNALIGNED(pc) || IS_UNALIGNED(t0) || IS_UNALIGNED(t1)) {
+                for (long i=0; i<nij; ++i) t0[i] = 0.0;
+                mTxm(dimi, dimj, dimj, t0, t.ptr(), pc);
+                for (int n=1; n<t.ndim(); ++n) {
+                    for (long i=0; i<nij; ++i) t1[i] = 0.0;
+                    mTxm(dimi, dimj, dimj, t1, t0, pc);
+                    std::swap(t0,t1);
+                }
+            }
+            else {
+                mTxmq_padding(dimi, dimj, dimj, dimj, t0, t.ptr(), pc);
+                for (int n=1; n<t.ndim(); ++n) {
+                    mTxmq_padding(dimi, dimj, dimj, dimj, t1, t0, pc);
+                    std::swap(t0,t1);
+                }
             }
 #else
         long nij = dimi*dimj;

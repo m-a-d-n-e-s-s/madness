@@ -466,7 +466,7 @@ complex_function_1d q_c(World& world, const int np, const complex_function_1d ps
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(8);
 

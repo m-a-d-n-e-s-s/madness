@@ -35,19 +35,10 @@
 
 #include <madness_config.h>
 
-#ifdef HAVE_IBMBGP
-#include <linalg/cblas.h>
-#endif
+typedef std::complex<double> double_complex;
 
 namespace madness {
-#ifdef HAVE_IBMBGP
-  extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
-                       const double* a, const double* b);
-  extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
-                       const double_complex* a, const double_complex* b);
-#endif
     /// Matrix = Matrix transpose * matrix ... reference implementation
-
     /// Does \c C=AT*B whereas mTxm does C=C+AT*B.  It also supposed
     /// to be fast which it achieves thru restrictions
     ///   * All dimensions even
@@ -74,23 +65,110 @@ namespace madness {
 
     }
 
-#ifdef HAVE_IBMBGP
+    /*
+     * mtxm, but with padded buffers.
+     *
+     * ext_b is the extent of the b array, so shrink() isn't needed.
+     */
+    template <typename aT, typename bT, typename cT>
+    void mTxmq_padding(long dimi, long dimj, long dimk, long ext_b,
+               cT* c, const aT* a, const bT* b) {
+        const int alignment = 4;
+        bool free_b = false;
+        long effj = dimj;
+
+        /* Setup a buffer for c if needed */
+        cT* c_buf = c;
+        if (dimj%alignment) {
+            effj = (dimj | 3) + 1;
+            c_buf = (cT*)malloc(sizeof(cT)*dimi*effj);
+        }
+
+        /* Copy b into a buffer if needed */
+        if (ext_b%alignment) {
+            free_b = true;
+            bT* b_buf = (bT*)malloc(sizeof(bT)*dimk*effj);
+
+            bT* bp = b_buf;
+            for (long k=0; k<dimk; k++, bp += effj, b += ext_b)
+                memcpy(bp, b, sizeof(bT)*dimj);
+
+            b = b_buf;
+            ext_b = effj;
+        }
+
+        cT* c_work = c_buf;
+        /* mTxm */
+        for (long i=0; i<dimi; ++i,c_work+=effj,++a) {
+            for (long j=0; j<dimj; ++j) c_work[j] = 0.0;
+            const aT *aik_ptr = a;
+            for (long k=0; k<dimk; ++k,aik_ptr+=dimi) {
+                aT aki = *aik_ptr;
+                for (long j=0; j<dimj; ++j) {
+                    c_work[j] += aki*b[k*ext_b+j];
+                }
+            }
+        }
+
+        /* Copy c out if needed */
+        if (dimj%alignment) {
+            cT* ct = c_buf;
+            for (long i=0; i<dimi; i++, ct += effj, c += dimj)
+                memcpy(c, ct, sizeof(cT)*dimj);
+
+            free(c_buf);
+        }
+
+        /* Free the buffer for b */
+        if (free_b) free((bT*)b);
+    }
+#ifdef HAVE_IBMBGQ
+    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
+            double* c, const double* a, const double* b);
+    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* c, const __complex__ double* a, const __complex__ double* b);
+    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* c, const double* a, const __complex__ double* b);
+    extern void bgq_mtxmq_padded(long ni, long nj, long nk, long ej, 
+            __complex__ double* c, const __complex__ double* a, const double* b);
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                double* c, const double* a, const double* b) {
+            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* c, const __complex__ double* a, const __complex__ double* b) {
+            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* c, const double* a, const __complex__ double* b) {
+            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
+        }
+
+    template <>
+        inline void mTxmq_padding(long ni, long nj, long nk, long ej, 
+                __complex__ double* c, const __complex__ double* a, const double* b) {
+            bgq_mtxmq_padded(ni, nj, nk, ej, c, a, b);
+        }
+#elif defined(HAVE_IBMBGP)
+    extern void bgpmTxmq(long ni, long nj, long nk, double* restrict c, 
+                         const double* a, const double* b);
+    extern void bgpmTxmq(long ni, long nj, long nk, double_complex* restrict c, 
+                         const double_complex* a, const double_complex* b);
+ 
     template <>
     inline void mTxmq(long ni, long nj, long nk, double* restrict c, const double* a, const double* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
-        /* uncomment below to use vendor supplied DGEMM instead */
-//	double one=1.0;
-//	double zero=0.0;
-//	dgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
     template <>
     inline void mTxmq(long ni, long nj, long nk, double_complex* restrict c, const double_complex* a, const double_complex* b) {
         bgpmTxmq(ni, nj, nk, c, a, b);
-        /* uncomment below to use vendor supplied ZGEMM instead */
-//	double_complex one=1.0;
-//	double_complex zero=0.0;
-//      zgemm_("n","t",&nj,&ni,&nk,&one,b,&nj,a,&ni,&zero,c,&nj,1,1);
     }
 
 #elif defined(X86_64) && !defined(DISABLE_SSE3)

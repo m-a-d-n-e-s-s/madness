@@ -1,36 +1,36 @@
 /*
   This file is part of MADNESS.
-  
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
-  
+
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
   the Free Software Foundation; either version 2 of the License, or
   (at your option) any later version.
-  
+
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
   GNU General Public License for more details.
-  
+
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
-  
+
   For more information please contact:
-  
+
   Robert J. Harrison
   Oak Ridge National Laboratory
   One Bethel Valley Road
   P.O. Box 2008, MS-6367
-  
+
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
   fax:   865-572-0680
-  
+
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 /*!
   \file examples/hatom_energy.cc
@@ -40,10 +40,10 @@
 
   The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/hatom_energy.cc>here</a>.
 
-  This example computes the energy of the ground state of 
+  This example computes the energy of the ground state of
   the hydrogen atom as the expectation value of the
-  non-relativistic Schr&ouml;dinger Hamiltonian within the 
-  Born-Oppenheimer approximation.  Explicitly, 
+  non-relativistic Schr&ouml;dinger Hamiltonian within the
+  Born-Oppenheimer approximation.  Explicitly,
   \f[
       E = \frac{\langle \psi \mid - \frac{1}{2}  \nabla^2  - \frac{1}{r} \mid \psi \rangle}{\langle \psi \mid \psi \rangle}
   \f]
@@ -54,7 +54,7 @@
 
   \par Implementation
 
-  Two functions are required - the wave function and the potential. Note the small 
+  Two functions are required - the wave function and the potential. Note the small
   constants introduced to eliminate the cusp in the wave function and the singularity
   in the potential. Due to the volume element this smoothing has negligible effect on
   the result (perturbation theory can make this rigorous).
@@ -67,7 +67,7 @@
        \langle \psi \mid \nabla^2 \mid \psi \rangle = - \langle \nabla \psi \mid \nabla \psi \rangle
   \f]
   Finally, due to the spherical symmetry we only need compute one component of the Laplacian
-  in Cartesian coordinates.  
+  in Cartesian coordinates.
 
   The exact answer is \f$-\frac{1}{2}\f$ in atomic units.
 */
@@ -87,7 +87,7 @@ double V(const Vector<double,3>& r) {
 int main(int argc, char**argv) {
   // Initialize the parallel programming environment
   initialize(argc,argv);
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   // Load info for MADNESS numerical routines
   startup(world,argc,argv);

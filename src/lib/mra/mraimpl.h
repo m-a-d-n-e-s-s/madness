@@ -37,9 +37,10 @@
 #define MADNESS_MRA_MRAIMPL_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <mra/funcimpl.h>
 #include <mra/mra.h>
 #include <mra/funcimpl.h>
-#include <mra/loadbal.h>
+//#include <mra/loadbal.h>
 #include <mra/function_common_data.h>
 #include <world/worldhashmap.h>
 #include <math.h>
@@ -1349,8 +1350,8 @@ namespace madness {
         recompute_cell_info();
 
         //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new WorldDCDefaultPmap< Key<NDIM> >(world));
-        pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new MyPmap<NDIM>(world));
-        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimpleMap< Key<NDIM> >(world));
+        pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new madness::LevelPmap< Key<NDIM> >(world));
+        //pmap = std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >(new SimplePmap< Key<NDIM> >(world));
     }
 
     template <typename T, std::size_t NDIM>

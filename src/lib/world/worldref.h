@@ -71,6 +71,9 @@ namespace madness {
 
     namespace detail {
 
+
+        template <typename T> class RemoteCounterImpl;
+
         /// Base class for remote counter implementation objects
 
         /// This class only holds an atomic counter. The use counter tracks
@@ -106,6 +109,15 @@ namespace madness {
             /// The use counter tracks local copies of the counter an references
             /// that have been copied as part othe communication process
             long use_count() const { return count_; }
+
+            /// Shared pointer accessor
+
+            /// \tparam T The stored pointer type
+            /// \return A const reference to the stored shared pointer
+            template <typename T>
+            const std::shared_ptr<T>& get_shared() const {
+                return static_cast<const RemoteCounterImpl<T>*>(this)->get_shared();
+            }
 
             /// Increment the reference count
 
@@ -160,6 +172,11 @@ namespace madness {
             { }
 
             virtual ~RemoteCounterImpl() { }
+
+            /// Shared pointer accessor
+
+            /// \return A const reference to the stored shared pointer
+            const std::shared_ptr<T>& get_shared() const { return pointer_; }
 
             /// Counter key accessor
 
@@ -319,6 +336,9 @@ namespace madness {
             bool is_local() const { return pimpl_.is_local(); }
             bool has_owner() const { return pimpl_.has_owner(); }
             ProcessID owner() const { return pimpl_.owner(); }
+
+            template <typename T>
+            const std::shared_ptr<T>& get_shared() const { return pimpl_->get_shared<T>(); }
 
             WorldPtr<implT>::worldidT
             get_worldid() const { return pimpl_.get_worldid(); }
@@ -489,6 +509,15 @@ namespace madness {
         pointerT get() const {
             MADNESS_ASSERT(counter_.is_local());
             return pointer_;
+        }
+
+        /// Reference shared_ptr accssor
+
+        /// \return A const reference to the references shared pointer
+        /// \throw MadnessException If the pointer is not local
+        const std::shared_ptr<T>& get_shared() const {
+            MADNESS_ASSERT(counter_.is_local());
+            return counter_.get_shared<T>();
         }
 
         /// Reference object accessor

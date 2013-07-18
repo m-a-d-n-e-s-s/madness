@@ -648,7 +648,7 @@ int test(World& world, const long& k, const double thresh) {
 int main(int argc, char**argv) {
 
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     srand(time(NULL));
     startup(world,argc,argv);
 

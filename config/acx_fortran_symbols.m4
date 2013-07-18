@@ -36,7 +36,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
        fi
    
 
-    if test "$acx_with_eigen3" != yes; then
+#   if test "$acx_with_eigen3" != yes; then
 
        if test $fsym = no; then
            AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
@@ -64,7 +64,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
            AC_DEFINE([FORTRAN_LINKAGE_UCU],[1],[Fortran-C linking convention upper case with single underscore])
            AC_CHECK_FUNC([DSYEV_],[],AC_MSG_ERROR([Could not find dsyev with selected linking convention]))
        fi
-    fi
+#   fi
 ])
 
 

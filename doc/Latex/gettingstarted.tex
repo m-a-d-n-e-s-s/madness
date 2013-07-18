@@ -244,8 +244,10 @@ parallel program using MADNESS.
 The \texttt{World} object in MADNESS is similar to an MPI communicator (each \texttt{World} is associated with a
 communicator) but contains all of the information necessary to provide the rich functionality of the MADNESS runtime.
 Instead of calling \texttt{MPI::Init()} and \texttt{MPI::Finalize()}, a MADNESS program invokes
-\texttt{madness::initialize()} and \texttt{madness::finalize()}. The routine \texttt{madness::startup()} initializes
-the MADNESS numerical environment.
+\texttt{madness::initialize()} and \texttt{madness::finalize()}
+(call \texttt{madness::initialized()} to check that MADNESS had been
+initialized). The routine \texttt{madness::startup()} initializes the MADNESS
+numerical environment.
 
 The only bit of voodoo is a macro, on the first line, forcing MADNESS to instantiate the static data associated with the
 C++ templates used by your code. It typically only needs to appear in the main source file of your program, though

@@ -40,20 +40,32 @@
 #include <moldft/moldft.h>
 
 int main(int argc, char** argv) {
+    TAU_START("main()");
+    TAU_START("initialize()");
     initialize(argc, argv);
+    TAU_STOP("initialize()");
 
+    TAU_START("World lifetime");
     { // limit lifetime of world so that finalize() can execute cleanly
-      World world(MPI::COMM_WORLD);
+      World world(SafeMPI::COMM_WORLD);
 
       try {
         // Load info for MADNESS numerical routines
         startup(world,argc,argv);
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+	print_meminfo(world.rank(), "startup");
+        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap< Key<3> >(world)));
 
         std::cout.precision(6);
 
         // Process 0 reads input information and broadcasts
-        const char * inpname = (argc>1) ? argv[1] : "input";
+        const char * inpname = "input";
+        for (int i=1; i<argc; i++) {
+            if (argv[i][0] != '-') {
+                inpname = argv[i];
+                break;
+            }
+        }
+        if (world.rank() == 0) print(inpname);
         Calculation calc(world, inpname);
 
         // Warm and fuzzy for the user
@@ -73,6 +85,9 @@ int main(int argc, char** argv) {
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }
+//vama
+        calc.set_protocol<3>(world,calc.param.protocol_data[0]);
+
 
         if ( calc.param.gopt) {
           print("\n\n Geometry Optimization                      ");
@@ -87,6 +102,10 @@ int main(int argc, char** argv) {
                            calc.param.gprec); // grad prec
           geom.set_update(calc.param.algopt);
           geom.set_test(calc.param.gtest);
+          long ncoord = calc.molecule.natom()*3;
+          Tensor<double> h(ncoord,ncoord);
+          for (int i=0; i<ncoord; ++i) h(i,i) = 0.5;
+          geom.set_hessian(h);
           geom.optimize(geomcoord);
         }
         else if (calc.param.tdksprop) {
@@ -110,8 +129,8 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
       }
-      catch (const MPI::Exception& e) {
-        //        print(e);
+      catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
       }
       catch (const madness::MadnessException& e) {
@@ -145,10 +164,11 @@ int main(int argc, char** argv) {
       // Nearly all memory will be freed at this point
       world.gop.fence();
       world.gop.fence();
-      ThreadPool::end();
       print_stats(world);
     } // world is dead -- ready to finalize
+    TAU_STOP("World lifetime");
     finalize();
+    TAU_STOP("main()");
 
     return 0;
 }

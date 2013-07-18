@@ -79,11 +79,11 @@ namespace madness {
         /// is_reference<T>::value will be true if T is a reference type
         template <typename T>
         struct is_reference<T&> : public true_type {};
-        
+
         /// is_function<T>::value is true if T is a function pointer
         template <typename T>
         struct is_function {
-            static const bool value = detail::function_traits<T>::value;
+            static const bool value = detail::function_traits<T*>::value;
         };
 
         /// is_member_function_pointer<T>::value is true if T is a member function pointer
@@ -98,8 +98,8 @@ namespace madness {
         // is_union
         // is_class
 
-        template <class T> struct is_arithmetic { 
-            static const bool value = is_integral<T>::value || is_floating_point<T>::value; 
+        template <class T> struct is_arithmetic {
+            static const bool value = is_integral<T>::value || is_floating_point<T>::value;
             typedef bool value_type;
             typedef integral_constant<value_type,value> type;
             //operator type()const;
@@ -109,15 +109,15 @@ namespace madness {
         template <class T>
         struct is_fundamental {
             typedef bool value_type;
-            static const bool value = is_integral<T>::value  || is_floating_point<T>::value || is_void<T>::value; 
+            static const bool value = is_integral<T>::value  || is_floating_point<T>::value || is_void<T>::value;
             //operator type()const;
         };
 
         template <class T> struct is_object{
-            static const bool value = 
-                !(is_function<T>::value 
-                  || is_reference<T>::value 
-                  || is_void<T>::value); 
+            static const bool value =
+                !(is_function<T>::value
+                  || is_reference<T>::value
+                  || is_void<T>::value);
             typedef bool value_type;
             typedef integral_constant<value_type,value> type;
             //operator type()const;
@@ -126,7 +126,7 @@ namespace madness {
         // is_scalar
 
         template <class T> struct is_compound{
-            static const bool value = !is_fundamental<T>::value; 
+            static const bool value = !is_fundamental<T>::value;
             typedef bool value_type;
             typedef integral_constant<value_type,value> type;
             //operator type()const;
@@ -158,11 +158,11 @@ namespace madness {
         // is_unsigned;
 
         /// is_same<A,B> returns true if A and B are the same type
-        template <typename A, typename B> 
+        template <typename A, typename B>
         struct is_same : public false_type {};
 
         /// is_same<A,B> returns true if A and B are the same type
-        template <typename A> 
+        template <typename A>
         struct is_same<A,A> : public true_type {};
 
         // is_convertible
@@ -182,7 +182,7 @@ namespace madness {
         template <typename B, typename D>
         struct is_base_of
         {
-            template <typename T>  
+            template <typename T>
             static detail::yes check(D*, T);
             static detail::no check(B*, int);
 

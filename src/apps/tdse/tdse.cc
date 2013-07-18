@@ -41,6 +41,7 @@
 #include <constants.h>
 #include <tensor/vmath.h>
 #include <complex>
+#include <mra/funcimpl.h>
 #include <mra/lbdeux.h>
 
 using namespace madness;
@@ -251,40 +252,6 @@ complex_functionT APPLY(const complex_operatorT* q1d, const complex_functionT& p
 }
 
 //typedef SeparatedConvolution<double_complex,3> complex_operatorT;
-
-// This controls the distribution of data across the machine
-class LevelPmap : public WorldDCPmapInterface< Key<3> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    // Find the owner of a given key
-    ProcessID owner(const Key<3>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-
-        // This randomly hashes levels 0-2 and then
-        // hashes nodes by their grand-parent key so as
-        // to increase locality separately on each level.
-        //if (n <= 2) hash = key.hash();
-        //else hash = key.parent(2).hash();
-
-        // This randomly hashes levels 0-3 and then
-        // maps nodes on even levels to the same
-        // random node as their parent.
-        // if (n <= 3 || (n&0x1)) hash = key.hash();
-        // else hash = key.parent().hash();
-
-        // This randomly hashes each key
-        hash = key.hash();
-
-        return hash%nproc;
-    }
-};
 
 // Derivative of the smoothed 1/r approximation
 
@@ -966,7 +933,7 @@ void doit(World& world) {
     FunctionDefaults<3>::set_apply_randomize(true);
     FunctionDefaults<3>::set_autorefine(false);
     FunctionDefaults<3>::set_truncate_mode(0);
-    FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
+    FunctionDefaults<3>::set_pmap(pmapT(new SimplePmap< Key<3> >(world)));
     FunctionDefaults<3>::set_truncate_on_project(true);
 
     // Make the potential
@@ -1059,13 +1026,13 @@ void doit(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
-    if(world.rank() == 0) system("Version: $Rev$");
+    World world(SafeMPI::COMM_WORLD);
+    //if(world.rank() == 0) system("Version: $Rev$"); // What is this supposed to do?
     startup(world,argc,argv);
     try {
         doit(world);
-    } catch (const MPI::Exception& e) {
-        //print(e); std::cout.flush();
+    } catch (const SafeMPI::Exception& e) {
+        print(e); std::cout.flush();
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e); std::cout.flush();
@@ -1092,7 +1059,6 @@ int main(int argc, char** argv) {
 
     world.gop.fence();
 
-    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;

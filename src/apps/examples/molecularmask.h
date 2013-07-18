@@ -102,6 +102,28 @@ public:
     {
         MADNESS_ASSERT(atomic_radii.size() == atomic_coords.size());
     }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        std::vector< madness::Vector<double,3> > v;
+        int npt = 4;
+        for (int t=0; t<=npt; t++) {
+            const double theta = madness::constants::pi*double(t)/double(npt);
+            for (int p=0; p<2*npt; p++) {
+                const double phi = 2.0*madness::constants::pi*double(p)/double(2*npt);
+                const double xx = std::sin(theta)*std::cos(phi);
+                const double yy = std::sin(theta)*std::sin(phi);
+                const double zz = std::cos(theta);
+                for (int i=0; i<natom; i++) {
+                    const double x = atomic_coords[i][0] + atomic_radii[i]*xx;
+                    const double y = atomic_coords[i][1] + atomic_radii[i]*yy;
+                    const double z = atomic_coords[i][2] + atomic_radii[i]*zz;
+                    v.push_back(madness::vec(x,y,z));
+                }
+                if (t==0 || t==npt) break;
+            }
+        }
+        return v;
+    }
 };
 
 // This functor is one inside the molecule, 1/2 on the surface, and zero
@@ -121,6 +143,10 @@ public:
             value *= atomic_cmask(r,i);
         }
         return 1.0 - value;
+    }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return MolecularMaskBase::special_points();
     }
 };
 
@@ -142,6 +168,11 @@ public:
         }
         return value;
     }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return MolecularMaskBase::special_points();
+    }
+
 };
 
 /// Switches between \a positive values \c Vint and \c Vext with special log derivative
@@ -192,6 +223,10 @@ public:
         else if (c == 1.0) return Vext;
         else return Vint * exp(fac * c); 
     }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return cmask.special_points();
+    }
 };
 
 /// Computes the reciprocal of MolecularVolumeExponentialSwitch
@@ -227,6 +262,10 @@ public:
         madness::coord_3d grad = gradient(r);
         return sqrt(grad[0]*grad[0] + grad[1]*grad[1] + grad[2]*grad[2]);
     }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return MolecularMaskBase::special_points();
+    }
 };
 
 // Evaluates component i (0=x, 1=y, 2=z) of the gradient of the mask
@@ -245,6 +284,10 @@ public:
     virtual double operator()(const madness::coord_3d& r) const {
         madness::coord_3d grad = gradient(r);
         return grad[i];
+    }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return MolecularMaskBase::special_points();
     }
 };
 
@@ -267,6 +310,10 @@ public:
     
     virtual double operator()(const madness::coord_3d& r) const {
         return fac * g(r);
+    }
+
+    std::vector< madness::Vector<double,3> > special_points() const {
+        return g.special_points();
     }
 };
 

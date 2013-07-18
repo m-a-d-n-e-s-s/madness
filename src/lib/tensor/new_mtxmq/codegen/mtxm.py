@@ -2,19 +2,19 @@
 
 A   I
   +-------------+
-K | a b ....... | 
+K | a b ....... |
   |     ...     |
   +-------------+
 
 B   J
   +-------------+
-K | i j k l ... | 
+K | i j k l ... |
   |     ...     |
   +-------------+
 
 C   J
   +-------------+
-I | w x y z ... | 
+I | w x y z ... |
   |     ...     |
   +-------------+
 
@@ -42,7 +42,7 @@ x += b i
 y += a j
 z += b j
 
-temps: _c += _az _bz 
+temps: _c += _az _bz
 
 
 # Real Real
@@ -66,9 +66,7 @@ class MTXMGen:
         self._odds = [1]
         self.have_bgp = False
         self.have_bgq = False
-        # Tile i loop in jik loop order
-        self.tile_i = False
-        self.complex_a = cxa 
+        self.complex_a = cxa
         self.complex_b = cxb
         self.complex_dup_cast = ''
 
@@ -92,9 +90,9 @@ class MTXMGen:
     def real_real(self):
         return not self.complex_a
 
-    def set_complex(self, a, b):
-        self.complex_a = a
-        self.complex_b = b
+#    def set_complex(self, a, b):
+#        self.complex_a = a
+#        self.complex_b = b
 
     def _temp(self, prefix, x, y):
         return prefix + '_' + str(x) + '_' + str(y)
@@ -111,19 +109,57 @@ class MTXMGen:
 
     def _header(self, func_name):
         f = lambda x: x and "complex" or ""
-        ret = ["void " + func_name + """(long dimi, long dimj, long dimk, double {} * __restrict__ c_x, const double {} * __restrict__ a_x, const double {} * __restrict__ b_x) {{
-    int i, j, k, ii;
-    double * __restrict__ c = (double*)c_x;
-    const double * __restrict__ a = (double*)a_x;
-    const double * __restrict__ b = (double*)b_x;""".format(f(self.complex_c), f(self.complex_a), f(self.complex_b))]
+        x2 = lambda x: x and "*2" or ""
+        ret = ["void " + func_name + "(long dimi, long dimj, long dimk, long extb, double {} * __restrict__ c_x, const double {} * __restrict__ a_x, const double {} * __restrict__ b_x) {{".format(f(self.complex_c), f(self.complex_a), f(self.complex_b))]
+        ret.append("    int i, j, k;")
+        ret.append("    double * __restrict__ c = (double*)c_x;")
+        ret.append("    const double * __restrict__ a = (double*)a_x;")
+        ret.append("    const double * __restrict__ b = (double*)b_x;")
+        ret.append("    long effj = dimj;")
+        if self.have_bgq:
+            ret.append("    double * c_buf;")
+            ret.append("    double * b_buf;")
+            ret.append("    bool free_b = false;")
+            ret.append("    /* Setup a buffer for c if needed */")
+            ret.append("    double* c_out = c;")
+            ret.append("    if (dimj%{}) {{".format(self.complex_c and 2 or 4))
+            ret.append("        effj = (dimj | {}) + 1;".format(self.complex_c and 1 or 3))
+            ret.append("        posix_memalign((void **) &c, 32, dimi*effj*sizeof(double){});".format(x2(self.complex_c)))
+            ret.append("        c_buf = c;")
+            ret.append("    }")
+            # FIXME  may be incorrect for cplx * real or real * cplx
+            ret.append("    /* Copy b into a buffer if needed */")
+            ret.append("    if (extb%{}) {{".format(self.complex_b and 2 or 4))
+            ret.append("        long t_extb = (dimj | {}) + 1;".format(self.complex_b and 1 or 3))
+            ret.append("        free_b = true;")
+            ret.append("        posix_memalign((void **) &b_buf, 32, dimk*t_extb*sizeof(double){});".format(x2(self.complex_b)))
+            ret.append("        double* bp = b_buf;")
+            ret.append("        for (k=0; k<dimk; k++, bp += t_extb{0}, b += extb{0})".format(x2(self.complex_b)))
+            ret.append("            memcpy(bp, b, sizeof(double)*dimj{});".format(x2(self.complex_b)))
+            ret.append("        b = b_buf;")
+            ret.append("        extb = t_extb;")
+            ret.append("    }")
+        return ret
+
+    def _footer(self):
+        x2 = lambda x: x and "*2" or ""
+        ret = []
+        if self.have_bgq:
+            ret.append("    /* Copy c out if needed */")
+            ret.append("    if (dimj%{}) {{".format(self.complex_c and 2 or 4))
+            ret.append("        double* ct = c_buf;")
+            ret.append("        for (i=0; i<dimi; i++, ct += effj{0}, c_out += dimj{0})".format(x2(self.complex_c)))
+            ret.append("            memcpy(c_out, ct, sizeof(double)*dimj{});".format(x2(self.complex_c)))
+            ret.append("        free(c_buf);")
+            ret.append("    }")
+            ret.append("    /* Free the buffer for b */")
+            ret.append("    if (free_b) free(b_buf);")
+        ret.append("}")
         return ret
 
     def _temp_dec(self, size):
         ret = []
         indent = '    '
-        if self.tile_i:
-            ret.append("    double* __restrict__ cc = c;")
-            ret.append("    const double* __restrict__ bb = b;")
         x = indent + self.vector_type + ' '
         x += ', '.join(self._temps('_c', 'i', 'j', size) +
                 self._temps('_b', 'k', 'j', size)) + ';'
@@ -131,14 +167,19 @@ class MTXMGen:
         x = indent + self.splat_type + ' ' + ', '.join(self._temps('_a', 'k', 'i', size)) + ';'
         ret.append(x)
         if self.complex_complex:
-            if not self.have_bgp:
+            if not self.have_bgp and not self.have_bgq:
+                # BGP does not need seperate reversed registers because a special fma is used
                 x = "{} {} {};".format(indent, self.vector_type, ', '.join(self._temps('_br', 'k', 'j', size)))
                 ret.append(x)
-            x = "{} {} {};".format(indent, self.splat_type, ', '.join(self._temps('_ai', 'k', 'i', size)))
-            ret.append(x)
+            if not self.have_bgq:
+                # Imaginary component of A
+                x = "{} {} {};".format(indent, self.splat_type, ', '.join(self._temps('_ai', 'k', 'i', size)))
+                ret.append(x)
         elif self.complex_real:
+            # register from A: a b a b
             x = "{} {} {};".format(indent, self.vector_type, ', '.join(self._temps('_az', 'k', 'i', size)))
             ret.append(x)
+            # register from B: i i j j
             x = "{} {} {};".format(indent, self.splat_type, ', '.join(self._temps('_bz', 'k', 'j', size)))
             ret.append(x)
         elif self.real_complex:
@@ -166,17 +207,25 @@ class MTXMGen:
             addr = '(pa+' + str((self.complex_a and 2 or 1)*i) + ')'
             if self.complex_real:
                 ret.append(self._load_az(spaces, addr, temp, k, i))
+            elif self.complex_complex and self.have_bgq:
+                ret.append(spaces + temp + " = vec_ld2(0, {});".format(addr))
             else:
-                ret.append(spaces + temp + ' = {}({});'.format(self.splat_op, addr))
+                args0 = ''
+                if self.have_bgq:
+                    arg0 = '0, '
+                ret.append(spaces + temp + ' = {}({}{});'.format(self.splat_op, arg0, addr))
                 if self.complex_complex:
-                    ret.append(spaces + self._temp('_ai', k, i) + ' = {}({}+1);'.format(self.splat_op, addr))
+                    ret.append(spaces + self._temp('_ai', k, i) + ' = {}({}{}+1);'.format(self.splat_op, arg0, addr))
         return ret
 
     def _load_b(self, unrolls, indent):
         spaces = ' ' * (self.indent*indent)
         ret = []
         for temp, k, j in self._temps_to_load(unrolls, 'b', 'k', 'j'):
-            addr = '(pb+{})'.format(j // (self.complex_real and 2 or 1))
+            arg0 = ""
+            if self.have_bgq:
+                arg0 = "0, "
+            addr = '({}pb+{})'.format(arg0, j // (self.complex_real and 2 or 1))
             if self.complex_real:
                 ret.append(self._load_bz(spaces, addr, temp, k, j))
             else:
@@ -196,7 +245,10 @@ class MTXMGen:
         return spaces + self._temp('_br', k, j) + ' = {}({});'.format(self.complex_reverse_dup, addr)
 
     def _load_az(self, spaces, addr, temp, k, i):
-        return spaces + self._temp('_az', k, i) + ' = {}({}{});'.format(self.complex_dup, self.complex_dup_cast, addr)
+        arg0 = ''
+        if self.have_bgq:
+            arg0 = '0, '
+        return spaces + self._temp('_az', k, i) + ' = {}({}{}{});'.format(self.complex_dup, arg0, self.complex_dup_cast, addr)
 
     def _load_bz(self, spaces, addr, temp, k, j):
         return spaces + self._temp('_bz', k, j) + ' = {}({});'.format(self.pair_splat, addr)
@@ -226,22 +278,34 @@ class MTXMGen:
                 bt = self._temp('_b', k, j)
                 ct = self._temp('_c', i, j)
                 ret.append(spaces + self._fma(at, bt, ct))
-                at = self._temp('_ai', k, i)
-                if not self.have_bgp:
-                    bt = self._temp('_br', k, j)
+                if not self.have_bgq:
+                    at = self._temp('_ai', k, i)
+                    if not self.have_bgp:
+                        bt = self._temp('_br', k, j)
                 ret.append(spaces + self._fmaddsub(at, bt, ct))
         return ret
 
     def _array(self, z, x, xx, y, yy, cpx):
-        return z + '+(' + x + '+' + xx + ')*dim' + y + (cpx and "*2" or "") + '+' + yy
+        if y == 'j':
+            y = "effj"
+        else:
+            y = "dim" + y
+
+        return z + '+(' + x + '+' + xx + ')*' + y + (cpx and "*2" or "") + '+' + yy
 
     def _store_c(self, unrolls, indent, bc_mod=""):
         spaces = ' ' * (self.indent*indent)
         ret = []
         jstep = self.vector_length
         for i, j in product(range(unrolls['i']), range(0, unrolls['j'], jstep)):
-            if j + jstep < unrolls['j'] or self.__in_main_loop or not self._mask:    
-                ret.append(spaces + '{}('.format(self.vector_store) + self._array(bc_mod+'c', 'i', str(i), 'j', str(j), self.complex_c) + ', ' + self._temp('_' + 'c', i, j) + ');')
+            if j + jstep < unrolls['j'] or self.__in_main_loop or not self._mask:
+                arg0 = self._array(bc_mod+'c', 'i', str(i), 'j', str(j), self.complex_c)
+                arg1 = self._temp('_' + 'c', i, j)
+                mid = ', '
+                if self.have_bgq:
+                    arg0, arg1 = arg1, arg0
+                    mid = ', 0, '
+                ret.append(spaces + self.vector_store + '(' + arg0 + mid + arg1 + ');')
             else:
                 # This is somewhat AVX specific, but no other arch's currently support masking, so ok.
                 ret.append(spaces + '{}('.format(self.mask_store) + self._array(bc_mod+'c', 'i', str(i), 'j', str(j), self.complex_c) + ', mask, ' + self._temp('_' + 'c', i, j) + ');')
@@ -250,8 +314,6 @@ class MTXMGen:
     def _loops(self, i, size, bc_mod=""):
         if i == 'i':
             start = 'i=0'
-            if self.tile_i:
-                start = 'i=ii'
             #FIXME Don't include _odds if i%2==0 and only evens
             loops = [size[i]]
             if loops[-1] != 1:
@@ -259,15 +321,12 @@ class MTXMGen:
             if self.have_bgp:
                 loops = range(size[i], 0, -2)
             for loop in loops:
-                i_cond = ""
-                if self.tile_i:
-                    i_cond = " && i+{0}<=ii+{1}".format(loop, self.tile_i_size)
-                yield ('for ({0}; i+{1}<=dimi {2}; i+={1}) {{'.format(start, loop, i_cond), loop)
+                yield ('for ({0}; i+{1}<=dimi; i+={1}) {{'.format(start, loop), loop)
                 start = ''
         elif i == 'j':
             loop = size[i] // (self.complex_c and 2 or 1)
             self.__in_main_loop = True
-            yield ("for (j=dimj; j>{0}; j-={0},{1}c+={0}{2},{1}b+={0}{3}) {{".format(loop, bc_mod, self.complex_c and "*2" or "", self.complex_b and "*2" or ""), size[i])
+            yield ("for (j=effj; j>{0}; j-={0},{1}c+={0}{2},{1}b+={0}{3}) {{".format(loop, bc_mod, self.complex_c and "*2" or "", self.complex_b and "*2" or ""), size[i])
             self.__in_main_loop = False
             start = ''
             for loop in range(size[i]-self.vector_length, 0, -self.vector_length):
@@ -279,7 +338,7 @@ class MTXMGen:
                 yield ("else {", self.vector_length)
         elif i == 'k':
             assert(size[i] == 1)
-            yield ("for (k=0; k<dimk; k+=1,pb+=dimj{},pa+=dimi{}) {{".format(self.complex_b and "*2" or "", self.complex_a and "*2" or ""), 1)
+            yield ("for (k=0; k<dimk; k+=1,pb+=extb{},pa+=dimi{}) {{".format(self.complex_b and "*2" or "", self.complex_a and "*2" or ""), 1)
 
     def _close_braces(self, indent=0):
         ret = []
@@ -313,7 +372,7 @@ class MTXMGen:
                 ret += self._load_a(unrolls, indent+1)
                 b_loads = self._load_b(unrolls, indent+1)
                 maths = self._maths(unrolls, indent+1)
-                b_take = (self.complex_complex and not self.have_bgp) and 2 or 1
+                b_take = (self.complex_complex and not self.have_bgp and not self.have_bgq) and 2 or 1
                 m_take = unrolls['i']*(self.complex_complex and 2 or 1)
                 while b_loads:
                     ret += b_loads[0:b_take]
@@ -327,15 +386,7 @@ class MTXMGen:
 
         return ret
 
-    def _i_tile_loop(self):
-        ret = []
-        ret.append("    for (ii=0; ii<dimi; ii+={}) {{".format(self.tile_i_size))
-        ret.append("        b = bb;")
-        ret.append("        c = cc;")
-        return ret
-
-
-    def gen(self, f, perm, size, itile=0, func_name='mtxmq'):
+    def gen(self, f, perm, size, func_name='mtxmq'):
         """Output generated code to file f
 
         Input:
@@ -353,12 +404,6 @@ class MTXMGen:
         if perm[-1] != 'k':
             raise Exception("k must be inner loop")
 
-        indent = 0
-        if itile > 0:
-            self.tile_i = True
-            self.tile_i_size = itile
-            indent += 1
-
         lines = []
 
         # Header
@@ -370,14 +415,11 @@ class MTXMGen:
         # Architecture Specific declarations, e.g. mask prep
         lines += self._extra()
 
-        if self.tile_i:
-            lines += self._i_tile_loop()
-
         # Computation
-        lines += self._inner_loops(perm, size, indent)
+        lines += self._inner_loops(perm, size)
 
-        # Close braces
-        lines += self._close_braces(indent)
+        # Footer
+        lines += self._footer()
 
         lines = self._post_process(lines)
 
@@ -423,7 +465,7 @@ class MTXMAVX(MTXMGen):
         if self.real_real:
             return [' ' * self.indent + """
     __m256i mask;
-    j = dimj % 4;
+    j = effj % 4;
     switch (j) {
         case 0:
             mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
@@ -443,7 +485,7 @@ class MTXMAVX(MTXMGen):
         else:
             return [' ' * self.indent + """
     __m256i mask;
-    j = dimj % 2;
+    j = effj % 2;
     switch (j) {
         case 0:
             mask = _mm256_set_epi32(-1,-1,-1,-1,-1,-1,-1,-1);
@@ -515,14 +557,33 @@ class MTXMBGQ(MTXMGen):
         self.vector_type = 'vector4double'
         self.vector_load = 'vec_ld'
         self.vector_store = 'vec_st'
-        self.vector_zero = 'vec_splats(0.0)'
+        self.vector_zero = '(vector4double)(0.0)'
 
-        self.splat_type = 'double'
-        self.splat_op = 'vec_splats'
+        self.complex_dup = 'vec_ld2'
+
+        self.splat_type = 'vector4double'
+        self.splat_op = 'vec_lds'
+
+    def _load_bz(self, spaces, addr, temp, k, j):
+        t = self._temp('_bz', k, j)
+        ret = spaces + t + ' = vec_ld2{};\n'.format(addr)
+        ret += spaces + t + ' = vec_perm({0}, {0}, _cr_perm);'.format(t)
+        return ret
 
     def _fma(self, at, bt, ct):
-        return ct + ' = vec_madd(' + at + ', ' + bt + ', ' + ct + ');'
+        if self.complex_complex:
+            return ct + ' = vec_xmadd(' + at + ', ' + bt + ', ' + ct + ');'
+        else:
+            return ct + ' = vec_madd(' + at + ', ' + bt + ', ' + ct + ');'
 
     def _fmaddsub(self, at, bt, ct):
-        return ct + ' = vec_xxnpmadd(' + bt + ', ' + at + ', ' + ct + ');' # this is close but not correct
+        return ct + ' = vec_xxnpmadd(' + bt + ', ' + at + ', ' + ct + ');'
 
+    def _post_process(self, lines):
+        return [x.replace("__restrict__", "").replace("const", "").replace("double complex", "__complex__ double") for x in lines]
+
+    def _extra(self):
+        if self.complex_real:
+            return [' ' * self.indent + "vector4double _cr_perm = vec_gpci(0x9);"]
+        else:
+            return []

@@ -47,7 +47,6 @@
 #include <world/worldtask.h>
 #include <world/worldgop.h>
 #include <world/worlddc.h>
-#include <world/worldreduce.h>
 
 
 

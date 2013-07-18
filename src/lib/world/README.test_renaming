@@ -1,0 +1,33 @@
+This is how the tests were renamed, should you need a dictionary to know where your test went.
+
+Note that lookup3.c contains "int main(" but is nonetheless required in libworld.a.
+
+Jeff Hammond
+March 31, 2012
+
+svn mv testar.cc test_ar.cc
+svn mv testdc.cc test_dc.cc
+svn mv worldptr_test.cc test_worldptr.cc
+svn mv worldref_test.cc test_worldref.cc
+svn mv testhashdc.cc test_hashdc.cc
+svn mv testhashthreaded.cc test_hashthreaded.cc
+svn mv treetest.cc test_tree.cc
+svn mv testsig.cc test_sig.cc
+svn mv world.cc test_world.cc
+svn mv worldstuff.cc world.cc
+svn mv testpapi.cc test_papi.cc
+svn mv array_test.cc test_array.cc
+svn mv testatomicint.cc test_atomicint.cc
+svn mv vectest.cc test_vec.cc
+svn mv testprof.cc test_prof.cc
+svn mv qtest.cc test_queue.cc
+svn mv testhardware.cc test_hardware.cc
+svn mv helloworld.cc test_hello.cc
+svn mv hang.cc test_mpihang.cc
+svn mv taskexample.cc test_future.cc
+svn mv objexample.cc test_future2.cc
+svn mv objexample2.cc test_future3.cc
+svn mv gtest_example.cc test_googletest.cc
+svn mv listbench.cc test_list.cc
+
+

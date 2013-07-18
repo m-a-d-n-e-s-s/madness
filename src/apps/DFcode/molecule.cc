@@ -39,8 +39,8 @@
 #include <tensor/tensor.h>
 #include <linalg/tensor_lapack.h>
 #include <constants.h>
-#include <moldft/molecule.h>
-#include <moldft/atomutil.h>
+#include <DFcode/molecule.h>
+#include <DFcode/atomutil.h>
 #include <misc/misc.h>
 #include <iomanip>
 #include <set>
@@ -82,11 +82,18 @@ std::ostream& operator<<(std::ostream& s, const Atom& atom) {
 /// on the line.
 ///
 /// This code is just for the examples ... don't trust it!
-Molecule::Molecule(const std::string& filename) {
-    read_file(filename);
+//Molecule::Molecule(const std::string& filename) {
+//    read_file(filename);
+//}
+Molecule::Molecule(const std::string& filename, const std::string& geomname) {
+    read_file(filename,geomname);
 }
 
 void Molecule::read_file(const std::string& filename) {
+    std::string geomname="";
+    read_file(filename,geomname);
+}
+void Molecule::read_file(const std::string& filename, const std::string& geomname) {
     atoms.clear();
     rcut.clear();
     eprec = 1e-4;
@@ -95,7 +102,9 @@ void Molecule::read_file(const std::string& filename) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
         MADNESS_EXCEPTION(errmsg.c_str(), 0);
     }
-    madness::position_stream(f, "geometry");
+    std::string guaa="";
+    if(geomname != "") guaa=" " + geomname;
+    madness::position_stream(f, "geometry" + guaa);
     double scale = 1.0; // Default is atomic units
 
     std::string s;
@@ -123,6 +132,11 @@ void Molecule::read_file(const std::string& filename) {
         }
         else if (tag == "eprec") {
             ss >> eprec;
+        }
+        else if (tag == "scale") {
+            double f;
+            ss >> f;
+            scale=f*1e-10/ madness::constants::atomic_unit_of_length;
         }
         else if (tag == "field") {
             ss >> field[0] >> field[1] >> field[2];

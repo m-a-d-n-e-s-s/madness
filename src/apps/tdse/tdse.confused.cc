@@ -909,14 +909,14 @@ void doit(World& world) {
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     startup(world,argc,argv);
 
     try {
         doit(world);
-    } catch (const MPI::Exception& e) {
-        //print(e); std::cout.flush();
+    } catch (const SafeMPI::Exception& e) {
+        print(e); std::cout.flush();
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e); std::cout.flush();
@@ -943,7 +943,6 @@ int main(int argc, char** argv) {
 
     world.gop.fence();
 
-    ThreadPool::end();
     print_stats(world);
     finalize();
     return 0;

@@ -267,28 +267,30 @@ namespace madness {
         friend class WorldGopInterface;
         friend class World;
     public:
-        static const int MSG_LEN = RMI::MAX_MSG_LEN - sizeof(AmArg); ///< Max length of user payload in message
+        const int msg_len;                  ///< Max length of user payload in message
     private:
+
 #ifdef HAVE_CRAYXT
-        static const int NSEND = 512; ///< Max no. of pending sends
+        static const int DEFAULT_NSEND = 512;
 #else
-        static const int NSEND = 32;///< Max no. of pending sends
+        static const int DEFAULT_NSEND = 32;
 #endif
 
         // Multiple threads are making their way thru here ... must be careful
         // to ensure updates are atomic and consistent
 
-        AmArg* volatile managed_send_buf[NSEND]; ///< Managed buffers
-        RMI::Request send_req[NSEND]; ///< Tracks in-flight messages
+        int nsend;                    ///< Max no. of pending sends
+        ScopedArray<AmArg* volatile>  managed_send_buf; ///< Managed buffers
+        ScopedArray<RMI::Request> send_req; ///< Tracks in-flight messages
 
-        unsigned long worldid;        ///< The world which contains this instance of WorldAmInterface
+        unsigned long worldid; ///< The world which contains this instance of WorldAmInterface
         const ProcessID rank;
         const int nproc;
-        volatile int cur_msg;         ///< Index of next buffer to attempt to use
+        volatile int cur_msg; ///< Index of next buffer to attempt to use
         volatile unsigned long nsent; ///< Counts no. of AM sent for purpose of termination detection
         volatile unsigned long nrecv; ///< Counts no. of AM received for purpose of termination detection
 
-        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to MPI::COMM_WORLD
+        std::vector<int> map_to_comm_world; ///< Maps rank in current MPI communicator to SafeMPI::COMM_WORLD
 
         void free_managed_send_buf(int i) {
             // WE ASSUME WE ARE INSIDE A CRITICAL SECTION WHEN IN HERE
@@ -312,7 +314,7 @@ namespace madness {
             while (!send_req[cur_msg].Test()) {
                 // If the oldest message has still not completed then there is likely
                 // severe network or end-point congestion, so pause for 100us in a rather
-                // abitrary attempt to decreate the injection rate.  The server thread
+                // arbitrary attempt to decrease the injection rate.  The server thread
                 // is still polling every 1us (which is required to suck data off the net
                 // and by some engines to ensure progress on sends).
                 myusleep(100);
@@ -321,7 +323,7 @@ namespace madness {
             free_managed_send_buf(cur_msg);
             int result = cur_msg;
             cur_msg++;
-            if (cur_msg >= NSEND) cur_msg = 0;
+            if (cur_msg >= nsend) cur_msg = 0;
 
             return result;
         }
@@ -387,9 +389,9 @@ namespace madness {
 
         /// Frees as many send buffers as possible
         void free_managed_buffers() {
-            int ind[NSEND];
+            ScopedArray<int> ind(new int[nsend]);
             lock(); // <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-            int n = SafeMPI::Request::Testsome(NSEND, send_req, ind);
+            int n = SafeMPI::Request::Testsome(nsend, send_req.get(), ind.get());
             if (n != MPI_UNDEFINED) {
                 for (int i=0; i<n; ++i) {
                     free_managed_send_buf(ind[i]);

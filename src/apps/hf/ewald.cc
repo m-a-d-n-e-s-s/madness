@@ -751,7 +751,7 @@ void test_gaussian_num_coeffs(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -781,8 +781,8 @@ void test_gaussian_num_coeffs(int argc, char** argv)
             expnt, "  trace:  ", tr, "  max nodes:  ", maxnodes, "  fwhm:  ", fwhm);
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1083,7 +1083,7 @@ void test_nuclear_potential2(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1116,8 +1116,8 @@ void test_nuclear_potential2(int argc, char** argv)
         if (world.rank() == 0) printf("%10.5f     %15.10e     %15.10e     %15.10e\n", rpt, npotpt, npotpt2, nerror);
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1150,7 +1150,7 @@ void test_nuclear_potential(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1227,8 +1227,8 @@ void test_nuclear_potential(int argc, char** argv)
             nerror2, nerror3, nerror4, nerror5);
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1263,7 +1263,7 @@ void test_nuclear_potential3(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1321,8 +1321,8 @@ void test_nuclear_potential3(int argc, char** argv)
             nerror2, nerror4, nerror6, nerror8);
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1356,7 +1356,7 @@ void test_nuclear_potential_big_unit_cell(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1397,8 +1397,8 @@ void test_nuclear_potential_big_unit_cell(int argc, char** argv)
         if (world.rank() == 0) print(rpt, "  ", npot1pt, "  ", npot2pt);
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1434,7 +1434,7 @@ void test_G_R_vectors(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1455,8 +1455,8 @@ void test_G_R_vectors(int argc, char** argv)
         }
       }
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);
@@ -1489,7 +1489,7 @@ void test_nuclear_energy(int argc, char** argv)
 {
   initialize(argc, argv);
 
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
 
   try {
       // Load info for MADNESS numerical routines
@@ -1544,8 +1544,8 @@ void test_nuclear_energy(int argc, char** argv)
 //        compute_madelung_energy2(world, mentity, 1.4, 100.0, 100.0);
 //        compute_madelung_energy2(world, mentity, 1.5, 100.0, 100.0);
 
-  } catch (const MPI::Exception& e) {
-      //        print(e);
+  } catch (const SafeMPI::Exception& e) {
+      print(e);
       error("caught an MPI exception");
   } catch (const madness::MadnessException& e) {
       if (world.rank() == 0) print(e);

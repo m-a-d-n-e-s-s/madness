@@ -585,7 +585,9 @@ foundit:
     }
 
     bool is_supported(int atomic_number) const {
+        //vama return ag[atomic_number].nbf() > 0;
         return ag[atomic_number].nbf() > 0;
+        //vama return true;
     }
 
     /// Print basis info for atoms in the molecule (once for each unique atom type)

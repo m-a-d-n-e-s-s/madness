@@ -39,11 +39,19 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <misc/ran.h>
-#include <linalg/solvers.h>
 #include <mra/qmprop.h>
+
+#include <misc/misc.h>
+#include <misc/ran.h>
+
+#include <tensor/systolic.h>
+#include <linalg/solvers.h>
+#include <linalg/elem.h>
+
 #include <ctime>
 #include <list>
+
+#include <TAU.h>
 using namespace madness;
 
 
@@ -71,26 +79,7 @@ Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
     return expV;
 }
 
-
-/// Simple (?) version of BLAS-1 DROT(N, DX, INCX, DY, INCY, DC, DS)
-void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
-    if (inc == 1) {
-        for (long i=0; i<n; ++i) {
-            double aa = a[i]*c - b[i]*s;
-            double bb = b[i]*c + a[i]*s;
-            a[i] = aa;
-            b[i] = bb;
-        }
-    }
-    else {
-        for (long i=0; i<(n*inc); i+=inc) {
-            double aa = a[i]*c - b[i]*s;
-            double bb = b[i]*c + a[i]*s;
-            a[i] = aa;
-            b[i] = bb;
-        }
-    }
-}
+extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
 
 void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
@@ -130,25 +119,25 @@ void drot3(long n, double* restrict a, double* restrict b, double s, double c, l
     }
 }
 
-class LevelPmap : public WorldDCPmapInterface< Key<3> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    /// Find the owner of a given key
-    ProcessID owner(const Key<3>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-        if (n <= 3 || (n&0x1)) hash = key.hash();
-        else hash = key.parent().hash();
-        //hashT hash = key.hash();
-        return hash%nproc;
-    }
-};
+//class LevelPmap : public WorldDCPmapInterface< Key<3> > {
+//private:
+//    const int nproc;
+//public:
+//    LevelPmap() : nproc(0) {};
+//
+//    LevelPmap(World& world) : nproc(world.nproc()) {}
+//
+//    /// Find the owner of a given key
+//    ProcessID owner(const Key<3>& key) const {
+//        Level n = key.level();
+//        if (n == 0) return 0;
+//        hashT hash;
+//        if (n <= 3 || (n&0x1)) hash = key.hash();
+//        else hash = key.parent().hash();
+//        //hashT hash = key.hash();
+//        return hash%nproc;
+//    }
+//};
 
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -165,9 +154,18 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
+extern tensorT distributed_localize_PM(World & world, 
+                                const vecfuncT & mo, 
+                                const vecfuncT & ao, 
+                                const std::vector<int> & set, 
+                                const std::vector<int> & at_to_bf,
+                                const std::vector<int> & at_nbf, 
+                                const double thresh = 1e-9, 
+                                const double thetamax = 0.5, 
+                                const bool randomize = true, 
+                                       const bool doprint = false);
 
-
-double ttt, sss;
+static double ttt, sss;
 void START_TIMER(World& world) {
     world.gop.fence(); ttt=wall_time(); sss=cpu_time();
 }
@@ -284,7 +282,7 @@ private:
 
 public:
     MolecularDerivativeFunctor(const Molecule& molecule, int atom, int axis)
-        : molecule(molecule), atom(atom), axis(axis) 
+        : molecule(molecule), atom(atom), axis(axis)
     {}
 
     double operator()(const coordT& x) const {
@@ -428,7 +426,7 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=0.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-        if (key.level() <= 1) {
+        if (key.level() < 1) {
             return 100.0*(leaf_value+parent_value);
         }
         else if (node.is_leaf()) {
@@ -469,6 +467,7 @@ struct CalculationParameters {
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
+    bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
@@ -488,16 +487,16 @@ struct CalculationParameters {
     bool gopt;                  ///< geometry optimizer
     double gtol;                ///< geometry tolerance
     bool gtest;                 ///< geometry tolerance
-    double gval;                ///< value precision 
-    double gprec;               ///< gradient precision 
-    int  gmaxiter;               ///< optimization maxiter 
+    double gval;                ///< value precision
+    double gprec;               ///< gradient precision
+    int  gmaxiter;               ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
 
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & no_compute & maxsub & npt_plot & plot_cell & aobasis;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & no_compute & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -523,9 +522,10 @@ struct CalculationParameters {
         , plotdens(false)
         , plotcoul(false)
         , localize(true)
-        , localize_pm(false)
+        , localize_pm(true)
         , restart(false)
     	, no_compute(false)
+        , save(true)
         , maxsub(8)
         , npt_plot(101)
         , aobasis("6-31g")
@@ -537,7 +537,7 @@ struct CalculationParameters {
         , nbeta(0)
         , nmo_alpha(0)
         , nmo_beta(0)
-        , lo(1e-10) 
+        , lo(1e-10)
         , xc_data("lda")
         , protocol_data(madness::vector_factory(1e-4, 1e-6))
         , gopt(false)
@@ -549,7 +549,7 @@ struct CalculationParameters {
         , algopt("BFGS")
         , tdksprop(false)
     {}
-        
+
 
     void read_file(const std::string& filename) {
         std::ifstream f(filename.c_str());
@@ -635,8 +635,8 @@ struct CalculationParameters {
             }
             else if (s == "aobasis") {
                 f >> aobasis;
-                if (aobasis!="sto-3g" && aobasis!="6-31g") {
-                    std::cout << "moldft: unrecognized aobasis (sto-3g or 6-31g only): " << aobasis << std::endl;
+                if (aobasis!="sto-3g" && aobasis!="sto-6g" && aobasis!="6-31g") {
+                    std::cout << "moldft: unrecognized aobasis (sto-3g or sto-6g or 6-31g only): " << aobasis << std::endl;
                     MADNESS_EXCEPTION("input_error", 0);
                 }
             }
@@ -654,6 +654,9 @@ struct CalculationParameters {
             }
             else if (s == "restart") {
                 restart = true;
+            }
+            else if (s == "save") {
+                f >> save;
             }
             else if (s == "no_compute") {
                 no_compute = true;
@@ -789,8 +792,8 @@ struct CalculationParameters {
         else
             madness::print("        plot  volume ", "default");
 
-        std::string loctype = "boys";
-        if (localize_pm) loctype = "pm";
+        std::string loctype = "pm";
+        if (!localize_pm) loctype = "boys";
         if (localize)
             madness::print("  localized orbitals ", loctype);
         else
@@ -818,6 +821,12 @@ struct Calculation {
     XCfunctional xc;
     AtomicBasisSet aobasis;
     functionT vnuc;
+    functionT vacuo_rho;
+    functionT rhoT;
+    functionT rho_elec;
+    functionT rhon;
+    functionT mol_mask;
+    functionT Uabinit;
     functionT mask;
     vecfuncT amo, bmo;
     std::vector<int> aset, bset;
@@ -829,9 +838,13 @@ struct Calculation {
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
+    double esol;//etot;
+    double vacuo_energy;
+    static const int vnucextra = 12; // load balance parameter for nuclear pot.
 
     Calculation(World & world, const char *filename)
     {
+        TAU_START("Calculation (World &, const char *");
         if(world.rank() == 0) {
             molecule.read_file(filename);
             param.read_file(filename);
@@ -850,11 +863,14 @@ struct Calculation {
         world.gop.broadcast_serializable(param, 0);
         world.gop.broadcast_serializable(aobasis, 0);
 
+	TAU_START("xc.initialize");
         xc.initialize(param.xc_data, !param.spin_restricted);
+	TAU_STOP("xc.initialize");
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol<3>(world, param.econv);
+        TAU_STOP("Calculation (World &, const char *");
     }
 
     template<std::size_t NDIM>
@@ -902,7 +918,9 @@ struct Calculation {
     }
 
     void save_mos(World& world) {
+	TAU_START("archive::ParallelOutputArchive ar(world)");
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
+	TAU_STOP("archive::ParallelOutputArchive ar(world)");
         ar & current_energy & param.spin_restricted;
         ar & (unsigned int)(amo.size());
         ar & aeps & aocc & aset;
@@ -915,11 +933,12 @@ struct Calculation {
     }
 
     void load_mos(World& world) {
+	TAU_START("load_mos");
         const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
-        unsigned int nmo;
-        bool spinrest;
+        unsigned int nmo = 0;
+        bool spinrest = false;
         amo.clear(); bmo.clear();
 
         archive::ParallelInputArchive ar(world, "restartdata");
@@ -1005,10 +1024,12 @@ struct Calculation {
 
             }
         }
+	TAU_STOP("load_mos");
     }
 
     void do_plots(World& world) {
         START_TIMER(world);
+	TAU_START("do_plots");
 
         std::vector<long> npt(3,param.npt_plot);
 
@@ -1050,6 +1071,7 @@ struct Calculation {
             }
         }
         END_TIMER(world, "plotting");
+	TAU_STOP("do_plots");
     }
 
     void project(World & world)
@@ -1074,17 +1096,23 @@ struct Calculation {
 
     void make_nuclear_potential(World & world)
     {
+        TAU_START("Project vnuclear");
         START_TIMER(world);
         vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
         vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
         vnuc.reconstruct();
+        long sz=vnuc.tree_size();
+        print("vnuc trunk", sz);
         END_TIMER(world, "Project vnuclear");
+        TAU_STOP("Project vnuclear");
         if (param.core_type != "") {
+            TAU_START("Project Core Pot.");
             START_TIMER(world);
             functionT c_pot = factoryT(world).functor(functorT(new MolecularCorePotentialFunctor(molecule))).thresh(vtol).initial_level(4);
             c_pot.set_thresh(FunctionDefaults<3>::get_thresh());
             c_pot.reconstruct();
             END_TIMER(world, "Project Core Pot.");
+            TAU_STOP("Project Core Pot.");
             vnuc += c_pot;
             vnuc.truncate();
         }
@@ -1095,6 +1123,7 @@ struct Calculation {
         // Make at_to_bf, at_nbf ... map from atom to first bf on atom, and nbf/atom
         aobasis.atoms_to_bfn(molecule, at_to_bf, at_nbf);
 
+        TAU_START("project ao basis");
         START_TIMER(world);
         ao = vecfuncT(aobasis.nbf(molecule));
         for(int i = 0;i < aobasis.nbf(molecule);++i){
@@ -1105,26 +1134,91 @@ struct Calculation {
         truncate(world, ao);
         normalize(world, ao);
         END_TIMER(world, "project ao basis");
+        TAU_STOP("project ao basis");
+	print_meminfo(world.rank(), "project ao basis");
     }
 
-    double PM_q(const tensorT & S, const tensorT & C, int i, int j, int lo, int nbf)
+    double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj, int lo, int nbf)
     {
         double qij = 0.0;
         if (nbf == 1) { // H atom in STO-3G ... often lots of these!
-            qij = C(i,lo)*S(0,0)*C(j,lo);
+            qij = Ci[lo]*S(0,0)*Cj[lo];
         }
         else {
             for(int mu = 0;mu < nbf;++mu){
                 double Smuj = 0.0;
                 for(int nu = 0;nu < nbf;++nu){
-                    Smuj += S(mu, nu) * C(j, nu + lo);
+                    Smuj += S(mu, nu) * Cj[nu + lo];
                 }
-                qij += C(i, mu + lo) * Smuj;
+                qij += Ci[mu + lo] * Smuj;
             }
         }
 
         return qij;
     }
+
+
+    void localize_PM_ij(const int seti, const int setj, 
+                        const double tol, const double thetamax,
+                        const int natom, const int nao,  const int nmo,
+                        const std::vector<tensorT>& Svec, 
+                        const std::vector<int>& at_to_bf, const std::vector<int>& at_nbf, 
+                        long& ndone_iter, double& maxtheta, 
+                        double * restrict Qi, double * restrict Qj,  
+                        double * restrict Ci, double * restrict Cj, 
+                        double * restrict Ui, double * restrict Uj)
+    {
+        if(seti == setj){
+            // Q could be recomputed for each ij, but by saving it we reduce computation by a factor
+            // of 2 when far from convergence, and as we approach convergence we save more since
+            // most work is associated with computing ovij.
+
+            double ovij = 0.0;
+            for(long a = 0;a < natom;++a)
+                ovij += Qi[a] * Qj[a];
+            
+            print("ovij", ovij);
+            if(fabs(ovij) > tol * tol){
+                double aij = 0.0;
+                double bij = 0.0;
+                for(long a = 0;a < natom;++a){
+                    double qiia = Qi[a];
+                    double qija = PM_q(Svec[a], Ci, Cj, at_to_bf[a], at_nbf[a]);
+                    double qjja = Qj[a];
+                    double d = qiia - qjja;
+                    aij += qija * qija - 0.25 * d * d;
+                    bij += qija * d;
+                }
+                double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
+
+                if(bij > 0.0)
+                    theta = -theta;
+                
+                print("theta", theta);
+                if(theta > thetamax)
+                    theta = thetamax;
+                else
+                    if(theta < -thetamax)
+                        theta = -thetamax;
+                
+                maxtheta = std::max(fabs(theta), maxtheta);
+                if(fabs(theta) >= tol){
+                    ++ndone_iter;
+                    double c = cos(theta);
+                    double s = sin(theta);
+                    print(c,s);
+                    drot(nao, Ci, Cj, s, c, 1);
+                    drot(nmo, Ui, Uj, s, c, 1);
+                    for(long a = 0;a < natom;++a){
+                        Qi[a] = PM_q(Svec[a], Ci, Ci, at_to_bf[a], at_nbf[a]);
+                        Qj[a] = PM_q(Svec[a], Cj, Cj, at_to_bf[a], at_nbf[a]);
+                    }
+                }
+            }
+        }
+    }
+    
+
 
     void localize_PM_task_kernel(tensorT & Q, std::vector<tensorT> & Svec, tensorT & C,
                                  const bool & doprint, const std::vector<int> & set,
@@ -1136,13 +1230,17 @@ struct Calculation {
 
         for(long i = 0;i < nmo;++i){
             for(long a = 0;a < natom;++a){
-                Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
+                Q(i, a) = PM_q(Svec[a], &C(i,0), &C(i,0), at_to_bf[a], at_nbf[a]);
             }
         }
+
+        print("Q\n", Q);
 
         double tol = 0.1;
         long ndone = 0;
         for(long iter = 0;iter < 100;++iter){
+
+            // Diagnostics at beginning of iteration
             double sum = 0.0;
             for(long i = 0;i < nmo;++i){
                 for(long a = 0;a < natom;++a){
@@ -1150,61 +1248,27 @@ struct Calculation {
                     sum += qiia * qiia;
                 }
             }
+            if(doprint)
+                printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
+            // End diagnostics at beginning of iteration
 
+            // Initialize variables for convergence test
             long ndone_iter = 0;
             double maxtheta = 0.0;
-            // if(doprint)
-            //     printf("iteration %ld sum=%.4f ndone=%ld tol=%.2e\n", iter, sum, ndone, tol);
-
             for(long i = 0;i < nmo;++i){
                 for(long j = 0;j < i;++j){
-                    if(set[i] == set[j]){
-                        double ovij = 0.0;
-                        for(long a = 0;a < natom;++a)
-                            ovij += Q(i, a) * Q(j, a);
 
-                        if(fabs(ovij) > tol * tol){
-                            double aij = 0.0;
-                            double bij = 0.0;
-                            for(long a = 0;a < natom;++a){
-                                double qiia = Q(i, a);
-                                double qija = PM_q(Svec[a], C, i, j, at_to_bf[a], at_nbf[a]);
-                                double qjja = Q(j, a);
-                                double d = qiia - qjja;
-                                aij += qija * qija - 0.25 * d * d;
-                                bij += qija * d;
-                            }
-                            double theta = 0.25 * acos(-aij / sqrt(aij * aij + bij * bij));
-                            if(bij > 0.0)
-                                theta = -theta;
-
-                            if(theta > thetamax)
-                                theta = thetamax;
-
-                            else
-                                if(theta < -thetamax)
-                                    theta = -thetamax;
-
-
-                            maxtheta = std::max(fabs(theta), maxtheta);
-                            if(fabs(theta) >= tol){
-                                ++ndone_iter;
-                                double c = cos(theta);
-                                double s = sin(theta);
-                                drot(nao, &C(i, 0), &C(j, 0), s, c, 1);
-                                drot(nmo, &U(i, 0), &U(j, 0), s, c, 1);
-                                for(long a = 0;a < natom;++a){
-                                    Q(i, a) = PM_q(Svec[a], C, i, i, at_to_bf[a], at_nbf[a]);
-                                    Q(j, a) = PM_q(Svec[a], C, j, j, at_to_bf[a], at_nbf[a]);
-                                }
-                            }
-
-                        }
-
-                    }
+                    localize_PM_ij(set[i], set[j], 
+                                   tol, thetamax, 
+                                   natom, nao, nmo, 
+                                   Svec, 
+                                   at_to_bf, at_nbf, 
+                                   ndone_iter, maxtheta, 
+                                   &Q(i,0), &Q(j,0),
+                                   &C(i,0), &C(j,0),
+                                   &U(i,0), &U(j,0));
 
                 }
-
             }
 
             ndone += ndone_iter;
@@ -1216,11 +1280,19 @@ struct Calculation {
             }
             tol = std::max(0.1 * std::min(maxtheta, tol), thresh);
         }
-
     }
 
-    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = true)
+    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true, const bool doprint = false)
     {
+	TAU_START("Pipek-Mezy localize");
+        START_TIMER(world);
+        tensorT UT = distributed_localize_PM(world, mo, ao, set, at_to_bf, at_nbf, thresh, thetamax, randomize, doprint);
+        END_TIMER(world, "Pipek-Mezy distributed ");
+        //print(UT);
+
+        return UT;
+
+
         START_TIMER(world);
         long nmo = mo.size();
         long natom = molecule.natom();
@@ -1241,9 +1313,36 @@ struct Calculation {
 
             localize_PM_task_kernel(Q, Svec, C, doprint, set, thetamax, U, thresh);
             U = transpose(U);
+
+            // Fix orbital orders
+	    bool switched = true;
+	    while (switched) {
+	      switched = false;
+	      for (int i=0; i<nmo; i++) {
+		for (int j=i+1; j<nmo; j++) {
+		  if (set[i] == set[j]) {
+		    double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+		    double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+		    if (snew > sold) {
+		      tensorT tmp = copy(U(_,i));
+		      U(_,i) = U(_,j);
+		      U(_,j) = tmp;
+		      switched = true;
+		    }
+		  }
+		}
+	      }
+	    }
+
+            // Fix phases.
+            for (long i=0; i<nmo; ++i) {
+                if (U(i,i) < 0.0) U(_,i).scale(-1.0);
+            }
         }
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Pipek-Mezy localize");
+        TAU_STOP("Pipek-Mezy localize");
+	print_meminfo(world.rank(), "Pipek-Mezy localize");
         return U;
     }
 
@@ -1264,9 +1363,14 @@ struct Calculation {
 
             }
         }
-        if(world.rank() == 0){
             tensorT C;
-            gesv(Saoao, Saomo, C);
+
+            TAU_START("compute eigen gesv analize vectors");
+            START_TIMER(world);
+            gesvp(world, Saoao, Saomo, C);
+            END_TIMER(world, " compute eigen gesv analize vectors");
+            TAU_STOP("compute eigen gesv analize vectors");
+        if(world.rank() == 0){
             C = transpose(C);
             long nmo = mo.size();
             for(long i = 0;i < nmo;++i){
@@ -1278,7 +1382,7 @@ struct Calculation {
                     printf("occ=%.2f : ", occ(i));
 
                 if(energy.size())
-                    printf("energy=%11.6f : ", energy(i));
+                    printf("energy=%13.8f : ", energy(i));
 
                 printf("center=(%.2f,%.2f,%.2f) : radius=%.2f\n", dip(0, i), dip(1, i), dip(2, i), sqrt(rsq(i)));
                 aobasis.print_anal(molecule, C(i, _));
@@ -1294,6 +1398,7 @@ struct Calculation {
 
     tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set, const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true)
     {
+        TAU_START("Boys localize");
         START_TIMER(world);
         const bool doprint = false;
         long nmo = mo.size();
@@ -1415,6 +1520,7 @@ struct Calculation {
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         END_TIMER(world, "Boys localize");
+        TAU_STOP("Boys localize");
         return U;
     }
 
@@ -1515,21 +1621,25 @@ struct Calculation {
                 print("guess dens trace", nel);
 
             if(world.size() > 1) {
+                TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-                lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
+                lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
                 END_TIMER(world, "guess loadbal");
+                TAU_STOP("guess loadbal");
             }
 
             // Diag approximate fock matrix to get initial mos
             functionT vlocal;
             if(param.nalpha + param.nbeta > 1){
+                TAU_START("guess Coulomb potn");
                 START_TIMER(world);
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
+                TAU_STOP("guess Coulomb potn");
                 bool save = param.spin_restricted;
                 param.spin_restricted = true;
                 vlocal = vlocal + make_lda_potential(world, rho);
@@ -1542,16 +1652,20 @@ struct Calculation {
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
-                lb.add_tree(vnuc, lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
-                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 1.0), false);
+                    lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
                 }
 
                 FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
             }
 
             tensorT overlap = matrix_inner(world, ao, ao, true);
+            TAU_START("guess Kinet potn");
+            START_TIMER(world);
             tensorT kinetic = kinetic_energy_matrix(world, ao);
+            END_TIMER(world, "guess Kinet potn");
+            TAU_STOP("guess Kinet potn");
             reconstruct(world, ao);
             vlocal.reconstruct();
             vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
@@ -1563,13 +1677,23 @@ struct Calculation {
             tensorT fock = kinetic + potential;
             fock = 0.5 * (fock + transpose(fock));
             tensorT c, e;
-            sygv(fock, overlap, 1, c, e);
-            world.gop.broadcast(c.ptr(), c.size(), 0);
-            world.gop.broadcast(e.ptr(), e.size(), 0);
-            if(world.rank() == 0 && 0){
-              print("initial eigenvalues");
-              print(e);
-            }
+
+            TAU_START("guess eigen sol");
+            START_TIMER(world);
+            sygvp(world, fock, overlap, 1, c, e);
+            END_TIMER(world, "guess eigen sol");
+            TAU_STOP("guess eigen sol");
+	    print_meminfo(world.rank(), "guess eigen sol");
+
+	    // NAR 7/5/2013
+            // commented out because it generated a lot of output
+            // if(world.rank() == 0 && 0){
+            //   print("initial eigenvalues");
+            //   print(e);
+            //   print("\n\nWSTHORNTON: initial eigenvectors");
+            //   print(c);
+            // }
+
             compress(world, ao);
 
             unsigned int ncore = 0;
@@ -1586,24 +1710,22 @@ struct Calculation {
                 aocc[i] = 1.0;
 
             aset = std::vector<int>(param.nmo_alpha,0);
-            //if (param.localize_pm) {
-                aset[0] = 0;
-                if(world.rank() == 0)
-                    std::cout << "alpha set " << 0 << " " << 0 << "-";
+            if(world.rank() == 0)
+                std::cout << "alpha set " << 0 << " " << 0 << "-";
 
-                for(int i = 1;i < param.nmo_alpha;++i) {
-                    aset[i] = aset[i - 1];
-                    if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
-                        ++(aset[i]);
-                        if(world.rank() == 0){
-                            std::cout << i - 1 << std::endl;
-                            std::cout << "alpha set " << aset[i] << " " << i << "-";
-                        }
+            for(int i = 1;i < param.nmo_alpha;++i) {
+                aset[i] = aset[i - 1];
+                //vamastd::cout << "aeps -" << i << "- " << aeps[i] << std::endl;
+                if(aeps[i] - aeps[i - 1] > 1.5 || aocc[i] != 1.0){
+                    ++(aset[i]);
+                    if(world.rank() == 0){
+                        std::cout << i - 1 << std::endl;
+                        std::cout << "alpha set " << aset[i] << " " << i << "-";
                     }
                 }
-                if(world.rank() == 0)
-                    std::cout << param.nmo_alpha - 1 << std::endl;
-            //}
+            }
+            if(world.rank() == 0)
+                std::cout << param.nmo_alpha - 1 << std::endl;
 
             if(param.nbeta && !param.spin_restricted){
                 bmo = transform(world, ao, c(_, Slice(ncore, ncore + param.nmo_beta - 1)), 0.0, true);
@@ -1615,25 +1737,21 @@ struct Calculation {
                     bocc[i] = 1.0;
 
                 bset = std::vector<int>(param.nmo_beta,0);
-                //if (param.localize_pm) {
-                    bset[0] = 0;
-                    if(world.rank() == 0)
-                        std::cout << " beta set " << 0 << " " << 0 << "-";
+                if(world.rank() == 0)
+                    std::cout << " beta set " << 0 << " " << 0 << "-";
 
-                    for(int i = 1;i < param.nmo_beta;++i) {
-                        bset[i] = bset[i - 1];
-                        if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
-                            ++(bset[i]);
-                            if(world.rank() == 0){
-                                std::cout << i - 1 << std::endl;
-                                std::cout << " beta set " << bset[i] << " " << i << "-";
-                            }
+                for(int i = 1;i < param.nmo_beta;++i) {
+                    bset[i] = bset[i - 1];
+                    if(beps[i] - beps[i - 1] > 1.5 || bocc[i] != 1.0){
+                        ++(bset[i]);
+                        if(world.rank() == 0){
+                            std::cout << i - 1 << std::endl;
+                            std::cout << " beta set " << bset[i] << " " << i << "-";
                         }
                     }
-                    if(world.rank() == 0)
-                        std::cout << param.nmo_beta - 1 << std::endl;
-                //}
-
+                }
+                if(world.rank() == 0)
+                    std::cout << param.nmo_beta - 1 << std::endl;
             }
         }
     }
@@ -1641,7 +1759,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0));
+        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
@@ -1787,7 +1905,7 @@ struct Calculation {
     }
 
     // Used only for initial guess that is always spin-restricted LDA
-    functionT make_lda_potential(World & world, const functionT & arho) 
+    functionT make_lda_potential(World & world, const functionT & arho)
     {
         functionT vlda = copy(arho);
         vlda.reconstruct();
@@ -1796,18 +1914,18 @@ struct Calculation {
     }
 
 
-    functionT make_dft_potential(World & world, const vecfuncT& vf, int what) 
+    functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
     {
-        return multiop_values<double, xc_potential, 3>(xc_potential(xc,what), vf);
+        return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
     }
 
-    double make_dft_energy(World & world, const vecfuncT& vf)
+    double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
     {
-        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc), vf);
+        functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
         return vlda.trace();
     }
 
-    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo, 
+    vecfuncT apply_potential(World & world, const tensorT & occ, const vecfuncT & amo,
                              const vecfuncT& vf, const vecfuncT& delrho, const functionT & vlocal, double & exc, int ispin)
     {
         functionT vloc = vlocal;
@@ -1815,62 +1933,77 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
+            TAU_START("DFT potential");
             START_TIMER(world);
-            if (ispin == 0) exc = make_dft_energy(world, vf);
-            vloc = vloc + make_dft_potential(world, vf, ispin);
+#ifdef MADNESS_HAS_LIBXC
+            exc = make_dft_energy(world, vf, ispin);
+#else
+            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#endif
+            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
             //print("VLOC1", vloc.trace(), vloc.norm2());
 
-            if (xc.is_gga()) {
-                if (xc.is_spin_polarized()) {
-                    throw "not yet";
+#ifdef MADNESS_HAS_LIBXC
+            if (xc.is_gga() ) {
+                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n");
+                real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
+                //print("VSIG", vsig.trace(), vsig.norm2());
+                real_function_3d vr(world);
+                for (int axis=0; axis<3; axis++) {
+                     vr += (*gradop[axis])(vsig);
+                 //print("VR", vr.trace(), vr.norm2());
                 }
-                else {
-		  //print("VF", vf[0].trace(), vf[1].trace());
-                    real_function_3d vsig = make_dft_potential(world, vf, 1);
-                    //print("VSIG", vsig.trace(), vsig.norm2());
-                    real_function_3d vr(world);
-                    for (int axis=0; axis<3; axis++) {
-                        vr += (*gradop[axis])(vsig*delrho[axis]);
-                    }
-                    vloc = vloc - vr; // need a 2?
-                    //print("VLOC2", vloc.trace(), vloc.norm2());
-                }
+                vloc = vloc - vr;
             }
+#endif
             END_TIMER(world, "DFT potential");
+            TAU_STOP("DFT potential");
         }
-        
+
+	TAU_START("V*psi");
         START_TIMER(world);
         vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
         END_TIMER(world, "V*psi");
+	TAU_STOP("V*psi");
+	print_meminfo(world.rank(), "V*psi");
         if(xc.hf_exchange_coefficient()){
+	    TAU_START("HF exchange");
             START_TIMER(world);
             vecfuncT Kamo = apply_hf_exchange(world, occ, amo, amo);
             tensorT excv = inner(world, Kamo, amo);
-            exc = 0.0;
+            double exchf = 0.0;
             for(unsigned long i = 0;i < amo.size();++i){
-                exc -= 0.5 * excv[i] * occ[i];
+                exchf -= 0.5 * excv[i] * occ[i];
             }
-            if (!xc.is_spin_polarized()) exc *= 2.0;
+            if (!xc.is_spin_polarized()) exchf *= 2.0;
             gaxpy(world, 1.0, Vpsi, -xc.hf_exchange_coefficient(), Kamo);
             Kamo.clear();
             END_TIMER(world, "HF exchange");
+	    TAU_STOP("HF exchange");
+            exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
-        
+
         if (param.core_type.substr(0,3) == "mcp") {
+            TAU_START("MCP Core Projector");
             START_TIMER(world);
             gaxpy(world, 1.0, Vpsi, 1.0, core_projection(world, amo));
             END_TIMER(world, "MCP Core Projector");
+            TAU_STOP("MCP Core Projector");
         }
 
+        TAU_START("Truncate Vpsi");
         START_TIMER(world);
         truncate(world, Vpsi);
         END_TIMER(world, "Truncate Vpsi");
+        TAU_STOP("Truncate Vpsi");
+	print_meminfo(world.rank(), "Truncate Vpsi");
         world.gop.fence();
         return Vpsi;
     }
 
     tensorT derivatives(World & world)
     {
+        TAU_START("derivatives");
         START_TIMER(world);
 
         functionT rho = make_density(world, aocc, amo);
@@ -1919,6 +2052,7 @@ struct Calculation {
         //if (world.rank() == 0) print("derivatives:\n", r, ru, rc, ra);
         r +=  ra + ru + rc;
         END_TIMER(world,"derivatives");
+        TAU_STOP("derivatives");
 
         if (world.rank() == 0) {
             print("\n Derivatives (a.u.)\n -----------\n");
@@ -1936,6 +2070,7 @@ struct Calculation {
 
     tensorT dipole(World & world)
     {
+        TAU_START("dipole");
         START_TIMER(world);
         tensorT mu(3);
         for (unsigned int axis=0; axis<3; ++axis) {
@@ -1961,6 +2096,7 @@ struct Calculation {
             print(" Total Dipole Moment: ", mu.normf());
         }
         END_TIMER(world, "dipole");
+        TAU_STOP("dipole");
 
         return mu;
     }
@@ -2001,19 +2137,23 @@ struct Calculation {
         if(world.rank() == 0)
             std::cout << "entering apply\n";
 
+        TAU_START("Apply BSH");
         START_TIMER(world);
         vecfuncT new_psi = apply(world, ops, Vpsi);
         END_TIMER(world, "Apply BSH");
+        TAU_STOP("Apply BSH");
         ops.clear();
         Vpsi.clear();
         world.gop.fence();
 
         // Thought it was a bad idea to truncate *before* computing the residual
-        // but simple tests suggest otherwise ... no more iterations and 
+        // but simple tests suggest otherwise ... no more iterations and
         // reduced iteration time from truncating.
+        TAU_START("Truncate new psi");
         START_TIMER(world);
         truncate(world, new_psi);
         END_TIMER(world, "Truncate new psi");
+        TAU_STOP("Truncate new psi");
 
         vecfuncT r = sub(world, psi, new_psi);
         std::vector<double> rnorm = norm2s(world, r);
@@ -2029,12 +2169,18 @@ struct Calculation {
 
     tensorT make_fock_matrix(World & world, const vecfuncT & psi, const vecfuncT & Vpsi, const tensorT & occ, double & ekinetic)
     {
+	TAU_START("PE matrix");
         START_TIMER(world);
         tensorT pe = matrix_inner(world, Vpsi, psi, true);
         END_TIMER(world, "PE matrix");
+	TAU_STOP("PE matrix");
+	TAU_START("KE matrix");
         START_TIMER(world);
         tensorT ke = kinetic_energy_matrix(world, psi);
         END_TIMER(world, "KE matrix");
+	TAU_STOP("KE matrix");
+            TAU_START("Make fock matrix rest");
+            START_TIMER(world);
         int nocc = occ.size();
         ekinetic = 0.0;
         for(int i = 0;i < nocc;++i){
@@ -2043,6 +2189,8 @@ struct Calculation {
         ke += pe;
         pe = tensorT();
         ke.gaxpy(0.5, transpose(ke), 0.5);
+            END_TIMER(world, "Make fock matrix rest");
+            TAU_STOP("Make fock matrix rest");
         return ke;
     }
 
@@ -2059,7 +2207,7 @@ struct Calculation {
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
         reconstruct(world, psi);
         norm_tree(world, psi);
-        
+
         // Efficient version would use mul_sparse vector interface
         vecfuncT pairs;
         for (unsigned int i=0; i<psi.size(); ++i) {
@@ -2067,7 +2215,7 @@ struct Calculation {
                 pairs.push_back(mul_sparse(psi[i], psi[j], tol, false));
             }
         }
-        
+
         world.gop.fence();
         truncate(world, pairs);
         vecfuncT Vpairs = apply(world, *coulop, pairs);
@@ -2114,15 +2262,19 @@ struct Calculation {
     {
         long nmo = psi.size();
         tensorT overlap = matrix_inner(world, psi, psi, true);
+
+        TAU_START("Diagonalization Fock-mat w sygv");
         START_TIMER(world);
         tensorT U;
+        sygvp(world, fock, overlap, 1, U, evals);
+        END_TIMER(world, "Diagonalization Fock-mat w sygv");
+        TAU_STOP("Diagonalization Fock-mat w sygv");
 
-        sygv(fock, overlap, 1, U, evals);
-        END_TIMER(world, "Diagonalization");
-
+        TAU_START("Diagonalization rest");
+        START_TIMER(world);
         // Within blocks with the same occupation number attempt to
         // keep orbitals in the same order (to avoid confusing the
-        // non-linear solver).  
+        // non-linear solver).
 	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
 	bool switched = true;
 	while (switched) {
@@ -2187,14 +2339,6 @@ struct Calculation {
             ilo = ihi+1;
         }
 
-	//if (world.rank() == 0) {
-	  // print("Fock");
-	  // print(fock);
-	  //print("Evec");
-	  //print(U);;
-	  //print("Eval");
-	  //print(evals);
-	//}
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2208,6 +2352,8 @@ struct Calculation {
         truncate(world, psi);
         normalize(world, psi);
 
+        END_TIMER(world, "Diagonalization rest");
+        TAU_STOP("Diagonalization rest");
         return U;
     }
 
@@ -2217,21 +2363,20 @@ struct Calculation {
             return;
 
         LoadBalanceDeux<3> lb(world);
-        lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
-        lb.add_tree(arho, lbcost<double,3>(1.0, 1.0), false);
+        lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
+        lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
         for(unsigned int i = 0;i < amo.size();++i){
-            lb.add_tree(amo[i], lbcost<double,3>(1.0, 1.0), false);
+            lb.add_tree(amo[i], lbcost<double,3>(1.0, 8.0), false);
         }
         if(param.nbeta && !param.spin_restricted){
-            lb.add_tree(brho, lbcost<double,3>(1.0, 1.0), false);
+            lb.add_tree(brho, lbcost<double,3>(1.0, 8.0), false);
             for(unsigned int i = 0;i < bmo.size();++i){
-                lb.add_tree(bmo[i], lbcost<double,3>(1.0, 1.0), false);
+                lb.add_tree(bmo[i], lbcost<double,3>(1.0, 8.0), false);
             }
         }
 	world.gop.fence();
 
-        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-
+        FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
     }
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
@@ -2251,8 +2396,29 @@ struct Calculation {
     {
         double aerr = 0.0, berr = 0.0;
         vecfuncT vm = amo;
+
+        // Orbitals with occ!=1.0 exactly must be solved for as eigenfunctions
+        // so zero out off diagonal lagrange multipliers
+        for (int i=0; i<param.nmo_alpha; i++) {
+            if (aocc[i] != 1.0) {
+                double tmp = focka(i,i);
+                focka(i,_) = 0.0;
+                focka(_,i) = 0.0;
+                focka(i,i) = tmp;
+            }
+        }
+
         vecfuncT rm = compute_residual(world, aocc, focka, amo, Vpsia, aerr);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0 && !param.spin_restricted){
+            for (int i=0; i<param.nmo_beta; i++) {
+                if (bocc[i] != 1.0) {
+                    double tmp = fockb(i,i);
+                    fockb(i,_) = 0.0;
+                    fockb(_,i) = 0.0;
+                    fockb(i,i) = tmp;
+                }
+            }
+
             vecfuncT br = compute_residual(world, bocc, fockb, bmo, Vpsib, berr);
             vm.insert(vm.end(), bmo.begin(), bmo.end());
             rm.insert(rm.end(), br.begin(), br.end());
@@ -2309,6 +2475,7 @@ struct Calculation {
         if(world.rank() == 0){
             print("Subspace solution", c);
         }
+        TAU_START("Subspace transform");
         START_TIMER(world);
         vecfuncT amo_new = zero_functions<double,3>(world, amo.size());
         vecfuncT bmo_new = zero_functions<double,3>(world, bmo.size());
@@ -2329,6 +2496,7 @@ struct Calculation {
         }
         world.gop.fence();
         END_TIMER(world, "Subspace transform");
+        TAU_STOP("Subspace transform");
         if(param.maxsub <= 1){
             subspace.clear();
         } else if(subspace.size() == param.maxsub){
@@ -2388,19 +2556,21 @@ struct Calculation {
 
             update_residual = std::max(update_residual, maxval);
         }
+        TAU_START("Orthonormalize");
         START_TIMER(world);
         double trantol = vtol / std::min(30.0, double(amo.size()));
         normalize(world, amo_new);
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
         normalize(world, amo_new);
-        if(param.nbeta && !param.spin_restricted){
+        if(param.nbeta != 0  && !param.spin_restricted){
             normalize(world, bmo_new);
             bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol, true);
             truncate(world, bmo_new);
             normalize(world, bmo_new);
         }
         END_TIMER(world, "Orthonormalize");
+        TAU_STOP("Orthonormalize");
         amo = amo_new;
         bmo = bmo_new;
     }
@@ -2598,7 +2768,7 @@ struct Calculation {
             if(param.localize && do_this_iter) {
                 tensorT U;
                 if (param.localize_pm) {
-                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0);
+                    U = localize_PM(world, amo, aset, tolloc, 0.25, iter == 0, true);
                 }
                 else {
                     U = localize_boys(world, amo, aset, tolloc, 0.25, iter==0);
@@ -2607,9 +2777,9 @@ struct Calculation {
                 truncate(world, amo);
                 normalize(world, amo);
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if(!param.spin_restricted && param.nbeta){
+                if(!param.spin_restricted && param.nbeta != 0 ){
                     if (param.localize_pm) {
-                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0);
+                        U = localize_PM(world, bmo, bset, tolloc, 0.25, iter == 0, true);
                     }
                     else {
                         U = localize_boys(world, bmo, bset, tolloc, 0.25, iter==0);
@@ -2621,6 +2791,7 @@ struct Calculation {
                 }
             }
 
+            TAU_START("Make densities");
             START_TIMER(world);
             functionT arho = make_density(world, aocc, amo), brho;
 
@@ -2629,18 +2800,21 @@ struct Calculation {
                     brho = arho;
                 }
                 else {
-                    brho = make_density(world, bocc, bmo);                    
+                    brho = make_density(world, bocc, bmo);
                 }
             }
             else {
                 brho = functionT(world); // zero
             }
             END_TIMER(world, "Make densities");
+            TAU_STOP("Make densities");
+	    print_meminfo(world.rank(), "Make densities");
 
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
                 loadbal(world, arho, brho, arho_old, brho_old, subspace);
                 END_TIMER(world, "Load balancing");
+		print_meminfo(world.rank(), "Load balancing");
             }
             double da = 0.0, db = 0.0;
             if(iter > 0){
@@ -2654,23 +2828,27 @@ struct Calculation {
             arho_old = arho;
             brho_old = brho;
             functionT rho = arho + brho;
-	    //double Xrhotrace = rho.trace(); // DEBUG
             rho.truncate();
             double enuclear = inner(rho, vnuc);
 
 	    // DEBUG
-// 	    double rhotrace = rho.trace();
-// 	    double vnuctrace = vnuc.trace();
-// 	    if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhotrace, rhotrace, vnuctrace);
+ 	    //double rhotrace = rho.trace();
+ 	    //double vnuctrace = vnuc.trace();
+            // if (world.rank() == 0) printf("DEBUG %.12f %.12f %.12f\n", Xrhoetrace, rhotrace, vnuctrace);
 	    // END DEBUG
 
+            TAU_START("Coulomb");
             START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);
+            functionT vlocal;
             END_TIMER(world, "Coulomb");
+            TAU_STOP("Coulomb");
+	    print_meminfo(world.rank(), "Coulomb");
 
             double ecoulomb = 0.5 * inner(rho, vcoul);
             rho.clear(false);
-            functionT vlocal = vcoul + vnuc;
+                vlocal = vcoul + vnuc ;
+
             vcoul.clear(false);
             vlocal.truncate();
             double exca = 0.0, excb = 0.0;
@@ -2678,28 +2856,41 @@ struct Calculation {
             vecfuncT vf, delrho;
             if (xc.is_dft()) {
                 arho.reconstruct();
-                if (param.nbeta && xc.is_spin_polarized()) brho.reconstruct();
+                if (param.nbeta != 0 && xc.is_spin_polarized()) brho.reconstruct();
+                // brho.reconstruct();
 
                 vf.push_back(arho);
+
                 if (xc.is_spin_polarized()) vf.push_back(brho);
+
                 if (xc.is_gga()) {
-                    for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false));
-                    if (xc.is_spin_polarized()) {
-                        for(int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
-                    }
+
+                    for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(arho,false)); // delrho
+                    if (xc.is_spin_polarized())
+                        for (int axis=0; axis<3; ++axis) delrho.push_back((*gradop[axis])(brho,false));
+
+
                     world.gop.fence(); // NECESSARY
-                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]); // sigma_aa
-                    if (xc.is_spin_polarized()) {
+
+                    vf.push_back(delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2]);     // sigma_aa
+
+                    if (xc.is_spin_polarized())
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
+                    if (xc.is_spin_polarized())
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-                    }
+
+                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
+
+                    if (xc.is_spin_polarized())
+                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+                    world.gop.fence(); // NECESSARY
                 }
                 if (vf.size()) {
                     reconstruct(world, vf);
                     arho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                 }
             }
-            
+
             vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal, exca, 0);
             vecfuncT Vpsib;
             if(!param.spin_restricted && param.nbeta) {
@@ -2710,16 +2901,17 @@ struct Calculation {
             tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
             tensorT fockb = focka;
 
-            if (!param.spin_restricted && param.nbeta)
+            if (!param.spin_restricted && param.nbeta != 0)
                 fockb = make_fock_matrix(world, bmo, Vpsib, bocc, ekinb);
-            else
+            else if (param.nbeta != 0) {
                 ekinb = ekina;
+            }
 
             if (!param.localize && do_this_iter) {
-                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, dconv);
+                tensorT U = diag_fock_matrix(world, focka, amo, Vpsia, aeps, aocc, FunctionDefaults<3>::get_thresh());
                 rotate_subspace(world, U, subspace, 0, amo.size(), trantol);
-                if (!param.spin_restricted && param.nbeta) {
-                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, dconv);
+                if (!param.spin_restricted && param.nbeta != 0) {
+                    U = diag_fock_matrix(world, fockb, bmo, Vpsib, beps, bocc, FunctionDefaults<3>::get_thresh());
                     rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
                 }
             }
@@ -2729,6 +2921,7 @@ struct Calculation {
             double exc = exca + excb;
             double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
             current_energy = etot;
+            esol = etot;
 
             if(world.rank() == 0){
                 printf("\n              kinetic %16.8f\n", ekinetic);
@@ -2749,15 +2942,27 @@ struct Calculation {
                     // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
-                    sygv(focka, overlap, 1, U, aeps);
+
+                    TAU_START("focka eigen sol");
+                    START_TIMER(world);
+                    sygvp(world, focka, overlap, 1, U, aeps);
+                    END_TIMER(world, "focka eigen sol");
+                    TAU_STOP("focka eigen sol");
+
                     if (!param.localize) {
                         amo = transform(world, amo, U, trantol, true);
                         truncate(world, amo);
                         normalize(world, amo);
                     }
-                    if(param.nbeta && !param.spin_restricted){
+                    if(param.nbeta != 0 && !param.spin_restricted){
                         overlap = matrix_inner(world, bmo, bmo, true);
-                        sygv(fockb, overlap, 1, U, beps);
+
+                        TAU_START("fockb eigen sol");
+                        START_TIMER(world);
+                        sygvp(world, fockb, overlap, 1, U, beps);
+                        END_TIMER(world, "fockb eigen sol");
+                        TAU_STOP("fockb eigen sol");
+
                         if (!param.localize) {
                             bmo = transform(world, bmo, U, trantol, true);
                             truncate(world, bmo);
@@ -2769,7 +2974,7 @@ struct Calculation {
                         print(" ");
                         print("alpha eigenvalues");
                         print(aeps);
-                        if(param.nbeta && !param.spin_restricted){
+                        if(param.nbeta==0.0 && !param.spin_restricted){
                             print("beta eigenvalues");
                             print(beps);
                         }
@@ -2796,13 +3001,16 @@ struct Calculation {
         }
 
         analyze_vectors(world, amo, aocc, aeps);
-        if (param.nbeta && !param.spin_restricted) {
+        if (param.nbeta != 0 && !param.spin_restricted) {
             if (world.rank() == 0)
                 print("Analysis of beta MO vectors");
 
             analyze_vectors(world, bmo, bocc, beps);
         }
-    }
+
+
+    }// end solve function
+
 };
 
 
@@ -2846,7 +3054,7 @@ public:
                 }
                 else {
                     calc.initial_guess(world);
-                    calc.param.restart = true;
+                    //calc.param.restart = true;
                 }
             }
             else {
@@ -2862,7 +3070,8 @@ public:
             }
 
             calc.solve(world);
-            calc.save_mos(world);
+            if (calc.param.save)
+              calc.save_mos(world);
         }
         return calc.current_energy;
     }
@@ -2875,114 +3084,3 @@ public:
 };
 
 
-#if 0
-
-int main(int argc, char** argv) {
-    initialize(argc, argv);
-
-    { // limit lifetime of world so that finalize() can execute cleanly
-      World world(MPI::COMM_WORLD);
-
-      try {
-        // Load info for MADNESS numerical routines
-        startup(world,argc,argv);
-        FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
-
-        std::cout.precision(6);
-
-        // Process 0 reads input information and broadcasts
-        Calculation calc(world, "input");
-
-        // Warm and fuzzy for the user
-        if (world.rank() == 0) {
-          print("\n\n");
-          print(" MADNESS Hartree-Fock and Density Functional Theory Program");
-          print(" ----------------------------------------------------------\n");
-          print("\n");
-          calc.molecule.print();
-          print("\n");
-          calc.param.print(world);
-        }
-
-        // Come up with an initial OK data map
-        if (world.size() > 1) {
-          calc.set_protocol(world,1e-6);
-          calc.make_nuclear_potential(world);
-          calc.initial_load_bal(world);
-        }
-
-        if ( calc.param.gopt) {
-          print("\n\n Geometry Optimization                      ");
-          print(" ----------------------------------------------------------\n");
-          calc.param.gprint(world);
-
-          Tensor<double> geomcoord = calc.molecule.get_all_coords().flat();
-          QuasiNewton geom(std::shared_ptr<OptimizationTargetInterface>(new MolecularEnergy(world, calc)),
-                           calc.param.gmaxiter,
-                           calc.param.gtol,  //tol
-                           calc.param.gval,  //value prec
-                           calc.param.gprec); // grad prec
-          geom.set_update(calc.param.algopt);
-          geom.set_test(calc.param.gtest);
-          geom.optimize(geomcoord);
-        }
-        else {
-          MolecularEnergy E(world, calc);
-          E.value(calc.molecule.get_all_coords().flat()); // ugh!
-          if (calc.param.derivatives) calc.derivatives(world);
-          if (calc.param.dipole) calc.dipole(world);
-        }
-
-        //        if (calc.param.twoint) {
-        //Tensor<double> g = calc.twoint(world,calc.amo);
-        //cout << g;
-        // }
-
-        calc.do_plots(world);
-
-      }
-      catch (const MPI::Exception& e) {
-        //        print(e);
-        error("caught an MPI exception");
-      }
-      catch (const madness::MadnessException& e) {
-        print(e);
-        error("caught a MADNESS exception");
-      }
-      catch (const madness::TensorException& e) {
-        print(e);
-        error("caught a Tensor exception");
-      }
-      catch (char* s) {
-        print(s);
-        error("caught a string exception");
-      }
-      catch (const char* s) {
-        print(s);
-        error("caught a string exception");
-      }
-      catch (const std::string& s) {
-        print(s);
-        error("caught a string (class) exception");
-      }
-      catch (const std::exception& e) {
-        print(e.what());
-        error("caught an STL exception");
-      }
-      catch (...) {
-        error("caught unhandled exception");
-      }
-
-      // Nearly all memory will be freed at this point
-      world.gop.fence();
-      world.gop.fence();
-      ThreadPool::end();
-      print_stats(world);
-    } // world is dead -- ready to finalize
-    finalize();
-
-    return 0;
-}
-
-
-#endif

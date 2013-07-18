@@ -121,7 +121,7 @@ public:
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     try {
         startup(world,argc,argv);
         std::cout.precision(6);
@@ -150,11 +150,11 @@ int main(int argc, char**argv) {
         FunctionDefaults<3>::set_truncate_on_project(true);
 
         // Inner and outer shells
-        functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(), 1.0, sigma)));
-        functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(), 3.0, sigma)));
+        functionT spha = factoryT(world).functor(functorT(new Sphere(coordT(0.0), 1.0, sigma)));
+        functionT sphb = factoryT(world).functor(functorT(new Sphere(coordT(0.0), 3.0, sigma)));
 
-        //functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(), 1.0, sigma)));
-        //functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(), 3.0, sigma)));
+        //functionT dspha = factoryT(world).functor(functorT(new DSphere(coordT(0.0), 1.0, sigma)));
+        //functionT dsphb = factoryT(world).functor(functorT(new DSphere(coordT(0.0), 3.0, sigma)));
 
         print("inner shell norm", spha.norm2());
         print("outer shell norm", sphb.norm2());
@@ -270,8 +270,8 @@ int main(int argc, char**argv) {
         }
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

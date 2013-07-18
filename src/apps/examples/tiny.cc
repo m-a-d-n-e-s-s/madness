@@ -197,7 +197,7 @@ void draw_plane(World& world, Function<double,NDIM>& function, const std::string
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
 

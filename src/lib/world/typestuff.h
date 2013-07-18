@@ -89,26 +89,26 @@ namespace madness {
     template <class T, typename resultT>
     class BindNullaryMemFun {
     private:
-        T* t;
-        resultT(T::*op)();
+        T* t_;
+        resultT(T::*op_)();
     public:
-        BindNullaryMemFun(T* t, resultT(T::*op)()) : t(t), op(op) {};
+        BindNullaryMemFun(T* t, resultT(T::*op)()) : t_(t), op_(op) {}
         resultT operator()() {
-            return (t->*op)();
-        };
+            return (t_->*op_)();
+        }
     };
 
     /// Specialization of BindNullaryMemFun for void return
     template <class T>
     class BindNullaryMemFun<T,void> {
     private:
-        T* t;
-        void (T::*op)();
+        T* t_;
+        void (T::*op_)();
     public:
-        BindNullaryMemFun(T* t, void (T::*op)()) : t(t), op(op) {};
+        BindNullaryMemFun(T* t, void (T::*op)()) : t_(t), op_(op) {}
         void operator()() {
-            (t->*op)();
-        };
+            (t_->*op_)();
+        }
     };
 
 
@@ -116,26 +116,26 @@ namespace madness {
     template <class T, typename resultT>
     class BindNullaryConstMemFun {
     private:
-        const T* t;
-        resultT(T::*op)() const;
+        const T* t_;
+        resultT(T::*op_)() const;
     public:
-        BindNullaryConstMemFun(const T* t, resultT(T::*op)() const) : t(t), op(op) {};
+        BindNullaryConstMemFun(const T* t, resultT(T::*op)() const) : t_(t), op_(op) {}
         resultT operator()() const {
-            return (t->*op)();
-        };
+            return (t_->*op_)();
+        }
     };
 
     /// Specialization of BindNullaryConstMemFun for void return
     template <class T>
     class BindNullaryConstMemFun<T,void> {
     private:
-        const T* t;
-        void (T::*op)() const;
+        const T* t_;
+        void (T::*op_)() const;
     public:
-        BindNullaryConstMemFun(const T* t, void (T::*op)() const) : t(t), op(op) {};
+        BindNullaryConstMemFun(const T* t, void (T::*op)() const) : t_(t), op_(op) {}
         void operator()() const {
-            (t->*op)();
-        };
+            (t_->*op_)();
+        }
     };
 
     /// Factory function for BindNullaryMemFun
@@ -176,6 +176,24 @@ namespace madness {
         Reference(T* x) : p(x) {}
         T& operator*() const {return *p;}
         T* operator->() const {return p;}
+    };
+
+    template <typename T>
+    struct has_result_type {
+        // yes and no are guaranteed to have different sizes,
+        // specifically sizeof(yes) == 1 and sizeof(no) == 2
+        typedef char yes[1];
+        typedef char no[2];
+
+        template <typename C>
+        static yes& test(typename C::result_type*);
+
+        template <typename>
+        static no& test(...);
+
+        // if the sizeof the result of calling test<T>(0) is equal to the sizeof(yes),
+        // the first overload worked and T has a nested type named type.
+        static const bool value = sizeof(test<T>(0)) == sizeof(yes);
     };
 
 

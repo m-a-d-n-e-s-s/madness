@@ -187,7 +187,17 @@ AC_DEFUN([ACX_CHECK_ARRAY], [
     [
       AC_DEFINE([MADNESS_USE_ARRAY],[1],[define if MADNESS is using <array>.])
       AC_DEFINE([MADNESS_HAS_STD_ARRAY],[1],[define if std::array is available.])
-      AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])
+
+      # Check to see if array has fill function
+      AC_COMPILE_IFELSE(
+        [
+          AC_LANG_PROGRAM(
+            [[#include <array>]],
+            [[std::array<int,10> a; a.fill(0);]]
+          )
+        ],
+        [AC_DEFINE([MADNESS_ARRAY_HAS_FILL],[1],[define if array has fill member function.])]
+      )
       acx_array=yes
     ]
   )

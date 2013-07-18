@@ -34,12 +34,8 @@
 #define MADNESS_WORLD_WORLDRMI_H__INCLUDED
 
 #include <world/safempi.h>
-//#include <cstdlib>
-//#include <iostream>
-//#include <algorithm>
 #include <world/worldthread.h>
 #include <world/worldtypes.h>
-//#include <world/posixmem.h>
 #include <utility>
 #include <list>
 
@@ -74,8 +70,8 @@
   RMI::Request RMI::isend(const void* buf, size_t nbyte, int dest,
                           rmi_handlerT func, unsigned int attr=0)
   - to send an asynchronous message
-  - RMI::Request has the same interface as MPI::Request
-  (right now it is an MPI::Request but this is not guaranteed)
+  - RMI::Request has the same interface as SafeMPI::Request
+  (right now it is a SafeMPI::Request but this is not guaranteed)
 
   void RMI::begin()
   - to start the server thread
@@ -136,21 +132,33 @@ namespace madness {
         // also to ensure good alignment of the user payload.
         static const size_t ALIGNMENT = 64;
         static const size_t HEADER_LEN = ALIGNMENT;
-        //static const size_t MAX_MSG_LEN = 256*1024;
-        static const size_t MAX_MSG_LEN = 3*512*1024;
-
         static const attrT ATTR_UNORDERED=0x0;
         static const attrT ATTR_ORDERED=0x1;
 
         typedef SafeMPI::Request Request;
 
     private:
-#ifdef HAVE_CRAYXT
-        static const int NRECV=128;
-#else
-        static const int NRECV=32;
+#if HAVE_INTEL_TBB
+        static tbb::empty_task* tbb_rmi_parent_task;
+
+        class RMI_TBB_TASK : public tbb::task {
+        private:
+            RMI* rmi;
+        public:
+            RMI_TBB_TASK(RMI* rmi_) : rmi(rmi_) {}
+            tbb::task* execute() {
+                rmi->run();
+                return NULL;
+            }
+        };
 #endif
-        static const int MAXQ=NRECV+1;
+
+        static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;
+#ifdef HAVE_CRAYXT
+        static const int DEFAULT_NRECV=128;
+#else
+        static const int DEFAULT_NRECV=32;
+#endif
 
         std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
 
@@ -161,10 +169,13 @@ namespace madness {
         volatile bool debugging;    // True if debugging
         volatile bool finished;     // True if finished
 
-        volatile counterT* send_counters;
-        counterT* recv_counters;
-        unsigned char* recv_buf[NRECV+1]; // Will be at least ALIGNMENT aligned ... +1 for huge messages
-        SafeMPI::Request recv_req[NRECV+1];
+        ScopedArray<volatile counterT> send_counters;
+        ScopedArray<counterT> recv_counters;
+        std::size_t max_msg_len_;
+        std::size_t nrecv_;
+        std::size_t maxq_;
+        ScopedArray<void*> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
+        ScopedArray<SafeMPI::Request> recv_req;
 
         static RMI* instance_ptr;    // Pointer to the singleton instance
 
@@ -194,6 +205,11 @@ namespace madness {
         void private_exit();
 
     public:
+
+        static std::size_t max_msg_len() { return instance()->max_msg_len_; }
+        static std::size_t maxq() { return instance()->maxq_; }
+        static std::size_t nrecv() { return instance()->nrecv_; }
+
         static Request isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED);
 
         static void end();
@@ -207,5 +223,7 @@ namespace madness {
         static const RMIStats& get_stats();
     };
 }
+
+
 
 #endif // MADNESS_WORLD_WORLDRMI_H__INCLUDED

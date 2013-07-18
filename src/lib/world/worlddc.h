@@ -1398,7 +1398,7 @@ namespace madness {
                 for (iterator it=begin(); it!=end(); ++it) ar & *it;
             }
             else {
-                long cookie;
+                long cookie = 0l;
                 ar & cookie;
                 MADNESS_ASSERT(cookie == magic);
                 ar & count;
@@ -1471,7 +1471,7 @@ namespace madness {
             static void store(const ParallelOutputArchive& ar, const WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
                 typedef WorldContainer<keyT,valueT> dcT;
-                typedef typename dcT::const_iterator iterator;
+                // typedef typename dcT::const_iterator iterator; // unused?
                 typedef typename dcT::pairT pairT;
                 World* world = ar.get_world();
                 Tag tag = world->mpi.unique_tag();
@@ -1487,8 +1487,8 @@ namespace madness {
                         else if (ar.io_node(p) == me) {
                             world->mpi.Send(int(1),p,tag); // Tell client to start sending
                             archive::MPIInputArchive source(*world, p);
-                            long cookie;
-                            unsigned long count;
+                            long cookie = 0l;
+                            unsigned long count = 0ul;
 
                             ArchivePrePostImpl<BinaryFstreamOutputArchive,dcT>::preamble_store(localar);
 
@@ -1529,14 +1529,14 @@ namespace madness {
             /// The IO node simply reads all data and inserts entries.
             static void load(const ParallelInputArchive& ar, WorldContainer<keyT,valueT>& t) {
                 const long magic = -5881828; // Sitar Indian restaurant in Knoxville (negative to indicate parallel!)
-                typedef WorldContainer<keyT,valueT> dcT;
-                typedef typename dcT::iterator iterator;
-                typedef typename dcT::pairT pairT;
+                // typedef WorldContainer<keyT,valueT> dcT; // unused
+                // typedef typename dcT::iterator iterator; // unused
+                // typedef typename dcT::pairT pairT; // unused
                 World* world = ar.get_world();
                 if (ar.dofence()) world->gop.fence();
                 if (ar.is_io_node()) {
-                    long cookie;
-                    int nclient;
+                    long cookie = 0l;
+                    int nclient = 0;
                     BinaryFstreamInputArchive& localar = ar.local_archive();
                     localar & cookie & nclient;
                     MADNESS_ASSERT(cookie == magic);

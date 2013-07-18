@@ -69,8 +69,8 @@ namespace madness {
 
         while (1) {
             uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
-            if (child0 != -1) req0 = world.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI::BYTE, child0, gfence_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI::BYTE, child1, gfence_tag);
+            if (child0 != -1) req0 = world.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI_BYTE, child0, gfence_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI_BYTE, child1, gfence_tag);
             world.taskq.fence();
             if (child0 != -1) World::await(req0);
             if (child1 != -1) World::await(req1);
@@ -105,7 +105,7 @@ namespace madness {
             sum[1] = sum0[1] + sum1[1] + nrecv2;
 
             if (parent != -1) {
-                req0 = world.mpi.Isend(&sum, sizeof(sum), MPI::BYTE, parent, gfence_tag);
+                req0 = world.mpi.Isend(&sum, sizeof(sum), MPI_BYTE, parent, gfence_tag);
                 World::await(req0);
             }
 
@@ -158,12 +158,12 @@ namespace madness {
         //print("BCAST TAG", bcast_tag);
 
         if (parent != -1) {
-            req0 = world.mpi.Irecv(buf, nbyte, MPI::BYTE, parent, bcast_tag);
+            req0 = world.mpi.Irecv(buf, nbyte, MPI_BYTE, parent, bcast_tag);
             World::await(req0, dowork);
         }
 
-        if (child0 != -1) req0 = world.mpi.Isend(buf, nbyte, MPI::BYTE, child0, bcast_tag);
-        if (child1 != -1) req1 = world.mpi.Isend(buf, nbyte, MPI::BYTE, child1, bcast_tag);
+        if (child0 != -1) req0 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child0, bcast_tag);
+        if (child1 != -1) req1 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child1, bcast_tag);
 
         if (child0 != -1) World::await(req0, dowork);
         if (child1 != -1) World::await(req1, dowork);

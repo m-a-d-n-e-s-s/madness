@@ -60,7 +60,7 @@ DistributedMatrix<T> plocalize_boys( World & world, const std::vector< Function<
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    madness::World world(MPI::COMM_WORLD);
+    madness::World world(SafeMPI::COMM_WORLD);
 
     redirectio(world); /* redirect a results to file "log.<number of processor>" */
 
@@ -78,8 +78,8 @@ int main(int argc, char** argv) {
             //print("result:", n, cpu_time()-t, M.localized_set());
         }
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

@@ -1,5 +1,5 @@
 /*
-  This file is part of MADNESS.  
+  This file is part of MADNESS.
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
   This program is free software; you can redistribute it and/or modify
@@ -203,7 +203,7 @@ string toString(int& i) {
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world, argc, argv);
     // Setup defaults for numerical functions
     double thresh = 1e-3;
@@ -263,7 +263,7 @@ int main(int argc, char** argv) {
             }
             fout.close();
         }
-    } catch (const MPI::Exception& e) {
+    } catch (const SafeMPI::Exception& e) {
         //print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {

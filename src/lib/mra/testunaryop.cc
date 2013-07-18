@@ -106,8 +106,9 @@ void test_unaryop(World& world) {
 }
 
 int main(int argc, char**argv) {
-    MPI::Init(argc, argv);
-    World world(MPI::COMM_WORLD);
+    const int required = MADNESS_MPI_THREAD_LEVEL;
+    SafeMPI::Init_thread(argc, argv, required);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         startup(world,argc,argv);
@@ -115,8 +116,8 @@ int main(int argc, char**argv) {
         test_unaryop<double,1>(world);
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {
@@ -148,7 +149,7 @@ int main(int argc, char**argv) {
     }
 
     world.gop.fence();
-    MPI::Finalize();
+    SafeMPI::Finalize();
 
     return 0;
 }

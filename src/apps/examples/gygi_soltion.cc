@@ -1,50 +1,50 @@
 /*
-                                                                                                                                                        
+
   This file is part of MADNESS.
- 
+
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
-  the Free Software Foundation; either version 2 of the License, or 
-  (at your option) any later version.                                                                                      
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-  GNU General Public License for more details. 
+  GNU General Public License for more details.
 
   You should have received a copy of the GNU General Public License
   along with this program; if not, write to the Free Software
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-  For more information please contact:  
-  
-  Robert J. Harrison                                                                            
-  Oak Ridge National Laboratory       
-  One Bethel Valley Road    
-  P.O. Box 2008, MS-6367  
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
 
   email: harrisonrj@ornl.gov
   tel:   865-241-3937
-  fax:   865-572-0680                                   
+  fax:   865-572-0680
 $Id$
 */
 
-/*!                                                                                                                                                        
-  \file examples/gygi_slution.cc       
+/*!
+  \file examples/gygi_slution.cc
   \brief compute the dielectric cavity and the electrostatic potential of hydrogen atom in water
   \defgroup examplegygi compute the dielectric cavity and the electrostatic potential of hydrogen atom in water
-  \ingroup examples                     
-                                                                                                                    
-  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/gygi_slution.cc>here</a>.  
+  \ingroup examples
+
+  The source is <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local/trunk/src/apps/examples/gygi_slution.cc>here</a>.
 
   \par Points of interest
   - compute the dielectric functional (of density)
   - compute the electrostatic potential by convolving the free space Green's function with the effective charge and the induced surface charge
   - compute the derivatives of the dielectric functional and the electrosstatic potential with respect to the density
-  \par Background 
-  - This program is an implementation of the solvation model in THE JOURNAL OF CHEMICAL PHYSICS 124, 074103 (2006) 
+  \par Background
+  - This program is an implementation of the solvation model in THE JOURNAL OF CHEMICAL PHYSICS 124, 074103 (2006)
   - The DFT equation is not solved
   - The test system isa hydrogen atom (1s orbital)
 */
@@ -72,7 +72,7 @@ double XXstart;
 #define TIME(MSG,X) XXstart=wall_time();          \
                     X; \
 		    if (world.rank() == 0)print("timer: ", MSG,"used",wall_time() - XXstart) \
-					   
+
 //nucleu charge density
 double nuc_func(const coord_3d& r) {
   const double expnt = 100.0;
@@ -90,14 +90,14 @@ class GygiPot {
 private:
   const realfunc& rho;    //density for the poisson's equation
   const realfunc& rhot;    //density for the dielectric functional
-  const double& rho_0;  // the density at the solut-solvent interface 
+  const double& rho_0;  // the density at the solut-solvent interface
   const double& epsilon; //assyptotic value of the dielectric functional
   const int& maxiter;  // maximum iterations in the solver
   World& world;
   const double& Gamma;   //the surface tention of the solvent
   static const double cutrho = 1e-8;  //cutoff value of the density
   //utility function
-  
+
   //unary operator to determine the reciprocal of a madness function
   template<typename T,int DIM>
   struct Reciprocal {
@@ -134,14 +134,14 @@ private:
   };
   //density ratio raised to the power 2beta
   realfunc ratio_rho()const {
-    double rerho_0 =-1.0/rho_0;   
+    double rerho_0 =-1.0/rho_0;
     realfunc rr = rerho_0*rhot;
     rr.unaryop(Pow<double,3>());
     return rr;
   }
   //density ratio raised to the power 2*beta -1
   realfunc rho_beta_one() const {
-    double rerho_0 =-1.0/rho_0 ;   
+    double rerho_0 =-1.0/rho_0 ;
     realfunc rr = rerho_0*rhot;
     rr.unaryop(Pow_beta_one<double,3>());
     return rr;
@@ -191,7 +191,7 @@ public:
   double cavitation_energy() const {
     double fac =1.0/rho_0;
     double quantum_surface = 0.5*fac*beta*grad_rho(rho).norm2();
-    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u 
+    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u
     return convfact*Gamma*quantum_surface;
   }
   //cavitation potential to be included in the KS equation
@@ -203,7 +203,7 @@ public:
     realfunc gradsq = Dx(rho)*Dx(rho) + Dy(rho)*Dy(rho) + Dz(rho)*Dz(rho);
     realfunc nume = fac*grad_rho(gradsq);
     realfunc denom =(1.0/grad_rho(rho).norm2())*re_grad_rho(rho);
-    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u 
+    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u
     return nume*denom*convfact*Gamma;
   }
   /*defining the quantum surface with a Gaussian
@@ -220,25 +220,25 @@ public:
   realfunc GuessPotential(World& world) const {
     double tol = madness::FunctionDefaults<3>::get_thresh();
     real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
-    //return op(rho); 
-    return op(re_epsilon_rho()*rho);   //U_0  
+    //return op(rho);
+    return op(re_epsilon_rho()*rho);   //U_0
 }
-//Molecular potential i.e potential due to the molecular charge distribution                                                                             
+//Molecular potential i.e potential due to the molecular charge distribution
   realfunc MolecularPotential()const {
     return (re_epsilon_rho()*rho);
   }
-  //compute the gradient of epsilon[rho] 
+  //compute the gradient of epsilon[rho]
   realfunc depsilon_dr() const {
     return depsilon_drho()*grad_rho(rhot);
   }
-  //compute the surface charge                                                                                                                            
+  //compute the surface charge
   realfunc make_surfcharge(const realfunc& u) const {
     realfunc gradU = grad_rho(u);
     //  realfunc eprho = epsilon_rho();
     const double rfourpi = 1.0/(4.0*constants::pi);
     return (rfourpi*re_epsilon_rho()*depsilon_dr()*gradU).truncate();
   }
-  
+
   //Define the electrostatic potential
   realfunc ESP(World& world)const {
     const bool USE_SOLVER = true;
@@ -249,13 +249,13 @@ public:
     print("U.norm2: ", unorm);
     if (USE_SOLVER) {
       madness::NonlinearSolver solver;
-      // This section employs a non-linear equation solver from solvers.h                                                                                  
-      //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract                                                                               
+      // This section employs a non-linear equation solver from solvers.h
+      //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract
       if (world.rank() == 0){
-        print("\n\n");//for formating output                                                                                                              
+        print("\n\n");//for formating output
 	madness::print("    Computing the Electrostatic Potential   ");
 	madness::print("           ______________________           \n ");
-	
+
 	madness::print("iteration          residue norm2                soln(10.0)            used \n");
       }
       realfunc uvec, rvec;
@@ -306,7 +306,7 @@ public:
   };
 int main(int argc, char **argv){
   initialize(argc,argv);
-  World world(MPI::COMM_WORLD);
+  World world(SafeMPI::COMM_WORLD);
   startup(world,argc,argv);
   //Function default
   FunctionDefaults<3>::set_k(k);
@@ -326,16 +326,16 @@ int main(int argc, char **argv){
   print("L            ",L);
   TIME("make eletronic density:  ",const realfunc rho = real_factory_3d(world).f(rho_func));
   TIME("make nuclear density:  ",const realfunc rhon = real_factory_3d(world).f(nuc_func));
-  print("total charge: ", rho.trace()); 
+  print("total charge: ", rho.trace());
   print("total charge: ", rhon.trace());
   //total charge
   const realfunc rhot = rho + rhon;
-  //Make a GygiPot object 
+  //Make a GygiPot object
   GygiPot gygi(rho,rhot,rho_0,epsilon,maxiter,world,Gamma);
   TIME("make ESP:                         ", realfunc U = gygi.ESP(world));
   //derivative of dielectric function w.r.t rho
   TIME("make depsilon_drho:               ", realfunc depdrho = gygi.depsilon_drho());
-  //total charge 
+  //total charge
   TIME("make epsilon[rho]:                ",realfunc eprho = gygi.epsilon_rho());
   TIME("make reciprocal of dielectric:    ",realfunc reprho = gygi.re_epsilon_rho());
   TIME("make charge:                      ",realfunc charge = gygi.make_surfcharge(U));
@@ -346,7 +346,7 @@ int main(int argc, char **argv){
   TIME("make deriv of free energy:        ",realfunc dfree = gygi.dfree_drho());
   //make the dielectric functional
   print("plotting ");
-  coord_3d lo(0.0), hi(0.0); // Range for line plotting                                                                                                   
+  coord_3d lo(0.0), hi(0.0); // Range for line plotting
   lo[0] =-10.0;
   hi[0] = 10.0;
   plot_line("ESP.dat", 401, lo, hi, U);
@@ -359,7 +359,7 @@ int main(int argc, char **argv){
   plotdx(eprho,"dielec_cavity.dx");
   print("\ncompute quantum surface \n");
   print(" dfree_drho  ",dfree.norm2());
-  print("cav energy:   ",cavE);    
+  print("cav energy:   ",cavE);
   finalize();
   return 0;
 }

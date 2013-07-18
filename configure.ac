@@ -12,6 +12,7 @@ AC_CONFIG_MACRO_DIR([config])
 
 # Default options for automake ??
 AM_INIT_AUTOMAKE([-Wall -Werror nostdinc foreign])
+m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
 # We want #defines output into a header file
@@ -116,6 +117,10 @@ ACX_WITH_LIBUNWIND
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC
+ACX_WITH_TBB
+
+# Set task profiler option
+ACX_ENABLE_TASK_PROFILER
 
 # Check for basic build functionality
 AC_PROG_RANLIB
@@ -180,6 +185,9 @@ ACX_POSIX_MEMALIGN
 
 # Check for EIGEN3
 ACX_WITH_EIGEN3
+
+# Check for Elemental
+ACX_WITH_ELEMENTAL
 
 # Checks for Fortran linking conventions and BLAS+LAPACK at the same time
 ACX_FORTRAN_SYMBOLS
@@ -291,7 +299,7 @@ AC_ARG_ENABLE([bsend-ack],
              AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
             ])
 AC_ARG_WITH([fortran-int32],
-            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit.])],
+            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
             [
               case $withval in
                 yes)
@@ -313,6 +321,28 @@ AC_ARG_WITH([fortran-int32],
              AC_MSG_NOTICE([Fortran integer: long])
             ])
 
+# Set the MPI thread level used by MADNESS
+MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
+if test X$MADNESS_HAS_ELEMENTAL = X1; then
+  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
+fi
+AC_ARG_WITH([mpi-thread],
+            [AC_HELP_STRING([--with-mpi-thread], [Thread level for MPI (multiple,serialized)])],
+            [
+              case $withval in
+                multiple)
+                  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_MULTIPLE
+                  ;;
+                serialized)
+                  MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
+                  ;;
+                *)
+                  AC_MSG_ERROR([Invalid value for --with-mpi-thread ($withval)])
+                  ;;
+              esac
+            ])
+AC_DEFINE_UNQUOTED([MADNESS_MPI_THREAD_LEVEL], [$MADNESS_MPI_THREAD_LEVEL], [Thread-safety level requested from MPI by MADNESS])
+AC_MSG_NOTICE([MPI thread-safety requested: $MADNESS_MPI_THREAD_LEVEL])
 
 # Stuff that either does not work or is ill-advised
 ######AC_DEFINE([WORLD_TAU_TRACE],[1],[Enable tracing using tau])

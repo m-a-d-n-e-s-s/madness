@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
     Mask mask;
 
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
     // the structure for the problem
@@ -264,7 +264,7 @@ int main(int argc, char **argv) {
     usol.clear();
 
     // load balance using the domain mask, the surface function, and the rhs
-    if(world.rank() == 0){ 
+    if(world.rank() == 0){
         printf("Load Balancing\n");
         fflush(stdout);
     }

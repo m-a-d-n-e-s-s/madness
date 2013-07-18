@@ -65,7 +65,7 @@ inline static void csqrt_op(const Key<1>& key, Tensor< T >& t) {
 int main(int argc, char** argv)
 {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     startup(world,argc,argv);
     std::cout.precision(6);

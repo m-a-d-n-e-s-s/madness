@@ -33,6 +33,7 @@
 #ifndef MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 #define MADNESS_WORLD_WORLDMUTEX_H__INCLUDED
 
+#include <TAU.h>
 #include <madness_config.h>
 #include <pthread.h>
 #ifdef ON_A_MAC
@@ -73,13 +74,12 @@ namespace madness {
         unsigned int count;
 
         /// Yield for specified number of microseconds unless dedicated CPU
+        /// Blue Gene always has a dedicated hw thread
         void yield(int us) { 
-#ifdef HAVE_IBMBGP
-	    cpu_relax();
-#else
-	    myusleep(us); 
+#if !defined(HAVE_IBMBGP) && !defined(HAVE_IBMBGQ)
+	        myusleep(us); 
 #endif
-	}
+	    }
 
     public:
         MutexWaiter() : count(0) { }
@@ -440,6 +440,7 @@ namespace madness {
             // We put a pointer to a thread-local variable at the
             // end of the queue and wait for that value to be set,
             // thus generate no memory traffic while waiting.
+            TAU_START("madness:ConditionVariable::wait()");
             volatile bool myturn = false;
             int b = back;
             q[b] = &myturn;
@@ -450,6 +451,7 @@ namespace madness {
             unlock(); // Release lock before blocking
             while (!myturn) cpu_relax();
             lock();
+            TAU_STOP("madness:ConditionVariable::wait()");
         }
         
         /// You should acquire the mutex before signalling
@@ -493,6 +495,7 @@ namespace madness {
         MutexFair() : n(0), front(0), back(0) {};
         
         void lock() const {
+	  //	  TAU_START("MutexFair::lock()");
             volatile bool myturn = false;
             Spinlock::lock();
             ++n;
@@ -508,9 +511,11 @@ namespace madness {
             Spinlock::unlock();
             
             while (!myturn) cpu_relax();
+	    //   TAU_STOP("MutexFair::lock()");
         }
         
         void unlock() const {
+	  //TAU_START("MutexFair::unlock()");
             volatile bool* p = 0;
             Spinlock::lock();
             n--;
@@ -522,6 +527,7 @@ namespace madness {
             }
             Spinlock::unlock();
             if (p) *p = true;
+	    //TAU_STOP("MutexFair::unlock()");
         }
         
         bool try_lock() const {

@@ -33,7 +33,7 @@
 */
 
 #include <constants.h>
-#include <moldft/atomutil.h>
+#include <DFcode/atomutil.h>
 #include <misc/misc.h>
 #include <algorithm>
 #include <cmath>

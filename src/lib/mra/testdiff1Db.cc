@@ -1,7 +1,7 @@
 /// \file testdiff1Db.cc
 /// \brief testing for diff() in 1D
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/mraimpl.h>
 
@@ -15,7 +15,7 @@ typedef Tensor<double> tensorT;
 static const double PI = 3.1415926535897932384;
 static const int k = 9 ; // Wavelet order (usually precision + 2)
 static const double thresh = 1.e-7 ; // Precision
-static const int init_lev = 4; 
+static const int init_lev = 4;
 static const int test_axis = 0;
 
 void compare(World& world, functionT test, functionT exact, const char *str)
@@ -70,17 +70,10 @@ static double right_neumann  (const coordT &pt) {
 
 
 int main(int argc, char** argv) {
-    
-#ifdef SERIALIZE_MPI
-    int required = MPI::THREAD_SERIALIZED;
-#else
-    int required = MPI::THREAD_MULTIPLE;
-#endif
-    int provided = MPI::Init_thread(argc, argv, required);
-    if (provided < required && MPI::COMM_WORLD.Get_rank() == 0) {
-        std::cout << "!! Warning: MPI::Init_thread did not provide requested functionality " << required << " " << provided << std::endl;
-    }
-	World world(MPI::COMM_WORLD);
+
+    const int required = MADNESS_MPI_THREAD_LEVEL;
+    SafeMPI::Init_thread(argc, argv, required);
+	World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
         std::cout.precision(6);
@@ -142,9 +135,9 @@ int main(int argc, char** argv) {
          world.gop.fence();
 
     finalize();
-    
+
     return 0;
 }
 
-        
-        
+
+

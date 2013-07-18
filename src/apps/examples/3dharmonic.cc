@@ -52,7 +52,7 @@
   \f[
   \left( -\frac{1}{2} \nabla^2 + V(r) \right) \psi(r) = E \psi(r)
   \f]
-  with 
+  with
   \f[
   V(r) = \frac{1}{2} |r|^2
   \f]
@@ -60,9 +60,9 @@
   \f[
   \psi(r) = \left( -\frac{1}{2} \nabla^2 - E \right)^{-1} V(r) \psi(r)
   \f]
-  but unfortunately we are left with two problems.  
+  but unfortunately we are left with two problems.
 
-  First, recall that application 
+  First, recall that application
   of the inverse of the differential operator corresponds to convolution
   with the Green's function to the Helmholtz equation that satisfies
   \f[
@@ -156,7 +156,7 @@ double energy(World& world, const real_function_3d& phi, const real_function_3d&
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     if (world.rank() == 0) printf("starting at time %.1f\n", wall_time());
 
@@ -183,7 +183,7 @@ int main(int argc, char** argv) {
       real_function_3d Vphi = V*phi;
       Vphi.truncate();
       real_convolution_3d op = BSHOperator3D(world, sqrt(-2*E), 0.01, thresh);
-      
+
       real_function_3d r = phi + 2.0 * op(Vphi); // the residual
       double err = r.norm2();
 
@@ -191,7 +191,7 @@ int main(int argc, char** argv) {
       //phi = phi-r;  // Replace the above line with this to use fixed-point iteration
 
       double norm = phi.norm2();
-      phi.scale(1.0/norm);  // phi *= 1.0/norm      
+      phi.scale(1.0/norm);  // phi *= 1.0/norm
       E = energy(world,phi,V);
 
       if (world.rank() == 0)

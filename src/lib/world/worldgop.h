@@ -253,8 +253,8 @@ namespace madness {
             T* buf0 = new T[nelem];
             T* buf1 = new T[nelem];
 
-            if (child0 != -1) req0 = world.mpi.Irecv(buf0, nelem*sizeof(T), MPI::BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv(buf1, nelem*sizeof(T), MPI::BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
 
             if (child0 != -1) {
                 World::await(req0);
@@ -269,7 +269,7 @@ namespace madness {
             delete [] buf1;
 
             if (parent != -1) {
-                req0 = world.mpi.Isend(buf, nelem*sizeof(T), MPI::BYTE, parent, gsum_tag);
+                req0 = world.mpi.Isend(buf, nelem*sizeof(T), MPI_BYTE, parent, gsum_tag);
                 World::await(req0);
             }
 
@@ -366,8 +366,8 @@ namespace madness {
             unsigned char* buf0 = new unsigned char[bufsz];
             unsigned char* buf1 = new unsigned char[bufsz];
 
-            if (child0 != -1) req0 = world.mpi.Irecv(buf0, bufsz, MPI::BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv(buf1, bufsz, MPI::BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world.mpi.Irecv(buf0, bufsz, MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world.mpi.Irecv(buf1, bufsz, MPI_BYTE, child1, gsum_tag);
 
             std::vector<T> left, right;
             if (child0 != -1) {
@@ -387,7 +387,7 @@ namespace madness {
             if (parent != -1) {
                 archive::BufferOutputArchive ar(buf0, bufsz);
                 ar & left;
-                req0 = world.mpi.Isend(buf0, ar.size(), MPI::BYTE, parent, gsum_tag);
+                req0 = world.mpi.Isend(buf0, ar.size(), MPI_BYTE, parent, gsum_tag);
                 World::await(req0);
             }
 

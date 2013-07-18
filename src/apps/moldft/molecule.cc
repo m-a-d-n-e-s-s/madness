@@ -36,6 +36,7 @@
 /// \file moldft/molecule.cc
 /// \brief Simple management of molecular information and potential
 
+#include <TAU.h>
 #include <tensor/tensor.h>
 #include <linalg/tensor_lapack.h>
 #include <constants.h>
@@ -150,6 +151,8 @@ void Molecule::add_atom(double x, double y, double z, double q, int atomic_numbe
     atoms.push_back(Atom(x,y,z,q,atomic_number));
     double c = smoothing_parameter(q, eprec); // eprec is error per atom
     //printf("smoothing param %.6f\n", c);
+    double radius = get_atomic_data(atomic_number).covalent_radius;//Jacob added
+    atomic_radii.push_back(radius*1e-10/madness::constants::atomic_unit_of_length);// Jacob added
     rcut.push_back(1.0/c);
 }
 
@@ -534,8 +537,20 @@ double Molecule::total_nuclear_charge() const {
     }
     return sum;
 }
-
+//Nuclear charge density of the molecule
+double Molecule::mol_nuclear_charge_density(double x, double y, double z) const {
+    // Only one atom will contribute due to the short range of the nuclear            
+    // charge density                                                                                                                                        
+    for (unsigned int i=0; i<atoms.size(); i++) {
+        double r = distance(x, y, z, atoms[i].x, atoms[i].y, atoms[i].z)*rcut[i];
+        if (r < 6.0) {
+            return atoms[i].atomic_number*smoothed_density(r)*rcut[i]*rcut[i]*rcut[i];
+        }
+    }
+    return  0.0;
+}
 double Molecule::nuclear_attraction_potential(double x, double y, double z) const {
+   TAU_START("Molecule::nuclear_attraction_potential");
     // This is very inefficient since it scales as O(ngrid*natom)
     // ... we can easily make an O(natom) version using
     // the integral operator and sparse projection of an effective
@@ -553,6 +568,7 @@ double Molecule::nuclear_attraction_potential(double x, double y, double z) cons
     // field contribution
     sum += field[0] * x + field[1] * y + field[2] * z;
 
+   TAU_STOP("Molecule::nuclear_attraction_potential");
     return sum;
 }
 
@@ -628,6 +644,7 @@ double Molecule::molecular_core_potential(double x, double y, double z) const {
     int natom = atoms.size();
     double sum = 0.0;
 
+    TAU_START("Molecule::molecular_core_potential");
     for (int i=0; i<natom; ++i) {
         unsigned int atn = atoms[i].atomic_number;
         if (core_pot.is_defined(atn)) {
@@ -636,6 +653,7 @@ double Molecule::molecular_core_potential(double x, double y, double z) const {
         }
     }
 
+    TAU_STOP("Molecule::molecular_core_potential");
     return sum;
 }
 

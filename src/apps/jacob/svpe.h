@@ -61,6 +61,7 @@ private:
   vector_real_function_3d dlog;
   realfunc rdielectric;
   realfunc surface;
+  realfunc volume;
 public:
   //constructor                                                                                                                                           
  ScreenSolventPotential(World& world,
@@ -83,9 +84,11 @@ public:
      realfunct gradx_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,0));
      realfunct grady_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,1));
      realfunct gradz_functor(new MolecularVolumeExponentialSwitchLogGrad(sigma, epsilon_1, epsilon_2, atomic_radii, atomic_coords,2));
-     realfunct surface_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
+     realfunct surface_functor(new MolecularSurface(sigma, atomic_radii, atomic_coords));
+
+     realfunct volume_functor(new MolecularVolumeMask(sigma, atomic_radii, atomic_coords));
    // Make the actual functions                                                                                                                        
-   const double rfourpi = 1.0/(4.0*constants::pi);
+   const double rfourpi = -1.0/(4.0*constants::pi);
    rdielectric = real_factory_3d(world).functor(rdielectric_functor).nofence();
    dlog[0] = real_factory_3d(world).functor(gradx_functor).nofence();
    dlog[1] = real_factory_3d(world).functor(grady_functor).nofence();
@@ -94,6 +97,7 @@ public:
    rdielectric.truncate(false);
    truncate(world, dlog);
    surface = real_factory_3d(world).functor(surface_functor);
+   volume = real_factory_3d(world).functor(volume_functor);
  }
   //make surface charge. life is good!!!uuh!
   /// Given the full Coulomb potential computes the surface charge                                                                                        
@@ -112,18 +116,21 @@ public:
   //Compute the reaction potential                                                                              
   realfunc ScreenReactionPotential(World& world,int maxiter, const realfunc rhot, bool solventplot)const {
     const bool USE_SOLVER = true;
-    double tol = std::max(1e-7,FunctionDefaults<3>::get_thresh());
+    double tol = std::max(1e-3,FunctionDefaults<3>::get_thresh());
     real_convolution_3d op = madness::CoulombOperator(world, tol*10.0, tol*0.1);
     realfunc charge = rdielectric*rhot;
     realfunc U0 = op(charge);
-    realfunc U = op(rhot);
+    realfunc U = U0;//op(rhot);
     //    realfunc U = Uguess.is_initialized()? Uguess : U0;
     double unorm = U.norm2();
     double surf = surface.trace();
-    if(world.rank() == 0)
+    double vol = volume.trace();
+    if(world.rank() == 0){
         print("SURFACE ", surf);
+        print("VOLUMEE ", vol);
+    }
     if (USE_SOLVER) {
-        madness::NonlinearSolver solver;//(5);
+        madness::NonlinearSolver solver(20);//(5);
       // This section employs a non-linear equation solver from solvers.h                                                                                  
       //  http://onlinelibrary.wiley.com/doi/10.1002/jcc.10108/abstract                                                                                    
       realfunc uvec, rvec;
@@ -143,7 +150,7 @@ public:
         realfunc surface_charge = make_surface_charge(U);
         plot_line("svpe_SurfaceCharge.dat",1001,lo,hi,surface_charge);
        
-        rvec = (U -U0 - op(surface_charge)).truncate() ;
+        rvec = (U -U0 + op(surface_charge)).truncate() ;
 	realfunc U_new = solver.update(uvec,rvec);
         double err = rvec.norm2();
 	//	madness::print("iter ", iter, " error ", err, "soln(2.4566)", U(coord_3d(2.4566)));
@@ -169,10 +176,10 @@ public:
     if(solventplot){
         //      plot_line("svpe_SurfaceCharge.dat",1001,lo,hi,surface_charge);
       plot_line("svp_2D_surface.dat",1001,lo,hi,surface);
-      plot_line("svp_2D_reaction_pot.dat",1001,lo,hi,Ureaction);
-      // plotdx(surface_charge,"svpe_SurfaceCharge.dx");
-      plotdx(surface,"svp_3D_surface.dx");
-      plotdx(Ureaction,"svpe_reaction_pot.dx");
+       plot_line("svp_2D_reaction_pot.dat",1001,lo,hi,Ureaction);
+       //   plotdx(surface_charge,"svpe_SurfaceCharge.dx");
+       plotdx(surface,"svp_3D_surface.dx");
+       plotdx(Ureaction,"svpe_reaction_pot.dx");
     }
     return Ureaction;
   }

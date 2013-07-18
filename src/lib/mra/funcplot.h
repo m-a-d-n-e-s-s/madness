@@ -398,6 +398,8 @@ namespace madness {
         f.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
+	    if(!file)
+	      MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
             for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
@@ -427,6 +429,8 @@ namespace madness {
         g.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
+	    if(!file)
+	      MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
             for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);
@@ -459,6 +463,8 @@ namespace madness {
         a.reconstruct();
         if (world.rank() == 0) {
             FILE* file = fopen(filename,"w");
+	    if(!file)
+	      MADNESS_EXCEPTION("plot_line: failed to open the plot file", 0);
             for (int i=0; i<npt; ++i) {
                 coordT r = lo + h*double(i);
                 fprintf(file, "%.14e ", i*sum);

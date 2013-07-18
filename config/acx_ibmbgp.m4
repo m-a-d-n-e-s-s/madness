@@ -34,6 +34,7 @@ AC_DEFUN([ACX_IBMBGP],[
 
                 BIND="-1 -1 -1"
                 AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])
+                CXXFLAGS="$CXXFLAGS -DMPICH_SKIP_MPICXX"
         fi
 ])
 

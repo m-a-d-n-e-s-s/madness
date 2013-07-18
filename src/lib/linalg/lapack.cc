@@ -33,6 +33,7 @@
 */
 
 
+#include <madness_config.h>
 #include <tensor/tensor.h>
 
 #include <iostream>
@@ -54,10 +55,15 @@ using madness::Tensor;
 #ifdef MADNESS_HAS_EIGEN3
 #  include <linalg/eigen.h>
 #endif
+
 #ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
-#include <linalg/tensor_lapack.h>
-#include <linalg/clapack.h>
+#  include <linalg/tensor_lapack.h>
+#  include <linalg/clapack.h>
 #endif
+
+
+
+double tt1, ss1;
 
 #ifdef STATIC
 #  undef STATIC
@@ -121,7 +127,6 @@ STATIC inline void dgesv_(integer* n, integer* nrhs, double_complex* AT, integer
                           integer* piv, double_complex* x, integer* ldx, integer* info) {
     zgesv_(n, nrhs, AT, lda, piv, x, ldx, info);
 }
-
 /// These oddly-named wrappers enable the generic gelss iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
 /// use only.
@@ -188,8 +193,6 @@ void dsygv_(integer *itype, const char* jobz, const char* uplo, integer *n,
            a, lda, b, ldb, w,  work,  lwork, rwork.ptr(), info,
            jobzlen, uplo_len);
 }
-
-
 
 /// These oddly-named wrappers enable the generic syev/heev iterface to get
 /// the correct LAPACK routine based upon the argument type.  Internal
@@ -299,30 +302,6 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "svd: Lapack failed", info, &a);
     }
 
-#endif //MADNESS_HAS_EIGEN3
-
-    /// Example and test code for interface to LAPACK SVD interfae
-    template <typename T>
-    double test_svd(int n, int m) {
-        Tensor<T> a(n,m), U, VT;
-        typedef typename TensorTypeData<T>::scalar_type scalar_type;
-        Tensor<scalar_type> s;
-
-        a.fillrandom();
-        svd(a,U,s,VT);
-
-        long rank = s.dim(0);
-        Tensor<T> b(n,m);
-        for (long i=0; i<n; ++i)
-            for (long j=0; j<m; ++j)
-                for (long k=0; k<rank; ++k)
-                    b(i,j) += U(i,k) * T(s(k)) * VT(k,j);
-
-        b -= a;
-        return b.absmax();
-    }
-
-#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Solve Ax = b for general A using the LAPACK *gesv routines.
 
     A should be a square matrix (float, double, float_complex,
@@ -360,45 +339,7 @@ namespace madness {
 
         if (b.ndim() == 2) x = transpose(x);
     }
-#endif //MADNESS_HAS_EIGEN3
 
-    template <typename T>
-    double test_gesv(int n, int nrhs) {
-        Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
-
-        a.fillrandom();
-        b1.fillrandom();
-        b.fillrandom();
-
-//         print("A");
-//         print(a);
-
-//         print("B");
-//         print(b);
-
-//         print("B1");
-//         print(b1);
-
-        gesv(a,b,x);
-        gesv(a,b1,x1);
-
-//         print("X");
-//         print(x);
-
-//         print("X1");
-//         print(x1);
-
-//         print("R");
-//         print(inner(a,x)-b);
-
-//         print("R1");
-//         print(inner(a,x1)-b1);
-
-        return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
-    }
-
-
-#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Solve Ax = b for general A using the LAPACK *gelss routines.
 
     A should be a matrix (float, double, float_complex,
@@ -498,25 +439,7 @@ namespace madness {
         else
             x = lapack_inout;
     }
-#endif //MADNESS_HAS_EIGEN3
 
-    template <typename T>
-    double test_gelss(int n, int nrhs) {
-        Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
-        Tensor< typename Tensor<T>::scalar_type > s, sumsq;
-        long rank;
-
-        a.fillrandom();
-        b1.fillrandom();
-        b.fillrandom();
-
-        gelss(a,b,1e-5,x,s,rank,sumsq);
-        gelss(a,b1,1e-5,x1,s,rank,sumsq);
-
-        return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
-    }
-
-#ifndef MADNESS_HAS_EIGEN3
     /** \brief   Real-symmetric or complex-Hermitian eigenproblem.
 
     A is a real symmetric or complex Hermitian matrix.  Return V and e
@@ -546,40 +469,7 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "(s/d)syev/(c/z)heev failed", info, &A);
         V = transpose(V);
     }
-#endif //MADNESS_HAS_EIGEN3
 
-    // This stupidity since current defn of conj_tranpose() only
-    // takes complex types ... was that a sensible design choice?
-    STATIC Tensor<float> my_conj_transpose(Tensor<float> a) {
-        return transpose(a);
-    }
-    STATIC Tensor<double> my_conj_transpose(Tensor<double> a) {
-        return transpose(a);
-    }
-    STATIC Tensor<float_complex> my_conj_transpose(Tensor<float_complex> a) {
-        return conj_transpose(a);
-    }
-    STATIC Tensor<double_complex> my_conj_transpose(Tensor<double_complex> a) {
-        return conj_transpose(a);
-    }
-
-    template <typename T>
-    double test_syev(int n) {
-        Tensor<T> a(n,n), V;
-        Tensor< typename Tensor<T>::scalar_type > e;
-        a.fillrandom();
-        a += madness::my_conj_transpose(a);
-        syev(a,V,e);
-        double err = 0.0;
-        for (int i=0; i<n; ++i) {
-            err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf());
-            //err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*((T) e(i))).normf());
-        }
-        return err;
-    }
-
-
-#ifndef MADNESS_HAS_EIGEN3
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This from the LAPACK documentation
@@ -625,32 +515,16 @@ namespace madness {
         TENSOR_ASSERT(info == 0, "sygv/hegv failed", info, &A);
         V = transpose(V);
     }
-#endif //MADNESS_HAS_EIGEN3
+    
+    /** \brief  Compute the Cholesky factorization.
 
+    Compute the Cholesky factorization of the symmetric positive definite matrix A
 
-    template <typename T>
-    double test_sygv(int n) {
-        Tensor<T> a(n,n), V, b(n,n);
-        Tensor< typename Tensor<T>::scalar_type > e;
-        a.fillrandom();
-        b.fillrandom();
-        a += madness::my_conj_transpose(a);
-        b += madness::my_conj_transpose(b);
-        for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
-        sygv(a,b,1,V,e);
-        double err = 0.0;
-        for (int i=0; i<n; ++i) {
-            err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());
-        }
-        return err;
-    }
+    For memory efficiency A is modified inplace.  Its upper
+    triangle will hold the result and the lower trianlge will be
+    zeroed such that input = inner(transpose(output),output).
 
-#ifndef MADNESS_HAS_EIGEN3
-    /// Compute the Cholesky factorization of the symmetric positive definite matrix A
-
-    /// For memory efficiency A is modified inplace.  Its upper
-    /// triangle will hold the result and the lower trianlge will be
-    /// zeroed such that input = inner(transpose(output),output).
+    */
     template <typename T>
     void cholesky(Tensor<T>& A) {
         integer n = A.dim(0);
@@ -677,6 +551,111 @@ namespace madness {
 //         dtrsm(side, "L", transa, "N", m, n, one, L.ptr(), lda, B.ptr, ldb, 1, 1, 1, 1);
 //     }
 
+
+    // This stupidity since current defn of conj_tranpose() only
+    // takes complex types ... was that a sensible design choice?
+    STATIC Tensor<float> my_conj_transpose(Tensor<float> a) {
+        return transpose(a);
+    }
+    STATIC Tensor<double> my_conj_transpose(Tensor<double> a) {
+        return transpose(a);
+    }
+    STATIC Tensor<float_complex> my_conj_transpose(Tensor<float_complex> a) {
+        return conj_transpose(a);
+    }
+    STATIC Tensor<double_complex> my_conj_transpose(Tensor<double_complex> a) {
+        return conj_transpose(a);
+    }
+
+
+
+    /// Example and test code for interface to LAPACK SVD interfae
+    template <typename T>
+    double test_svd(int n, int m) {
+        Tensor<T> a(n,m), U, VT;
+        typedef typename TensorTypeData<T>::scalar_type scalar_type;
+        Tensor<scalar_type> s;
+
+        a.fillrandom();
+        svd(a,U,s,VT);
+
+        long rank = s.dim(0);
+        Tensor<T> b(n,m);
+        for (long i=0; i<n; ++i)
+            for (long j=0; j<m; ++j)
+                for (long k=0; k<rank; ++k)
+                    b(i,j) += U(i,k) * T(s(k)) * VT(k,j);
+
+        b -= a;
+
+        return b.absmax();
+    }
+
+    template <typename T>
+    double test_gesv(int n, int nrhs) {
+        Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
+
+        a.fillrandom();
+        b1.fillrandom();
+        b.fillrandom();
+
+        gesv(a,b,x);
+        gesv(a,b1,x1);
+
+        double err = 0;
+        err = (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
+        return err;
+    }
+    template <typename T>
+    double test_syev(int n) {
+        Tensor<T> a(n,n), V;
+        Tensor< typename Tensor<T>::scalar_type > e;
+        a.fillrandom();
+        //a += madness::my_conj_transpose(a);
+        a += madness::transpose(a);
+        syev(a,V,e);
+        double err = 0.0;
+        for (int i=0; i<n; ++i) {
+            err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*e(i)).normf());
+          //err = max(err,(double) (inner(a,V(_,i)) - V(_,i)*((T) e(i))).normf());
+        }
+        return err;
+    }
+
+    template <typename T>
+    double test_gelss(int n, int nrhs) {
+        Tensor<T> a(n,n), b1(n), b(n,nrhs), x1, x;
+        Tensor< typename Tensor<T>::scalar_type > s, sumsq;
+        long rank;
+
+        a.fillrandom();
+        b1.fillrandom();
+        b.fillrandom();
+
+        gelss(a,b,1e-5,x,s,rank,sumsq);
+        gelss(a,b1,1e-5,x1,s,rank,sumsq);
+
+        return (inner(a,x)-b).normf() + (inner(a,x1)-b1).normf();
+    }
+
+    template <typename T>
+    double test_sygv(int n) {
+        Tensor<T> a(n,n), V, b(n,n);
+        Tensor< typename Tensor<T>::scalar_type > e;
+
+        a.fillrandom();
+        b.fillrandom();
+        a += madness::my_conj_transpose(a);
+        b += madness::my_conj_transpose(b);
+
+        for (int i=0; i<n; ++i) b(i,i) = 2*n;	// To make pos-def
+        sygv(a,b,1,V,e);
+        double err = 0.0;
+        for (int i=0; i<n; ++i) {
+            err = max(err,(double) (inner(a,V(_,i)) - inner(b,V(_,i))*(T) e(i)).normf());
+        }
+        return err;
+    }
 
     template <typename T>
     double test_cholesky(int n) {
@@ -710,31 +689,49 @@ namespace madness {
         try {
             cout << "error in float svd " << test_svd<float>(20,30) << endl;
             cout << "error in double svd " << test_svd<double>(30,20) << endl;
+#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex svd " << test_svd<float_complex>(23,27) << endl;
             cout << "error in double_complex svd " << test_svd<double_complex>(37,19) << endl;
+#endif
             cout << endl;
-            cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
-            cout << "error in double gesv " << test_gesv<double>(30,20) << endl;
-            cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
-            cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
-            cout << endl;
-            cout << "error in float gelss " << test_gelss<float>(20,30) << endl;
+            
+            
+            cout << "error in float  gelss " << test_gelss<float>(20,30) << endl;
             cout << "error in double gelss " << test_gelss<double>(30,20) << endl;
+#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex gelss " << test_gelss<float_complex>(23,27) << endl;
             cout << "error in double_complex gelss " << test_gelss<double_complex>(37,19) << endl;
+#endif
             cout << endl;
-            cout << "error in float syev " << test_syev<float>(21) << endl;
+            
             cout << "error in double syev " << test_syev<double>(21) << endl;
+            cout << "error in float syev " << test_syev<float>(21) << endl;
+#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex syev " << test_syev<float_complex>(21) << endl;
             cout << "error in double_complex syev " << test_syev<double_complex>(21) << endl;
+#endif
             cout << endl;
-            cout << "error in float sygv " << test_sygv<float>(21) << endl;
-            cout << "error in double sygv " << test_sygv<double>(22) << endl;
+            
+            
+            cout << "error in float sygv " << test_sygv<float>(20) << endl;
+            cout << "error in double sygv " << test_sygv<double>(20) << endl;
+#ifndef MADNESS_HAS_EIGEN3
             cout << "error in float_complex sygv " << test_sygv<float_complex>(23) << endl;
             cout << "error in double_complex sygv " << test_sygv<double_complex>(24) << endl;
+#endif
+            cout << endl;
+            
+            cout << "error in float gesv " << test_gesv<float>(20,30) << endl;
+            cout << "error in double gesv " << test_gesv<double>(20,30) << endl;
+#ifndef MADNESS_HAS_EIGEN3
+            cout << "error in float_complex gesv " << test_gesv<float_complex>(23,27) << endl;
+            cout << "error in double_complex gesv " << test_gesv<double_complex>(37,19) << endl;
+#endif
             cout << endl;
             cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
+            cout << endl;
         }
+
         catch (TensorException e) {
             cout << "Caught a tensor exception in test_tensor_lapack\n";
             cout << e;
@@ -749,7 +746,7 @@ namespace madness {
     //   return 0;
     // }
 
-#ifndef MADNESS_HAS_EIGEN3
+//#ifndef MADNESS_HAS_EIGEN3
     // GCC 4.4.3 seems to want these explicitly instantiated whereas previous
     // versions were happy with the instantiations caused by the test code above
 
@@ -762,9 +759,6 @@ namespace madness {
              Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT, Tensor<double>& work);
 
     template
-    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
-
-    template
     void gelss(const Tensor<double>& a, const Tensor<double>& b, double rcond,
                Tensor<double>& x, Tensor<Tensor<double>::scalar_type >& s,
                long &rank, Tensor<Tensor<double>::scalar_type>& sumsq);
@@ -773,9 +767,6 @@ namespace madness {
     void syev(const Tensor<double>& A,
               Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
 
-    template
-    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
-              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
 
     template
     void cholesky(Tensor<double>& A);
@@ -794,9 +785,6 @@ namespace madness {
              Tensor<double_complex>& work);
 
     template
-    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
-
-    template
     void gelss(const Tensor<double_complex>& a, const Tensor<double_complex>& b, double rcond,
                Tensor<double_complex>& x, Tensor<Tensor<double_complex>::scalar_type >& s,
                long &rank, Tensor<Tensor<double_complex>::scalar_type>& sumsq);
@@ -805,12 +793,22 @@ namespace madness {
     void syev(const Tensor<double_complex>& A,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
-    template
-    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
-              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
 
 //     template
 //     void triangular_solve(const Tensor<double_complex>& L, Tensor<double_complex>& B,
 //                           const char* side, const char* transa);
-#endif //MADNESS_HAS_EIGEN3
+    template
+    void gesv(const Tensor<double>& a, const Tensor<double>& b, Tensor<double>& x);
+
+    template
+    void gesv(const Tensor<double_complex>& a, const Tensor<double_complex>& b, Tensor<double_complex>& x);
+
+    template
+    void sygv(const Tensor<double>& A, const Tensor<double>& B, int itype,
+              Tensor<double>& V, Tensor<Tensor<double>::scalar_type >& e);
+    template
+    void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
+              Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+//#endif //MADNESS_HAS_EIGEN
+
 }

@@ -39,13 +39,31 @@
 
 #include <linalg/tensor_lapack.h>
 #include <iostream>
+#include <madness_config.h>
+
+
+//#include <mra/mra.h>
 
 using namespace madness;
 
+
+
 int
 main(int argc, char* argv[]) {
+
+//vama    const int required = MADNESS_MPI_THREAD_LEVEL;
+//vama
+//vama
+//vama#ifdef MADNESS_HAS_ELEMENTAL
+//vama    SafeMPI::Init_thread(argc, argv, required);
+//vama    const int myrank = mpi::CommRank( mpi::COMM_WORLD );
+//vama#else
+//vama    const int myrank = 0;
+//vama#endif
+
     bool testok = test_tensor_lapack();
     std::cout << "Test " << (testok ? "passed" : "did not pass") << std::endl;
+
     return 0;
 }
 

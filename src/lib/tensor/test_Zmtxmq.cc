@@ -30,6 +30,7 @@
 
   $Id$
 */
+#include <madness_config.h>
 #if !(defined(X86_32) || defined(X86_64))
 
 #include <iostream>
@@ -37,35 +38,27 @@ int main() {std::cout << "x86 only\n"; return 0;}
 
 #else
 
-#include <tensor/tensor.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 //#include <xmmintrin.h>
 #include <complex>
 
-#include <tensor/mtxmq.h>
 #include <world/posixmem.h>
+#include <world/safempi.h>
+#include <linalg/cblas.h>
+#include <tensor/mtxmq.h>
+#include <tensor/tensor.h>
+
+typedef std::complex<double> double_complex;
 
 using namespace madness;
 
 #ifdef TIME_DGEMM
-#ifndef FORTRAN_INTEGER
-#define FORTRAN_INTEGER long
-#endif
-typedef FORTRAN_INTEGER integer;
-extern "C" void zgemm(const char *transa, const char *transb,
-                   const integer *m, const integer *n, const integer *k,
-                   const double_complex *alpha, const double_complex *a, const integer *lda,
-                   const double_complex *b, const integer *ldb, const double_complex *beta,
-                   double_complex *c, const integer *ldc, int la, int lb);
+
 void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
-  integer fni=ni;
-  integer fnj=nj;
-  integer fnk=nk;
   double_complex one=1.0;
-  zgemm("n","t",&fnj,&fni,&fnk,&one,b,&fnj,a,&fni,&one,c,&fnj,1,1);
+  madness::cblas::gemm(madness::cblas::NoTrans,madness::cblas::Trans,nj,ni,nk,one,b,nj,a,ni,one,c,nj);
 }
 
 #endif
@@ -98,13 +91,8 @@ void mTxm(long dimi, long dimj, long dimk,
     }
 }
 
-long long rdtsc() {
-  long long x = 0;
-  return x;
-}
-
-void crap(double rate, double fastest, long long start) {
-    if (rate == 0) printf("darn compiler bug %e %e %lld\n",rate,fastest,start);
+void crap(double rate, double fastest, double start) {
+    if (rate == 0) printf("darn compiler bug %e %e %lf\n",rate,fastest,start);
 }
 
 
@@ -115,20 +103,20 @@ void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_c
   long loop;
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxmq(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxm_dgemm(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
@@ -143,24 +131,24 @@ void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, doub
   long loop;
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxmq(ni,nj,nk,c,a,b);
     mTxmq(ni,nj,nk,a,c,b);
     mTxmq(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
   for (loop=0; loop<30; ++loop) {
     double rate;
-    long long start = rdtsc();
+    double start = SafeMPI::Wtime();
     mTxm_dgemm(ni,nj,nk,c,a,b);
     mTxm_dgemm(ni,nj,nk,a,c,b);
     mTxm_dgemm(ni,nj,nk,c,a,b);
-    start = rdtsc() - start;
-    rate = nflop/start;
+    start = SafeMPI::Wtime() - start;
+    rate = 1.e-9*nflop/start;
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
@@ -168,13 +156,15 @@ void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, doub
   printf("%20s %3ld %3ld %3ld %8.2f %8.2f\n",s, ni,nj,nk, fastest, fastest_dgemm);
 }
 
-int main() {
+int main(int argc, char * argv[]) {
     const long nimax=30*30;
     const long njmax=100;
     const long nkmax=100;
     long ni, nj, nk, i, m;
-
     double_complex *a, *b, *c, *d;
+
+    SafeMPI::Init_thread(argc, argv, MPI_THREAD_SINGLE);
+
     posix_memalign((void **) &a, 16, nkmax*nimax*sizeof(double_complex));
     posix_memalign((void **) &b, 16, nkmax*njmax*sizeof(double_complex));
     posix_memalign((void **) &c, 16, nimax*njmax*sizeof(double_complex));
@@ -225,6 +215,8 @@ int main() {
     for (m=1; m<=30; m+=1) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
     for (m=1; m<=30; m+=1) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
     for (m=1; m<=20; m+=1) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
+
+    SafeMPI::Finalize();
 
     return 0;
 }

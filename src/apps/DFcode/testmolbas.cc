@@ -30,7 +30,7 @@
   
   $Id$
 */
-#include <moldft/molecularbasis.h>
+#include <DFcode/molecularbasis.h>
 
 using namespace madness;
 

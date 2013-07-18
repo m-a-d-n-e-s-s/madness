@@ -10,6 +10,7 @@ if not os.path.isfile(inputFile):
     print inputFile, "doesn't exist"
     sys.exit()
 print inputFile
+
 #Parse projPsi's output 
 writeEX  = False
 writeION = False
@@ -34,7 +35,10 @@ if writeEX:
     exFile = open("ex.dat", 'w')
     print "matchEX"
 if writeION:
-    ionFile = open("ion.dat", 'w')
+    ionFile  = open("ion.dat", 'w')
+    unboundFile = open("unbound.num", 'r')
+    kList    = unboundFile.readlines()
+    unboundFile.close()
     print "matchION"
 if writeY:
     RlFile = open("Rl.dat", 'w')
@@ -51,6 +55,7 @@ while 1:
         if kState:
             words = line.split()
             words.pop(0)
+            kList.pop(0) #Trim unbound.num
             for word in words:
                 if( word == 'took'):
                     break
@@ -70,6 +75,10 @@ if writeION:
     ionFile.close()
 if writeY:
     RlFile.close()
+unboundFile = open("unbound.num", 'w')
+for line in kList:
+    unboundFile.write(line)
+unboundFile.close()
 
 #Sort STEP, atomic time, and walltime
 f = open("time.dat", 'r')

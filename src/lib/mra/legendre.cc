@@ -58,22 +58,26 @@ using std::endl;
 
 namespace madness {
 
+
+    static double nn1[100]; // nn1[n] = n/(n+1)
+    static double phi_norms[100];
+
+    /// Call this single threaded to initialize static data (used read only by multiple threads)
+    void initialize_legendre_stuff() {
+        long n;
+        for (n=0; n<100; ++n) nn1[n] = n/((double)(n+1));
+        for (n=0; n<100; ++n) phi_norms[n] = sqrt(2.0*n+1.0);
+    }
+
     /// Evaluate the Legendre polynomials up to the given order at x in [-1,1].
 
     /// p should be an array of order+1 elements.
     void legendre_polynomials(double x, long order, double *p) {
 
-        static double nn1[100];
-        static long firstcall=1;
         long n;
 
         p[0] = 1.0;
         if (order == 0) return;
-
-        if (firstcall) {
-            for (n=0; n<100; ++n) nn1[n] = n/((double)(n+1));
-            firstcall=0;
-        }
 
         p[1] = x;
         for (n=1; n<order; ++n)
@@ -84,17 +88,8 @@ namespace madness {
 
     /// p should be an array of k elements.
     void legendre_scaling_functions(double x, long k, double *p) {
-
-        static double phi_norms[100];
-        static long first_call = 1;
-        long n;
-
-        if (first_call) {
-            for (n=0; n<100; ++n) phi_norms[n] = sqrt(2.0*n+1.0);
-            first_call = 0;
-        }
-
         legendre_polynomials(2.*x-1,k-1,p);
+        long n;
         for (n=0; n<k; ++n) {
             p[n] = p[n]*phi_norms[n];
         }

@@ -28,7 +28,7 @@
   tel:   865-241-3937
   fax:   865-572-0680
 
-  $Id: $
+  $Id $
 */
 
 /// \file worldthread.h
@@ -42,25 +42,55 @@
 #include <world/safempi.h>
 #include <world/atomicint.h>
 #include <cstring>
+#include <fstream>
+#include <TAU.h>
+
+#if defined(HAVE_IBMBGP)
+// This header causes tinyxml.h to barf but we only need it in the implementation, not the header.
+#  include <spi/kernel_interface.h>
+#  include <spi/bgp_kernel_inlines.h>
+#  include <common/bgp_personality.h>
+#  include <common/bgp_personality_inlines.h>
+#endif
+
+#if defined(HAVE_IBMBGQ)
+#  include <spi/include/kernel/location.h>
+#  include <spi/include/kernel/process.h>
+#endif
+
 
 namespace madness {
 
     int ThreadBase::cpulo[3];
     int ThreadBase::cpuhi[3];
     bool ThreadBase::bind[3];
+    pthread_key_t ThreadBase::thread_key;
 
     ThreadPool* ThreadPool::instance_ptr = 0;
+#if HAVE_INTEL_TBB
+    tbb::task_scheduler_init* ThreadPool::tbb_scheduler = 0;
+    tbb::empty_task* ThreadPool::tbb_parent_task = 0;
+#endif
+#ifdef MADNESS_TASK_PROFILING
+    Mutex profiling::TaskProfiler::output_mutex_;
+    const char* profiling::TaskProfiler::output_file_name_;
+#endif // MADNESS_TASK_PROFILING
 
     void* ThreadBase::main(void* self) {
+      TAU_START("ThreadBase::main");
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
 
+        const int rc = pthread_setspecific(thread_key, self);
+        if(rc != 0)
+            MADNESS_EXCEPTION("pthread_setspecific failed", rc);
+
         try {
             ((ThreadBase*)(self))->run();
         }
-        catch (const MPI::Exception& e) {
-            //        print(e);
+        catch (const SafeMPI::Exception& e) {
+            print(e);
             error("caught an MPI exception");
         }
         catch (const madness::MadnessException& e) {
@@ -86,6 +116,7 @@ namespace madness {
 #ifdef HAVE_PAPI
         end_papi_measurement();
 #endif
+        TAU_STOP("ThreadBase::main");
         return 0;
     }
 
@@ -105,22 +136,38 @@ namespace madness {
         pthread_attr_destroy(&attr);
     }
 
-
     /// Get no. of actual hardware processors
     int ThreadBase::num_hw_processors() {
-#ifdef _SC_NPROCESSORS_CONF
+#if defined(HAVE_IBMBGP)
+    #if 0 /* total overkill - what was i thinking? */
+        int ncpu=0;
+        _BGP_Personality_t pers;
+        Kernel_GetPersonality(&pers, sizeof(pers));
+        if      ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_SMP ) ncpu = 4;
+        else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_2x2 ) ncpu = 2;
+        else if ( BGP_Personality_processConfig(&pers) == _BGP_PERS_PROCESSCONFIG_VNM ) ncpu = 1;
+        return ncpu;
+    #else
+        /* Returns the number of Processes (Virtual Nodes) running on this Physical Node. */
+        return 4/Kernel_ProcessCount();
+    #endif
+#elif defined(HAVE_IBMBGQ)
+        /* Return number of processors (hardware threads) within the current process. */
+        return Kernel_ProcessorCount();
+#elif defined(_SC_NPROCESSORS_CONF)
         int ncpu = sysconf(_SC_NPROCESSORS_CONF);
-        if (ncpu <= 0) MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+        if (ncpu <= 0)
+           MADNESS_EXCEPTION("ThreadBase: set_affinity_pattern: sysconf(_SC_NPROCESSORS_CONF)", ncpu);
+        return ncpu;
 #elif defined(HC_NCPU)
-        int mib[2]={CTL_HW,HW_NCPU}, ncpu;
+        int mib[2]={CTL_HW,HW_NCPU};
         size_t len = sizeof(ncpu);
         if (sysctl(mib, 2, &ncpu, &len, NULL, 0) != 0)
             MADNESS_EXCEPTION("ThreadBase: sysctl(CTL_HW,HW_NCPU) failed", 0);
-        std::cout << "NCPU " << ncpu << std::endl;
+        //std::cout << "NCPU " << ncpu << std::endl;
 #else
-        int ncpu=1;
+        return 1;
 #endif
-        return ncpu;
     }
 
     /// Specify the affinity pattern or how to bind threads to cpus
@@ -185,16 +232,95 @@ namespace madness {
 #endif
     }
 
+
+#ifdef MADNESS_TASK_PROFILING
+
+    namespace profiling {
+
+        void TaskProfiler::write_to_file() {
+            // Get output filename: NAME_[rank]x[threads + 1]
+            if(output_file_name_ != NULL) {
+                // Construct the actual output filename
+                std::stringstream file_name;
+                file_name << output_file_name_ << "_"
+                        << SafeMPI::COMM_WORLD.Get_rank() << "x"
+                        << ThreadPool::size() + 1;
+
+                // Lock file for output
+                ScopedMutex<Mutex> locker(TaskProfiler::output_mutex_);
+
+                // Open the file for output
+                std::ofstream file(file_name.str().c_str(), std::ios_base::out | std::ios_base::app);
+                if(! file.fail()) {
+                    // Print the task profile data
+                    // and delete the data since it is not needed anymore
+                    const TaskEventListBase* next = NULL;
+                    while(head_ != NULL) {
+                        next = head_->next();
+                        file << *head_;
+                        delete head_;
+                        head_ = const_cast<TaskEventListBase*>(next);
+                    }
+
+                    tail_ = NULL;
+                } else {
+                    std::cerr << "!!! ERROR: TaskProfiler cannot open file: "
+                            << file_name.str() << "\n";
+                }
+
+                // close the file
+                file.close();
+            } else {
+                // Nothing is written so just cleanup data
+                const TaskEventListBase* next = NULL;
+                while(head_ != NULL) {
+                    next = head_->next();
+                    delete head_;
+                    head_ = const_cast<TaskEventListBase*>(next);
+                }
+
+                tail_ = NULL;
+            }
+        }
+
+
+    } // namespace profiling
+
+#endif // MADNESS_TASK_PROFILING
+
     /// The constructor is private to enforce the singleton model
-    ThreadPool::ThreadPool(int nthread) : nthreads(nthread), finish(false) {
+    ThreadPool::ThreadPool(int nthread) :
+            threads(NULL), main_thread(), nthreads(nthread), finish(false)
+    {
         nfinished = 0;
         instance_ptr = this;
         if (nthreads < 0) nthreads = default_nthread();
-        //std::cout << "POOL " << nthreads << std::endl;
+
+
+        const int rc = pthread_setspecific(ThreadBase::thread_key,
+                static_cast<void*>(&main_thread));
+        if(rc != 0)
+            MADNESS_EXCEPTION("pthread_setspecific failed", rc);
+
+#if HAVE_INTEL_TBB
+
+        if (SafeMPI::COMM_WORLD.Get_size() > 1) {
+            // There are nthreads+2 because the main and communicator thread
+            // are now a part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+2);
+        }
+        else {
+            // There are nthreads+1 because the main
+            // is now part of tbb.
+            tbb_scheduler = new tbb::task_scheduler_init(nthreads+1);
+        }
+        tbb_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
+        tbb_parent_task->increment_ref_count();
+#else
 
         try {
             if (nthreads > 0)
-                threads = new Thread[nthreads];
+                threads = new ThreadPoolThread[nthreads];
             else
                 threads = 0;
         }
@@ -206,6 +332,7 @@ namespace madness {
             threads[i].set_pool_thread_index(i);
             threads[i].start(pool_thread_main, (void *)(threads+i));
         }
+#endif
     }
 
     /// Get number of threads from the environment
@@ -233,40 +360,85 @@ namespace madness {
         return nthread;
     }
 
-    void ThreadPool::thread_main(Thread* thread) {
+    void ThreadPool::thread_main(ThreadPoolThread* const thread) {
+        TAU_START("ThreadPool::thread_main");
         PROFILE_MEMBER_FUNC(ThreadPool);
         thread->set_affinity(2, thread->get_pool_thread_index());
 
 #define MULTITASK
 #ifdef  MULTITASK
         while (!finish) {
-            run_tasks(true);
+            run_tasks(true, thread);
         }
 #else
         while (!finish) {
-            run_task(true);
+            run_task(true, thread);
         }
 #endif
+
+#ifdef MADNESS_TASK_PROFILING
+        thread->profiler().write_to_file();
+#endif // MADNESS_TASK_PROFILING
+
         nfinished++;
+        TAU_STOP("ThreadPool::thread_main");
     }
 
     /// Forwards thread to bound member function
     void* ThreadPool::pool_thread_main(void *v) {
-        instance()->thread_main((Thread*)(v));
+        instance()->thread_main((ThreadPoolThread*)(v));
         return 0;
     }
 
     void ThreadPool::begin(int nthread) {
-        instance(nthread);
+        // Check that the singleton has not been previously initialized
+        if(instance_ptr) return;
+
+        ThreadBase::init_thread_key();
+
+        // Construct the thread pool singleton
+        instance_ptr = new ThreadPool(nthread);
+
+#ifdef MADNESS_TASK_PROFILING
+        // Initialize the output file name for the task profiler.
+        profiling::TaskProfiler::output_file_name_ =
+                getenv("MAD_TASKPROFILER_NAME");
+        if(! profiling::TaskProfiler::output_file_name_) {
+            if(SafeMPI::COMM_WORLD.Get_rank() == 0)
+                std::cerr
+                    << "!!! WARNING: MAD_TASKPROFILER_NAME not set.\n"
+                    << "!!! WARNING: There will be no task profile output.\n";
+        } else {
+            // Construct the actual output filename
+            std::stringstream file_name;
+            file_name << profiling::TaskProfiler::output_file_name_ << "_"
+                    << SafeMPI::COMM_WORLD.Get_rank() << "x"
+                    << ThreadPool::size() + 1;
+
+            // Erase the profiler output file
+            std::ofstream file(file_name.str().c_str(), std::ios_base::out | std::ios_base::trunc);
+            file.close();
+        }
+#endif  // MADNESS_TASK_PROFILING
     }
 
     void ThreadPool::end() {
+#if !HAVE_INTEL_TBB
         if (!instance_ptr) return;
         instance()->finish = true;
         for (int i=0; i<instance()->nthreads; ++i) {
             add(new PoolTaskNull);
         }
         while (instance_ptr->nfinished != instance_ptr->nthreads);
+
+#ifdef MADNESS_TASK_PROFILING
+        instance_ptr->main_thread.profiler().write_to_file();
+#endif // MADNESS_TASK_PROFILING
+
+        ThreadBase::delete_thread_key();
+#endif
+        delete instance_ptr;
+        instance_ptr = NULL;
     }
 
     /// Returns queue statistics

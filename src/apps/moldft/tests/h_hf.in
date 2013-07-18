@@ -1,0 +1,13 @@
+# Correct energy -0.5
+# Should agree to at least 7 dp
+
+dft
+  xc hf
+  nopen 1
+end
+
+geometry
+  eprec 1e-7
+  h 0 0 0
+end
+

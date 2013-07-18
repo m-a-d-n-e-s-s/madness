@@ -56,12 +56,12 @@ namespace madness {
         /// Templated by the local archive (only tested for BinaryFstream(In/Out)putArchive).
         template <typename Archive>
         class BaseParallelArchive {
-            World* world;       //< Yep, the world.
-            mutable Archive ar; //< The local archive
-            int nio;            //< Number of IO nodes (always includes node zero)
-            bool do_fence;      //< If true (default) read/write of parallel objects fence before and after IO
-            char fname[256];    //< Name of the archive
-            int nclient;        //< Number of clients of this node including self.  Zero if not IO node.
+            World* world;       ///< Yep, the world.
+            mutable Archive ar; ///< The local archive
+            int nio;            ///< Number of IO nodes (always includes node zero)
+            bool do_fence;      ///< If true (default) read/write of parallel objects fence before and after IO
+            char fname[256];    ///< Name of the archive
+            int nclient;        ///< Number of clients of this node including self.  Zero if not IO node.
 
         public:
             static const bool is_parallel_archive = true;
@@ -71,13 +71,9 @@ namespace madness {
             /// Returns the process doing IO for given node
 
             /// Currently assigned in round-robin-fashion to the first nio processes except
-	    /// on IBM BG/P where use every 64'th
+            /// on IBM BG/P where use every 64'th
             ProcessID io_node(ProcessID rank) const {
-#ifdef HAVE_IBMBGP
-		return ((rank/64)%nio) * 64;
-#else
                 return rank%nio;
-#endif
             }
 
             /// Returns the process doing IO for this node
@@ -117,14 +113,16 @@ namespace madness {
             ///
             /// The default number of IO nodes is one and there is an
             /// arbitrary maximum of 50 set. On IBM BG/P the maximum
-	    /// is nproc/64.
+            /// is nproc/64.
             void open(World& world, const char* filename, int nwriter=1) {
                 this->world = &world;
                 nio = nwriter;
-#ifdef HAVE_IBMBGP
-		int maxio = (world.size()-1)/64 + 1;
+#if defined(HAVE_IBMBGP) || defined(HAVE_IBMBGQ)
+                /* Jeff believes that BG is designed to handle up to *
+                 * one file per node and I assume no more than 8 ppn */
+                int maxio = world.size()/8;
 #else
-		int maxio = 50;
+                int maxio = 50;
 #endif
                 if (nio > maxio) nio = maxio; // Sanity?
                 if (nio > world.size()) nio = world.size();

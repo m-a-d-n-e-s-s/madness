@@ -71,7 +71,7 @@
 #include <constants.h>
 
 using namespace madness;
-using namespace std;
+// using namespace std;
 
 typedef Vector<double,3> coordT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > real_functorT;
@@ -83,20 +83,20 @@ typedef FunctionFactory<double_complex,3> complex_factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
 
-static const double L = 120.0;     // box is [-L,L]
-static const double zeta = 7.5;   // potential wells at +/-zeta
-static const double R1 = 2.0;     // potential parameter
-static const double R2 = 2.0;     // potential parameter
-static const double a1 = 1.0;     // potential parameter
-static const double a2 = 1.0;     // potential parameter
-static const double reduced = 0.04825964488415279478;
-static const double V1 = -50.0*reduced;   // potential parameter
-static const double V2 = -50.0*reduced;   // potential parameter
-static const double lambda_correct = 0.0026608048208104861/reduced; // SO potential parameter
+const double L = 120.0;     // box is [-L,L]
+const double zeta = 7.5;   // potential wells at +/-zeta
+const double R1 = 2.0;     // potential parameter
+const double R2 = 2.0;     // potential parameter
+const double a1 = 1.0;     // potential parameter
+const double a2 = 1.0;     // potential parameter
+const double reduced = 0.04825964488415279478;
+const double V1 = -50.0*reduced;   // potential parameter
+const double V2 = -50.0*reduced;   // potential parameter
+const double lambda_correct = 0.0026608048208104861/reduced; // SO potential parameter
 
 //static const double lambda_fudge = lambda_correct*100.0;
 
-static       double lambda = lambda_correct;
+static double lambda = lambda_correct;
 static const double fac1=exp(-R1/a1);
 static const double fac2=exp(-R2/a2);
 
@@ -128,7 +128,7 @@ static double V(const coordT& r)
     return V1/(1.0 + fac1*cosh(rp/a1)) + V2/(1.0 + fac2*cosh(rm/a2));
 }
 
-void moments(World& world, const vector<complex_functionT>& u, const vector<complex_functionT>& v) {
+void moments(World& world, const std::vector<complex_functionT>& u, const std::vector<complex_functionT>& v) {
   FunctionDefaults<3>::set_autorefine(true);
   complex_functionT rho = complex_factoryT(world);
   rho.compress();
@@ -154,9 +154,9 @@ void moments(World& world, const vector<complex_functionT>& u, const vector<comp
 
 void gaxpy1(World& world,
 	    const double_complex alpha,
-	    vector<complex_functionT>& a,
+	    std::vector<complex_functionT>& a,
 	    const double_complex beta,
-	    const vector<complex_functionT>& b,
+	    const std::vector<complex_functionT>& b,
 	    bool fence=true)
 {
   MADNESS_ASSERT(a.size() == b.size());
@@ -167,10 +167,10 @@ void gaxpy1(World& world,
   if (fence) world.gop.fence();
 }
 
-vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, double tol)
+std::vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals, double tol)
 {
     int n = evals.dim(0);
-    vector<poperatorT> ops(n);
+    std::vector<poperatorT> ops(n);
     for (int i=0; i<n; i++) {
         double eps = evals(i);
         if (eps > 0) eps = -0.05;
@@ -181,12 +181,12 @@ vector<poperatorT> make_bsh_operators(World& world, const Tensor<double>& evals,
 }
 
 Tensor<double_complex> hamiltonian_matrix(World& world,
-                                          const vector<complex_functionT>& u,
-                                          const vector<complex_functionT>& v,
-                                          const vector<complex_functionT>& Vu,
-                                          const vector<complex_functionT>& Vv,
-                                          const vector<complex_functionT> du[3],
-                                          const vector<complex_functionT> dv[3])
+                                          const std::vector<complex_functionT>& u,
+                                          const std::vector<complex_functionT>& v,
+                                          const std::vector<complex_functionT>& Vu,
+                                          const std::vector<complex_functionT>& Vv,
+                                          const std::vector<complex_functionT> du[3],
+                                          const std::vector<complex_functionT> dv[3])
 {
     reconstruct(world, u);
     reconstruct(world, v);
@@ -200,22 +200,17 @@ Tensor<double_complex> hamiltonian_matrix(World& world,
     return r + matrix_inner(world, u, Vu, true) + matrix_inner(world, v, Vv, true);
 }
 
-template <typename T, int NDIM>
-Cost lbcost(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) {
-  return 1;
-}
-
 void apply_potential(World& world,
                      const real_functionT& V0,
                      const real_functionT& V0x,
                      const real_functionT& V0y,
                      const real_functionT& V0z,
-                     const vector<complex_functionT>& u,
-                     const vector<complex_functionT>& v,
-                     vector<complex_functionT>& Vu,
-                     vector<complex_functionT>& Vv,
-                     vector<complex_functionT> du[3],
-                     vector<complex_functionT> dv[3],
+                     const std::vector<complex_functionT>& u,
+                     const std::vector<complex_functionT>& v,
+                     std::vector<complex_functionT>& Vu,
+                     std::vector<complex_functionT>& Vv,
+                     std::vector<complex_functionT> du[3],
+                     std::vector<complex_functionT> dv[3],
                      bool doso)
 {
     const double_complex lam(lambda,0.0);
@@ -258,10 +253,10 @@ void apply_potential(World& world,
 
 }
 
-void normalize2(World& world, vector<complex_functionT>& u, vector<complex_functionT>& v) {
-  vector<double> unorm = norm2s(world,u);
-  vector<double> vnorm = norm2s(world,v);
-  vector<double> normu(u.size());
+void normalize2(World& world, std::vector<complex_functionT>& u, std::vector<complex_functionT>& v) {
+  std::vector<double> unorm = norm2s(world,u);
+  std::vector<double> vnorm = norm2s(world,v);
+  std::vector<double> normu(u.size());
 
   for (unsigned int i=0; i<u.size(); i++) {
     normu[i] = sqrt(unorm[i]*unorm[i] + vnorm[i]*vnorm[i]);
@@ -311,9 +306,9 @@ void doit(World& world) {
     // FunctionDefaults<3>::cell(i,1) =  L;
     // }
     if (world.rank() == 0) print("Making guesses");
-    vector<complex_functionT> u;
-    vector<complex_functionT> v;
-    vector<complex_functionT> w;
+    std::vector<complex_functionT> u;
+    std::vector<complex_functionT> v;
+    std::vector<complex_functionT> w;
 
     // Initial guess is as for SO-free but first with (u,0) and then (0,v)
 
@@ -377,7 +372,8 @@ void doit(World& world) {
     real_functionT V0, V0x, V0y, V0z;
     //double shift=0.;
     bool doso = false; // turned on once converged to 1e-4
-    print(" u size ",  u.size(), "v size ", v.size(), "\n");
+    if (world.rank() == 0) {
+      print(" u size ",  u.size(), "v size ", v.size()); }
 
     doitagain:
 
@@ -388,7 +384,7 @@ void doit(World& world) {
             printf("  ----   ----  ------------------ -------   ------\n");
       }
 
-      V0 = real_factoryT(world).f(V).thresh(thresh);
+      V0 = real_factoryT(world).f(V).thresh(thresh*.1);
       V0x = real_derivative_3d(world,0)(V0);
       V0y = real_derivative_3d(world,1)(V0);
       V0z = real_derivative_3d(world,2)(V0);
@@ -398,7 +394,7 @@ void doit(World& world) {
 
 	// loadbalance(world, u, v, V0, V0x, V0y, V0z);
 
-	vector<complex_functionT> Vu, Vv, du[3], dv[3];
+	std::vector<complex_functionT> Vu, Vv, du[3], dv[3];
 
 	apply_potential(world, V0, V0x, V0y, V0z, u, v, Vu, Vv, du, dv, doso);
 	world.gop.fence(); // free memory
@@ -467,10 +463,11 @@ void doit(World& world) {
 	  Vv[i].refine();
 	}
 
-	vector<poperatorT> ops = make_bsh_operators(world, e1, thresh);
+	world.gop.fence();
+	std::vector<poperatorT> ops = make_bsh_operators(world, e1, thresh);
 
-	vector<complex_functionT> u_new = apply(world, ops, Vu);
-	vector<complex_functionT> v_new = apply(world, ops, Vv);
+	std::vector<complex_functionT> u_new = apply(world, ops, Vu);
+	std::vector<complex_functionT> v_new = apply(world, ops, Vv);
 
 	normalize2(world, u_new, v_new);
 
@@ -478,18 +475,19 @@ void doit(World& world) {
 	Vv.clear();
 	world.gop.fence();
 
-	vector<double> rnormu = norm2s(world,add(world, u, u_new));
-	vector<double> rnormv = norm2s(world,add(world, v, v_new));
-	vector<double> rnorm(nvec);
+	std::vector<double> rnormu = norm2s(world,add(world, u, u_new));
+	std::vector<double> rnormv = norm2s(world,add(world, v, v_new));
+	std::vector<double> rnorm(nvec);
 
 	for (int i=0; i<nvec; i++)
 	  rnorm[i] = sqrt(rnormu[i]*rnormu[i] + rnormv[i]*rnormv[i]);
+	world.gop.fence();
 
 	maxerr= 0.;
 	for (int i=0; i<nvec; i++) {
 	  if (world.rank() == 0) printf("  %3d    %3d  %18.12f  %.1e  %7.1f\n",
 					iter, i, e[i]/reduced, rnorm[i], wall_time());
-	  maxerr = max(maxerr,rnorm[i]);
+	  maxerr = std::max(maxerr,rnorm[i]);
 	}
 
 	u = u_new;
@@ -521,12 +519,18 @@ void doit(World& world) {
 	u[i] = madness::project(u[i], k, thresh);
 	v[i] = madness::project(v[i], k, thresh);
       }
+      V0 = real_factoryT(world).f(V).thresh(thresh*.1);
+      V0x = real_derivative_3d(world,0)(V0);
+      V0y = real_derivative_3d(world,1)(V0);
+      V0z = real_derivative_3d(world,2)(V0);
+      world.gop.fence();
+
     }
 }
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
 
 //     cpu_set_t mask;
@@ -538,8 +542,8 @@ int main(int argc, char** argv) {
 
     try {
         doit(world);
-    } catch (const MPI::Exception& e) {
-        //        print(e);
+    } catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

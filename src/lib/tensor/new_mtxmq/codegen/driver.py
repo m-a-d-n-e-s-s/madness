@@ -1,7 +1,7 @@
 def _tester(i, m, trans=False):
     ret = """
     if (myid=={i}) {{
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
         HPM_Start("{m}");
 #endif
         for (loop=0; loop<30; ++loop) {{
@@ -18,12 +18,12 @@ def _tester(i, m, trans=False):
             if (rate > fastest) fastest = rate;
         }}
 
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
         HPM_Stop("{m}");
         MPI_Barrier(MPI_COMM_WORLD);
 #endif
         printf("{m}: %20s %3ld %3ld %3ld %8.2f\\n", s, ni, nj, nk, fastest);
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
         MPI_Barrier(MPI_COMM_WORLD);
 #endif
     }}
@@ -62,13 +62,13 @@ def _transtimer(mtxms, complex_c, complex_a, complex_b):
 def _header(bg, complex_c, complex_a, complex_b):
     ret = ""
     if bg:
-        ret += "#define HAVE_BG 1\n"
+        ret += "#define HAVE_BGP 1\n"
     ret += """#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
 
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
 #include <builtins.h>
 #include <complex>
 
@@ -115,7 +115,7 @@ void mtxm(long dimi, long dimj, long dimk,
 
 unsigned long long _ts;
 
-#if defined(__powerpc__) || defined (__bgp__)
+#if HAVE_BGP 
 
 static __inline__ unsigned long long rdtsc(void)
 {
@@ -170,7 +170,7 @@ def _main(mtxms, complex_c, complex_a, complex_b):
     """ + "double {} *c;".format(complex_c) + """
     """ + "double {} *d;".format(complex_c) + """
 
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
     MPI_Init(&argc, &argv);
 
     MPI_Comm_size(MPI_COMM_WORLD,&numprocs);
@@ -211,7 +211,7 @@ def _main(mtxms, complex_c, complex_a, complex_b):
             }
         }
     }
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
     MPI_Barrier(MPI_COMM_WORLD);
 #endif
 
@@ -220,7 +220,7 @@ def _main(mtxms, complex_c, complex_a, complex_b):
     """ + ((not (bool(complex_a) ^ bool(complex_b))) and """for ( m=2; m<=30;  m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);""" or "") + """
     for ( m=2; m<=20;  m+=2) timer("(20*20,20)T*(20,m)", 20*20,m,20,a,b,c);
 
-#ifdef HAVE_BG
+#ifdef HAVE_BGP
     HPM_Print();
     HPM_Print_Flops();
 

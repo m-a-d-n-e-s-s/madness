@@ -1004,7 +1004,7 @@ int main (int argc, char **argv) {
     initialize(argc, argv);
 
     {
-        World world(MPI::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
 
         try {
             startup(world, argc, argv);
@@ -1042,8 +1042,8 @@ int main (int argc, char **argv) {
                 print("last r=", r);
             }
         }
-        catch (const MPI::Exception& e) {
-            //        print(e);
+        catch (const SafeMPI::Exception& e) {
+            print(e);
             error("caught an MPI exception");
         }
         catch (const madness::MadnessException& e) {
@@ -1080,7 +1080,6 @@ int main (int argc, char **argv) {
         // Nearly all memory will be freed at this point
         world.gop.fence();
         world.gop.fence();
-        ThreadPool::end();
         print_stats(world);
     }
 

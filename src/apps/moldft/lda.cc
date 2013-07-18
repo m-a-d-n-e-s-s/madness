@@ -47,22 +47,12 @@
 
 #include <cmath>
 
-static inline double pow(const double* a, const double* b) {
-    return pow(*a, *b);
-}
-
-static double c_b2 = .333333333333333333333333333333333;
-static double c_b7 = .333333333333333333333333333333;
-static double c_b14 = 1.333333333333333333333333333333;
-
+const double c_b2  = 0.333333333333333333333333333333333;
+const double c_b7  = 0.333333333333333333333333333333;
+const double c_b14 = 1.333333333333333333333333333333;
 
 /* Subroutine */
-int x_rks_s__(const double *r__, double *f, double *
-              dfdra) {
-
-    /* Local variables */
-    double ra13;
-
+int x_rks_s__(const double *r__, double *f, double * dfdra) {
 
     /*     This subroutine evaluates the spin polarised exchange functional */
     /*     in the Local Density Approximation [1], and the corresponding */
@@ -70,39 +60,27 @@ int x_rks_s__(const double *r__, double *f, double *
     /*     functional [2] or Slater functional. */
 
     /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
-
-    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
-    /*         Society, Vol. 26 (1930) 376. */
+    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical Society, Vol. 26 (1930) 376. */
 
     /*     Parameters: */
-
     /*     r     the total electron density */
     /*     f     On return the functional value */
-    /*     dfdra On return the derivative of f with respect to alpha electron */
-    /*           density */
-
+    /*     dfdra On return the derivative of f with respect to alpha electron density */
 
     /*     Ax = -3/4*(6/pi)**(1/3) */
     /*     Bx = -(6/pi)**(1/3) */
     /*     C  = (1/2)**(1/3) */
 
-
-
-
-    ra13 = pow(r__, &c_b2) * .793700525984099737375852819636154;
-    *f = *r__ * -.930525736349100025002010218071667 * ra13;
-    *dfdra = ra13 * -1.24070098179880003333601362409556;
+    double ra13 = pow(*r__, c_b2) * 0.793700525984099737375852819636154;
+    *f          = ra13 * (*r__) * -0.930525736349100025002010218071667;
+    *dfdra      = ra13 * -1.24070098179880003333601362409556;
 
     return 0;
 } /* x_rks_s__ */
 
 /* ----------------------------------------------------------------------- */
 /* Subroutine */
-int x_uks_s__(double *ra, double *rb, double *f,
-              double *dfdra, double *dfdrb) {
-    /* Local variables */
-    double ra13, rb13;
-
+int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb) {
 
     /*     This subroutine evaluates the spin polarised exchange functional */
     /*     in the Local Density Approximation [1], and the corresponding */
@@ -110,27 +88,20 @@ int x_uks_s__(double *ra, double *rb, double *f,
     /*     functional [2] or Slater functional. */
 
     /*     [1] F. Bloch, Zeitschrift fuer Physik, Vol. 57 (1929) 545. */
-
-    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical */
-    /*         Society, Vol. 26 (1930) 376. */
+    /*     [2] P.A.M. Dirac, Proceedings of the Cambridge Philosophical Society, Vol. 26 (1930) 376. */
 
     /*     Parameters: */
-
     /*     ra    the alpha electron density */
     /*     rb    the beta  electron density */
     /*     f     On return the functional value */
     /*     dfdra On return the derivative of f with respect to ra */
     /*     dfdrb On return the derivative of f with respect to rb */
 
-
     /*     Ax = -3/4*(6/pi)**(1/3) */
     /*     Bx = -(6/pi)**(1/3) */
 
-
-
-
-    ra13 = pow(ra, &c_b2);
-    rb13 = pow(rb, &c_b2);
+    double ra13 = pow(*ra, c_b2);
+    double rb13 = pow(*rb, c_b2);
     *f = (*ra * ra13 + *rb * rb13) * -.930525736349100025002010218071667;
     *dfdra = ra13 * -1.24070098179880003333601362409556;
     *dfdrb = rb13 * -1.24070098179880003333601362409556;
@@ -139,12 +110,7 @@ int x_uks_s__(double *ra, double *rb, double *f,
 } /* x_uks_s__ */
 
 /* Subroutine */
-int c_rks_vwn5__(const double *r__, double *f, double *
-                 dfdra) {
-    /* Local variables */
-    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, 
-        iv, iv2, pp1, pp2, inv, srho, srho13;
-
+int c_rks_vwn5__(const double *r__, double *f, double * dfdra) {
 
     /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
     /*     functional number 5 [1] for the closed shell case, with the */
@@ -159,14 +125,14 @@ int c_rks_vwn5__(const double *r__, double *f, double *
     /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
     /*     Parameters: */
-
     /*     r      the total electron density */
     /*     f      On return the functional value */
     /*     dfdra  On return the derivative of f with respect to the alpha */
     /*            electron density */
 
-
-
+    /* Local variables */
+    double a2, b2, c2, d2, i1, i2, i3, p1, p2, p3, p4, t4, 
+        iv, iv2, pp1, pp2, inv, srho, srho13;
 
     /* VWN interpolation parameters */
 
@@ -188,7 +154,7 @@ int c_rks_vwn5__(const double *r__, double *f, double *
 
     /* closed shell case */
     srho = *r__;
-    srho13 = pow(&srho, &c_b7);
+    srho13 = pow(srho, c_b7);
     iv2 = t4 / srho13;
     iv = sqrt(iv2);
 
@@ -209,18 +175,7 @@ int c_rks_vwn5__(const double *r__, double *f, double *
 
 /* ----------------------------------------------------------------------- */
 /* Subroutine */
-int c_uks_vwn5__(double *ra, double *rb, double *
-                 f, double *dfdra, double *dfdrb) {
-    /* System generated locals */
-    double d__1, d__2;
-
-    /* Local variables */
-    double v, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
-    c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7,
-    s3, s4, p4, f4, i1, i2, i3, iv, ff1, ff2, iv2, pp1,
-    pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3,
-    zeta4, srho13, inter1, inter2;
-
+int c_uks_vwn5__(double *ra, double *rb, double * f, double *dfdra, double *dfdrb) {
 
     /*     This subroutine evaluates the Vosko, Wilk and Nusair correlation */
     /*     functional number 5 [1], with the parametrisation as given in */
@@ -235,14 +190,21 @@ int c_uks_vwn5__(double *ra, double *rb, double *
     /*         Can.J.Phys, Vol. 58 (1980) 1200-1211. */
 
     /*     Parameters: */
-
     /*     ra     the alpha-electron density */
     /*     rb     the beta-electron density */
     /*     f      On return the functional value */
     /*     dfdra  On return the derivative of f with respect to ra */
     /*     dfdrb  On return the derivative of f with respect to rb */
 
+    /* System generated locals */
+    double d__1, d__2;
 
+    /* Local variables */
+    double v, a1, b1, c1, d1, a2, b2, c2, d2, a3, b3,
+    c3, d3, f1, f2, f3, p1, p2, p3, s1, t1, t2, s2, t4, t5, t6, t7,
+    s3, s4, p4, f4, i1, i2, i3, iv, ff1, ff2, iv2, pp1,
+    pp2, ss1, ss2, tau, inv, vwn1, vwn2, dtau, zeta, srho, zeta3,
+    zeta4, srho13, inter1, inter2;
 
     /*     tn13 = 2**(1/3) */
     /*     tn43 = 2**(4/3) */
@@ -312,7 +274,7 @@ int c_uks_vwn5__(double *ra, double *rb, double *
 
     /* open shell case */
     srho = *ra + *rb;
-    srho13 = pow(&srho, &c_b7);
+    srho13 = pow(srho, c_b7);
     iv2 = t4 / srho13;
     iv = sqrt(iv2);
 
@@ -357,10 +319,10 @@ int c_uks_vwn5__(double *ra, double *rb, double *
     else {
         d__1 = zeta + 1.;
         d__2 = 1. - zeta;
-        vwn1 = (pow(&d__1, &c_b14) + pow(&d__2, &c_b14) - 2.) * t5;
+        vwn1 = (pow(d__1, c_b14) + pow(d__2, c_b14) - 2.) * t5;
         d__1 = zeta + 1.;
         d__2 = 1. - zeta;
-        vwn2 = (pow(&d__1, &c_b7) - pow(&d__2, &c_b7)) * t6;
+        vwn2 = (pow(d__1, c_b7) - pow(d__2, c_b7)) * t6;
     }
     ss1 *= t7;
     ss2 *= t7;
@@ -370,8 +332,7 @@ int c_uks_vwn5__(double *ra, double *rb, double *
     v = pp1 + vwn1 * (ss1 + tau * zeta4);
     *f = v * srho;
 
-    t1 = v - iv * .166666666666666666666666666667 * (pp2 + vwn1 * (ss2 + dtau
-            * zeta4));
+    t1 = v - iv * .166666666666666666666666666667 * (pp2 + vwn1 * (ss2 + dtau * zeta4));
     t2 = vwn2 * (ss1 + tau * zeta4) + vwn1 * 4. * tau * zeta3;
     *dfdra = t1 + t2 * (1. - zeta);
     *dfdrb = t1 - t2 * (zeta + 1.);

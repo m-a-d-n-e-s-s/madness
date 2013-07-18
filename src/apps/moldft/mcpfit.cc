@@ -44,26 +44,6 @@
 #include <cstdio>
 using namespace madness;
 
-class LevelPmap : public WorldDCPmapInterface< Key<3> > {
-private:
-    const int nproc;
-public:
-    LevelPmap() : nproc(0) {};
-
-    LevelPmap(World& world) : nproc(world.nproc()) {}
-
-    /// Find the owner of a given key
-    ProcessID owner(const Key<3>& key) const {
-        Level n = key.level();
-        if (n == 0) return 0;
-        hashT hash;
-        if (n <= 3 || (n&0x1)) hash = key.hash();
-        else hash = key.parent().hash();
-        //hashT hash = key.hash();
-        return hash%nproc;
-    }
-};
-
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
@@ -445,7 +425,7 @@ struct Calculation {
     {
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
-        unsigned int nmo;
+        unsigned int nmo = 0u;
         amo.clear(); bmo.clear();
 
         std::string refdir = "references/";
@@ -1004,11 +984,10 @@ int main (int argc, char **argv) {
     initialize(argc, argv);
 
     {
-        World world(MPI::COMM_WORLD);
+        World world(SafeMPI::COMM_WORLD);
 
         try {
             startup(world, argc, argv);
-            FunctionDefaults<3>::set_pmap(pmapT(new LevelPmap(world)));
             Calculation calc(world);
             CorePotential cp = calc.corepot.get_potential(calc.atn);
 
@@ -1042,8 +1021,8 @@ int main (int argc, char **argv) {
                 print("last r=", r);
             }
         }
-        catch (const MPI::Exception& e) {
-            //        print(e);
+        catch (const SafeMPI::Exception& e) {
+            print(e);
             error("caught an MPI exception");
         }
         catch (const madness::MadnessException& e) {
@@ -1080,7 +1059,6 @@ int main (int argc, char **argv) {
         // Nearly all memory will be freed at this point
         world.gop.fence();
         world.gop.fence();
-        ThreadPool::end();
         print_stats(world);
     }
 

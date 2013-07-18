@@ -35,23 +35,35 @@
 
 namespace SafeMPI {
 
-#ifdef SERIALIZE_MPI
+#ifdef MADNESS_SERIALIZES_MPI
     madness::SCALABLE_MUTEX_TYPE charon;
 #endif
-    
+
     void Intracomm::binary_tree_info(int root, int& parent, int& child0, int& child1) {
-        int np = nproc();
-        int me = (rank()+np-root)%np;   // Renumber processes so root has me=0
+        int np = Get_size();
+        int me = (Get_rank()+np-root)%np;   // Renumber processes so root has me=0
         parent = (((me-1)>>1)+root)%np;        // Parent in binary tree
         child0 = (me<<1)+1+root;        // Left child
         child1 = (me<<1)+2+root;        // Right child
         if (child0 >= np && child0<(np+root)) child0 -= np;
         if (child1 >= np && child1<(np+root)) child1 -= np;
-        
+
         if (me == 0) parent = -1;
         if (child0 >= np) child0 = -1;
         if (child1 >= np) child1 = -1;
     }
 
+    // The logic here is to intended to cause an error if someone tries to use
+    // this constructor from somewhere else.
+
+    struct Intracomm::WorldInitObject {
+        MPI_Comm comm_world() const { return MPI_COMM_WORLD; }
+    };
+
+    Intracomm::Intracomm(const WorldInitObject& init) :
+        pimpl(new Impl(init.comm_world(), -1, -1, false))
+    { }
+
+    Intracomm COMM_WORLD = Intracomm::WorldInitObject();
 
 } //namespace SafeMPI

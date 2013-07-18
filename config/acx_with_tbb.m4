@@ -78,12 +78,18 @@ AC_DEFUN([ACX_WITH_TBB], [
     if test "x$acx_enable_debugging" == xno; then
       AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="$LIBS -ltbb"], [AC_MSG_ERROR(["Unable to link with Intel TBB])])
     else
-      AC_CHECK_LIB([tbb_debug], [TBB_runtime_interface_version], [LIBS="$LIBS -ltbb_debug"], [AC_MSG_ERROR([Unable to link with Intel TBB.])])
-      CPPFLAGS="$CPPFLAGS -DTBB_USE_DEBUG=1"
-      AC_MSG_WARN([Linking with the debug variant of Intel TBB.])
+      AC_CHECK_LIB([tbb_debug], [TBB_runtime_interface_version],
+        [
+          LIBS="$LIBS -ltbb_debug"
+          CPPFLAGS="$CPPFLAGS -DTBB_USE_DEBUG=1"
+          AC_MSG_WARN([Linking with the debug variant of Intel TBB.])
+        ], [
+          AC_CHECK_LIB([tbb], [TBB_runtime_interface_version], [LIBS="$LIBS -ltbb"], [AC_MSG_ERROR(["Unable to link with Intel TBB])])
+        ])
+      
     fi
     
-    AC_DEFINE(MADNESS_HAS_TBB, [1], [Define if Intel TBB is available.])
+    AC_DEFINE(HAVE_INTEL_TBB, [1], [Define if Intel TBB is available.])
     AC_LANG_RESTORE
   fi
 ])

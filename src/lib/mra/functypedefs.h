@@ -178,6 +178,13 @@ namespace madness {
     typedef Derivative<double_complex,4> complex_derivative_4d;
     typedef Derivative<double_complex,5> complex_derivative_5d;
     typedef Derivative<double_complex,6> complex_derivative_6d;
+
+    typedef FunctionDefaults<1> function_defaults_1d;
+    typedef FunctionDefaults<2> function_defaults_2d;
+    typedef FunctionDefaults<3> function_defaults_3d;
+    typedef FunctionDefaults<4> function_defaults_4d;
+    typedef FunctionDefaults<5> function_defaults_5d;
+    typedef FunctionDefaults<6> function_defaults_6d;
 }
 
 #endif  // MADNESS_MRA_MRA_H__INCLUDED

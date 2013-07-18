@@ -37,10 +37,16 @@
 #include <iostream>
 #include <algorithm>
 #include <utility>
+#include <sstream>
+#include <TAU.h>
 
 namespace madness {
 
     RMI* RMI::instance_ptr = 0;
+
+#if HAVE_INTEL_TBB
+    tbb::empty_task* RMI::tbb_rmi_parent_task = 0;
+#endif
 
     bool RMI::is_ordered(attrT attr) {
         return attr & ATTR_ORDERED;
@@ -51,9 +57,10 @@ namespace madness {
         if (debugging)
             std::cerr << rank << ":RMI: server thread is running" << std::endl;
         // The RMI server thread spends its life in here
-        MPI::Status status[NRECV+1];
-        int ind[NRECV+1];
-        qmsg q[MAXQ];
+
+        ScopedArray<SafeMPI::Status> status(new SafeMPI::Status[maxq_]);
+        ScopedArray<int> ind(new int[maxq_]);
+        ScopedArray<qmsg> q(new qmsg[maxq_]);
         int n_in_q = 0;
 
         while (1) {
@@ -67,13 +74,15 @@ namespace madness {
             int narrived;
 
             MutexWaiter waiter;
-            while (!(narrived = SafeMPI::Request::Testsome(NRECV+1, recv_req, ind, status))) {
+            while (!(narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get()))) {
                 if (finished) return;
+	//	TAU_START("MutexWaiter wait()");
 #if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
                 myusleep(1);
 #else
                 waiter.wait();
 #endif
+	//	TAU_STOP("MutexWaiter wait()");
             }
 
 #ifndef HAVE_CRAYXT
@@ -87,7 +96,7 @@ namespace madness {
             if (narrived) {
                 for (int m=0; m<narrived; ++m) {
                     int src = status[m].Get_source();
-                    size_t len = status[m].Get_count(MPI::BYTE);
+                    size_t len = status[m].Get_count(MPI_BYTE);
                     int i = ind[m];
 
                     ++(stats.nmsg_recv);
@@ -125,7 +134,7 @@ namespace madness {
                                       << std::endl;
                         // Shove it in the queue
                         int n = n_in_q++;
-                        if (n >= MAXQ) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
+                        if (n >= (int)maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
                         q[n] = qmsg(len, func, i, src, attr, count);
                     }
                 }
@@ -134,7 +143,9 @@ namespace madness {
                 // out-of-order receipt or order of recv buffer processing.
 
                 // Sort queued messages by ascending recv count
-                std::sort(&q[0],&q[0]+n_in_q);
+                TAU_START("Sort queued messages by ascending recv count");
+                std::sort(q.get(),q.get()+n_in_q);
+                TAU_STOP("Sort queued messages by ascending recv count");
 
                 // Loop thru messages ... since we have sorted only one pass
                 // is necessary and if we cannot process a message we
@@ -176,28 +187,31 @@ namespace madness {
     }
 
     void RMI::post_pending_huge_msg() {
-        if (recv_buf[NRECV]) return;      // Message already pending
+        if (recv_buf[nrecv_]) return;      // Message already pending
+        TAU_START("RMI::post_pending_huge_msg()");
         if (!hugeq.empty()) {
             int src = hugeq.front().first;
             size_t nbyte = hugeq.front().second;
             hugeq.pop_front();
-            if (posix_memalign((void **)(recv_buf+NRECV), ALIGNMENT, nbyte))
+            if (posix_memalign(&recv_buf[nrecv_], ALIGNMENT, nbyte))
                 MADNESS_EXCEPTION("RMI: failed allocating huge message", 1);
-            recv_req[NRECV] = comm.Irecv(recv_buf[NRECV], nbyte, MPI::BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
+            recv_req[nrecv_] = comm.Irecv(recv_buf[nrecv_], nbyte, MPI_BYTE, src, SafeMPI::RMI_HUGE_DAT_TAG);
             int nada=0;
 #ifdef MADNESS_USE_BSEND_ACKS
-            comm.Bsend(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Bsend(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
 #else
-            comm.Send(&nada, sizeof(nada), MPI::BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
+            comm.Send(&nada, sizeof(nada), MPI_BYTE, src, SafeMPI::RMI_HUGE_ACK_TAG);
 #endif // MADNESS_USE_BSEND_ACKS
         }
+        TAU_STOP("RMI::post_pending_huge_msg()");
     }
 
     void RMI::post_recv_buf(int i) {
-        if (i < NRECV) {
-            recv_req[i] = comm.Irecv(recv_buf[i], MAX_MSG_LEN, MPI::BYTE, MPI::ANY_SOURCE, SafeMPI::RMI_TAG);
+      TAU_START("RMI::post_recv_buf");
+        if (i < (int)nrecv_) {
+            recv_req[i] = comm.Irecv(recv_buf[i], max_msg_len_, MPI_BYTE, MPI_ANY_SOURCE, SafeMPI::RMI_TAG);
         }
-        else if (i == NRECV) {
+        else if (i == (int)nrecv_) {
             free(recv_buf[i]);
             recv_buf[i] = 0;
             post_pending_huge_msg();
@@ -205,38 +219,109 @@ namespace madness {
         else {
             MADNESS_EXCEPTION("RMI::post_recv_buf: confusion", i);
         }
+      TAU_STOP("RMI::post_recv_buf");
     }
 
     RMI::~RMI() {
-        //delete send_counters;
-        //delete recv_counters;
-        //         if (!MPI::Is_finalized()) {
-        //             for (int i=0; i<NRECV; ++i) {
+        //         if (!SafeMPI::Is_finalized()) {
+        //             for (int i=0; i<nrecv_; ++i) {
         //                 if (!recv_req[i].Test())
         //                     recv_req[i].Cancel();
         //             }
         //         }
-        //for (int i=0; i<NRECV; ++i) free(recv_buf[i]);
+        //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
     RMI::RMI()
-            : comm(MPI::COMM_WORLD)
+            : comm(SafeMPI::COMM_WORLD)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
             , debugging(false)
             , finished(false)
             , send_counters(new unsigned short[nproc])
-            , recv_counters(new unsigned short[nproc]) {
-        for (int i=0; i<nproc; ++i) send_counters[i] = 0;
-        for (int i=0; i<nproc; ++i) recv_counters[i] = 0;
-        if (nproc > 1) {
-            for (int i=0; i<NRECV; ++i) {
-                if (posix_memalign((void**)(recv_buf+i), ALIGNMENT, MAX_MSG_LEN))
+            , recv_counters(new unsigned short[nproc])
+            , max_msg_len_(DEFAULT_MAX_MSG_LEN)
+            , nrecv_(DEFAULT_NRECV)
+            , maxq_(DEFAULT_NRECV + 1)
+            , recv_buf()
+            , recv_req()
+    {
+        // Get the maximum buffer size from the MAD_BUFFER_SIZE environment
+        // variable.
+        const char* mad_buffer_size = getenv("MAD_BUFFER_SIZE");
+        if(mad_buffer_size) {
+            // Convert the string into bytes
+            std::stringstream ss(mad_buffer_size);
+            double memory = 0.0;
+            if(ss >> memory) {
+                if(memory > 0.0) {
+                    std::string unit;
+                    if(ss >> unit) { // Failure == assume bytes
+                        if(unit == "KB" || unit == "kB") {
+                            memory *= 1024.0;
+                        } else if(unit == "MB") {
+                            memory *= 1048576.0;
+                        } else if(unit == "GB") {
+                            memory *= 1073741824.0;
+                        }
+                    }
+                }
+            }
+
+            max_msg_len_ = memory;
+            // Check that the size of the receive buffers is reasonable.
+            if(max_msg_len_ < 1024) {
+                max_msg_len_ = DEFAULT_MAX_MSG_LEN; // = 3*512*1024
+                std::cerr << "!!! WARNING: MAD_BUFFER_SIZE must be at least 1024 bytes.\n"
+                          << "!!! WARNING: Increasing MAD_BUFFER_SIZE to the default size, " <<  max_msg_len_ << " bytes.\n";
+            }
+            // Check that the buffer has the correct alignment
+            const std::size_t unaligned = max_msg_len_ % ALIGNMENT;
+            if(unaligned != 0)
+                max_msg_len_ += ALIGNMENT - unaligned;
+        }
+
+        // Get the number of receive buffers from the MAD_RECV_BUFFERS
+        // environment variable.
+        const char* mad_recv_buffs = getenv("MAD_RECV_BUFFERS");
+        if(mad_recv_buffs) {
+            std::stringstream ss(mad_recv_buffs);
+            ss >> nrecv_;
+            // Check that the number of receive buffers is reasonable.
+            if(nrecv_ < (int)DEFAULT_NRECV) {
+                nrecv_ = DEFAULT_NRECV;
+                std::cerr << "!!! WARNING: MAD_RECV_BUFFERS must be at least " << DEFAULT_NRECV << ".\n"
+                          << "!!! WARNING: Increasing MAD_RECV_BUFFERS to " << nrecv_ << ".\n";
+            }
+            maxq_ = nrecv_ + 1;
+        }
+
+        // Allocate memory for receive buffer and requests
+        recv_buf.reset(new void*[maxq_]);
+        recv_req.reset(new Request[maxq_]);
+
+        // Initialize the send/recv counts
+        std::fill_n(send_counters.get(), nproc, 0);
+        std::fill_n(recv_counters.get(), nproc, 0);
+
+        // Allocate recive buffers
+        if(nproc > 1) {
+            for(int i = 0; i < (int)nrecv_; ++i) {
+                if(posix_memalign(&recv_buf[i], ALIGNMENT, max_msg_len_))
                     MADNESS_EXCEPTION("RMI:initialize:failed allocating aligned recv buffer", 1);
                 post_recv_buf(i);
             }
-            recv_buf[NRECV] = 0;
+            recv_buf[nrecv_] = 0;
+#if HAVE_INTEL_TBB
+            tbb_rmi_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
+            tbb_rmi_parent_task->set_ref_count(2);
+
+            RMI_TBB_TASK* rmi_task = new (tbb_rmi_parent_task->allocate_child()) RMI_TBB_TASK(this);
+
+            tbb_rmi_parent_task->enqueue(*rmi_task);
+#else
             start();
+#endif
         }
     }
 
@@ -260,7 +345,7 @@ namespace madness {
     RMI::Request RMI::private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
         int tag = SafeMPI::RMI_TAG;
 
-        if (nbyte > MAX_MSG_LEN) {
+        if (nbyte > max_msg_len_) {
             // Huge message protocol ... send message to dest indicating size and origin of huge message.
             // Remote end posts a buffer then acks the request.  This end can then send.
             const int nword = HEADER_LEN/sizeof(size_t);
@@ -269,7 +354,7 @@ namespace madness {
             info[nword+1] = nbyte;
 
             int ack;
-            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI::BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
+            Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
             Request req_send = private_isend(info, sizeof(info), dest, RMI::huge_msg_handler, ATTR_UNORDERED);
 
             MutexWaiter waiter;
@@ -312,7 +397,7 @@ namespace madness {
         ++(stats.nmsg_sent);
         stats.nbyte_sent += nbyte;
 
-        Request result = comm.Isend(buf, nbyte, MPI::BYTE, dest, tag);
+        Request result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
 
         //if (is_ordered(attr)) unlock();
         unlock();

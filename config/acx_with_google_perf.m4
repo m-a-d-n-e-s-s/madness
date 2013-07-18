@@ -22,10 +22,10 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
     AC_LANG_SAVE
     AC_LANG([C++])
     if test $acx_with_libunwind != "no"; then
-      AC_CHECK_LIB([tcmalloc], [malloc], [LIBS="$LIBS -ltcmalloc"], [AC_MSG_ERROR(["Unable to link with libtmalloc])])
+      AC_CHECK_LIB([tcmalloc], [malloc], [LIBS="$LIBS -ltcmalloc"], [AC_MSG_ERROR(["Unable to link with libtcmalloc])])
       AC_DEFINE([MADNESS_HAS_GOOGLE_PERF], [1], [Define if using Google PerformanceTools])
     else
-      AC_CHECK_LIB([tcmalloc], [malloc], [LIBS="$LIBS -ltcmalloc_minimal"], [AC_MSG_ERROR(["Unable to link with libtmalloc_minimal])])
+      AC_CHECK_LIB([tcmalloc_minimal], [malloc], [LIBS="$LIBS -ltcmalloc_minimal"], [AC_MSG_ERROR(["Unable to link with libtcmalloc_minimal])])
       AC_DEFINE([MADNESS_HAS_GOOGLE_PERF_MINIMAL], [1], [Define if using Google PerformanceTools without libunwind])
     fi
     AC_LANG_RESTORE

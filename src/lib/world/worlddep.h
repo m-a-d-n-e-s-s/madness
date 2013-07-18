@@ -42,7 +42,7 @@
 #include <world/array.h>
 #include <world/worldmutex.h>
 #include <world/atomicint.h>
-
+#include <world/worldfwd.h>
 #include <typeinfo>
 
 namespace madness {
@@ -62,7 +62,7 @@ namespace madness {
         // Replaced atomic counter with critical section so that all
         // data (callbacks and counter) were being consistently managed.
         volatile int ndepend;   ///< Counts dependencies
-        
+
         static const int MAXCALLBACKS = 8;
         typedef Stack<CallbackInterface*,MAXCALLBACKS> callbackT;
         mutable volatile callbackT callbacks; ///< Called ONCE by dec() when ndepend==0
@@ -77,7 +77,7 @@ namespace madness {
                 cb.pop();
             }
         }
-        
+
     public:
         DependencyInterface(int ndep = 0) : ndepend(ndep) {}
 
@@ -89,13 +89,13 @@ namespace madness {
 
         /// Invoked by callbacks to notifiy of dependencies being satisfied
         void notify() {dec();}
-        
+
         /// Registers a callback for when \c ndepend==0 , immediately invoked if \c ndepend==0
         void register_callback(CallbackInterface* callback) {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-                const_cast<callbackT&>(this->callbacks).push(callback);               
+                const_cast<callbackT&>(this->callbacks).push(callback);
                 if (probe()) {
                     cb = const_cast<callbackT&>(callbacks);
                     const_cast<callbackT&>(callbacks).clear();
@@ -115,7 +115,7 @@ namespace madness {
             callbackT cb;
             {
                 ScopedMutex<Spinlock> obolus(this);
-                if (--ndepend == 0) { 
+                if (--ndepend == 0) {
                     cb = const_cast<callbackT&>(callbacks);
                     const_cast<callbackT&>(callbacks).clear();
                 }
@@ -124,7 +124,12 @@ namespace madness {
         }
 
         virtual ~DependencyInterface() {
+#ifdef MADNESS_ASSERTIONS_THROW
+            if(ndepend != 0)
+                error("DependencyInterface::~DependencyInterface(): ndepend =", ndepend);
+#else
             MADNESS_ASSERT(ndepend == 0);
+#endif
         }
 
     };

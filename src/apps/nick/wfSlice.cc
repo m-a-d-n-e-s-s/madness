@@ -1,5 +1,5 @@
 /*
-  This file is part of MADNESS.  
+  This file is part of MADNESS.
   Copyright (C) 2007,2010 Oak Ridge National Laboratory
 
   This program is free software; you can redistribute it and/or modify
@@ -228,7 +228,7 @@ void doplot(World& world, int step, const complex_functionT& psi, double Lplot, 
 
 int main(int argc, char** argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     startup(world, argc, argv);
     // Setup defaults for numerical functions
     double thresh = 1e-3;
@@ -278,7 +278,7 @@ int main(int argc, char** argv) {
                     const complex_functionT psiT = wave_function_load(world, nWF);
                     double Lplot = 60;
                     long numpt = nGrid;
-                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt, 
+                    if(plotDX) doplot(world, nWF, psiT, Lplot, numpt,
                             ("wf" + step + ".dx").c_str());
                     FILE* binaryFile = fopen(("wf" + step + ".bin").c_str(), "wb");
                     ofstream asciiFile( ("wf" + step + ".dat").c_str());
@@ -343,8 +343,8 @@ int main(int argc, char** argv) {
                 }
             }// done loading wf.num
         }
-    } catch (const MPI::Exception& e) {
-        //print(e);
+    } catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     } catch (const madness::MadnessException& e) {
         print(e);

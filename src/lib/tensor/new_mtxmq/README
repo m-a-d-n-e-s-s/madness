@@ -27,3 +27,10 @@ Profiling
 ---------
 
     $ python3 -m cProfile main.py
+
+
+TODO
+----
+
+*   Remove dumb lambda functions
+*   Is an acceptable reveresed-b fma available on bgq?

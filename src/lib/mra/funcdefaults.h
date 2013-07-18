@@ -239,7 +239,7 @@ namespace madness {
         }
 
         /// Returns the default threshold
-        static double get_thresh() {
+        static const double& get_thresh() {
             return thresh;
         }
 

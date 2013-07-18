@@ -47,7 +47,7 @@
 #include <constants.h> //jacob added
 #include <vector>  //jacob added
 #include <examples/molecularmask.h> //jacob added
-#include <jacob/svpe_molecule_colloid.h> 
+#include <jacob/svpe_molecule_colloid.h>
 #include <examples/nonlinsol.h> //jacob added
 
 using namespace madness;
@@ -130,7 +130,7 @@ class NuclearDensityFunctor : public FunctionFunctorInterface<double,3> {
   std::vector<coord_3d> specialpts;
 public:
   NuclearDensityFunctor(const Molecule& molecule) : molecule(molecule) {}
-  
+
   double operator()(const Vector<double,3>& r) const {
     return molecule.nuclear_charge_density(r[0], r[1], r[2]);
   }
@@ -231,7 +231,7 @@ private:
 public:
   MolecularPotentialFunctor(const Molecule& molecule)
     : molecule(molecule) {}
-  
+
   double operator()(const coordT& x) const {
     return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
   }
@@ -462,6 +462,7 @@ struct CalculationParameters {
     double lo;                  ///< Smallest length scale we need to resolve
     double epsilon_1;           ///<vacuum dielectric constant jacob added
     double epsilon_c;           ///<metallic colloid dielectric constant jacob added
+    double sigma_c;           ///<metallic colloid surface width
     double epsilon_2;          ///< solvent dielectric constant  jacob added
     bool svpe;               ///< if true add reaction potential to the total energy at convergence  jacob added
     bool absolvent;            ///< if true, activate the DFT Solvent Solver
@@ -472,73 +473,25 @@ struct CalculationParameters {
     bool solventplot;            ///< to plot the solvation, free space and reaction potentials
     double thresh;               ///<thresh value of the wavelet coefficient
     double dcoll;                ///< value of the distance between center of nuclear charge and colloid center
-    double Rcoll;                ///< value of the radius of the spheres that make up the colloid 
+    double Rcoll;                ///< value of the radius of the spheres that make up the colloid
     double angle;                  ///<angle between the electric field and the axis on the ij-plane
     bool nonaxial;                ///<if true solve for off diagonal terms of the optical ptoperties
     bool opticprop;               ///<if true solve for diagonal terms of the optical ptoperties
-    double F;                      ///<magnitude of the electric field on the ij-plane
-    bool fx;                      ///< if true compute mux(fx) muy(fx) muz(fx) and E(fx)
-    bool mfx;
-    bool fy;
-    bool mfy;
-    bool fz;
-    bool mfz;
-    bool nf;                      ///< if true compute mux(fx) muy(fx) muz(fx) and E(fx)
-    bool mofx;
-    bool ofy;
-    bool mofy;
-    bool ofz;
-    bool mofz;
-    bool tfztfy;
-    bool mtfztfy;
-    bool tfzmtfy;
-    bool mtfzmtfy;
-    bool tfztfx;
-    bool mtfztfx;
-    bool tfzmtfx;
-    bool mtfzmtfx;
-    bool fyfz;
-    bool mfyfz;
-    bool fymfz;
-    bool mfymfz;
-    bool tfytfx;
-    bool mtfytfx;
-    bool tfymtfx;
-    bool mtfymtfx;
-    bool tfx;
-    bool mtfx;
-    bool tfy;
-    bool mtfy;
-    bool tfz;
-    bool mtfz;
-    bool otfx;
-    bool motfx;
-    bool otfy;
-    bool motfy;
-    bool otfz;
-    bool motfz;
-    bool fxfz;
-    bool mfxfz;
-    bool fxmfz;
-    bool mfxmfz;
-    bool fxfy;
-    bool mfxfy;
-    bool fxmfy;
-    bool mfxmfy;
-    bool optsolvent;   ///<if true solve for the optical ptoperties of solvated molecule
-    bool optphysisorption_solvent;///<if true solve for the optical ptoperties ofphysisorbed solvated molecule
-    bool optphysisorption;    ///<if true solve for the optical ptoperties of physisorbed molecule
+    double Fx;                      ///<magnitude of the electric field along the x-axis
+    double Fy;                      ///<magnitude of the electric field along the y-axis
+    double Fz;                      ///<magnitude of the electric field along the z-axis
+    bool staticprop;   ///<if true solve for the static ptoperties of in gas phase
+    bool optsolvent;   ///<if true solve for the static ptoperties of solvated molecule
+    bool optphysisorption_solvent;///<if true solve for the static ptoperties ofphysisorbed solvated molecule
+    bool optphysisorption;    ///<if true solve for the static ptoperties of physisorbed molecule
     bool physisorption;      ///<if true solve for physisorbed molecule
     template <typename Archive>
     void serialize(Archive& ar) {
         ar & charge & smear & econv & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted & lda;
         ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & maxsub & npt_plot & plot_cell & aobasis;
-        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_c & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
-	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & F & fx & mfx & fy & mfy & fz & mfz & tfztfy & mtfztfy;
-	ar & tfzmtfy & mtfzmtfy & fyfz & mfyfz & fymfz & mfymfz & tfx & mtfx & tfy & mtfy & tfz & mtfz & fxfy & mfxfy & fxmfy & mfxmfy;
-	ar & tfztfx & mtfztfx & tfzmtfx & mtfzmtfx & tfytfx & mtfytfx & tfymtfx & mtfymtfx & fxfz & mfxfz & fxmfz & mfxmfz;
-	ar & nf & mofx & ofy & mofy & ofz & mofz & otfx & motfx & otfy & motfy & otfz & motfz & optphysisorption_solvent & optsolvent;
-        ar & optphysisorption & physisorption & Rcoll & dcoll;  
+        ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo & epsilon_1 & epsilon_c & sigma_c & epsilon_2 & svpe & absolvent & Gamma & beta & rho_0;
+	ar & sigma & solventplot & thresh & angle & nonaxial & opticprop & Fx & Fy & Fz & staticprop & optsolvent & optphysisorption_solvent;
+        ar & optphysisorption & physisorption & Rcoll & dcoll ;
         ar & core_type;
     }
 
@@ -572,71 +525,27 @@ struct CalculationParameters {
         , nmo_alpha(0)
         , nmo_beta(0)
         , lo(1e-10)
-        , epsilon_1(1.0)        
-        , epsilon_c(1600.0)        
-        , epsilon_2(epsilon_2)  
-        , svpe(false)        
+        , epsilon_1(1.0)
+        , epsilon_c(1600.0)
+        , sigma_c(0.50)
+        , epsilon_2(79.304)
+        , svpe(false)
         , absolvent(false)
         , Gamma(0.0)
         , beta(1.3)
         , rho_0(0.00048)
-	, sigma(0.3)         
-	,solventplot(false)  
+	, sigma(0.3)
+	,solventplot(false)
 	,thresh(1e-04)
-        , dcoll(6.60)
-        , Rcoll(3.25)
+        , dcoll(20.0)
+        , Rcoll(10.25)
 	,angle(45.0)
 	,nonaxial(false)
 	,opticprop(false)
-	,F(0.0)
- 	,fx(false)
-	,mfx(false)
-	,fy(false)
-	,mfy(false)
-	,fz(false)
-	,mfz(false)
-	,nf(false)
-	,mofx(false)
-	,ofy(false)
-	,mofy(false)
-	,ofz(false)
-	,mofz(false)
-	,tfztfy(false)
-	,mtfztfy(false)
-	,tfzmtfy(false)
-	,mtfzmtfy(false)
-	,tfztfx(false)
-	,mtfztfx(false)
-	,tfzmtfx(false)
-	,mtfzmtfx(false)
-	,fyfz(false)
-	,mfyfz(false)
-	,fymfz(false)
-	,mfymfz(false)
-	,tfytfx(false)
-	,mtfytfx(false)
-	,tfymtfx(false)
-	,mtfymtfx(false)
-	,tfx(false)
-	,mtfx(false)
-	,tfy(false)
-	,mtfy(false)
-	,tfz(false)
-	,mtfz(false)
-        ,otfx(false)
-	,motfx(false)
-	,otfy(false)
-	,motfy(false)
-	,otfz(false)
-	,motfz(false)
-	,fxfz(false)
-	,mfxfz(false)
-	,fxmfz(false)
-	,mfxmfz(false)
-	,fxfy(false)
-	,mfxfy(false)
-	,fxmfy(false)
-	,mfxmfy(false)
+	,Fx(0.01)
+        ,Fy(0.0)
+ 	,Fz(0.0)
+        ,staticprop(false)
         ,optsolvent(false)
         ,optphysisorption_solvent(false)
         ,optphysisorption(false)
@@ -723,16 +632,16 @@ struct CalculationParameters {
                 f >> plot_cell(0,0) >> plot_cell(0,1) >> plot_cell(1,0) >> plot_cell(1,1) >> plot_cell(2,0) >> plot_cell(2,1);
             }
 	    else if (s == "dielectric"|| s == "dielec"){
-               f>>epsilon_2;      
+               f>>epsilon_2;
 	    }
             else if (s == "colloid_dielectric"|| s == "colloid_dielec"){
-               f>>epsilon_c;      
+               f>>epsilon_c;
 	    }
-            else if (s == "env_dielectric"|| s == "env_dielec"){ //for environment arround the colloid
-               f>>epsilon_1;      
+            else if (s == "sigma_colloid"|| s == "sigma_c"){
+                f>>sigma_c;
             }
 	    else if (s == "svpe"|| s == "SVPE"){
-	       svpe = true;   
+	       svpe = true;
 	    }
             else if (s ==" absolvent" || s == "absolvent"){
               absolvent = true;
@@ -748,175 +657,40 @@ struct CalculationParameters {
             }
 	    else if (s == "sigma"){
 	      f>>sigma;
-	    }   
+	    }
 	    else if (s == "angle"){
 	      f>>angle;
-	    }   
+	    }
 	    else if (s == "nonaxial"){
 	      nonaxial = true;
-	    }   
+	    }
 	    else if (s == "opticprop"){
 	      opticprop = true;
-	    }   
-	    else if (s == "Field"|| s == "field"){
-	      f>> F;
-	    }   
-	    else if (s == "Fx"|| s == "fx"){
-	      fx= true;
-	    }   
-	    else if (s == "mFx"|| s == "mfx"){
-	      mfx=true;
-	    }   
+	    }
+            else if (s == "Fx"|| s == "fx"){
+                f>> Fx;
+	    }
 	    else if (s == "Fy"|| s == "fy"){
-	      fy= true;
-	    }   
-	    else if (s == "mFy"|| s == "mfy"){
-	      mfy=true;
-	    }   
+                f >> Fy;
+	    }
 	    else if (s == "Fz"|| s == "fz"){
-	      fz= true;
-	    }   
-	    else if (s == "mFz"|| s == "mfz"){
-	      mfz=true;
-	    }   
-	    else if (s == "tFx"|| s == "tfx"){
-	      tfx= true;
-	    }   
-	    else if (s == "mtFx"|| s == "mtfx"){
-	      mtfx=true;
-	    }   
-	    else if (s == "tFy"|| s == "tfy"){
-	      tfy= true;
-	    }   
-	    else if (s == "mtFy"|| s == "mtfy"){
-	      mtfy=true;
-	    }   
-	    else if (s == "tFz"|| s == "tfz"){
-	      tfz= true;
-	    }   
-	    else if (s == "mtFz"|| s == "mtfz"){
-	      mtfz=true;
-	    }   //st
-	    else if (s == "nF"|| s == "nf"){
-	      nf= true;
-	    }   
-	    else if (s == "moFx"|| s == "mofx"){
-	      mofx=true;
-	    }   
-	    else if (s == "oFy"|| s == "ofy"){
-	      ofy= true;
-	    }   
-	    else if (s == "moFy"|| s == "mofy"){
-	      mofy=true;
-	    }   
-	    else if (s == "oFz"|| s == "ofz"){
-	      ofz= true;
-	    }   
-	    else if (s == "moFz"|| s == "mofz"){
-	      mofz=true;
-	    }   
-	    else if (s == "otFx"|| s == "otfx"){
-	      otfx= true;
-	    }   
-	    else if (s == "motFx"|| s == "motfx"){
-	      motfx=true;
-	    }   
-	    else if (s == "otFy"|| s == "otfy"){
-	      otfy= true;
-	    }   
-	    else if (s == "motFy"|| s == "motfy"){
-	      motfy=true;
-	    }   
-	    else if (s == "otFz"|| s == "otfz"){
-	      otfz= true;
-	    }   
-	    else if (s == "motFz"|| s == "motfz"){
-	      motfz=true;
-	    }   //st
-	    else if (s == "FxFy"|| s == "fxfy"){
-	      fxfy= true;
-	    }   
-	    else if (s == "mFxFy"|| s == "mfxfy"){
-	      mfxfy=true;
-	    }   
-	    else if (s == "FxmFy"|| s == "fxmfy"){
-	      fxmfy= true;
-	    }   
-	    else if (s == "mFxmFy"|| s == "mfxmfy"){
-	      mfxmfy=true;
-	    }   
-	    else if (s == "FxFz"|| s == "fxfz"){
-	      fxfz= true;
-	    }   
-	    else if (s == "mFxFz"|| s == "mfxfz"){
-	      mfxfz=true;
-	    }   
-	    else if (s == "FxmFz"|| s == "fxmfz"){
-	      fxmfz= true;
-	    }   
-	    else if (s == "mFxmFz"|| s == "mfxmfz"){
-	      mfxmfz=true;
-	    }   
-	    else if (s == "tFztFy"|| s == "tfztfy"){
-	      tfztfy= true;
-	    }   
-	    else if (s == "mtFztFy"|| s == "mtfztfy"){
-	      mtfztfy=true;
-	    }   
-	    else if (s == "tFzmtFy"|| s == "tfzmtfy"){
-	      tfzmtfy= true;
-	    }   
-	    else if (s == "mtFzmtFy"|| s == "mtfzmtfy"){
-	      mtfzmtfy= true;
-	    }   
-	    else if (s == "tFztFx"|| s == "tfztfx"){
-	      tfztfx= true;
-	    }   
-	    else if (s == "mtFztFx"|| s == "mtfztfx"){
-	      mtfztfx=true;
-	    }   
-	    else if (s == "tFzmtFx"|| s == "tfzmtfx"){
-	      tfzmtfx= true;
-	    }   
-	    else if (s == "mtFzmtFx"|| s == "mtfzmtfx"){
-	      mtfzmtfx= true;
-	    }   ////
-	    else if (s == "mFyFz"|| s == "mfyfz"){
-	      mfyfz=true;
-	    }   
-	    else if (s == "FyFz"|| s == "fyfz"){
-	      fyfz= true;
-	    }   
-	    else if (s == "FymFz"|| s == "fymfz"){
-	      fymfz=true;
-	    }   //end
-	    else if (s == "mFymFz"|| s == "mfymfz"){
-	      mfymfz= true;
-	    }   
-	    else if (s == "mtFytFx"|| s == "mtfytfx"){
-	      mtfytfx=true;
-	    }   
-	    else if (s == "tFytFx"|| s == "tfytfx"){
-	      tfytfx= true;
-	    }   
-	    else if (s == "tFymtFx"|| s == "tfymtfx"){
-	      tfymtfx=true;
-	    }   //end
-	    else if (s == "mtFymtFx"|| s == "mtfymtfx"){
-	      mtfymtfx= true;
-            }
-	    else if (s == "OPTSOLVENT"|| s == "optsolvent"){
+                f>>Fz;
+	    }
+            else if (s == "STATICPROP"|| s == "staticprop"){
+	      staticprop= true;
+	    }
+            else if (s == "OPTSOLVENT"|| s == "optsolvent"){
 	      optsolvent= true;
-	    }  
+	    }
             else if (s == "PHYSISORPTION"|| s == "physisorption"){
 	      physisorption= true;
-	    }  
+	    }
             else if (s == "OPTPHYSISORPTION"|| s == "optphysisorption"){
 	      optphysisorption= true;
-	    }  
+	    }
             else if (s == "OPTPHYSISORPTION_SOLVENT"|| s == "optphysisorption_solvent"){
                 optphysisorption_solvent= true;
-	    }  
+	    }
             else if (s == "aobasis") {
 	      f >> aobasis;
 	      if (aobasis!="sto-3g" && aobasis!="6-31g") {
@@ -1018,7 +792,9 @@ struct CalculationParameters {
         madness::print("        plot coulomb ", plotcoul);
         madness::print("        plot orbital ", plotlo, plothi);
         madness::print("        plot npoints ", npt_plot);
-	madness::print("      Electric Field ", F);
+	madness::print("      X-compn't Electric Field ", Fx);
+        madness::print("      Y-compn't Electric Field ", Fy);
+        madness::print("      Z-compn't Electric Field ", Fz);
         madness::print("ab intio DFT solvation ", absolvent);
         madness::print("SVPE  solvation        ", svpe);
 	madness::print("density at interface ", rho_0);
@@ -1035,8 +811,9 @@ struct CalculationParameters {
 	    madness::print("     surface width ", sigma);
 	}
         if (physisorption){
-            madness::print("dielectric around colloid and molecule         ", epsilon_1); //jacob added
+            madness::print("dielectric around colloid and molecule         ", epsilon_2); //jacob added
             madness::print("colloid's dielectric constant                  ", epsilon_c);
+            madness::print("colloid's surface width                        ", sigma_c);
         }
         if (plot_cell.size() > 0)
             madness::print("        plot  volume ", plot_cell(0,0), plot_cell(0,1),
@@ -1093,7 +870,7 @@ struct Calculation {
     realfunc dfreedrho ;
     double muz, mux, muy;
   // SolventPotential Solvent;
-  
+
     Calculation(World & world, const char *filename)
     {
         if(world.rank() == 0) {
@@ -1765,9 +1542,9 @@ struct Calculation {
 	    LoadBalanceDeux<3> lb(world);
 	    lb.add_tree(vnuc, lbcost<double,3>(1.0, 0.0), false);
 	    lb.add_tree(rho, lbcost<double,3>(1.0, 1.0), true);
-	    
+
 	    FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
-	    
+
 //                 FunctionDefaults<3>::set_pmap(lb.load_balance(6.0));
 //                 rho = copy(rho, FunctionDefaults<3>::get_pmap(), false);
 //                 vnuc = copy(vnuc, FunctionDefaults<3>::get_pmap(), false);
@@ -2656,7 +2433,7 @@ struct Calculation {
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 	  if (iter > 0 && update_residual < 0.1) {
 	    //do_this_iter = false;
-	    param.maxsub = maxsub_save;      
+	    param.maxsub = maxsub_save;
 	  }
 	  if(param.localize && do_this_iter) {
 	    tensorT U;
@@ -2683,7 +2460,7 @@ struct Calculation {
 	      rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
 	    }
 	  }
-	  
+
 	  if (diag_rho && param.core_type.substr(0,3) == "mcp") {
 	    START_TIMER(world);
 	    vecfuncT proj_core = core_projection(world, amo, false);
@@ -2709,7 +2486,7 @@ struct Calculation {
             else {
                 brho = functionT(world); // zero
             }
-            
+
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
@@ -2731,7 +2508,7 @@ struct Calculation {
 	    rho.truncate();
 	    vacuo_rho = rho;  //electronic vacuum charge in case of solvation
             double enuclear = inner(rho, vnuc);       //nuclear potential energy
-            START_TIMER(world);                       
+            START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
@@ -2826,7 +2603,7 @@ struct Calculation {
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
     }
-    
+
     if(world.rank() == 0) {
         if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
         else print("Orbitals are eigenvectors - energies are eigenvalues\n");
@@ -2842,14 +2619,28 @@ struct Calculation {
         }
         if((param.absolvent || param.svpe)&&!param.physisorption)
             if(world.rank()==0)
-                print("\n\n                            Entrying Solvation Module                       \n\n");                          
+                print("\n\n                            Entrying Solvation Module                       \n\n");
         if(param.physisorption && !(param.absolvent || param.svpe))
             if(world.rank()==0)
-                print("\n\n                            Entrying Physisorption Module                       \n\n");                          
+                print("\n\n                            Entrying Physisorption Module                       \n\n");
         if(param.physisorption && param.absolvent)
             if(world.rank()==0)
-                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");                          
+                print("\n\n                            Entrying Physisorption and Solvation Modules                       \n\n");
+        if(param.optphysisorption || param.optphysisorption_solvent){
+            SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
+                                     ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
+                                     ,std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
+            real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+                                                                           ,molecule.get_all_coords_vec()));
+            mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
+            std::vector<double> Eelec = vector_factory(param.Fx, param.Fy,param.Fz);
+            ULaplace = solver.solve_Laplace(Eelec);
+            double Fav = solver.ave_rxn_field(ULaplace,mol_mask);
+            if(world.rank()==0)
+                print("Ave colloid reflected field experienced by molecule:", Fav);
+        }
     }
+
     //end solve_vacuo
  void solve(World & world)
     {
@@ -2866,23 +2657,43 @@ struct Calculation {
         int maxsub_save = param.maxsub;//get the maximum subspace
         param.maxsub = 2;
  	//Making nuclear charge potential
-	realfunct rhon_functor(new NuclearDensityFunctor(molecule));
-	if (world.rank()==0)
-	  print("starting to project rhon");
-	rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added 
-	rhon.truncate();
-        // coord_3d lo(0.0), hi(0.0);
-        //lo[0] = -20.0;
-        // hi[0] = 20.0;
-        double total_rhon = rhon.trace();
-	if(world.rank()==0)
-            print("TRACE OF RHON", total_rhon);
+        if(param.physisorption||param.svpe||param.absolvent){
+            realfunct rhon_functor(new NuclearDensityFunctor(molecule));
+            if (world.rank()==0)
+                print("starting to project rhon");
+            rhon = real_factory_3d(world).functor(rhon_functor).truncate_on_project().truncate_mode(0); // nuclear charge density//Jacob added
+            rhon.truncate();
+            // coord_3d lo(0.0), hi(0.0);
+            //lo[0] = -20.0;
+            // hi[0] = 20.0;
+            double total_rhon = rhon.trace();
+            if(world.rank()==0)
+                print("TRACE OF RHON", total_rhon);
+        }
+        if (param.absolvent){
+               //Dielectric response to the external electric field
+                rhotp = rhon - vacuo_rho;
+                DFTSolventSolver DFTSsolver(vacuo_rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
+                                            ,std::max(1e-4,param.thresh));
+                std::vector<double> Eelec = vector_factory(param.Fx, param.Fy,param.Fz);
+                Ucontinuum = DFTSsolver.Laplace_ESP(Eelec);
+                SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll)\
+                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()),\
+                                         std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
+                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii\
+                                                                               ,molecule.get_all_coords_vec()));
+                mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
+                double Fav = DFTSsolver.ave_rxn_field(Ucontinuum,mol_mask);
+                if(world.rank()==0)
+                    print("Ave reflected(Solvent cavity)field experienced by molecule:", Fav);
+
+        }
         for(int iter = 0;iter < param.maxiter;iter++){
 	  if(world.rank() == 0)
 	    printf("\nIteration %d at time %.1fs\n\n", iter, wall_time());
 	  if (iter > 0 && update_residual < 0.1) {
 	    //do_this_iter = false;
-	    param.maxsub = maxsub_save;      
+	    param.maxsub = maxsub_save;
 	  }
 	  if(param.localize && do_this_iter) {
 	    tensorT U;
@@ -2909,7 +2720,7 @@ struct Calculation {
 	      rotate_subspace(world, U, subspace, amo.size(), bmo.size(), trantol);
 	    }
 	  }
-	  
+
 	  if (diag_rho && param.core_type.substr(0,3) == "mcp") {
 	    START_TIMER(world);
 	    vecfuncT proj_core = core_projection(world, amo, false);
@@ -2935,7 +2746,7 @@ struct Calculation {
             else {
                 brho = functionT(world); // zero
             }
-            
+
             END_TIMER(world, "Make densities");
             if(iter < 2 || (iter % 10) == 0){
                 START_TIMER(world);
@@ -2954,11 +2765,11 @@ struct Calculation {
             brho_old = brho;
 	    rho = arho + brho;                  //compute electronic charge density
 	    rho.truncate();
-            rhot = rhon - rho;  //total charge for the DFTSolventSolver
+            //rhot = rhon - rho;  //total charge for the DFTSolventSolver
             //rhot = rhon - vacuo_rho;
-           
+
             double enuclear = inner(rho, vnuc);       //nuclear potential energy
-            START_TIMER(world);                       
+            START_TIMER(world);
             functionT vcoul = apply(*coulop, rho);    //coulomb potential
             END_TIMER(world, "Coulomb");
             double ecoulomb = 0.5 * inner(rho, vcoul);  //coulomb potential energy
@@ -2972,674 +2783,94 @@ struct Calculation {
              Interface of Molecule on Colloid
            ================================================================================================ */
            if(param.physisorption ){
-                rhotp = rhon - vacuo_rho;
-                SVPEColloidSolver solver(world,param.sigma,param.epsilon_c,param.epsilon_1,colloid_radii(param.Rcoll) \
-                                         ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
-                                         ,std::min(1e-4,param.sigma*0.1),param.maxiter);
-                // realfunc Uguess = (X + Y + Z).scale(-1.0*param.F);//Colloid is in the -Y direction
-                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
-                                                                               ,molecule.get_all_coords_vec()));
+               real_functor_3d colloid_mask_functor(new MolecularVolumeMask(param.sigma_c,colloid_radii(param.Rcoll) \
+                                                                            ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center())));
+               realfunc colloid_mask = real_factory_3d(world).functor(colloid_mask_functor);
+               coord_3d lo(0.0),hi(0.0);
+               lo[1]=-param.L, hi[1] = param.L;
+               plot_line("2D_colloid_plot.dat",1001,lo,hi,colloid_mask);
+                //exit(0);
+               real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+                                                                              ,molecule.get_all_coords_vec()));
                 mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
-                Uphysisorb = solver.solve(rhotp);
-                // if(world.rank() == 0)
-                //     print("initial guess into Laplace",Uguess.norm2());
-                //ULaplace = solver.solve_Laplace(Uguess);
-                //realfunc FL  = solver.make_electric_field(ULaplace);
-                //double AF = solver.ave_rxn_field(FL,mol_mask);
-                //                if(world.rank() == 0)
-                //    print(" average continuum reflected field ",AF);
-                
+               rhotp = rhon - rho;
+               SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
+                                        ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center()) \
+                                        ,std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
+               Uphysisorb = solver.solve(rhotp);
            }
             /*==========================================================================================
               Instantiating SVPE and Isodensity solvation models
               ============================================================================================*/
            if (param.absolvent){
                 //Abinitio Solvation Model
-                rhotp = rhon - vacuo_rho;
+                rhotp = rhon - rho;
                 DFTSolventSolver DFTSsolver(vacuo_rho,rhotp,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
                                             ,std::max(1e-4,param.thresh));
                 Uabinit = DFTSsolver.ESP();
+                real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+                                                                              ,molecule.get_all_coords_vec()));
+                mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
                 //dESPdrho = DFTSsolver.dESP_drho(U);
                 //dfreedrho = DFTSsolver.dfree_drho();
             }
+
             if(param.svpe){
-                rhotp = rhon - vacuo_rho;
+                rhotp = rhon - rho;
                 ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
-                                               molecule.get_all_coords_vec()); 
+                                               molecule.get_all_coords_vec());
                 vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhotp,param.solventplot);
             }
-            
+
             /*==========================================================================================
              + Including Solvent Response ,Electric Field and Surface Response to the SCF loop
               ============================================================================================*/
-            if((param.absolvent && !param.optsolvent)&&(!param.physisorption && !param.optphysisorption )){//Iso-density solvation response
-                    vlocal = vcoul + vnuc + Uabinit;//dESPdrho + dfreedrho  ;             
-            } 
+            if((param.absolvent&&!param.physisorption)&&(!param.optsolvent&&!param.optphysisorption_solvent)){//Iso-density solvation response
+                print("ISODENSITY SOLVENT REACTION!!",Uabinit.trace());
+                vlocal = vcoul + vnuc + Uabinit;//dESPdrho + dfreedrho  ;
+            }
             else if (param.svpe){//SVPE solvation
                 vlocal = vcoul + vnuc + vsolvent;// + SMI.pol_pot(mol_pot);
             }
-            else if ((param.physisorption && !param.optphysisorption)&&(!param.absolvent && !param.optphysisorption_solvent)){//Physisorption
-                vlocal = vcoul + vnuc + Uphysisorb;
-            } 
-            else if((param.physisorption && param.absolvent )&&!param.optphysisorption_solvent){
+            else if ((param.physisorption&&!param.absolvent)&&(!param.optphysisorption&&!param.optphysisorption_solvent)){//Physisorption
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace());
+                vlocal = vcoul + vnuc + Uphysisorb ;
+            }
+            else if((param.physisorption && param.absolvent)&&(!param.optphysisorption_solvent) ){
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace(), Uabinit.trace());
                 vlocal = vcoul + vnuc + Uphysisorb + Uabinit; //disolve molecule near acolloid
             }
-	    //put molecule in various components of elecric field and compute energy and dipole moment
-            else if ((!param.physisorption && !param.optphysisorption_solvent)&&(param.fx && !param.optsolvent)){
-                vlocal = vcoul + vnuc -  0.7071067812*X.scale(param.F); //mux(fx), E(fx)
+            //put molecule in various components of elecric field and compute energy and dipole moment
+            else if (param.staticprop){
+                print("STATICPROP REACTION!!");
+                vlocal = vcoul + vnuc -  X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfx && !param.optsolvent )){
-                vlocal = vcoul + vnuc +  0.7071067812*X*param.F ;  //mux(-fx), E(-fx)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent) && (param.fy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc -  0.7071067812*Y.scale(param.F);//muy(fy), E(fy)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfy && !param.optsolvent)){
-                vlocal = vcoul + vnuc +  0.7071067812*Y*param.F ;//muy(-fy), E(-fy)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fz && !param.optsolvent )) {
-                vlocal = vcoul + vnuc - 0.7071067812*Z.scale(param.F);//muz(fz), E(fz)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfz && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 0.7071067812*Z*param.F ; //muz(-fz), E(-fz)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*X.scale(param.F); //mux(2fx), E(2fx)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfx && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 1.414213562*X*param.F ;  //mux(-2fx), E(-2fx)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F);  //muy(2fy), E(2fy)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfy && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) ;         //muy(-2fy), E(-2fy)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F);  //muz(2fz), E(2fz)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfz && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 1.414213562*Z*param.F ;    //muz(-2fz), E(-2fz)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.nf && !param.optsolvent)) {
-                vlocal = vcoul + vnuc ; //no field
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mofx && !param.optsolvent )){//START EDITING HERE
-                vlocal = vcoul + vnuc + 0.5*X*param.F ;  //mux(-fx), E(-fx)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.ofy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 0.5*Y.scale(param.F);//muy(fy), E(fy)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mofy && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 0.5*Y*param.F ;//muy(-fy), E(-fy)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.ofz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 0.707106781*Z.scale(param.F);//muz(fz), E(fz)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mofz && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 0.707106781*Z*param.F ; //muz(-fz), E(-fz)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.otfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - X.scale(param.F); //mux(2fx), E(2fx)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.motfx && !param.optsolvent)){
-                vlocal = vcoul + vnuc + X*param.F ;  //mux(-2fx), E(-2fx)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.otfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Y.scale(param.F);  //muy(2fy), E(2fy)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.motfy && !param.optsolvent)){
-                vlocal = vcoul + vnuc + Y*param.F ;         //muy(-2fy), E(-2fy)
-            } 
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.otfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F);  //muz(2fz), E(2fz)
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.motfz && !param.optsolvent)){
-                vlocal = vcoul + vnuc + 1.414213562*Z*param.F ;    //muz(-2fz), E(-2fz)
-            }//END EDITING HERE
-            /*compute mux(fx,fy), mux(-fx,fy), mux(fx,-fy), mux(-fx,-fy)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fxfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc -  0.7071067812*X.scale(param.F) -  0.7071067812*Y.scale(param.F);
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfxfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc +  0.7071067812*X.scale(param.F) - Y.scale(param.F)*0.7071067812;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fxmfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfxmfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-            }
-            /*compute mux(fx,fz), mux(-fx,fz), mux(fx,-fz), mux(-fx,-fz)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fxfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 0.707106781*X.scale(param.F) - 0.707106781*Z.scale(param.F);
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfxfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + 0.707106781*X.scale(param.F) - Z.scale(param.F)*0.707106781;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fxmfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfxmfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-            }
-            /*compute muy(fy,fz), muy(-fy,fz), muy(fy,-fz), muy(-fy,-fz)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fyfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfyfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.fymfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mfymfz && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-            }
-            /*compute muy(2fy,2fx), muy(-2fy,2fx), muy(2fy,-2fx), muy(-2fy,-2fx)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfytfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfytfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfymtfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfymtfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-            }
-            /*compute muz(2fz,2fy), muz(-2fz,2fy), muz(2fz,-2fy), muz(-2fz,-2fy)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfztfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfztfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfzmtfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfzmtfy && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-            }
-            /*compute muz(2fz,2fx), muz(-2fz,2fx), muz(2fz,-2fx), muz(-2fz,-2fx)*/
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfztfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc - Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfztfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.tfzmtfx && !param.optsolvent)){
-                vlocal = vcoul + vnuc - Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-            }
-            else if((!param.physisorption && !param.optphysisorption_solvent)&&(param.mtfzmtfx && !param.optsolvent)) {
-                vlocal = vcoul + vnuc + Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-            }
-            
+
         /*============================================================================================================
-            Including Solvent Effects to Optical Properties. The Abinitio Solvation Model is used
+            Including Solvent Effects to the static Properties. The Abinitio Solvation Model is used
             ==============================================================================================================*/
-            else if(param.fx && param.optsolvent) {
-                vlocal = vcoul + vnuc - 0.7071067812*X.scale(param.F) + Uabinit ; //mux(fx), E(fx)
-            }
-	    else if(param.mfx && param.optsolvent){
-	      vlocal = vcoul + vnuc +  0.7071067812*X*param.F + Uabinit  ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.fy && param.optsolvent) {
-	      vlocal = vcoul + vnuc -  0.7071067812*Y.scale(param.F) + Uabinit ;//muy(fy), E(fy)
-	    }
-	    else if(param.mfy && param.optsolvent){
-	      vlocal = vcoul + vnuc +  0.7071067812*Y*param.F + Uabinit ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.fz && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 0.7071067812*Z.scale(param.F) + Uabinit ;//muz(fz), E(fz)
-	    }
-	    else if(param.mfz && param.optsolvent){
-	      vlocal = vcoul + vnuc + 0.7071067812*Z*param.F + Uabinit ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.tfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*X.scale(param.F) + Uabinit ; //mux(2fx), E(2fx)
-	    }
-	    else if(param.mtfx && param.optsolvent){
-	      vlocal = vcoul + vnuc + 1.414213562*X*param.F + Uabinit  ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.tfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F) + Uabinit ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.mtfy && param.optsolvent){
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) + Uabinit ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.tfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uabinit ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.mtfz && param.optsolvent){
-	      vlocal = vcoul + vnuc + 1.414213562*Z*param.F + Uabinit ;    //muz(-2fz), E(-2fz)
-	    }
-	    else if(param.nf && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit ; //no field
-	    }
-	    else if(param.mofx && param.optsolvent){//START EDITING HERE
-	      vlocal = vcoul + vnuc + 0.5*X*param.F + Uabinit ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.ofy && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 0.5*Y.scale(param.F) + Uabinit ;//muy(fy), E(fy)
-	    }
-	    else if(param.mofy && param.optsolvent){
-	      vlocal = vcoul + vnuc + 0.5*Y*param.F + Uabinit ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.ofz && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 0.707106781*Z.scale(param.F) + Uabinit ;//muz(fz), E(fz)
-	    }
-	    else if(param.mofz && param.optsolvent){
-                vlocal = vcoul + vnuc + 0.707106781*Z.scale(param.F) + Uabinit ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.otfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc - X.scale(param.F) + Uabinit ; //mux(2fx), E(2fx)
-	    }
-	    else if(param.motfx && param.optsolvent){
-                vlocal = vcoul + vnuc + X.scale(param.F) + Uabinit ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.otfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc - Y.scale(param.F) + Uabinit ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.motfy && param.optsolvent){
-                vlocal = vcoul + vnuc + Y.scale(param.F) + Uabinit  ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.otfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uabinit ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.motfz && param.optsolvent){
-                vlocal = vcoul + vnuc + 1.414213562*Z.scale(param.F) + Uabinit  ;    //muz(-2fz), E(-2fz)
-	    }//END EDITING HERE
-	    /*compute mux(fx,fy), mux(-fx,fy), mux(fx,-fy), mux(-fx,-fy)*/
-	    else if(param.fxfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - 0.7071067812*X.scale(param.F) -  0.7071067812*Y.scale(param.F);
-	    }
-	    else if(param.mfxfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + 0.7071067812*X.scale(param.F) - Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.fxmfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.mfxmfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    /*compute mux(fx,fz), mux(-fx,fz), mux(fx,-fz), mux(-fx,-fz)*/
-	    else if(param.fxfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - 0.707106781*X.scale(param.F) - 0.707106781*Z.scale(param.F);
-	    }
-	    else if(param.mfxfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + 0.707106781*X.scale(param.F) - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fxmfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfxmfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(fy,fz), muy(-fy,fz), muy(fy,-fz), muy(-fy,-fz)*/
-	    else if(param.fyfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfyfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fymfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfymfz && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(2fy,2fx), muy(-2fy,2fx), muy(2fy,-2fx), muy(-2fy,-2fx)*/
-	    else if(param.tfytfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfytfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.tfymtfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfymtfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    /*compute muz(2fz,2fy), muz(-2fz,2fy), muz(2fz,-2fy), muz(-2fz,-2fy)*/
-	    else if(param.tfztfy && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfy && param.optsolvent) {
-                vlocal = vcoul + vnuc + Uabinit + Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfy && param.optsolvent) {
-                vlocal = vcoul + vnuc + Uabinit - Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfy && param.optsolvent) {
-                vlocal = vcoul + vnuc + Uabinit + Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    /*compute muz(2fz,2fx), muz(-2fz,2fx), muz(2fz,-2fx), muz(-2fz,-2fx)*/
-	    else if(param.tfztfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit - Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfx && param.optsolvent) {
-	      vlocal = vcoul + vnuc + Uabinit + Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
+            else if((param.optsolvent&&param.absolvent)&&(!param.optphysisorption_solvent)) {
+                print("OPTSOLVENT REACTION!!", Ucontinuum.trace(), Uabinit.trace());
+                vlocal = vcoul + vnuc + Uabinit + Ucontinuum - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz);
             }
               /*============================================================================================================
-            Including Physisorption Effects to Optical Properties. 
+            Including Physisorption Effects to static Properties.
             ==============================================================================================================*/
-            else if(param.fx && param.optphysisorption) {
-                vlocal = vcoul + vnuc -  0.7071067812*X.scale(param.F) + Uphysisorb ; //mux(fx), E(fx)
+            else if(param.optphysisorption&&param.physisorption) {
+                print("OPTPHYSISORPTION REACTION!!", Uphysisorb.trace(),ULaplace.trace());
+                vlocal = vcoul + vnuc - X.scale(param.Fx) -  Y.scale(param.Fy)  -  Z.scale(param.Fz) + Uphysisorb + ULaplace ;
             }
-	    else if(param.mfx && param.optphysisorption){
-                vlocal = vcoul + vnuc +  0.7071067812*X*param.F + Uphysisorb  ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.fy && param.optphysisorption) {
-                vlocal = vcoul + vnuc -  0.7071067812*Y.scale(param.F) + Uphysisorb ;//muy(fy), E(fy)
-	    }
-	    else if(param.mfy && param.optphysisorption){
-                vlocal = vcoul + vnuc +  0.7071067812*Y*param.F + Uphysisorb ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.fz && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 0.7071067812*Z.scale(param.F) + Uphysisorb ;//muz(fz), E(fz)
-	    }
-	    else if(param.mfz && param.optphysisorption){
-                vlocal = vcoul + vnuc + 0.7071067812*Z*param.F + Uphysisorb ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.tfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 1.414213562*X.scale(param.F) + Uphysisorb; //mux(2fx), E(2fx)
-	    }
-	    else if(param.mtfx && param.optphysisorption){
-                vlocal = vcoul + vnuc + 1.414213562*X*param.F + Uphysisorb ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.tfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F) + Uphysisorb ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.mtfy && param.optphysisorption){
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) + Uphysisorb ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.tfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uphysisorb ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.mtfz && param.optphysisorption){
-                vlocal = vcoul + vnuc + 1.414213562*Z*param.F + Uphysisorb ;    //muz(-2fz), E(-2fz)
-	    }
-	    else if(param.nf && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb ; //no field
-	    }
-	    else if(param.mofx && param.optphysisorption){//START EDITING HERE
-                vlocal = vcoul + vnuc + 0.5*X*param.F + Uphysisorb ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.ofy && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 0.5*Y.scale(param.F) + Uphysisorb ;//muy(fy), E(fy)
-	    }
-	    else if(param.mofy && param.optphysisorption){
-                vlocal = vcoul + vnuc + 0.5*Y*param.F + Uphysisorb + Uphysisorb ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.ofz && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 0.707106781*Z.scale(param.F) + Uphysisorb ;//muz(fz), E(fz)
-	    }
-	    else if(param.mofz && param.optphysisorption){
-                vlocal = vcoul + vnuc + 0.707106781*Z*param.F + Uphysisorb ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.otfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc - X.scale(param.F) + Uphysisorb ; //mux(2fx), E(2fx)
-	    }
-	    else if(param.motfx && param.optphysisorption){
-                vlocal = vcoul + vnuc + X*param.F + Uphysisorb ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.otfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc - Y.scale(param.F) + Uphysisorb ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.motfy && param.optphysisorption){
-                vlocal = vcoul + vnuc + Y*param.F + Uphysisorb ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.otfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uphysisorb ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.motfz && param.optphysisorption){
-                vlocal = vcoul + vnuc + 1.414213562*Z*param.F + Uphysisorb  ;    //muz(-2fz), E(-2fz)
-	    }//END EDITING HERE
-	    /*compute mux(fx,fy), mux(-fx,fy), mux(fx,-fy), mux(-fx,-fy)*/
-	    else if(param.fxfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - 0.7071067812*X.scale(param.F) -  0.7071067812*Y.scale(param.F);
-	    }
-	    else if(param.mfxfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + 0.7071067812*X.scale(param.F) - Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.fxmfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.mfxmfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    /*compute mux(fx,fz), mux(-fx,fz), mux(fx,-fz), mux(-fx,-fz)*/
-	    else if(param.fxfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - 0.707106781*X.scale(param.F) - 0.707106781*Z.scale(param.F);
-	    }
-	    else if(param.mfxfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + 0.707106781*X.scale(param.F) - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fxmfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfxmfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(fy,fz), muy(-fy,fz), muy(fy,-fz), muy(-fy,-fz)*/
-	    else if(param.fyfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfyfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fymfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfymfz && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(2fy,2fx), muy(-2fy,2fx), muy(2fy,-2fx), muy(-2fy,-2fx)*/
-	    else if(param.tfytfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfytfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.tfymtfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfymtfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    /*compute muz(2fz,2fy), muz(-2fz,2fy), muz(2fz,-2fy), muz(-2fz,-2fy)*/
-	    else if(param.tfztfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfy && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    /*compute muz(2fz,2fx), muz(-2fz,2fx), muz(2fz,-2fx), muz(-2fz,-2fx)*/
-	    else if(param.tfztfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb  + Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb - Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfx && param.optphysisorption) {
-                vlocal = vcoul + vnuc + Uphysisorb + Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-            }
-             /*============================================================================================================
-            Including Physisorption and solvation  Effects to Optical Properties. 
+            /*============================================================================================================
+            Including Physisorption and solvation  Effects to static Properties.
             ==============================================================================================================*/
-            else if(param.fx && param.optphysisorption_solvent) {
-                vlocal = vcoul + vnuc -  0.7071067812*X.scale(param.F) + Uphysisorb + Uabinit ; //mux(fx), E(fx)
-                print("OPTPHYSI_SOLVENT", Uphysisorb.norm2());
+            else if((param.optphysisorption_solvent&&!param.optsolvent)&&(param.absolvent&&param.physisorption)) {
+                print("PHYSISORPTION REACTION!!", Uphysisorb.trace(),ULaplace.trace(),Uabinit.trace(),Ucontinuum.trace());
+                vlocal = vcoul + vnuc-X.scale(param.Fx)-Y.scale(param.Fy)-Z.scale(param.Fz)+ Uphysisorb + ULaplace + Uabinit + Ucontinuum ;
             }
-	    else if(param.mfx && param.optphysisorption_solvent){
-                vlocal = vcoul + vnuc +  0.7071067812*X*param.F + Uphysisorb + Uabinit  ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.fy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc -  0.7071067812*Y.scale(param.F) + Uphysisorb + Uabinit ;//muy(fy), E(fy)
-	    }
-	    else if(param.mfy && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc +  0.7071067812*Y*param.F + Uphysisorb + Uabinit ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.fz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 0.7071067812*Z.scale(param.F) + Uphysisorb + Uabinit ;//muz(fz), E(fz)
-	    }
-	    else if(param.mfz && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + 0.7071067812*Z*param.F + Uphysisorb + Uabinit ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.tfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*X.scale(param.F) + Uphysisorb + Uabinit; //mux(2fx), E(2fx)
-	    }
-	    else if(param.mtfx && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + 1.414213562*X*param.F + Uphysisorb + Uabinit ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.tfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Y.scale(param.F) + Uphysisorb + Uabinit ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.mtfy && param.optphysisorption_solvent){
-                vlocal = vcoul + vnuc + 1.414213562*Y.scale(param.F) + Uphysisorb + Uabinit ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.tfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uphysisorb + Uabinit ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.mtfz && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + 1.414213562*Z*param.F + Uphysisorb + Uabinit ;    //muz(-2fz), E(-2fz)
-	    }
-	    else if(param.nf && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit ; //no field
-	    }
-	    else if(param.mofx && param.optphysisorption_solvent){//START EDITING HERE
-	      vlocal = vcoul + vnuc + 0.5*X*param.F + Uphysisorb + Uabinit ;  //mux(-fx), E(-fx)
-	    } 
-	    else if(param.ofy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 0.5*Y.scale(param.F) + Uphysisorb + Uabinit ;//muy(fy), E(fy)
-	    }
-	    else if(param.mofy && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + 0.5*Y*param.F + Uphysisorb + Uphysisorb + Uabinit ;//muy(-fy), E(-fy)
-	    } 
-	    else if(param.ofz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 0.707106781*Z.scale(param.F) + Uphysisorb + Uabinit ;//muz(fz), E(fz)
-	    }
-	    else if(param.mofz && param.optphysisorption_solvent){
-                vlocal = vcoul + vnuc + 0.707106781*Z*param.F + Uphysisorb + Uabinit ; //muz(-fz), E(-fz)
-	    } 
-	    else if(param.otfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - X.scale(param.F) + Uphysisorb + Uabinit ; //mux(2fx), E(2fx)
-	    }
-	    else if(param.motfx && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + X*param.F + Uphysisorb + Uabinit ;  //mux(-2fx), E(-2fx)
-	    } 
-	    else if(param.otfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - Y.scale(param.F) + Uphysisorb + Uabinit ;  //muy(2fy), E(2fy)
-	    }
-	    else if(param.motfy && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + Y*param.F + Uphysisorb + Uabinit ;         //muy(-2fy), E(-2fy)
-	    } 
-	    else if(param.otfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc - 1.414213562*Z.scale(param.F) + Uphysisorb + Uabinit ;  //muz(2fz), E(2fz)
-	    }
-	    else if(param.motfz && param.optphysisorption_solvent){
-	      vlocal = vcoul + vnuc + 1.414213562*Z*param.F + Uphysisorb + Uabinit  ;    //muz(-2fz), E(-2fz)
-	    }//END EDITING HERE
-	    /*compute mux(fx,fy), mux(-fx,fy), mux(fx,-fy), mux(-fx,-fy)*/
-	    else if(param.fxfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - 0.7071067812*X.scale(param.F) -  0.7071067812*Y.scale(param.F);
-	    }
-	    else if(param.mfxfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + 0.7071067812*X.scale(param.F) - Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.fxmfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    else if(param.mfxmfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + X.scale(param.F)*0.7071067812 + Y.scale(param.F)*0.7071067812;
-	    }
-	    /*compute mux(fx,fz), mux(-fx,fz), mux(fx,-fz), mux(-fx,-fz)*/
-	    else if(param.fxfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - 0.707106781*X.scale(param.F) - 0.707106781*Z.scale(param.F);
-	    }
-	    else if(param.mfxfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + 0.707106781*X.scale(param.F) - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fxmfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfxmfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + X.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(fy,fz), muy(-fy,fz), muy(fy,-fz), muy(-fy,-fz)*/
-	    else if(param.fyfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfyfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Y.scale(param.F)*0.707106781 - Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.fymfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    else if(param.mfymfz && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Y.scale(param.F)*0.707106781 + Z.scale(param.F)*0.707106781;
-	    }
-	    /*compute muy(2fy,2fx), muy(-2fy,2fx), muy(2fy,-2fx), muy(-2fy,-2fx)*/
-	    else if(param.tfytfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfytfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + 1.414213562*Y.scale(param.F) - 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.tfymtfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    else if(param.mtfymtfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + 1.414213562*Y.scale(param.F) + 1.414213562*X.scale(param.F);
-	    }
-	    /*compute muz(2fz,2fy), muz(-2fz,2fy), muz(2fz,-2fy), muz(-2fz,-2fy)*/
-	    else if(param.tfztfy && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfy && param.optphysisorption_solvent) {
-                vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Z.scale(param.F)*1.414213562 - Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfy && param.optphysisorption_solvent) {
-                vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfy && param.optphysisorption_solvent) {
-                vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Z.scale(param.F)*1.414213562 + Y.scale(param.F)*1.414213562;
-	    }
-	    /*compute muz(2fz,2fx), muz(-2fz,2fx), muz(2fz,-2fx), muz(-2fz,-2fx)*/
-	    else if(param.tfztfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfztfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Z.scale(param.F)*1.414213562 - X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.tfzmtfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit - Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-	    }
-	    else if(param.mtfzmtfx && param.optphysisorption_solvent) {
-	      vlocal = vcoul + vnuc + Uphysisorb + Uabinit + Z.scale(param.F)*1.414213562 + X.scale(param.F)*1.414213562;
-            }
-	    else
-	      {
-                  vlocal = vcoul + vnuc ;
-	      }
+            else
+                {
+                    vlocal = vcoul + vnuc ;
+                }
 	    vcoul.clear(false);
 	    vlocal.truncate();
             double exca = 0.0, excb = 0.0;
@@ -3699,8 +2930,8 @@ struct Calculation {
 		    printf("mux  %16.8f\n ", mux);
 		    printf("muy  %16.8f\n ", muy);
 		    printf("muz  %16.8f\n ", muz);
-                  }	    
-		  // Diagoanlize to get the eigenvalues and if desired the final eigenvectors
+                  }
+		  // Diagonalize to get the eigenvalues and if desired the final eigenvectors
                     tensorT U;
                     tensorT overlap = matrix_inner(world, amo, amo, true);
                     sygv(focka, overlap, 1, U, aeps);
@@ -3742,7 +2973,7 @@ struct Calculation {
 
             update_subspace(world, Vpsia, Vpsib, focka, fockb, subspace, Q, bsh_residual, update_residual);
     }
-    
+
     if(world.rank() == 0) {
         if (param.localize) print("Orbitals are localized - energies are diagonal Fock matrix elements\n");
         else print("Orbitals are eigenvectors - energies are eigenvalues\n");
@@ -3760,17 +2991,18 @@ struct Calculation {
 	//	functionT brho = make_density(world, bocc, bmo);
 	//	functionT rho = arho + brho;
 	if(param.absolvent){
-            rhot = rhon - vacuo_rho;
-            DFTSolventSolver DFTSsolver(rho,rhot,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta,std::max(1e-3,param.thresh));
+            rhot = rhon - rho;
+            DFTSolventSolver DFTSsolver(vacuo_rho,rhot,param.rho_0,param.epsilon_2,param.maxiter,world,\
+                                        param.Gamma,param.beta,std::max(1e-3,param.thresh));
             //DFTSsolver.dftsolverplots();
             vsolvent = DFTSsolver.ESP();
-            realfunc FF  = DFTSsolver.make_electric_field(vsolvent);
-            double Fxyz = DFTSsolver.ave_rxn_field(FF,mol_mask);
+            //realfunc FF  = DFTSsolver.make_electric_field(vsolvent);
+            double Fxyz = DFTSsolver.ave_rxn_field(vsolvent,mol_mask);
             E_es = rhot.inner(vsolvent);
             E_cav = DFTSsolver.cavitation_energy();
             double E_free = etot - vacuo_energy + 0.5*E_es;
             print("Electrostatic energy ",E_es);
-            
+
             if(world.rank() == 0) {
                 print("\n\n");
                 print("                            MADNESS DFT SOLVATION            ");
@@ -3784,32 +3016,34 @@ struct Calculation {
             }
 	}
         if(param.svpe){
-            rhot = rhon - vacuo_rho;
-            ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,param.maxiter,molecule.atomic_radii, \
-                                           molecule.get_all_coords_vec()); 
+            rhot = rhon - rho;
+            ScreenSolventPotential Solvent(world,param.sigma, param.epsilon_1,param.epsilon_2,\
+                                           param.maxiter,molecule.atomic_radii,molecule.get_all_coords_vec());
             vsolvent = Solvent.ScreenReactionPotential(world,param.maxiter,rhot,param.solventplot);
             double cav_energy = Solvent.make_cav_energy(param.Gamma);
             ereaction = rhot.inner(vsolvent);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
+            double G_free = E_free + cav_energy;
             if(world.rank() == 0) {
                 print("\n\n");
                 print("                            MADNESS SVPE            ");
                 print("                          _________________         ");
                 print("     (electrostatic) solvation energy:          ",ereaction, "(",ereaction*627.503,"kcal/mol)");
                 print("(electrostatic) solvation free energy:          ",E_free, "(",E_free*627.503,"kcal/mol)");
-                print("                    cavitation energy:          ",cav_energy*627.503,"kcal/mol");
+                print("               cavitation free energy:          ",cav_energy*627.503,"kcal/mol");
+                print("                solvation free energy:          ",G_free, "(",G_free*627.503,"kcal/mol)");
                 printf("               solution phase energy:%16.8f\n  ",etot);
                 printf("                    gas phase energy:%16.8f\n  ",vacuo_energy);
             }
 	}
         if(param.physisorption){
             rhot = rhon - vacuo_rho;
-            SVPEColloidSolver solver(world,param.sigma,param.epsilon_2,param.epsilon_1,colloid_radii(param.Rcoll) \
+            SVPEColloidSolver solver(world,param.sigma_c,param.epsilon_c,param.epsilon_2,colloid_radii(param.Rcoll) \
                                      ,colloid_coords(param.dcoll,param.Rcoll,molecule.charge_center())\
-                                     ,std::min(1e-4,param.sigma*0.1),param.maxiter);
+                                     ,std::min(1e-4,param.sigma*0.1),param.L,param.maxiter);
             Uphysisorb = solver.solve(rhot);
-            realfunc FFF  = solver.make_electric_field(Uphysisorb);
-            double Fxyz = solver.ave_rxn_field(FFF,mol_mask);
+            //realfunc FFF  = solver.make_electric_field(Uphysisorb);
+            double Fxyz = solver.ave_rxn_field(Uphysisorb,mol_mask);
             ereaction = rhot.inner(Uphysisorb);
             double E_free = etot - vacuo_energy + 0.5*ereaction;
             if(world.rank() == 0) {
@@ -3878,9 +3112,9 @@ public:
             calc.project_ao_basis(world);
         }
 	if(calc.param.absolvent||calc.param.svpe)
-            calc.solve_vacuo(world);// computes vacuo density and energy  
+            calc.solve_vacuo(world);// computes vacuo density and energy
         if(calc.param.physisorption && calc.param.absolvent == false)
-            calc.solve_vacuo(world);// computes vacuo density and energy  
+            calc.solve_vacuo(world);// computes vacuo density and energy
 	calc.solve(world);
         calc.save_mos(world);
 
@@ -3912,7 +3146,7 @@ public:
 int main(int argc, char** argv) {
     initialize(argc, argv);
 
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         // Load info for MADNESS numerical routines
@@ -3947,8 +3181,8 @@ int main(int argc, char** argv) {
         calc.do_plots(world);
 
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {
@@ -3982,7 +3216,6 @@ int main(int argc, char** argv) {
     // Nearly all memory will be freed at this point
     world.gop.fence();
     world.gop.fence();
-    ThreadPool::end();
     print_stats(world);
 
     finalize();

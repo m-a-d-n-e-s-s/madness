@@ -223,7 +223,7 @@ void testgradG(World& world) {
     // The potential due to a normalized gaussian with exponent 1.0 is
     //
     // u(r) = erf(r)/r
-    // 
+    //
     // du/dx = du/dr * dr/dx
     //
     // du/dr = 2*exp(-r^2)/(sqrt(Pi)*r)-erf(r)/r^2
@@ -273,7 +273,7 @@ void testgradG(World& world) {
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
 
     try {
         startup(world,argc,argv);
@@ -281,8 +281,8 @@ int main(int argc, char**argv) {
         test_opdir(world);
         testgradG(world);
     }
-    catch (const MPI::Exception& e) {
-        //        print(e);
+    catch (const SafeMPI::Exception& e) {
+        print(e);
         error("caught an MPI exception");
     }
     catch (const madness::MadnessException& e) {

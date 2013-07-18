@@ -63,7 +63,7 @@ namespace madness {
     template <typename funcT>
     typename funcT::returnT adq1(double lo, double hi, const funcT& func, double thresh,
                                  int n, const double* x, const double* w, int level) {
-        static int MAX_LEVEL=14;
+        static const int MAX_LEVEL=14;
         double d = (hi-lo)/2;
         // Twoscale by any other name would smell just as sweet.
         typename funcT::returnT full = do_adq(lo, hi, func, n, x, w);

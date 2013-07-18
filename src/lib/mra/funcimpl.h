@@ -50,6 +50,7 @@
 #include "tensor/gentensor.h"
 #include <world/typestuff.h>
 #include "mra/function_common_data.h"
+#include <mra/indexit.h>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -83,64 +84,43 @@ namespace madness {
 namespace madness {
 
 
-    /// A simple process map soon to be supplanted by Rebecca's
+    /// A simple process map
     template<typename keyT>
-    class SimpleMap : public WorldDCPmapInterface<keyT> {
+    class SimplePmap : public WorldDCPmapInterface<keyT> {
     private:
         const int nproc;
         const ProcessID me;
-        const int n;
 
     public:
-        SimpleMap(World& world, int n = 4) :
-                nproc(world.nproc()), me(world.rank()), n(n) {
-        }
+        SimplePmap(World& world) : nproc(world.nproc()), me(world.rank()) 
+        { }
 
-        ProcessID
-        owner(const keyT& key) const {
-            if (key.level() == 0) {
+        ProcessID owner(const keyT& key) const {
+            if (key.level() == 0)
                 return 0;
-            }
-            else if (key.level() <= n) {
-                return hash(key) % nproc;
-            }
-            else {
-                return hash(key.parent(key.level() - n)) % nproc;
-            }
+            else
+                return key.hash() % nproc;
         }
     };
 
-    /// A process map that uses only part of the key for determining the owner
-
-    /// @tparam     NDIM dimension of the key
-    /// @tparam     LDIM use only dim 0..LDIM-1 of NDIM to compute the owner
-    template<size_t NDIM, size_t LDIM>
-    class PartialKeyMap : public WorldDCPmapInterface<Key<NDIM> > {
+    /// A pmap that locates children on odd levels with their even level parents
+    template <typename keyT>
+    class LevelPmap : public WorldDCPmapInterface<keyT> {
     private:
         const int nproc;
-        const ProcessID me;
-        const int n;
-
     public:
-        PartialKeyMap(World& world, int n = 4) :
-                nproc(world.nproc()), me(world.rank()), n(n) {
-        }
-
-        ProcessID
-        owner(const Key<NDIM>& key) const {
-            if (key.level() == 0) {
-                return 0;
-            }
-            else if (key.level() <= n) {
-                Key<LDIM> key1;
-                Key<NDIM-LDIM> key2;
-                key.break_apart(key1,key2);
-//                return hash(key1) % nproc;
-                return key1.hash() % nproc;
-            }
-            else {
-                return key.parent(key.level() - n).hash() % nproc;
-            }
+        LevelPmap() : nproc(0) {};
+        
+        LevelPmap(World& world) : nproc(world.nproc()) {}
+        
+        /// Find the owner of a given key
+        ProcessID owner(const keyT& key) const {
+            Level n = key.level();
+            if (n == 0) return 0;
+            hashT hash;
+            if (n <= 3 || (n&0x1)) hash = key.hash();
+            else hash = key.parent().hash();
+            return hash%nproc;
         }
     };
 
@@ -728,8 +708,9 @@ namespace madness {
         double norm = node.has_coeff() ? node.coeff().normf() : 0.0;
         if (norm < 1e-12)
             norm = 0.0;
-//        norm=node.get_norm_tree();
-        s << norm << ", rank="<< node.coeff().rank()<<")";
+        double nt = node.get_norm_tree();
+        if (nt == 1e300) nt = 0.0;
+        s << norm << ", norm_tree=" << nt << "), rank="<< node.coeff().rank()<<")";
         return s;
     }
 
@@ -935,9 +916,6 @@ namespace madness {
 
         //template <typename Q, int D> friend class Function;
         template <typename Q, std::size_t D> friend class FunctionImpl;
-
-        friend class LoadBalImpl<NDIM>;
-        friend class LBTree<NDIM>;
 
         World& world;
 
@@ -1187,7 +1165,7 @@ namespace madness {
         template <typename Archive>
         void load(Archive& ar) {
             // WE RELY ON K BEING STORED FIRST
-            int kk;
+            int kk = 0;
             ar & kk;
 
             MADNESS_ASSERT(kk==k);
@@ -1733,16 +1711,22 @@ namespace madness {
             const static double fac=1.0/std::pow(2,NDIM*0.5);
             tol*=fac;
 
+            // RJH ... introduced max level here to avoid runaway
+            // refinement due to truncation threshold going down to
+            // intrinsic numerical error
+            const int MAXLEVEL1 = 20; // 0.5**20 ~= 1e-6
+            const int MAXLEVEL2 = 10; // 0.25**10 ~= 1e-6
+
             if (truncate_mode == 0) {
                 return tol;
             }
             else if (truncate_mode == 1) {
                 double L = FunctionDefaults<NDIM>::get_cell_min_width();
-                return tol*std::min(1.0,pow(0.5,double(key.level()))*L);
+                return tol*std::min(1.0,pow(0.5,double(std::min(key.level(),MAXLEVEL1)))*L);
             }
             else if (truncate_mode == 2) {
                 double L = FunctionDefaults<NDIM>::get_cell_min_width();
-                return tol*std::min(1.0,pow(0.25,double(key.level()))*L*L);
+                return tol*std::min(1.0,pow(0.25,double(std::min(key.level(),MAXLEVEL2)))*L*L);
             }
             else {
                 MADNESS_EXCEPTION("truncate_mode invalid",truncate_mode);
@@ -2838,8 +2822,8 @@ namespace madness {
                 else if (tol && lnorm*rnorm < truncate_tol(tol, key)) {
                     result->coeffs.replace(key, nodeT(coeffT(cdata.vk,targs),false)); // Zero leaf
                 }
-                else {
-                    result->coeffs.replace(key, nodeT(coeffT(),true)); // Interior node
+                else {  // Interior node
+                    result->coeffs.replace(key, nodeT(coeffT(),true));
                     vresult.push_back(result);
                     vright.push_back(right);
                     vrc.push_back(rc);
@@ -4688,7 +4672,7 @@ namespace madness {
                 sum += value*value;
             }
             sum = sqrt(sum);
-            coeffs.task(key, &nodeT::set_norm_tree, sum);
+            coeffs.task(key, &nodeT::set_norm_tree, sum); // why a task?????????????????????
             //if (key.level() == 0) std::cout << "NORM_TREE_TOP " << sum << "\n";
             return sum;
         }
@@ -5047,7 +5031,8 @@ namespace madness {
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
 
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+	    // use to have static in front, but this is not thread-safe
+            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
 //                const opkeyT& d = *it;

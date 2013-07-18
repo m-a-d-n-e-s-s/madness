@@ -38,8 +38,6 @@
 
 /// \ingroup function
 
-//extern "C" void daxpy_(const long*, const double*, const double*, const long*, double*, const long*);
-
 #include <limits.h>
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
@@ -235,17 +233,27 @@ namespace madness {
 
             R* restrict w1=work1.ptr();
             R* restrict w2=work2.ptr();
+#ifndef HAVE_IBMBGQ
             Q* restrict w3=work3.ptr();
-
             const Q* U;
+#endif
 
+#ifdef HAVE_IBMBGQ
+            mTxmq_padding(dimi, trans[0].r, dimk, dimk, w1, f.ptr(), trans[0].U);
+#else
             U = (trans[0].r == dimk) ? trans[0].U : shrink(dimk,dimk,trans[0].r,trans[0].U,w3);
             mTxmq(dimi, trans[0].r, dimk, w1, f.ptr(), U);
+#endif
+
             size = trans[0].r * size / dimk;
             dimi = size/dimk;
             for (std::size_t d=1; d<NDIM; ++d) {
+#ifdef HAVE_IBMBGQ
+                mTxmq_padding(dimi, trans[d].r, dimk, dimk, w2, w1, trans[d].U);
+#else
                 U = (trans[d].r == dimk) ? trans[d].U : shrink(dimk,dimk,trans[d].r,trans[d].U,w3);
                 mTxmq(dimi, trans[d].r, dimk, w2, w1, U);
+#endif
                 size = trans[d].r * size / dimk;
                 dimi = size/dimk;
                 std::swap(w1,w2);
@@ -259,7 +267,11 @@ namespace madness {
                 for (std::size_t d=0; d<NDIM; ++d) {
                     if (trans[d].VT) {
                         dimi = size/trans[d].r;
+#ifdef HAVE_IBMBGQ
+                        mTxmq_padding(dimi, dimk, trans[d].r, dimk, w2, w1, trans[d].VT);
+#else
                         mTxmq(dimi, dimk, trans[d].r, w2, w1, trans[d].VT);
+#endif
                         size = dimk*size/trans[d].r;
                     }
                     else {
@@ -270,8 +282,6 @@ namespace madness {
             }
             // Assuming here that result is contiguous and aligned
             aligned_axpy(size, result.ptr(), w1, mufac);
-            //    long one = 1;
-            //daxpy_(&size, &mufac, w1, &one, result.ptr(), &one);
         }
 
 
@@ -1580,7 +1590,7 @@ namespace madness {
 
 
     /// Factory function generating operator for convolution with grad(1/r) in 3D
-    
+
     /// Returns a 3-vector containing the convolution operator for the
     /// x, y, and z components of grad(1/r)
     static
@@ -1599,21 +1609,21 @@ namespace madness {
         double hi = width.normf(); // Diagonal width of cell
         const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
         if (isperiodicsum) hi *= 100; // Extend range for periodic summation
-        
+
         // bsh_fit generates representation for 1/4Pir but we want 1/r
         // so have to scale eps by 1/4Pi
         Tensor<double> coeff, expnt;
         bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
-        
+
         if (bc(0,0) == BC_PERIODIC) {
             truncate_periodic_expansion(coeff, expnt, width.max(), true);
         }
-        
+
         coeff.scale(4.0*pi);
         int rank = coeff.dim(0);
-        
+
         std::vector<real_convolution_3d_ptr> gradG(3);
-        
+
         for (int dir=0; dir<3; dir++) {
             std::vector< ConvolutionND<double,3> > ops(rank);
             for (int mu=0; mu<rank; mu++) {
@@ -1621,7 +1631,7 @@ namespace madness {
                 // by to recover the coeff we want.
                 double c = std::pow(sqrt(expnt(mu)/pi),3); // Normalization coeff
                 ops[mu].setfac(coeff(mu)/c/width[dir]);
-                
+
                 for (int d=0; d<3; d++) {
                     if (d != dir)
                         ops[mu].setop(d,GaussianConvolution1DCache<double>::get(k, expnt(mu)*width[d]*width[d], 0, isperiodicsum));
@@ -1630,7 +1640,7 @@ namespace madness {
             }
             gradG[dir] = real_convolution_3d_ptr(new SeparatedConvolution<double,3>(world, ops));
         }
-        
+
         return gradG;
     }
 
@@ -1638,7 +1648,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const SeparatedConvolution<T,NDIM>*> {
             static inline void load(const Archive& ar, const SeparatedConvolution<T,NDIM>*& ptr) {
-                WorldObject< SeparatedConvolution<T,NDIM> >* p;
+                WorldObject< SeparatedConvolution<T,NDIM> >* p = NULL;
                 ar & p;
                 ptr = static_cast< const SeparatedConvolution<T,NDIM>* >(p);
             }
