@@ -959,8 +959,13 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator+=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-//            if (!is_compressed()) compress();
-//            if (!other.is_compressed()) other.compress();
+            if (NDIM<=3) {
+                compress();
+                other.compress();
+            } else {
+                reconstruct();
+                other.reconstruct();
+            }
             MADNESS_ASSERT(is_compressed() == other.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
@@ -974,8 +979,13 @@ namespace madness {
         template <typename Q>
         Function<T,NDIM>& operator-=(const Function<Q,NDIM>& other) {
             PROFILE_MEMBER_FUNC(Function);
-//            if (!is_compressed()) compress();
-//            if (!other.is_compressed()) other.compress();
+            if (NDIM<=3) {
+                compress();
+                other.compress();
+            } else {
+                reconstruct();
+                other.reconstruct();
+            }
             MADNESS_ASSERT(is_compressed() == other.is_compressed());
             if (VERIFY_TREE) verify_tree();
             if (VERIFY_TREE) other.verify_tree();
