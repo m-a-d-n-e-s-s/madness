@@ -45,6 +45,12 @@
 #include <fstream>
 #include <TAU.h>
 
+#if defined(HPM)
+extern "C" unsigned int HPM_Prof_init_thread(void);
+extern "C" void HPM_Prof_start(unsigned int);
+extern "C" void HPM_Prof_stop(unsigned int);
+#endif
+
 #if defined(HAVE_IBMBGP)
 // This header causes tinyxml.h to barf but we only need it in the implementation, not the header.
 #  include <spi/kernel_interface.h>
@@ -81,8 +87,23 @@ namespace madness {
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
+#ifdef HPM
+	unsigned int hpmctx;
+	int ithread;
+	int pool_num = static_cast<ThreadBase*>(self)->pool_num;
+	char *cnthread = getenv("HPM_THREAD_ID");
+	if (cnthread) {
+            int result = sscanf(cnthread, "%d", &ithread);
+            if (result != 1)
+                MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
+	}
 
-        const int rc = pthread_setspecific(thread_key, self);
+	if (pool_num == ithread) {
+	  hpmctx = HPM_Prof_init_thread();
+	  HPM_Prof_start(hpmctx);
+	}
+#endif
+	const int rc = pthread_setspecific(thread_key, self);
         if(rc != 0)
             MADNESS_EXCEPTION("pthread_setspecific failed", rc);
 
@@ -117,6 +138,9 @@ namespace madness {
         end_papi_measurement();
 #endif
         TAU_STOP("ThreadBase::main");
+#ifdef HPM	
+	if (pool_num == ithread) HPM_Prof_stop(hpmctx);
+#endif 
         return 0;
     }
 
