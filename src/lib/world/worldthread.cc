@@ -45,7 +45,7 @@
 #include <fstream>
 #include <TAU.h>
 
-#if defined(HPM)
+#ifdef HPM
 extern "C" unsigned int HPM_Prof_init_thread(void);
 extern "C" void HPM_Prof_start(unsigned int);
 extern "C" void HPM_Prof_stop(unsigned int);
