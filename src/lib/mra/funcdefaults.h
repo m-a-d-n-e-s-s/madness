@@ -59,7 +59,7 @@ namespace madness {
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
-    enum TensorType {TT_NONE, TT_FULL, TT_2D, TT_3D};
+    enum TensorType {TT_NONE, TT_FULL, TT_2D};
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -155,7 +155,6 @@ namespace madness {
        	std::string str="confused tensor type";
        	if (tt==TT_FULL) str="full rank tensor";
        	if (tt==TT_2D) str="low rank tensor 2-way";
-       	if (tt==TT_3D) str="low rank tensor 3-way";
        	if (tt==TT_NONE) str="no tensor type specified";
        	s << str.c_str();
         return s;

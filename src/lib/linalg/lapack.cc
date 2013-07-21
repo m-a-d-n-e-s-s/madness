@@ -751,6 +751,11 @@ namespace madness {
     // versions were happy with the instantiations caused by the test code above
 
     template
+    void svd_result(Tensor<float>& a, Tensor<float>& U,
+             Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
+
+
+    template
     void svd(const Tensor<double>& a, Tensor<double>& U,
              Tensor<Tensor<double>::scalar_type >& s, Tensor<double>& VT);
 
@@ -774,6 +779,12 @@ namespace madness {
 //     template
 //     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
 //                           const char* side, const char* transa);
+
+    template
+    void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
+             Tensor<Tensor<float_complex>::scalar_type >& s, Tensor<float_complex>& VT,
+             Tensor<float_complex>& work);
+
 
     template
     void svd(const Tensor<double_complex>& a, Tensor<double_complex>& U,

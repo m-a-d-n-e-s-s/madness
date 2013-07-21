@@ -672,7 +672,6 @@ int main(int argc, char**argv) {
         if (key=="thresh") thresh=atof(val.c_str());        // usage: thresh=1.e-3
         if (key=="TT") {
             if (val=="TT_2D") tt=TT_2D;
-            else if (val=="TT_3D") tt=TT_3D;
             else if (val=="TT_FULL") tt=TT_FULL;
             else {
                 print("arg",arg, "key",key,"val",val);

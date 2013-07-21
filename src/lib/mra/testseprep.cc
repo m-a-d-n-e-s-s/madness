@@ -460,8 +460,7 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 			t0+=t1;
 			g0.config().divide_and_conquer_reduce(eps);
 			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"rank reduction divide&conquer",OrthoMethod(),
-					g0.what_am_i(),norm,g0.rank());
+			print(ok(is_small(norm,eps)),"rank reduction divide&conquer",g0.what_am_i(),norm,g0.rank());
 			if (!is_small(norm,eps)) nerror++;
 		}
 	}
@@ -483,7 +482,7 @@ int testGenTensor_rankreduce(const long& k, const long& dim, const double& eps, 
 			t0+=t1;
 			g0.reduceRank(eps);
 			norm=(g0.full_tensor_copy()-t0).normf();
-			print(ok(is_small(norm,eps)),"rank reduction reduceRank   ",OrthoMethod(),g0.what_am_i(),norm);
+			print(ok(is_small(norm,eps)),"rank reduction reduceRank   ",g0.what_am_i(),norm);
 			if (!is_small(norm,eps)) nerror++;
 		}
 	}

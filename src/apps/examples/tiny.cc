@@ -260,7 +260,6 @@ int main(int argc, char** argv) {
         print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
         print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
         print("");
-        print("orthogonalization  ", OrthoMethod());
         print("facReduce          ", GenTensor<double>::fac_reduce());
         print("max displacement   ", Displacements<6>::bmax_default());
         print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());

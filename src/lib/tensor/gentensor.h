@@ -134,7 +134,6 @@ namespace madness {
 		}
 		static std::string what_am_i(const TensorType& tt) {
 			if (tt==TT_2D) return "TT_2D";
-			if (tt==TT_3D) return "TT_3D";
 			if (tt==TT_FULL) return "TT_FULL";
 			return "unknown tensor type";
 		}
@@ -376,13 +375,11 @@ namespace madness {
 
 			// direct reduction on the polynomial values on the Tensor
 			TensorType ttype=tensor_type();
-			if (ttype==TT_3D) {
-				this->doReduceRank(targs.thresh,values_eff);
-			} else if (ttype==TT_2D) {
+			if (ttype==TT_2D) {
 #if 1
 				TensorTrain<T> tt(rhs,targs.thresh*facReduce());
 				Tensor<T> U,VT;
-				Tensor<double> s;
+				Tensor< typename Tensor<T>::scalar_type > s;
 				tt.two_mode_representation(U,VT,s);
 				const long r=VT.dim(0);
 				const long nd=VT.ndim();
@@ -408,8 +405,7 @@ namespace madness {
 
 		/// ctor with a regular Tensor and arguments, deep
 		GenTensor(const Tensor<T>& rhs, const double& thresh, const TensorType& tt) {
-			gentensorT tmp(rhs,TensorArgs(thresh,tt));
-			*this=tmp;
+			*this=gentensorT(rhs,TensorArgs(thresh,tt));
 		}
 
 		/// ctor with a SliceGenTensor, deep
@@ -469,8 +465,15 @@ namespace madness {
 			MADNESS_EXCEPTION("no assignment with a number for GenTensor",0);
 		}
 
+	private:
+		/// disable direct construction with a tensor since it's not shallow
+		GenTensor(const Tensor<T>& t) {
+			print("in wrong constructor");
+		}
+	public:
+
 		/// ctor w/ configs, shallow (indirectly, via vector_)
-		GenTensor(const SRConf<T>& config) : _ptr(new configT(config)) {
+		explicit GenTensor(const SRConf<T>& config) : _ptr(new configT(config)) {
 		}
 
 	private:
@@ -642,8 +645,7 @@ namespace madness {
 
 		/// normalize
 		void normalize() {
-			TensorType tt=tensor_type();
-			if ((tt==TT_2D) or (tt==TT_3D)) _ptr->normalize();
+			if (tensor_type()==TT_2D) _ptr->normalize();
 		};
 
 		void fillrandom(const int r=1) {
@@ -737,14 +739,6 @@ namespace madness {
 			return ovlp;
 		}
 
-		/// compute the trace \int (1,2,3) f(1,2) g(1,3) h(2,3)
-		friend double inner3way(const GenTensor<T>& f, const GenTensor<T>& g, const GenTensor<T>& h) {
-	        if (f.has_no_data()) return 0.0;
-	        if (g.has_no_data()) return 0.0;
-	        if (h.has_no_data()) return 0.0;
-	        return inner3way(f.config(),g.config(),h.config());
-	    }
-
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
         	print("no GenTensor<T>::emul yet");
@@ -755,7 +749,7 @@ namespace madness {
 		Tensor<T> full_tensor_copy() const {
 			const TensorType tt=tensor_type();
 			if (tt==TT_NONE) return Tensor<T>();
-			else if (tt==TT_3D or tt==TT_2D) return this->reconstruct_tensor();
+			else if (tt==TT_2D) return this->reconstruct_tensor();
 			else if (tt==TT_FULL) {
 				return copy(full_tensor());
 			} else {
@@ -772,33 +766,8 @@ namespace madness {
 			// direct reduction on the polynomial values on the Tensor
 			if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) {
 				return;
-			} else if (this->tensor_type()==TT_3D) {
-				this->doReduceRank(eps,Tensor<T>());
-                MADNESS_EXCEPTION("flat/structure issue",1);
-//				this->_ptr->make_structure();
 			} else if (this->tensor_type()==TT_2D) {
-
-				// determine what is faster: reconstruction or direct rank reduction
-//				const double ratio=(_ptr->kVec())/(2.0*rank());
-//				if (ratio>1.0) {
-
-					if (OrthoMethod::om==ortho3_ or OrthoMethod::om==ortho6_) {
-						config().divide_and_conquer_reduce(eps*facReduce());
-
-//					} else if (OrthoMethod::om==sequential_) {
-//					    MADNESS_EXCEPTION("flat/structure issue",1);
-//						config().sequential_orthogonalization(eps*facReduce());
-
-					} else if (OrthoMethod::om==reconstruct_) {
-                        MADNESS_EXCEPTION("flat/structure issue",1);
-						reconstruct_and_decompose(eps);
-
-					} else {
-						MADNESS_EXCEPTION("confused about orthogonalization method??",0);
-					}
-//				} else {
-//					reconstruct_and_decompose(eps);
-//				}
+				config().divide_and_conquer_reduce(eps*facReduce());
 			} else {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor::reduceRank()",0);
 			}
@@ -976,7 +945,7 @@ namespace madness {
 		gentensorT transform_dir(const Tensor<T>& c, const int& axis) const {
 //            this->_ptr->make_structure();
             MADNESS_ASSERT(_ptr->has_structure());
-            return this->_ptr->transform_dir(c,axis);
+            return GenTensor<T>(this->_ptr->transform_dir(c,axis));
 		}
 
 		/// return a reference to the SRConf
@@ -989,329 +958,6 @@ namespace madness {
 		static double fac_reduce() {return facReduce();};
 
 	private:
-
-		/// optimize this wrt reference, and return the error norm
-		bool optimize(const gentensorT& ref1, const double& fac1,
-				const gentensorT& ref2, const double fac2,
-				const tensorT& ref3, const double fac3,
-				const double& eps, const unsigned int& maxloop,
-				std::vector<tensorT>& B1, std::vector<tensorT>& B2) {
-
-
-			// for convenience
-			const unsigned int config_dim=this->_ptr->dim_eff();
-			const unsigned int rF=this->rank();
-			const unsigned int rG1=ref1.rank();
-			const unsigned int rG2=ref2.rank();
-
-			// some checks
-			if (fac1!=0) MADNESS_ASSERT(compatible(*this,ref1));
-			if (fac2!=0) MADNESS_ASSERT(compatible(ref1,ref2));
-
-			double oldnorm=1.0;
-
-			// reshape the scratch Tensor
-			for (unsigned int idim=0; idim<config_dim; idim++) {
-				//				B1[idim].reshape(rF,rG1);
-				//				B2[idim].reshape(rF,rG2);
-				B1[idim]=Tensor<T>(rF,rG1);
-				B2[idim]=Tensor<T>(rF,rG2);				// 0.2 sec
-			}
-
-			// keep optimizing until either the norm doesn't change
-			// or we hit some max number of runs
-			unsigned int iloop=0;
-			for (iloop=0; iloop<maxloop; iloop++) {
-
-				// optimize once for all dimensions
-				try {
-					this->generalizedALS(ref1,fac1,ref2,fac2,ref3,fac3,B1,B2);
-				} catch (std::runtime_error) {
-					throw std::runtime_error("rank reduction failed");
-					return false;
-				}
-
-				/*
-				 * for residuals: also exit if norm vanishes, or if
-				 * norm doesn't change any more
-				 */
-				//		const double norm=fabs(this->_ptr->weights(this->rank()-1));
-				const double norm=this->normf();
-				if (iloop>1) {
-					const double ratio=oldnorm/norm;
-					//			std::cout << "  ratio " << ratio << " norm " << norm << std::endl;
-					if (fabs(ratio-1.0)<0.003) break;
-				}
-				oldnorm=norm;
-
-			}
-			return true;
-		}
-
-		/// perform the alternating least squares algorithm directly on function values,
-		/// minus the difference SR
-		void generalizedALS(const gentensorT& ref1, const double& fac1,
-				const gentensorT& ref2, const double& fac2,
-				const Tensor<T> & ref3, const double& fac3,
-				std::vector<Tensor<T> >& B1, std::vector<Tensor<T> >& B2) {
-
-			// for convenience
-			const unsigned int dim=this->_ptr->dim_eff();
-			const long kvec=this->kVec();
-			gentensorT& trial=*this;
-
-			const bool have1=(fac1!=0.0 and ref1.rank()>0);
-			const bool have2=(fac2!=0.0 and ref2.rank()>0);
-			const bool have3=(fac3!=0.0);
-
-			/*
-			 * rF is the rank of the trial SepRep
-			 * rG1 is the rank of the SepRep ref1
-			 * rG2 is the rank of the SepRep ref2
-			 */
-			const unsigned int rF=trial.rank();
-			const unsigned int rG1=ref1.rank();
-			const unsigned int rG2=ref2.rank();
-
-			// some checks
-			MADNESS_ASSERT(ref1.tensor_type()==this->tensor_type());
-			if (have2) MADNESS_ASSERT(ref2.tensor_type()==this->tensor_type());
-			if (have2) MADNESS_ASSERT(compatible(ref1,ref2));
-			MADNESS_ASSERT(dim==B1.size());
-			MADNESS_ASSERT(dim==B2.size());
-			MADNESS_ASSERT(rG1>=0);
-			MADNESS_ASSERT(rG2>=0);
-			MADNESS_ASSERT(rF>0);
-			MADNESS_ASSERT(B1[0].dim(0)==rF);
-			MADNESS_ASSERT(B1[0].dim(1)==rG1);
-			MADNESS_ASSERT(B2[0].dim(0)==rF);
-			MADNESS_ASSERT(B2[0].dim(1)==rG2);
-
-			// for controlling the condition number, sec. (3.2) of BM2005
-			const double alpha=machinePrecision();
-			Tensor<T> unity(trial.rank(),trial.rank());
-			for (unsigned int i=0; i<trial.rank(); i++) {
-				unity(i,i)=alpha;
-			}
-
-			// some scratch Tensors
-			Tensor<T>  fvec(kvec);
-			Tensor<T>  vecb(rF,kvec);
-			//			Tensor<T>  vecb(kvec,rF);
-			// no copy ctor here for B, since it is shallow!
-			//			std::vector<Tensor<T> > B(dim,Tensor<T> (rF,rF));
-			std::vector<Tensor<T> > B(dim);
-			for (unsigned int idim=0; idim<dim; idim++) B[idim]=Tensor<T> (rF,rF);
-
-
-			/*
-			 * first make all factors of the two B matrices of eq. (3.3) BM2005,
-			 * 	- B is the overlap <F | F> for each dimension
-			 * 	- B_GF is the overlap <F | G> for each dimension
-			 * 	- as B[idim] and B_GF[idim] is not required, use it as scratch for constructing
-			 * 		the product \Prod_{dim\idim} <F | G>
-			 * 	- include the weights in B_GF[idim], and construct the vectors b as
-			 * 		b(l',k) = B_GF(l',l) * F(l,k)
-			 */
-
-			// leave out idim=0, since it not required in the first alteration
-			for (unsigned int idim=1; idim<dim; idim++) {
-				if (have1) makeB(B1[idim],idim,*trial._ptr,*ref1._ptr);
-				if (have2) makeB(B2[idim],idim,*trial._ptr,*ref2._ptr);
-				makeB(B[idim],idim,*trial._ptr,*trial._ptr);
-				B[idim]+=unity;
-				//				print("B[idim]");
-				//				print(B[idim]);
-			}
-
-			// next loop over all dimensions
-			for (unsigned int idim=0; idim<dim; idim++) {
-
-				// reconstruct B and B_GF for the dimension that has been
-				// altered before, include the unit matrix
-				if (idim>0) {
-					if (have1) makeB(B1[idim-1],idim-1,*trial._ptr,*ref1._ptr);
-					if (have2) makeB(B2[idim-1],idim-1,*trial._ptr,*ref2._ptr);
-					makeB(B[idim-1],idim-1,*trial._ptr,*trial._ptr);
-					B[idim-1]+=unity;
-
-				}
-
-				// construct the products of the B's and B_GF's
-				B1[idim]=1.0;
-				B2[idim]=1.0;
-				B[idim]=1.0;
-				for (unsigned int jdim=0; jdim<dim; jdim++) {
-					if (jdim!=idim) {
-						if (have1) B1[idim].emul(B1[jdim]);
-						if (have2) B2[idim].emul(B2[jdim]);
-						B[idim].emul(B[jdim]);
-					}
-				}
-
-
-				/*
-				 * now construct the b vector of eq (3.4) BM2005
-				 */
-				vecb.fill(0.0);
-
-				// bring the quantity \prod_(i/=k) < G|F > in some efficient form
-				// it is independent of jk, and include the weights
-				if (have1) {
-					for (unsigned int l=0; l<rG1; l++) {
-						const double w=ref1._ptr->weights(l);
-						for (unsigned int l1=0; l1<rF; l1++) {
-							B1[idim](l1,l)*=w*fac1;
-						}
-					}
-					Tensor<T> tmp=ref1._ptr->ref_vector(idim)(ref1._ptr->c0());
-					vecb+=madness::inner(B1[idim],tmp);
-				}
-				if (have2) {
-					for (unsigned int l=0; l<rG2; l++) {
-						const double w=ref2._ptr->weights(l);
-						for (unsigned int l1=0; l1<rF; l1++) {
-							B2[idim](l1,l)*=w*fac2;
-						}
-					}
-					Tensor<T>  tmp=ref2._ptr->ref_vector(idim)(ref2._ptr->c0());
-					vecb+=madness::inner(B2[idim],tmp);
-				}
-
-				/*
-				 * now construct the b(r,k) vector for the Tensor values
-				 */
-				if (have3) {
-
-					MADNESS_ASSERT((dim==3) or (dim==2));
-					if (dim==3) {
-
-						// b[jk][rF] += inner( s[jk][k1,k2] , [rF][\prod[k1,k2])
-
-						// reorder s[k1,k2,k3] to s[jk][k1,k2]
-						// need to cycle backwards..
-						const Tensor<T> weights=copy(ref3.cycledim(dim-idim,0,dim-1));
-						const Tensor<T> w=weights.reshape(kvec,kvec*kvec);
-
-						const unsigned int idim0=(idim+1)%dim;
-						const unsigned int idim1=(idim+2)%dim;
-
-						// set up \Prod_{i\neq k} <G | F>
-						Tensor<T> prod(rF,kvec,kvec);
-						for (unsigned int r=0; r<rF; r++) {
-							for (unsigned int i0=0; i0<kvec; i0++) {
-								const T F1=trial._ptr->vector_[idim0](r,i0);
-								for (unsigned int i1=0; i1<kvec; i1++) {
-									const T F2=trial._ptr->vector_[idim1](r,i1);
-									prod(r,i0,i1)=F1*F2;
-								}
-							}
-						}
-						const Tensor<T> p=prod.reshape(rF,kvec*kvec);
-
-						// compute the contrib to b
-						vecb+=madness::inner(p,w,-1,-1);
-
-					} else if (dim==2) {
-
-						// b[jk][rF] += inner( s[jk][k1,k2] , [rF][\prod[k1,k2])
-
-						// reorder s[k1,k2,k3] to s[jk][k1,k2]
-						// need to cycle backwards..
-						const Tensor<T> weights=copy(ref3.cycledim(dim-idim,0,dim-1));
-						const Tensor<T> w=weights.reshape(kvec,kvec);
-
-						const unsigned int idim0=(idim+1)%dim;
-
-						// set up \Prod_{i\neq k} <G | F>
-						Tensor<T> prod(rF,kvec);
-						for (unsigned int r=0; r<rF; r++) {
-							for (unsigned int i0=0; i0<kvec; i0++) {
-								const T F1=trial._ptr->vector_[idim0](r,i0);
-								prod(r,i0)=F1;
-							}
-						}
-						const Tensor<T> p=prod.reshape(rF,kvec);
-
-						// compute the contrib to b
-						vecb+=madness::inner(p,w,-1,-1);
-					}
-
-				}
-
-
-				// solve the linear system
-				// note that gesv requires: vecb(kvec,rF) -> vecb(rF,kvec)p;
-				// x can be empty for now
-				Tensor<T> x;
-
-				try {
-#if !bench
-					gesv(B[idim],vecb,x);
-#else
-					x=vecb;
-					x=1.0;
-#endif
-
-				} catch (std::exception) {
-					print("gesv failed..");
-					print(B);
-					print(vecb);
-					MADNESS_ASSERT(0);
-				}
-
-				vecb=x;
-
-				for (unsigned int l=0; l<rF; l++) {
-
-					// calculate the new weights s_
-					typename madness::Tensor<T>::float_scalar_type norm=0.0;
-					for (unsigned int jk=0; jk<kvec; jk++) {
-						const T val=vecb(l,jk);
-						norm+= madness::detail::mynorm(val);
-						//						print("norm in ALS", norm);
-					}
-
-					/*
-					 * check for NaNs somewhere
-					 */
-					if (not (norm==norm)) {
-						std::cout << "NaNs in ALS" << std::endl;
-						print("B[idim]",B[idim]);
-						//				vecbb.print("old vecb");
-						std::cout << "idim " << idim << std::endl;
-						std::cout << "weight_l in NaN; norm: " << norm << std::endl;
-						MADNESS_EXCEPTION("NaNs in ALS",0);
-					}
-					MADNESS_ASSERT(norm>=0.0);
-
-					/*
-					 * if trial is a residual the weights might be zero;
-					 * fill the vectors F with random numbers, not with zeros,
-					 * otherwise they will screw up the ALS algorithm in the next
-					 * iteration!
-					 */
-					double weight_l=sqrt(norm);
-					//					print("weight in ALS", weight_l);
-					if (norm==0.0) {
-						weight_l=0.0;
-						fvec.fillrandom();
-						fvec=1.0;
-						fvec.scale(0.01);
-					} else {
-						for (unsigned int jk=0; jk<kvec; jk++) {
-							const T c_jk_l=vecb(l,jk);
-							fvec(jk)=c_jk_l/weight_l;
-						}
-					}
-					//					print("fvec in ALS", fvec);
-
-					// use this->kVec(), as this might be an SVR vector or
-					// an SPR operator
-					trial._ptr->reassign(idim,l,weight_l,fvec,ref1.kVec());
-				}
-			}
-		}
 
 		/// release memory
 		void clear() {_ptr.reset();};
@@ -1340,143 +986,6 @@ namespace madness {
                 MADNESS_ASSERT(rhs._ptr->has_structure());
 				this->_ptr->inplace_add(*rhs._ptr,lhs_s,rhs_s, alpha, beta);
 			}
-		}
-
-		/// reduce the separation rank of this to a near optimal value
-		/// follow section 3 in BM2005
-		void doReduceRank(const double& eps, const Tensor<T>& values=Tensor<T>()){//,
-			//				const SepRep& trial2=SepRep()) {
-
-		    MADNESS_EXCEPTION("flat/structure issue",1);
-
-			/*
-			 * basic idea is to use the residual Frobenius norm to check
-			 * convergence. Don't know if this is rigorous, probably not..
-			 *
-			 * convergence criterion: optimize the trial SepRep until the
-			 * residual doesn't change any more
-			 */
-
-			//			madness::print(values);
-
-			/*
-			 * figure out what to do:
-			 * 	1. this exists and is to be reduced
-			 * 	2. this doesn't exist, but values are provided
-			 */
-			gentensorT& reference=*this;
-			const bool haveSR=(reference.rank()!=0);
-			const bool haveVal=(values.ndim()!=-1);
-
-			// set factors
-			double facSR=0.0;
-			if (haveSR) facSR=1.0;
-
-			double facVal=0.0;
-			if (haveVal) facVal=1.0;
-
-			// fast return if possible
-			if ((not haveSR) and (not haveVal)) return;
-
-
-//			reference._ptr->undo_structure();
-
-			//			const bool useTrial=(not (trial2.tensor_type()==TT_NONE));
-
-			//			timeReduce_.start();
-
-			/*
-			 * some constants
-			 */
-
-			// the threshold
-			const double threshold=eps*facReduce();
-
-			// what we expect the trial rank might be (engineering problem)
-			const unsigned int maxTrialRank=300;
-			const unsigned int maxloop=300;
-
-			const bool print=false;
-			double norm=1.0;
-
-			const unsigned int config_dim=this->_ptr->dim_eff();
-			const unsigned int rG1=reference.rank();
-
-			// scratch Tensor for this and the reference
-			std::vector<Tensor<T> > B1(config_dim);
-			for (unsigned int idim=0; idim<config_dim; idim++) B1[idim]=Tensor<T> (maxTrialRank,rG1);
-			// scratch Tensor for this and the residual
-			std::vector<Tensor<T> > B2(config_dim);
-			for (unsigned int idim=0; idim<config_dim; idim++) B2[idim]=Tensor<T> (maxTrialRank,1);
-
-			// set up a trial function
-			gentensorT trial(reference.tensor_type(),reference.get_k(),reference.dim());
-//			trial._ptr->undo_structure();
-			trial._ptr->reserve(10);
-			//			trial._ptr->semi_flatten();
-			//			if (useTrial) trial=trial2;
-			//			else trial._ptr->ensureSpace(maxTrialRank);
-
-			// and the residual
-			gentensorT residual(trial.tensor_type(),trial.get_k(),trial.dim());
-
-			// loop while || F-G || > epsilon
-			for (unsigned int iloop=0; iloop<maxloop; iloop++) {
-
-				// compute the residual wrt reference minus trial
-				residual._ptr->fillWithRandom(1);
-//				residual._ptr->undo_structure();
-
-				residual.optimize(reference,facSR,trial,-1.0,values,facVal,threshold,50,B1,B2);
-
-				// exit if residual is supposedly small
-				norm=residual.normf();
-				if (print) printf("trial norm in reduceRank %d %12.8f\n", int(trial.rank()), norm);
-#if bench
-				if (iloop>5) break;
-#else
-				if (norm<threshold) break;
-#endif
-				// otherwise add residual to the trial function ..
-				//				trial._ptr->unflatten();
-				//				residual._ptr->unflatten();
-//				trial._ptr->make_structure();
-//				residual._ptr->make_structure();
-				trial+=residual;
-//				trial._ptr->undo_structure();
-//				residual._ptr->undo_structure();
-				//				trial._ptr->semi_flatten();
-				//				residual._ptr->semi_flatten();
-
-				// .. and optimize trial wrt the reference
-				bool successful=trial.optimize(reference,facSR,residual,0.0,
-						values,facVal,threshold,10,B1,B2);
-
-				MADNESS_ASSERT(successful);
-
-			}
-			if (print) std::cout << "final trial norm in reduceRank " << trial.rank() << " " << norm  << std::endl;
-			if (print) std::cout << "threshold " << threshold << std::endl;
-
-#if !bench
-			// check actual convergence
-			if (norm>threshold) {
-				//		trial.printCoeff("trial");
-				//		this->printCoeff("failed SepRep");
-				std::cout << "failed to reduce rank in SepRep::reduceRank() " << std::endl;
-				printf("initial rank %d, trial rank %d\n", int(this->rank()), int(trial.rank()));
-				printf("residual's norm         %24.16f\n", norm);
-				printf("norm(this) %12.8f\n", this->normf());
-				printf("no convergence in SepRep::reduceRank()");
-				MADNESS_ASSERT(0);
-			}
-#endif
-
-			// copy shrinks the matrices
-			*this=copy(*trial._ptr);
-//			this->_ptr->make_structure();
-			//			timeReduce_.end();
-
 		}
 
 		/// reduce the rank using SVD
@@ -1566,7 +1075,7 @@ namespace madness {
 
 		/// inplace addition
 		SliceGenTensor<T>& operator+=(const SliceGenTensor<T>& rhs) {
-			_refGT.inplace_add(*rhs._refGT._ptr,this->_s,rhs._s,1.0,1.0);
+			_refGT.inplace_add(GenTensor<T>(*rhs._refGT._ptr),this->_s,rhs._s,1.0,1.0);
 			return *this;
 		}
 
