@@ -45,7 +45,7 @@
 #include <fstream>
 #include <TAU.h>
 
-#ifdef HPM
+#if defined(HAVE_IBMBGQ) and defined(HPM)
 extern "C" unsigned int HPM_Prof_init_thread(void);
 extern "C" void HPM_Prof_start(unsigned int);
 extern "C" void HPM_Prof_stop(unsigned int);
@@ -81,26 +81,33 @@ namespace madness {
     Mutex profiling::TaskProfiler::output_mutex_;
     const char* profiling::TaskProfiler::output_file_name_;
 #endif // MADNESS_TASK_PROFILING
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+    unsigned int ThreadPool::main_hpmctx;
+    bool ThreadBase::main_instrumented;
+    bool ThreadBase::all_instrumented;
+    int ThreadBase::hpm_thread_id;
+#endif
 
     void* ThreadBase::main(void* self) {
       TAU_START("ThreadBase::main");
 #ifdef HAVE_PAPI
         begin_papi_measurement();
 #endif
-#ifdef HPM
-	unsigned int hpmctx;
-	int ithread;
-	int pool_num = static_cast<ThreadBase*>(self)->pool_num;
-	char *cnthread = getenv("HPM_THREAD_ID");
-	if (cnthread) {
-            int result = sscanf(cnthread, "%d", &ithread);
-            if (result != 1)
-                MADNESS_EXCEPTION("HPM_THREAD_ID is not an integer", result);
-	}
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	unsigned int slave_hpmctx; // HPM context for the slave threads
+	int pool_num = static_cast<ThreadBase*>(self)->pool_num; 
+	// int all_instrumented = static_cast<ThreadBase*>(self)->all_instrumented; 
+	// int hpm_thread_id = static_cast<ThreadBase*>(self)->hpm_thread_id;
+	bool this_slave_instrumented;
 
-	if (pool_num == ithread) {
-	  hpmctx = HPM_Prof_init_thread();
-	  HPM_Prof_start(hpmctx);
+	if ((hpm_thread_id == pool_num) || all_instrumented) {
+	  this_slave_instrumented = true;
+	} else
+	  this_slave_instrumented = false;
+
+	if (this_slave_instrumented) {
+	  slave_hpmctx = HPM_Prof_init_thread();
+	  HPM_Prof_start(slave_hpmctx);
 	}
 #endif
 	const int rc = pthread_setspecific(thread_key, self);
@@ -138,8 +145,8 @@ namespace madness {
         end_papi_measurement();
 #endif
         TAU_STOP("ThreadBase::main");
-#ifdef HPM	
-	if (pool_num == ithread) HPM_Prof_stop(hpmctx);
+#if defined(HAVE_IBMBGQ) and defined(HPM)	
+	if (this_slave_instrumented) HPM_Prof_stop(slave_hpmctx);
 #endif 
         return 0;
     }
@@ -256,6 +263,21 @@ namespace madness {
 #endif
     }
 
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+  void ThreadBase::set_hpm_thread_env(int hpm_thread_id) {
+    if (hpm_thread_id == ThreadBase::hpm_thread_id_all) {
+      ThreadBase::main_instrumented = true;
+      ThreadBase::all_instrumented = true;
+    } else if (hpm_thread_id == ThreadBase::hpm_thread_id_main) {
+      ThreadBase::main_instrumented = true;
+      ThreadBase::all_instrumented = false;
+    } else {
+      ThreadBase::main_instrumented = false;
+      ThreadBase::all_instrumented = false;
+    }
+    ThreadBase::hpm_thread_id = hpm_thread_id;
+  }
+#endif
 
 #ifdef MADNESS_TASK_PROFILING
 
@@ -444,6 +466,13 @@ namespace madness {
             file.close();
         }
 #endif  // MADNESS_TASK_PROFILING
+
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	if (ThreadBase::main_instrumented) {
+	  main_hpmctx = HPM_Prof_init_thread();
+	  HPM_Prof_start(main_hpmctx);
+	}
+#endif
     }
 
     void ThreadPool::end() {
@@ -460,6 +489,10 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
         ThreadBase::delete_thread_key();
+#endif
+
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	if (ThreadBase::main_instrumented) HPM_Prof_stop(main_hpmctx);
 #endif
         delete instance_ptr;
         instance_ptr = NULL;

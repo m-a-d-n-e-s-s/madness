@@ -105,6 +105,14 @@ namespace madness {
 
         void set_pool_thread_index(int i) { pool_num = i; }
 
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static const int hpm_thread_id_all = -10;
+	static const int hpm_thread_id_main = -2;
+	static bool main_instrumented;
+	static bool all_instrumented;
+	static int hpm_thread_id;
+#endif	
+
     public:
 
         /// Default constructor ... must invoke \c start() to actually begin the thread.
@@ -142,6 +150,10 @@ namespace madness {
         static ThreadBase* this_thread() {
             return static_cast<ThreadBase*>(pthread_getspecific(thread_key));
         }
+
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static void set_hpm_thread_env(int hpm_thread_id);
+#endif
     }; // class ThreadBase
 
     /// Simplified thread wrapper to hide pthread complexity
@@ -818,7 +830,6 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
     public:
-
         /// Default constructor
         ThreadPoolThread() : Thread() { }
 
@@ -853,6 +864,9 @@ namespace madness {
 #endif
         static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
 
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static unsigned int main_hpmctx; // HPM context for main thread
+#endif
         /// The constructor is private to enforce the singleton model
         ThreadPool(int nthread=-1);
 
