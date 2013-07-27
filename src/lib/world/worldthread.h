@@ -48,7 +48,14 @@
 
 #ifdef MADNESS_TASK_PROFILING
 #include <execinfo.h> // for backtrace_symbols
+#ifndef USE_LIBIBERTY
 #include <cxxabi.h> // for abi::__cxa_demangle
+#else
+extern "C" {
+  extern char * cplus_demangle (const char *mangled, int options);
+#define DMGL_NO_OPTS     0              /* For readability... */
+}
+#endif
 #include <sstream> // for std::istringstream
 #include <cstring> // for strchr & strrchr
 #endif // MADNESS_TASK_PROFILING
@@ -338,8 +345,11 @@ namespace madness {
                 // Get the demagled symbol name
                 if(symbol) {
                     int status = 0;
+#ifndef USE_LIBIBERTY
                     const char* name = abi::__cxa_demangle(symbol, 0, 0, &status);
-
+#else
+		    char* name = cplus_demangle(symbol, DMGL_NO_OPTS);
+#endif
                     // Append the demangled symbol name to the output stream
                     if(status == 0) {
                         os << name << "\t";
