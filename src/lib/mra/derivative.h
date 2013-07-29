@@ -233,7 +233,7 @@ namespace madness {
             return true;
         }
 
-        keyT neighbor(const keyT& key, int step) const {
+        Key<NDIM> neighbor(const keyT& key, int step) const {
             Vector<Translation,NDIM> l = key.translation();
             l[axis] += step;
             if (!enforce_bc(bc(axis,0), bc(axis,1), key.level(), l[axis])) {
@@ -244,18 +244,15 @@ namespace madness {
             }
         }
 
-//        Future< std::pair< Key<NDIM>,Tensor<T> > >
         Future<argT>
         find_neighbor(const implT* f, const Key<NDIM>& key, int step) const {
             keyT neigh = neighbor(key, step);
             if (neigh.is_invalid()) {
-//flo                return Future<argT>(argT(neigh,tensorT(vk))); // Zero bc
                 return Future<argT>(argT(neigh,coeffT(vk,f->get_tensor_args()))); // Zero bc
             }
             else {
                 Future<argT> result;
-                f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh,
-                		result.remote_ref(world), TaskAttributes::hipri());
+                f->task(f->get_coeffs().owner(neigh), &implT::sock_it_to_me, neigh, result.remote_ref(world), TaskAttributes::hipri());
                 return result;
             }
         }
@@ -309,25 +306,11 @@ namespace madness {
             //left boundary
             if (l[this->axis] == 0) {
 
-                coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,-1));
+                coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,1));
                 coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
 
                 d= transform_dir(tensor_right,left_rmt,this->axis);
                 d+=transform_dir(tensor_center,left_r0t,this->axis);
-
-
-//            	tensorT tensor_right=df->parent_to_child(right.second, right.first, neighbor(key,1)).full_tensor_copy().swapdim(this->axis,0);
-//                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
-//
-//                d = madness::inner(left_rm ,tensor_right, 1, 0);
-//                inner_result(left_r0,tensor_center,1, 0, d);
-//                d = madness::inner(left_rm ,
-//                        df->parent_to_child(right.second, right.first,
-//                            baseT::neighbor(key,1)).swapdim(this->axis,0), 1, 0);
-//                inner_result(left_r0,
-//                             df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-//                             1, 0, d);
-//>>>>>>> .merge-right.r2202
             }
             else {
 
@@ -336,30 +319,12 @@ namespace madness {
 
                 d= transform_dir(tensor_left,right_rpt,this->axis);
                 d+=transform_dir(tensor_center,right_r0t,this->axis);
-
-//<<<<<<< .working
-//                tensorT tensor_left=df->parent_to_child(left.second, left.first, neighbor(key,-1)).full_tensor_copy().swapdim(this->axis,0);
-//                tensorT tensor_center=df->parent_to_child(center.second, center.first, key).full_tensor_copy().swapdim(this->axis,0);
-//
-//                d = madness::inner(right_rp,tensor_left, 1, 0);
-//                inner_result(right_r0,tensor_center,1, 0, d);
-//=======
-//                d = madness::inner(right_rp,
-//                                   df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
-//                                   1, 0);
-//                inner_result(right_r0,
-//                             df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-//                             1, 0, d);
-//>>>>>>> .merge-right.r2202
             }
-            // flo thinks this is wrong for higher dimensions -- need to cycledim
-//            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
-//            if (this->axis) d = copy(d.cycledim(1,0,this->axis)); // Copy to make contiguous
+
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,lev));
-//            df->get_coeffs().replace(key,nodeT(coeffT(d,df->get_thresh(),df->get_tensor_type()),false));
+            d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
 
-            
 
             // This is the boundary contribution (formally in BoundaryDerivative)
             int bc_left  = this->bc(this->axis,0);
@@ -386,15 +351,7 @@ namespace madness {
                     return None;
                 }
             }
-  
-//            MADNESS_ASSERT(0);
-            tensorT dd=d.full_tensor_copy();
-
-//            MADNESS_EXCEPT("Flo in late diff_2b",0);
-//            coeffT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);
             tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key).full_tensor_copy();
-
-//            tensorT gcoeffs = df->parent_to_child(found_argT.get().second, found_argT.get().first,key);
 
             //if (this->bc.get_bc().dim(0) == 1) {
             if (NDIM == 1) {
@@ -422,9 +379,9 @@ namespace madness {
 					bdry_t.scale(FunctionDefaults<NDIM>::get_cell_width()[this->axis]);
             }
 
-            bdry_t += dd;
+            bdry_t += d.full_tensor_copy();;
             df->get_coeffs().replace(key,nodeT(coeffT(bdry_t,df->get_thresh(),df->get_tensor_type()),false));
-            
+
             return None;
         }
 
@@ -433,24 +390,24 @@ namespace madness {
                        const argT& center,
                        const argT& right) const
         {
-#if !HAVE_GENTENSOR
-            coeffT d = madness::inner(rp,
-                                       df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
-                                       1, 0);
-            inner_result(r0,
-                         df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
-                         1, 0, d);
-            inner_result(rm,
-                         df->parent_to_child(right.second, right.first, baseT::neighbor(key,1)).swapdim(this->axis,0),
-                         1, 0, d);
-            // flo thinks this is wrong for higher dimensions -- need to cycledim
-            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
-            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
-            df->get_coeffs().replace(key,nodeT(d,false));
-            return None;
-
-#else
-        	coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
+//#if !HAVE_GENTENSOR
+//            coeffT d = madness::inner(rp,
+//                                       df->parent_to_child(left.second, left.first, baseT::neighbor(key,-1)).swapdim(this->axis,0),
+//                                       1, 0);
+//            inner_result(r0,
+//                         df->parent_to_child(center.second, center.first, key).swapdim(this->axis,0),
+//                         1, 0, d);
+//            inner_result(rm,
+//                         df->parent_to_child(right.second, right.first, baseT::neighbor(key,1)).swapdim(this->axis,0),
+//                         1, 0, d);
+//            // flo thinks this is wrong for higher dimensions -- need to cycledim
+//            if (this->axis) d = copy(d.swapdim(this->axis,0)); // make it contiguous
+//            d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
+//            df->get_coeffs().replace(key,nodeT(d,false));
+//            return None;
+//
+//#else
+            coeffT tensor_left=df->parent_to_child(left.second, left.first, this->neighbor(key,-1));
             coeffT tensor_center=df->parent_to_child(center.second, center.first, key);
             coeffT tensor_right=df->parent_to_child(right.second, right.first, this->neighbor(key,1));
 
@@ -459,12 +416,12 @@ namespace madness {
             d+=transform_dir(tensor_right,rmt,this->axis);
 
             d.scale(FunctionDefaults<NDIM>::get_rcell_width()[this->axis]*pow(2.0,(double) key.level()));
-//            d.reduceRank(df->get_thresh());
+            d.reduce_rank(df->get_thresh());
             df->get_coeffs().replace(key,nodeT(d,false));
 
             return None;
 
-#endif
+//#endif
 
         }
 
