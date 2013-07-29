@@ -268,14 +268,14 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
-                    ss.reduceRank(thresh);
+                    ss.reduce_rank(thresh);
                     PROFILE_BLOCK(recon_send);
                     woT::task(coeffs.owner(child), &implT::reconstruct_op, child, ss);
                 }
             } else {
                 MADNESS_ASSERT(node.is_leaf());
 //                node.coeff()+=s;
-                node.coeff().reduceRank(targs.thresh);
+                node.coeff().reduce_rank(targs.thresh);
             }
         }
         else {

@@ -53,6 +53,7 @@ namespace madness {
 #endif
 
 
+	template <class T> class GenTensor;
 
 	/**
 	 * A SRConf handles all the configurations in a Separated Representation.
@@ -60,6 +61,7 @@ namespace madness {
 
 	template <typename T>
 	class SRConf {
+		friend class GenTensor<T>;
 
 		/// return the number of vectors (i.e. dim_eff) according to the TensorType
 		static unsigned int compute_nvec(const TensorType& tt) {
@@ -317,12 +319,16 @@ namespace madness {
                 MADNESS_ASSERT(has_structure());
         }
 
+		/// return the tensor type
+		TensorType type() const {return tensortype_;};
 
 		/// does this have any data?
 		bool has_data() const {
 			if (tensortype_==TT_FULL) return (vector_.size()>0 and vector_[0].has_data());
 			return rank()>0;
 		}
+
+	private:
 
 		/// does this have any data?
 		bool has_no_data() const {return !has_data();}
@@ -403,6 +409,7 @@ namespace madness {
             MADNESS_ASSERT(has_structure());
 		}
 
+	public:
 		/// orthonormalize this
 		void orthonormalize(const double& thresh) {
 
@@ -452,6 +459,7 @@ namespace madness {
 
 		}
 
+	private:
 		/// append configurations of rhs to this
 
 		/// simplified version of inplace_add for flattened configurations
@@ -486,6 +494,9 @@ namespace madness {
 			make_slices();
             MADNESS_ASSERT(has_structure());
 
+		}
+		void append(const SRConf<T>& rhs, const double_complex fac=1.0) {
+			MADNESS_EXCEPTION("no complex in SRConf",1);
 		}
 
 		/// add two orthonormal configurations, yielding an optimal SVD decomposition
@@ -672,6 +683,7 @@ namespace madness {
 			this->make_slices();
 		}
 
+	public:
 		/// return reference to one of the vectors F
 		Tensor<T>& ref_vector(const unsigned int& idim) {
 			return vector_[idim];
@@ -682,6 +694,7 @@ namespace madness {
 			return vector_[idim];
 		}
 
+	private:
 		/// return shallow copy of a slice of one of the vectors, flattened to (r,kVec)
 		const Tensor<T> flat_vector(const unsigned int& idim) const {
 		    MADNESS_ASSERT(rank()>0);
@@ -693,7 +706,6 @@ namespace madness {
 		    MADNESS_ASSERT(rank()>0);
 		    return vector_[idim](c0()).reshape(rank(),kVec());
 		}
-
 
 		/// fill this SRConf with 1 flattened random configurations (tested)
 		void fillWithRandom(const long& rank=1) {
@@ -783,12 +795,13 @@ namespace madness {
 		bool is_flat() const {
 			return (vector_[0].ndim()==2);
 		}
-
+	public:
 		/// return if this has a tensor structure (has not been flattened)
 		bool has_structure() const {
             return (type()==TT_FULL or has_no_data() or vector_[0].dim(1)==this->get_k());
 		}
 
+	private:
 		/// return the dimension of this
 		unsigned int dim() const {return dim_;}
 
@@ -811,9 +824,7 @@ namespace madness {
 			return kv;
 		}
 
-		/// return the tensor type
-		TensorType type() const {return tensortype_;};
-
+	public:
 		/// return the number of physical dimensions
 		int dim_per_vector() const {
 			const int nvec=vector_.size();
@@ -822,6 +833,10 @@ namespace madness {
 			return dim/nvec;
 		}
 
+		/// return the weight
+		double weights(const unsigned int& i) const {return weights_(i);};
+
+	private:
 		/// return the number of coefficients
 		unsigned int nCoeff() const {
 			if (type()==TT_FULL) return ref_vector(0).size();
@@ -924,11 +939,9 @@ namespace madness {
 		/// scale this by a number
 		void scale(const double& fac) {weights_.scale(fac);};
 
-		/// return the weight
-		double weights(const unsigned int& i) const {return weights_(i);};
-
-		/// return the maximum weight
-		double maxWeight() const {return weights_(Slice(0,this->rank()-1)).max();};
+		void scale(const double_complex& fac) {
+			MADNESS_EXCEPTION("no complex scaling in SRConf",1);
+		}
 
 		/// check compatibility
 		friend bool compatible(const SRConf& lhs, const SRConf& rhs) {
@@ -1181,14 +1194,18 @@ namespace madness {
 		Up=inner(Up,U1,0,1);
 		VTp=inner(VTp,U2,1,1);
 
-		// find the maximal singular value that's supposed to contribute
-		// singular values are ordered (largest first)
-		double residual=0.0;
-		long i;
-		for (i=Sp.dim(0)-1; i>=0; i--) {
-			residual+=Sp(i)*Sp(i);
-			if (residual>thresh*thresh) break;
-		}
+
+
+//		// find the maximal singular value that's supposed to contribute
+//		// singular values are ordered (largest first)
+//		double residual=0.0;
+//		long i;
+//		for (i=Sp.dim(0)-1; i>=0; i--) {
+//			residual+=Sp(i)*Sp(i);
+//			if (residual>thresh*thresh) break;
+//		}
+		long i=SRConf<T>::max_sigma(thresh,Sp.dim(0),Sp);
+
 #ifdef BENCH
 		double cpu7=wall_time();
 		SRConf<T>::time(7)+=cpu7-cpu6;

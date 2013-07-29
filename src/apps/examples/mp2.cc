@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+
+    print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
     if (world.rank()==0) print("using gperftools, clearing memory at each fence()");
 #endif

@@ -523,7 +523,7 @@ namespace madness {
 
         /// reduces the rank of the coefficients (if applicable)
         void reduceRank(const double& eps) {
-        	_coeffs.reduceRank(eps);
+        	_coeffs.reduce_rank(eps);
         }
 
         /// Sets \c has_children attribute to value of \c flag.
@@ -3474,7 +3474,7 @@ namespace madness {
                 coeffT gcoeff=g.get_impl()->parent_to_child(g.coeff(),g.key(),key);
                 coeffT hcoeff=copy(fcoeff);
                 hcoeff.gaxpy(alpha,gcoeff,beta);
-                hcoeff.reduceRank(f.get_impl()->get_tensor_args().thresh);
+                hcoeff.reduce_rank(f.get_impl()->get_tensor_args().thresh);
                 return std::pair<bool,coeffT> (is_leaf,hcoeff);
             }
 
@@ -3877,7 +3877,7 @@ namespace madness {
 
 				MADNESS_ASSERT(val_result.has_data());
 				coeff_result=values2coeffs(key,val_result);
-				coeff_result.reduceRank(this->get_tensor_args().thresh);
+				coeff_result.reduce_rank(this->get_tensor_args().thresh);
         	}
 
         	return coeff_result;
@@ -4421,7 +4421,7 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss = copy(d(child_patch(child)));
-                    ss.reduceRank(targs.thresh);
+                    ss.reduce_rank(targs.thresh);
 //                    coeffs.replace(child,nodeT(ss,-1.0,false).node_to_low_rank());
                     coeffs.replace(child,nodeT(ss,-1.0,false));
                     // Note value -1.0 for norm tree to indicate result of refinement
@@ -4571,14 +4571,14 @@ namespace madness {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
                     const keyT& child = kit.key();
                     coeffT ss= upsample(child,d);
-                    ss.reduceRank(thresh);
+                    ss.reduce_rank(thresh);
                     PROFILE_BLOCK(recon_send);
                     woT::task(coeffs.owner(child), &implT::trickle_down_op, child, ss);
                 }
             }
             else {
                 node.coeff()+=s;
-                node.coeff().reduceRank(thresh);
+                node.coeff().reduce_rank(thresh);
             }
             return None;
         }

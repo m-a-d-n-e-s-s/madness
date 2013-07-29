@@ -387,7 +387,7 @@ namespace madness {
                 }
             }
   
-            MADNESS_ASSERT(0);
+//            MADNESS_ASSERT(0);
             tensorT dd=d.full_tensor_copy();
 
 //            MADNESS_EXCEPT("Flo in late diff_2b",0);

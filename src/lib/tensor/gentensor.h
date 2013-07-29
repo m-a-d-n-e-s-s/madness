@@ -191,8 +191,6 @@ namespace madness {
 		size_t real_size() const {return this->size();}
 
         void reduceRank(const double& eps) {return;};
-        void right_orthonormalize(const double& eps) {return;};
-        void reconstruct_and_decompose(const double& eps) {return;}
         void normalize() {return;}
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
@@ -354,7 +352,6 @@ namespace madness {
 		/// ctor with a regular Tensor and arguments, deep
 		GenTensor(const Tensor<T>& rhs, const TensorArgs& targs) {
 
-
 			// fast return if possible
 			if (not rhs.has_data()) {
 				_ptr.reset();
@@ -362,20 +359,16 @@ namespace madness {
 			}
 
 			MADNESS_ASSERT(rhs.ndim()>0);
-			MADNESS_ASSERT(rhs.iscontiguous());
 			for (long idim=0; idim<rhs.ndim(); idim++) {
 			    MADNESS_ASSERT(rhs.dim(0)==rhs.dim(idim));
 			}
 
 			_ptr=sr_ptr(new configT(rhs.ndim(),rhs.dim(0),targs.tt));
 
-			// adapt form of values
-			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
-			Tensor<T> values_eff=rhs.reshape(d);
-
 			// direct reduction on the polynomial values on the Tensor
 			TensorType ttype=tensor_type();
 			if (ttype==TT_2D) {
+
 #if 1
 				TensorTrain<T> tt(rhs,targs.thresh*facReduce());
 				Tensor<T> U,VT;
@@ -386,13 +379,17 @@ namespace madness {
 				if (r==0) {
                     _ptr=sr_ptr(new configT(dim(),get_k(),ttype));
 				} else {
-                MADNESS_ASSERT(U.dim(nd-1)==r);
-                Tensor<T> UU=U.reshape(U.size()/r,r);
-				  _ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
+					MADNESS_ASSERT(U.dim(nd-1)==r);
+					Tensor<T> UU=U.reshape(U.size()/r,r);
+					_ptr=sr_ptr(new configT(s, copy(transpose(UU)), VT.reshape(r,VT.size()/r),
 				                          dim(), get_k()));
-				  this->normalize();
+					this->normalize();
 				}
 #else
+				// adapt form of values
+				MADNESS_ASSERT(rhs.iscontiguous());
+				std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
+				Tensor<T> values_eff=rhs.reshape(d);
 
 				this->computeSVD(targs.thresh,values_eff);
 #endif
@@ -571,75 +568,75 @@ namespace madness {
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
+			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
+
 		    if (rhs.has_no_data()) return *this;
 		    if (this->has_no_data()) {
 		    	*this=copy(rhs);
 		    	return *this;
 		    }
-//			rhs.accumulate_into(*this,1.0);
-			if (tensor_type()==TT_FULL) {
-				if (not rhs.tensor_type()==TT_FULL)
-					MADNESS_EXCEPTION("gentensorT::operator+= failure; call accumulate_into",0);
-				this->full_tensor()+=rhs.full_tensor();
-				return *this;
-			}
-			rhs.append(*this,1.0);
+		    this->gaxpy(1.0,rhs,1.0);
+			return *this;
+		}
+
+		/// inplace subtraction
+		gentensorT& operator-=(const gentensorT& rhs) {
+
+		    if (rhs.has_no_data()) return *this;
+		    if (this->has_no_data()) {
+		    	*this=copy(rhs);
+		    	return *this;
+		    }
+		    this->gaxpy(1.0,rhs,-1.0);
 			return *this;
 		}
 
 		/// inplace addition
 		gentensorT& operator+=(const SliceGenTensor<T>& rhs) {
-
 			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
 			const std::vector<Slice> s(this->ndim(),Slice(0,get_k()-1,1));
 			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,1.0);
 			return *this;
+		}
 
+		/// inplace subtraction
+		gentensorT& operator-=(const SliceGenTensor<T>& rhs) {
+			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
+			const std::vector<Slice> s(this->ndim(),Slice(0,get_k()-1,1));
+			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,-1.0);
+			return *this;
 		}
 
 		/// multiply with a number
-		gentensorT operator*(const double& x) const {
-			gentensorT result(copy(*this));
+		template<typename Q>
+		GenTensor<TENSOR_RESULT_TYPE(T,Q)> operator*(const Q& x) const {
+			GenTensor<TENSOR_RESULT_TYPE(T,Q)> result(copy(*this));
         	result.scale(x);
         	return result;
 		}
 
-		/// multiply with a number
-		gentensorT operator*(const std::complex<double>& x) const {
-			MADNESS_EXCEPTION("only double factors in GenTensor::operator*",0);
-		}
-
 	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
-	    gentensorT& gaxpy(std::complex<double> alpha, const gentensorT& rhs, std::complex<double> beta) {
-	    	MADNESS_EXCEPTION("GenTensor::gaxpy only with double factors",0);
-	    }
+	    gentensorT& gaxpy(const T alpha, const gentensorT& rhs, const T beta) {
+			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
-	    /// Inplace generalized saxpy ... this = this*alpha + other*beta
-	    gentensorT& gaxpy(const double alpha, const gentensorT& rhs, const double beta) {
-            if (tensor_type()==TT_FULL) {
+	    	if (tensor_type()==TT_FULL) {
                 full_tensor().gaxpy(alpha,rhs.full_tensor(),beta);
                 return *this;
             }
-	    	if (not alpha==1.0) this->scale(alpha);
-//	    	rhs.accumulate_into(*this,beta);
+	    	if (not (alpha==1.0)) this->scale(alpha);
 	    	rhs.append(*this,beta);
 	    	return *this;
 	    }
 
 		/// multiply with a scalar
-		gentensorT& scale(const double& dfac) {
+	    template<typename Q>
+	    GenTensor<TENSOR_RESULT_TYPE(T,Q)>& scale(const Q& dfac) {
 			if (!_ptr) return *this;
 			if (tensor_type()==TT_FULL) {
 				full_tensor().scale(dfac);
 			} else {
 				_ptr->scale(dfac);
 			}
-			return *this;
-		};
-
-		/// multiply with a scalar
-		gentensorT& scale(const std::complex<double>& dfac) {
-			MADNESS_EXCEPTION("only double factors in GenTensor::scale",0);
 			return *this;
 		};
 
@@ -683,9 +680,6 @@ namespace madness {
 		/// return the polynomial order
 		unsigned int get_k() const {return _ptr->get_k();};
 
-		/// return the number length of the underlying vectors
-		unsigned int kVec() const {return _ptr->kVec();};
-
 		/// returns the TensorType of this
 		TensorType tensor_type() const {
 			if (_ptr) return _ptr->type();
@@ -720,23 +714,25 @@ namespace madness {
             return config().normf();
         };
 
-		/// returns the trace of <this|rhs>
-		T trace_conj(const GenTensor<T>& rhs) const {
-			T ovlp=overlap(*_ptr,*rhs._ptr);
-			return ovlp;
+        /// returns the trace of <this|rhs>
+		T trace(const GenTensor<T>& rhs) const {
+			return this->trace_conj(rhs);
 		}
 
-		/// overlap between two SepReps (Frobenius inner product)
-		friend T overlap(const gentensorT& rhs, const gentensorT& lhs)  {
+        /// returns the trace of <this|rhs>
+		template<typename Q>
+		TENSOR_RESULT_TYPE(T,Q) trace_conj(const GenTensor<Q>& rhs) const {
+            if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in GenTensor, sorry",1);
+            if (TensorTypeData<Q>::iscomplex) MADNESS_EXCEPTION("no complex trace in GenTensor, sorry",1);
 
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
 			// fast return if possible
-			if ((lhs.rank()==0) or (rhs.rank()==0)) return 0.0;
+			if ((this->rank()==0) or (rhs.rank()==0)) return resultT(0.0);
 
-			MADNESS_ASSERT(compatible(lhs,rhs));
-			MADNESS_ASSERT(lhs.tensor_type()==rhs.tensor_type());
+			MADNESS_ASSERT(compatible(*this,rhs));
+			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
-			const T ovlp=overlap(*lhs._ptr,*rhs._ptr);
-			return ovlp;
+			return overlap(*(this->_ptr),*rhs._ptr);
 		}
 
         /// Inplace multiply by corresponding elements of argument Tensor
@@ -758,8 +754,8 @@ namespace madness {
 			}
 		}
 
-		// reduce the rank of this
-		void reduceRank(const double& eps) {
+		/// reduce the rank of this
+		void reduce_rank(const double& eps) {
 
 			if (rank()==0) return;
 
@@ -772,16 +768,6 @@ namespace madness {
 				MADNESS_EXCEPTION("unknown tensor type in GenTensor::reduceRank()",0);
 			}
 			MADNESS_ASSERT(this->_ptr->has_structure() or this->rank()==0);
-		}
-
-		/// reduce rank by reconstruction of the full tensor and subsequent SVD decomposition
-		void reconstruct_and_decompose(const double& eps) {
-		    if (tensor_type()==TT_FULL or tensor_type()==TT_NONE) return;
-		    MADNESS_ASSERT(tensor_type()==TT_2D);
-			Tensor<T> values=this->reconstruct_tensor();
-			std::vector<long> d(_ptr->dim_eff(),_ptr->kVec());
-			Tensor<T> values_eff=values.reshape(d);
-			this->computeSVD(eps,values_eff);
 		}
 
 		/// print this' coefficients
@@ -807,7 +793,7 @@ namespace madness {
 
 			// for convenience
 			const unsigned int conf_dim=this->_ptr->dim_eff();
-			const unsigned int conf_k=this->kVec();			// possibly k,k*k,..
+			const unsigned int conf_k=this->_ptr->kVec();			// possibly k,k*k,..
 			const long rank=this->rank();
 			long d[TENSOR_MAXDIM];
 
@@ -894,13 +880,8 @@ namespace madness {
 			return s2;
 		}
 
-	    /// accumulate this into t
-	    void accumulate_into(GenTensor<T>& t, const double& thresh, const std::complex<double>& fac) const {
-	    	MADNESS_EXCEPTION("no GenTensor::accumulate_into with complex fac",0);
-	    }
-
 		/// append this to rhs, shape must conform
-		void append(gentensorT& rhs, const double fac=1.0) const {
+		void append(gentensorT& rhs, const T fac=1.0) const {
 			rhs.config().append(*this->_ptr,fac);
 		}
 
@@ -915,7 +896,7 @@ namespace madness {
 				this->full_tensor()+=rhs.full_tensor();
 				return;
 			}
-			config().add_SVD(rhs.config(),thresh);
+			config().add_SVD(rhs.config(),thresh*facReduce());
 		}
 
 	    /// check compatibility
@@ -965,6 +946,7 @@ namespace madness {
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
 		void inplace_add(const gentensorT& rhs, const std::vector<Slice>& lhs_s,
 				const std::vector<Slice>& rhs_s, const double alpha, const double beta) {
+			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
 			// fast return if possible
 			if (rhs.rank()==0) return;
@@ -1073,6 +1055,13 @@ namespace madness {
 			return *this;
 		}
 
+		/// inplace subtraction
+		SliceGenTensor<T>& operator-=(const GenTensor<T>& rhs) {
+			std::vector<Slice> s(this->_refGT.ndim(),Slice(_));
+			_refGT.inplace_add(rhs,this->_s,s,1.0,-1.0);
+			return *this;
+		}
+
 		/// inplace addition
 		SliceGenTensor<T>& operator+=(const SliceGenTensor<T>& rhs) {
 			_refGT.inplace_add(GenTensor<T>(*rhs._refGT._ptr),this->_s,rhs._s,1.0,1.0);
@@ -1080,12 +1069,14 @@ namespace madness {
 		}
 
 		/// inplace zero-ing
-		SliceGenTensor<T>& operator=(const double& number) {
-			MADNESS_ASSERT(number==0.0);
-			GenTensor<T> tmp=*this;
-			if (this->_refGT.tensor_type()==TT_FULL) tmp=copy(tmp);
-			tmp.scale(-1.0);
-			_refGT.inplace_add(tmp,_s,_s,1.0,1.0);
+		SliceGenTensor<T>& operator=(const T& number) {
+			MADNESS_ASSERT(number==T(0.0));
+			if (this->_refGT.tensor_type()==TT_FULL) {
+				_refGT.full_tensor()(_s)=0.0;
+			} else {
+				const GenTensor<T>& tmp=(this->_refGT);
+				_refGT.inplace_add(tmp,_s,_s,1.0,-1.0);
+			}
 			return *this;
 		}
 
@@ -1105,12 +1096,6 @@ namespace madness {
 	/// cf tensor/tensor.h
     template <class T, class Q>
     GenTensor< TENSOR_RESULT_TYPE(T,Q) > transform(const GenTensor<Q>& t, const Tensor<T>& c) {
-    	MADNESS_ASSERT(0);
-//    	return t.transform(c);
-    }
-
-    template <class T>
-    GenTensor<T> transform(const GenTensor<T>& t, const Tensor<T>& c) {
     	return t.transform(c);
     }
 
@@ -1121,7 +1106,7 @@ namespace madness {
 
     	template<typename T>
     	void operator()(GenTensor<T>& g) const {
-    		g.reduceRank(eps);
+    		g.reduce_rank(eps);
     	}
     };
 
@@ -1319,6 +1304,12 @@ namespace madness {
         return t.general_transform(c);
     }
 
+    /// The class defines tensor op scalar ... here define scalar op tensor.
+    template <typename T, typename Q>
+    typename IsSupported < TensorTypeData<Q>, GenTensor<T> >::type
+    operator*(const Q& x, const GenTensor<T>& t) {
+        return t*x;
+    }
 
 
 
