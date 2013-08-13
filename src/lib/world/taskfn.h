@@ -148,12 +148,12 @@ namespace madness {
 
         template <typename T>
         struct ArgCountHelper {
-            static const unsigned int value = 1;
+            static const unsigned int value = 1u;
         };
 
         template <>
         struct ArgCountHelper<void> {
-            static const unsigned int value = 0;
+            static const unsigned int value = 0u;
         };
 
         // Counts the number of arguments that will be given to a task function
@@ -166,49 +166,48 @@ namespace madness {
                 + ArgCountHelper<a8T>::value + ArgCountHelper<a9T>::value> {
         };
 
-        template <typename T>
-        struct value_type {
-            typedef typename std::remove_cv<T>::type type;
-        };
+
+        /// A wrapper object for holding task function objects
+        template <typename Arg>
+        class ArgHolder : private NO_DEFAULTS{
+        private:
+            Arg arg_;
+        public:
+
+            ArgHolder(const Arg& arg) : arg_(arg) { }
+
+            ArgHolder(const archive::BufferInputArchive& input_arch) :
+                arg_()
+            {
+                input_arch & arg_;
+            }
+
+            operator Arg&() { return arg_; }
+        }; // class ArgHolder
+
 
         template <typename T>
-        struct value_type<Future<T> > {
+        struct task_arg {
             typedef T type;
+            typedef ArgHolder<T> holderT;
         };
 
         template <typename T>
-        struct value_type<T&> {
-            typedef typename value_type<T>::type type;
+        struct task_arg<Future<T> > {
+            typedef T type;
+            typedef Future<T> holderT;
         };
-
-        template <typename T>
-        struct value_type<T*> {
-            typedef T* type;
-        };
-
-        template <typename T, std::size_t N>
-        struct value_type<T[N]> {
-            typedef T type[N];
-        };
-
-        template <typename T, std::size_t N>
-        struct value_type<const T[N]> {
-            typedef const T type[N];
-        };
-
-//        template <std::size_t N>
-//        struct value_type<char[N]> {
-//            typedef std::string type;
-//        };
-//
-//        template <std::size_t N>
-//        struct value_type<const char[N]> {
-//            typedef std::string type;
-//        };
 
         template <>
-        struct value_type<void> {
-            typedef void type;
+        struct task_arg<Future<void> > {
+            typedef const Future<void> type;
+            typedef const Future<void> holderT;
+        };
+
+        template <>
+        struct task_arg<void> {
+            typedef const Future<void> type;
+            typedef const Future<void> holderT;
         };
 
         template <typename fnT>
@@ -222,16 +221,6 @@ namespace madness {
         /// unused arguments.
         typedef Future<void> voidT;
 
-        /// Add const to Future<void> types. All other types are ignored
-        template <typename T>
-        struct instantiate_const_voidT {
-            typedef T type;
-        };
-
-        template <>
-        struct instantiate_const_voidT<Future<void> > {
-            typedef const Future<void> type;
-        };
 
         // These functions are used to differentiate the task function calls
         // based on the number of arguments and return type.
@@ -392,15 +381,15 @@ namespace madness {
     /// Wrap a callable object and its arguments into a task function
 
     /// The callable object may have up to 10 arguments
-    template <typename fnT, typename arg1_type = void, typename arg2_type = void,
-            typename arg3_type = void, typename arg4_type = void, typename arg5_type = void,
-            typename arg6_type = void, typename arg7_type = void, typename arg8_type = void,
-            typename arg9_type = void>
+    template <typename fnT, typename arg1T = void, typename arg2T = void,
+            typename arg3T = void, typename arg4T = void, typename arg5T = void,
+            typename arg6T = void, typename arg7T = void, typename arg8T = void,
+            typename arg9T = void>
     struct TaskFn : public TaskInterface {
     private:
         /// This class type
-        typedef TaskFn<fnT, arg1_type, arg2_type, arg3_type, arg4_type, arg5_type,
-                arg6_type, arg7_type, arg8_type, arg9_type> TaskFn_;
+        typedef TaskFn<fnT, arg1T, arg2T, arg3T, arg4T, arg5T, arg6T, arg7T,
+                arg8T, arg9T> TaskFn_;
 
     public:
 
@@ -410,18 +399,9 @@ namespace madness {
         typedef typename detail::task_result_type<fnT>::futureT futureT;
 
         // argument value typedefs
-        typedef typename detail::value_type<arg1_type>::type arg1T; ///< Argument 1 type
-        typedef typename detail::value_type<arg2_type>::type arg2T; ///< Argument 2 type
-        typedef typename detail::value_type<arg3_type>::type arg3T; ///< Argument 3 type
-        typedef typename detail::value_type<arg4_type>::type arg4T; ///< Argument 4 type
-        typedef typename detail::value_type<arg5_type>::type arg5T; ///< Argument 5 type
-        typedef typename detail::value_type<arg6_type>::type arg6T; ///< Argument 6 type
-        typedef typename detail::value_type<arg7_type>::type arg7T; ///< Argument 7 type
-        typedef typename detail::value_type<arg8_type>::type arg8T; ///< Argument 8 type
-        typedef typename detail::value_type<arg9_type>::type arg9T; ///< Argument 9 type
 
-        static const unsigned int arity = detail::ArgCount<arg1_type, arg2_type, arg3_type, arg4_type,
-                arg5_type, arg6_type, arg7_type, arg8_type, arg9_type>::value;
+        static const unsigned int arity = detail::ArgCount<arg1T, arg2T, arg3T,
+                arg4T, arg5T, arg6T, arg7T, arg8T, arg9T>::value;
         ///< The number of arguments given for the function
         ///< \note This may not match the arity of the function
         ///< if it has default parameter values
@@ -433,15 +413,15 @@ namespace madness {
         // If the value of the argument is known at the time the
         // Note: The type argNT for argN, where N  is > arity should be void
 
-        typename detail::instantiate_const_voidT<Future<arg1T> >::type arg1_;///< Argument 1 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg2T> >::type arg2_;///< Argument 2 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg3T> >::type arg3_;///< Argument 3 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg4T> >::type arg4_;///< Argument 4 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg5T> >::type arg5_;///< Argument 5 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg6T> >::type arg6_;///< Argument 6 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg7T> >::type arg7_;///< Argument 7 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg8T> >::type arg8_;///< Argument 8 that will be given to the function
-        typename detail::instantiate_const_voidT<Future<arg9T> >::type arg9_;///< Argument 9 that will be given to the function
+        typename detail::task_arg<arg1T>::holderT arg1_;///< Argument 1 that will be given to the function
+        typename detail::task_arg<arg2T>::holderT arg2_;///< Argument 2 that will be given to the function
+        typename detail::task_arg<arg3T>::holderT arg3_;///< Argument 3 that will be given to the function
+        typename detail::task_arg<arg4T>::holderT arg4_;///< Argument 4 that will be given to the function
+        typename detail::task_arg<arg5T>::holderT arg5_;///< Argument 5 that will be given to the function
+        typename detail::task_arg<arg6T>::holderT arg6_;///< Argument 6 that will be given to the function
+        typename detail::task_arg<arg7T>::holderT arg7_;///< Argument 7 that will be given to the function
+        typename detail::task_arg<arg8T>::holderT arg8_;///< Argument 8 that will be given to the function
+        typename detail::task_arg<arg9T>::holderT arg9_;///< Argument 9 that will be given to the function
 
         template <typename fT>
         static fT& get_func(fT& f) { return f; }
@@ -467,6 +447,27 @@ namespace madness {
                 fut.register_callback(this);
             }
         }
+
+
+        /// None future arguments are always ready => no op
+        template <typename T>
+        inline void check_dependency(detail::ArgHolder<std::vector<Future<T> > >& arg) {
+            check_dependency(static_cast<std::vector<Future<T> >&>(arg));
+        }
+
+        /// None future arguments are always ready => no op
+        template <typename T>
+        inline void check_dependency(std::vector<Future<T> >& vec) {
+            for(typename std::vector<Future<T> >::iterator it = vec.begin(); it != vec.end(); ++it)
+                check_dependency(*it);
+        }
+
+        /// Future<void> is always ready => no op
+        inline void check_dependency(const std::vector<Future<void> >&) { }
+
+        /// None future arguments are always ready => no op
+        template <typename T>
+        inline void check_dependency(const detail::ArgHolder<T>&) { }
 
         /// Future<void> is always ready => no op
         inline void check_dependency(const Future<void>&) { }

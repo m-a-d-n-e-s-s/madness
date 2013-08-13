@@ -302,7 +302,7 @@ which merely blows instead of sucking.
             ScopedMutex<Spinlock> fred(this);
             MADNESS_ASSERT(! remote_ref);
             input_arch & const_cast<T&>(t);
-            set_assigned(t);
+            set_assigned(const_cast<T&>(t));
         }
 
         // Gets/forces the value, waiting if necessary (error if not local)
@@ -317,14 +317,6 @@ which merely blows instead of sucking.
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<const T*>(&t);
-        }
-
-        T& operator->() {
-            return get();
-        }
-
-        const T& operator->() const {
-            return get();
         }
 
         bool is_local() const {
@@ -631,11 +623,9 @@ which merely blows instead of sucking.
     public:
         typedef RemoteReference< FutureImpl<void> > remote_refT;
 
-        static const Future<void> value; // Instantiated in worldstuff.cc
+        static const Future<void> value; // Instantiated in world.cc
 
-        remote_refT remote_ref(World&) const {
-            return remote_refT();
-        }
+        static remote_refT remote_ref(World&) { return remote_refT(); }
 
         Future() {}
 
@@ -645,13 +635,10 @@ which merely blows instead of sucking.
             input_arch & *this;
         }
 
-        inline void set(const Future<void>&) {}
+        inline Future<void>& operator=(const Future<void>&) { return *this; }
 
-        inline Future<void>& operator=(const Future<void>&) {
-            return *this;
-        }
-
-        inline void set() {}
+        static void set(const Future<void>&) { }
+        static void set() { }
 
         static bool probe() { return true; }
     }; // class Future<void>
@@ -701,34 +688,23 @@ which merely blows instead of sucking.
         vectorT v;
 
     public:
-        Future() : v() {}
+        Future() : v() { }
 
         Future(const vectorT& v) : DependencyInterface(v.size()), v(v) {
             for (int i=0; i<(int)v.size(); ++i) {
                 this->v[i].register_callback(this);
             }
         }
+
         /// Not implemented
         explicit Future(const archive::BufferInputArchive& input_arch) {
-            std::size_t n = 0;
-            input_arch & n;
-            v.reserve(n);
-            for(std::size_t i = 0; i < n; ++i)
-                v.push_back(madness::Future<T>(input_arch));
+            input_arch & v;
         }
 
-        vectorT& get() {
-            return v;
-        }
-        const vectorT& get() const {
-            return v;
-        }
-        operator vectorT& () {
-            return get();
-        }
-        operator const vectorT& () const {
-            return get();
-        }
+        vectorT& get() { return v; }
+        const vectorT& get() const { return v; }
+        operator vectorT& () { return get(); }
+        operator const vectorT& () const { return get(); }
 
         bool probe() const {
             for(typename std::vector< Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it)
@@ -838,7 +814,7 @@ which merely blows instead of sucking.
                     v.reserve(n);
                 if(v.size() > n)
                     v.resize(n);
-                for(typename std::vector<Future<T> >::const_iterator it = v.begin(); it < v.end(); ++it, --n) {
+                for(typename std::vector<Future<T> >::iterator it = v.begin(); it < v.end(); ++it, --n) {
                     MADNESS_ASSERT(! it->probe());
                     it->set(ar);
                 }
