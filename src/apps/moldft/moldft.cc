@@ -60,6 +60,8 @@ using namespace madness;
 #include <moldft/corepotential.h>
 #include <moldft/xcfunctional.h>
 
+#include <moldft/potentialmanager.h>
+
 //#include <jacob/abinitdftsolventsolver.h>
 //#include <examples/molecularmask.h>
 
@@ -259,34 +261,6 @@ double mask3(const coordT& ruser) {
 //     void serialize(Archive& ar) {}
 // };
 
-class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const Molecule& molecule;
-public:
-    MolecularPotentialFunctor(const Molecule& molecule)
-        : molecule(molecule) {}
-
-    double operator()(const coordT& x) const {
-        return molecule.nuclear_attraction_potential(x[0], x[1], x[2]);
-    }
-
-    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
-};
-
-class MolecularCorePotentialFunctor : public FunctionFunctorInterface<double,3> {
-private:
-    const Molecule& molecule;
-public:
-    MolecularCorePotentialFunctor(const Molecule& molecule)
-        : molecule(molecule) {}
-
-    double operator()(const coordT& x) const {
-        return molecule.molecular_core_potential(x[0], x[1], x[2]);
-    }
-
-    std::vector<coordT> special_points() const {return molecule.get_all_coords_vec();}
-};
-
 class MolecularGuessDensityFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -355,33 +329,6 @@ public:
         return molecule.core_potential_derivative(atom, axis, r[0], r[1], r[2]);
     }
 };
-
-class CoreOrbitalFunctor : public FunctionFunctorInterface<double,3> {
-    const Molecule molecule;
-    const int atom;
-    const unsigned int core;
-    const int m;
-public:
-    CoreOrbitalFunctor(Molecule& molecule, int atom, unsigned int core, int m)
-        : molecule(molecule), atom(atom), core(core), m(m) {};
-    double operator()(const coordT& r) const {
-        return molecule.core_eval(atom, core, m, r[0], r[1], r[2]);
-    };
-};
-
-class CoreOrbitalDerivativeFunctor : public FunctionFunctorInterface<double,3> {
-    const Molecule molecule;
-    const int atom, axis;
-    const unsigned int core;
-    const int m;
-public:
-    CoreOrbitalDerivativeFunctor(Molecule& molecule, int atom, int axis, unsigned int core, int m)
-        : molecule(molecule), atom(atom), axis(axis), core(core), m(m) {};
-    double operator()(const coordT& r) const {
-        return molecule.core_derivative(atom, axis, core, m, r[0], r[1], r[2]);
-    };
-};
-
 
 /// A MADNESS functor to compute either x, y, or z
 class DipoleFunctor : public FunctionFunctorInterface<double,3> {
@@ -884,11 +831,11 @@ struct CalculationParameters {
 };
 
 struct Calculation {
+    std::shared_ptr<PotentialManager> potentialmanager;
     Molecule molecule;
     CalculationParameters param;
     XCfunctional xc;
     AtomicBasisSet aobasis;
-    functionT vnuc;
     functionT vacuo_rho;
     functionT rhoT;
     functionT rho_elec;
@@ -938,6 +885,8 @@ struct Calculation {
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
         set_protocol(world, 1e-4);
+
+        potentialmanager = std::shared_ptr<PotentialManager>(new PotentialManager(molecule, param.core_type));
         TAU_STOP("Calculation (World &, const char *");
     }
 
@@ -1110,6 +1059,7 @@ struct Calculation {
             }
             plotdx(rho, "total_density.dx", param.plot_cell, npt, true);
             if (param.plotcoul) {
+                real_function_3d vnuc = potentialmanager->vnuclear();
                 functionT vlocl = vnuc + apply(*coulop, rho);
                 vlocl.truncate();
                 vlocl.reconstruct();
@@ -1156,22 +1106,9 @@ struct Calculation {
     {
         TAU_START("Project vnuclear");
         START_TIMER(world);
-        vnuc = factoryT(world).functor(functorT(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
-        vnuc.set_thresh(FunctionDefaults<3>::get_thresh());
-        vnuc.reconstruct();
+        potentialmanager->make_nuclear_potential(world);
         END_TIMER(world, "Project vnuclear");
         TAU_STOP("Project vnuclear");
-        if (param.core_type != "") {
-            TAU_START("Project Core Pot.");
-            START_TIMER(world);
-            functionT c_pot = factoryT(world).functor(functorT(new MolecularCorePotentialFunctor(molecule))).thresh(vtol).initial_level(4);
-            c_pot.set_thresh(FunctionDefaults<3>::get_thresh());
-            c_pot.reconstruct();
-            END_TIMER(world, "Project Core Pot.");
-            TAU_STOP("Project Core Pot.");
-            vnuc += c_pot;
-            vnuc.truncate();
-        }
     }
 
     void project_ao_basis(World & world)
@@ -1680,6 +1617,7 @@ struct Calculation {
                 TAU_START("guess loadbal");
                 START_TIMER(world);
                 LoadBalanceDeux<3> lb(world);
+                real_function_3d vnuc = potentialmanager->vnuclear();
                 lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 lb.add_tree(rho, lbcost<double,3>(1.0, 8.0), true);
 
@@ -1693,6 +1631,7 @@ struct Calculation {
             if(param.nalpha + param.nbeta > 1){
                 TAU_START("guess Coulomb potn");
                 START_TIMER(world);
+                real_function_3d vnuc = potentialmanager->vnuclear();
                 vlocal = vnuc + apply(*coulop, rho);
                 END_TIMER(world, "guess Coulomb potn");
                 TAU_STOP("guess Coulomb potn");
@@ -1702,12 +1641,14 @@ struct Calculation {
                 vlocal.truncate();
                 param.spin_restricted = save;
             } else {
+                real_function_3d vnuc = potentialmanager->vnuclear();
                 vlocal = vnuc;
             }
             rho.clear();
             vlocal.reconstruct();
             if(world.size() > 1){
                 LoadBalanceDeux<3> lb(world);
+                real_function_3d vnuc = potentialmanager->vnuclear();
                 lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
                 for(unsigned int i = 0;i < ao.size();++i){
                     lb.add_tree(ao[i], lbcost<double,3>(1.0, 8.0), false);
@@ -1815,6 +1756,7 @@ struct Calculation {
     void initial_load_bal(World & world)
     {
         LoadBalanceDeux<3> lb(world);
+        real_function_3d vnuc = potentialmanager->vnuclear();
         lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0));
 
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
@@ -2031,6 +1973,7 @@ struct Calculation {
 	    TAU_STOP("HF exchange");
             exc = exchf* xc.hf_exchange_coefficient() + exc;
         }
+        potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
 
         if (param.core_type.substr(0,3) == "mcp") {
             TAU_START("MCP Core Projector");
@@ -2073,9 +2016,9 @@ struct Calculation {
                     du[atom * 3 + axis] = functionT(factoryT(world).functor(func).truncate_on_project());
 
                     // core projector contribution
-                    rc[atom * 3 + axis] = core_projector_derivative(world, amo, aocc, atom, axis);
+                    rc[atom * 3 + axis] = potentialmanager->core_projector_derivative(world, amo, aocc, atom, axis);
                     if (!param.spin_restricted) {
-                        if (param.nbeta) rc[atom * 3 + axis] += core_projector_derivative(world, bmo, bocc, atom, axis);
+                        if (param.nbeta) rc[atom * 3 + axis] += potentialmanager->core_projector_derivative(world, bmo, bocc, atom, axis);
                     }
                     else {
                         rc[atom * 3 + axis] *= 2 * 2;
@@ -2415,6 +2358,7 @@ struct Calculation {
             return;
 
         LoadBalanceDeux<3> lb(world);
+        real_function_3d vnuc = potentialmanager->vnuclear();
         lb.add_tree(vnuc, lbcost<double,3>(vnucextra*1.0, vnucextra*8.0), false);
         lb.add_tree(arho, lbcost<double,3>(1.0, 8.0), false);
         for(unsigned int i = 0;i < amo.size();++i){
@@ -2758,6 +2702,7 @@ struct Calculation {
 //      END_TIMER(world, "Make densities");
 
       // Do RPA only for now
+      real_function_3d vnuc = potentialmanager->vnuclear();
       functionT vlocal = vnuc;
 //      START_TIMER(world);
       functionT vcoul = apply(*coulop, rho);
@@ -3209,6 +3154,7 @@ struct Calculation {
 	    //print("Rho Elec Solvent , Gas Phase Density ", rho_elec.trace(), vacuo_rho.trace()); // DEBUG
             // double Xrhoetrace = rho_elec.trace(); //DEBUG
             rho.truncate();
+            real_function_3d vnuc = potentialmanager->vnuclear();
             double enuclear = inner(rho, vnuc);
 
 	    // DEBUG
