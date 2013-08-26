@@ -31,6 +31,7 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
 
 XCfunctional::~XCfunctional() {}
 
+
 bool XCfunctional::is_lda() const {
     return (hf_coeff == 0.0);
 }

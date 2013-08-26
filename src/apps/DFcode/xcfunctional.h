@@ -36,27 +36,24 @@ struct xc_lda_potential {
     }
 };
 
-//vama3#ifndef MADNESS_HAS_LIBXC
-//vama3struct xc_func_type {
-//vama3    int functional;
-//vama3    int nspin;
-//vama3};
-//vama3#endif
+#ifdef MADNESS_HAS_MADXC
+//#error
+struct xc_func_type {
+  int   number;   /* indentifier number */                                                                                                   
+  bool nspin;      /* XC_UNPOLARIZED or XC_POLARIZED  */
+  int  kind;     /* XC_EXCHANGE, XC_CORRELATION, or XC_EXCHANGE_CORRELATION */                                                              
+  std::string name;     /* name of the functional, e.g. "PBE" */                                                                             
+  int   family;   /* type of the functional, e.g. XC_FAMILY_GGA */                                                                           
+  double   coef;   /* coefficient */
+};  
+#endif
 
 /// Simplified interface to XC functionals
 class XCfunctional {
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-//vama1    bool gga;        ///< True if the functional is gga
-//vama1    bool lda;        ///< True if the functional is lda
-//vama1
-//vama1    void make_xc_args(const std::vector< madness::Tensor<double> >& t,
-//vama1                         std::vector< madness::Tensor<double> >& rho,
-//vama1                         std::vector< madness::Tensor<double> >& sigma,
-//vama1                         std::vector< madness::Tensor<double> >& delrho) const;
-//vama3    std::vector< std::pair<xc_func_type,double> > funcs;
-#ifdef MADNESS_HAS_LIBXC
+#ifdef MADNESS_HAS_MADXC || MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
