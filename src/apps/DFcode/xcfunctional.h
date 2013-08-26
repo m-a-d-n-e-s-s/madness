@@ -53,15 +53,24 @@ class XCfunctional {
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
-#ifdef MADNESS_HAS_MADXC || MADNESS_HAS_LIBXC
+#if defined(MADNESS_HAS_MADXC) ||defined( MADNESS_HAS_LIBXC)
     std::vector< std::pair<xc_func_type*,double> > funcs;
+    int nderiv;
+#endif
+
+#ifdef MADNESS_HAS_LIBXC
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
                          madness::Tensor<double>& sigma,
                          madness::Tensor<double>& delrho) const;
-    int nderiv;
 #endif
 
+#ifdef MADNESS_HAS_MADXC
+    void make_xc_args(const std::vector< madness::Tensor<double> >& t,
+                         std::vector< madness::Tensor<double> >& rho,
+                         std::vector< madness::Tensor<double> >& sigma,
+                         std::vector< madness::Tensor<double> >& delrho) const;
+#endif
 
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
 
