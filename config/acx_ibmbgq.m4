@@ -17,7 +17,7 @@ AC_DEFUN([ACX_IBMBGQ],[
         echo "}"               >> __bgq__.cc
         mpicxx __bgq__.cc >& /dev/null
         if test $? = 0; then
-                echo "IBM Blue Gene/Q detected"
+                AC_MSG_NOTICE([IBM Blue Gene/Q detected])
                 HAVE_IBMBGQ=yes
                 AC_DEFINE(HAVE_IBMBGQ,[1],[Defined if we are running on an IBM Blue Gene/Q])
         fi

@@ -27,7 +27,7 @@ AC_DEFUN([ACX_IBMBGP],[
                 fi
         fi
         if test "x$HAVE_IBMBGP" = xyes; then
-                echo "IBM Blue Gene/P detected"
+                AC_MSG_NOTICE([IBM Blue Gene/P detected])
                 AC_DEFINE(HAVE_IBMBGP,[1],[Defined if we are running on an IBM Blue Gene/P])
                 host="powerpc-bgp-linux"
                 host_triplet="powerpc-bgp-linux"

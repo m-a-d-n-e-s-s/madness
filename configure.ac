@@ -34,7 +34,7 @@ AC_DEFINE_UNQUOTED([MAD_BIND_DEFAULT], ["$BIND"], [The default binding for threa
 
 # This sets host, host_cpu, host_vendor, host_os
 AC_CANONICAL_HOST
-echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
+AC_MSG_NOTICE([HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os])
 AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
 AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
 
@@ -66,7 +66,7 @@ AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
 AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
 AC_LANG_CPLUSPLUS
-echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
+AC_MSG_NOTICE([Compiler choices after 'AC LANG' ... $CXX and $CC])
 
 CFLAGS="$initial_CFLAGS"
 CXXFLAGS="$initial_CXXFLAGS"
@@ -216,19 +216,19 @@ AC_ARG_ENABLE(madex,
               [madex=throw])
 case $madex in
   abort)
-    echo MADNESS assertions will abort
+    AC_MSG_NOTICE([MADNESS assertions will abort])
     AC_DEFINE([MADNESS_ASSERTIONS_ABORT], [1], [Set if MADNESS assertions abort])
   ;;
   assert)
-    echo MADNESS assertions will assert
+    AC_MSG_NOTICE([MADNESS assertions will assert])
     AC_DEFINE([MADNESS_ASSERTIONS_ASSERT], [1], [Set if MADNESS assertions assert])
   ;;
   disable)
-    echo MADNESS assertions are disabled
+    AC_MSG_NOTICE([MADNESS assertions are disabled])
     AC_DEFINE([MADNESS_ASSERTIONS_DISABLE], [1], [Set if MADNESS assertions disabled])
   ;;
   *)
-    echo MADNESS assertions will throw
+    AC_MSG_NOTICE([MADNESS assertions will throw])
     AC_DEFINE([MADNESS_ASSERTIONS_THROW], [1], [Set if MADNESS assertions throw])
   ;;
 esac
@@ -239,42 +239,42 @@ AC_ARG_ENABLE([memstats],
               [memstats=$enableval],
               [memstats=no])
 if test "$memstats" = "yes"; then
-  echo 'MADNESS will gather memory statistics (expensive)'
+  AC_MSG_NOTICE([MADNESS will gather memory statistics (expensive)])
   AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
 fi
 
 AC_ARG_ENABLE([profile], 
               [AC_HELP_STRING([--enable-profile], [Enables profiling])], 
-              [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
+              [AC_MSG_NOTICE([Enabling profiling]); AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
               [])
 
 AC_ARG_ENABLE([tensor-bounds-checking], 
               [AC_HELP_STRING([--enable-tensor-bounds-checking],
                 [Enable checking of bounds in tensors ... slow but useful for debugging])], 
-              [echo "Enabling tensor bounds checking"; AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
+              [AC_MSG_NOTICE([Enabling tensor bounds checking]); AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
               [])
 
 AC_ARG_ENABLE([tensor-instance-count], 
               [AC_HELP_STRING([--enable-tensor-instance-count],
                 [Enable counting of allocated tensors for memory leak detection])], 
-              [echo "Enabling tensor instance counting"; AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
+              [AC_MSG_NOTICE([Enabling tensor instance counting]); AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
               [])
 
 AC_ARG_ENABLE([spinlocks], 
               [AC_HELP_STRING([--enable-spinlocks],
                 [Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)])], 
-              [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
+              [AC_MSG_NOTICE([Enabling use of spinlocks]); AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
               [])
 
 AC_ARG_ENABLE([never-spin], 
               [AC_HELP_STRING([--enable-never-spin],
                 [Disables use of spinlocks (notably for use inside virtual machines)])], 
-              [echo "Disabling use of spinlocks"; AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
+              [AC_MSG_NOTICE([Disabling use of spinlocks]); AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
               [])
 
 AC_ARG_WITH([papi], 
             [AC_HELP_STRING([--with-papi], [Enables use of PAPI])], 
-            [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
+            [AC_MSG_NOTICE([Enabling use of PAPI]); AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
 
 # Capture configuration info for user by compiled code

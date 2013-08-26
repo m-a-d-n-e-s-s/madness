@@ -8,7 +8,7 @@ AC_DEFUN([ACX_MAC], [
         if test $? = 0; then
             ITS_A_MAC="yes"
             ON_A_MAC="yes"
-            echo "You are building on a mac ... I'll do it just this once since you asked nicely."
+            AC_MSG_NOTICE([You are building on a mac ... now tell ten of your friends.])
             AC_DEFINE(ON_A_MAC,[1],[Set if building on a mac])
         fi
 ])
