@@ -190,7 +190,7 @@ namespace madness {
 		double svd_normf() const {return this->normf();}
 		size_t real_size() const {return this->size();}
 
-        void reduceRank(const double& eps) {return;};
+        void reduce_rank(const double& eps) {return;};
         void normalize() {return;}
 
         std::string what_am_i() const {return "GenTensor, aliased to Tensor";};
@@ -213,6 +213,15 @@ namespace madness {
 
 	};
 
+    template <class T>
+	GenTensor<T> reduce(std::list<GenTensor<T> >& addends, double eps, bool are_optimal=false) {
+    	typedef typename std::list<GenTensor<T> >::iterator iterT;
+    	GenTensor<T> result=copy(addends.front());
+    	for (iterT it=++addends.begin(); it!=addends.end(); ++it) {
+    		result+=*it;
+    	}
+	    return result;
+    }
 
     /// Outer product ... result(i,j,...,p,q,...) = left(i,k,...)*right(p,q,...)
 
