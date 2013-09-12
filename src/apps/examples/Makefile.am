@@ -5,6 +5,8 @@ bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester t
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
+AUTOMAKE_OPTIONS = subdir-objects
+
 mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
 
 oep_SOURCES = oep.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
