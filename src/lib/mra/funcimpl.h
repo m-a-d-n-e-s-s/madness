@@ -5016,7 +5016,7 @@ namespace madness {
         /// @param[in] key	key of the source FunctionNode of f which is processed
         /// @param[in] c	coeffs of the FunctionNode of f which is processed
         template <typename opT, typename R>
-        Void do_apply(const opT* op, const FunctionImpl<R,NDIM>* f, const keyT& key, const Tensor<R>& c) {
+        Void do_apply(const opT* op, const keyT& key, const Tensor<R>& c) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
 
             typedef typename opT::keyT opkeyT;
@@ -5075,7 +5075,7 @@ namespace madness {
 
         /// apply an operator on f to return this
         template <typename opT, typename R>
-        void apply(opT& op, const FunctionImpl<R,NDIM>& f, const std::vector<bool>& is_periodic, bool fence) {
+        void apply(opT& op, const FunctionImpl<R,NDIM>& f, bool fence) {
             PROFILE_MEMBER_FUNC(FunctionImpl);
             MADNESS_ASSERT(!op.modified());
             typename dcT::const_iterator end = f.coeffs.end();
@@ -5086,7 +5086,7 @@ namespace madness {
                 if (node.has_coeff()) {
                     if (node.coeff().dim(0) != k || op.doleaves) {
                         ProcessID p = FunctionDefaults<NDIM>::get_apply_randomize() ? world.random_proc() : coeffs.owner(key);
-                        woT::task(p, &implT:: template do_apply<opT,R>, &op, &f, key, node.coeff().full_tensor_copy());
+                        woT::task(p, &implT:: template do_apply<opT,R>, &op, key, node.coeff().full_tensor_copy());
                     }
                 }
             }
@@ -5125,20 +5125,9 @@ namespace madness {
 
             const double tol = truncate_tol(thresh, key);
 
-//            double fac = 10.0; //3.0; // 10.0 seems good for qmprop ... 3.0 OK for others
-////            if (opdim==6) fac=729; //100.0;
-//            if (opdim==6) fac=100; //100.0;
-//            if (op->modified()) fac*=10.0;
-////            fac=10.0;
-//            fac=sqrt(729.0);
-
             // fac is the root of the number of contributing neighbors (1st shell)
             double fac=std::pow(3,NDIM*0.5);
             double cnorm = coeff.normf();
-
-            double wall0=wall_time();
-            bool verbose=false;
-            long neighbors=0;
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
@@ -5149,7 +5138,7 @@ namespace madness {
             tensorT coeff_full;
 
             const std::vector<opkeyT>& disp = op->get_disp(key.level());
-            static const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
+            const std::vector<bool> is_periodic(NDIM,false); // Periodic sum is already done when making rnlp
 
             for (typename std::vector<opkeyT>::const_iterator it=disp.begin(); it != disp.end(); ++it) {
                 const opkeyT& d = *it;
@@ -5183,7 +5172,6 @@ namespace madness {
                     double norm=0.0;
 
                     if (cnorm*opnorm> tol/fac) {
-                        neighbors++;
 
                         double cost_ratio=op->estimate_costs(source, d, coeff, tol/fac/cnorm, tol/fac);
 //                        cost_ratio=1.5;     // force low rank
@@ -5207,11 +5195,6 @@ namespace madness {
                     }
                     if (norm<0.3*tol/fac) blacklist.push_back(d);
                 }
-            }
-            double wall1=wall_time();
-            if (verbose) {
-                print("done with source node",key,wall1-wall0, cnorm, neighbors,coeff.rank(),
-                        coeff_full.has_data());
             }
             return maxnorm;
         }

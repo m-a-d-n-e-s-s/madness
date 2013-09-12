@@ -1298,6 +1298,20 @@ int main(int argc, char**argv) {
         test_plot<double,3>(world);
         test_io<double,3>(world);
 
+        TensorType tt=TT_2D;
+        FunctionDefaults<6>::set_tensor_type(tt);
+        if (world.rank() == 0) print("tensor type for 6d", tt);
+
+        test_basic<double,6>(world);
+        test_conv<double,6>(world);
+        test_math<double,6>(world);
+        test_diff<double,6>(world);
+        test_op<double,6>(world);
+        test_coulomb(world);
+        test_plot<double,6>(world);
+        test_io<double,6>(world);
+
+
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
         if (world.rank() == 0) print("entering final fence");

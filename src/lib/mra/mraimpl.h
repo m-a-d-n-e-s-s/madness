@@ -458,15 +458,13 @@ namespace madness {
                 // Filter then test difference coeffs at level n
                 tensorT d = filter(r);
                 if (truncate_on_project) s0 = copy(d(cdata.s0));
-//                d(cdata.s0) = T(0);
-                d(cdata.s0) = 0.0;
+                d(cdata.s0) = T(0);
                 dnorm = d.normf();
             }
 
             // If have special points always refine.  If don't have special points
             // refine if difference norm is big
             if (newspecialpts.size() > 0 || dnorm >=truncate_tol(thresh,key.level())) {
-
                 coeffs.replace(key,nodeT(coeffT(),true)); // Insert empty node for parent
                 for (KeyChildIterator<NDIM> it(key); it; ++it) {
                     const keyT& child = it.key();
