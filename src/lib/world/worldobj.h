@@ -224,15 +224,15 @@ namespace madness {
             Derived* obj;
             if (is_ready(id,obj,arg,ptr)) {
                 detail::info<memfunT> info;
-                typename detail::instantiate_const_voidT<arg1T>::type arg1;
-                typename detail::instantiate_const_voidT<arg2T>::type arg2;
-                typename detail::instantiate_const_voidT<arg3T>::type arg3;
-                typename detail::instantiate_const_voidT<arg4T>::type arg4;
-                typename detail::instantiate_const_voidT<arg5T>::type arg5;
-                typename detail::instantiate_const_voidT<arg6T>::type arg6;
-                typename detail::instantiate_const_voidT<arg7T>::type arg7;
-                typename detail::instantiate_const_voidT<arg8T>::type arg8;
-                typename detail::instantiate_const_voidT<arg9T>::type arg9;
+                typename detail::task_arg<arg1T>::type arg1;
+                typename detail::task_arg<arg2T>::type arg2;
+                typename detail::task_arg<arg3T>::type arg3;
+                typename detail::task_arg<arg4T>::type arg4;
+                typename detail::task_arg<arg5T>::type arg5;
+                typename detail::task_arg<arg6T>::type arg6;
+                typename detail::task_arg<arg7T>::type arg7;
+                typename detail::task_arg<arg8T>::type arg8;
+                typename detail::task_arg<arg9T>::type arg9;
                 arg & info & arg1 & arg2 & arg3 & arg4 & arg5 & arg6 & arg7 & arg8 & arg9;
                 typename detail::info<memfunT>::futureT result(info.ref);
                 detail::run_function(result, detail::wrap_mem_fn(obj,info.memfun),
@@ -256,7 +256,6 @@ namespace madness {
                 // Construct task
                 taskT* task = new taskT(typename taskT::futureT(info.ref),
                         detail::wrap_mem_fn(obj,info.memfun), info.attr, input_arch);
-                typename taskT::futureT result(info.ref);
 
                 // Add task to queue
                 arg.get_world()->taskq.add(task);
@@ -509,7 +508,7 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, attr);
             else
@@ -525,7 +524,8 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, attr);
             else
@@ -541,7 +541,9 @@ namespace madness {
                 const a3T& a3, const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, attr);
             else
@@ -558,7 +560,10 @@ namespace madness {
                 const a3T& a3, const a4T& a4, const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, attr);
             else
@@ -576,7 +581,11 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type,
+                    typename detail::task_arg<a5T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, attr);
             else
@@ -594,7 +603,12 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type,
+                    typename detail::task_arg<a5T>::type,
+                    typename detail::task_arg<a6T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, attr);
             else {
@@ -613,7 +627,13 @@ namespace madness {
                 const a7T& a7, const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type,
+                    typename detail::task_arg<a5T>::type,
+                    typename detail::task_arg<a6T>::type,
+                    typename detail::task_arg<a7T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, attr);
             else
@@ -632,7 +652,14 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type,
+                    typename detail::task_arg<a5T>::type,
+                    typename detail::task_arg<a6T>::type,
+                    typename detail::task_arg<a7T>::type,
+                    typename detail::task_arg<a8T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, a8, attr);
             else {
@@ -653,7 +680,15 @@ namespace madness {
                 const TaskAttributes& attr = TaskAttributes()) const
         {
             typedef detail::MemFuncWrapper<Derived*, memfnT, typename detail::result_of<memfnT>::type> fnT;
-            typedef TaskFn<fnT, a1T, a2T, a3T, a4T, a5T, a6T, a7T, a8T, a9T> taskT;
+            typedef TaskFn<fnT, typename detail::task_arg<a1T>::type,
+                    typename detail::task_arg<a2T>::type,
+                    typename detail::task_arg<a3T>::type,
+                    typename detail::task_arg<a4T>::type,
+                    typename detail::task_arg<a5T>::type,
+                    typename detail::task_arg<a6T>::type,
+                    typename detail::task_arg<a7T>::type,
+                    typename detail::task_arg<a8T>::type,
+                    typename detail::task_arg<a9T>::type> taskT;
             if (dest == me)
                 return world.taskq.add(get_derived<memfnT>(), memfn, a1, a2, a3, a4, a5, a6, a7, a8, a9, attr);
             else

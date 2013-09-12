@@ -20,7 +20,7 @@ AC_DEFUN([ACX_WITH_EIGEN3],
   )
   
   if test "$acx_with_eigen3" != no; then
-    echo "Eigen3 option required"
+    AC_MSG_NOTICE([Eigen3 option required])
     # Check for the pressence of Eigen3 header files.
     AC_CHECK_HEADER([Eigen/Dense], [],
       [AC_MSG_ERROR([Unable to find the Eigen/Dense header file.])])

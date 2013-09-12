@@ -6,17 +6,17 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
 # but dsyev only without underscore ... but AMD ACML also defines both but with different
 # interfaces (fortran and c) ... ugh.  Hardwire linking for bgp and restore to original order.
 
-       echo "Checking Fortran-C linking conventions (dgemm -> ?)"
+       AC_MSG_NOTICE([Checking Fortran-C linking conventions (dgemm -> ?)])
        fsym=no
 
        if test $host = "powerpc-bgp-linux-gnu"; then
           fsym="lc"
-          echo "Fortran linking convention is $fsym" 
+          AC_MSG_NOTICE([Fortran linking convention is $fsym])
           AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])
        fi
        if test $host = "powerpc64-bgq-linux-gnu"; then
           fsym="lc"
-          echo "Fortran linking convention is $fsym" 
+          AC_MSG_NOTICE([Fortran linking convention is $fsym])
           AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])
        fi
        if test $fsym = no; then
@@ -42,7 +42,7 @@ AC_DEFUN([ACX_FORTRAN_SYMBOLS], [
            AC_MSG_ERROR([Could not find dgemm with any known linking conventions])
        fi
 
-       echo "Fortran linking convention is $fsym" 
+       AC_MSG_NOTICE([Fortran linking convention is $fsym]) 
 
        if test $fsym = lc; then
            AC_DEFINE([FORTRAN_LINKAGE_LC],[1],[Fortran-C linking convention lower case (no underscore)])

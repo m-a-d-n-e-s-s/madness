@@ -34,7 +34,7 @@ AC_DEFINE_UNQUOTED([MAD_BIND_DEFAULT], ["$BIND"], [The default binding for threa
 
 # This sets host, host_cpu, host_vendor, host_os
 AC_CANONICAL_HOST
-echo "HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os"
+AC_MSG_NOTICE([HOST INFORMATION:   $host    $host_cpu    $host_vendor    $host_os])
 AC_DEFINE_UNQUOTED([HOST_CPU], ["$host_cpu"], [Defines the host cpu (x86, x86_64, ...).])
 AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu, ...).])
 
@@ -66,7 +66,7 @@ AC_PROG_CC([$MPICC])
 AC_PROG_CXX([$MPICXX])
 AC_PROG_F77([$MPIF77]) # f90 is a superset of f77
 AC_LANG_CPLUSPLUS
-echo "Compiler choices after 'AC LANG' ... $CXX and $CC"
+AC_MSG_NOTICE([Compiler choices after 'AC LANG' ... $CXX and $CC])
 
 CFLAGS="$initial_CFLAGS"
 CXXFLAGS="$initial_CXXFLAGS"
@@ -117,6 +117,7 @@ ACX_WITH_LIBUNWIND
 ACX_WITH_GOOGLE_PERF
 ACX_WITH_GOOGLE_TEST
 ACX_WITH_LIBXC
+ACX_WITH_MADXC
 ACX_WITH_TBB
 
 # Set task profiler option
@@ -169,7 +170,7 @@ AC_TYPE_SIZE_T
 AC_HEADER_TIME
 #AC_TYPE_UINT64_T
 #AC_TYPE_INT64_T
-AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t])
+AC_CHECK_TYPES([uint64_t, int64_t, uint32_t, int32_t, uint16_t, uint8_t, long long])
 AC_C_VOLATILE
 AC_C_CONST
 AC_C_INLINE
@@ -216,19 +217,19 @@ AC_ARG_ENABLE(madex,
               [madex=throw])
 case $madex in
   abort)
-    echo MADNESS assertions will abort
+    AC_MSG_NOTICE([MADNESS assertions will abort])
     AC_DEFINE([MADNESS_ASSERTIONS_ABORT], [1], [Set if MADNESS assertions abort])
   ;;
   assert)
-    echo MADNESS assertions will assert
+    AC_MSG_NOTICE([MADNESS assertions will assert])
     AC_DEFINE([MADNESS_ASSERTIONS_ASSERT], [1], [Set if MADNESS assertions assert])
   ;;
   disable)
-    echo MADNESS assertions are disabled
+    AC_MSG_NOTICE([MADNESS assertions are disabled])
     AC_DEFINE([MADNESS_ASSERTIONS_DISABLE], [1], [Set if MADNESS assertions disabled])
   ;;
   *)
-    echo MADNESS assertions will throw
+    AC_MSG_NOTICE([MADNESS assertions will throw])
     AC_DEFINE([MADNESS_ASSERTIONS_THROW], [1], [Set if MADNESS assertions throw])
   ;;
 esac
@@ -239,42 +240,42 @@ AC_ARG_ENABLE([memstats],
               [memstats=$enableval],
               [memstats=no])
 if test "$memstats" = "yes"; then
-  echo 'MADNESS will gather memory statistics (expensive)'
+  AC_MSG_NOTICE([MADNESS will gather memory statistics (expensive)])
   AC_DEFINE([WORLD_GATHER_MEM_STATS], [1], [Set if MADNESS gathers memory statistics])
 fi
 
 AC_ARG_ENABLE([profile], 
               [AC_HELP_STRING([--enable-profile], [Enables profiling])], 
-              [echo "Enabling profiling"; AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
+              [AC_MSG_NOTICE([Enabling profiling]); AC_DEFINE(WORLD_PROFILE_ENABLE, [1], [Define if should enable profiling])], 
               [])
 
 AC_ARG_ENABLE([tensor-bounds-checking], 
               [AC_HELP_STRING([--enable-tensor-bounds-checking],
                 [Enable checking of bounds in tensors ... slow but useful for debugging])], 
-              [echo "Enabling tensor bounds checking"; AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
+              [AC_MSG_NOTICE([Enabling tensor bounds checking]); AC_DEFINE(TENSOR_BOUNDS_CHECKING, [1], [Define if should enable bounds checking in tensors])], 
               [])
 
 AC_ARG_ENABLE([tensor-instance-count], 
               [AC_HELP_STRING([--enable-tensor-instance-count],
                 [Enable counting of allocated tensors for memory leak detection])], 
-              [echo "Enabling tensor instance counting"; AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
+              [AC_MSG_NOTICE([Enabling tensor instance counting]); AC_DEFINE(TENSOR_INSTANCE_COUNT, [1], [Define if should enable instance counting in tensors])], 
               [])
 
 AC_ARG_ENABLE([spinlocks], 
               [AC_HELP_STRING([--enable-spinlocks],
                 [Enables use of spinlocks instead of mutexs (faster unless over subscribing processors)])], 
-              [echo "Enabling use of spinlocks"; AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
+              [AC_MSG_NOTICE([Enabling use of spinlocks]); AC_DEFINE(USE_SPINLOCKS, [1], [Define if should use spinlocks])], 
               [])
 
 AC_ARG_ENABLE([never-spin], 
               [AC_HELP_STRING([--enable-never-spin],
                 [Disables use of spinlocks (notably for use inside virtual machines)])], 
-              [echo "Disabling use of spinlocks"; AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
+              [AC_MSG_NOTICE([Disabling use of spinlocks]); AC_DEFINE(NEVER_SPIN, [1], [Define if should use never use spinlocks])], 
               [])
 
 AC_ARG_WITH([papi], 
             [AC_HELP_STRING([--with-papi], [Enables use of PAPI])], 
-            [echo "Enabling use of PAPI"; AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
+            [AC_MSG_NOTICE([Enabling use of PAPI]); AC_DEFINE(HAVE_PAPI,[1], [Define if have PAPI])], 
             [])
 
 # Capture configuration info for user by compiled code
@@ -298,28 +299,37 @@ AC_ARG_ENABLE([bsend-ack],
             [
              AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
             ])
+     
+# Set the default fortran integer type
 AC_ARG_WITH([fortran-int32],
             [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
             [
               case $withval in
-                yes)
-                  AC_DEFINE([MADNESS_FORINT],[int],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: int])
-                  ;;
-                no)
-                  AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: long])
-                  ;;
-                *)
-                  AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-                  AC_MSG_NOTICE([Fortran integer: long])
-                  ;;
+              yes)
+                acx_fortran_int_size=4
+              ;;
+              no)
+                acx_fortran_int_size=8
+              ;;
+              *)
+                AC_MSG_ERROR([Unknown value provided for --with-fortran-int32])
               esac
             ],
-            [
-             AC_DEFINE([MADNESS_FORINT],[long],[Equivalent C type for Fortran integers.])
-             AC_MSG_NOTICE([Fortran integer: long])
-            ])
+            [acx_fortran_int_size=8])
+
+case $acx_fortran_int_size in
+4)
+  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
+  AC_MSG_NOTICE([Default Fortran integer: integer*4])
+;;
+8)
+  if test x$ac_cv_type_int64_t = xno; then
+    AC_MSG_ERROR([The compiler does not support int64_t, which is required by MADNESS. Rerun configure and add the '--with-fortran-int32' option.])
+  fi
+  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8],[Default Fortran integer size.])
+  AC_MSG_NOTICE([Default Fortran integer: integer*8])
+esac
+
 
 # Set the MPI thread level used by MADNESS
 MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED

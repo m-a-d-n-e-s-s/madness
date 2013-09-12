@@ -544,7 +544,7 @@ int main(int argc, char** argv) {
 		} else {
 			recpot pot_functor("grid.txt","Be_recpot_num_dzp.txt","Be_startpot.txt",4);
 			potential=real_factory_3d(world).functor2(pot_functor).truncate_on_project();
-			potential+=hf.get_calc().vnuc;
+			potential+=hf.get_calc().potentialmanager->vnuclear();
 			potential.truncate(thresh*0.1);
 			save_function(world,potential,"be_recpot+startpot");
 
@@ -577,7 +577,7 @@ int main(int argc, char** argv) {
 //			startpot.get_impl()->read_grid<3>(keyfile,prefix+"startpot.xyzv",functorT());
 			save_function(world,startpot,prefix+"startpot");
 
-			potential=(recpot+startpot+hf.get_calc().vnuc);
+			potential=(recpot+startpot+hf.get_calc().potentialmanager->vnuclear());
 			save_function(world,potential,prefix+"potential");
 //			MADNESS_EXCEPTION("flodbg",0);
 		}

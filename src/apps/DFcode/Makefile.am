@@ -13,7 +13,7 @@ moldft_SOURCES = moldft.cc  molecule.cc lda.cc \
                  molecule.h molecularbasis.h molecularbasis.cc \
                  atomutil.h atomutil.cc \
                  corepotential.h corepotential.cc \
-                 xcfunctional.h xcfunctional.cc 
+                 xcfunctional.h distpm.cc
 
 testpg_SOURCES = testpg.cc pointgroup.h
 
@@ -21,7 +21,7 @@ testperiodic_SOURCES = testperiodic.cc molecule.cc lda.cc \
                  molecule.h molecularbasis.h molecularbasis.cc \
                  atomutil.h atomutil.cc \
                  corepotential.h corepotential.cc \
-                 xcfunctional.h xcfunctional.cc
+                 xcfunctional.h xcfunctional_ldaonly.cc 
 
 mcpfit_SOURCES = mcpfit.cc atomutil.h atomutil.cc corepotential.h corepotential.cc
 
@@ -37,7 +37,11 @@ if MADNESS_HAS_LIBXC
 moldft_SOURCES += xcfunctional_libxc.cc
 testperiodic_SOURCES += xcfunctional_libxc.cc lda.cc
 testxc_SOURCES += xcfunctional_libxc.cc
+endif
+if MADNESS_HAS_MADXC
+moldft_SOURCES += xcfunctional_madxc.cc 
+testxc_SOURCES += xcfunctional_madxc.cc lda.cc
 else
-testxc_SOURCES += xcfunctional.cc 
+testxc_SOURCES += xcfunctional_ldaonly.cc  lda.cc
 endif
 

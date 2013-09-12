@@ -423,7 +423,7 @@ namespace madness {
 
             // Make the nuclear potential, initial orbitals, etc.
             calc.make_nuclear_potential(world);
-            calc.vnuc.print_size("vnuc");
+            calc.potentialmanager->vnuclear().print_size("vnuc");
             calc.project_ao_basis(world);
 
             // read converged wave function from disk if there is one
@@ -499,7 +499,7 @@ namespace madness {
 
         /// return the nuclear potential
         real_function_3d get_nuclear_potential() const {
-            return calc.vnuc;
+            return calc.potentialmanager->vnuclear();
         }
 
         /// apply the exchange operator

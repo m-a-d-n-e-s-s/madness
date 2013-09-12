@@ -54,10 +54,9 @@ my $skip_shorter_than =
 my %runninghisto_includes = (
   "all" => ".*"   # account all tasks 
 # add additional patterns below, e.g. for ta_dgemm these are useful
-#  , "contract" => "contract"
-#  , "setvalue" => "set_value"
-#  , "bcasth" => "bcast_.*_handler"
-#  , "bcastt" => "BcastTask"
+  , "contract" => "contract"
+  , "bcasth" => "bcast_.*_handler"
+  , "bcastt" => "BcastTask"
 );
 
 foreach $file (@ARGV) {
@@ -186,8 +185,8 @@ if ($make_histo) {
             my $thread        = $line[0];    # Thread that the task ran on
             my $func_name     = $line[2];    # Name of task function
 			my $func_nthreads = $line[3];   # Number of threads used by the task
-			die("don't know how to handle a multithreaded task")
-			  if ( $func_nthreads != 1 );
+#			die("don't know how to handle a multithreaded task")
+#			  if ( $func_nthreads != 1 );
 			my $time_submit = $line[4];     # Task submit time
 			my $time_start  = $line[5];     # Task start time
 			my $time_finish = $line[6];     # Task finish time
@@ -321,16 +320,16 @@ if ($make_histo) {
 		foreach my $key (keys %runninghisto_includes) {
 			push @running_keys, $key if $key ne "all";
 		}
-        printf STDOUT "# ts pend";		
+        printf STDOUT "# ts, pend";		
         foreach my $key (@running_keys) {
-        	printf STDOUT " run_%s", $key;
+        	printf STDOUT ", run_%s", $key;
         }
         printf STDOUT "\n";
 		foreach my $ts ( 0 .. $nslices - 1 ) {
 			printf STDOUT "%d", $ts;
-			printf STDOUT "\t%lf", $pendinghisto[$ts];
+			printf STDOUT ", %lf", $pendinghisto[$ts];
 			foreach my $key (@running_keys) {
-  			    printf STDOUT "\t%lf", ${ $runninghistos{$key} }[$ts];
+  			    printf STDOUT ", %lf", ${ $runninghistos{$key} }[$ts];
 			}
 			printf STDOUT "\n";
 		}

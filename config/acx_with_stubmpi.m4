@@ -26,6 +26,6 @@ AC_DEFUN([ACX_WITH_STUBMPI],
         if test "x$CXX" = x; then
            MPICXX=g++;
         fi
-        echo "Stubbing out MPI with MPICXX=$MPICXX MPICC=$MPICC"
+        AC_MSG_NOTICE([Stubbing out MPI with MPICXX=$MPICXX MPICC=$MPICC])
     fi
 ])

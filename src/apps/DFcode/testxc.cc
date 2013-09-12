@@ -30,6 +30,8 @@
 
   $Id$
 */
+
+#include <madness_config.h>
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <mra/mra.h>
@@ -168,7 +170,7 @@ void test_xcfunctional()
       xc_args.push_back(rhoa_t);
       xc_args.push_back(sigmaaa_t);
     }
-    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+    Tensor<double> vr = xcfunc.vxc(xc_args, 0, 0);
 
     for (unsigned int idp = 0; idp < dps.size(); idp++)
     {
@@ -230,7 +232,7 @@ void test_xcfunctional()
         xc_args.push_back(sigmaaa_t);
       }
     }
-    Tensor<double> vr = xcfunc.vxc(xc_args, 0);
+    Tensor<double> vr = xcfunc.vxc(xc_args,0, 0);
 
     if (xcfunc.is_spin_polarized())
     {
@@ -262,7 +264,11 @@ int main(int argc, char** argv) {
     madness::World world(SafeMPI::COMM_WORLD);
     world.gop.fence();
 
+#ifdef MADNESS_HAS_LIBXC
     test_xcfunctional();
+#else
+    std::cout << "WARNING: To run this program you need libXC. All tests will be skipped." << std::endl;
+#endif
 
     madness::finalize();
     return 0;

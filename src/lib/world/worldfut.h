@@ -42,6 +42,7 @@
 
 #include <vector>
 #include <stack>
+#include <new>
 #include <world/nodefaults.h>
 #include <world/worlddep.h>
 #include <world/array.h>
@@ -302,7 +303,7 @@ which merely blows instead of sucking.
             ScopedMutex<Spinlock> fred(this);
             MADNESS_ASSERT(! remote_ref);
             input_arch & const_cast<T&>(t);
-            set_assigned(t);
+            set_assigned(const_cast<T&>(t));
         }
 
         // Gets/forces the value, waiting if necessary (error if not local)
@@ -317,14 +318,6 @@ which merely blows instead of sucking.
             MADNESS_ASSERT(! remote_ref);  // Only for local futures
             World::await(bind_nullary_mem_fun(this,&FutureImpl<T>::probe));
             return *const_cast<const T*>(&t);
-        }
-
-        T& operator->() {
-            return get();
-        }
-
-        const T& operator->() const {
-            return get();
         }
 
         bool is_local() const {
@@ -378,78 +371,69 @@ which merely blows instead of sucking.
         friend std::ostream& operator<< <T>(std::ostream& out, const Future<T>& f);
 
     private:
-      // If f==0 ... can only happen in Future(value) ... i.e., the future is constructed
-      // as assigned to value ... to optimize away the new(futureimpl) we instead set f=0
-      // and copy the value
 
-      // If f==nonzero ... there is an underlying future that may/maynot be assigned
+        // This future object can exist in one of three states:
+        //   - f == NULL && value == NULL : Default initialized state
+        //        This state occurs when the future is constructed via
+        ///       Future::default_initializer().
+        //   - f != NULL && value == NULL : FutureImpl object will hold the T object
+        //        This state occurs when a future is constructed without a value,
+        //        or from a remote reference.
+        //   - f == NULL $$ value != NULL : T object is held in buffer
+        //        This state occurs when a future is constructed with a value
+        //        or from an input archive.
 
-        mutable std::shared_ptr< FutureImpl<T> > f;
-        T value;
-        const bool is_the_default_initializer;
+        std::shared_ptr< FutureImpl<T> > f; ///< pointer to the implementation object
+        char buffer[sizeof(T)]; ///< Buffer to hold a single T object
+        T* const value; ///< Pointer to buffer when it holds a T object
+
+        bool is_default_initialized() const { return ! (f || value); }
 
         class dddd {};
-        explicit Future(const dddd&)
-                : f()
-                , value()
-                , is_the_default_initializer(true)
-        { }
+        explicit Future(const dddd&) : f(), value(NULL) { }
 
     public:
         typedef RemoteReference< FutureImpl<T> > remote_refT;
 
         /// Makes an unassigned future
-        Future()
-                : f(new FutureImpl<T>())
-                , value()
-                , is_the_default_initializer(false)
+        Future() :
+            f(new FutureImpl<T>()), value(NULL)
         { }
 
         /// Makes an assigned future
-        explicit Future(const T& t)
-                : f()
-                , value(t)
-                , is_the_default_initializer(false)
-        { }
-
-        /// Makes an assigned future from a movable object
-        explicit Future(const detail::MoveWrapper<T>& t)
-                : f()
-                , value(t)
-                , is_the_default_initializer(false)
+        explicit Future(const T& t) :
+            f(), value(new(static_cast<void*>(buffer)) T(t))
         { }
 
         /// Makes a future wrapping a remote reference
-        explicit Future(const remote_refT& remote_ref)
-                : f()
-                , value()
-                , is_the_default_initializer(false)
-        {
-            if(remote_ref.is_local())
-                f = remote_ref.get_shared();
-            else
-                f.reset(new FutureImpl<T>(remote_ref));
-        }
+        explicit Future(const remote_refT& remote_ref) :
+                f(remote_ref.is_local() ?
+                        remote_ref.get_shared() :
+                        std::shared_ptr<FutureImpl<T> >(new FutureImpl<T>(remote_ref))),
+                value(NULL)
+        { }
 
         /// Makes an assigned future from an input archive
-        explicit Future(const archive::BufferInputArchive& input_arch)
-                : f()
-                , value()
-                , is_the_default_initializer(false)
+        explicit Future(const archive::BufferInputArchive& input_arch) :
+            f(), value(new(static_cast<void*>(buffer)) T())
         {
-            input_arch & value;
+            input_arch & (*value);
         }
 
         /// Copy constructor is shallow
-        Future(const Future<T>& other)
-                : f(other.f)
-                , value(other.value)
-                , is_the_default_initializer(false)
+        Future(const Future<T>& other) :
+            f(other.f),
+            value(other.value ?
+                new(static_cast<void*>(buffer)) T(* other.value) :
+                NULL)
         {
-            if (other.is_the_default_initializer) {
-                f.reset(new FutureImpl<T>());
-            }
-						// Otherwise nothing to do ... done in member initializers
+            if(other.is_default_initialized())
+                f.reset(new FutureImpl<T>()); // Other was default constructed so make a new f
+        }
+
+        ~Future() {
+            if(value)
+                value->~T();
         }
 
 
@@ -485,12 +469,12 @@ which merely blows instead of sucking.
         /// the same underlying copy of the data and indeed may even
         /// be in different processes).
         void set(const Future<T>& other) {
-            if (f != other.f) {
-                MADNESS_ASSERT(!probe());
+            MADNESS_ASSERT(f);
+            if(f != other.f) {
+                MADNESS_ASSERT(! f->probe());
                 if (other.probe()) {
                     set(other.get());     // The easy case
-                }
-                else {
+                } else {
                     // Assignment is supposed to happen just once so
                     // safe to assume that this is not being messed
                     // with ... also other might invoke the assignment
@@ -499,9 +483,11 @@ which merely blows instead of sucking.
                     // happen)
                     std::shared_ptr< FutureImpl<T> > ff = f; // manage lifetime of me
                     std::shared_ptr< FutureImpl<T> > of = other.f; // manage lifetime of other
-                    of->lock();     // BEGIN CRITICAL SECTION
-                    of->add_to_assignments(f); // Recheck of assigned is performed in here
-                    of->unlock(); // END CRITICAL SECTION
+
+                    { // BEGIN CRITICAL SECTION
+                        ScopedMutex<Spinlock> fred(of.get());
+                        of->add_to_assignments(ff); // Recheck of assigned is performed in here
+                    } // END CRITICAL SECTION
                 }
             }
         }
@@ -514,13 +500,6 @@ which merely blows instead of sucking.
         }
 
         /// Assigns the value ... it can only be set ONCE.
-        template <typename U>
-        inline void set(const detail::MoveWrapper<U>& value) {
-            MADNESS_ASSERT(f);
-            std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
-            ff->set(value);
-        }
-
         inline void set(const archive::BufferInputArchive& input_arch) {
             MADNESS_ASSERT(f);
             std::shared_ptr< FutureImpl<T> > ff = f; // manage life time of f
@@ -530,37 +509,26 @@ which merely blows instead of sucking.
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline T& get() {
-            if (f) {
-                return f->get();
-            } else {
-                return value;
-            }
+            MADNESS_ASSERT(f || value); // Check that future is not default initialized
+            return (f ? f->get() : *value);
         }
 
         /// Gets the value, waiting if necessary (error if not a local future)
         inline const T& get()  const {
-            if (f) {
-                return f->get();
-            } else {
-                return value;
-            }
+            MADNESS_ASSERT(f || value); // Check that future is not default initialized
+            return (f ? f->get() : *value);
         }
 
-        /// Returns true if the future has been assigned
-        inline bool probe() const {
-            if (f) return f->probe();
-            else return true;
-        }
+        /// Query the whether this future has been assigned
+
+        /// \return \c true if the future has been assigned, otherwise \c false
+        inline bool probe() const { return (f ? f->probe() : bool(value)); }
 
         /// Same as get()
-        inline operator T&() {
-            return get();
-        }
+        inline operator T&() { return get(); }
 
         /// Same as get() const
-        inline operator const T&() const {
-            return get();
-        }
+        inline operator const T&() const { return get(); }
 
 
         /// Returns a structure used to pass references to another process.
@@ -588,13 +556,9 @@ which merely blows instead of sucking.
         }
 
 
-        inline bool is_local() const {
-            return ((!f) || f->is_local() || probe());
-        }
+        inline bool is_local() const { return (f && f->is_local()) || value; }
 
-        inline bool is_remote() const {
-            return !is_local();
-        }
+        inline bool is_remote() const { return !is_local(); }
 
 
         /// Registers an object to be called when future is assigned
@@ -603,10 +567,12 @@ which merely blows instead of sucking.
         /// future is already assigned the callback is immediately
         /// invoked.
         inline void register_callback(CallbackInterface* callback) {
-            if (probe())
+            if(probe()) {
                 callback->notify();
-            else
+            } else {
+                MADNESS_ASSERT(f);
                 f->register_callback(callback);
+            }
         }
     }; // class Future
 
@@ -631,11 +597,9 @@ which merely blows instead of sucking.
     public:
         typedef RemoteReference< FutureImpl<void> > remote_refT;
 
-        static const Future<void> value; // Instantiated in worldstuff.cc
+        static const Future<void> value; // Instantiated in world.cc
 
-        remote_refT remote_ref(World&) const {
-            return remote_refT();
-        }
+        static remote_refT remote_ref(World&) { return remote_refT(); }
 
         Future() {}
 
@@ -645,13 +609,10 @@ which merely blows instead of sucking.
             input_arch & *this;
         }
 
-        inline void set(const Future<void>&) {}
+        inline Future<void>& operator=(const Future<void>&) { return *this; }
 
-        inline Future<void>& operator=(const Future<void>&) {
-            return *this;
-        }
-
-        inline void set() {}
+        static void set(const Future<void>&) { }
+        static void set() { }
 
         static bool probe() { return true; }
     }; // class Future<void>
@@ -701,34 +662,23 @@ which merely blows instead of sucking.
         vectorT v;
 
     public:
-        Future() : v() {}
+        Future() : v() { }
 
         Future(const vectorT& v) : DependencyInterface(v.size()), v(v) {
             for (int i=0; i<(int)v.size(); ++i) {
                 this->v[i].register_callback(this);
             }
         }
+
         /// Not implemented
         explicit Future(const archive::BufferInputArchive& input_arch) {
-            std::size_t n = 0;
-            input_arch & n;
-            v.reserve(n);
-            for(std::size_t i = 0; i < n; ++i)
-                v.push_back(madness::Future<T>(input_arch));
+            input_arch & v;
         }
 
-        vectorT& get() {
-            return v;
-        }
-        const vectorT& get() const {
-            return v;
-        }
-        operator vectorT& () {
-            return get();
-        }
-        operator const vectorT& () const {
-            return get();
-        }
+        vectorT& get() { return v; }
+        const vectorT& get() const { return v; }
+        operator vectorT& () { return get(); }
+        operator const vectorT& () const { return get(); }
 
         bool probe() const {
             for(typename std::vector< Future<T> >::const_iterator it = v.begin(); it != v.end(); ++it)
@@ -838,7 +788,7 @@ which merely blows instead of sucking.
                     v.reserve(n);
                 if(v.size() > n)
                     v.resize(n);
-                for(typename std::vector<Future<T> >::const_iterator it = v.begin(); it < v.end(); ++it, --n) {
+                for(typename std::vector<Future<T> >::iterator it = v.begin(); it < v.end(); ++it, --n) {
                     MADNESS_ASSERT(! it->probe());
                     it->set(ar);
                 }

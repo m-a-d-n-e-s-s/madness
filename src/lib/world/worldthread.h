@@ -48,7 +48,14 @@
 
 #ifdef MADNESS_TASK_PROFILING
 #include <execinfo.h> // for backtrace_symbols
+#ifndef USE_LIBIBERTY
 #include <cxxabi.h> // for abi::__cxa_demangle
+#else
+extern "C" {
+  extern char * cplus_demangle (const char *mangled, int options);
+#define DMGL_NO_OPTS     0              /* For readability... */
+}
+#endif
 #include <sstream> // for std::istringstream
 #include <cstring> // for strchr & strrchr
 #endif // MADNESS_TASK_PROFILING
@@ -105,6 +112,14 @@ namespace madness {
 
         void set_pool_thread_index(int i) { pool_num = i; }
 
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static const int hpm_thread_id_all = -10;
+	static const int hpm_thread_id_main = -2;
+	static bool main_instrumented;
+	static bool all_instrumented;
+	static int hpm_thread_id;
+#endif	
+
     public:
 
         /// Default constructor ... must invoke \c start() to actually begin the thread.
@@ -142,6 +157,10 @@ namespace madness {
         static ThreadBase* this_thread() {
             return static_cast<ThreadBase*>(pthread_getspecific(thread_key));
         }
+
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static void set_hpm_thread_env(int hpm_thread_id);
+#endif
     }; // class ThreadBase
 
     /// Simplified thread wrapper to hide pthread complexity
@@ -326,8 +345,11 @@ namespace madness {
                 // Get the demagled symbol name
                 if(symbol) {
                     int status = 0;
+#ifndef USE_LIBIBERTY
                     const char* name = abi::__cxa_demangle(symbol, 0, 0, &status);
-
+#else
+		    char* name = cplus_demangle(symbol, DMGL_NO_OPTS);
+#endif
                     // Append the demangled symbol name to the output stream
                     if(status == 0) {
                         os << name << "\t";
@@ -818,7 +840,6 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 
     public:
-
         /// Default constructor
         ThreadPoolThread() : Thread() { }
 
@@ -853,6 +874,9 @@ namespace madness {
 #endif
         static const int nmax=128; // WAS 100 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! DEBUG
 
+#if defined(HAVE_IBMBGQ) and defined(HPM)
+	static unsigned int main_hpmctx; // HPM context for main thread
+#endif
         /// The constructor is private to enforce the singleton model
         ThreadPool(int nthread=-1);
 

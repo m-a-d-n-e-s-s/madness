@@ -111,12 +111,22 @@ public: \
     TYPEINFO(3,double,false,true,double,double);
     TYPEINFO(4,float_complex,true,true,float,float);
     TYPEINFO(5,double_complex,true,true,double,double);
+
+#ifdef HAVE_LONG_LONG
+    TYPEINFO(6,long long,false,true,long long,double);
+#define TENSOR_MAX_TYPE_ID 6
+#else
 #define TENSOR_MAX_TYPE_ID 5
+#endif // HAVE_LONG_LONG
+
 #undef TYPEINFO
 
 #ifdef TENSOR_CC
     const char *tensor_type_names[TENSOR_MAX_TYPE_ID+1] = {
                 "int","long","float","double","float_complex","double_complex"
+#ifdef HAVE_LONG_LONG
+                ,"long long"
+#endif // HAVE_LONG_LONG
             };
 #else
     extern const char *tensor_type_names[];
@@ -184,6 +194,16 @@ public: \
     DPEC(float_complex,float_complex,float_complex);
     SPEC(float_complex,double_complex,double_complex);
     DPEC(double_complex,double_complex,double_complex);
+
+#ifdef HAVE_LONG_LONG
+    SPEC(int,long long,long long);
+    SPEC(long,long long,long long);
+    DPEC(long long,long long,long long);
+    SPEC(long long,float,float);
+    SPEC(long long,double,double);
+    SPEC(long long,float_complex,float_complex);
+    SPEC(long long,double_complex,double_complex);
+#endif // HAVE_LONG_LONG
 
     /// This macro simplifies access to TensorResultType
 #define TENSOR_RESULT_TYPE(L,R) typename TensorResultType<L,R>::type

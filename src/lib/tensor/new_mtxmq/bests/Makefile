@@ -24,7 +24,7 @@ ifeq ($(TARGET),BGP)
 
    CC=mpixlc_r
    CXX=mpixlcxx_r
-   COPT= -O5 -qarch=450d -qtune=450 -qthreaded #-qpath=ILbc:/soft/apps/xlC-interim-fix-virtualthunk/exe/
+   COPT= -g -O5 -qarch=450d -qtune=450 -qthreaded #-qpath=ILbc:/soft/apps/xlC-interim-fix-virtualthunk/exe/
    CXXFLAGS=$(INC) $(COPT) $(HAVE_BGPIBM)
    CPP=$(CC) -E
 
@@ -54,7 +54,7 @@ ifeq ($(TARGET),BGQ)
 
    CC=bgxlc_r
    CXX=bgxlc++_r
-   COPT= -O5 -qhot=level=1 -qsimd=auto -qtune=qp -qarch=qp
+   COPT= -g -O5 -qhot=level=1 -qsimd=auto -qtune=qp -qarch=qp
    CXXFLAGS=$(INC) $(COPT) $(HAVE_BGQIBM)
    LDFLAGS= -O3 -qarch=qp -qtune=qp -qthreaded
    CPP=$(CC) -E

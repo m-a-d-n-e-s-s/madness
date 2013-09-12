@@ -10,7 +10,7 @@ AC_DEFUN([ACX_ENABLE_CPP0XTR1],
         AC_ARG_ENABLE([cpptr1], AS_HELP_STRING([--disable-cpptr1], [Disable use of compiler provided TR1 headers (default is enabled or yes)]))
         AS_IF([test "x$enable_cpptr1" != "xno"], [enable_cpptr1="yes"])
 
-        echo "enable_cpp0x=$enable_cpp0x  enable_cpptr1=$enable_cpptr1" 
+        AC_MSG_NOTICE([enable_cpp0x=$enable_cpp0x  enable_cpptr1=$enable_cpptr1]) 
 ])
 
         
