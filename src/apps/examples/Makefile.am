@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop dielectric_external_field
+bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop dielectric_external_field h2dynamic newsolver
 
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -12,6 +12,8 @@ dielectric_external_field_SOURCES = dielectric_external_field.cc
 testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
+
+newsolver_SOURCES = newsolver.cc
 
 sininteg_SOURCES = sininteg.cc
 
@@ -32,6 +34,8 @@ dielectric_SOURCES = dielectric.cc
 hatom_energy_SOURCES = hatom_energy.cc
 
 h2_SOURCES = h2.cc
+ 
+h2dynamic_SOURCES = h2dynamic.cc
 
 he_SOURCES = he.cc
 
