@@ -103,12 +103,13 @@ struct Qfunc : public FunctionFunctorInterface<double,3> {
 };
 
 template <typename T>
-void test_bsh(World& world) {
+int test_bsh(World& world) {
     double mu = 1.0;
     std::vector<long> npt(3,201);
     typedef Vector<double,3> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
 
+    int success=0;
     if (world.rank() == 0)
         print("Test BSH operation, type =",
               archive::get_type_name<T>(),", ndim =",3);
@@ -156,10 +157,13 @@ void test_bsh(World& world) {
     ff.clear();
     opf.verify_tree();
     double opferr = opf.err(Qfunc());
-     if (world.rank() == 0) print("err in opf", opferr);
+    if (world.rank() == 0) print("err in opf", opferr);
 
-    return;
+    // here we are testing bsh, not the initial projection
+    if (opferr> ferr) success++;
+    return success;
 
+    // FIXME: what comes here? Is it important??
     Function<double,3> qf = FunctionFactory<T,3>(world).functor(functorT(new Qfunc()));
     print("qf norm ", qf.norm2());
     print("opf norm", opf.norm2());
@@ -213,10 +217,13 @@ void test_bsh(World& world) {
         //g = g - diff(diff(f,axis),axis);
     }
     g = op(g);
+    double derror=(g-f).norm2();
     print("norm of G*(-del^2+mu^2)*f",g.norm2());
-    print("error",(g-f).norm2());
+    print("error",derror);
+    if (derror> FunctionDefaults<3>::get_thresh()) success++;
 
     world.gop.fence();
+    return success;
 
 }
 
@@ -225,10 +232,11 @@ int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
 
+    int success=0;
     try {
         startup(world,argc,argv);
 
-        test_bsh<double>(world);
+        success=test_bsh<double>(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -266,6 +274,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return success;
 }
 

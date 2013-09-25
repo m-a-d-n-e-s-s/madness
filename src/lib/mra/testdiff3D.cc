@@ -20,8 +20,9 @@ static const int init_lev = 2;
 static int test_axis = 0;
 static const double Length = 4.0;
 
-void compare(World& world, functionT test, functionT exact, const char *str)
+int compare(World& world, functionT test, functionT exact, const char *str)
 {
+	int success=0;
    double error = (exact - test).norm2() ;
 
    if (world.rank() == 0) {
@@ -32,9 +33,10 @@ void compare(World& world, functionT test, functionT exact, const char *str)
        }
        else {
            std::cerr << " FAILED " << std::endl ;
+           success=1;
        }
    }
-   return ;
+   return success;
 }
 
 
@@ -106,6 +108,7 @@ int main(int argc, char** argv) {
 	World world(SafeMPI::COMM_WORLD);
         startup(world,argc,argv);
 
+        int success=0;
         std::cout.precision(12);
 
        // Function defaults
@@ -154,7 +157,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dx1(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx1 = dx1(u) ;
-        compare(world, dudx1, dudxe, "dudx1") ;
+        success+=compare(world, dudx1, dudxe, "dudx1") ;
         print("D1Unorm", dudx1.norm2());
 
 
@@ -165,7 +168,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dx2(world, test_axis, bc, xleft_d, xright_d, k) ;
         functionT dudx2 = dx2(u) ;
-        compare(world, dudx2, dudxe, "dudx2") ;
+        success+=compare(world, dudx2, dudxe, "dudx2") ;
 
         // X Right B.C.: Neumann
         // X Left  B.C.: Free
@@ -174,7 +177,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dx3(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx3 = dx3(u) ;
-        compare(world, dudx3, dudxe, "dudx3") ;
+        success+=compare(world, dudx3, dudxe, "dudx3") ;
 
         // X Right B.C.: Free
         // X Left  B.C.: Neumann
@@ -183,7 +186,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dx4(world, test_axis, bc, xleft_n, xright_n, k) ;
         functionT dudx4 = dx4(u) ;
-        compare(world, dudx4, dudxe, "dudx4") ;
+        success+=compare(world, dudx4, dudxe, "dudx4") ;
 
 
         // Derivative in the y-direction
@@ -200,7 +203,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dy1(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy1 = dy1(u) ;
-        compare(world, dudy1, dudye, "dudy1") ;
+        success+=compare(world, dudy1, dudye, "dudy1") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Dirichlet
@@ -209,7 +212,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dy2(world, test_axis, bc, yleft_d, yright_d, k) ;
         functionT dudy2 = dy2(u) ;
-        compare(world, dudy2, dudye, "dudy2") ;
+        success+=compare(world, dudy2, dudye, "dudy2") ;
 
         // Y Right B.C.: Neumann
         // Y Left  B.C.: Free
@@ -218,7 +221,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dy3(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy3 = dy3(u) ;
-        compare(world, dudy3, dudye, "dudy3") ;
+        success+=compare(world, dudy3, dudye, "dudy3") ;
 
         // Y Right B.C.: Free
         // Y Left  B.C.: Neumann
@@ -227,7 +230,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dy4(world, test_axis, bc, yleft_n, yright_n, k) ;
         functionT dudy4 = dy4(u) ;
-        compare(world, dudy4, dudye, "dudy4") ;
+        success+=compare(world, dudy4, dudye, "dudy4") ;
 
 
         // Derivative in the z-direction
@@ -244,7 +247,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dz1(world, test_axis, bc, zleft_d, zright_d, k) ;
         functionT dudz1 = dz1(u) ;
-        compare(world, dudz1, dudze, "dudz1") ;
+        success+=compare(world, dudz1, dudze, "dudz1") ;
 
         // Z Right B.C.: Free
         // Z Left  B.C.: Dirichlet
@@ -253,7 +256,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dz2(world, test_axis, bc, zleft_d, zright_d, k) ;
         functionT dudz2 = dz2(u) ;
-        compare(world, dudz2, dudze, "dudz2") ;
+        success+=compare(world, dudz2, dudze, "dudz2") ;
 
         // Z Right B.C.: Neumann
         // Z Left  B.C.: Free
@@ -262,7 +265,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dz3(world, test_axis, bc, zleft_n, zright_n, k) ;
         functionT dudz3 = dz3(u) ;
-        compare(world, dudz3, dudze, "dudz3") ;
+        success+=compare(world, dudz3, dudze, "dudz3") ;
 
         // Z Right B.C.: Free
         // Z Left  B.C.: Neumann
@@ -271,13 +274,13 @@ int main(int argc, char** argv) {
 
         Derivative<double,3> dz4(world, test_axis, bc, zleft_n, zright_n, k) ;
         functionT dudz4 = dz4(u) ;
-        compare(world, dudz4, dudze, "dudz4") ;
+        success+=compare(world, dudz4, dudze, "dudz4") ;
 
          world.gop.fence();
 
     finalize();
 
-    return 0;
+    return success;
 }
 
 

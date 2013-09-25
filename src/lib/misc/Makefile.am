@@ -4,6 +4,8 @@ lib_LIBRARIES = libMADmisc.a
 
 bin_PROGRAMS = interp3
 
+TESTS = interp3
+
 thisincludedir = $(includedir)/misc/
 thisinclude_HEADERS = misc.h ran.h phandler.h cfft.h
 

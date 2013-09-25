@@ -244,8 +244,9 @@ void test_periodic2(World& world) {
 
 }
 
-void test_periodic_bsh(World& world)
+int test_periodic_bsh(World& world)
 {
+	int success=0;
   const long k = 10;
   const double thresh = 1e-8;
   FunctionDefaults<3>::set_k(k);
@@ -273,9 +274,11 @@ void test_periodic_bsh(World& world)
       double relerr = std::abs((value-exact)/exact);
 //      print(i,value,exact,exerr);
       print(i,value,exact,relerr,status[relerr<3e-7]);
+      if (relerr>3e-7) success++;
   }
 
   world.gop.fence();
+  return success;
 }
 
 
@@ -284,6 +287,7 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
+    int success=0;
 
     FunctionDefaults<1>::set_bc(BC_PERIODIC);
     FunctionDefaults<3>::set_bc(BC_PERIODIC);
@@ -297,7 +301,7 @@ int main(int argc, char**argv) {
 //        print("\n3D coulomb");
 //        test_periodic2(world);
         print("\n3D bsh");
-        test_periodic_bsh(world);
+        success+=test_periodic_bsh(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -335,5 +339,5 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return success;
 }

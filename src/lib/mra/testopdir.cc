@@ -136,8 +136,9 @@ public:
 };
 
 
-void test_opdir(World& world) {
-    const coord_3d origin(0.0);
+int test_opdir(World& world) {
+    int success=0;
+	const coord_3d origin(0.0);
     const double expnt=1.0, coeff=pow(expnt/constants::pi,1.5); // normalized gaussian with unit exponent
     const double expnts[3] = {5.0,6.0,7.0};
 
@@ -201,6 +202,7 @@ void test_opdir(World& world) {
                 double opferr = opf.err(OpFExact(expnt,expnts,m));
                 if (world.rank() == 0)
                     print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr < 1.1*errs[inderr++]]);
+                if (opferr > 1.1*errs[inderr++]) success++;
 
                 // This stuff useful for diagnosing problems
                 // for (int i=-10; i<=10; i++) {
@@ -216,10 +218,11 @@ void test_opdir(World& world) {
     }
 
     world.gop.fence();
+    return success;
 }
 
 
-void testgradG(World& world) {
+int testgradG(World& world) {
     // The potential due to a normalized gaussian with exponent 1.0 is
     //
     // u(r) = erf(r)/r
@@ -230,6 +233,7 @@ void testgradG(World& world) {
     //
     // dr/dx = x/r
 
+	int success=0;
     real_tensor cell(3,2);
     cell(0,0)=-20; cell(0,1)=20; // Deliberately have different width and range in each dimension
     cell(1,0)=-20; cell(1,1)=30;
@@ -265,21 +269,26 @@ void testgradG(World& world) {
         double err = dq.err(DPot(d));
         if (world.rank() == 0) {
             if (err < 1.1e-05) print(d,err,"PASS");
-            else print(d,err,"FAIL");
+            else {
+            	print(d,err,"FAIL");
+            	success++;
+            }
         }
     }
+    return success;
 }
 
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
+    int success=0;
 
     try {
         startup(world,argc,argv);
 
-        test_opdir(world);
-        testgradG(world);
+        success+=test_opdir(world);
+        success+=testgradG(world);
     }
     catch (const SafeMPI::Exception& e) {
         print(e);
@@ -316,6 +325,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return success;
 }
 

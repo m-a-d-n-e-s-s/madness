@@ -52,7 +52,7 @@ double q(double x, double a) {
     return 0.5*(erf(sqrt(a)*x)-erf(-sqrt(a)+sqrt(a)*x));
 }
 
-void test_per(World& world) {
+int test_per(World& world) {
     int k = 10;
     double thresh = 1e-10;
 
@@ -66,7 +66,7 @@ void test_per(World& world) {
     expnt[0] = 10000.0;
     coeff[0] = sqrt(expnt[0]/constants::pi);
     print(coeff,expnt);
-    SeparatedConvolution<double,1> op(world, k, coeff, expnt);
+    SeparatedConvolution<double,1> op(world, coeff, expnt);
 
     Function<double,1> f = FunctionFactory<double,1>(world).f(constant).initial_level(3).norefine();
 
@@ -74,10 +74,15 @@ void test_per(World& world) {
 
     f.reconstruct();
 
+    int success=0;
     for (int i=0; i<101; ++i) {
         double x = i*0.01;
-        printf("%.2f %.8f %.8f %10.2e\n", x, f(x), opf(x), opf(x)-q(x,expnt[0]));
+        double error=opf(x)-q(x,expnt[0]);
+        printf("%.2f %.8f %.8f %10.2e\n", x, f(x), opf(x), error);
+        // FIXME: is this a sensible criterion??
+        if ((x>0.2) and (x<0.8) and (error>thresh)) success++;
     }
+    return success;
 }
 
 
@@ -85,10 +90,11 @@ int main(int argc, char**argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
 
+    int success=0;
     try {
         startup(world,argc,argv);
 
-        test_per(world);
+        success=test_per(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -126,6 +132,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     SafeMPI::Finalize();
 
-    return 0;
+    return success;
 }
 
