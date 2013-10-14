@@ -350,8 +350,10 @@ namespace madness {
         /// \tparam U The other world pointer type
         /// \throw nothing
         /// \note \c U* must be implicitly convertible to T* type.
-        template <typename T, typename U>
-        void swap(WorldPtr<T>& l, WorldPtr<U>& r) {
+        //template <typename T, typename U>
+        //void swap(WorldPtr<T>& l, WorldPtr<U>& r) {
+        template <typename T>
+        void swap(WorldPtr<T>& l, WorldPtr<T>& r) {
             l.swap(r);
         }
 
