@@ -577,7 +577,6 @@ namespace madness {
 
 		/// add another SepRep to this one
 		gentensorT& operator+=(const gentensorT& rhs) {
-			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
 		    if (rhs.has_no_data()) return *this;
 		    if (this->has_no_data()) {
@@ -602,7 +601,6 @@ namespace madness {
 
 		/// inplace addition
 		gentensorT& operator+=(const SliceGenTensor<T>& rhs) {
-			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
 			const std::vector<Slice> s(this->ndim(),Slice(0,get_k()-1,1));
 			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,1.0);
 			return *this;
@@ -610,7 +608,6 @@ namespace madness {
 
 		/// inplace subtraction
 		gentensorT& operator-=(const SliceGenTensor<T>& rhs) {
-			MADNESS_ASSERT(this->_ptr->type()==rhs._refGT._ptr->type());
 			const std::vector<Slice> s(this->ndim(),Slice(0,get_k()-1,1));
 			this->_ptr->inplace_add(*rhs._refGT._ptr,s,rhs._s,1.0,-1.0);
 			return *this;
@@ -955,10 +952,11 @@ namespace madness {
 		/// same as operator+=, but handles non-conforming vectors (i.e. slices)
 		void inplace_add(const gentensorT& rhs, const std::vector<Slice>& lhs_s,
 				const std::vector<Slice>& rhs_s, const double alpha, const double beta) {
-			MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
 			// fast return if possible
-			if (rhs.rank()==0) return;
+			if (rhs.has_no_data() or rhs.rank()==0) return;
+
+			if (this->has_data()) MADNESS_ASSERT(this->tensor_type()==rhs.tensor_type());
 
 			// no fast return possible!!!
 			//			if (this->rank()==0) {
@@ -1222,7 +1220,7 @@ namespace madness {
 			/// Replaces this GenTensor with one loaded from an archive
 			static void load(const Archive& ar, GenTensor<T>& t) {
 				// check for pointer existence
-				bool exist;
+				bool exist=false;
 				ar & exist;
 				if (exist) {
 					SRConf<T> conf;

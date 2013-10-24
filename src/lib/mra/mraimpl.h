@@ -279,8 +279,10 @@ namespace madness {
             }
         }
         else {
-            if (key.level()) node.set_coeff(copy(s));
-            else node.set_coeff(s);
+        	coeffT ss=s;
+        	if (s.has_no_data()) ss=coeffT(cdata.vk,targs);
+            if (key.level()) node.set_coeff(copy(ss));
+            else node.set_coeff(ss);
         }
         return None;
     }

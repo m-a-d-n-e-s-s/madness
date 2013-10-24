@@ -560,7 +560,7 @@ namespace madness {
         /// Takes a \em shallow copy of the coeff --- same as \c this->coeff()=coeff
         void set_coeff(const coeffT& coeffs) {
             coeff() = coeffs;
-            if ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK)) {
+            if ((_coeffs.has_data()) and ((_coeffs.dim(0) < 0) || (_coeffs.dim(0)>2*MAXK))) {
                 print("set_coeff: may have a problem");
                 print("set_coeff: coeff.dim[0] =", coeffs.dim(0), ", 2* MAXK =", 2*MAXK);
             }
@@ -6042,7 +6042,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive,const FunctionImpl<T,NDIM>*> {
             static void load(const Archive& ar, const FunctionImpl<T,NDIM>*& ptr) {
-                bool exists;
+                bool exists=false;
                 ar & exists;
                 if (exists) {
                     uniqueidT id;
@@ -6070,7 +6070,7 @@ namespace madness {
         template <class Archive, class T, std::size_t NDIM>
         struct ArchiveLoadImpl<Archive, FunctionImpl<T,NDIM>*> {
             static void load(const Archive& ar, FunctionImpl<T,NDIM>*& ptr) {
-                bool exists;
+                bool exists=false;
                 ar & exists;
                 if (exists) {
                     uniqueidT id;
