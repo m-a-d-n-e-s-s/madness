@@ -54,10 +54,12 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
 
 
-    print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
+    if (world.rank()==0) {
+    	print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
-    if (world.rank()==0) print("using gperftools, clearing memory at each fence()");
+    	print("using gperftools, clearing memory at each fence()");
 #endif
+    }
 
     TensorType tt=TT_2D;
     FunctionDefaults<6>::set_tensor_type(tt);

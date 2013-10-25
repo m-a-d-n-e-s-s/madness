@@ -566,12 +566,18 @@ namespace madness {
 			if (exist) ar & function;
         }
 
-        void load_pair(World& world) {
+        bool load_pair(World& world) {
         	std::string name="pair_"+stringify(i)+stringify(j);
-        	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
-            archive::ParallelInputArchive ar(world, name.c_str(), 1);
-        	ar & *this;
-        	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
+        	bool exists=archive::ParallelInputArchive::exists(world,name.c_str());
+            if (exists) {
+            	if (world.rank()==0) printf("loading matrix elements %s",name.c_str());
+                archive::ParallelInputArchive ar(world, name.c_str(), 1);
+                ar & *this;
+            	if (world.rank()==0) printf(" %s\n",(converged)?" converged":" not converged");
+            } else {
+		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
+            }
+            return exists;
         }
 
         void store_pair(World& world) {
@@ -720,7 +726,7 @@ namespace madness {
                 }
 
                 calc.molecule.set_eprec(eprec);
-                calc.molecule.print();
+                if (world.rank()==0) calc.molecule.print();
 
                 hf=std::shared_ptr<HartreeFock>(new HartreeFock(world,calc));
                 poisson=std::shared_ptr<real_convolution_3d>
@@ -742,13 +748,7 @@ namespace madness {
     			for (int j=i; j<hf->nocc(); ++j) {
     	        	std::pair<int,int> key=std::make_pair(i,j);
     	        	pairs.insert(std::make_pair(key,ElectronPair(i,j)));
-    				if (param.restart) {
-    					try {
-        					pair(i,j).load_pair(world);
-    				    } catch (std::exception& e) {
-    				    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
-    				    }
-    				}
+    				if (param.restart) pair(i,j).load_pair(world);
 				}
 			}
 
@@ -1329,11 +1329,7 @@ namespace madness {
         ElectronPair make_pair(const int i, const int j) const {
 
             ElectronPair p=ElectronPair(i,j);
-			try {
-				p.load_pair(world);
-		    } catch (std::exception& e) {
-		    	if (world.rank()==0) print("could not find pair ",i,j," on disk");
-		    }
+			p.load_pair(world);
 
 //        	ElectronPair p=pair(i,j);
 
