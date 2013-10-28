@@ -340,13 +340,11 @@ namespace madness {
         Projector(const Function<T,NDIM>& p, const int particle=0)
         	: particle_(particle), p_(std::vector<Function<T,NDIM> >(1,p)) {
             MADNESS_ASSERT(particle_==0 or particle_==1);
-            MADNESS_ASSERT(p_.size()>0);
         }
 
         /// constructor with a set of orbitals to project out
         Projector(const std::vector<Function<T,NDIM> >& p, const int particle=0) : particle_(particle), p_(p) {
             MADNESS_ASSERT(particle_==0 or particle_==1);
-            MADNESS_ASSERT(p_.size()>0);
         }
 
         int& particle() {return particle_;}
@@ -360,10 +358,9 @@ namespace madness {
         typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
 
-            const double ovlp=inner(f,p_[0]);
-            Function<T,NDIM> sum=ovlp*p_[0];
+            Function<T,NDIM> sum=FunctionFactory<T,NDIM>(f.world());
 
-            for (unsigned int i=1; i<p_.size(); ++i) {
+            for (unsigned int i=0; i<p_.size(); ++i) {
                 const double ovlp2=inner(f,p_[i]);
                 sum=(sum+ovlp2*p_[i]).truncate().reduce_rank();
             }
@@ -374,7 +371,7 @@ namespace madness {
         template<std::size_t FDIM>
         typename enable_if_c<2*NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
-            real_function_6d sum=real_factory_6d(p_.begin()->world());
+            real_function_6d sum=real_factory_6d(f.world());
             for (unsigned int i=0; i<p_.size(); ++i) {
                 const real_function_3d pf2=f.project_out(p_[i],particle_);
                 real_function_6d tmp;
