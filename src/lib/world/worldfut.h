@@ -443,13 +443,12 @@ which merely blows instead of sucking.
 
         /// Assignment future = future makes a shallow copy just like copy constructor
         Future<T>& operator=(const Future<T>& other) {
-            if (this != &other) {
+            if(this != &other) {
                 MADNESS_ASSERT(!probe());
-                if (other.f) {
-                    f = other.f;
-                } else {
+                if(f && other.value)
                     set(other);
-                }
+                else
+                    f = other.f;
             }
             return *this;
         }
