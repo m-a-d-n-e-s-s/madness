@@ -387,8 +387,6 @@ which merely blows instead of sucking.
         char buffer[sizeof(T)]; ///< Buffer to hold a single T object
         T* const value; ///< Pointer to buffer when it holds a T object
 
-        bool is_default_initialized() const { return ! (f || value); }
-
         class dddd {};
         explicit Future(const dddd&) : f(), value(NULL) { }
 
@@ -440,6 +438,11 @@ which merely blows instead of sucking.
         /// See Gotchas on the documentation mainpage about why this exists and how to use it.
         static const Future<T> default_initializer() { return Future<T>(dddd()); }
 
+        /// Default initialized query
+
+        /// \return \c true if this future was constructed with
+        /// \c default_initializer(), otherwise \c false.
+        bool is_default_initialized() const { return ! (f || value); }
 
         /// Assignment future = future makes a shallow copy just like copy constructor
         Future<T>& operator=(const Future<T>& other) {
