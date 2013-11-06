@@ -15,7 +15,7 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worldrange.h atomicint.h posixmem.h worldptr.h deferred_cleanup.h world.h \
 	worldfwd.h uniqueid.h worldprofile.h worldtime.h binfsar.h mpiar.h textfsar.h \
 	worlddc.h deferred_deleter.h scopedptr.h worldtask.h taskfn.h \
-	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h \
+	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h group.h dist_cache.h dist_keys.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
                       
@@ -83,7 +83,7 @@ libMADworld_a_SOURCES = world.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
 	worldref.cc worldam.cc worldprofile.cc worldthread.cc worldtask.cc \
 	worldgop.cc deferred_cleanup.cc worldmutex.cc binfsar.cc textfsar.cc \
-    lookup3.c worldmpi.cc \
+    lookup3.c worldmpi.cc group.cc \
 	$(thisinclude_HEADERS)
 
 

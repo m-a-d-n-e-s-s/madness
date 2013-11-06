@@ -36,7 +36,8 @@
 #define MADNESS_WORLD_UNIQUEID_H__INCLUDED
 
 #include <cstddef>
-#include <iosfwd>
+#include <iostream>
+#include <world/worldhash.h>
 
 namespace madness {
 

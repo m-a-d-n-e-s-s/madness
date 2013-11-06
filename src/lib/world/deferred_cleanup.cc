@@ -72,7 +72,7 @@ namespace madness {
 
 
         std::shared_ptr<DeferredCleanup> DeferredCleanup::get_deferred_cleanup(const World& w) {
-            return w.gop.deferred;
+            return w.gop.deferred_;
         }
 
     }  // namespace detail
