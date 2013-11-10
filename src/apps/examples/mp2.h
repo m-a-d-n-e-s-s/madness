@@ -334,7 +334,7 @@ namespace madness {
 
     public:
 
-        Projector() : p_(std::vector<Function<T,NDIM> >()) {}
+        Projector() : particle_(0), p_(std::vector<Function<T,NDIM> >()) {}
 
         /// simple constructor with only one orbital to project out
         Projector(const Function<T,NDIM>& p, const int particle=0)
