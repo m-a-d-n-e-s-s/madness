@@ -116,7 +116,7 @@ namespace madness {
         /// \param did The distributed id associated with this group
         /// \param group An array of Processes in world
         template <typename A>
-        Impl(World& world, const A& group, DistributedID did) :
+        Impl(World& world, const A& group, const DistributedID& did) :
           world_(world), did_(did), group_to_world_map_(begin(group), end(group)),
           group_rank_(-1), registered_(false)
         {
@@ -173,7 +173,7 @@ namespace madness {
           ProcessID result = std::distance(group_to_world_map_.begin(),
               std::find(group_to_world_map_.begin(), group_to_world_map_.end(),
               world_rank));
-          if(result == group_to_world_map_.size())
+          if(static_cast<std::size_t>(result) == group_to_world_map_.size())
             result = -1;
           return result;
         }
