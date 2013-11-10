@@ -5430,27 +5430,29 @@ namespace madness {
 
             /// send off the application of the operator
 
-            /// @return		a Future<bool,coeffT>(is_leaf,coeffT())
-            Future<argT> operator()(const Key<NDIM>& key) const {
+            /// the first (core) neighbor (ie. the box itself) is processed
+            /// immediately, all other ones are shoved into the taskq
+            /// @return		a pair<bool,coeffT>(is_leaf,coeffT())
+            argT operator()(const Key<NDIM>& key) const {
 
             	const coeffT& coeff=iaf.coeff();
 
                 if (coeff.has_data()) {
 
-//                	// now send off the application
+                	// now send off the application for all neighbor boxes
                 	ProcessID p=result->world.rank();
-                	Future<double> norm0=result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
-                    		apply_op, key, coeff, true);
                 	result->task(p,&implT:: template do_apply_directed_screening<opT,T>,
                 			apply_op, key, coeff, false);
 
-                    if (iaf.is_leaf()) return Future<argT> (argT(true,coeff));
-                    return result->world.taskq.add(*const_cast<this_type*> (this), &this_type::finalize,
-                            norm0,key,coeff,result);
+                	// process the core box
+                	double norm0=result->do_apply_directed_screening<opT,T>(apply_op,key,coeff,true);
+
+                    if (iaf.is_leaf()) return argT(true,coeff);
+                    return finalize(norm0,key,coeff,result);
 
                 } else {
                 	const bool is_leaf=true;
-                	return Future<argT> (argT(is_leaf,coeffT()));
+                	return argT(is_leaf,coeffT());
                 }
             }
 
@@ -5460,7 +5462,6 @@ namespace madness {
             	const double thresh=r->get_thresh()*0.1;
             	bool is_leaf=(kernel_norm<r->truncate_tol(thresh,key));
             	if (key.level()<2) is_leaf=false;
-//            	if (NDIM==6) print("key,is_leaf,kernel_norm",key,is_leaf,kernel_norm);
             	return argT(is_leaf,coeff);
             }
 
@@ -5605,18 +5606,23 @@ namespace madness {
                     do_norm2sq_local());
         }
 
-        /// Returns the inner product ASSUMING same distribution
-        /// note that if (g==f) both functions might be reconstructed
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
-            TENSOR_RESULT_TYPE(T,R) sum = 0.0;
-            bool leaves_only=(this->is_redundant());
-            typename dcT::const_iterator end = coeffs.end();
-            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+        /// compute the inner product of this range with other
+        template<typename R>
+        struct do_inner_local {
+            const FunctionImpl<R,NDIM>* other;
+            bool leaves_only;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            do_inner_local(const FunctionImpl<R,NDIM>* other, const bool leaves_only)
+            	: other(other), leaves_only(leaves_only) {}
+            resultT operator()(typename dcT::const_iterator& it) const {
+
+            	TENSOR_RESULT_TYPE(T,R) sum=0.0;
+            	const keyT& key=it->first;
                 const nodeT& fnode = it->second;
                 if (fnode.has_coeff()) {
-                    if (g.coeffs.probe(it->first)) {
-                        const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
+                    if (other->coeffs.probe(it->first)) {
+                        const FunctionNode<R,NDIM>& gnode = other->coeffs.find(key).get()->second;
                         if (gnode.has_coeff()) {
                             if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
                                 madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
@@ -5632,8 +5638,58 @@ namespace madness {
                         }
                     }
                 }
+                return sum;
             }
-            return sum;
+
+            resultT operator()(resultT a, resultT b) const {
+                return (a+b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                throw "NOT IMPLEMENTED";
+            }
+        };
+
+        /// Returns the inner product ASSUMING same distribution
+
+        /// handles compressed and redundant form
+        template <typename R>
+        TENSOR_RESULT_TYPE(T,R) inner_local(const FunctionImpl<R,NDIM>& g) const {
+            PROFILE_MEMBER_FUNC(FunctionImpl);
+            typedef Range<typename dcT::const_iterator> rangeT;
+            typedef TENSOR_RESULT_TYPE(T,R) resultT;
+
+            // make sure the states of the trees are consistent
+            MADNESS_ASSERT(this->is_redundant()==g.is_redundant());
+            bool leaves_only=(this->is_redundant());
+            return world.taskq.reduce<resultT,rangeT,do_inner_local<R> >
+            		(rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
+
+//            TENSOR_RESULT_TYPE(T,R) sum = 0.0;
+//            bool leaves_only=(this->is_redundant());
+//            typename dcT::const_iterator end = coeffs.end();
+//            for (typename dcT::const_iterator it=coeffs.begin(); it!=end; ++it) {
+//                const nodeT& fnode = it->second;
+//                if (fnode.has_coeff()) {
+//                    if (g.coeffs.probe(it->first)) {
+//                        const FunctionNode<R,NDIM>& gnode = g.coeffs.find(it->first).get()->second;
+//                        if (gnode.has_coeff()) {
+//                            if (gnode.coeff().dim(0) != fnode.coeff().dim(0)) {
+//                                madness::print("INNER", it->first, gnode.coeff().dim(0),fnode.coeff().dim(0));
+//                                MADNESS_EXCEPTION("functions have different k or compress/reconstruct error", 0);
+//                            }
+//                            if (leaves_only) {
+//                                if (gnode.is_leaf() or fnode.is_leaf()) {
+//                                    sum += fnode.coeff().trace_conj(gnode.coeff());
+//                                }
+//                            } else {
+//                                sum += fnode.coeff().trace_conj(gnode.coeff());
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//            return sum;
         }
 
         /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
