@@ -41,6 +41,13 @@
 
 namespace madness {
 
+    /// A collection of processes
+
+    /// \c Group is a light weight object that can be used to specify a set of
+    /// processes that will participate in Gop collective operations. The
+    /// advantage of Group over MPI (or SafeMPI) groups is that it eliminates
+    /// the need to construct new communicator and the associated barrier.
+    /// \note This is \b NOT an MPI or SafeMPI group.
     class Group {
     private:
 
@@ -188,7 +195,7 @@ namespace madness {
         /// \return The rank of this process in the world
         ProcessID world_rank(const ProcessID group_rank) const {
           MADNESS_ASSERT(group_rank >= 0);
-          MADNESS_ASSERT(group_rank < group_to_world_map_.size());
+          MADNESS_ASSERT(group_rank < ProcessID(group_to_world_map_.size()));
           return group_to_world_map_[group_rank];
         }
 
