@@ -66,7 +66,7 @@ namespace madness {
         /// \param a A c-style array
         /// \return A pointer to the first element of \c a
         template <typename T, std::size_t N>
-        T* begin(T (&a)[N]) { return a; }
+        static T* begin(T (&a)[N]) { return a; }
 
         /// Array end iterator accessor
 
@@ -75,7 +75,7 @@ namespace madness {
         /// \param a A c-style array
         /// \return A pointer to one past the last element of \c a
         template <typename T, std::size_t N>
-        T* end(T (&a)[N]) { return (a + N); }
+        static T* end(T (&a)[N]) { return (a + N); }
 
         /// Array size accessor
 
@@ -84,7 +84,7 @@ namespace madness {
         /// \param a A c-style array
         /// \return The size of array \c a
         template <typename T, std::size_t N>
-        std::size_t size(T (&)[N]) { return N; }
+        static std::size_t size(T (&)[N]) { return N; }
 
         /// Array const begin iterator accessor
 
@@ -112,7 +112,7 @@ namespace madness {
         /// \param a An array object
         /// \return The size of array \c a
         template <typename vectorT>
-        inline typename disable_if<std::is_array<vectorT>, std::size_t>::type
+        static typename disable_if<std::is_array<vectorT>, std::size_t>::type
         size(const vectorT &v) { return v.size(); }
 
       public:
