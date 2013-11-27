@@ -137,9 +137,9 @@ void test_xcfunctional()
 
     int ispin = 1; //alpha=0 beta=1
 
-    int what = 1 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
+    int what = 0 ;//what=0 vr ; what=1 vsigaa ; what=2 vsigab
 
-    int istr = 15;
+    int istr = 0;
 
 //vama5     0  "lda_x", 
 //vama5     1	"lda_c_vwn_rpa", 
@@ -312,7 +312,6 @@ void test_xcfunctional()
         }
         print("\n\n");
       }
-  }
 
 }
 
