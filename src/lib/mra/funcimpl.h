@@ -1544,7 +1544,7 @@ namespace madness {
             pFile = fopen(filename.c_str(), "w");
 
             fprintf(pFile,"%d\n",int(npoints*nboxes));
-            fprintf(pFile,"grid of the MRA function\n");
+            fprintf(pFile,"%d points per box and %d boxes \n",npoints,nboxes);
 
             // loop over all leaf boxes
 	        typename std::vector<keyT>::const_iterator key_it=keys.begin();
@@ -1576,8 +1576,8 @@ namespace madness {
 					            		sqrt(FunctionDefaults<NDIM>::get_cell_volume());
 					            double w=cdata.quad_phiw[i]*cdata.quad_phiw[j]*cdata.quad_phiw[k];
 
-//								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
-								fprintf(pFile,"%18.12e %18.12e %18.12e %18.12e\n",c[0],c[1],c[2],w*scale);
+								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
+//								fprintf(pFile,"%18.12e %18.12e %18.12e %18.12e\n",c[0],c[1],c[2],w*scale);
 							}
 						}
 					}
@@ -1625,7 +1625,7 @@ namespace madness {
             // these will be the data
             Tensor<T> values(cdata.vk,false);
 
-            int i=0;
+            int ii=0;
             std::string gline,kline;
 //            while (1) {
             while (std::getline(kfile,kline)) {
@@ -1687,12 +1687,108 @@ namespace madness {
 				nodeT node(coeff,has_children);
 				coeffs.replace(key,node);
                 const_cast<dcT&>(coeffs).task(key.parent(), &FunctionNode<T,NDIM>::set_has_children_recursive, coeffs, key.parent());
-                i++;
+                ii++;
             }
 
             kfile.close();
             gfile.close();
-            MADNESS_ASSERT(i==nboxes);
+            MADNESS_ASSERT(ii==nboxes);
+
+        }
+
+        /// read data from a grid
+
+        /// @param[in]	gridfile		file with keys and grid points and values for each key
+        /// @param[in]	vnuc_functor	subtract the values of this functor if regularization is needed
+        template<size_t FDIM>
+        typename enable_if_c<NDIM==FDIM>::type
+        read_grid2(const std::string gridfile,
+        		std::shared_ptr< FunctionFunctorInterface<double,NDIM> > vnuc_functor) {
+
+            std::ifstream gfile(gridfile.c_str());
+            std::string line;
+
+            long ndata;
+            if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 1st line of grid data",0);
+            if (not (std::istringstream(line) >> ndata)) MADNESS_EXCEPTION("failed reading k",0);
+            if (not (std::getline(gfile,line))) MADNESS_EXCEPTION("failed reading 2nd line of grid data",0);
+
+        	// the quadrature points in simulation coordinates of the root node
+	        const Tensor<double> qx=cdata.quad_x;
+	        const size_t npt = qx.dim(0);
+
+	        // the number of coordinates (grid point tuples) per box ({x1},{x2},{x3},..,{xNDIM})
+        	long npoints=power<NDIM>(npt);
+        	// the number of boxes
+        	long nboxes=ndata/npoints;
+        	MADNESS_ASSERT(nboxes*npoints==ndata);
+            print("reading ",nboxes,"boxes from file",gridfile);
+
+            // these will be the data
+            Tensor<T> values(cdata.vk,false);
+
+            int ii=0;
+            std::string gline;
+//            while (1) {
+            while (std::getline(gfile,gline)) {
+
+            	double x,y,z,x1,y1,z1,val;
+
+            	// get the key
+				long nn;
+				Translation l1,l2,l3;
+				// line looks like: # key:      n      l1   l2   l3
+				gline.erase(0,7);
+				std::stringstream(gline) >>  nn >> l1 >> l2 >> l3;
+				const Vector<Translation,3> ll=vec(l1,l2,l3);
+				Key<3> key(nn,ll);
+
+	        	// this is borrowed from fcube
+				const Vector<Translation,3>& l = key.translation();
+				const Level n = key.level();
+				const double h = std::pow(0.5,double(n));
+				coordT c; // will hold the point in user coordinates
+				const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
+				const Tensor<double>& cell = FunctionDefaults<NDIM>::get_cell();
+
+
+				if (NDIM == 3) {
+					for (int i=0; i<npt; ++i) {
+						c[0] = cell(0,0) + h*cell_width[0]*(l[0] + qx(i)); // x
+						for (int j=0; j<npt; ++j) {
+							c[1] = cell(1,0) + h*cell_width[1]*(l[1] + qx(j)); // y
+							for (int k=0; k<npt; ++k) {
+								c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
+
+								MADNESS_ASSERT(std::getline(gfile,gline));
+								std::istringstream(gline) >> x1 >> y1 >> z1 >> val;
+								MADNESS_ASSERT(std::fabs(x1-c[0])<1.e-4);
+								MADNESS_ASSERT(std::fabs(y1-c[1])<1.e-4);
+								MADNESS_ASSERT(std::fabs(z1-c[2])<1.e-4);
+
+								// regularize if a functor is given
+								if (vnuc_functor) val-=(*vnuc_functor)(c);
+								values(i,j,k)=val;
+							}
+						}
+					}
+				} else {
+					MADNESS_EXCEPTION("only NDIM=3 in print_grid",0);
+				}
+
+				// insert the new leaf node
+				const bool has_children=false;
+				coeffT coeff=coeffT(this->values2coeffs(key,values),targs);
+				nodeT node(coeff,has_children);
+				coeffs.replace(key,node);
+                const_cast<dcT&>(coeffs).task(key.parent(),
+                		&FunctionNode<T,NDIM>::set_has_children_recursive,
+                		coeffs, key.parent());
+                ii++;
+            }
+
+            gfile.close();
+            MADNESS_ASSERT(ii==nboxes);
 
         }
 
