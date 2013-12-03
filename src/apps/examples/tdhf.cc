@@ -49,7 +49,6 @@
 
 #include <mra/operator.h>
 #include <mra/mra.h>
-#include <mra/operator.h>
 #include <mra/lbdeux.h>
 
 using namespace madness;
@@ -117,6 +116,7 @@ struct root {
 	root(vecfuncT& x, double omega) : x(x), omega(omega) {}
 	vecfuncT x;
 	double omega;
+	std::vector<double> amplitudes_;
 };
 
 
@@ -141,7 +141,8 @@ public:
 	/// @param[in]	input	the input file name
 	CIS(World& world, const HartreeFock& hf, const std::string input)
 		: world(world), hf_(hf), guess_("all_orbitals"), nroot_(5)
-		, nfreeze_(0), print_grid_(false) {
+		, nfreeze_(0), econv_(hf.get_calc().param.econv)
+		, dconv_(hf.get_calc().param.dconv), print_grid_(false) {
 
 
 		omega_=std::vector<double>(9,100.0);
@@ -156,6 +157,8 @@ public:
             else if (tag == "guess") ss >> guess_;
             else if (tag == "nroot") ss >> nroot_;
             else if (tag == "freeze") ss >> nfreeze_;
+            else if (tag == "econv") ss >> econv_;
+            else if (tag == "dconv") ss >> dconv_;
             else if (tag == "print_grid") print_grid_=true;
             else if (tag == "omega0") ss >> omega_[0];
             else if (tag == "omega1") ss >> omega_[1];
@@ -177,6 +180,8 @@ public:
 
             madness::print("          guess from ", guess_);
             madness::print("        threshold 3D ", FunctionDefaults<3>::get_thresh());
+            madness::print("  energy convergence ", econv_);
+            madness::print("max residual (dconv) ", dconv_);
             madness::print("     number of roots ", nroot_);
         }
 
@@ -214,11 +219,10 @@ public:
 	        if (world.rank()==0) {
 	        	print(" iteration   excitation energy   energy correction         error");
 	        }
-	    	// the excitation amplitudes for each occupied orbital
-	    	std::vector<double> amplitudes(nmo,1.0);
+
 	        for (int iter=0; iter<50; ++iter) {
-	        	bool converged=iterate_CIS(world,solver,currentroot.omega, currentroot.x,
-	        			roots(),iter,hf().get_calc().param.econv,amplitudes);
+	        	bool converged=iterate_CIS(world,solver,currentroot,
+	        			roots(),iter);
 	        	// save for restart
 	        	save_root(world,iroot,currentroot);
 	        	if (converged) break;
@@ -234,13 +238,39 @@ public:
 	        	print("oscillator strength (length)   ", osl);
 	        	print("oscillator strength (velocity) ", osv);
 	        }
+	    }
 
+	    // print out final results
+	    if (world.rank()==0) {
+	    	print("CIS solver ended");
+	    	std::cout << std::fixed;
+	    	for (std::size_t i=0; i<roots().size(); ++i) {
+
+				std::cout.width(10); std::cout.precision(6);
+	    		print("excitation energy for root ",i,": ",roots()[i].omega);
+
+	    		// print out the most important amplitudes
+	    		print("  dominant contributions ");
+	    		for (std::size_t p=0; p<hf().nocc(); ++p) {
+	    		functionT xp=roots()[i].x[p];
+	    			double amplitude=xp.norm2();
+	    			amplitude*=amplitude;
+	    			if (amplitude > 0.1) {
+	    				if (world.rank()==0) {
+	    					std::cout << "  norm(x_"<<p<<") **2  ";
+	    					std::cout.width(10); std::cout.precision(6);
+	    					std::cout << amplitude << std::endl;
+	    				}
+	    			}
+	    		}
+	    	}
 	    }
 	}
 
 	/// return the roots of the response equation
 	std::vector<root>& roots() {return roots_;}
 
+	/// are we supposed to print the grid for an external guess
 	bool print_grid() const {return print_grid_;}
 
 private:
@@ -266,6 +296,9 @@ private:
     /// where we get our guess from (all_virtual, koala)
     std::string guess_;
 
+    /// the phases of the guess and ours might differ
+    Tensor<double> guess_phases_;
+
     /// number of roots we are supposed to solve
     int nroot_;
 
@@ -275,6 +308,12 @@ private:
     /// guess for the excitation energies
     std::vector<double> omega_;
 
+    /// energy convergence threshold
+    double econv_;
+
+    /// density convergence threshold (=residual)
+    double dconv_;
+
     /// flag if the grid for the density should be printed
 
     /// external programs (e.g. Koala) need this grid to export the guess roots
@@ -282,15 +321,21 @@ private:
 
     /// guess amplitudes
 
+    /// note that the orbitals from an external guess might be rotated wrt the
+    /// MRA orbitals, which would spoil the guess. Therefore we rotate the
+    /// guess with the overlap matrix so that the guess conforms with the MRA
+    /// phases. The overlap to the external orbitals (if applicable) is computed
+    /// only once
     /// @param[in]	iroot	guess for root iroot
-    root guess_amplitudes(const int iroot) const {
+    root guess_amplitudes(const int iroot) {
 
     	// for convenience
-    	const std::size_t nmo=hf().get_calc().amo.size();
-    	const int noct=nmo-nfreeze_;
+    	const std::size_t nmo=hf().get_calc().amo.size();	// all orbitals
+    	const int noct=nmo-nfreeze_;						// active orbitals
 
     	// default empty root
     	root root;
+		root.amplitudes_=std::vector<double>(nmo,1.0);
 
         // guess an excitation energy: 0.9* HOMO or use input from file
         root.omega=-0.9*hf().get_calc().aeps(nmo-1);
@@ -303,41 +348,68 @@ private:
 
 	    // get the guess from koala
 	    if (guess_=="koala") {
-    	    for (std::size_t i=nfreeze_; i<nmo; ++i) {
+
+	    	// first we need to determine the rotation of the external orbitals
+	    	// to the MRA orbitals, so that we can subsequently rotate the guess
+	    	if (not guess_phases_.has_data()) {
+				vecfuncT koala_amo;
+
+				// read koala's orbitals from disk
+				for (std::size_t i=0; i<nmo; ++i) {
+					real_function_3d x_i=real_factory_3d(world).empty();
+					const std::string valuefile="grid.koala.orbital"+stringify(i);
+					x_i.get_impl()->read_grid2<3>(valuefile,functorT());
+					koala_amo.push_back(x_i);
+				}
+				// this is the transformation matrix for the rotation
+				guess_phases_=matrix_inner(world,koala_amo,hf().get_calc().amo);
+//				print("< madness | koala > ");
+//				print(guess_phases_);
+//				vecfuncT koala2=transform(world,koala_amo,guess_phases_);
+//				Tensor<double> ovlp=matrix_inner(world,koala2,hf().get_calc().amo);
+//				print("< madness | koala_new > ");
+//				print(ovlp);
+
+	    	}
+
+	    	// read the actual external guess from file
+//    	    for (std::size_t i=nfreeze_; i<nmo; ++i) {
+	    	for (std::size_t i=0; i<noct; ++i) {
 
     	    	// this is the file where the guess is on disk
-        	    const std::string valuefile="grid.koala.orbital"+stringify(i)+".excitation"+stringify(iroot);
-    	    	if (world.rank()==0) {
-    	    		print("reading guess for excitation ",iroot," from file",valuefile);
-    	    	}
-
+        	    const std::string valuefile="grid.koala.orbital"+stringify(i)
+        	    		+".excitation"+stringify(iroot);
         		real_function_3d x_i=real_factory_3d(world).empty();
         		x_i.get_impl()->read_grid2<3>(valuefile,functorT());
     	    	root.x.push_back(x_i);
     	    }
 
+    	    // now rotate the active orbitals from the guess to conform with
+    	    // the MRA orbitals
+    	    Tensor<double> frozen_phases=guess_phases_(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+    	    root.x=transform(world,root.x,frozen_phases);
+
     	} else if (guess_=="all_orbitals") {
-    		// Take a linear
-    		// combination of all orbitals as guess, because there are
-    		// not enough virtuals in the minimal basis set for all
+    		// Take a linear combination of all orbitals as guess, because
+    		// there are not enough virtuals in the minimal basis set for all
     		// possible symmetries
     		if (world.rank()==0) {
     			print("taking as guess all orbitals");
     		}
-    		real_function_3d all_virtuals=real_factory_3d(world);
+    		real_function_3d all_orbitals=real_factory_3d(world);
     		for (std::size_t ivir=0; ivir<hf().get_calc().ao.size(); ++ivir) {
-    			all_virtuals+=hf().get_calc().ao[ivir];
+    			all_orbitals+=hf().get_calc().ao[ivir];
 			}
-    		const double norm=all_virtuals.norm2();
-    		all_virtuals.scale(1.0/(norm*norm));
+    		const double norm=all_orbitals.norm2();
+    		all_orbitals.scale(1.0/(norm*norm));
     		for (std::size_t iocc=nfreeze_; iocc<nmo; ++iocc) {
-    			root.x.push_back(all_virtuals);
+    			root.x.push_back(all_orbitals);
     		}
 
     	} else {
           	MADNESS_EXCEPTION("unknown source to guess CIS amplitudes",1);
     	}
-    	MADNESS_ASSERT(root.x.size()==nmo-nfreeze_);
+    	MADNESS_ASSERT(root.x.size()==noct);
 
     	return root;
     }
@@ -351,21 +423,23 @@ private:
 	/// generalized gradient approximations,Ó Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
 	///
 	/// The convergence criterion is that the excitation amplitudes don't change
-	/// @param[in]		amo	the unperturbed orbitals
-	/// @param[in]		omega	the lowest excitation energy
-	/// @param[inout]	x	the response function
-	/// @param[in]		hf 	the HF reference object
+    /// @param[in]		world	the world
+    /// @param[in]		solver	the KAIN solver
+    /// @param[inout]	root	the current root that we solve
 	/// @param[in]		excited_states all lower-lying excited states for orthogonalization
-	/// @param[in]	iteration	the current iteration
+	/// @param[in]		iteration	the current iteration
+    /// @return			if the iteration on this root has converged
 	template<typename solverT>
-	bool iterate_CIS(World& world, solverT& solver, double& omega,
-			vecfuncT& x, const std::vector<root >& excited_states,
-			const int iteration, const double& thresh, std::vector<double>& amplitudes) const {
+	bool iterate_CIS(World& world, solverT& solver, root& thisroot,
+			const std::vector<root >& excited_states, const int iteration) const {
 
 		// for convenience
 		const vecfuncT& amo=hf().get_calc().amo;
 		const int nmo=amo.size();		// # of orbitals in the HF calculation
 		const int noct=nmo-nfreeze_;	// # of active orbitals
+
+		vecfuncT& x=thisroot.x;
+		double& omega=thisroot.omega;
 
 	    // these are the active orbitals in a vector (shallow-copied)
 	    vecfuncT active_mo;
@@ -406,10 +480,6 @@ private:
 			// this is x_i * \int 1/r12 \phi_i \phi_p
 			vecfuncT x_Ppi=mul(world,x,exchange_intermediate_[p]);
 			for (int i=0; i<noct; ++i) Gamma[p]-=x_Ppi[i];
-//			for (int i=0; i<nmo; ++i) {
-//				real_function_3d x_Ppi=x[p]*exchange_intermediate_[p][i];
-//				Gamma[p]-=x_Ppi;
-//			}
 
 			// project out the zeroth-order density Eq. (4)
 			Gamma[p]-=rho0(Gamma[p]);
@@ -453,7 +523,7 @@ private:
 		else omega+=delta;
 
 		// some update on the progress for the user
-		double error=sqrt(inner(F(world,residual),F(world,residual)));
+		const double error=sqrt(inner(F(world,residual),F(world,residual)));
         if (world.rank()==0) {
 			std::cout << std::setw(6) << iteration << "    ";
 			std::cout << std::scientific << std::setprecision(10);
@@ -464,7 +534,7 @@ private:
         }
 
 		// generate a new trial solution vector
-	    if (iteration<17) {
+	    if (iteration<10) {
 	    	x=GVphi;
 	    } else {
 	    	F ff=solver.update(F(world,x),F(world,residual));
@@ -484,22 +554,17 @@ private:
 		const std::vector<double> norms=normalize(world,x);
 		truncate(world,x);
 
-		// convergence flag
+		// check energy, residual, and individual amplitude convergence
 		bool converged=true;
-
-		// this is not converged if the amplitudes change by a lot (> 1 percent)
-		if (error>sqrt(thresh)) converged=false;
-
-		// this is not converted if the energy changes a lot (> thresh)
-		if (std::fabs(delta)>thresh) converged=false;
+		if (error>dconv_) converged=false;
+		if (std::fabs(delta)>econv_) converged=false;
 
 		// this is not converged if the amplitudes change by a lot (> 1 percent)
 		for (std::size_t i=0; i<norms.size(); ++i) {
-			if (std::fabs(amplitudes[i]/norms[i] - 1.0)>0.01) {
-				converged=false;
-			}
+			const double change=std::fabs(thisroot.amplitudes_[i]/norms[i]-1.0);
+			if (change>0.01) converged=false;
 		}
-		amplitudes=norms;
+		thisroot.amplitudes_=norms;
 
 		// if convergence is reached print out weights and leave
 		if (converged) {
@@ -508,7 +573,8 @@ private:
 				print("\nconverged:  ",omega);
 		    	std::cout << std::fixed;
 				for (int p=nfreeze_; p<nmo; ++p) {
-					std::cout << "norm(x_"<<p<<") **2  " << amplitudes[p-nfreeze_] << std::endl;
+					std::cout << "norm(x_"<<p<<") **2  "
+							<< thisroot.amplitudes_[p-nfreeze_] << std::endl;
 				}
 			}
 			return true;
@@ -519,9 +585,9 @@ private:
 	/// make the 2-electron interaction intermediate
 
 	/// the intermediate is the same for all roots:
-	/// \[
-	///   int[i,p] = \int 1/r12 \phi_i(1) * \phi_p(1)
-	/// \]
+	/// \f[
+	///   Int[i,p] = \int \frac{1}{r_{12}} \phi_i(1) * \phi_p(1)
+	/// \f]
 	/// both i and p are active MOs
 	/// @param[in]	active_mo	active orbitals in the CIS computation
 	/// @param[in]	amo			all MOs of the HF calculation
@@ -668,7 +734,8 @@ int main(int argc, char** argv) {
     calc.param.print(world);
 
     HartreeFock hf(world,calc);
-    const double hf_energy=hf.value();
+    double hf_energy=hf.value();
+    if (world.rank()==0) print("MRA hf energy", hf_energy);
     if (world.rank()==0) {
     	printf("\n\n starting TDHF section at time %.1f\n",wall_time());
     	print("nuclear repulsion: ", hf.get_calc().molecule.nuclear_repulsion_energy());
@@ -688,37 +755,11 @@ int main(int argc, char** argv) {
     	real_function_3d density=hf.get_calc().make_density(world,hf.get_calc().aocc,
     		hf.get_calc().amo);
     	density.get_impl()->print_grid("grid");
+    } else {
+
+    	// solve the response equation
+    	cis.solve();
     }
-
-    // solve the response equation for n roots;
-    cis.solve();
-
-    if (world.rank()==0) {
-    	print("CIS solver ended");
-    	std::cout << std::fixed;
-    	for (std::size_t i=0; i<cis.roots().size(); ++i) {
-
-			std::cout.width(10); std::cout.precision(6);
-    		print("excitation energy for root ",i,": ",cis.roots()[i].omega);
-
-    		// print out the most important amplitudes
-    		print("  dominant contributions ");
-    		for (std::size_t p=0; p<hf.nocc(); ++p) {
-    		functionT xp=cis.roots()[i].x[p];
-    			double amplitude=xp.norm2();
-    			amplitude*=amplitude;
-    			if (amplitude > 0.1) {
-    				if (world.rank()==0) {
-    					std::cout << "  norm(x_"<<p<<") **2  ";
-    					std::cout.width(10); std::cout.precision(6);
-    					std::cout << amplitude << std::endl;
-    				}
-    			}
-    		}
-    	}
-    }
-
-
 
     if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
     finalize();
