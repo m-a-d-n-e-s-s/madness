@@ -119,6 +119,12 @@ struct root {
 	std::vector<double> amplitudes_;
 };
 
+/// for convenience
+double inner(const root& a, const root& b) {
+	if (a.x.size()==0) return 0.0;
+	return inner(a.x[0].world(),a.x,b.x).sum();
+}
+
 
 /// helper struct for computing the moments
 struct xyz {
@@ -202,68 +208,23 @@ public:
 	    // this is common for all roots in all iterations
 	    exchange_intermediate_=make_exchange_intermediate(active_mo(),active_mo());
 
-	    // loop over all roots
+    	// guess the amplitudes for all roots
 	    for (std::size_t iroot=0; iroot<nroot_; ++iroot) {
-
-	    	if (world.rank()==0) print("\nworking on root ",iroot,"\n");
-
-	    	// guess the amplitudes for this root
-	    	root currentroot=guess_amplitudes(iroot);
-
-	    	// KAIN solver
-	        XNonlinearSolver<F,double,allocator> solver =
-	        		XNonlinearSolver<F,double,allocator>(allocator(world,noct));
-	        solver.set_maxsub(3);
-
-	        // print progress on the computation
-	        if (world.rank()==0) {
-	        	print(" iteration   excitation energy   energy correction         error");
-	        }
-
-	        for (int iter=0; iter<50; ++iter) {
-	        	bool converged=iterate_CIS(world,solver,currentroot,
-	        			roots(),iter);
-	        	// save for restart
-	        	save_root(world,iroot,currentroot);
-	        	if (converged) break;
-	        }
-
-	        roots().push_back(currentroot);
-	        double osl=this->oscillator_strength_length(roots().back());
-	        double osv=this->oscillator_strength_velocity(roots().back());
-
-			std::cout << std::scientific << std::setprecision(10) << std::setw(20);
-	        if (world.rank()==0) {
-	        	print("excitation energy              ", currentroot.omega);
-	        	print("oscillator strength (length)   ", osl);
-	        	print("oscillator strength (velocity) ", osv);
-	        }
+	    	root root1=guess_amplitudes(iroot);
+	        roots().push_back(root1);
 	    }
 
-	    // print out final results
-	    if (world.rank()==0) {
-	    	print("CIS solver ended");
-	    	std::cout << std::fixed;
-	    	for (std::size_t i=0; i<roots().size(); ++i) {
+	    // KAIN solver
+	    XNonlinearSolver<F,double,allocator> solver =
+	    		XNonlinearSolver<F,double,allocator>(allocator(world,noct));
+	    solver.set_maxsub(3);
 
-				std::cout.width(10); std::cout.precision(6);
-	    		print("excitation energy for root ",i,": ",roots()[i].omega);
-
-	    		// print out the most important amplitudes
-	    		print("  dominant contributions ");
-	    		for (std::size_t p=0; p<hf().nocc(); ++p) {
-	    		functionT xp=roots()[i].x[p];
-	    			double amplitude=xp.norm2();
-	    			amplitude*=amplitude;
-	    			if (amplitude > 0.1) {
-	    				if (world.rank()==0) {
-	    					std::cout << "  norm(x_"<<p<<") **2  ";
-	    					std::cout.width(10); std::cout.precision(6);
-	    					std::cout << amplitude << std::endl;
-	    				}
-	    			}
-	    		}
-	    	}
+	    bool converged=iterate_all_CIS_roots(world,solver,roots());
+	    if (converged) {
+	    	analyze(roots());
+	    	if (world.rank()==0) print(" CIS iterations converged ");
+	    } else {
+	    	if (world.rank()==0) print(" CIS iterations not converged ");
 	    }
 	}
 
@@ -349,10 +310,11 @@ private:
 	    // get the guess from koala
 	    if (guess_=="koala") {
 
-	    	// first we need to determine the rotation of the external orbitals
+			vecfuncT koala_amo;
+
+			// first we need to determine the rotation of the external orbitals
 	    	// to the MRA orbitals, so that we can subsequently rotate the guess
 	    	if (not guess_phases_.has_data()) {
-				vecfuncT koala_amo;
 
 				// read koala's orbitals from disk
 				for (std::size_t i=0; i<nmo; ++i) {
@@ -363,17 +325,10 @@ private:
 				}
 				// this is the transformation matrix for the rotation
 				guess_phases_=matrix_inner(world,koala_amo,hf().get_calc().amo);
-//				print("< madness | koala > ");
-//				print(guess_phases_);
-//				vecfuncT koala2=transform(world,koala_amo,guess_phases_);
-//				Tensor<double> ovlp=matrix_inner(world,koala2,hf().get_calc().amo);
-//				print("< madness | koala_new > ");
-//				print(ovlp);
 
 	    	}
 
 	    	// read the actual external guess from file
-//    	    for (std::size_t i=nfreeze_; i<nmo; ++i) {
 	    	for (std::size_t i=0; i<noct; ++i) {
 
     	    	// this is the file where the guess is on disk
@@ -384,10 +339,24 @@ private:
     	    	root.x.push_back(x_i);
     	    }
 
-    	    // now rotate the active orbitals from the guess to conform with
+	    	// compute the inverse of the overlap matrix
+	    	Tensor<double> S=(guess_phases_+transpose(guess_phases_)).scale(0.5);
+	    	Tensor<double> U, eval;
+	    	syev(S,U,eval);
+	    	Tensor<double> Sinv=copy(U);
+	    	for (int i=0; i<U.dim(0); ++i) {
+	    		for (int j=0; j<U.dim(1); ++j) {
+	    			Sinv(i,j)/=eval(j);
+	    		}
+	    	}
+	    	Sinv=inner(Sinv,U,-1,-1);
+
+	    	// now rotate the active orbitals from the guess to conform with
     	    // the MRA orbitals
-    	    Tensor<double> frozen_phases=guess_phases_(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
-    	    root.x=transform(world,root.x,frozen_phases);
+	    	Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+    	    root.x=transform(world,root.x,Sinv);
+    	    save_root(world,iroot,root);
+
 
     	} else if (guess_=="all_orbitals") {
     		// Take a linear combination of all orbitals as guess, because
@@ -411,22 +380,217 @@ private:
     	}
     	MADNESS_ASSERT(root.x.size()==noct);
 
+    	// normalize this root
+    	normalize(world,root.x);
+
     	return root;
     }
 
-	/// iterate the TDHF or CIS equations
+
+    /// solve the CIS equations for all roots
+
+    /// @param[in]	world	the world
+    /// @param[in]	solver	the KAIN solver (unused right now)
+    /// @param[inout]	roots	on entry: guess for the roots
+    ///                         on successful exit: converged root
+    /// @return	convergence reached or not
+	template<typename solverT>
+    bool iterate_all_CIS_roots(World& world, solverT& solver,
+    		std::vector<root>& roots) const {
+
+		// check orthogonality of the roots
+		orthonormalize(world,roots);
+		Tensor<double> ovlp=overlap(roots,roots);
+		for (int i=0; i<ovlp.dim(0); ++i) ovlp(i,i)-=1.0;
+		if (ovlp.normf()/ovlp.size()>econv_) {
+			print(ovlp);
+			MADNESS_EXCEPTION("non-orthogonal roots",1);
+		}
+
+		// construct the projector on the occupied space
+		const vecfuncT& amo=hf().get_calc().amo;
+	    vecfuncT act=this->active_mo();
+		const std::size_t noct=act.size();
+		Projector<double,3> rho0(amo);
+
+		// start iterations
+		for (int iter=0; iter<50; ++iter) {
+
+			Tensor<double> error(roots.size());
+			// print progress on the computation
+			if (world.rank()==0) {
+				print("starting iteration ", iter, " at time ", wall_time());
+				print(" root   excitation energy   energy correction         error");
+			}
+
+			// apply the BSH operator on each root
+			START_TIMER(world);
+			for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
+				std::cout << std::setw(4) << iroot << " ";
+				error(iroot)=iterate_one_CIS_root(world,solver,roots[iroot]);
+			}
+			orthonormalize(world,roots);
+			END_TIMER(world,"BSH step");
+
+
+			// compute the Fock matrix elements
+			Tensor<double> Fock_pt=make_perturbed_fock_matrix(roots,act,rho0);
+
+			// add the term with the orbital energies:
+			//  F_pq -= \sum_i\epsilon_i <x^p_i | x^q_i>
+			for (std::size_t i=0; i<roots.size(); ++i) {
+				for (std::size_t j=0; j<roots.size(); ++j) {
+					Tensor<double> eij=inner(world,roots[i].x,roots[j].x);
+					for (int ii=0; ii<noct; ++ii) {
+						Fock_pt(i,j)-=hf().get_calc().aeps[ii+nfreeze_]*eij[ii];
+					}
+				}
+			}
+
+			// diagonalize the roots in their subspace
+//			print("perturbed Fock matrix ");
+//			print(Fock_pt);
+			Tensor<double> U, evals;
+			syev(Fock_pt,U,evals);
+			print("eval(F)",evals);
+//			print("U");
+//			print(U);
+
+			// check energy and density convergence (max residual norm)
+			bool dconverged=(error.max()<dconv_);
+			bool econverged=true;
+			for (std::size_t i=0; i<roots.size(); ++i) {
+				if (std::fabs(roots[i].omega - evals(i))>econv_) econverged=false;
+			}
+			if (econverged and dconverged) return true;
+
+			// diagonalize the amplitudes in the space of the perturbed Fock
+			// matrix
+	        std::vector<vecfuncT> vc(nroot_);
+			for (std::size_t iroot=0; iroot<nroot_; ++iroot) {
+				vc[iroot]=zero_functions<double,3>(world,noct);
+		        compress(world, vc[iroot]);
+		        compress(world,roots[iroot].x);
+			}
+
+	        for (int i=0; i<roots.size(); ++i) {
+	            for (int j=0; j<roots.size(); ++j) {
+	               	gaxpy(world,1.0,vc[i],U(j,i),roots[j].x);
+	            }
+	        }
+
+			for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
+		        roots[iroot].x=vc[iroot];
+		        normalize(world,roots[iroot].x);
+		        roots[iroot].omega=evals[iroot];
+			}
+
+			for (std::size_t i=0; i<roots.size(); ++i) save_root(world,i,roots[i]);
+		}
+		return false;
+    }
+
+    /// iterate the TDHF or CIS equations
 
 	/// follow Eq (4) of
 	/// T. Yanai, R. J. Harrison, and N. Handy,
-	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent density
-	/// functional theory with asymptotically corrected potentials in local density and
-	/// generalized gradient approximations,Ó Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
+	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
+	/// density functional theory with asymptotically corrected potentials in
+	/// local density and generalized gradient approximations,Ó
+	/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
+	///
+	/// The convergence criterion is that the excitation amplitudes don't change
+    /// @param[in]		world	the world
+    /// @param[in]		solver	the KAIN solver (not used right now..)
+    /// @param[inout]	root	the current root that we solve
+    /// @return			the residual error
+	template<typename solverT>
+	bool iterate_one_CIS_root(World& world, solverT& solver, root& thisroot) const {
+
+		// for convenience
+		const vecfuncT& amo=hf().get_calc().amo;
+		const int nmo=amo.size();		// # of orbitals in the HF calculation
+		const int noct=nmo-nfreeze_;	// # of active orbitals
+
+		vecfuncT& x=thisroot.x;
+		double& omega=thisroot.omega;
+
+	    // these are the active orbitals in a vector (shallow-copied)
+	    vecfuncT active_mo=this->active_mo();
+
+		// the projector on the unperturbed density
+		Projector<double,3> rho0(amo);
+
+		// apply the unperturbed potential
+		const vecfuncT V0=apply_fock_potential(x);
+
+		// apply the gamma potential on the active MOs; Eq. (4-6)
+		const vecfuncT Gamma=apply_gamma(x,active_mo,rho0);
+
+		// add the local potential and the electron interaction term
+		vecfuncT Vphi=add(world,V0,Gamma);
+		scale(world,Vphi,-2.0);
+		truncate(world,Vphi);
+
+		// the bound-state helmholtz function for omega < orbital energy
+	    std::vector<poperatorT> bsh(noct);
+	    for(int p = 0; p<noct; ++p){
+	        double eps = hf().orbital_energy(p+nfreeze_) + omega;
+	        if(eps > 0){
+	            if(world.rank() == 0)
+	            	print("bsh: warning: positive eigenvalue", p+nfreeze_, eps);
+	            eps = -0.03;
+	        }
+	        bsh[p] = poperatorT(BSHOperatorPtr3D(world, sqrt(-2.0 * eps), lo, bsh_eps));
+	    }
+	    const vecfuncT GVphi=apply(world,bsh,Vphi);
+
+	    // compute the residual aka the difference between to old and the new solution vector
+	    const vecfuncT residual=sub(world,x,GVphi);
+
+		// update the excitation energy omega
+		Tensor<double> t1=inner(world,Vphi,residual);
+		double t2=0.0;
+		for (int i=0; i<noct; ++i) {
+			double n=GVphi[i].norm2();
+			t2+=n*n;
+		}
+		// remove factor 2 from Vphi coming from the BSH application
+		double delta=0.5*t1.sum()/t2;
+
+		const double error=sqrt(inner(F(world,residual),F(world,residual)));
+
+		// some update on the progress for the user
+		if (world.rank()==0) {
+			std::cout << std::scientific << std::setprecision(10);
+			std::cout << std::setw(20) << omega	<< std::setw(20)<< delta
+					<< std::setw(19) << error << std::endl;
+        }
+
+		// update the energy
+		omega+=delta;
+
+	    // update the x vector: orthogonalize against the occupied space
+		x=GVphi;
+		for (int p=0; p<noct; ++p) x[p] -= rho0(GVphi[p]);
+
+		return error;
+	}
+
+	/// iterate the TDHF or CIS equations -- deprecated !!
+
+	/// follow Eq (4) of
+	/// T. Yanai, R. J. Harrison, and N. Handy,
+	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
+	/// density functional theory with asymptotically corrected potentials in
+	/// local density and generalized gradient approximations,Ó
+	/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
 	///
 	/// The convergence criterion is that the excitation amplitudes don't change
     /// @param[in]		world	the world
     /// @param[in]		solver	the KAIN solver
     /// @param[inout]	root	the current root that we solve
-	/// @param[in]		excited_states all lower-lying excited states for orthogonalization
+	/// @param[in]		excited_states all lower-lying excited states for orthog.
 	/// @param[in]		iteration	the current iteration
     /// @return			if the iteration on this root has converged
 	template<typename solverT>
@@ -442,48 +606,16 @@ private:
 		double& omega=thisroot.omega;
 
 	    // these are the active orbitals in a vector (shallow-copied)
-	    vecfuncT active_mo;
-	    for (int i=nfreeze_; i<nmo; ++i) active_mo.push_back(amo[i]);
+	    vecfuncT active_mo=this->active_mo();
 
 		// the projector on the unperturbed density
 		Projector<double,3> rho0(amo);
 
-		// a poisson solver
-	    std::shared_ptr<real_convolution_3d> poisson
-	    	=std::shared_ptr<real_convolution_3d>
-	    	(CoulombOperatorPtr(world,lo,bsh_eps));
-	    // the local potential V^0 of Eq. (4)
-	    real_function_3d vlocal = hf().get_nuclear_potential() + hf().get_coulomb_potential();
+		// apply the unperturbed potential
+		const vecfuncT V0=apply_fock_potential(x);
 
-	    // make the potential for V0*xp
-		vecfuncT Vx=mul(world,vlocal,x);
-
-		// and the exchange potential is K xp
-		vecfuncT Kx=hf().get_calc().apply_hf_exchange(world,hf().get_calc().aocc,amo,x);
-
-		// sum up: V0 xp = V_loc xp - K xp
-		vecfuncT V0=sub(world,Vx,Kx);
-
-		// now construct the two-electron contribution Gamma, cf Eqs. (7,8)
-		real_function_3d rhoprime=real_factory_3d(world);
-
-		// the Coulomb part Eq. (7) and Eq. (3)
-		for (int i=0; i<noct; ++i) rhoprime+=x[i]*active_mo[i];
-		real_function_3d pp=2.0*(*poisson)(rhoprime);
-
-		// the Coulomb part Eq. (7) and Eq. (3)
-		vecfuncT Gamma=mul(world,pp,active_mo);
-
-		// the exchange part Eq. (8)
-		for (int p=0; p<noct; ++p) {
-
-			// this is x_i * \int 1/r12 \phi_i \phi_p
-			vecfuncT x_Ppi=mul(world,x,exchange_intermediate_[p]);
-			for (int i=0; i<noct; ++i) Gamma[p]-=x_Ppi[i];
-
-			// project out the zeroth-order density Eq. (4)
-			Gamma[p]-=rho0(Gamma[p]);
-		}
+		// apply the gamma potential on the active MOs; Eq. (4-6)
+		const vecfuncT Gamma=apply_gamma(x,active_mo,rho0);
 
 		// add the local potential and the electron interaction term
 		vecfuncT Vphi=add(world,V0,Gamma);
@@ -534,7 +666,7 @@ private:
         }
 
 		// generate a new trial solution vector
-	    if (iteration<10) {
+	    if (iteration<50) {
 	    	x=GVphi;
 	    } else {
 	    	F ff=solver.update(F(world,x),F(world,residual));
@@ -542,12 +674,24 @@ private:
 	    }
 
 	    // update the x vector: orthogonalize against the occupied space
-		for (int p=0; p<noct; ++p) {
-			x[p] -= rho0(x[p]);
-			for (std::size_t r=0; r<excited_states.size(); ++r) {
-				const real_function_3d& x_rp=excited_states[r].x[p];
-				x[p] -= x_rp*inner(x_rp,x[p]);
-			}
+		for (int p=0; p<noct; ++p) x[p] -= rho0(x[p]);
+
+		// orthogonalize the roots wrt each other
+		for (std::size_t r=0; r<excited_states.size(); ++r) {
+
+			const vecfuncT& lower=excited_states[r].x;
+			// skip self
+			if (&lower==&x) continue;
+
+			Tensor<double> ovlp=inner(world,lower,x);
+
+        	compress(world,lower,false);
+        	compress(world,x,true);
+
+            for (unsigned int p=0; p<x.size(); ++p) {
+                x[p].gaxpy(1.0, lower[p], -ovlp(p), false);
+            }
+            world.gop.fence();
 		}
 
 		// normalize the transition density for all occupied orbitals
@@ -582,6 +726,70 @@ private:
 		return false;
 	}
 
+	/// apply the gamma potential of Eq. (6) on the x vector
+
+	/// @param[in]	x		the response amplitudes
+	/// @param[in]	act		the active orbitals p
+	/// @param[in]	rho0	the projector on all (frozen & active) MOs
+	/// @return		(1-\rho^0) \Gamma \phi_p
+	vecfuncT apply_gamma(const vecfuncT& x, const vecfuncT& act,
+			const Projector<double,3>& rho0) const {
+
+		// for convenience
+		const std::size_t noct=act.size();
+
+		// now construct the two-electron contribution Gamma, cf Eqs. (7,8)
+		real_function_3d rhoprime=real_factory_3d(world);
+
+		// a poisson solver
+	    std::shared_ptr<real_convolution_3d> poisson
+	    	=std::shared_ptr<real_convolution_3d>
+	    	(CoulombOperatorPtr(world,lo,bsh_eps));
+
+		// the Coulomb part Eq. (7) and Eq. (3)
+		for (int i=0; i<noct; ++i) rhoprime+=x[i]*act[i];
+		real_function_3d pp=2.0*(*poisson)(rhoprime);
+
+		// the Coulomb part Eq. (7) and Eq. (3)
+		vecfuncT Gamma=mul(world,pp,act);
+
+		// the exchange part Eq. (8)
+		for (std::size_t p=0; p<noct; ++p) {
+
+			// this is x_i * \int 1/r12 \phi_i \phi_p
+			vecfuncT x_Ppi=mul(world,x,exchange_intermediate_[p]);
+			for (std::size_t i=0; i<noct; ++i) Gamma[p]-=x_Ppi[i];
+
+			// project out the zeroth-order density Eq. (4)
+			Gamma[p]-=rho0(Gamma[p]);
+		}
+		return Gamma;
+	}
+
+	/// make the zeroth-order potential J-K+V_nuc
+
+	/// note the use of all (frozen & active) orbitals in the computation
+	/// @param[in]	x	the response vector
+	/// @return		(J-K+V_nuc) x
+	vecfuncT apply_fock_potential(const vecfuncT& x) const {
+
+	    // the local potential V^0 of Eq. (4)
+	    real_function_3d vlocal = hf().get_nuclear_potential() + hf().get_coulomb_potential();
+
+	    // make the potential for V0*xp
+		vecfuncT Vx=mul(world,vlocal,x);
+
+		// and the exchange potential is K xp
+		vecfuncT Kx=hf().get_calc().apply_hf_exchange(world,hf().get_calc().aocc,
+				hf().get_calc().amo,x);
+
+		// sum up: V0 xp = V_loc xp - K xp
+		vecfuncT V0=sub(world,Vx,Kx);
+
+		return V0;
+
+	}
+
 	/// make the 2-electron interaction intermediate
 
 	/// the intermediate is the same for all roots:
@@ -605,6 +813,78 @@ private:
 			intermediate[p]=apply(world,(*poisson),mul(world,active_mo[p],amo));
 	    }
 	    return intermediate;
+	}
+
+	/// compute the perturbed fock matrix
+
+	/// the matrix is given by
+	/// \f[
+	///   F_{pq} = < x^p_i | F | x^q_i > + < x^p_i | \Gamma^q | \phi_i >
+	/// \f]
+	/// where an amplitude is given by its components x_i, such that and
+	/// summation over the occupied orbitals i is implied
+	/// \f[
+	///   < \vec x^p | \vec x^q > = \sum_i x^p_i x^q_i
+	/// \f]
+	/// and similar for the Fock matrix elements.
+	/// Note this is NOT the response matrix A
+	Tensor<double> make_perturbed_fock_matrix(const std::vector<root>& roots,
+			const vecfuncT& act, const Projector<double,3>& rho0) const {
+
+		const std::size_t nroot=roots.size();
+		Tensor<double> Fock_pt(nroot,nroot);
+
+		START_TIMER(world);
+		// apply the unperturbed Fock operator and the Gamma potential on all
+		// components of all roots
+		for (std::size_t iroot=0; iroot<nroot; ++iroot) {
+
+			const vecfuncT& xp=roots[iroot].x;
+			// apply the unperturbed potential and the Gamma potential
+			// on the response amplitude x^p
+			const vecfuncT V0=apply_fock_potential(xp);
+			const vecfuncT Gamma=apply_gamma(xp,act,rho0);
+
+			const vecfuncT V=add(world,V0,Gamma);
+
+			// compute the matrix element V_pq
+			// <p | V | q> = \sum_i <x^p_i | V | x^q_i>
+			for (std::size_t jroot=0; jroot<nroot; ++jroot) {
+				const vecfuncT& xq=roots[jroot].x;
+				Tensor<double> xpi_Vxqi=inner(world,xq,V);
+				Fock_pt(iroot,jroot)=xpi_Vxqi.sum();
+			}
+		}
+		END_TIMER(world,"Fock_pt, potential");
+		START_TIMER(world);
+
+		// add kinetic part
+    	for (std::size_t iroot=0; iroot<nroot; ++iroot) {
+			const vecfuncT& xp=roots[iroot].x;
+	        reconstruct(world, xp);
+    	}
+
+    	std::vector< std::shared_ptr<real_derivative_3d> > gradop;
+        gradop = gradient_operator<double,3>(world);
+
+		for(int axis = 0;axis < 3;++axis) {
+
+			std::vector<vecfuncT> dxp;
+        	for (std::size_t iroot=0; iroot<nroot; ++iroot) {
+
+        		const vecfuncT& xp=roots[iroot].x;
+	            const vecfuncT d = apply(world, *(gradop[axis]), xp);
+	            dxp.push_back(d);
+	        }
+        	for (std::size_t iroot=0; iroot<nroot; ++iroot) {
+            	for (std::size_t jroot=0; jroot<nroot; ++jroot) {
+            		Tensor<double> xpi_Txqi=inner(world,dxp[iroot],dxp[jroot]);
+            		Fock_pt(iroot,jroot)+=0.5*xpi_Txqi.sum();
+            	}
+        	}
+		}
+		END_TIMER(world,"Fock_pt, kinetic");
+		return Fock_pt;
 	}
 
 	/// load a converged root from disk
@@ -631,7 +911,7 @@ private:
 	/// @param[in]	iroot	the i-th root
 	/// @param[inout]	x	the x-vector for the i-th root
 	/// @param[in]	omega	the excitation energy
-	void save_root(World& world, const int i, const root& root) {
+	void save_root(World& world, const int i, const root& root) const {
 		std::string filename="root_"+stringify(i);
 		archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
 		ar & root.omega;
@@ -656,6 +936,49 @@ private:
 		}
 		return n;
 	}
+
+	/// orthonormalize all roots using Gram-Schmidt
+	void orthonormalize(World& world, std::vector<root>& roots) const {
+
+		// first normalize
+		for (std::size_t r=0; r<roots.size(); ++r) {
+			normalize(world,roots[r].x);
+		}
+
+		// orthogonalize the roots wrt each other
+		for (std::size_t r=0; r<roots.size(); ++r) {
+			vecfuncT& x=roots[r].x;
+			for (std::size_t rr=0; rr<r; ++rr) {
+				const vecfuncT& lower=roots[rr].x;
+
+				const double ovlp=inner(world,lower,x).sum();
+				compress(world,lower,false);
+				compress(world,x,true);
+
+				for (unsigned int p=0; p<x.size(); ++p) {
+					x[p].gaxpy(1.0, lower[p], -ovlp, false);
+				}
+				world.gop.fence();
+			}
+			std::vector<double> n=normalize(world,x);
+		}
+	}
+
+	/// compute the overlap between 2 sets of roots
+	Tensor<double> overlap(const std::vector<root>& r1,
+			const std::vector<root>& r2) const {
+
+		Tensor<double> ovlp(r1.size(),r2.size());
+		for (std::size_t i=0; i<r1.size(); ++i) {
+			const vecfuncT& x1=r1[i].x;
+			for (std::size_t j=0; j<r2.size(); ++j) {
+				const vecfuncT& x2=r2[j].x;
+				ovlp(i,j)=inner(world,x1,x2).sum();
+			}
+		}
+		return ovlp;
+	}
+
 
 	/// compute the oscillator strength in the length representation
 
@@ -696,6 +1019,42 @@ private:
 		}
 		const double f= 2.0/(3.0 * root.omega) * p_if.sumsq() * 2.0;
 		return f;
+	}
+
+	/// analyze the root: oscillator strength and contributions from occ
+	void analyze(const std::vector<root>& roots) const {
+
+		const int noct=active_mo().size();
+
+		std::vector<root>::const_iterator it;
+		int iroot=0;
+		for (it=roots.begin(); it!=roots.end(); ++it, ++iroot) {
+			std::vector<double> norms=norm2s(world,it->x);
+
+			// compute the oscillator strengths
+			double osl=this->oscillator_strength_length(*it);
+			double osv=this->oscillator_strength_velocity(*it);
+
+			std::cout << std::scientific << std::setprecision(10) << std::setw(20);
+			if (world.rank()==0) {
+				std::cout.width(10); std::cout.precision(8);
+	    		print("excitation energy for root ",iroot,": ",it->omega);
+				print("oscillator strength (length)    ", osl);
+				print("oscillator strength (velocity)  ", osv);
+
+				// print out the most important amplitudes
+				print("\n  dominant contributions ");
+
+				for (std::size_t p=0; p<noct; ++p) {
+					const double amplitude=norms[p]*norms[p];
+					if (amplitude > 0.1) {
+						std::cout << "  norm(x_"<<p<<") **2  ";
+						std::cout.width(10); std::cout.precision(6);
+						std::cout << amplitude << std::endl;
+					}
+				}
+			}
+		}
 	}
 
 	/// return the active MOs only, note the shallow copy
