@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop dielectric_external_field h2dynamic newsolver
+bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric h2hf hehf 3dharmonic testsolver testspectralprop dielectric_external_field h2dynamic newsolver
 
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -14,6 +14,20 @@ testspectralprop_SOURCES = testspectralprop.cc
 testsolver_SOURCES = testsolver.cc
 
 newsolver_SOURCES = newsolver.cc
+
+hedft_SOURCES = hedft.cc ../moldft/molecule.cc  ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc  ../moldft/distpm.cc
+h2dft_SOURCES = h2dft.cc ../moldft/molecule.cc  ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc  ../moldft/distpm.cc
+if MADNESS_HAS_LIBXC
+hedft_SOURCES += ../moldft/xcfunctional_libxc.cc
+h2dft_SOURCES += ../moldft/xcfunctional_libxc.cc
+endif
+if MADNESS_HAS_MADXC
+hedft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
+h2dft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
+else
+hedft_SOURCES += ../moldft/xcfunctional_ldaonly.cc ../moldft/lda.cc
+h2dft_SOURCES += ../moldft/xcfunctional_ldaonly.cc ../moldft/lda.cc
+endif
 
 sininteg_SOURCES = sininteg.cc
 
@@ -40,6 +54,8 @@ h2dynamic_SOURCES = h2dynamic.cc
 he_SOURCES = he.cc
 
 hehf_SOURCES = hehf.cc
+
+h2hf_SOURCES = h2hf.cc
 
 tdse_SOURCES = tdse.cc
 
