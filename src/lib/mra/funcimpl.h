@@ -1543,8 +1543,8 @@ namespace madness {
             FILE * pFile;
             pFile = fopen(filename.c_str(), "w");
 
-            fprintf(pFile,"%d\n",int(npoints*nboxes));
-            fprintf(pFile,"%d points per box and %d boxes \n",npoints,nboxes);
+            fprintf(pFile,"%ld\n",npoints*nboxes);
+            fprintf(pFile,"%ld points per box and %ld boxes \n",npoints,nboxes);
 
             // loop over all leaf boxes
 	        typename std::vector<keyT>::const_iterator key_it=keys.begin();
@@ -1572,9 +1572,9 @@ namespace madness {
 							for (size_t k=0; k<npt; ++k) {
 								c[2] = cell(2,0) + h*cell_width[2]*(l[2] + qx(k)); // z
 								// grid weights
-					            double scale = pow(0.5,0.5*NDIM*key.level())*
-					            		sqrt(FunctionDefaults<NDIM>::get_cell_volume());
-					            double w=cdata.quad_phiw[i]*cdata.quad_phiw[j]*cdata.quad_phiw[k];
+//					            double scale = pow(0.5,0.5*NDIM*key.level())*
+//					            		sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+//					            double w=cdata.quad_phiw[i]*cdata.quad_phiw[j]*cdata.quad_phiw[k];
 
 								fprintf(pFile,"%18.12f %18.12f %18.12f\n",c[0],c[1],c[2]);
 //								fprintf(pFile,"%18.12e %18.12e %18.12e %18.12e\n",c[0],c[1],c[2],w*scale);
@@ -1732,7 +1732,7 @@ namespace madness {
 //            while (1) {
             while (std::getline(gfile,gline)) {
 
-            	double x,y,z,x1,y1,z1,val;
+            	double x1,y1,z1,val;
 
             	// get the key
 				long nn;

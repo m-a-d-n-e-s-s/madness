@@ -358,12 +358,34 @@ namespace madness {
         typename enable_if_c<NDIM==FDIM, Function<T,FDIM> >::type
         operator()(const Function<T,FDIM>& f) const {
 
-            Function<T,NDIM> sum=FunctionFactory<T,NDIM>(f.world());
+        	World& world=f.world();
 
-            for (unsigned int i=0; i<p_.size(); ++i) {
-                const double ovlp2=inner(f,p_[i]);
-                sum=(sum+ovlp2*p_[i]).truncate().reduce_rank();
+        	// tighten threshold
+        	const double thresh=FunctionDefaults<6>::get_thresh();
+        	const double tight_thresh=thresh/p_.size();
+        	FunctionDefaults<6>::set_thresh(tight_thresh);
+        	Function<T,NDIM> sum=FunctionFactory<T,NDIM>(f.world());
+
+            compress(world, p_,false);	// don't fence
+        	sum.compress(false);
+            f.compress();				// fence
+
+        	// the overlap of all orbitals with the rhs
+        	Tensor<double> ovlp=inner(world,f,p_);
+
+            for (int i=0; i<p_.size(); ++i) {
+            	if (ovlp(i) != T(0.0)) sum.gaxpy(1.0,p_[i],ovlp(i),false);
             }
+            world.gop.fence();
+        	FunctionDefaults<6>::set_thresh(thresh);
+        	sum.set_thresh(thresh);
+            sum.truncate();
+
+//
+//            for (unsigned int i=0; i<p_.size(); ++i) {
+//                const double ovlp2=inner(f,p_[i]);
+//                sum=(sum+ovlp2*p_[i]).truncate().reduce_rank();
+//            }
             return sum;
         }
 
@@ -389,18 +411,14 @@ namespace madness {
         World& world;
         Calculation calc;
         mutable double coords_sum;     // sum of square of coords at last solved geometry
-        mutable double E; //< Current energy
 
         // save the Coulomb potential
         mutable real_function_3d coulomb;
 
     public:
 
-        HartreeFock(World& world, Calculation& calc)
-            : world(world)
-            , calc(calc)
-            , coords_sum(-1.0)
-        {
+        HartreeFock(World& world, Calculation& calc) : world(world)
+            , calc(calc), coords_sum(-1.0) {
         }
 
         bool provides_gradient() const {return true;}
@@ -530,6 +548,14 @@ namespace madness {
     	ElectronPair(const int i, const int j)
     		: i(i), j(j), e_singlet(uninitialized()), e_triplet(uninitialized()),
     		  ij_gQf_ij(uninitialized()), ji_gQf_ij(uninitialized()), iteration(0), converged(false) {
+    	}
+
+    	/// print the pair's energy
+    	void print_energy() const {
+            if (function.world().rank()==0) {
+            	printf("final correlation energy %2d %2d %12.8f %12.8f\n",
+            			i,j,e_singlet,e_triplet);
+            }
     	}
 
     	static double uninitialized() {return 1.e10;}
@@ -800,6 +826,7 @@ namespace madness {
         		for (int i=param.freeze; i<hf->nocc(); ++i) {
         			for (int j=i; j<hf->nocc(); ++j) {
         				if (pair(i,j).converged) {
+        					pair(i,j).print_energy();
 							correlation_energy+=pair(i,j).e_singlet+pair(i,j).e_triplet;
         				} else {
 							pair(i,j)=solve_residual_equations(i,j);
@@ -912,13 +939,8 @@ namespace madness {
             save_function(result.function,name);
 
             // print the final pair energies
-            if (world.rank()==0) {
-            	printf("final correlation energy %2d %2d %12.8f %12.8f\n",result.i,result.j,
-            			result.e_singlet,result.e_triplet);
-            }
-
+            result.print_energy();
             return result;
-
         }
 
 		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..

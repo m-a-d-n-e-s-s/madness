@@ -36,7 +36,7 @@
 
 /*!
   \file examples/tdhf.cc
-  \brief compute the time-dependent HF equations (currently in the CCS approximation)
+  \brief compute the time-dependent HF equations (currently CIS approximation)
 
   The source is
   <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
@@ -110,7 +110,7 @@ struct allocator {
 };
 
 
-/// POD holding the excitation energy and the response vector for a single excitation
+/// POD holding excitation energy and response vector for a single excitation
 struct root {
 	root() : omega(0.0) {}
 	root(vecfuncT& x, double omega) : x(x), omega(omega) {}
@@ -125,6 +125,9 @@ double inner(const root& a, const root& b) {
 	return inner(a.x[0].world(),a.x,b.x).sum();
 }
 
+double rfunction(const coord_3d& r) {
+    return sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]);
+}
 
 /// helper struct for computing the moments
 struct xyz {
@@ -148,7 +151,8 @@ public:
 	CIS(World& world, const HartreeFock& hf, const std::string input)
 		: world(world), hf_(hf), guess_("all_orbitals"), nroot_(5)
 		, nfreeze_(0), econv_(hf.get_calc().param.econv)
-		, dconv_(hf.get_calc().param.dconv), print_grid_(false) {
+		, dconv_(hf.get_calc().param.dconv), print_grid_(false),
+		fixed_point_(false) {
 
 
 		omega_=std::vector<double>(9,100.0);
@@ -165,6 +169,7 @@ public:
             else if (tag == "freeze") ss >> nfreeze_;
             else if (tag == "econv") ss >> econv_;
             else if (tag == "dconv") ss >> dconv_;
+            else if (tag == "fixed_point") fixed_point_=true;
             else if (tag == "print_grid") print_grid_=true;
             else if (tag == "omega0") ss >> omega_[0];
             else if (tag == "omega1") ss >> omega_[1];
@@ -189,6 +194,8 @@ public:
             madness::print("  energy convergence ", econv_);
             madness::print("max residual (dconv) ", dconv_);
             madness::print("     number of roots ", nroot_);
+            madness::print(" omega ", omega_[0],omega_[1],omega_[2]);
+
         }
 
 
@@ -214,10 +221,11 @@ public:
 	        roots().push_back(root1);
 	    }
 
-	    // KAIN solver
-	    XNonlinearSolver<F,double,allocator> solver =
-	    		XNonlinearSolver<F,double,allocator>(allocator(world,noct));
-	    solver.set_maxsub(3);
+	    // one KAIN solver for each root
+	    typedef  XNonlinearSolver<F,double,allocator> solverT;
+	    solverT onesolver(allocator(world,noct));
+	    onesolver.set_maxsub(3);
+	    std::vector<solverT> solver(nroot_,onesolver);
 
 	    bool converged=iterate_all_CIS_roots(world,solver,roots());
 	    if (converged) {
@@ -279,6 +287,9 @@ private:
 
     /// external programs (e.g. Koala) need this grid to export the guess roots
     bool print_grid_;
+
+    /// perform a fixed-point iteration of the given excitation energies
+    bool fixed_point_;
 
     /// guess amplitudes
 
@@ -369,11 +380,21 @@ private:
     		for (std::size_t ivir=0; ivir<hf().get_calc().ao.size(); ++ivir) {
     			all_orbitals+=hf().get_calc().ao[ivir];
 			}
-    		const double norm=all_orbitals.norm2();
-    		all_orbitals.scale(1.0/(norm*norm));
+
+    		// construct the projector on the occupied space
+    		const vecfuncT& amo=hf().get_calc().amo;
+    		Projector<double,3> rho0(amo);
+
+    	    real_function_3d r=real_factory_3d(world).f(rfunction);
+
+    		// multiply the guess with r and project out the occupied space
+    		real_function_3d r_all_orbitals=all_orbitals*r;
+    		r_all_orbitals-=rho0(r_all_orbitals);
+
     		for (std::size_t iocc=nfreeze_; iocc<nmo; ++iocc) {
-    			root.x.push_back(all_orbitals);
+    			root.x.push_back(copy(r_all_orbitals));
     		}
+
 
     	} else {
           	MADNESS_EXCEPTION("unknown source to guess CIS amplitudes",1);
@@ -381,7 +402,7 @@ private:
     	MADNESS_ASSERT(root.x.size()==noct);
 
     	// normalize this root
-    	normalize(world,root.x);
+    	normalize(world,root);
 
     	return root;
     }
@@ -395,7 +416,7 @@ private:
     ///                         on successful exit: converged root
     /// @return	convergence reached or not
 	template<typename solverT>
-    bool iterate_all_CIS_roots(World& world, solverT& solver,
+    bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
     		std::vector<root>& roots) const {
 
 		// check orthogonality of the roots
@@ -427,7 +448,7 @@ private:
 			START_TIMER(world);
 			for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
 				std::cout << std::setw(4) << iroot << " ";
-				error(iroot)=iterate_one_CIS_root(world,solver,roots[iroot]);
+				error(iroot)=iterate_one_CIS_root(world,solver[iroot],roots[iroot]);
 			}
 			orthonormalize(world,roots);
 			END_TIMER(world,"BSH step");
@@ -505,7 +526,7 @@ private:
     /// @param[inout]	root	the current root that we solve
     /// @return			the residual error
 	template<typename solverT>
-	bool iterate_one_CIS_root(World& world, solverT& solver, root& thisroot) const {
+	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot) const {
 
 		// for convenience
 		const vecfuncT& amo=hf().get_calc().amo;
@@ -568,9 +589,16 @@ private:
         }
 
 		// update the energy
-		omega+=delta;
+		if (not fixed_point_) omega+=delta;
 
 	    // update the x vector: orthogonalize against the occupied space
+	    if (std::fabs(delta)>1.e-3) {
+	    	x=GVphi;
+	    } else {
+	    	F ff=solver.update(F(world,x),F(world,residual));
+	    	x=ff.x;
+	    }
+
 		x=GVphi;
 		for (int p=0; p<noct; ++p) x[p] -= rho0(GVphi[p]);
 
@@ -695,8 +723,10 @@ private:
 		}
 
 		// normalize the transition density for all occupied orbitals
-		const std::vector<double> norms=normalize(world,x);
+		root dummy(x,omega);
+		normalize(world,dummy);
 		truncate(world,x);
+		const std::vector<double> norms=norm2s(world,x);
 
 		// check energy, residual, and individual amplitude convergence
 		bool converged=true;
@@ -924,17 +954,9 @@ private:
 	/// of all amplitudes equals 1.
 	/// @param[in]		world the world
 	/// @param[inout]	x	the excitation vector
-	/// @return			the squared amplitudes for each x
-	std::vector<double> normalize(World& world, vecfuncT& x) const {
-		std::vector<double> n=norm2s(world,x);
-		double totalnorm2=0.0;
-		for (std::size_t i=0; i<x.size(); ++i) totalnorm2+=n[i]*n[i];
-		totalnorm2=sqrt(totalnorm2);
-		for (std::size_t i=0; i<x.size(); ++i) {
-			x[i].scale(1.0/totalnorm2);
-			n[i]=n[i]*n[i]/totalnorm2;
-		}
-		return n;
+	void normalize(World& world, root& x) const {
+		const double n2=inner(x,x);
+		scale(world,x.x,1.0/sqrt(n2));
 	}
 
 	/// orthonormalize all roots using Gram-Schmidt
@@ -942,7 +964,7 @@ private:
 
 		// first normalize
 		for (std::size_t r=0; r<roots.size(); ++r) {
-			normalize(world,roots[r].x);
+			normalize(world,roots[r]);
 		}
 
 		// orthogonalize the roots wrt each other
@@ -960,7 +982,7 @@ private:
 				}
 				world.gop.fence();
 			}
-			std::vector<double> n=normalize(world,x);
+			normalize(world,roots[r]);
 		}
 	}
 

@@ -143,6 +143,12 @@ namespace madness {
             , alloc(alloc)
         {}
 
+	XNonlinearSolver(const XNonlinearSolver& other)
+            : maxsub(other.maxsub)
+            , alloc(other.alloc)
+        {}
+
+
         void set_maxsub(int maxsub) 
         {
             this->maxsub = maxsub;
