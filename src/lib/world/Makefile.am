@@ -19,6 +19,10 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
                       
+TESTS = test_array test_worldptr test_worldref test_prof \
+        test_hashdc test_hello test_atomicint test_future2 \
+        test_future3 test_dc test_hashthreaded test_queue test_world test_worldprofile 
+                      
 test_array_SOURCES = test_array.cc
 test_array_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 test_array_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)

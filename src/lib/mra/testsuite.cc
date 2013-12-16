@@ -180,7 +180,7 @@ double ttt, sss;
 
 
 template <typename T, std::size_t NDIM>
-void test_basic(World& world) {
+int test_basic(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -240,13 +240,16 @@ void test_basic(World& world) {
 
     world.gop.fence();
     if (world.rank() == 0) print("projection, compression, reconstruction, truncation OK",ok,"\n\n");
+    if (not ok) return 1;
+    return 0;
 }
 
 template <typename T, std::size_t NDIM>
-void test_conv(World& world) {
+int test_conv(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
+    bool ok=true;
     if (world.rank() == 0) {
         print("Test convergence - log(err)/(n*k) should be roughly const, a least for each value of k");
         print("                 - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
@@ -274,6 +277,8 @@ void test_conv(World& world) {
 
     world.gop.fence();
     if (world.rank() == 0) print("test conv OK\n\n");
+    if (ok) return 0;
+    return 1;
 }
 
 template <typename T, std::size_t NDIM>
@@ -313,7 +318,7 @@ struct test_multiop {
 };
 
 template <typename T, std::size_t NDIM>
-void test_math(World& world) {
+int test_math(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -566,13 +571,16 @@ void test_math(World& world) {
     if (world.rank() == 0) print(ok);
 
     world.gop.fence();
+    if (not ok) return 1;
+    return 0;
 }
 
 
 template <typename T, std::size_t NDIM>
-void test_diff(World& world) {
+int test_diff(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
+    bool ok=true;
 
     if (world.rank() == 0) {
         print("\nTest differentiation - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
@@ -631,10 +639,13 @@ void test_diff(World& world) {
         START_TIMER;
         double err = dfdx.err(df);
         END_TIMER("err");
+        CHECK(err, 1e-10, "err in test_diff");
 
         if (world.rank() == 0) print("    error", err);
     }
     world.gop.fence();
+    if (not ok) return 1;
+    return 0;
 }
 
 
@@ -644,9 +655,10 @@ namespace madness {
 }
 
 template <typename T, std::size_t NDIM>
-void test_op(World& world) {
+int test_op(World& world) {
     test_rnlp();
 
+    bool ok=true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -727,10 +739,14 @@ void test_op(World& world) {
         print("      op*f norm is", rn);
         print("  op*f total error", re);
     }
+    CHECK(re, 1e-10, "err in test_op");
+
 //     for (int i=0; i<=100; ++i) {
 //         coordT c(-10.0+20.0*i/100.0);
 //         print("           ",i,c[0],r(c),r(c)-(*fexact)(c));
 //     }
+    if (ok) return 0;
+    return 1;
 }
 
 /// Computes the electrostatic potential due to a Gaussian charge distribution
@@ -757,10 +773,10 @@ public:
     }
 };
 
-void test_coulomb(World& world) {
+int test_coulomb(World& world) {
     typedef Vector<double,3> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
-
+    bool ok=true;
     if (world.rank() == 0) {
         print("\nTest Coulomb operator - type =", archive::get_type_name<double>(),", ndim = 3 (only)\n");
     }
@@ -795,6 +811,7 @@ void test_coulomb(World& world) {
         print("     f total error", err);
         //print(" truncating");
     }
+    CHECK(err, 1e-10, "test_coulomb 1");
 
 //     START_TIMER;
 //     f.truncate();
@@ -850,6 +867,10 @@ void test_coulomb(World& world) {
 //             print("           ",i,r(c),(*fexact)(c));
 //         }
     }
+    CHECK(rerr, 1e-10, "err in test_coulomb");
+
+    if (ok) return 0;
+    return 1;
 }
 
 class QMtest : public FunctionFunctorInterface<double_complex,1> {
@@ -881,7 +902,7 @@ public:
     };
 
 
-void test_qm(World& world) {
+int test_qm(World& world) {
     /*
 
       This is the exact kernel of the free-particle propagator
@@ -934,6 +955,7 @@ void test_qm(World& world) {
     typedef Function<double_complex,1> functionT;
     typedef FunctionFactory<double_complex,1> factoryT;
 
+    bool ok=true;
     //int k = 16;
     //double thresh = 1e-12;
 
@@ -998,6 +1020,7 @@ void test_qm(World& world) {
 
         //         print("psi");
         //         psi.print_tree();
+        CHECK(err, 1e-10, "err in test_qm 1");
 
         functionT pp = apply_1d_realspace_push(*q1d, psi, 0);
 
@@ -1052,11 +1075,12 @@ void test_qm(World& world) {
 //     }
 //     if (world.rank() == 0) plot.close();
 
-    return;
+    if (ok) return 0;
+    return 1;
 }
 
 template <typename T, std::size_t NDIM>
-void test_plot(World& world) {
+int test_plot(World& world) {
     bool ok = true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
@@ -1110,14 +1134,16 @@ void test_plot(World& world) {
     plot_line("testline3", 101, coordT(-L), coordT(L), f, f*f, 2.0*f);
 
     if (world.rank() == 0) print("evaluation of cube/slice for plotting OK", ok);
+    if (ok) return 0;
+    return 1;
 }
 
 template <typename T, std::size_t NDIM>
-void test_io(World& world) {
+int test_io(World& world) {
     if (world.rank() == 0) {
         print("\nTest IO - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
-
+    bool ok=true;
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
@@ -1149,18 +1175,22 @@ void test_io(World& world) {
     double err = (g-f).norm2();
 
     if (world.rank() == 0) print("err = ", err);
+    CHECK(err,1e-12,"test_io");
 
     //    MADNESS_ASSERT(err == 0.0);
 
     if (world.rank() == 0) print("test_io OK");
     world.gop.fence();
+    if (ok) return 0;
+    return 1;
 }
 
 template <typename T, std::size_t NDIM>
-void test_apply_push_1d(World& world) {
+int test_apply_push_1d(World& world) {
     typedef Vector<double,NDIM> coordT;
     typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
+    bool ok=true;
     if (world.rank() == 0)
         print("Test push1d, type =",archive::get_type_name<T>(),", ndim =",NDIM);
 
@@ -1202,6 +1232,8 @@ void test_apply_push_1d(World& world) {
 
     if (world.rank() == 0) print("result", opf.eval(origin).get());
     world.gop.fence();
+    if (ok) return 0;
+    return 1;
 }
 
 
@@ -1210,6 +1242,10 @@ void test_apply_push_1d(World& world) {
 
 int main(int argc, char**argv) {
     initialize(argc, argv);
+
+    // number of failed tests
+    int nfail=0;
+
     try {
         World world(SafeMPI::COMM_WORLD);
         if (world.rank() == 0) {
@@ -1252,15 +1288,16 @@ int main(int argc, char**argv) {
 
         std::cout.precision(8);
 
-        test_basic<double,1>(world);
-        test_conv<double,1>(world);
-        test_math<double,1>(world);
-        test_diff<double,1>(world);
-        test_op<double,1>(world);
-        test_plot<double,1>(world);
-        test_apply_push_1d<double,1>(world);
 
-        test_io<double,1>(world);
+        nfail+=test_basic<double,1>(world);
+        nfail+=test_conv<double,1>(world);
+        nfail+=test_math<double,1>(world);
+        nfail+=test_diff<double,1>(world);
+        nfail+=test_op<double,1>(world);
+        nfail+=test_plot<double,1>(world);
+        nfail+=test_apply_push_1d<double,1>(world);
+
+        nfail+=test_io<double,1>(world);
 
         // stupid location for this test
         GenericConvolution1D<double,GaussianGenericFunctor<double> > gen(10,GaussianGenericFunctor<double>(100.0,100.0),0);
@@ -1270,47 +1307,33 @@ int main(int argc, char**argv) {
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-        test_qm(world);
+        nfail+=test_qm(world);
 
-        test_basic<double_complex,1>(world);
-        test_conv<double_complex,1>(world);
-        test_math<double_complex,1>(world);
-        test_diff<double_complex,1>(world);
-        test_op<double_complex,1>(world);
-        test_plot<double_complex,1>(world);
-        test_io<double_complex,1>(world);
+        nfail+=test_basic<double_complex,1>(world);
+        nfail+=test_conv<double_complex,1>(world);
+        nfail+=test_math<double_complex,1>(world);
+        nfail+=test_diff<double_complex,1>(world);
+        nfail+=test_op<double_complex,1>(world);
+        nfail+=test_plot<double_complex,1>(world);
+        nfail+=test_io<double_complex,1>(world);
 
         //TaskInterface::debug = true;
-        test_basic<double,2>(world);
-        test_conv<double,2>(world);
-        test_math<double,2>(world);
-        test_diff<double,2>(world);
-        test_op<double,2>(world);
-        test_plot<double,2>(world);
-        test_io<double,2>(world);
+        nfail+=test_basic<double,2>(world);
+        nfail+=test_conv<double,2>(world);
+        nfail+=test_math<double,2>(world);
+        nfail+=test_diff<double,2>(world);
+        nfail+=test_op<double,2>(world);
+        nfail+=test_plot<double,2>(world);
+        nfail+=test_io<double,2>(world);
 
-        test_basic<double,3>(world);
-        test_conv<double,3>(world);
-        test_math<double,3>(world);
-        test_diff<double,3>(world);
-        test_op<double,3>(world);
-        test_coulomb(world);
-        test_plot<double,3>(world);
-        test_io<double,3>(world);
-
-        TensorType tt=TT_2D;
-        FunctionDefaults<6>::set_tensor_type(tt);
-        if (world.rank() == 0) print("tensor type for 6d", tt);
-
-        test_basic<double,6>(world);
-        test_conv<double,6>(world);
-        test_math<double,6>(world);
-        test_diff<double,6>(world);
-        test_op<double,6>(world);
-        test_coulomb(world);
-        test_plot<double,6>(world);
-        test_io<double,6>(world);
-
+        nfail+=test_basic<double,3>(world);
+        nfail+=test_conv<double,3>(world);
+        nfail+=test_math<double,3>(world);
+        nfail+=test_diff<double,3>(world);
+        nfail+=test_op<double,3>(world);
+        nfail+=test_coulomb(world);
+        nfail+=test_plot<double,3>(world);
+        nfail+=test_io<double,3>(world);
 
         //test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
@@ -1358,6 +1381,6 @@ int main(int argc, char**argv) {
     }
 
     finalize();
-    return 0;
+    return nfail;
 }
 

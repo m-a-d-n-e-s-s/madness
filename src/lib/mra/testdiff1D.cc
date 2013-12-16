@@ -19,21 +19,24 @@ static const int init_lev = 2;
 static const int test_axis = 0;
 static const double Length = 4.;
 
-void compare(World& world, functionT test, functionT exact, const char *str)
+int compare(World& world, functionT test, functionT exact, const char *str)
 {
    double error = (exact - test).norm2() ;
+   int success;
 
    if (world.rank() == 0) {
        std::cerr << "Error in " << str << ": " << error ;
 
        if (error < thresh) {
            std::cerr << " PASSED " << std::endl ;
+           success=0;
        }
        else {
            std::cerr << " FAILED " << std::endl ;
+           success=1;
        }
    }
-   return ;
+   return success;
 }
 
 
@@ -67,6 +70,7 @@ int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
+    int success=0;
 
         std::cout.precision(6);
 
@@ -95,7 +99,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,1> dx1(world, test_axis, bc, left_d, right_d, k) ;
         functionT du1 = dx1(u) ;
-        compare(world, du1, due, "du1") ;
+        success+=compare(world, du1, due, "du1") ;
 
         // Right B.C.: Free
         // Left  B.C.: Dirichlet
@@ -104,7 +108,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,1> dx2(world, test_axis, bc, left_d, right_d, k) ;
         functionT du2 = dx2(u) ;
-        compare(world, du2, due, "du2") ;
+        success+=compare(world, du2, due, "du2") ;
 
         // Right B.C.: Neumann
         // Left  B.C.: Free
@@ -113,7 +117,7 @@ int main(int argc, char** argv) {
 
         Derivative<double,1> dx3(world, test_axis, bc, left_n, right_n, k) ;
         functionT du3 = dx3(u) ;
-        compare(world, du3, due, "du3") ;
+        success+=compare(world, du3, due, "du3") ;
 
         // Right B.C.: Free
         // Left  B.C.: Neumann
@@ -122,13 +126,13 @@ int main(int argc, char** argv) {
 
         Derivative<double,1> dx4(world, test_axis, bc, left_n, right_n, k) ;
         functionT du4 = dx4(u) ;
-        compare(world, du4, due, "du4") ;
+        success+=compare(world, du4, due, "du4") ;
 
          world.gop.fence();
 
     finalize();
 
-    return 0;
+    return success;
 }
 
 

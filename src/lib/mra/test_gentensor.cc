@@ -52,7 +52,6 @@ using madness::_reverse;
 
 #include <iostream>
 #include <gtest/gtest.h>
-#include <tr1/tuple>
 
 namespace {
 
@@ -101,7 +100,7 @@ namespace {
 		GenTensor<double> g0;
 
 		UnaryGenTest() {
-			madness::Random::Random(100);
+			madness::Random(100);
             int alldim= (madness::RandomValue<long>()&0x5) + 3;
 
             tt=std::tr1::get<0>(this->GetParam());

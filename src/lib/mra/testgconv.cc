@@ -70,14 +70,17 @@ double gconvh(const coord_1d& r) {
 }
 
 
-void test_gconv(World& world) {
+int test_gconv(World& world) {
     coord_1d origin(0.0), lo(-L), hi(L);
     double width = 2.0*L;
+    int success=0;
 
     if (world.rank() == 0) print("Test gconv operation");
 
-    real_function_1d f = real_factory_1d(world).f(g);
-    print("error in integral(g) ", f.trace()-1.0);
+    const real_function_1d f = real_factory_1d(world).f(g);
+    double error=f.trace()-1.0;
+    print("error in integral(g) ", error);
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
     ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
@@ -85,29 +88,43 @@ void test_gconv(World& world) {
     real_convolution_1d op(world, ops);
 
     real_function_1d opf = op(f);
-    print("error in integral(op(g)) ", opf.trace()-1.0);
+    print("error in integral(op(g)) ", error);
+    error=opf.trace()-1.0;
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     real_function_1d exact = real_factory_1d(world).f(gconvg);
     print("norm2(g conv g - exact)", (opf-exact).norm2());
+    error=(opf-exact).norm2();
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     real_function_1d q = real_factory_1d(world).f(h);
-    print("error in integral(h) ", q.trace());
-    print("error in norm2(h)", q.norm2() - sqrt(sqrt(2.0*constants::pi)));
+    error=q.trace();
+    print("error in integral(h) ", error);
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
+
+    error=q.norm2() - sqrt(sqrt(2.0*constants::pi));
+    print("error in norm2(h)", error);
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     real_function_1d opq = op(q);
     exact = real_factory_1d(world).f(gconvh);
-    print("norm2(g conv h - exact)", (opq-exact).norm2());
+    error=(opq-exact).norm2();
+    print("norm2(g conv h - exact)", error);
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     ops[0].reset(new GaussianConvolution1D<double>(k, width*width*sqrt(8.0),
             width*width, 1, false));
     real_convolution_1d oph(world, ops);
 
     opq = oph(f);
-    print("norm2(h conv g - exact)", (opq-exact).norm2());
+    error=(opq-exact).norm2();
+    print("norm2(h conv g - exact)", error);
+    if (error>FunctionDefaults<1>::get_thresh()) success++;
 
     plot_line("opf.dat", 1001, lo, hi, q, opq, exact);
 
     world.gop.fence();
+    return success;
 }
 
 
@@ -115,6 +132,7 @@ int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
 
+    int success=0;
     try {
         startup(world,argc,argv);
 
@@ -122,7 +140,7 @@ int main(int argc, char**argv) {
         FunctionDefaults<1>::set_k(k);
         FunctionDefaults<1>::set_thresh(thresh);
         FunctionDefaults<1>::set_initial_level(5);
-        test_gconv(world);
+        success+=test_gconv(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -160,6 +178,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return success;
 }
 

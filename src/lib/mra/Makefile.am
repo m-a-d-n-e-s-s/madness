@@ -3,8 +3,17 @@ include $(top_srcdir)/config/MakeGlobal.am
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
-bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir testqm test6 testseprep test_gentensor
+bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir testqm testper test6 testseprep test_gentensor
 lib_LIBRARIES = libMADmra.a
+
+
+
+
+
+TESTS = testbsh testproj testpdiff testper test_gentensor test6 testseprep \
+        testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
+        testsuite 
+
 
 data_DATA = autocorr coeffs gaussleg
 
@@ -19,7 +28,7 @@ LDADD = libMADmra.a $(LIBLINALG) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPAR
 libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       startup.cc legendre.cc twoscale.cc gfit.cc qmprop.cc \
                       \
-                      adquad.h  funcimpl.h  indexit.h  legendre.h operator.h  vmra.h \
+                      adquad.h  funcimpl.h  indexit.h  legendre.h  operator.h  vmra.h \
                       funcdefaults.h  key.h mra.h      power.h     qmprop.h  twoscale.h lbdeux.h mraimpl.h \
                       funcplot.h function_common_data.h
 
@@ -32,6 +41,7 @@ test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBTENSOR) $(LIBMISC) $(
 
 testsuite_SOURCES = testsuite.cc test_sepop.cc
 testperiodic_SOURCES = testperiodic.cc
+testper_SOURCES = testper.cc test_sepop.cc
 testbsh_SOURCES = testbsh.cc
 test6_SOURCES = test6.cc
 testseprep_SOURCES = testseprep.cc

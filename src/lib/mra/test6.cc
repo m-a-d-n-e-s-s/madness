@@ -340,7 +340,7 @@ int test_add(World& world, const long& k, const double thresh) {
     	real_function_3d r=copy(one3);
     	r.reconstruct(); gauss3.reconstruct();
     	r+=gauss3;
-    	nerror+=check(!r.is_compressed(),"is reconstructed");
+    	nerror+=check(r.is_compressed(),"is reconstructed");
     	double error1=r.err(gauss_plus_one_3d);
     	nerror+=check_small(error1,thresh,"operator+=, reconstructed");
     }
@@ -721,7 +721,7 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return error;
 }
 
 

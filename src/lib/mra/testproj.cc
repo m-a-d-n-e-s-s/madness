@@ -69,18 +69,19 @@ public:
 
 
 
-template <typename T>
-void test_proj(World& world) {
-    typedef Vector<double,3> coordT;
-    typedef std::shared_ptr< FunctionFunctorInterface<T,3> > functorT;
+template <typename T, std::size_t NDIM>
+int test_proj(World& world) {
+    typedef Vector<double,NDIM> coordT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
-    FunctionDefaults<3>::set_k(6);
-    FunctionDefaults<3>::set_thresh(1e-8);
-    FunctionDefaults<3>::set_initial_level(5);
-    FunctionDefaults<3>::set_refine(true);
-    FunctionDefaults<3>::set_autorefine(true);
-    FunctionDefaults<3>::set_truncate_mode(0);
-    FunctionDefaults<3>::set_truncate_on_project(false);
+    FunctionDefaults<NDIM>::set_k(6);
+    FunctionDefaults<NDIM>::set_thresh(1e-8);
+    FunctionDefaults<NDIM>::set_initial_level(5);
+    FunctionDefaults<NDIM>::set_refine(true);
+    FunctionDefaults<NDIM>::set_autorefine(true);
+    FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_truncate_on_project(false);
+    int success=0;
 
     const double expnt = 100.0;
     const double coeff = pow(expnt/constants::pi,1.5);
@@ -90,30 +91,39 @@ void test_proj(World& world) {
 
     for (int i=7; i<=7; ++i) {
         double L = pow(2.0,double(i));
-        FunctionDefaults<3>::set_cubic_cell(-L,L);
-        print("I think the cell volume is", FunctionDefaults<3>::get_cell_volume());
+        FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
+        print("I think the cell volume is", FunctionDefaults<NDIM>::get_cell_volume());
 
-        Function<T,3> f = FunctionFactory<T,3>(world).functor(functorT(new Gaussian<T,3>(origin, expnt, coeff)));
+        functorT gaussfunctor(new Gaussian<T,NDIM>(origin, expnt, coeff));
+        Gaussian<T,NDIM> gauss(origin, expnt, coeff);
+        Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(gaussfunctor);
         f.truncate();
         f.reconstruct();
         print("L",L,f.trace(),f.norm2(),f.size()/6/6/6,f.max_depth());
+        double err=f.err(gauss);
+        if (world.rank()==0) print("error in ",NDIM, "dimensions ", err);
+        if (err>FunctionDefaults<3>::get_thresh()) success++;
 
         //f.print_tree();
 
     }
+    return success;
 }
 
 
 int main(int argc, char**argv) {
     initialize(argc,argv);
     World world(SafeMPI::COMM_WORLD);
+    int success=0;
 
     try {
         startup(world,argc,argv);
 
         std::cout.precision(8);
 
-        test_proj<double>(world);
+        success+=test_proj<double,1>(world);
+        success+=test_proj<double,2>(world);
+        success+=test_proj<double,3>(world);
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -151,6 +161,6 @@ int main(int argc, char**argv) {
     world.gop.fence();
     finalize();
 
-    return 0;
+    return success;
 }
 
