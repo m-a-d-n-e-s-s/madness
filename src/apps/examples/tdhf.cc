@@ -502,7 +502,7 @@ private:
 
 			for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
 		        roots[iroot].x=vc[iroot];
-		        normalize(world,roots[iroot].x);
+		        normalize(world,roots[iroot]);
 		        roots[iroot].omega=evals[iroot];
 			}
 
