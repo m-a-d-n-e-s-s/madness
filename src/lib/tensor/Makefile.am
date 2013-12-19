@@ -3,6 +3,8 @@ include $(top_srcdir)/config/MakeGlobal.am
 bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic
 lib_LIBRARIES = libMADtensor.a
 
+TESTS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic
+
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \

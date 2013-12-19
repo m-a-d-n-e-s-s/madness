@@ -14,7 +14,9 @@ AC_DEFUN([ACX_WITH_ELEMENTAL],
       *)
         acx_with_elemental=yes
         CPPFLAGS="-I$withval/include $CPPFLAGS"
-        ELEMENTAL_LIBS="-L$withval/lib -lelemental -lpmrrr -lelem-dummy-lib"
+        #ELEMENTAL_LIBS="-L$withval/lib -lelemental -lpmrrr -lelem-dummy-lib"
+        #for 0.81
+        ELEMENTAL_LIBS="-L$withval/lib -lelemental -lpmrrr "
 	if test -f "$withval/lib/liblapack-addons.a"; then
 	   ELEMENTAL_LIBS="$ELEMENTAL_LIBS -llapack-addons"
 	fi

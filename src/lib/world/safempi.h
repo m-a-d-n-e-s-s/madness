@@ -116,6 +116,17 @@ namespace SafeMPI {
     namespace detail {
         /// Initialize SafeMPI::COMM_WORLD
         inline void init_comm_world();
+
+        inline void print_mpi_error(const int rc, const char* function,
+                const int line, const char* file)
+        {
+            int len = 0;
+            char error_string[MPI_MAX_ERROR_STRING];
+            MPI_Error_string(rc, error_string, &len);
+            std::cerr << "!!! MPI ERROR (" << rc << ") in " << function <<
+                    " at " << file << "(" << line << "): " << error_string << "\n";
+        }
+
     }  // namespace detail
 
     /// SafeMPI exception object
@@ -386,11 +397,15 @@ namespace SafeMPI {
             }
 
             ~Impl() {
-                if(Is_initialized())
-                    MADNESS_MPI_TEST(MPI_Group_free(&group));
+                if(Is_initialized()) {
+                    const int mpi_error_code = MPI_Group_free(&group);
+                    if(mpi_error_code != MPI_SUCCESS)
+                        ::SafeMPI::detail::print_mpi_error(mpi_error_code,
+                                "SafeMPI::Group::Impl::~Impl()", __LINE__, __FILE__);
+                }
             }
 
-        };
+        }; // struct Impl
 
         friend class Intracomm;
 

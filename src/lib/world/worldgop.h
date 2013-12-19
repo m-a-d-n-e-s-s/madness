@@ -30,7 +30,7 @@
 
 
   $Id$
-*/
+ */
 
 
 #ifndef MADNESS_WORLD_WORLDGOP_H__INCLUDED
@@ -46,6 +46,9 @@
 #include <world/bufar.h>
 #include <world/worldfwd.h>
 #include <world/deferred_cleanup.h>
+#include <world/worldtask.h>
+#include <world/group.h>
+#include <world/dist_cache.h>
 
 
 namespace madness {
@@ -143,35 +146,513 @@ namespace madness {
     /// If native AM interoperates with MPI we probably should map these to MPI.
     class WorldGopInterface {
     private:
-        World& world; ///< MPI interface
-        std::shared_ptr<detail::DeferredCleanup> deferred; ///< Deferred cleanup object.
-        bool debug;             ///< Debug mode
+        World& world_; ///< MPI interface
+        std::shared_ptr<detail::DeferredCleanup> deferred_; ///< Deferred cleanup object.
+        bool debug_; ///< Debug mode
 
         friend class detail::DeferredCleanup;
+
+        // Message tags
+        struct PointToPointTag { };
+        struct LazySyncTag { };
+        struct GroupLazySyncTag { };
+        struct BcastTag { };
+        struct GroupBcastTag { };
+        struct ReduceTag { };
+        struct GroupReduceTag { };
+        struct AllReduceTag { };
+        struct GroupAllReduceTag { };
+
+
+        /// Delayed send callback object
+
+        /// This callback object is used to send local data to a remove process
+        /// once it has been set.
+        /// \tparam keyT The data key
+        /// \tparam valueT The type of data to be sent
+        template <typename keyT, typename valueT>
+        class DelayedSend : public CallbackInterface {
+        private:
+            World& world_; ///< The communication world
+            const ProcessID dest_; ///< The destination process id
+            const keyT key_; ///< The distributed id associated with \c value_
+            Future<valueT> value_; ///< The data to be sent
+
+            // Not allowed
+            DelayedSend(const DelayedSend<keyT, valueT>&);
+            DelayedSend<keyT, valueT>& operator=(const DelayedSend<keyT, valueT>&);
+
+        public:
+
+            /// Constructor
+
+            /// \param ds The distributed container that owns element i
+            /// \param i The element to be moved
+            DelayedSend(World& world, const ProcessID dest,
+                    const keyT& key, const Future<valueT>& value) :
+                        world_(world), dest_(dest), key_(key), value_(value)
+        { }
+
+            virtual ~DelayedSend() { }
+
+            /// Notify this object that the future has been set.
+
+            /// This will set the value of the future on the remote node and delete
+            /// this callback object.
+            virtual void notify() {
+                MADNESS_ASSERT(value_.probe());
+                world_.gop.send_internal(dest_, key_, value_.get());
+                delete this;
+            }
+        }; // class DelayedSend
+
+        /// Receive data from remote node
+
+        /// \tparam valueT The data type stored in cache
+        /// \param did The distributed ID
+        /// \return A future to the data
+        template <typename valueT, typename keyT>
+        static Future<valueT> recv_internal(const keyT& key) {
+            return detail::DistCache<keyT>::template get_cache_value<valueT>(key);
+        }
+
+        /// Send \c value to \c dest
+
+        /// Send non-future data to \c dest.
+        /// \tparam keyT The key type
+        /// \tparam valueT The value type
+        /// \param dest The node where the data will be sent
+        /// \param key The key that is associated with the data
+        /// \param value The data to be sent to \c dest
+        template <typename keyT, typename valueT>
+        typename disable_if<is_future<valueT> >::type
+        send_internal(const ProcessID dest, const keyT& key, const valueT& value) const {
+            typedef detail::DistCache<keyT> dist_cache;
+
+            if(world_.rank() == dest) {
+                // When dest is this process, skip the task and set the future immediately.
+                dist_cache::set_cache_value(key, value);
+            } else {
+                // Spawn a remote task to set the value
+                world_.taskq.add(dest, dist_cache::template set_cache_value<valueT>, key,
+                        value, TaskAttributes::hipri());
+            }
+        }
+
+        /// Send \c value to \c dest
+
+        /// Send data that is stored in a future to \c dest. The data in
+        /// \c value is only sent to the remote process once it has been set.
+        /// \tparam keyT The key type
+        /// \tparam valueT The value type
+        /// \param dest The node where the data will be sent
+        /// \param key The key that is associated with the data
+        /// \param value The data to be sent to \c dest
+        template <typename keyT, typename valueT>
+        void send_internal(ProcessID dest, const keyT& key, const Future<valueT>& value) const {
+            typedef detail::DistCache<keyT> dist_cache;
+
+            if(world_.rank() == dest) {
+                dist_cache::set_cache_value(key, value);
+            } else {
+                // The destination is not this node, so send it to the destination.
+                if(value.probe()) {
+                    // Spawn a remote task to set the value
+                    world_.taskq.add(dest, dist_cache::template set_cache_value<valueT>, key,
+                            value.get(), TaskAttributes::hipri());
+                } else {
+                    // The future is not ready, so create a callback object that will
+                    // send value to the destination node when it is ready.
+                    DelayedSend<keyT, valueT>* delayed_send_callback =
+                            new DelayedSend<keyT, valueT>(world_, dest, key, value);
+                    const_cast<Future<valueT>&>(value).register_callback(delayed_send_callback);
+
+                }
+            }
+        }
+
+        /// Lazy sync parent task
+
+        /// Send signal to the parent process in the binary tree for a lazy sync
+        /// operation.
+        /// \tparam keyT The key type
+        /// \param parent The parent process of this process in the binary tree
+        /// \param key The lazy sync key
+        template <typename keyT>
+        void lazy_sync_parent(const ProcessID parent, const keyT& key,
+                const ProcessID, const ProcessID) const
+        {
+            send_internal(parent, key, key.proc());
+        }
+
+        /// Lazy sync parent task
+
+        /// Send signal to the child processes in the binary tree for a lazy
+        /// sync operation. After the signal has been sent to the children, the
+        /// sync operation, \c op, will be run.
+        /// \tparam keyT The key type
+        /// \tparam opT The sync operation type
+        /// \param child0 The first child process of this process in the binary tree
+        /// \param child1 The second child process of this process in the binary tree
+        /// \param key The key associated with the sync operation
+        /// \param op The sync operation that will be run
+        template <typename keyT, typename opT>
+        void lazy_sync_children(const ProcessID child0, const ProcessID child1,
+                const keyT& key, opT& op, const ProcessID) const
+        {
+            // Signal children to execute the operation.
+            if(child0 != -1)
+                send_internal(child0, key, 1);
+            if(child1 != -1)
+                send_internal(child1, key, 1);
+
+            // Execute the operation on this process.
+            op();
+        }
+
+        /// Start a distributed lazy sync operation
+
+        /// \param key The sync key
+        /// \param op The sync operation to be executed on this process
+        template <typename tagT, typename keyT, typename opT>
+        void lazy_sync_internal(const ProcessID parent, const ProcessID child0,
+                const ProcessID child1, const keyT& key, const opT& op) const {
+            typedef ProcessKey<keyT, tagT> key_type;
+
+            // Get signals from parent and children.
+            madness::Future<ProcessID> child0_signal = (child0 != -1 ?
+                    recv_internal<ProcessID>(key_type(key, child0)) :
+                    madness::Future<ProcessID>(-1));
+            madness::Future<ProcessID> child1_signal = (child1 != -1 ?
+                    recv_internal<ProcessID>(key_type(key, child1)) :
+                    madness::Future<ProcessID>(-1));
+            madness::Future<ProcessID> parent_signal = (parent != -1 ?
+                    recv_internal<ProcessID>(key_type(key, parent)) :
+                    madness::Future<ProcessID>(-1));
+
+            // Construct the task that notifies children to run the operation
+            key_type my_key(key, world_.rank());
+            world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<key_type, opT>,
+                    child0_signal, child1_signal, my_key, op, parent_signal,
+                    TaskAttributes::hipri());
+
+            // Send signal to parent
+            if(parent != -1) {
+                if(child0_signal.probe() && child1_signal.probe())
+                    send_internal(parent, my_key, world_.rank());
+                else
+                    world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_parent<key_type>,
+                            parent, my_key, child0_signal, child1_signal,
+                            TaskAttributes::hipri());
+            }
+        }
+
+
+        template <typename keyT, typename valueT, typename taskfnT>
+        static void bcast_handler(const AmArg& arg) {
+            // Deserialize message arguments
+            taskfnT taskfn;
+            keyT key;
+            valueT value;
+            ProcessID root;
+
+            arg & taskfn & key & value & root;
+
+            // Add task to queue
+            arg.get_world()->taskq.add(arg.get_world()->gop, taskfn, key,
+                    value, root, TaskAttributes::hipri());
+        }
+
+        template <typename keyT, typename valueT, typename taskfnT>
+        static void group_bcast_handler(const AmArg& arg) {
+            // Deserialize message arguments
+            taskfnT taskfn;
+            keyT key;
+            valueT value;
+            ProcessID group_root;
+            DistributedID group_key;
+
+            arg & taskfn & key & value & group_root & group_key;
+
+            // Get the local group
+            const Future<Group> group = Group::get_group(group_key);
+
+            // Add task to queue
+            arg.get_world()->taskq.add(arg.get_world()->gop, taskfn, key, value,
+                    group_root, group, TaskAttributes::hipri());
+        }
+
+
+        /// Broadcast task
+
+        /// This task will set the local cache with the broadcast data and send
+        /// it to child processes in the binary tree.
+        template <typename keyT, typename valueT>
+        void bcast_task(const keyT& key, const valueT& value, const ProcessID root) const {
+            typedef void (WorldGopInterface::*taskfnT)(const keyT&, const valueT&,
+                    const ProcessID) const;
+
+            // Compute binary tree data
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            world_.mpi.binary_tree_info(root, parent, child0, child1);
+
+            // Set the local data, except on the root process
+            if(world_.rank() != root)
+                detail::DistCache<keyT>::set_cache_value(key, value);
+
+            // Precompute send checks
+            const bool send0 = (child0 != -1);
+            const bool send1 = (child1 != -1);
+
+            // Send active messages to children
+            if(send0 || send1) { // Check that this process has children in the binary tree
+
+                // Get handler function and arguments
+                void (*handler)(const AmArg&) =
+                        & WorldGopInterface::template bcast_handler<keyT, valueT, taskfnT>;
+                AmArg* const args = new_am_arg(
+                        & WorldGopInterface::template bcast_task<keyT, valueT>,
+                        key, value, root);
+
+                // Send active message to children
+                // Note: Only the last message is "managed" so the args buffer
+                // can be reused.
+                if(send0)
+                    world_.am.send(child0, handler, args, RMI::ATTR_ORDERED, !send1);
+                if(send1)
+                    world_.am.send(child1, handler, args, RMI::ATTR_ORDERED, true);
+            }
+        }
+
+        template <typename keyT, typename valueT>
+        void group_bcast_task(const keyT& key, const valueT& value,
+                const ProcessID group_root, const Group& group) const
+        {
+            typedef void (WorldGopInterface::*taskfnT)(const keyT&, const valueT&,
+                    const ProcessID, const Group&) const;
+
+            // Set the local data, except on the root process
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            group.make_tree(group_root, parent, child0, child1);
+
+            // Set the local data
+            if(group.rank() != group_root)
+                detail::DistCache<keyT>::set_cache_value(key, value);
+
+            // Precompute send checks
+            const bool send0 = (child0 != -1);
+            const bool send1 = (child1 != -1);
+
+            if(send0 || send1) { // Check that this process has children in the binary tree
+
+                // Get handler function and arguments
+                void (*handler)(const AmArg&) =
+                        & WorldGopInterface::template group_bcast_handler<keyT, valueT, taskfnT>;
+                AmArg* const args = new_am_arg(
+                        & WorldGopInterface::template group_bcast_task<keyT, valueT>,
+                        key, value, group_root, group.id());
+
+                // Send active message to children
+                if(send0)
+                    world_.am.send(child0, handler, args, RMI::ATTR_ORDERED, !send1);
+                if(send1)
+                    world_.am.send(child1, handler, args, RMI::ATTR_ORDERED, true);
+            }
+        }
+
+        /// Broadcast
+
+        /// Broadcast data from the \c root process to all processes in \c world.
+        /// The input/output data is held by \c value.
+        /// \tparam tagT The tag type that is attached to \c keyT
+        /// \tparam keyT The base key type
+        /// \tparam valueT The value type that will be broadcast
+        /// \param[in] key The key associated with this broadcast
+        /// \param[in,out] value On the \c root process, this is used as the input
+        /// data that will be broadcast to all other processes in the group.
+        /// On other processes it is used as the output to the broadcast
+        /// \param root The process that owns the data to be broadcast
+        /// \throw madness::Exception When \c value has been set, except on the
+        /// \c root process.
+        template <typename tagT, typename keyT, typename valueT>
+        void bcast_internal(const keyT& key, Future<valueT>& value, const ProcessID root) const {
+            MADNESS_ASSERT((root >= 0) && (root < world_.size()));
+            MADNESS_ASSERT((world_.rank() == root) || (! value.probe()));
+
+            // Add operation tag to key
+            typedef TaggedKey<keyT, tagT> key_type;
+            const key_type tagged_key(key);
+
+            if(world_.size() > 1) { // Do nothing for the trivial case
+                if(world_.rank() == root) {
+                    // This process owns the data to be broadcast.
+
+                    // Spawn remote tasks that will set the local cache for this
+                    // broadcast on other nodes.
+                    if(value.probe())
+                        // The value is ready so send it now
+                        bcast_task(tagged_key, value.get(), root);
+                    else
+                        // The value is not ready so spawn a task to send the
+                        // data when it is ready.
+                        world_.taskq.add(*this, & WorldGopInterface::template bcast_task<key_type, valueT>,
+                                tagged_key, value, root, TaskAttributes::hipri());
+                } else {
+                    MADNESS_ASSERT(! value.probe());
+
+                    // Get the broadcast value from local cache
+                    detail::DistCache<key_type>::get_cache_value(tagged_key, value);
+                }
+            }
+        }
+
+        /// Group broadcast
+
+        /// Broadcast data from the \c group_root process to all processes in
+        /// \c group. The input/output data is held by \c value.
+        /// \tparam tagT The tag type that is attached to \c keyT
+        /// \tparam keyT The base key type
+        /// \tparam valueT The value type that will be broadcast
+        /// \param[in] key The key associated with this broadcast
+        /// \param[in,out] value On the \c group_root process, this is used as the
+        /// input data that will be broadcast to all other processes in the group.
+        /// On other processes it is used as the output to the broadcast
+        /// \param group_root The process in \c group that owns the data to be
+        /// broadcast
+        /// \param group The process group where value will be broadcast
+        /// \throw madness::Exception When \c value has been set, except on the
+        /// \c group_root process.
+        template <typename tagT, typename keyT, typename valueT>
+        void bcast_internal(const keyT& key, Future<valueT>& value,
+                const ProcessID group_root, const Group& group) const
+        {
+            // Typedefs
+            typedef TaggedKey<keyT, tagT> key_type;
+            const key_type tagged_key(key);
+
+            if(group.rank() == group_root) {
+                // This process owns the data to be broadcast.
+                if(value.probe())
+                    group_bcast_task(tagged_key, value.get(), group_root,
+                            group);
+                else
+                    world_.taskq.add(this, & WorldGopInterface::template group_bcast_task<key_type, valueT>,
+                            tagged_key, value, group_root, group,
+                            TaskAttributes::hipri());
+            } else {
+                MADNESS_ASSERT(! value.probe());
+
+                // This is not the root process, so retrieve the broadcast data
+                detail::DistCache<key_type>::get_cache_value(tagged_key, value);
+            }
+        }
+
+        template <typename valueT, typename opT>
+        static typename detail::result_of<opT>::type
+        reduce_task(const valueT& value, const opT& op) {
+            typename detail::result_of<opT>::type result = op();
+            op(result, value);
+            return result;
+        }
+
+        template <typename opT>
+        static typename detail::result_of<opT>::type
+        reduce_result_task(const std::vector<Future<typename detail::result_of<opT>::type> >& results,
+                const opT& op)
+        {
+            MADNESS_ASSERT(results.size() != 0ul);
+            Future<typename detail::result_of<opT>::type> result = results.front();
+            for(std::size_t i = 1ul; i < results.size(); ++i)
+                op(result.get(), results[i].get());
+            return result.get();
+        }
+
+        /// Distributed reduce
+
+        /// \tparam tagT The tag type to be added to the key type
+        /// \tparam keyT The key type
+        /// \tparam valueT The data type to be reduced
+        /// \tparam opT The reduction operation type
+        /// \param key The key associated with this reduction
+        /// \param value The local value to be reduced
+        /// \param op The reduction operation to be applied to local and remote data
+        /// \param root The process that will receive the result of the reduction
+        /// \return A future to the reduce value on the root process, otherwise an
+        /// uninitialized future that may be ignored.
+        template <typename tagT, typename keyT, typename valueT, typename opT>
+        Future<typename detail::result_of<opT>::type>
+        reduce_internal(const ProcessID parent, const ProcessID child0,
+                const ProcessID child1, const ProcessID root, const keyT& key,
+                const valueT& value, const opT& op)
+        {
+            // Create tagged key
+            typedef ProcessKey<keyT, tagT> key_type;
+            typedef typename detail::result_of<opT>::type result_type;
+            typedef typename remove_future<valueT>::type value_type;
+            std::vector<Future<result_type> > results;
+            results.reserve(3);
+
+            // Add local data to vector of values to reduce
+            results.push_back(world_.taskq.add(WorldGopInterface::template reduce_task<valueT, opT>,
+                    value, op, TaskAttributes::hipri()));
+
+            // Reduce child data
+            if(child0 != -1)
+                results.push_back(recv_internal<result_type>(key_type(key, child0)));
+            if(child1 != -1)
+                results.push_back(recv_internal<result_type>(key_type(key, child1)));
+
+            // Submit the local reduction task
+            Future<result_type> local_result =
+                    world_.taskq.add(WorldGopInterface::template reduce_result_task<opT>,
+                            results, op, TaskAttributes::hipri());
+
+            // Send reduced value to parent or, if this is the root process, set the
+            // result future.
+            if(parent == -1)
+                return local_result;
+            else
+                send_internal(parent, key_type(key, world_.rank()), local_result);
+
+            return Future<result_type>::default_initializer();
+        }
+
+
+        /// Check that \c group is initialized correctly
+
+        /// \param group The group to be checked
+        void varify_group(const Group& group) const {
+            MADNESS_ASSERT(! group.empty());
+            MADNESS_ASSERT(group.is_registered());
+            MADNESS_ASSERT(group.get_world().id() == world_.id());
+            MADNESS_ASSERT(group.rank(world_.rank()) != -1);
+        }
 
     public:
 
         // In the World constructor can ONLY rely on MPI and MPI being initialized
-        WorldGopInterface(World& world)
-            : world(world)
-            , deferred(new detail::DeferredCleanup())
-            , debug(false)
+        WorldGopInterface(World& world) :
+            world_(world), deferred_(new detail::DeferredCleanup()), debug_(false)
         { }
 
         ~WorldGopInterface() {
-            deferred->destroy(true);
-            deferred->do_cleanup();
+            deferred_->destroy(true);
+            deferred_->do_cleanup();
         }
 
 
         /// Set debug flag to new value and return old value
-        bool set_debug(bool value);
+        bool set_debug(bool value) {
+            bool status = debug_;
+            debug_ = value;
+            return status;
+        }
 
         /// Synchronizes all processes in communicator ... does NOT fence pending AM or tasks
         void barrier() {
-            long i = world.rank();
+            long i = world_.rank();
             sum(i);
-            if (i != world.size()*(world.size()-1)/2) error("bad value after sum in barrier");
+            if (i != world_.size()*(world_.size()-1)/2) error("bad value after sum in barrier");
         }
 
 
@@ -220,7 +701,7 @@ namespace madness {
         template <typename objT>
         void broadcast_serializable(objT& obj, ProcessID root) {
             size_t BUFLEN;
-            if (world.rank() == root) {
+            if (world_.rank() == root) {
                 archive::BufferOutputArchive count;
                 count & obj;
                 BUFLEN = count.size();
@@ -228,12 +709,12 @@ namespace madness {
             broadcast(BUFLEN, root);
 
             unsigned char* buf = new unsigned char[BUFLEN];
-            if (world.rank() == root) {
+            if (world_.rank() == root) {
                 archive::BufferOutputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
             broadcast(buf, BUFLEN, root);
-            if (world.rank() != root) {
+            if (world_.rank() != root) {
                 archive::BufferInputArchive ar(buf,BUFLEN);
                 ar & obj;
             }
@@ -247,14 +728,14 @@ namespace madness {
         void reduce(T* buf, size_t nelem, opT op) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
-            world.mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = world.mpi.unique_tag();
+            world_.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world_.mpi.unique_tag();
 
             T* buf0 = new T[nelem];
             T* buf1 = new T[nelem];
 
-            if (child0 != -1) req0 = world.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, nelem*sizeof(T), MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, nelem*sizeof(T), MPI_BYTE, child1, gsum_tag);
 
             if (child0 != -1) {
                 World::await(req0);
@@ -269,7 +750,7 @@ namespace madness {
             delete [] buf1;
 
             if (parent != -1) {
-                req0 = world.mpi.Isend(buf, nelem*sizeof(T), MPI_BYTE, parent, gsum_tag);
+                req0 = world_.mpi.Isend(buf, nelem*sizeof(T), MPI_BYTE, parent, gsum_tag);
                 World::await(req0);
             }
 
@@ -360,14 +841,14 @@ namespace madness {
         std::vector<T> concat0(const std::vector<T>& v, size_t bufsz=1024*1024) {
             SafeMPI::Request req0, req1;
             ProcessID parent, child0, child1;
-            world.mpi.binary_tree_info(0, parent, child0, child1);
-            Tag gsum_tag = world.mpi.unique_tag();
+            world_.mpi.binary_tree_info(0, parent, child0, child1);
+            Tag gsum_tag = world_.mpi.unique_tag();
 
             unsigned char* buf0 = new unsigned char[bufsz];
             unsigned char* buf1 = new unsigned char[bufsz];
 
-            if (child0 != -1) req0 = world.mpi.Irecv(buf0, bufsz, MPI_BYTE, child0, gsum_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv(buf1, bufsz, MPI_BYTE, child1, gsum_tag);
+            if (child0 != -1) req0 = world_.mpi.Irecv(buf0, bufsz, MPI_BYTE, child0, gsum_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv(buf1, bufsz, MPI_BYTE, child1, gsum_tag);
 
             std::vector<T> left, right;
             if (child0 != -1) {
@@ -387,7 +868,7 @@ namespace madness {
             if (parent != -1) {
                 archive::BufferOutputArchive ar(buf0, bufsz);
                 ar & left;
-                req0 = world.mpi.Isend(buf0, ar.size(), MPI_BYTE, parent, gsum_tag);
+                req0 = world_.mpi.Isend(buf0, ar.size(), MPI_BYTE, parent, gsum_tag);
                 World::await(req0);
             }
 
@@ -397,8 +878,420 @@ namespace madness {
             if (parent == -1) return left;
             else return std::vector<T>();
         }
-    }; // class WorldGopInterface
-} // namespace madness
 
+        /// Receive data from \c source
+
+        /// \tparam valueT The data type stored in cache
+        /// \tparam keyT The key type
+        /// \param source The process that is sending the data to this process
+        /// \param key The key associated with the received data
+        /// \return A future that will be set with the received data
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c recv. Keys may be reuse after the
+        /// associated operation has finished.
+        template <typename valueT, typename keyT>
+        static Future<valueT> recv(const ProcessID source, const keyT& key) {
+            return recv_internal<valueT>(ProcessKey<keyT, PointToPointTag>(key, source));
+        }
+
+        /// Send value to \c dest
+
+        /// \tparam keyT The key type
+        /// \tparam valueT The value type (this may be a \c Future type)
+        /// \param dest The process where the data will be sent
+        /// \param key The key that is associated with the data
+        /// \param value The data to be sent to \c dest
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c send. Keys may be reuse after the
+        /// associated operation has finished.
+        template <typename keyT, typename valueT>
+        void send(const ProcessID dest, const keyT& key, const valueT& value) const {
+            send_internal(dest, ProcessKey<keyT, PointToPointTag>(key, world_.rank()), value);
+        }
+
+        /// Lazy sync
+
+        /// Lazy sync functions are asynchronous barriers with a nullary functor
+        /// that is called after all processes have called it with the same
+        /// key. You can think of lazy_sync as an asynchronous barrier. The
+        /// lazy_sync functor must have the following signature:
+        /// \code
+        /// class SyncFunc {
+        /// public:
+        ///     // typedefs
+        ///     typedef void result_type;
+        ///
+        ///     // Constructors
+        ///     SyncFunc(const SyncFunc&);
+        ///
+        ///     // The function that performs the sync operation
+        ///     void operator()();
+        ///
+        /// }; // class SyncFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam opT The operation type
+        /// \param key The sync key
+        /// \param op The sync operation to be executed on this process
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c lazy_sync. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename opT>
+        void lazy_sync(const keyT& key, const opT& op) const {
+            if(world_.size() > 1) { // Do nothing for the trivial case
+                // Get the binary tree data
+                Hash<keyT> hasher;
+                const ProcessID root = hasher(key) % world_.size();
+                ProcessID parent = -1, child0 = -1, child1 = -1;
+                world_.mpi.binary_tree_info(root, parent, child0, child1);
+
+                lazy_sync_internal<LazySyncTag>(parent, child0, child1, key, op);
+            } else {
+                // There is only one process, so run the sync operation now.
+                world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<keyT, opT>,
+                        -1, -1, key, op, -1, TaskAttributes::hipri());
+            }
+        }
+
+
+        /// Group lazy sync
+
+        /// Lazy sync functions are asynchronous barriers with a nullary functor
+        /// that is called after all processes in the group have called it with
+        /// the same key. You can think of lazy_sync as an asynchronous barrier.
+        /// The \c op functor must have the following signature:
+        /// \code
+        /// class SyncFunc {
+        /// public:
+        ///     // typedefs
+        ///     typedef void result_type;
+        ///
+        ///     // Constructors
+        ///     SyncFunc(const SyncFunc&);
+        ///
+        ///     // The function that performs the sync operation
+        ///     void operator()();
+        ///
+        /// }; // class SyncFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam opT The operation type
+        /// \param key The sync key
+        /// \param op The sync operation to be executed on this process
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c lazy_sync. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename opT>
+        void lazy_sync(const keyT& key, const opT& op, const Group& group) const {
+            varify_group(group);
+
+            if(group.size() > 1) { // Do nothing for the trivial case
+                // Get the binary tree data
+                Hash<keyT> hasher;
+                const ProcessID group_root = hasher(key) % group.size();
+                ProcessID parent = -1, child0 = -1, child1 = -1;
+                group.make_tree(group_root, parent, child0, child1);
+
+                lazy_sync_internal<GroupLazySyncTag>(parent, child0, child1, key, op);
+            } else {
+                world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<keyT, opT>,
+                        -1, -1, key, op, -1, TaskAttributes::hipri());
+            }
+        }
+
+        /// Broadcast
+
+        /// Broadcast data from the \c root process to all processes. The input/
+        /// output data is held by \c value.
+        /// \param[in] key The key associated with this broadcast
+        /// \param[in,out] value On the \c root process, this is used as the input
+        /// data that will be broadcast to all other processes. On other
+        /// processes it is used as the output to the broadcast.
+        /// \param root The process that owns the data to be broadcast
+        /// \throw madness::Exception When \c root is less than 0 or greater
+        /// than or equal to the world size.
+        /// \throw madness::Exception When \c value has been set, except on the
+        /// \c root process.
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c bcast. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT>
+        void bcast(const keyT& key, Future<valueT>& value, const ProcessID root) const {
+            MADNESS_ASSERT((root >= 0) && (root < world_.size()));
+            MADNESS_ASSERT((world_.rank() == root) || (! value.probe()));
+
+            if(world_.size() > 1) // Do nothing for the trivial case
+                bcast_internal<BcastTag>(key, value, root);
+        }
+
+        /// Group broadcast
+
+        /// Broadcast data from the \c group_root process to all processes in
+        /// \c group. The input/output data is held by \c value.
+        /// \param[in] key The key associated with this broadcast
+        /// \param[in,out] value On the \c group_root process, this is used as the
+        /// input data that will be broadcast to all other processes in the group.
+        /// On other processes it is used as the output to the broadcast
+        /// \param group_root The process in \c group that owns the data to be
+        /// broadcast
+        /// \param group The process group where value will be broadcast
+        /// \throw madness::Exception When \c group is empty
+        /// \throw madness::Exception When \c group is not registered
+        /// \throw madness::Exception When the world id of \c group is not
+        /// equal to that of the world used to construct this object
+        /// \throw madness::Exception When this process is not in the group
+        /// \throw madness::Exception When \c group_root is less than 0 or
+        /// greater than or equal to \c group size
+        /// \throw madness::Exception When \c data has been set except on the
+        /// \c root process
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c bcast. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT>
+        void bcast(const keyT& key, Future<valueT>& value,
+                const ProcessID group_root, const Group& group) const
+        {
+            varify_group(group);
+            MADNESS_ASSERT((group_root >= 0) && (group_root < group.size()));
+            MADNESS_ASSERT((group.rank() == group_root) || (! value.probe()));
+
+            if(group.size() > 1) // Do nothing for the trivial case
+                bcast_internal<GroupBcastTag>(key, value, group_root, group);
+        }
+
+        /// Distributed reduce
+
+        /// The reduce functor must have the following signature:
+        /// \code
+        /// class ReduceFunc {
+        /// public:
+        ///     // Typedefs
+        ///     typedef ... result_type;
+        ///     tyepdef ... argument_type;
+        ///
+        ///     // Constructors
+        ///     ReduceFunc(const ReduceFunc&);
+        ///
+        ///     // Initialization operation, which returns a default result object
+        ///     result_type operator()() const;
+        ///
+        ///     // Reduce two result objects
+        ///     void operator()(result_type&, const result_type&) const;
+        ///
+        ///     // Reduce a result object and an argument object
+        ///     void operator()(result_type&, const argument_type&) const;
+        /// }; // class ReduceFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam valueT The data type to be reduced
+        /// \tparam opT The reduction operation type
+        /// \param key The key associated with this reduction
+        /// \param value The local value to be reduced
+        /// \param op The reduction operation to be applied to local and remote data
+        /// \param root The process that will receive the result of the reduction
+        /// \return A future to the reduce value on the root process, otherwise an
+        /// uninitialized future that may be ignored.
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT, typename opT>
+        Future<typename detail::result_of<opT>::type>
+        reduce(const keyT& key, const valueT& value, const opT& op, const ProcessID root) {
+            MADNESS_ASSERT((root >= 0) && (root < world_.size()));
+
+            // Get the binary tree data
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            world_.mpi.binary_tree_info(root, parent, child0, child1);
+
+            return reduce_internal<ReduceTag>(parent, child0, child1, root, key,
+                    value, op);
+        }
+
+        /// Distributed group reduce
+
+        /// The reduce functor must have the following signature:
+        /// \code
+        /// class ReduceFunc {
+        /// public:
+        ///     // Typedefs
+        ///     typedef ... result_type;
+        ///     tyepdef ... argument_type;
+        ///
+        ///     // Constructors
+        ///     ReduceFunc(const ReduceFunc&);
+        ///
+        ///     // Initialization operation, which returns a default result object
+        ///     result_type operator()() const;
+        ///
+        ///     // Reduce two result objects
+        ///     void operator()(result_type&, const result_type&) const;
+        ///
+        ///     // Reduce a result object and an argument object
+        ///     void operator()(result_type&, const argument_type&) const;
+        /// }; // class ReduceFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam valueT The data type to be reduced
+        /// \tparam opT The reduction operation type
+        /// \param key The key associated with this reduction
+        /// \param value The local value to be reduced
+        /// \param op The reduction operation to be applied to local and remote data
+        /// \param group_root The group process that will receive the result of the reduction
+        /// \param group The group that will preform the reduction
+        /// \return A future to the reduce value on the root process, otherwise an
+        /// uninitialized future that may be ignored.
+        /// \throw madness::Exception When \c group is empty
+        /// \throw madness::Exception When \c group is not registered
+        /// \throw madness::Exception When the world id of \c group is not
+        /// equal to that of the world used to construct this object
+        /// \throw madness::Exception When this process is not in the group
+        /// \throw madness::Exception When \c group_root is less than zero or
+        /// greater than or equal to \c group size.
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT, typename opT>
+        Future<typename detail::result_of<opT>::type>
+        reduce(const keyT& key, const valueT& value, const opT& op,
+                const ProcessID group_root, const Group& group)
+        {
+            varify_group(group);
+            MADNESS_ASSERT((group_root >= 0) && (group_root < group.size()));
+
+            // Get the binary tree data
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            group.make_tree(group_root, parent, child0, child1);
+
+            return reduce_internal<ReduceTag>(parent, child0, child1, group_root,
+                    key, value, op);
+        }
+
+        /// Distributed all reduce
+
+        /// The reduce functor must have the following signature:
+        /// \code
+        /// class ReduceFunc {
+        /// public:
+        ///     // Typedefs
+        ///     typedef ... result_type;
+        ///     tyepdef ... argument_type;
+        ///
+        ///     // Constructors
+        ///     ReduceFunc(const ReduceFunc&);
+        ///
+        ///     // Initialization operation, which returns a default result object
+        ///     result_type operator()() const;
+        ///
+        ///     // Reduce two result objects
+        ///     void operator()(result_type&, const result_type&) const;
+        ///
+        ///     // Reduce a result object and an argument object
+        ///     void operator()(result_type&, const argument_type&) const;
+        /// }; // class ReduceFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam valueT The data type to be reduced
+        /// \tparam opT The reduction operation type
+        /// \param key The key associated with this reduction
+        /// \param value The local value to be reduced
+        /// \param op The reduction operation to be applied to local and remote data
+        /// \param root The process that will receive the result of the reduction
+        /// \return A future to the reduce value on the root process, otherwise an
+        /// uninitialized future that may be ignored.
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c all_reduce. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT, typename opT>
+        Future<typename detail::result_of<opT>::type>
+        all_reduce(const keyT& key, const valueT& value, const opT& op) {
+            // Compute the parent and child processes of this process in a binary tree.
+            Hash<keyT> hasher;
+            const ProcessID root = hasher(key) % world_.size();
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            world_.mpi.binary_tree_info(root, parent, child0, child1);
+
+            // Reduce the data
+            Future<typename detail::result_of<opT>::type> reduce_result =
+                    reduce_internal<AllReduceTag>(parent, child0, child1, root,
+                            key, value, op);
+
+            if(world_.rank() != root)
+                reduce_result = Future<typename detail::result_of<opT>::type>();
+
+            // Broadcast the result of the reduction to all processes
+            bcast_internal<AllReduceTag>(key, reduce_result, root);
+
+            return reduce_result;
+        }
+
+        /// Distributed, group all reduce
+
+        /// The reduce functor must have the following signature:
+        /// \code
+        /// class ReduceFunc {
+        /// public:
+        ///     // Typedefs
+        ///     typedef ... result_type;
+        ///     typedef ... argument_type;
+        ///
+        ///     // Constructors
+        ///     ReduceFunc(const ReduceFunc&);
+        ///
+        ///     // Initialization operation, which returns a default result object
+        ///     result_type operator()() const;
+        ///
+        ///     // Reduce two result objects
+        ///     void operator()(result_type&, const result_type&) const;
+        ///
+        ///     // Reduce a result object and an argument object
+        ///     void operator()(result_type&, const argument_type&) const;
+        /// }; // class ReduceFunc
+        /// \endcode
+        /// \tparam keyT The key type
+        /// \tparam valueT The data type to be reduced
+        /// \tparam opT The reduction operation type
+        /// \param key The key associated with this reduction
+        /// \param value The local value to be reduced
+        /// \param op The reduction operation to be applied to local and remote data
+        /// \param group_root The group process that will receive the result of the reduction
+        /// \param group The group that will preform the reduction
+        /// \return A future to the reduce value on the root process, otherwise an
+        /// uninitialized future that may be ignored
+        /// \throw madness::Exception When \c group is empty
+        /// \throw madness::Exception When \c group is not registered
+        /// \throw madness::Exception When the world id of \c group is not
+        /// equal to that of the world used to construct this object
+        /// \throw madness::Exception When this process is not in the group
+        /// \note It is the user's responsibility to ensure that \c key does not
+        /// conflict with other calls to \c reduce. Keys may be reuse after
+        /// the associated operation has finished.
+        template <typename keyT, typename valueT, typename opT>
+        Future<typename detail::result_of<opT>::type>
+        all_reduce(const keyT& key, const valueT& value, const opT& op, const Group& group) {
+            varify_group(group);
+
+            // Compute the parent and child processes of this process in a binary tree.
+            Hash<keyT> hasher;
+            const ProcessID group_root = hasher(key) % group.size();
+            ProcessID parent = -1, child0 = -1, child1 = -1;
+            group.make_tree(group_root, parent, child0, child1);
+
+            // Reduce the data
+            Future<typename detail::result_of<opT>::type> reduce_result =
+                    reduce_internal<GroupAllReduceTag>(parent, child0, child1,
+                            group_root, key, value, op);
+
+
+            if(group.rank() != group_root)
+                reduce_result = Future<typename detail::result_of<opT>::type>();
+
+            // Broadcast the result of the reduction to all processes in the group
+            bcast_internal<GroupAllReduceTag>(key, reduce_result, 0, group);
+
+            return reduce_result;
+        }
+    }; // class WorldGopInterface
+
+} // namespace madness
 
 #endif // MADNESS_WORLD_WORLDGOP_H__INCLUDED

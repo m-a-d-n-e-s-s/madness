@@ -8,9 +8,11 @@ lib_LIBRARIES = libMADmra.a
 
 
 
+#TESTS = testsuite  testperiodic testbc testbsh testproj testpdiff \
+#        testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
+#        testqm testunaryop testper
 
-
-TESTS = testbsh testproj testpdiff testper test_gentensor test6 testseprep \
+TESTS = testbsh testproj testpdiff testper \
         testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
         testsuite 
 

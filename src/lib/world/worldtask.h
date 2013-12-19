@@ -181,66 +181,66 @@ namespace madness {
 
             resT operator()() const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)();
+                return ((*ptr_).*memfn_)();
             }
 
             template <typename a1T>
             resT operator()(a1T& a1) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1);
+                return ((*ptr_).*memfn_)(a1);
             }
 
             template <typename a1T, typename a2T>
             resT operator()(a1T& a1, a2T& a2) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2);
+                return ((*ptr_).*memfn_)(a1, a2);
             }
 
             template <typename a1T, typename a2T, typename a3T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3);
+                return ((*ptr_).*memfn_)(a1, a2, a3);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4, a5);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
             resT operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9) const {
                 MADNESS_ASSERT(ptr_);
-                return (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+                return ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
             }
 
             template <typename Archive>
@@ -284,66 +284,66 @@ namespace madness {
 
             void operator()() const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)();
+                ((*ptr_).*memfn_)();
             }
 
             template <typename a1T>
             void operator()(a1T& a1) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1);
+                ((*ptr_).*memfn_)(a1);
             }
 
             template <typename a1T, typename a2T>
             void operator()(a1T& a1, a2T& a2) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2);
+                ((*ptr_).*memfn_)(a1, a2);
             }
 
             template <typename a1T, typename a2T, typename a3T>
             void operator()(a1T& a1, a2T& a2, a3T& a3) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3);
+                ((*ptr_).*memfn_)(a1, a2, a3);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4, a5);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8);
             }
 
             template <typename a1T, typename a2T, typename a3T, typename a4T,
                 typename a5T, typename a6T, typename a7T, typename a8T, typename a9T>
             void operator()(a1T& a1, a2T& a2, a3T& a3, a4T& a4, a5T& a5, a6T& a6, a7T& a7, a8T& a8, a9T& a9) const {
                 MADNESS_ASSERT(ptr_);
-                (ptr_->*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
+                ((*ptr_).*memfn_)(a1, a2, a3, a4, a5, a6, a7, a8, a9);
             }
 
             template <typename Archive>
@@ -370,6 +370,13 @@ namespace madness {
         template <typename objT, typename memfnT>
         MemFuncWrapper<std::shared_ptr<objT>, memfnT, typename result_of<memfnT>::type>
         wrap_mem_fn(const std::shared_ptr<objT>& obj, memfnT memfn) {
+            return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
+                    typename memfunc_traits<memfnT>::result_type>(obj, memfn);
+        }
+
+        template <typename objT, typename memfnT>
+        MemFuncWrapper<std::shared_ptr<objT>, memfnT, typename result_of<memfnT>::type>
+        wrap_mem_fn(std::shared_ptr<objT>& obj, memfnT memfn) {
             return MemFuncWrapper<std::shared_ptr<objT>, memfnT,
                     typename memfunc_traits<memfnT>::result_type>(obj, memfn);
         }

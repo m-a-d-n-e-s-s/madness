@@ -383,8 +383,10 @@ namespace madness {
         //        RMI::Request isend(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED);
 
         /// Sends a managed non-blocking active message
-        void send(ProcessID dest, am_handlerT op, const AmArg* arg, int attr=RMI::ATTR_ORDERED) {
-            isend(dest, op, arg, attr, true);
+        RMI::Request send(const ProcessID dest, am_handlerT op, const AmArg* arg,
+                const int attr=RMI::ATTR_ORDERED, const bool managed = true)
+        {
+            return isend(dest, op, arg, attr, managed);
         }
 
         /// Frees as many send buffers as possible

@@ -40,13 +40,6 @@
 namespace madness {
 
 
-    /// Set debug flag to new value and return old value
-    bool WorldGopInterface::set_debug(bool value) {
-        bool status = debug;
-        debug = value;
-        return status;
-    }
-
     /// Synchronizes all processes in communicator AND globally ensures no pending AM or tasks
 
     /// Runs Dykstra-like termination algorithm on binary tree by
@@ -61,39 +54,39 @@ namespace madness {
         unsigned long nsent_prev=0, nrecv_prev=1; // invalid initial condition
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
-        world.mpi.binary_tree_info(0, parent, child0, child1);
-        Tag gfence_tag = world.mpi.unique_tag();
+        world_.mpi.binary_tree_info(0, parent, child0, child1);
+        Tag gfence_tag = world_.mpi.unique_tag();
         int npass = 0;
 
         //double start = wall_time();
 
         while (1) {
             uint64_t sum0[2]={0,0}, sum1[2]={0,0}, sum[2];
-            if (child0 != -1) req0 = world.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI_BYTE, child0, gfence_tag);
-            if (child1 != -1) req1 = world.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI_BYTE, child1, gfence_tag);
-            world.taskq.fence();
+            if (child0 != -1) req0 = world_.mpi.Irecv((void*) &sum0, sizeof(sum0), MPI_BYTE, child0, gfence_tag);
+            if (child1 != -1) req1 = world_.mpi.Irecv((void*) &sum1, sizeof(sum1), MPI_BYTE, child1, gfence_tag);
+            world_.taskq.fence();
             if (child0 != -1) World::await(req0);
             if (child1 != -1) World::await(req1);
 
             bool finished;
             uint64_t ntask1, nsent1, nrecv1, ntask2, nsent2, nrecv2;
             do {
-                world.taskq.fence();
+                world_.taskq.fence();
 
                 // Since the number of outstanding tasks and number of AM sent/recv
                 // don't share a critical section read each twice and ensure they
                 // are unchanged to ensure that are consistent ... they don't have
                 // to be current.
 
-                ntask1 = world.taskq.size();
-                nsent1 = world.am.nsent;
-                nrecv1 = world.am.nrecv;
+                ntask1 = world_.taskq.size();
+                nsent1 = world_.am.nsent;
+                nrecv1 = world_.am.nrecv;
 
                 __asm__ __volatile__ (" " : : : "memory");
 
-                ntask2 = world.taskq.size();
-                nsent2 = world.am.nsent;
-                nrecv2 = world.am.nrecv;
+                ntask2 = world_.taskq.size();
+                nsent2 = world_.am.nsent;
+                nrecv2 = world_.am.nrecv;
 
                 __asm__ __volatile__ (" " : : : "memory");
 
@@ -105,12 +98,12 @@ namespace madness {
             sum[1] = sum0[1] + sum1[1] + nrecv2;
 
             if (parent != -1) {
-                req0 = world.mpi.Isend(&sum, sizeof(sum), MPI_BYTE, parent, gfence_tag);
+                req0 = world_.mpi.Isend(&sum, sizeof(sum), MPI_BYTE, parent, gfence_tag);
                 World::await(req0);
             }
 
             // While we are probably idle free unused communication buffers
-            world.am.free_managed_buffers();
+            world_.am.free_managed_buffers();
 
             //bool dowork = (npass==0) || (ThreadPool::size()==0);
             bool dowork = true;
@@ -137,8 +130,8 @@ namespace madness {
             nrecv_prev = sum[1];
 
         };
-        world.am.free_managed_buffers(); // free up communication buffers
-        deferred->do_cleanup();
+        world_.am.free_managed_buffers(); // free up communication buffers
+        deferred_->do_cleanup();
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
         MallocExtension::instance()->ReleaseFreeMemory();
 //        print("clearing memory");
@@ -152,18 +145,18 @@ namespace madness {
     void WorldGopInterface::broadcast(void* buf, size_t nbyte, ProcessID root, bool dowork) {
         SafeMPI::Request req0, req1;
         ProcessID parent, child0, child1;
-        world.mpi.binary_tree_info(root, parent, child0, child1);
-        Tag bcast_tag = world.mpi.unique_tag();
+        world_.mpi.binary_tree_info(root, parent, child0, child1);
+        Tag bcast_tag = world_.mpi.unique_tag();
 
         //print("BCAST TAG", bcast_tag);
 
         if (parent != -1) {
-            req0 = world.mpi.Irecv(buf, nbyte, MPI_BYTE, parent, bcast_tag);
+            req0 = world_.mpi.Irecv(buf, nbyte, MPI_BYTE, parent, bcast_tag);
             World::await(req0, dowork);
         }
 
-        if (child0 != -1) req0 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child0, bcast_tag);
-        if (child1 != -1) req1 = world.mpi.Isend(buf, nbyte, MPI_BYTE, child1, bcast_tag);
+        if (child0 != -1) req0 = world_.mpi.Isend(buf, nbyte, MPI_BYTE, child0, bcast_tag);
+        if (child1 != -1) req1 = world_.mpi.Isend(buf, nbyte, MPI_BYTE, child1, bcast_tag);
 
         if (child0 != -1) World::await(req0, dowork);
         if (child1 != -1) World::await(req1, dowork);

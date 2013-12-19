@@ -81,7 +81,7 @@ double iterate_xy(World& world, real_function_3d& V, real_function_3d& psi, real
   new_y = new_y - inner(psi,new_y)*psi;
 
   double errx = (x-new_x).norm2();
-  double erry = (x-new_y).norm2();
+  double erry = (y-new_y).norm2();
 
   if (world.rank() == 0) 
       print("errx =", errx, "erry =", erry);
