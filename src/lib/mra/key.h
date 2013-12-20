@@ -126,6 +126,21 @@ namespace madness {
             rehash();
         }
 
+        /// easy constructor
+        Key(const int n, const int l0) : n(n) {
+            MADNESS_ASSERT(NDIM==1);
+            l=Vector<Translation, NDIM>(l0);
+            rehash();
+        }
+
+        /// easy constructor
+        Key(const int n, const int l0, const int l1, const int l2) : n(n) {
+            MADNESS_ASSERT(NDIM==3);
+            l=Vector<Translation, NDIM>(0);
+            l[0]=l0; l[1]=l1; l[2]=l2;
+            rehash();
+        }
+
         /// Returns an invalid key
         static Key<NDIM>
         invalid() {
@@ -277,6 +292,81 @@ namespace madness {
         	return (dist <= 1);
         }
 
+        /// given a displacement, generate a neighbor key; ignore boundary conditions and disp's level
+
+        /// @param[in]  disp    the displacement
+        /// @return     a new key
+        Key neighbor(const Key<NDIM>& disp) const {
+            Vector<Translation,NDIM> l = this->translation()+disp.translation();
+            return Key(this->level(),l);
+        }
+
+
+        /// check if this MultiIndex contains point x, disregarding these two dimensions
+        bool thisKeyContains(const Vector<double,NDIM>& x, const unsigned int& dim0,
+        		const unsigned int& dim1) const {
+
+        	// it's sufficient if one single dimension is out
+        	bool contains=true;
+        	const double twotoN = std::pow(2.0,double(n));
+        	MADNESS_ASSERT(dim0<NDIM and dim1<NDIM);
+
+        	for (unsigned int i=0; i<NDIM; i++ ) {
+
+        		// check bounds
+        		MADNESS_ASSERT((x[i]>=0.0) and (x[i]<=1.0));
+
+        		// leave these two dimensions out
+        		if ((i==dim0) or (i==dim1)) continue;
+
+        		const int ll=int (x[i]*twotoN);
+        		if (not (l[i]==ll)) contains=false;
+        	}
+        	return contains;
+        }
+
+        /// break key into two low-dimensional keys
+        template<std::size_t LDIM, std::size_t KDIM>
+        void break_apart(Key<LDIM>& key1, Key<KDIM>& key2) const {
+
+            // if LDIM==NDIM the 2nd key will be constructed empty
+            MADNESS_ASSERT((LDIM+KDIM==NDIM) or (LDIM==NDIM));
+            Vector<Translation, LDIM> l1;
+            Vector<Translation, KDIM> l2;
+            for (int i=0; i<static_cast<int>(LDIM); ++i) {
+                l1[i]=l[i];
+            }
+            for (size_t i=LDIM; i<NDIM; ++i) {
+                l2[i-LDIM]=l[i];
+            }
+            key1=Key<LDIM>(n,l1);
+            key2=Key<KDIM>(n,l2);
+        }
+
+        /// merge with other key (ie concatenate), use level of rhs, not of this
+        template<std::size_t LDIM>
+        Key<NDIM+LDIM> merge_with(const Key<LDIM>& rhs) const {
+            Vector<Translation,NDIM+LDIM> t;
+            for (int i=0; i<static_cast<int>(NDIM); ++i) t[i]     =this->l[i];
+            for (int i=0; i<static_cast<int>(LDIM); ++i) t[NDIM+i]=rhs.translation()[i];
+            return Key<NDIM+LDIM>(rhs.level(),t);
+        }
+
+        /// return if the other key is pointing in the same direction and is farther out
+
+        /// unlike in distsq() the direction is taken into account, and other must be
+        /// longer than this in each dimension
+        /// @param[in]	other 	a key
+        /// @return		if other is farther out
+        bool is_farther_out_than(const Key<NDIM>& other) const {
+        	for (size_t i=0; i<NDIM; ++i) {
+        		if ((other.translation()[i]>0) and (other.translation()[i]>l[i])) return false;
+        		if ((other.translation()[i]<0) and (other.translation()[i]<l[i])) return false;
+        	}
+        	return true;
+        }
+
+
         /// Recomputes hashval ... presently only done when reading from external storage
         void
         rehash() {
@@ -293,6 +383,20 @@ namespace madness {
         s << "(" << key.level() << "," << key.translation() << ")";
         return s;
     }
+
+    /// given a source and a target, return the displacement in translation
+
+    /// @param[in]  source  the source key
+    /// @param[in]  target  the target key
+    /// @return     disp    such that target = source + disp
+    template<size_t NDIM>
+    Key<NDIM> displacement(const Key<NDIM>& source, const Key<NDIM>& target) {
+        MADNESS_ASSERT(source.level()==target.level());
+        const Vector<Translation,NDIM> l = target.translation()-source.translation();
+        return Key<NDIM>(source.level(),l);
+    }
+
+
 
     /// Iterates in lexical order thru all children of a key
 

@@ -124,6 +124,8 @@ void Molecule::read_file(const std::string& filename) {
         }
         else if (tag == "eprec") {
             ss >> eprec;
+            // adapt nuclear smoothing factor rcut
+            this->set_eprec(eprec);
         }
         else if (tag == "field") {
             ss >> field[0] >> field[1] >> field[2];

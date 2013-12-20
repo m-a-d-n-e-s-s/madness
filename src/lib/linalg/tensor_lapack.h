@@ -54,6 +54,16 @@ namespace madness {
     void svd(const Tensor<T>& a, Tensor<T>& U,
              Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT);
 
+    /// \ingroup linalg
+    template <typename T>
+    void svd_result(Tensor<T>& a, Tensor<T>& U,
+             Tensor< typename Tensor<T>::scalar_type >& s, Tensor<T>& VT, Tensor<T>& work);
+
+    /// Solves linear equations
+    
+    /// \ingroup linalg
+    template <typename T>
+    void gesv(const Tensor<T>& a, const Tensor<T>& b, Tensor<T>& x);
 
     /// Solves linear equations using least squares
     

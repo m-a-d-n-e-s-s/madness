@@ -34,10 +34,13 @@
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
 #include <world/array.h>
-#include <mra/mra.h>
+//#include <mra/mra.h>
 #include <constants.h>
 #include <limits.h>
+#include <tensor/tensor.h>
+#include <mra/simplecache.h>
 #include <mra/adquad.h>
+#include <mra/twoscale.h>
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
 #include <linalg/tensor_lapack.h>
@@ -140,14 +143,30 @@ namespace madness {
         return result;
     }
 
+    /// actual data for 1 dimension and for 1 term and for 1 displacement for a convolution operator
+    /// here we keep the transformation matrices
+
     /// !!! Note that if Rnormf is zero then ***ALL*** of the tensors are empty
     template <typename Q>
     struct ConvolutionData1D {
-        Tensor<Q> R, T;  ///< R=ns, T=T part of ns
-        Tensor<Q> RU, RVT, TU, TVT; ///< SVD approximations to R and T
-        Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;
+
+
+        Tensor<Q> R, T;                 ///< if NS: R=ns, T=T part of ns; if modified NS: T=\uparrow r^(n-1)
+        Tensor<Q> RU, RVT, TU, TVT;     ///< SVD approximations to R and T
+        Tensor<typename Tensor<Q>::scalar_type> Rs, Ts;     ///< hold relative errors, NOT the singular values..
+
+        // norms for NS form
         double Rnorm, Tnorm, Rnormf, Tnormf, NSnormf;
 
+        // norms for modified NS form
+        double N_up, N_diff, N_F;               ///< the norms according to Beylkin 2008, Eq. (21) ff
+
+
+        /// ctor for NS form
+        /// make the operator matrices r^n and \uparrow r^(n-1)
+        /// @param[in]  R   operator matrix of the requested level;     NS: unfilter(r^(n+1)); modified NS: r^n
+        /// @param[in]  T   upsampled operator matrix from level n-1;   NS: r^n; modified NS: filter( r^(n-1) )
+        /// @param[in]  modified    use (un) modified NS form
         ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T) : R(R), T(T) {
             Rnormf = R.normf();
             // Making the approximations is expensive ... only do it for
@@ -157,17 +176,46 @@ namespace madness {
                 make_approx(T, TU, Ts, TVT, Tnorm);
                 make_approx(R, RU, Rs, RVT, Rnorm);
                 int k = T.dim(0);
+
                 Tensor<Q> NS = copy(R);
                 for (int i=0; i<k; ++i)
                     for (int j=0; j<k; ++j)
                         NS(i,j) = 0.0;
                 NSnormf = NS.normf();
+
             }
             else {
                 Rnorm = Tnorm = Rnormf = Tnormf = NSnormf = 0.0;
+                N_F = N_up = N_diff = 0.0;
             }
         }
 
+        /// ctor for modified NS form
+        /// make the operator matrices r^n and \uparrow r^(n-1)
+        /// @param[in]  R   operator matrix of the requested level;     NS: unfilter(r^(n+1)); modified NS: r^n
+        /// @param[in]  T   upsampled operator matrix from level n-1;   NS: r^n; modified NS: filter( r^(n-1) )
+        /// @param[in]  modified    use (un) modified NS form
+        ConvolutionData1D(const Tensor<Q>& R, const Tensor<Q>& T, const bool modified) : R(R), T(T) {
+
+            // note that R can be small, but T still be large
+
+            Rnormf = R.normf();
+            Tnormf = T.normf();
+            // Making the approximations is expensive ... only do it for
+            // significant components
+            if (Rnormf > 1e-20) make_approx(R, RU, Rs, RVT, Rnorm);
+            if (Tnormf > 1e-20) make_approx(T, TU, Ts, TVT, Tnorm);
+
+            // norms for modified NS form: follow Beylkin, 2008, Eq. (21) ff
+            N_F=Rnormf;
+            N_up=Tnormf;
+            N_diff=(R-T).normf();
+        }
+
+
+
+        /// approximate the operator matrices using SVD, and abuse Rs to hold the error instead of
+        /// the singular values (seriously, who named this??)
         void make_approx(const Tensor<Q>& R,
                          Tensor<Q>& RU, Tensor<typename Tensor<Q>::scalar_type>& Rs, Tensor<Q>& RVT, double& norm) {
             int n = R.dim(0);
@@ -193,6 +241,8 @@ namespace madness {
 
     /// Provides the common functionality/interface of all 1D convolutions
 
+    /// interface for 1 term and for 1 dimension;
+    /// the actual data are kept in ConvolutionData1D
     /// Derived classes must implement rnlp, issmall, natural_level
     template <typename Q>
     class Convolution1D {
@@ -204,13 +254,14 @@ namespace madness {
         Tensor<double> quad_x;
         Tensor<double> quad_w;
         Tensor<double> c;
-        Tensor<double> hgT;
+        Tensor<double> hgT, hg;
         Tensor<double> hgT2k;
         double arg;
 
         mutable SimpleCache<Tensor<Q>, 1> rnlp_cache;
         mutable SimpleCache<Tensor<Q>, 1> rnlij_cache;
         mutable SimpleCache<ConvolutionData1D<Q>, 1> ns_cache;
+        mutable SimpleCache<ConvolutionData1D<Q>, 2> mod_ns_cache;
 
         virtual ~Convolution1D() {};
 
@@ -226,8 +277,8 @@ namespace madness {
             MADNESS_ASSERT(autoc(k,&c));
 
             gauss_legendre(npt,0.0,1.0,quad_x.ptr(),quad_w.ptr());
-            MADNESS_ASSERT(two_scale_hg(k,&hgT));
-            hgT = transpose(hgT);
+            MADNESS_ASSERT(two_scale_hg(k,&hg));
+            hgT = transpose(hg);
             MADNESS_ASSERT(two_scale_hg(2*k,&hgT2k));
             hgT2k = transpose(hgT2k);
 
@@ -288,6 +339,77 @@ namespace madness {
             rnlij_cache.set(n,lx,R);
             return *rnlij_cache.getptr(n,lx);
         };
+
+
+        /// Returns a pointer to the cached modified nonstandard form of the operator
+
+        /// @param[in]  op_key  holds the scale and the source and target translations
+        /// @return     a pointer to the cached modified nonstandard form of the operator
+        const ConvolutionData1D<Q>* mod_nonstandard(const Key<2>& op_key) const {
+
+            const Level& n=op_key.level();
+            const Translation& sx=op_key.translation()[0];      // source translation
+            const Translation& tx=op_key.translation()[1];      // target translation
+            const Translation  lx=tx-sx;                        // displacement
+            const Translation  s_off=sx%2;
+            const Translation  t_off=tx%2;
+
+            // we cache translation and source offset
+            const Key<2> cache_key(n,Vector<Translation,2>(vec(lx,s_off)));
+            const ConvolutionData1D<Q>* p = mod_ns_cache.getptr(cache_key);
+            if (p) return p;
+
+            // for paranoid me
+            MADNESS_ASSERT(sx>=0 and tx>=0);
+
+
+            Tensor<Q> R, T, Rm;
+//            if (!get_issmall(n, lx)) {
+//                print("no issmall", lx, source, n);
+
+                const Translation lx_half = tx/2 - sx/2;
+                const Slice s0(0,k-1), s1(k,2*k-1);
+//                print("sx, tx",lx,lx_half,sx, tx,"off",s_off,t_off);
+
+                // this is the operator matrix in its actual level
+                R = rnlij(n,lx);
+
+                // this is the upsampled operator matrix
+                Rm = Tensor<Q>(2*k,2*k);
+                if (n>0) Rm(s0,s0)=rnlij(n-1,lx_half);
+                {
+                    PROFILE_BLOCK(Convolution1D_nstran);
+                    Rm = transform(Rm,hg);
+                }
+
+                {
+                    PROFILE_BLOCK(Convolution1D_nscopy);
+                    T=Tensor<Q>(k,k);
+                    if (t_off==0 and s_off==0) T=copy(Rm(s0,s0));
+                    if (t_off==0 and s_off==1) T=copy(Rm(s0,s1));
+                    if (t_off==1 and s_off==0) T=copy(Rm(s1,s0));
+                    if (t_off==1 and s_off==1) T=copy(Rm(s1,s1));
+//                    if (t_off==0 and s_off==0) T=copy(Rm(s0,s0));
+//                    if (t_off==1 and s_off==0) T=copy(Rm(s0,s1));
+//                    if (t_off==0 and s_off==1) T=copy(Rm(s1,s0));
+//                    if (t_off==1 and s_off==1) T=copy(Rm(s1,s1));
+                }
+
+                {
+                    PROFILE_BLOCK(Convolution1D_trans);
+
+                    Tensor<Q> RT(k,k), TT(k,k);
+                    fast_transpose(k,k,R.ptr(), RT.ptr());
+                    fast_transpose(k,k,T.ptr(), TT.ptr());
+                    R = RT;
+                    T = TT;
+                }
+
+//            }
+
+            mod_ns_cache.set(cache_key,ConvolutionData1D<Q>(R,T,true));
+            return mod_ns_cache.getptr(cache_key);
+        }
 
         /// Returns a pointer to the cached nonstandard form of the operator
         const ConvolutionData1D<Q>* nonstandard(Level n, Translation lx) const {
@@ -403,7 +525,9 @@ namespace madness {
         }
     };
 
-    // Array of 1D convolutions (one / dimension)
+    /// Array of 1D convolutions (one / dimension)
+
+    /// data for 1 term and all dimensions
     template <typename Q, int NDIM>
     class ConvolutionND {
         std::array<std::shared_ptr<Convolution1D<Q> >, NDIM> ops;

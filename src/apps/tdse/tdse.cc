@@ -46,6 +46,8 @@
 
 using namespace madness;
 
+#define NO_GENTENSOR
+
 struct InputParameters {
   static const int MAXNATOM=99;
 
@@ -668,7 +670,6 @@ struct lbcost {
     double parent_value;
     lbcost(double leaf_value=1.0, double parent_value=1.0) : leaf_value(leaf_value), parent_value(parent_value) {}
     double operator()(const Key<NDIM>& key, const FunctionNode<T,NDIM>& node) const {
-
         if (key.level() <= 1) {
             return 128.0;
         }

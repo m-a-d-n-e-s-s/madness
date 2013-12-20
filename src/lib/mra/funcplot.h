@@ -33,6 +33,8 @@
 #ifndef MADNESS_MRA_FUNCPLOT_H__INCLUDED
 #define MADNESS_MRA_FUNCPLOT_H__INCLUDED
 
+#include <constants.h>
+
 /*!
 
   \file mra/funcplot.h
@@ -509,6 +511,220 @@ namespace madness {
         }
         world.gop.fence();
     }
+
+
+    template<typename T>
+    static std::string stringify(T arg) {
+    	std::ostringstream o;
+    	if (!(o << arg))
+    		MADNESS_EXCEPTION("stringify<T> failed",1);
+    	return o.str();
+    }
+
+
+    typedef Vector<double,3> coord_3d;
+    typedef Vector<double,6> coord_6d;
+
+    // plot along this trajectory
+    template<size_t NDIM>
+    struct trajectory {
+
+        typedef Vector<double,NDIM> coordT;
+
+    	double lo;
+    	double hi;
+    	double radius;
+    	long npt;
+    	coordT start, end;
+    	coord_3d el2;
+    	coordT (*curve)(const coordT& lo, const coordT& hi, double radius, coord_3d el2, long npt, long ipt);
+
+    	/// some tools for plotting MRA ranks of low order tensors
+
+    	// return a hue number [0,0.7] according to the rank in relation to maxrank,
+    	static double hueCode(const int rank) {
+    			const double maxrank=40.0;
+    			double hue=0.7-(0.7/maxrank)*(rank);
+    			return std::max(0.0,hue);
+    	}
+
+
+        // print a dot of hue color at (x,y) in file f
+        static void print_psdot(FILE *f, double x, double y, double color) {
+        	fprintf(f,"\\newhsbcolor{mycolor}{%8.4f 1.0 0.7}\n",color);
+            fprintf(f,"\\psdot[linecolor=mycolor](%12.8f,%12.8f)\n",x,y);
+        }
+
+
+        static coord_3d circle2(double lo, double hi, double radius, coord_3d el2, long npt, long ipt) {
+        	double stepsize=constants::pi * 2.0 / npt;
+        	double phi=ipt*stepsize;
+
+        	// in the xz plane
+        	coord_3d coord(0.0);
+        	coord[0]=radius * sin(phi);
+        	coord[1]=radius * cos(phi);
+        	return coord;
+
+        }
+
+        static coord_6d circle_6d(const coord_6d& lo, const coord_6d& hi, double radius, coord_3d el2, long npt, long ipt) {
+        	double stepsize=constants::pi * 2.0 / npt;
+
+        	// start at phi=1.0
+        	double phi=1.0+constants::pi+ipt*stepsize;
+
+        	// in the xz plane
+        	coord_6d coord(0.0);
+        	coord[0]=radius * sin(phi);
+        	coord[1]=radius * cos(phi);
+        	coord[2]=0.0;
+        	coord[3]=el2[0];
+        	coord[4]=el2[1];
+        	coord[5]=el2[2];
+
+        	return coord;
+
+        }
+
+
+    //	typedef Vector<double,NDIM> (trajectory::circle_6d)(double lo, double hi, double radius, long npt, long ipt) const;
+
+    	trajectory() {}
+//    	// ctor for a straight line thru the origin
+//    	trajectory(double lo, double hi, long npt) : lo(lo), hi(hi), npt(npt), curve(line) {
+//    	}
+
+    	// ctor for circle
+    	trajectory(double radius, long npt) : radius(radius), npt(npt), curve(this->circle2) {
+    	}
+
+    	// ctor for circle with electron 2 fixed at coord_3d
+    	trajectory(double radius, coord_3d el2, long npt) : radius(radius), npt(npt), el2(el2), curve(this->circle_6d) {
+    	}
+
+
+        static Vector<double, NDIM> line_internal(const coordT& lo, const coordT& hi, double radius, coord_3d el2, long npt, long ipt) {
+            const coordT step=(hi-lo)*(1.0/npt);
+            coordT coord=lo+step*ipt;
+            return coord;
+        }
+
+
+        /// constructor for a line
+//        static trajectory line(const Vector<double,NDIM>& lo, const Vector<double,NDIM>& hi, const long npt) {
+        static trajectory line2(const coordT start, const coordT end, const long npt) {
+            trajectory<NDIM> traj;
+            traj.start=start;
+            traj.end=end;
+            traj.npt=npt;
+            traj.curve=(trajectory::line_internal);
+            return traj;
+        }
+
+        /// EZ ctor for a line a direction xyz={0,1,2,..,NDIM-1} thru the origin
+        static trajectory line_xyz(const int xyz, const long npt) {
+            double L=FunctionDefaults<NDIM>::get_cell_width()[0];
+            coordT lo(0.0), hi(0.0);
+            lo[xyz]=-L/2;
+            hi[xyz]=L/2;
+            return trajectory<NDIM>::line2(lo,hi,npt);
+        }
+
+        Vector<double,NDIM> operator()(int ipt) {
+            return curve(start,end,radius,el2,npt,ipt);
+        }
+
+    };
+
+
+
+    // plot along a line
+    template<size_t NDIM>
+    void plot_along(World& world, trajectory<NDIM> traj, const Function<double,NDIM>& function, std::string filename) {
+    	 FILE *f=0;
+    	 const int npt=traj.npt;
+
+    	 const bool psdot=false;
+
+    	 if(world.rank() == 0) {
+    		 f = fopen(filename.c_str(), "w");
+    		 if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+    		 if (psdot) {
+
+                 fprintf(f,"\\psset{xunit=0.1cm}\n");
+                 fprintf(f,"\\psset{yunit=10cm}\n");
+                 fprintf(f,"\\begin{pspicture}(0,-0.3)(100,1.0)\n");
+                 fprintf(f,"\\pslinewidth=0.05pt\n");
+    		 }
+
+    		 // walk along the line
+    		 for (int ipt=0; ipt<npt; ipt++) {
+    			 Vector<double,NDIM> coord=traj(ipt);
+    			 if (psdot) {
+    			     long rank=function.evalR(coord);
+    			     trajectory<NDIM>::print_psdot(f,ipt,function(coord),trajectory<NDIM>::hueCode(rank));
+    			 } else {
+    			     fprintf(f,"%4i %12.6f\n",ipt, function(coord));
+    			 }
+    		 }
+
+
+             if (psdot) fprintf(f,"\\end{pspicture}\n");
+
+    		 fclose(f);
+    	 }
+    	 world.gop.fence();
+    	 ;
+    }
+
+
+    // plot along a line
+    template<size_t NDIM>
+    void plot_along(World& world, trajectory<NDIM> traj, double (*ff)(const Vector<double,NDIM>&), std::string filename) {
+    	 FILE *f=0;
+    	 const int npt=traj.npt;
+
+    	 const bool psdot=false;
+
+    	 if(world.rank() == 0) {
+    		 f = fopen(filename.c_str(), "w");
+    		 if(!f) MADNESS_EXCEPTION("plotvtk: failed to open the plot file", 0);
+
+    		 if (psdot) {
+                 fprintf(f,"\\psset{xunit=0.05cm}\n");
+                 fprintf(f,"\\psset{yunit=100cm}\n");
+                 fprintf(f,"\\begin{pspicture}(0,0.25)(100,0.3)\n");
+                 fprintf(f,"\\pslinewidth=0.005pt\n");
+    		 }
+
+
+    		 // walk along the line
+    		 for (int ipt=0; ipt<npt; ipt++) {
+
+    		     Vector<double,NDIM> coord=traj(ipt);
+//    		     fprintf(f,"%12.6f %12.6f %12.6f %12.6f %12.6f %12.6f %12.6f\n",coord[0],coord[1],coord[2],coord[3],coord[4],coord[5], ff(coord));
+    			 if (psdot) {
+                     // no hue code here
+    			     //           long rank=ff.evalR(coord);
+                     trajectory<NDIM>::print_psdot(f,ipt,ff(coord),trajectory<NDIM>::hueCode(0));
+    			 } else {
+    			     fprintf(f,"%4i %12.6f\n",ipt, ff(coord));
+    			 }
+
+
+    		 }
+             if (psdot) fprintf(f,"\\end{pspicture}\n");
+
+    		 fclose(f);
+    	 }
+    	 world.gop.fence();
+    	 ;
+    }
+
+
+
 }
 
 /* @} */

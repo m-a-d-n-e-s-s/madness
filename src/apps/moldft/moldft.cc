@@ -81,12 +81,12 @@ int main(int argc, char** argv) {
 
         // Come up with an initial OK data map
         if (world.size() > 1) {
-          calc.set_protocol(world,1e-4);
+          calc.set_protocol<3>(world,calc.param.econv);
           calc.make_nuclear_potential(world);
           calc.initial_load_bal(world);
         }
 //vama
-        calc.set_protocol(world,calc.param.protocol_data[0]);
+        calc.set_protocol<3>(world,calc.param.protocol_data[0]);
 
 
         if ( calc.param.gopt) {

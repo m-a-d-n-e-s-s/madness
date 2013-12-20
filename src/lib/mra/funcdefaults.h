@@ -33,6 +33,12 @@
 #ifndef MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 #define MADNESS_MRA_FUNCDEFAULTS_H__INCLUDED
 
+#ifdef NO_GENTENSOR
+#define HAVE_GENTENSOR 0
+#else
+#define HAVE_GENTENSOR 1
+#endif
+
 /// \file funcdefaults.h
 /// \brief Provides FunctionDefaults and utilities for coordinate transformation
 /// \ingroup mrabcext
@@ -53,6 +59,7 @@ namespace madness {
     static const int MAXLEVEL = 8*sizeof(Translation)-2;
 
     enum BCType {BC_ZERO, BC_PERIODIC, BC_FREE, BC_DIRICHLET, BC_ZERONEUMANN, BC_NEUMANN};
+    enum TensorType {TT_NONE, TT_FULL, TT_2D};
 
     /*!
       \brief This class is used to specify boundary conditions for all operators
@@ -142,20 +149,32 @@ namespace madness {
     };
 
 
-    template <std::size_t NDIM>
     static
     inline
-    std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
-        s << "BoundaryConditions(";
-        for (int d=0; d<NDIM; ++d) {
-            s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
-            if (d == NDIM-1)
-                s << ")";
-            else
-                s << ", ";
-        }
+    std::ostream& operator << (std::ostream& s, const TensorType& tt) {
+       	std::string str="confused tensor type";
+       	if (tt==TT_FULL) str="full rank tensor";
+       	if (tt==TT_2D) str="low rank tensor 2-way";
+       	if (tt==TT_NONE) str="no tensor type specified";
+       	s << str.c_str();
         return s;
     }
+
+    template <std::size_t NDIM>
+     static
+     inline
+     std::ostream& operator << (std::ostream& s, const BoundaryConditions<NDIM>& bc) {
+         s << "BoundaryConditions(";
+         for (int d=0; d<NDIM; ++d) {
+             s << bc.code_as_string(bc(d,0)) << ":" << bc.code_as_string(bc(d,1));
+             if (d == NDIM-1)
+                 s << ")";
+             else
+                 s << ", ";
+         }
+         return s;
+     }
+
 
     /// FunctionDefaults holds default paramaters as static class members
 
@@ -188,6 +207,7 @@ namespace madness {
         static Tensor<double> rcell_width; ///< Reciprocal of width
         static double cell_volume;      ///< Volume of simulation cell
         static double cell_min_width;   ///< Size of smallest dimension
+        static TensorType tt;			///< structure of the tensor in FunctionNode
         static std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap; ///< Default mapping of keys to processes
 
         static void recompute_cell_info() {
@@ -345,6 +365,20 @@ namespace madness {
         /// Sets the default boundary conditions
         static void set_bc(const BoundaryConditions<NDIM>& value) {
             bc=value;
+        }
+
+        /// Returns the default tensor type
+        static const TensorType get_tensor_type() {
+        	return tt;
+        }
+
+        /// Sets the default tensor type
+        static void set_tensor_type(const TensorType& t) {
+#if HAVE_GENTENSOR
+        	tt=t;
+#else
+        	tt=TT_FULL;
+#endif
         }
 
         /// Gets the user cell for the simulation

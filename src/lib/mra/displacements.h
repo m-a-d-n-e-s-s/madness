@@ -41,15 +41,18 @@ namespace madness {
         static std::vector< Key<NDIM> > disp;
         static std::vector< Key<NDIM> > disp_periodicsum[64];
 
+    public:
         static int bmax_default() {
             int bmax;
             if      (NDIM == 1) bmax = 7;
             else if (NDIM == 2) bmax = 5;
             else if (NDIM == 3) bmax = 3;
+            else if (NDIM == 6) bmax = 3;
             else                bmax = 2;
             return bmax;
         }
 
+    private:
         static bool cmp_keys(const Key<NDIM>& a, const Key<NDIM>& b) {
             return a.distsq() < b.distsq();
         }

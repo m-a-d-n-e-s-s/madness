@@ -443,7 +443,9 @@ struct CalculationParameters {
     // First list input parameters
     double charge;              ///< Total molecular charge
     double smear;               ///< Smearing parameter
+    double econv;               ///< Energy convergence
     double dconv;               ///< Density convergence
+    int k;						///< polynomial order
     double L;                   ///< User coordinates box size
     double maxrotn;             ///< Step restriction used in autoshift algorithm
     int nvalpha;                ///< Number of alpha virtuals to compute
@@ -458,6 +460,7 @@ struct CalculationParameters {
     bool localize;              ///< If true solve for localized orbitals
     bool localize_pm;           ///< If true use PM for localization
     bool restart;               ///< If true restart from orbitals on disk
+    bool no_compute;            ///< If true use orbitals on disk, set value to computed
     bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
     int npt_plot;               ///< No. of points to use in each dim for plots
@@ -492,8 +495,8 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & dconv & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & maxsub & npt_plot & plot_cell & aobasis;
+        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & no_compute & maxsub & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -504,7 +507,9 @@ struct CalculationParameters {
     CalculationParameters()
         : charge(0.0)
         , smear(0.0)
+        , econv(1e-5)
         , dconv(1e-4)
+    	, k(-1)
         , L(0.0)
         , maxrotn(0.25)
         , nvalpha(0)
@@ -520,6 +525,7 @@ struct CalculationParameters {
         , localize(true)
         , localize_pm(true)
         , restart(false)
+    	, no_compute(false)
         , save(true)
         , maxsub(8)
         , npt_plot(101)
@@ -569,8 +575,14 @@ struct CalculationParameters {
             else if (s == "smear") {
                 f >> smear;
             }
+            else if (s == "econv") {
+                f >> econv;
+            }
             else if (s == "dconv") {
                 f >> dconv;
+            }
+            else if (s == "k") {
+                f >> k;
             }
             else if (s == "L") {
                 f >> L;
@@ -670,6 +682,9 @@ struct CalculationParameters {
             }
             else if (s == "save") {
                 f >> save;
+            }
+            else if (s == "no_compute") {
+                no_compute = true;
             }
             else if (s == "maxsub") {
                 f >> maxsub;
@@ -784,8 +799,10 @@ struct CalculationParameters {
         madness::print(" initial guess basis ", aobasis);
         madness::print(" max krylov subspace ", maxsub);
         madness::print("    compute protocol ", protocol_data);
+        madness::print("  energy convergence ", econv);
         madness::print(" density convergence ", dconv);
         madness::print("    maximum rotation ", maxrotn);
+        madness::print("    polynomial order ", k);
         if (conv_only_dens)
             madness::print(" Convergence criterion is only density delta.");
         else
@@ -884,12 +901,13 @@ struct Calculation {
         //xc.plot();
 
         FunctionDefaults<3>::set_cubic_cell(-param.L, param.L);
-        set_protocol(world, 1e-4);
+        set_protocol<3>(world, param.econv);
 
         potentialmanager = std::shared_ptr<PotentialManager>(new PotentialManager(molecule, param.core_type));
         TAU_STOP("Calculation (World &, const char *");
     }
 
+    template<std::size_t NDIM>
     void set_protocol(World & world, double thresh)
     {
         int k;
@@ -905,22 +923,31 @@ struct Calculation {
         else
             k = 12;
 
-        FunctionDefaults<3>::set_k(k);
-        FunctionDefaults<3>::set_thresh(thresh);
-        FunctionDefaults<3>::set_refine(true);
-        FunctionDefaults<3>::set_initial_level(2);
-        FunctionDefaults<3>::set_truncate_mode(1);
-        FunctionDefaults<3>::set_autorefine(false);
-        FunctionDefaults<3>::set_apply_randomize(false);
-        FunctionDefaults<3>::set_project_randomize(false);
+        // k defaults to make sense with thresh, override by providing k in input file
+        if (param.k == -1) {
+        	FunctionDefaults<NDIM>::set_k(k);
+//        	param.k=k;
+        } else {
+        	FunctionDefaults<NDIM>::set_k(param.k);
+        }
+        // don't forget to adapt the molecular smoothing parameter!!
+        molecule.set_eprec(std::min(thresh,molecule.get_eprec()));
+        FunctionDefaults<NDIM>::set_thresh(thresh);
+        FunctionDefaults<NDIM>::set_refine(true);
+        FunctionDefaults<NDIM>::set_initial_level(2);
+        FunctionDefaults<NDIM>::set_truncate_mode(1);
+        FunctionDefaults<NDIM>::set_autorefine(false);
+        FunctionDefaults<NDIM>::set_apply_randomize(false);
+        FunctionDefaults<NDIM>::set_project_randomize(false);
+        FunctionDefaults<NDIM>::set_cubic_cell(-param.L, param.L);
         GaussianConvolution1DCache<double>::map.clear();
         double safety = 0.1;
-        vtol = FunctionDefaults<3>::get_thresh() * safety;
+        vtol = FunctionDefaults<NDIM>::get_thresh() * safety;
         coulop = poperatorT(CoulombOperatorPtr(world, param.lo, thresh));
         gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving with thresh", thresh, "    k", FunctionDefaults<3>::get_k(), "   dconv", std::max(thresh, param.dconv), "\n");
+            print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k", FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
 
@@ -928,7 +955,7 @@ struct Calculation {
 	TAU_START("archive::ParallelOutputArchive ar(world)");
         archive::ParallelOutputArchive ar(world, "restartdata", param.nio);
 	TAU_STOP("archive::ParallelOutputArchive ar(world)");
-        ar & param.spin_restricted;
+        ar & current_energy & param.spin_restricted;
         ar & (unsigned int)(amo.size());
         ar & aeps & aocc & aset;
         for (unsigned int i=0; i<amo.size(); ++i) ar & amo[i];
@@ -969,7 +996,7 @@ struct Calculation {
         // LOTS OF LOGIC MISSING HERE TO CHANGE OCCUPATION NO., SET,
         // EPS, SWAP, ... sigh
 
-        ar & spinrest;
+        ar & current_energy & spinrest;
 
         ar & nmo;
         MADNESS_ASSERT(nmo >= unsigned(param.nmo_alpha));
@@ -1762,7 +1789,7 @@ struct Calculation {
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0));
     }
 
-    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v)
+    functionT make_density(World & world, const tensorT & occ, const vecfuncT & v) const
     {
         vecfuncT vsq = square(world, v);
         compress(world, vsq);
@@ -1823,7 +1850,14 @@ struct Calculation {
         return ops;
     }
 
-    vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f)
+    /// apply the HF exchange on a set of orbitals
+
+    /// @param[in]  world   the world
+    /// @param[in]  occ     occupation numbers
+    /// @param[in]  psi     the orbitals in the exchange operator
+    /// @param[in]  f       the orbitals |i> that the operator is applied on
+    /// @return     a vector of orbitals  K| i>
+    vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f) const
     {
         const bool same = (&psi == &f);
         int nocc = psi.size();
@@ -1924,47 +1958,28 @@ struct Calculation {
 
         //print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
         if (xc.is_dft() && !(xc.hf_exchange_coefficient()==1.0)) {
-
-            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
-
             TAU_START("DFT potential");
             START_TIMER(world);
-
-            // V_rho
-            vloc = vloc + make_dft_potential(world, vf, ispin, 0).truncate();
+#ifdef MADNESS_HAS_LIBXC
+            exc = make_dft_energy(world, vf, ispin);
+#else
+            if (ispin == 0) exc = make_dft_energy(world, vf, ispin);
+#endif
+            vloc = vloc + make_dft_potential(world, vf, ispin, 0);
+            //print("VLOC1", vloc.trace(), vloc.norm2());
 
 #ifdef MADNESS_HAS_LIBXC
-//
-// What = 0 : Vrho
-// What = 1 : Vsigma_ss
-// What = 2 : Vsigma_ab
-//
-// close shell
-//       v_xc = vrho - Div( 2Vsig_aa * Grad(rho_a))
-// open shell
-//       v_xc = vrho - Div( 2*Vsig_aa*Grad(rho)+ Vsig_ab*Grad(rho_b) + Vsig_ba*Grad(rho_a) + 2*Vsig_bb*Grad(rho_b))
-//
-
             if (xc.is_gga() ) {
-                // get Vsigma_aa (if it is the case and Vsigma_bb)
-                functionT vsigaa = make_dft_potential(world, vf, ispin, 1).truncate();
-                functionT vsigab;
-                if (xc.is_spin_polarized())    // V_ab
-                     vsigab = make_dft_potential(world, vf, ispin, 2).truncate();
-
+                if (world.rank() == 0) print(" WARNING GGA XC functionals must be used with caution in this version \n");
+                real_function_3d vsig = make_dft_potential(world, vf, ispin, 1);
+                //print("VSIG", vsig.trace(), vsig.norm2());
+                real_function_3d vr(world);
                 for (int axis=0; axis<3; axis++) {
-                     functionT  gradn = delrho[axis + 3*ispin];
-                     functionT  ddel = vsigaa*gradn;
-                     ddel.scale(2.0);
-                     if (xc.is_spin_polarized()) {
-                           functionT  vsab = vsigab*delrho[axis + 3*(1-ispin)];
-                           ddel = ddel + vsab;
-                     }
-                     Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
-                     functionT vxc2=D(ddel);
-                     vloc = vloc - vxc2.truncate();
+                     vr += (*gradop[axis])(vsig);
+                 //print("VR", vr.trace(), vr.norm2());
                 }
-            } //is gga
+                vloc = vloc - vr;
+            }
 #endif
             END_TIMER(world, "DFT potential");
             TAU_STOP("DFT potential");
@@ -2205,11 +2220,16 @@ struct Calculation {
         return ke;
     }
 
+
+    /// make the Coulomb potential given the total density
+    functionT make_coulomb_potential(const functionT& rho) const {
+        return apply(*coulop, rho);
+    }
     /// Compute the two-electron integrals over the provided set of orbitals
 
     /// Returned is a *replicated* tensor of \f$(ij|kl)\f$ with \f$i>=j\f$
     /// and \f$k>=l\f$.  The symmetry \f$(ij|kl)=(kl|ij)\f$ is enforced.
-    Tensor<double> twoint(World& world, const vecfuncT& psi) {
+    Tensor<double> twoint(World& world, const vecfuncT& psi) const {
         double tol = FunctionDefaults<3>::get_thresh(); /// Important this is consistent with Coulomb
         reconstruct(world, psi);
         norm_tree(world, psi);
@@ -2345,14 +2365,6 @@ struct Calculation {
             ilo = ihi+1;
         }
 
-	// if (world.rank() == 0) {
-	//   print("Fock");
-	//   print(fock);
-	//   print("Evec");
-	//   print(U);;
-	//   print("Eval");
-	//   print(evals);
-	// }
 
         world.gop.broadcast(U.ptr(), U.size(), 0);
         world.gop.broadcast(evals.ptr(), evals.size(), 0);
@@ -2595,7 +2607,7 @@ struct Calculation {
     void propagate(World& world, double omega, int step0)
     {
       // Load molecular orbitals
-      set_protocol(world,1e-4);
+      set_protocol<3>(world,1e-4);
       make_nuclear_potential(world);
       initial_load_bal(world);
       load_mos(world);
@@ -3059,6 +3071,7 @@ struct Calculation {
 //         //print("Entrying Solvation Module \n\n");
 //     }// end gas_phase function
 //     // For given protocol, solve the DFT/HF/response equations
+    // For given protocol, solve the DFT/HF/response equations
     void solve(World & world)
     {
         functionT arho_old, brho_old;
@@ -3199,7 +3212,7 @@ struct Calculation {
             //     //Abinitio Solvation Model
             //     rhoT = rhon - rho_elec;
             //     //  print("DEBUG TOTAL CHARGE", rhoT.trace());
-            //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta 
+            //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
             //                                 ,std::max(1e-5,1e-6));
             //     Uabinit = DFTSsolver.ESP();
             //     real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
@@ -3241,11 +3254,11 @@ struct Calculation {
                         vf.push_back(delrho[0]*delrho[3]+delrho[1]*delrho[4]+delrho[2]*delrho[5]); // sigma_ab
                     if (xc.is_spin_polarized())
                         vf.push_back(delrho[3]*delrho[3]+delrho[4]*delrho[4]+delrho[5]*delrho[5]); // sigma_bb
-//vama5
-//vama5                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
-//vama5
-//vama5                    if (xc.is_spin_polarized())
-//vama5                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
+
+                    for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis]);        // dda_x
+
+                    if (xc.is_spin_polarized())
+                        for (int axis=0; axis<3; ++axis) vf.push_back(delrho[axis + 3]); // ddb_x
                     world.gop.fence(); // NECESSARY
                 }
                 if (vf.size()) {
@@ -3439,7 +3452,7 @@ public:
 
         // Make the nuclear potential, initial orbitals, etc.
         for (unsigned int proto=0; proto<calc.param.protocol_data.size(); proto++) {
-            calc.set_protocol(world,calc.param.protocol_data[proto]);
+            calc.set_protocol<3>(world,calc.param.protocol_data[proto]);
             calc.make_nuclear_potential(world);
             calc.project_ao_basis(world);
 

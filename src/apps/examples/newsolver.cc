@@ -107,11 +107,23 @@ struct allocator {
 };
 
 
+/// solve the dynamic response equations
+
+/// @param[in]	world	the world
+/// @param[in]	solver	the KAIN solver
+/// @param[in]	V		the local potential (here: V_nuc + 1/2 J )
+/// @param[in]	psi		the orbital
+/// @param[in]	eps		orbital energy for psi
+/// @param[in]	ri		the external perturbation (here: z)
+/// @param[inout]	x	the x part of the response vector
+/// @param[inout]	y	the y part of the response vector
+/// @param[in]	omega	the frequency of the external perturbation
+/// @return		the current error in the residual of the response equations
 template <class solverT>
-double iterate_xy(World& world, solverT& solver, real_function_3d& V, 
-                  real_function_3d& psi, real_function_3d& dpsi, 
-                  double& eps, real_function_3d& ri, real_function_3d& x, 
-                  real_function_3d& y, double omega) {
+double iterate_xy(World& world, solverT& solver, const real_function_3d& V,
+                  const real_function_3d& psi,
+                  double& eps, const real_function_3d& ri, real_function_3d& x,
+                  real_function_3d& y, const double omega) {
     real_convolution_3d gOpx = BSHOperator3D(world, sqrt(-2*(eps+omega)), 0.001, 1e-6);
     real_convolution_3d gOpy = BSHOperator3D(world, sqrt(-2*(eps-omega)), 0.001, 1e-6);
     real_convolution_3d uop = CoulombOperator(world, 0.001, 1e-6);
@@ -260,7 +272,7 @@ int main(int argc, char** argv) {
         XNonlinearSolver<F,double,allocator> solver = XNonlinearSolver<F,double,allocator>(allocator(world));
         
         for(int iter=1; iter<=20; iter++) {
-            double err = iterate_xy(world, solver, potential, psi, dpsi, eps, ri, x, y, omega);
+            double err = iterate_xy(world, solver, potential, psi, eps, ri, x, y, omega);
             if (err < 10*thresh) break;
         }
 

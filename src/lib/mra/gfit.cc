@@ -30,8 +30,8 @@
 
   $Id$
 */
-#include <mra/mra.h>
 #include <linalg/tensor_lapack.h>
+#include <world/print.h>
 
 using std::cout;
 using std::endl;
@@ -43,6 +43,8 @@ using std::min;
 
 /// \ingroup function
 
+// for debugging
+#define ONE_TERM 0
 
 namespace madness {
     using std::abs;
@@ -132,6 +134,18 @@ namespace madness {
             coeff[i] = coeff[i]/(4.0*pi);
             expnt[i] = exp(2.0*s);
         }
+
+
+#if ONE_TERM
+        npt=1;
+        double s=1.0;
+        coeff[0]=1.0;
+        expnt[0] = exp(2.0*s);
+        coeff=coeff(Slice(0,0));
+        expnt=expnt(Slice(0,0));
+        print("only one term in gfit",s,coeff[0],expnt[0]);
+
+#endif
 
         // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
         // the range midpoint, and replace it there with the next most
@@ -238,6 +252,18 @@ namespace madness {
             coeff[i] = coeff[i]/(4.0*pi);
             expnt[i] = exp(2.0*s);
         }
+
+#if ONE_TERM
+        npt=1;
+        double s=1.0;
+        coeff[0]=1.0;
+        expnt[0] = exp(2.0*s);
+        coeff=coeff(Slice(0,0));
+        expnt=expnt(Slice(0,0));
+        print("only one term in gfit",s,coeff[0],expnt[0]);
+
+
+#endif
 
         // Prune large exponents from the fit ... never necessary due to construction
 
@@ -407,6 +433,16 @@ namespace madness {
             }
         }
         npt = nnpt;
+#if ONE_TERM
+        npt=1;
+        double s=1.0;
+        coeff[0]=1.0;
+        expnt[0] = exp(2.0*s);
+        coeff=coeff(Slice(0,0));
+        expnt=expnt(Slice(0,0));
+        print("only one term in gfit",s,coeff[0],expnt[0]);
+
+#endif
 
 
         // Prune small exponents from Coulomb fit.  Evaluate a gaussian at
@@ -490,5 +526,10 @@ namespace madness {
           e = e(Slice(0,icut));
         }
       }
+    }
+
+    void flo_bsh_fit(double mu, double lo, double hi, double eps,
+                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt) {
+    	bsh_fit(mu,lo,hi,eps,pcoeff,pexpnt,prnt);
     }
 }

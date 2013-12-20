@@ -55,8 +55,8 @@ using namespace madness;
 
 static const double R = 1.4;    // bond length
 static const double L = 64.0*R; // box size
-static const long k = 6;        // wavelet order
-static const double thresh = 1e-4; // precision
+static const long k = 8;        // wavelet order
+static const double thresh = 1e-6; // precision
 
 static double guess(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];

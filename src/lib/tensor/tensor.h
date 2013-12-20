@@ -46,7 +46,16 @@
 #include <cstdlib>
 
 #include <world/archive.h>
-
+// #include <world/print.h>
+// 
+// typedef std::complex<float> float_complex;
+// typedef std::complex<double> double_complex;
+// 
+// // These probably have to be included in this order
+// #include <tensor/tensor_macros.h>
+// #include <tensor/type_data.h>
+// #include <tensor/slice.h>
+// #include <tensor/vector_factory.h>
 #include <tensor/basetensor.h>
 #include <tensor/aligned.h>
 #include <tensor/mxm.h>
@@ -1794,6 +1803,9 @@ namespace madness {
 
         /// Frees all memory and resests to state of default constructor
         void clear() {deallocate();}
+
+        bool has_data() const {return size()!=0;};
+
     };
 
     template <class T>
@@ -2064,9 +2076,11 @@ namespace madness {
                 if (i != iter.ndim) s << ",";
             }
             s << "*]";
-            s.setf(std::ios::scientific);
+//flo            s.setf(std::ios::scientific);
+            s.setf(std::ios::fixed);
             for (long j=0; j<dimj; ++j, p+=inc) {
-                s.precision(4);
+//flo                s.precision(4);
+                s.precision(8);
                 s.width(12);
                 s << *p;
             }

@@ -76,6 +76,10 @@ namespace madness {
 
     template <class T> class SliceTensor;
 
+    template <class T> class GenTensor;
+
+    template <class T> class SliceGenTensor;
+
     std::ostream& operator<<(std::ostream& stream, const Slice& s) {
         stream << "Slice(" << s.start << "," << s.end << "," << s.step << ")";
         return stream;

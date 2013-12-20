@@ -55,6 +55,7 @@
 #include <world/safempi.h>
 #include <world/worldtypes.h>
 #include <world/shared_ptr.h>
+#include <cstdlib>
 
 
 #ifdef MADNESS_USE_BSEND_ACKS
