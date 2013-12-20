@@ -122,20 +122,6 @@ namespace madness {
 
 }
 
-namespace madness {
-    template<typename T, size_t NDIM>
-    struct FunctionVariable {
-
-        const Function<T,NDIM> f;
-        const int i;
-        const int j;
-        FunctionVariable(const Function<T,NDIM>& f, const int i, const int j)
-                : f(f), i(i), j(j) {}
-
-    };
-
-}
-
 
 namespace madness {
     /// \ingroup mra
@@ -411,10 +397,6 @@ namespace madness {
             if (NDIM>=5) r[4] = yy;
             if (NDIM>=6) r[5] = zz;
             return (*this)(r);
-        }
-
-        FunctionVariable<T,NDIM> operator()(const int i, const int j=0) const {
-            return FunctionVariable<T,NDIM>(*this,i,j);
         }
 
         /// Throws if function is not initialized.
@@ -1221,29 +1203,6 @@ namespace madness {
             return local;
         }
 
-        /// Computes the trace of three functions of the form int dr1 dr2 dr3 f(1,2) g(1,3) h(2,3)
-
-        /// @param[in]  g  a function of variables g(1,3);
-        /// @param[in]  h  an on-demand functions of variables h(2,3)
-        /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(1,3)*h(2,3)
-        template <typename R>
-        TENSOR_RESULT_TYPE(T,R) trace3functions(const Function<R,NDIM>& g, const Function<T,NDIM>& h) const {
-            MADNESS_ASSERT(h.is_on_demand());
-
-            FunctionImpl<R,NDIM>* gimpl=const_cast<FunctionImpl<R,NDIM>*>(g.get_impl().get());
-            const implT* himpl=h.get_impl().get();
-
-            if (not this->get_impl()->is_redundant()) this->get_impl()->make_redundant(false);
-            if (not gimpl->is_redundant()) gimpl->make_redundant(true);
-
-            TENSOR_RESULT_TYPE(T,R) local = impl->trace3functions_local(*gimpl,*himpl);
-            impl->world.gop.sum(local);
-            impl->world.gop.fence();
-
-            gimpl->undo_redundant(true);
-            return local;
-        }
-
         /// project this on the low-dim function g: h(x) = <f(x,y) | g(y)>
 
         /// @param[in]  g   low-dim function
@@ -1849,48 +1808,6 @@ namespace madness {
     /// @param[in]	f2	function of particle 2
     /// @param[in]	fence if we shall fence
     /// @return		a function of dimension NDIM=LDIM+LDIM
-    template <typename opT, typename T, size_t NDIM>
-    Function<T,NDIM> multiply_apply(const opT& op, const Function<T,NDIM>& f1,
-    		const Function<T,NDIM>& f2, bool fence=true) {
-
-
-    	Function<T,NDIM>& ff1 = const_cast< Function<T,NDIM>& >(f1);
-    	Function<T,NDIM>& ff2 = const_cast< Function<T,NDIM>& >(f2);
-
-    	bool same=(ff1.get_impl()==ff2.get_impl());
-
-    	// compress, keep leaves
-    	if (not same) ff1.nonstandard(true,false);
-    	ff2.nonstandard(true,true);
-
-    	Function<T,NDIM> result;
-    	Function<T,NDIM> r1;
-        result.set_impl(ff1, true);
-        r1.set_impl(ff1, true);
-
-        result.get_impl()->recursive_multiply_and_apply(op, f1.get_impl().get(),
-        		f2.get_impl().get(), r1.get_impl().get(),true);			// will fence here
-
-		result.get_impl()->finalize_apply(true);	// need fence before reconstruct
-		result.reconstruct();
-
-    	if (not same) ff1.standard(false);
-    	ff2.standard(false);
-
-		return result;
-    }
-
-
-    /// Apply operator on a hartree product of two low-dimensional functions
-
-    /// Supposed to be something like result= G( f(1)*f(2))
-    /// the hartree product is never constructed explicitly, but its coeffs are
-    /// constructed on the fly and processed immediately.
-    /// @param[in]	op	the operator
-    /// @param[in]	f1	function of particle 1
-    /// @param[in]	f2	function of particle 2
-    /// @param[in]	fence if we shall fence
-    /// @return		a function of dimension NDIM=LDIM+LDIM
     template <typename opT, typename T, std::size_t LDIM>
     Function<TENSOR_RESULT_TYPE(typename opT::opT,T), LDIM+LDIM>
     apply(const opT& op, const Function<T,LDIM>& f1, const Function<T,LDIM>& f2, bool fence=true) {
@@ -2169,59 +2086,6 @@ namespace madness {
         PROFILE_FUNC;
         return f.inner(g);
     }
-
-    /// Computes the scalar/inner product between two functions, with different variables
-
-    /// usage: double a=inner(f(1,2), g(2,3))
-    /// @param[in]  ff  a FunctionVariable, construct on-the-fly as e.g. f(1,2);
-    /// @param[in]  gg  a FunctionVariable, construct on-the-fly as e.g. g(2,3);
-    /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(2,3)
-    template <typename T, typename R, std::size_t NDIM>
-    TENSOR_RESULT_TYPE(T,R) inner(const FunctionVariable<T,NDIM>& ff,
-            const FunctionVariable<R,NDIM>& gg) {
-        PROFILE_FUNC;
-        MADNESS_ASSERT(not ff.i==ff.j);   // no f(1,1) or alike
-        MADNESS_ASSERT(not gg.i==gg.j);
-
-        // regular case f(1,2)*g(1,2)
-        if (ff.i==gg.i and ff.j == gg.j) return ff.f.inner(gg.f);
-
-        // need a case list here..
-//        if (ff.i==1 and ff.j==2 and gg.i==2 and gg.j==3) return ff.f.inner3(gg.f); // f(1,2)*g(2,3)
-        MADNESS_EXCEPTION("you should not be here in inner(f(1,2),g(2,3))",1);
-    }
-
-    /// Computes the trace of three functions of the form int dr1 dr2 dr3 f(1,2) g(1,3) h(2,3)
-
-    /// usage: double a=inner(f(1,2), g(1,3), h(2,3))
-    /// @param[in]  ff  a FunctionVariable, construct on-the-fly as e.g. f(1,2);
-    /// @param[in]  gg  a FunctionVariable, construct on-the-fly as e.g. g(1,3);
-    /// @param[in]  hh  a FunctionVariable, construct on-the-fly as e.g. h(2,3) -- must be on-demand
-    /// @return the inner product, e.g. \int dr1 dr2 dr3 f(1,2)*g(1,3)*h(2,3)
-    template <typename T, typename R, std::size_t NDIM>
-    TENSOR_RESULT_TYPE(T,R) inner(const FunctionVariable<T,NDIM>& ff,
-            const FunctionVariable<R,NDIM>& gg, const FunctionVariable<T,NDIM>& hh) {
-        PROFILE_FUNC;
-
-        // get a pmap that maps only the first part of the key to ensure locality
-//        const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > > pmap = (new MyPmap<NDIM>(ff.f.world()));
-        const std::shared_ptr< WorldDCPmapInterface< Key<NDIM> > >
-            pmap = (std::shared_ptr<WorldDCPmapInterface< Key<NDIM> > >
-            (new PartialKeyMap<NDIM,NDIM/2>(ff.f.world())));
-
-        // for now: for changing this you also need to change the PartialKeyMap
-        MADNESS_ASSERT(ff.i==1 and gg.i==1 and ff.j==2 and gg.j==3 and hh.i==2 and hh.j==3);
-
-        // copy and redistribute the functions f and g -- h is on-demand anyways
-        const Function<T,NDIM> f=copy(ff.f,pmap);
-        const Function<T,NDIM> g=copy(gg.f,pmap);
-        MADNESS_ASSERT(hh.f.is_on_demand());
-
-        // compute the integral
-        const TENSOR_RESULT_TYPE(T,R) a=f.trace3functions(g,hh.f);
-        return a;
-    }
-
 
     template <typename T, typename R, std::size_t NDIM>
     typename IsSupported<TensorTypeData<R>, Function<TENSOR_RESULT_TYPE(T,R),NDIM> >::type
