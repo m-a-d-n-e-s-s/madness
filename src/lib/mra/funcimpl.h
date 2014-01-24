@@ -1398,9 +1398,12 @@ namespace madness {
                     double yhiright = scale*(l[yaxis]+1);
 
                     // convert back to user coordinates
-                    Vector<double,6> sim, user;
-                    sim[0]=xloleft; sim[1]=yloleft; sim[2]=xhiright; sim[3]=yhiright;
-                    sim_to_user<6>(sim,user);
+                    Vector<double,4> user;
+                    user[0]=xloleft*FunctionDefaults<NDIM>::get_cell_width()[xaxis] + FunctionDefaults<NDIM>::get_cell()(xaxis,0);
+                    user[2]=xhiright*FunctionDefaults<NDIM>::get_cell_width()[xaxis] + FunctionDefaults<NDIM>::get_cell()(xaxis,0);
+                    user[1]=yloleft*FunctionDefaults<NDIM>::get_cell_width()[yaxis] + FunctionDefaults<NDIM>::get_cell()(yaxis,0);
+                    user[3]=yhiright*FunctionDefaults<NDIM>::get_cell_width()[yaxis] + FunctionDefaults<NDIM>::get_cell()(yaxis,0);
+
 
 //                    if ((xloleft<-5.0) or (yloleft<-5.0) or (xhiright>5.0) or (yhiright>5.0)) continue;
                     if ((user[0]<-5.0) or (user[1]<-5.0) or (user[2]>5.0) or (user[3]>5.0)) continue;

@@ -513,6 +513,108 @@ namespace madness {
     }
 
 
+    /// plot a 2-d slice of a given function and the according MRA structure
+
+    /// the plotting parameters are taken from the input file "input" and its
+    /// data group "plot", e.g. plotting the xy plane around (0,0,0.7):
+    /// plot
+    ///   plane x1 x2
+    ///   zoom 2.0
+    ///   npoints 100
+    ///   origin 0.0 0.0 0.7
+    /// end
+    /// @param[in]	world	the world
+    /// @param[in]	function	the function to plot
+    /// @param[in]	name		the output name
+    template<size_t NDIM>
+    void plot_plane(World& world, const Function<double,NDIM>& function,
+    		const std::string name) {
+
+        // determine the ploting plane
+    	std::string c1, c2;
+
+    	// zoom factor
+    	double zoom=1.0;
+
+    	// number of points in each direction
+        int npoints=200;
+
+        // the coordinates to be plotted
+        Vector<double,NDIM> coord(0.0);
+        Vector<double,NDIM> origin(0.0);
+
+        std::ifstream f("input");
+        position_stream(f, "plot");
+        std::string s;
+        while (f >> s) {
+        	if (s == "end") {
+        		break;
+        	} else if (s == "plane") {
+        		f >> c1 >> c2;
+        	} else if (s == "zoom") {
+        		f >> zoom;
+        	} else if (s == "points") {
+        		f >> npoints;
+        	} else if (s == "origin") {
+        		for (int i=0; i<NDIM; ++i) f >> origin[i];
+        	}
+        }
+    	double scale=1.0/zoom;
+    	coord=origin;
+
+        // convert human to mad form
+        int cc1, cc2;
+        if (c1=="x1") cc1=0;
+        if (c1=="x2") cc1=1;
+        if (c1=="x3") cc1=2;
+        if (c1=="x4") cc1=3;
+        if (c1=="x5") cc1=4;
+        if (c1=="x6") cc1=5;
+        if (c2=="x1") cc2=0;
+        if (c2=="x2") cc2=1;
+        if (c2=="x3") cc2=2;
+        if (c2=="x4") cc2=3;
+        if (c2=="x5") cc2=4;
+        if (c2=="x6") cc2=5;
+
+        // output file name for the gnuplot data
+        std::string filename="plane_"+c1+c2+"_"+name;
+        // assume a cubic cell
+        double lo=-FunctionDefaults<NDIM>::get_cell_width()[0]*0.5;
+        lo=lo*scale;
+
+        const double stepsize=FunctionDefaults<NDIM>::get_cell_width()[0]*scale/npoints;
+
+        if(world.rank() == 0) {
+
+        	// plot 3d plot
+        	FILE *f =  0;
+        	f=fopen(filename.c_str(), "w");
+        	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
+
+        	for (int i0=0; i0<npoints; i0++) {
+        		for (int i1=0; i1<npoints; i1++) {
+        			// plot plane
+        			coord[cc1]=lo+origin[cc1]+i0*stepsize;
+        			coord[cc2]=lo+origin[cc2]+i1*stepsize;
+
+        			// other electron
+        			fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],
+        					function(coord));
+
+        		}
+        		// uncomment for gnuplot-style; leave commented out for mathematica
+				fprintf(f,"\n");
+        	}
+        	fclose(f);
+
+        }
+
+        // plot mra structure
+    	filename="mra_structure_"+c1+c2+"_"+name;
+    	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
+    }
+
     template<typename T>
     static std::string stringify(T arg) {
     	std::ostringstream o;

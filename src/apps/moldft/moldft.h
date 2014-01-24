@@ -1544,7 +1544,7 @@ struct Calculation {
         return U;
     }
 
-    tensorT kinetic_energy_matrix(World & world, const vecfuncT & v)
+    tensorT kinetic_energy_matrix(World & world, const vecfuncT & v) const
     {
         reconstruct(world, v);
         int n = v.size();
@@ -1857,8 +1857,8 @@ struct Calculation {
     /// @param[in]  psi     the orbitals in the exchange operator
     /// @param[in]  f       the orbitals |i> that the operator is applied on
     /// @return     a vector of orbitals  K| i>
-    vecfuncT apply_hf_exchange(World & world, const tensorT & occ, const vecfuncT & psi, const vecfuncT & f) const
-    {
+    vecfuncT apply_hf_exchange(World & world, const tensorT & occ,
+    		const vecfuncT & psi, const vecfuncT & f) const {
         const bool same = (&psi == &f);
         int nocc = psi.size();
         int nf = f.size();
@@ -2193,7 +2193,8 @@ struct Calculation {
         return r;
     }
 
-    tensorT make_fock_matrix(World & world, const vecfuncT & psi, const vecfuncT & Vpsi, const tensorT & occ, double & ekinetic)
+    tensorT make_fock_matrix(World & world, const vecfuncT & psi, const vecfuncT & Vpsi,
+    		const tensorT & occ, double & ekinetic) const
     {
 	TAU_START("PE matrix");
         START_TIMER(world);
@@ -2406,7 +2407,8 @@ struct Calculation {
         FunctionDefaults<3>::redistribute(world, lb.load_balance(6.0)); // 6.0 needs retuning after vnucextra
     }
 
-    void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace, int lo, int nfunc, double trantol) {
+    void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
+    		int lo, int nfunc, double trantol) const {
         for (unsigned int iter=0; iter<subspace.size(); ++iter) {
             vecfuncT& v = subspace[iter].first;
             vecfuncT& r = subspace[iter].second;
@@ -3429,7 +3431,6 @@ class MolecularEnergy : public OptimizationTargetInterface {
     World& world;
     Calculation& calc;
     mutable double coords_sum;     // sum of square of coords at last solved geometry
-    mutable double E; //< Current energy
 
 public:
     MolecularEnergy(World& world, Calculation& calc)

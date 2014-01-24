@@ -254,6 +254,13 @@ namespace madness {
             return *this;
         }
 
+        /// return the 2-norm of the vector elements
+        T normf() const {
+        	T d=0;
+        	for (std::size_t i=0; i<N; ++i) d+=(data_[i])*(data_[i]);
+        	return sqrt(d);
+        }
+
         /// Support for MADNESS serialization
         template <typename Archive>
         void serialize(Archive& ar) {
@@ -339,7 +346,7 @@ namespace madness {
         // coordinate passed by value to allow compiler optimization
         for (std::size_t i = 0; i < N; ++i)
             r[i] *= l;
-        return l;
+        return r;
     }
 
     /// Multiply two \c Vector objects
@@ -521,6 +528,14 @@ namespace madness {
         }
 
     }; // class Stack
+
+	/// helper function unit vector in direction r
+    template<typename T, std::size_t NDIM>
+	Vector<T,NDIM> n12(const Vector<T,NDIM>& r, const double eps=1.e-6) {
+		const double norm=r.normf();
+		if (norm<1.e-6) return Vector<T,NDIM>(0.0);
+		return r*(1.0/norm);
+	}
 
 
     /// Returns a Vector<T,1> initialized from the arguments
