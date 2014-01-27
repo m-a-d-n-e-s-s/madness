@@ -143,7 +143,7 @@ namespace madness {
           group_rank_ = rank(world_.rank());
 
           // Check that this process is in the group
-          MADNESS_ASSERT(group_rank_ != group_to_world_map_.size());
+          MADNESS_ASSERT(group_rank_ != -1);
         }
 
         /// Parent world accessor
