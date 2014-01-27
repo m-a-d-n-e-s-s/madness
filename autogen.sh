@@ -1,3 +1,6 @@
 #! /bin/sh
 
-autoreconf -vif
+aclocal -I ./config
+autoconf
+autoheader
+automake --add-missing
