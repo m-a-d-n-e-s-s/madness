@@ -47,47 +47,7 @@ namespace madness {
         /// Group registry container
         group_registry_container group_registry;
 
-        /// Group
-        class GroupSyncKey {
-        private:
-            DistributedID did_;
-
-        public:
-            GroupSyncKey() : did_(uniqueidT(), 0ul) { }
-
-            GroupSyncKey(const DistributedID& did) : did_(did) { }
-
-            GroupSyncKey(const GroupSyncKey& other) : did_(other.did_) { }
-
-            GroupSyncKey& operator=(const GroupSyncKey& other) {
-                did_ = other.did_;
-                return *this;
-            }
-
-            bool operator==(const GroupSyncKey& other) const { return did_ == other.did_; }
-            bool operator!=(const GroupSyncKey& other) const { return did_ != other.did_; }
-
-            template <typename Archive>
-            void serialize(const Archive& ar) {
-                ar & did_;
-            }
-
-            friend hashT hash_value(const GroupSyncKey& key) {
-                return std::hash_value(key.did_);
-            }
-        }; // class GroupSyncKey
-
     } // namespace
-
-
-    void Group::UnregisterGroup::operator()() const {
-        group_registry_container::accessor acc;
-        group_registry.find(acc, did_);
-        Group group = acc->second;
-        group_registry.erase(acc);
-        group.pimpl_->set_register_status(false);
-    }
-
 
     /// Register a group
 
@@ -97,16 +57,16 @@ namespace madness {
     /// \throw TiledArray::Exception When the group is empty
     /// \throw TiledArray::Exception When the group is already in the registry
     void Group::register_group() const {
-        MADNESS_ASSERT(pimpl_);
+        // Get/insert the group into the registry
         group_registry_container::accessor acc;
-        if(! group_registry.insert(acc, group_registry_container::datumT(id(),
-                Future<Group>(*this))))
-        {
-            MADNESS_ASSERT(! acc->second.probe());
-            acc->second.set(*this);
+        if(group_registry.insert(acc, group_registry_container::datumT(pimpl_->id(),
+                Future<Group>::default_initializer()))) {
+            acc->second = Future<Group>();
         }
 
-        pimpl_->set_register_status(true);
+        // Initialize the group object that will be used by remote tasks in
+        // global operations.
+        acc->second.set(Group(pimpl_.get()));
     }
 
     /// Remove the given group from the registry
@@ -115,10 +75,10 @@ namespace madness {
     /// group from the registry once unregistered has been called on all processes
     /// in the group.
     /// \param group The group to be removed from the registry
-    void Group::unregister_group() const {
-        MADNESS_ASSERT(pimpl_);
-        pimpl_->get_world().gop.lazy_sync(GroupSyncKey(pimpl_->id()),
-                UnregisterGroup(pimpl_->id()), *this);
+    void Group::unregister_group(const DistributedID& did) {
+        group_registry_container::accessor acc;
+        group_registry.find(acc, did);
+        group_registry.erase(acc);
     }
 
     /// Get a registered group
