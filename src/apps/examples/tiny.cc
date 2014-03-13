@@ -111,97 +111,12 @@ void draw_circle(World& world, Function<double,NDIM>& pair, const std::string re
 }
 
 
-
-template<size_t NDIM>
-void draw_plane(World& world, Function<double,NDIM>& function, const std::string restart_name) {
-
-    // determine the plot plane
-    std::string c1, c2;	// the coordinates for the two electrons in human form ("x1" or "z2" or so)
-
-    // the coordinates to be plotted
-    Vector<double,NDIM> coord(0.0);
-
-    std::ifstream f("input");
-    position_stream(f, "plot");
-    std::string s;
-    while (f >> s) {
-    	if (s == "end") {
-    		break;
-    	} else if (s == "plane") {
-    		f >> c1 >> c2;
-    	} else if (s == "electron1") {
-    		f >> coord[0] >> coord[1] >> coord[2];
-    	} else if (s == "electron2") {
-    		f >> coord[3] >> coord[4] >> coord[5];
-    	}
-    }
-    // convert human to mad form
-    int cc1, cc2;
-    if (c1=="x1") cc1=0;
-    if (c1=="y1") cc1=1;
-    if (c1=="z1") cc1=2;
-    if (c1=="x2") cc1=3;
-    if (c1=="y2") cc1=4;
-    if (c1=="z2") cc1=5;
-    if (c2=="x1") cc2=0;
-    if (c2=="y1") cc2=1;
-    if (c2=="z1") cc2=2;
-    if (c2=="x2") cc2=3;
-    if (c2=="y2") cc2=4;
-    if (c2=="z2") cc2=5;
-
-    std::string filename="plane_"+c1+c2+"_"+restart_name;
-    const double scale=0.25;
-    // assume a cubic cell
-    double lo=-FunctionDefaults<6>::get_cell_width()[0]*0.5;
-    lo=lo*scale;
-//    const double hi=FunctionDefaults<6>::get_cell_width()[0]*0.5;
-
-    const long nstep=100;
-    const double stepsize=FunctionDefaults<6>::get_cell_width()[0]*scale/nstep;
-
-    if(world.rank() == 0) {
-
-    	// plot 3d plot
-    	FILE *f =  0;
-    	f=fopen(filename.c_str(), "w");
-    	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
-
-    	for (int i0=0; i0<nstep; i0++) {
-    		for (int i1=0; i1<nstep; i1++) {
-    			// plot plane
-    			coord[cc1]=lo+i0*stepsize;
-    			coord[cc2]=lo+i1*stepsize;
-
-    			// other electron
-    			fprintf(f,"%12.6f %12.6f %12.6f\n",coord[cc1],coord[cc2],function(coord));
-
-    		}
-    		// uncomment for gnuplot-style; leave commented out for mathematica
-    		//        fprintf(f,"\n");
-    	}
-    	fclose(f);
-
-    }
-
-    // plot mra structure
-	FILE *file =  0;
-	filename="mra_structure_"+c1+c2+"_"+restart_name;
-//	file=fopen(filename.c_str(), "w");
-	if(!f) MADNESS_EXCEPTION("plot_along: failed to open the plot file", 0);
-	function.get_impl()->print_plane(filename.c_str(),cc1,cc2,coord);
-//	fclose(file);
-
-}
-
-
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
     startup(world,argc,argv);
     std::cout.precision(6);
 
-    static const size_t NDIM=6;
 
     // determine the box size L
     double L=-1.0;
@@ -244,35 +159,41 @@ int main(int argc, char** argv) {
         }
     }
 
-    Function<double,NDIM> pair;
-    if (restart) {
-    	Function<double,NDIM> r12phi;
-    	load_function(world,pair,restart_name);
-//    	load_function(world,r12phi,"r12phi");
-//    	pair=pair+r12phi;
+	// make sure we're doing what we want to do
+	if (world.rank()==0) {
+		print("polynomial order:  ", FunctionDefaults<6>::get_k());
+		print("threshold:         ", FunctionDefaults<6>::get_thresh());
+		print("cell size:         ", FunctionDefaults<6>::get_cell()(0,1) - FunctionDefaults<6>::get_cell()(0,0));
+		print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
+		print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
+		print("");
+		print("facReduce          ", GenTensor<double>::fac_reduce());
+		print("max displacement   ", Displacements<6>::bmax_default());
+		print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
+		print("world.size()       ", world.size());
+		print("");
+	}
+
+
+    try {
+        static const size_t NDIM=3;
+        Function<double,NDIM> pair;
+		load_function(world,pair,restart_name);
+		plot_plane(world,pair,restart_name);
+		draw_line(world,pair,restart_name);
+    } catch (...) {
+        try {
+            static const size_t NDIM=6;
+            Function<double,NDIM> pair;
+    		load_function(world,pair,restart_name);
+    		plot_plane(world,pair,restart_name);
+    		draw_line(world,pair,restart_name);
+        } catch (...) {
+
+        }
     }
 
-    // make sure we're doing what we want to do
-    if (world.rank()==0) {
-        print("polynomial order:  ", FunctionDefaults<6>::get_k());
-        print("threshold:         ", FunctionDefaults<6>::get_thresh());
-        print("cell size:         ", FunctionDefaults<6>::get_cell()(0,1) - FunctionDefaults<6>::get_cell()(0,0));
-        print("truncation mode:   ", FunctionDefaults<6>::get_truncate_mode());
-        print("tensor type:       ", FunctionDefaults<6>::get_tensor_type());
-        print("");
-        print("facReduce          ", GenTensor<double>::fac_reduce());
-        print("max displacement   ", Displacements<6>::bmax_default());
-        print("apply randomize    ", FunctionDefaults<6>::get_apply_randomize());
-        print("world.size()       ", world.size());
-        print("");
-    }
 
-//    if (restart) {
-//    	draw_line(world,pair,restart_name);
-//    	draw_circle(world,pair,restart_name);
-//    }
-    draw_plane(world,pair,restart_name);
-    draw_line(world,pair,restart_name);
 
     world.gop.fence();
     print("exiting tiny");

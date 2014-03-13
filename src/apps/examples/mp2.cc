@@ -67,6 +67,7 @@ int main(int argc, char** argv) {
 
     // get command line parameters (overrides input file)
     bool do_test=false;
+    std::string testfilename;
     for(int ii = 1; ii < argc; ii++) {
         const std::string arg=argv[ii];
 
@@ -75,17 +76,19 @@ int main(int argc, char** argv) {
         std::string key=arg.substr(0,pos);
         std::string val=arg.substr(pos+1);
 
-        if (key=="test") do_test=true;
+        if (key=="test") {
+        	do_test=true;
+        	testfilename=val;
+        }
     }
 
 
     try {
-    	CorrelationFactor f12(world,1.0);
-    	MP2 mp2(world,f12,"input");
+    	MP2 mp2(world,"input");
 
     	if(world.rank() == 0) printf("\nstarting at time %.1fs\n", wall_time());
 
-		if (do_test) mp2.test();
+		if (do_test) mp2.test(testfilename);
 		else {
 			const double hf_energy=mp2.get_hf().value();
 			const double mp2_energy=mp2.value();

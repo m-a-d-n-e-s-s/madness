@@ -135,7 +135,7 @@ namespace madness {
         unsigned int maxsub; //< Maximum size of subspace dimension
         Alloc alloc;
         std::vector<T> ulist, rlist; ///< Subspace information
-	Tensor<C> Q;
+        Tensor<C> Q;
     public:
 
 	XNonlinearSolver(const Alloc& alloc = Alloc())
@@ -149,10 +149,10 @@ namespace madness {
         {}
 
 
-        void set_maxsub(int maxsub) 
-        {
-            this->maxsub = maxsub;
-        }
+	std::vector<T>& get_ulist() {return ulist;}
+	std::vector<T>& get_rlist() {return rlist;}
+
+	void set_maxsub(int maxsub) {this->maxsub = maxsub;}
 
 	/// Computes next trial solution vector
 
@@ -163,32 +163,63 @@ namespace madness {
 	/// @param r Corresponding residual
 	/// @return Next trial solution vector
 	T update(const T& u, const T& r) {
-	    int iter = ulist.size();
-	    ulist.push_back(u);
-	    rlist.push_back(r);
+		int iter = ulist.size();
+		ulist.push_back(u);
+		rlist.push_back(r);
 
-	    // Solve subspace equations
-	    Tensor<C> Qnew(iter+1,iter+1);
-	    if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
-	    for (int i=0; i<=iter; i++) {
-		Qnew(i,iter) = inner(ulist[i],rlist[iter]);
-		Qnew(iter,i) = inner(ulist[iter],rlist[i]);
-	    }
-	    Q = Qnew;
-	    Tensor<C> c = KAIN(Q);
+		// Solve subspace equations
+		Tensor<C> Qnew(iter+1,iter+1);
+		if (iter>0) Qnew(Slice(0,-2),Slice(0,-2)) = Q;
+		for (int i=0; i<=iter; i++) {
+			Qnew(i,iter) = inner(ulist[i],rlist[iter]);
+			Qnew(iter,i) = inner(ulist[iter],rlist[i]);
+		}
+		Q = Qnew;
+		Tensor<C> c = KAIN(Q);
 
-	    // Form new solution in u
-	    T unew = alloc();
-	    for (int i=0; i<=iter; i++) {
-                unew += (ulist[i] - rlist[i])*c[i];
-	    }
+		check_linear_dependence(Q,c);
 
-            if (ulist.size() == maxsub) {
-                ulist.erase(ulist.begin());
-                rlist.erase(rlist.begin());
-                Q = copy(Q(Slice(1,-1),Slice(1,-1)));
-            }
-	    return unew;
+		// Form new solution in u
+		T unew = alloc();
+		for (int i=0; i<=iter; i++) {
+			unew += (ulist[i] - rlist[i])*c[i];
+		}
+
+		if (ulist.size() == maxsub) {
+			ulist.erase(ulist.begin());
+			rlist.erase(rlist.begin());
+			Q = copy(Q(Slice(1,-1),Slice(1,-1)));
+		}
+		return unew;
+	}
+
+    private:
+
+	/// check for subspace linear dependency
+
+	/// if the subspace is linearly dependent the coefficients in c
+	/// will be highly oscillating.
+	/// @param[in]	Q	the
+	/// @param[inout]	c	the coefficients for constructing the new solution
+	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c) const {
+		double rcond = 1e-12;
+		int m = ulist.size();
+
+		while(1){
+			c = KAIN(Q, rcond);
+			//if (world.rank() == 0) print("kain c:", c);
+			if(std::abs(c[m - 1]) < 3.0){
+				break;
+			} else  if(rcond < 0.01){
+				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+				rcond *= 100;
+			} else {
+				print("Forcing full step due to subspace malfunction");
+				c = 0.0;
+				c[m - 1] = 1.0;
+				break;
+			}
+		}
 	}
     };
 

@@ -36,6 +36,12 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
+
+#ifndef MOLDFT_H_
+#define MOLDFT_H_
+
+
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
@@ -486,6 +492,7 @@ struct CalculationParameters {
     int  gmaxiter;               ///< optimization maxiter
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
+    std::string nuclear_corrfac;	///< nuclear correlation factor
     //bool absolvent;             ///< If true calculate solvation effects
     //double epsilon_2;           ///< dielectric constant of solvent
     //double Gamma;               ///< surface tension of solvent
@@ -549,6 +556,7 @@ struct CalculationParameters {
         , gmaxiter(20)
         , algopt("BFGS")
         , tdksprop(false)
+        , nuclear_corrfac("none")
           //, absolvent(false)
           //, epsilon_2(78.304)
           //, Gamma(0.0719)
@@ -728,6 +736,9 @@ struct CalculationParameters {
             }
             else if (s == "tdksprop") {
               tdksprop = true;
+            }
+            else if (s == "nuclear_corrfac") {
+              f >> nuclear_corrfac;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
@@ -968,7 +979,7 @@ struct Calculation {
 
     void load_mos(World& world) {
 	TAU_START("load_mos");
-        const double trantol = vtol / std::min(30.0, double(param.nalpha));
+//        const double trantol = vtol / std::min(30.0, double(param.nalpha));
         const double thresh = FunctionDefaults<3>::get_thresh();
         const int k = FunctionDefaults<3>::get_k();
         unsigned int nmo = 0;
@@ -1016,10 +1027,10 @@ struct Calculation {
             for(unsigned int i = 0;i < amo.size();++i) amo[i] = madness::project(amo[i], k, thresh, false);
             world.gop.fence();
         }
-        normalize(world, amo);
-        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
-        truncate(world, amo);
-        normalize(world, amo);
+//        normalize(world, amo);
+//        amo = transform(world, amo, Q3(matrix_inner(world, amo, amo)), trantol, true);
+//        truncate(world, amo);
+//        normalize(world, amo);
 
         if (!param.spin_restricted) {
 
@@ -1051,10 +1062,10 @@ struct Calculation {
                     world.gop.fence();
                 }
 
-                normalize(world, bmo);
-                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
-                truncate(world, bmo);
-                normalize(world, bmo);
+//                normalize(world, bmo);
+//                bmo = transform(world, bmo, Q3(matrix_inner(world, bmo, bmo)), trantol, true);
+//                truncate(world, bmo);
+//                normalize(world, bmo);
 
             }
         }
@@ -2127,8 +2138,8 @@ struct Calculation {
         return mu;
     }
 
-    void vector_stats(const std::vector<double> & v, double & rms, double & maxabsval)
-    {
+    void vector_stats(const std::vector<double> & v, double & rms,
+    		double & maxabsval) const {
         rms = 0.0;
         maxabsval = v[0];
         for(unsigned int i = 0;i < v.size();++i){
@@ -2250,7 +2261,7 @@ struct Calculation {
         return matrix_inner(world, pairs, Vpairs, true);
     }
 
-    tensorT matrix_exponential(const tensorT& A) {
+    tensorT matrix_exponential(const tensorT& A) const {
         const double tol = 1e-13;
         MADNESS_ASSERT(A.dim((0) == A.dim(1)));
 
@@ -2285,103 +2296,134 @@ struct Calculation {
         return expB;
     }
 
-    tensorT diag_fock_matrix(World & world, tensorT& fock, vecfuncT & psi, vecfuncT & Vpsi, tensorT & evals, const tensorT & occ, double thresh)
-    {
-        long nmo = psi.size();
-        tensorT overlap = matrix_inner(world, psi, psi, true);
+    /// compute the unitary transformation that diagonalizes the fock matrix
 
-        TAU_START("Diagonalization Fock-mat w sygv");
-        START_TIMER(world);
-        tensorT U;
-        sygvp(world, fock, overlap, 1, U, evals);
-        END_TIMER(world, "Diagonalization Fock-mat w sygv");
-        TAU_STOP("Diagonalization Fock-mat w sygv");
+    /// @param[in]	world	the world
+    /// @param[in]	overlap	the overlap matrix of the orbitals
+    /// @param[inout]	fock	the fock matrix; diagonal upon exit
+    /// @param[out]	evals	the orbital energies
+    /// @param[in]	occ	the occupation numbers
+    /// @param[in]	thresh_degenerate	threshold for orbitals being degenerate
+    /// @return		the unitary matrix U: U^T F U = evals
+    tensorT get_fock_transformation(World& world, const tensorT& overlap,
+    		tensorT& fock, tensorT& evals, const tensorT& occ,
+    		const double thresh_degenerate) const {
 
-        TAU_START("Diagonalization rest");
-        START_TIMER(world);
-        // Within blocks with the same occupation number attempt to
-        // keep orbitals in the same order (to avoid confusing the
-        // non-linear solver).
-	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
-	bool switched = true;
-	while (switched) {
-	  switched = false;
-	  for (int i=0; i<nmo; i++) {
-	    for (int j=i+1; j<nmo; j++) {
-	      if (occ(i) == occ(j)) {
-		double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
-		double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
-		if (snew > sold) {
-		  tensorT tmp = copy(U(_,i));
-		  U(_,i) = U(_,j);
-		  U(_,j) = tmp;
-		  std::swap(evals[i],evals[j]);
-		  switched = true;
-		}
-	      }
-	    }
-	  }
-	}
-        // Fix phases.
-        for (long i=0; i<nmo; ++i) {
-            if (U(i,i) < 0.0) U(_,i).scale(-1.0);
-        }
+    	TAU_START("Diagonalization Fock-mat w sygv");
+    	START_TIMER(world);
+    	tensorT U;
+    	sygvp(world, fock, overlap, 1, U, evals);
+    	END_TIMER(world, "Diagonalization Fock-mat w sygv");
+    	TAU_STOP("Diagonalization Fock-mat w sygv");
 
-        // Rotations between effectively degenerate states confound
-        // the non-linear equation solver ... undo these rotations
-        long ilo = 0; // first element of cluster
-        while (ilo < nmo-1) {
-            long ihi = ilo;
-            while (fabs(evals[ilo]-evals[ihi+1]) < thresh*10.0*std::max(fabs(evals[ilo]),1.0)) {
-                ++ihi;
-                if (ihi == nmo-1) break;
-            }
-            long nclus = ihi - ilo + 1;
-            if (nclus > 1) {
-                //print("   found cluster", ilo, ihi);
-                tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
-                //print(q);
-                // Special code just for nclus=2
-                // double c = 0.5*(q(0,0) + q(1,1));
-                // double s = 0.5*(q(0,1) - q(1,0));
-                // double r = sqrt(c*c + s*s);
-                // c /= r;
-                // s /= r;
-                // q(0,0) = q(1,1) = c;
-                // q(0,1) = -s;
-                // q(1,0) = s;
+    	long nmo = fock.dim(0);
 
-                // Iteratively construct unitary rotation by
-                // exponentiating the antisymmetric part of the matrix
-                // ... is quadratically convergent so just do 3
-                // iterations
-                tensorT rot = matrix_exponential(-0.5*(q - transpose(q)));
-                q = inner(q,rot);
-                tensorT rot2 = matrix_exponential(-0.5*(q - transpose(q)));
-                q = inner(q,rot2);
-                tensorT rot3 = matrix_exponential(-0.5*(q - transpose(q)));
-                q = inner(rot,inner(rot2,rot3));
-                U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
-            }
-            ilo = ihi+1;
-        }
+    	TAU_START("Diagonalization rest");
+    	START_TIMER(world);
+    	// Within blocks with the same occupation number attempt to
+    	// keep orbitals in the same order (to avoid confusing the
+    	// non-linear solver).
+    	// !!!!!!!!!!!!!!!!! NEED TO RESTRICT TO OCCUPIED STATES?
+    	bool switched = true;
+    	while (switched) {
+    		switched = false;
+    		for (int i=0; i<nmo; i++) {
+    			for (int j=i+1; j<nmo; j++) {
+    				if (occ(i) == occ(j)) {
+    					double sold = U(i,i)*U(i,i) + U(j,j)*U(j,j);
+    					double snew = U(i,j)*U(i,j) + U(j,i)*U(j,i);
+    					if (snew > sold) {
+    						tensorT tmp = copy(U(_,i));
+    						U(_,i) = U(_,j);
+    						U(_,j) = tmp;
+    						std::swap(evals[i],evals[j]);
+    						switched = true;
+    					}
+    				}
+    			}
+    		}
+    	}
+    	// Fix phases.
+    	for (long i=0; i<nmo; ++i) if (U(i,i) < 0.0) U(_,i).scale(-1.0);
+
+    	// Rotations between effectively degenerate states confound
+    	// the non-linear equation solver ... undo these rotations
+    	long ilo = 0; // first element of cluster
+    	while (ilo < nmo-1) {
+    		long ihi = ilo;
+    		while (fabs(evals[ilo]-evals[ihi+1]) < thresh_degenerate*10.0*std::max(fabs(evals[ilo]),1.0)) {
+    			++ihi;
+    			if (ihi == nmo-1) break;
+    		}
+    		long nclus = ihi - ilo + 1;
+    		if (nclus > 1) {
+    			//print("   found cluster", ilo, ihi);
+    			tensorT q = copy(U(Slice(ilo,ihi),Slice(ilo,ihi)));
+    			//print(q);
+    			// Special code just for nclus=2
+    			// double c = 0.5*(q(0,0) + q(1,1));
+    			// double s = 0.5*(q(0,1) - q(1,0));
+    			// double r = sqrt(c*c + s*s);
+    			// c /= r;
+    			// s /= r;
+    			// q(0,0) = q(1,1) = c;
+    			// q(0,1) = -s;
+    			// q(1,0) = s;
+
+    			// Iteratively construct unitary rotation by
+    			// exponentiating the antisymmetric part of the matrix
+    			// ... is quadratically convergent so just do 3
+    			// iterations
+    			tensorT rot = matrix_exponential(-0.5*(q - transpose(q)));
+    			q = inner(q,rot);
+    			tensorT rot2 = matrix_exponential(-0.5*(q - transpose(q)));
+    			q = inner(q,rot2);
+    			tensorT rot3 = matrix_exponential(-0.5*(q - transpose(q)));
+    			q = inner(rot,inner(rot2,rot3));
+    			U(_,Slice(ilo,ihi)) = inner(U(_,Slice(ilo,ihi)),q);
+    		}
+    		ilo = ihi+1;
+    	}
 
 
-        world.gop.broadcast(U.ptr(), U.size(), 0);
-        world.gop.broadcast(evals.ptr(), evals.size(), 0);
+    	world.gop.broadcast(U.ptr(), U.size(), 0);
+    	world.gop.broadcast(evals.ptr(), evals.size(), 0);
 
-        fock = 0;
-        for (unsigned int i=0; i<psi.size(); ++i) fock(i,i) = evals(i);
+    	fock = 0;
+    	for (unsigned int i=0; i<nmo; ++i) fock(i,i) = evals(i);
+    	return U;
+    }
 
-        Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())), false);
-        psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(psi.size())), true);
-        truncate(world, Vpsi, vtol, false);
-        truncate(world, psi);
-        normalize(world, psi);
+    /// diagonalize the fock matrix, taking care of degenerate states
 
-        END_TIMER(world, "Diagonalization rest");
-        TAU_STOP("Diagonalization rest");
-        return U;
+    /// Vpsi is passed in to make sure orbitals and Vpsi are in phase
+    /// @param[in]	world	the world
+    /// @param[inout]	fock	the fock matrix (diagonal upon exit)
+    /// @param[inout]	psi		the orbitals
+    /// @param[inout]	Vpsi	the orbital times the potential
+    /// @param[out]	evals	the orbital energies
+    /// @param[in]	occ		occupation numbers
+    /// @param[in]	thresh	threshold for rotation and truncation
+    /// @return		the unitary matrix U: U^T F U = evals
+    tensorT diag_fock_matrix(World& world, tensorT& fock,
+    		vecfuncT& psi, vecfuncT& Vpsi, tensorT& evals,
+    		const tensorT& occ, const double thresh) const {
+
+    	// compute the unitary transformation matrix U that diagonalizes
+    	// the fock matrix
+    	tensorT overlap = matrix_inner(world, psi, psi, true);
+    	tensorT U=get_fock_transformation(world,overlap,fock,evals,occ,thresh);
+
+    	// transform the orbitals and the orbitals times the potential
+    	Vpsi = transform(world, Vpsi, U, vtol / std::min(30.0, double(psi.size())), false);
+    	psi = transform(world, psi, U, FunctionDefaults<3>::get_thresh() / std::min(30.0, double(psi.size())), true);
+    	truncate(world, Vpsi, vtol, false);
+    	truncate(world, psi);
+    	normalize(world, psi);
+
+    	END_TIMER(world, "Diagonalization rest");
+    	TAU_STOP("Diagonalization rest");
+    	return U;
     }
 
     void loadbal(World & world, functionT & arho, functionT & brho, functionT & arho_old, functionT & brho_old, subspaceT & subspace)
@@ -2533,58 +2575,57 @@ struct Calculation {
             Q = Q(Slice(1, -1), Slice(1, -1));
         }
 
-        std::vector<double> anorm = norm2s(world, sub(world, amo, amo_new));
-        std::vector<double> bnorm = norm2s(world, sub(world, bmo, bmo_new));
+        do_step_restriction(world,amo,amo_new,"alpha");
+        do_step_restriction(world,bmo,bmo_new,"beta");
+
+        orthonormalize(world,amo_new);
+        orthonormalize(world,bmo_new);
+
+        amo = amo_new;
+        bmo = bmo_new;
+
+
+    }
+
+    /// perform step restriction following the KAIN solver
+
+    /// undo the rotation from the KAIN solver if the rotation exceeds the
+    /// maxrotn parameter
+    /// @param[in]		world	the world
+    /// @param[in]		mo		vector of orbitals from previous iteration
+    /// @param[inout]	new_mo	vector of orbitals from the KAIN solver
+    /// @param[in]		spin	"alpha" or "beta" for user information
+    /// @return			max residual
+    double do_step_restriction(World& world, const vecfuncT& mo,
+    		vecfuncT& mo_new, std::string spin) const {
+        std::vector<double> anorm = norm2s(world, sub(world, mo, mo_new));
         int nres = 0;
-        for(unsigned int i = 0;i < amo.size();++i){
+        for(unsigned int i = 0;i < mo.size();++i){
             if(anorm[i] > param.maxrotn){
                 double s = param.maxrotn / anorm[i];
                 ++nres;
                 if(world.rank() == 0){
-                    if(nres == 1)
-                        printf("  restricting step for alpha orbitals:");
-
+                    if(nres == 1) printf("  restricting step for %s orbitals:",spin.c_str());
                     printf(" %d", i);
                 }
-                amo_new[i].gaxpy(s, amo[i], 1.0 - s, false);
+                mo_new[i].gaxpy(s, mo[i], 1.0 - s, false);
             }
-
         }
-        if(nres > 0 && world.rank() == 0)
-            printf("\n");
-
-        nres = 0;
-        for(unsigned int i = 0;i < bmo.size();++i){
-            if(bnorm[i] > param.maxrotn){
-                double s = param.maxrotn / bnorm[i];
-                ++nres;
-                if(world.rank() == 0){
-                    if(nres == 1)
-                        printf("  restricting step for  beta orbitals:");
-
-                    printf(" %d", i);
-                }
-                bmo_new[i].gaxpy(s, bmo[i], 1.0 - s, false);
-            }
-
-        }
-        if(nres > 0 && world.rank() == 0)
-            printf("\n");
+        if (nres > 0 && world.rank() == 0) printf("\n");
 
         world.gop.fence();
         double rms, maxval;
         vector_stats(anorm, rms, maxval);
         if(world.rank() == 0)
-            print("Norm of vector changes alpha: rms", rms, "   max", maxval);
+            print("Norm of vector changes", spin, ": rms", rms, "   max", maxval);
+        return maxval;
+    }
 
-        update_residual = maxval;
-        if(bnorm.size()){
-            vector_stats(bnorm, rms, maxval);
-            if(world.rank() == 0)
-                print("Norm of vector changes  beta: rms", rms, "   max", maxval);
+    /// orthonormalize the vectors
 
-            update_residual = std::max(update_residual, maxval);
-        }
+    /// @param[in]		world	the world
+    /// @param[inout]	amo_new	the vectors to be orthonormalized
+    void orthonormalize(World& world, vecfuncT& amo_new) const {
         TAU_START("Orthonormalize");
         START_TIMER(world);
         double trantol = vtol / std::min(30.0, double(amo.size()));
@@ -2592,16 +2633,8 @@ struct Calculation {
         amo_new = transform(world, amo_new, Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
         truncate(world, amo_new);
         normalize(world, amo_new);
-        if(param.nbeta != 0  && !param.spin_restricted){
-            normalize(world, bmo_new);
-            bmo_new = transform(world, bmo_new, Q3(matrix_inner(world, bmo_new, bmo_new)), trantol, true);
-            truncate(world, bmo_new);
-            normalize(world, bmo_new);
-        }
         END_TIMER(world, "Orthonormalize");
         TAU_STOP("Orthonormalize");
-        amo = amo_new;
-        bmo = bmo_new;
     }
 
 //    template <typename Func>
@@ -3214,10 +3247,10 @@ struct Calculation {
             //     //Abinitio Solvation Model
             //     rhoT = rhon - rho_elec;
             //     //  print("DEBUG TOTAL CHARGE", rhoT.trace());
-            //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta \
+            //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,param.Gamma,param.beta
             //                                 ,std::max(1e-5,1e-6));
             //     Uabinit = DFTSsolver.ESP();
-            //     real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii \
+            //     real_functor_3d molecular_mask_functor(new MolecularVolumeMask(param.sigma,molecule.atomic_radii
             //                                                                  ,molecule.get_all_coords_vec()));
             //     //print("DEBUG Interaction Pot", Uabinit.trace());
             //     // mol_mask = real_factory_3d(world).functor(molecular_mask_functor);
@@ -3374,7 +3407,7 @@ struct Calculation {
         // if(param.absolvent){
         //     rhoT = rhon - rho_elec;
         //     // print("TOTAL CHARGE", rhoT.trace());
-        //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world, \
+        //     DFTSolventSolver DFTSsolver(vacuo_rho,rhoT,param.rho_0,param.epsilon_2,param.maxiter,world,
         //                                 param.Gamma,param.beta,std::max(1e-5,1e-7));
         //     //DFTSsolver.dftsolverplots();
         //     //functionT vsolvent = DFTSsolver.ESP();
@@ -3496,4 +3529,6 @@ public:
     }
 };
 
+
+#endif /* MOLDFT_H_ */
 

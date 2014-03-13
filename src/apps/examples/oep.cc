@@ -502,7 +502,7 @@ int main(int argc, char** argv) {
 
     // take as a guess the HF orbitals
     const std::string input="input";
-	Calculation calc(world,input.c_str());
+	std::shared_ptr<Calculation> calc(new Calculation(world,input.c_str()));
 	HartreeFock hf(world,calc);
     hf.value();
     print("nuclear repulsion: ",hf.get_calc().molecule.nuclear_repulsion_energy());
@@ -534,7 +534,7 @@ int main(int argc, char** argv) {
 
 	// subtract the nuclear potential to regularize the grid values
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
-    functorT vnuc_functor(new MolecularPotentialFunctor(calc.molecule));
+    functorT vnuc_functor(new MolecularPotentialFunctor(calc->molecule));
 
 	if (radial) {
 		if (load_potential) {
