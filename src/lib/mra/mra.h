@@ -1413,12 +1413,14 @@ namespace madness {
         /// check symmetry of a function by computing the 2nd derivative
         double check_symmetry() const {
 
+        	impl->make_redundant(true);
             if (VERIFY_TREE) verify_tree();
             double local = impl->check_symmetry_local();
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             double asy=sqrt(local);
             if (this->world().rank()==0) print("asymmetry wrt particle",asy);
+            impl->undo_redundant(true);
             return asy;
         }
 

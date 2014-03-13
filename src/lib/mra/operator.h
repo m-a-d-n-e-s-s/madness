@@ -474,7 +474,7 @@ namespace madness {
                          GenTensor<Q>& work5) const {
 
             PROFILE_MEMBER_FUNC(SeparatedConvolution);
-            Transformation trans[NDIM];
+//            Transformation trans[NDIM];
             Tensor<T> trans2[NDIM];
 //            MADNESS_EXCEPTION("no muopxv_fast2",1);
 
@@ -489,27 +489,27 @@ namespace madness {
 				// Determine rank of SVD to use or if to use the full matrix
 				long twok = 2*k;
 				if (modified()) twok=k;
-				long break_even;
-				if (NDIM==1) break_even = long(0.5*twok);
-				else if (NDIM==2) break_even = long(0.6*twok);
-				else if (NDIM==3) break_even=long(0.65*twok);
-				else break_even=long(0.7*twok);
+//				long break_even;
+//				if (NDIM==1) break_even = long(0.5*twok);
+//				else if (NDIM==2) break_even = long(0.6*twok);
+//				else if (NDIM==3) break_even=long(0.65*twok);
+//				else break_even=long(0.7*twok);
 				for (std::size_t d=0; d<NDIM; ++d) {
 					long r;
 					for (r=0; r<twok; ++r) {
 						if (ops_1d[d]->Rs[r] < tol) break;
 					}
-					if (r >= break_even) {
-						trans[d].r = twok;
-						trans[d].U = ops_1d[d]->R.ptr();
-						trans[d].VT = 0;
-					}
-					else {
-						r += (r&1L);
-						trans[d].r = std::max(2L,r);
-						trans[d].U = ops_1d[d]->RU.ptr();
-						trans[d].VT = ops_1d[d]->RVT.ptr();
-					}
+//					if (r >= break_even) {
+//						trans[d].r = twok;
+//						trans[d].U = ops_1d[d]->R.ptr();
+//						trans[d].VT = 0;
+//					}
+//					else {
+//						r += (r&1L);
+//						trans[d].r = std::max(2L,r);
+//						trans[d].U = ops_1d[d]->RU.ptr();
+//						trans[d].VT = ops_1d[d]->RVT.ptr();
+//					}
 					trans2[d]=ops_1d[d]->R;
 				}
 				apply_transformation2(n, twok, tol, trans2, f, work1, work2, work5, mufac, result);
@@ -519,28 +519,28 @@ namespace madness {
             for (std::size_t d=0; d<NDIM; ++d) Tnorm *= ops_1d[d]->Tnorm;
 
             if (n > 0 and (Tnorm>1.e-20)) {
-				long break_even;
-
-                if (NDIM==1) break_even = long(0.5*k);
-                else if (NDIM==2) break_even = long(0.6*k);
-                else if (NDIM==3) break_even=long(0.65*k);
-                else break_even=long(0.7*k);
+//				long break_even;
+//
+//                if (NDIM==1) break_even = long(0.5*k);
+//                else if (NDIM==2) break_even = long(0.6*k);
+//                else if (NDIM==3) break_even=long(0.65*k);
+//                else break_even=long(0.7*k);
                 for (std::size_t d=0; d<NDIM; ++d) {
                     long r;
                     for (r=0; r<k; ++r) {
                         if (ops_1d[d]->Ts[r] < tol) break;
                     }
-                    if (r >= break_even) {
-                        trans[d].r = k;
-                        trans[d].U = ops_1d[d]->T.ptr();
-                        trans[d].VT = 0;
-                    }
-                    else {
-                        r += (r&1L);
-                        trans[d].r = std::max(2L,r);
-                        trans[d].U = ops_1d[d]->TU.ptr();
-                        trans[d].VT = ops_1d[d]->TVT.ptr();
-                    }
+//                    if (r >= break_even) {
+//                        trans[d].r = k;
+//                        trans[d].U = ops_1d[d]->T.ptr();
+//                        trans[d].VT = 0;
+//                    }
+//                    else {
+//                        r += (r&1L);
+//                        trans[d].r = std::max(2L,r);
+//                        trans[d].U = ops_1d[d]->TU.ptr();
+//                        trans[d].VT = ops_1d[d]->TVT.ptr();
+//                    }
                     trans2[d]=ops_1d[d]->T;
                 }
                 apply_transformation2(n, k, tol, trans2, f0, work1, work2, work5, -mufac, result0);
@@ -1422,6 +1422,7 @@ namespace madness {
                 }
             }
 
+            // include random empirical factor of 2
             double ratio=-1.0;
             if (low_cost>0.0) ratio=full_cost/low_cost;
 //            print("nterms, full, low, full/low", full_cost, low_cost,shift.distsq(), ratio);

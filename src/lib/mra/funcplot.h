@@ -556,14 +556,14 @@ namespace madness {
         	} else if (s == "points") {
         		f >> npoints;
         	} else if (s == "origin") {
-        		for (int i=0; i<NDIM; ++i) f >> origin[i];
+        		for (std::size_t i=0; i<NDIM; ++i) f >> origin[i];
         	}
         }
     	double scale=1.0/zoom;
     	coord=origin;
 
         // convert human to mad form
-        int cc1, cc2;
+        int cc1=0, cc2=1;
         if (c1=="x1") cc1=0;
         if (c1=="x2") cc1=1;
         if (c1=="x3") cc1=2;

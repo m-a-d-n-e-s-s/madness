@@ -2509,6 +2509,9 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& fnode = it->second;
 
+                // skip internal nodes
+                if (fnode.has_children()) return 0.0;
+
                 if (f->world.size()>1) return 0.0;
 
                 // exchange particles
@@ -2521,16 +2524,35 @@ namespace madness {
                 for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
                 const keyT mapkey(key.level(),l);
 
+                double norm=0.0;
+
+
                 // hope it's local
-                MADNESS_ASSERT(f->get_coeffs().probe(mapkey));
-                const nodeT& mapnode=f->get_coeffs().find(mapkey).get()->second;
+                if (f->get_coeffs().probe(mapkey)) {
+					MADNESS_ASSERT(f->get_coeffs().probe(mapkey));
+					const nodeT& mapnode=f->get_coeffs().find(mapkey).get()->second;
 
-                tensorT c1=fnode.coeff().full_tensor_copy();
-                tensorT c2=mapnode.coeff().full_tensor_copy();
+					bool have_c1=fnode.coeff().has_data() and fnode.coeff().config().has_data();
+					bool have_c2=mapnode.coeff().has_data() and mapnode.coeff().config().has_data();
 
-                if (c2.size()) c2 = copy(c2.mapdim(map));
-                double norm=(c1-=c2).normf();
-                return norm*norm;
+					if (have_c1 and have_c2) {
+						tensorT c1=fnode.coeff().full_tensor_copy();
+						tensorT c2=mapnode.coeff().full_tensor_copy();
+						c2 = copy(c2.mapdim(map));
+						norm=(c1-c2).normf();
+					} else if (have_c1) {
+						tensorT c1=fnode.coeff().full_tensor_copy();
+						norm=c1.normf();
+					} else if (have_c2) {
+						tensorT c2=mapnode.coeff().full_tensor_copy();
+						norm=c2.normf();
+					} else {
+						norm=0.0;
+					}
+                } else {
+                	norm=fnode.coeff().normf();
+                }
+				return norm*norm;
             }
 
             double operator()(double a, double b) const {
@@ -2591,7 +2613,7 @@ namespace madness {
             std::vector<long> map;
             implT* f;
 
-            do_mapdim() {};
+            do_mapdim() : f(0) {};
             do_mapdim(const std::vector<long> map, implT& f) : map(map), f(&f) {}
 
             bool operator()(typename rangeT::iterator& it) const {
@@ -5248,7 +5270,10 @@ namespace madness {
 
                 keyT disp1;
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
-                if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                else if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                else {
+                	MADNESS_EXCEPTION("confused particle in operato??",1);
+                }
 
                 keyT dest = neighbor(key, disp1, is_periodic);
 
