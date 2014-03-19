@@ -46,19 +46,17 @@ protected:
     std::vector< std::pair<xc_func_type*,double> > funcs;
     void make_libxc_args(const std::vector< madness::Tensor<double> >& t,
                          madness::Tensor<double>& rho,
-                         madness::Tensor<double>& sigma,
-                         madness::Tensor<double>& delrho) const;
+                         madness::Tensor<double>& sigma) const;
     int nderiv;
 #endif
-
 
     /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
 
     /// \f[
     /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
     ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}                   \\
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}} \\
+    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}                  
+    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
     ///     x                                      & x_{\mathrm{max}} < x
     ///   \end{array}
     /// \right.
@@ -108,63 +106,36 @@ protected:
     static void munge2(double& rho, double& sigma) {
         // rho(x) --> p(rho(x))
         // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (sigma < 0.0) sigma = 0.0;
-        double p, dpdx;
-        polyn(rho, p, dpdx);
-        rho = p;
-        sigma *= dpdx*dpdx;
+        //if (sigma < 0.0) sigma = 0.0;
+        double p;
+        if (rho <= 1e-12) rho=1e-22;
+        if (rho <= 1e-12|| sigma <= 1e-22)  sigma=1e-9;
+      //  polyn(rho, p);
+        //polyng(rho, dpdx);
+      //  rho = p;
+        //sigma *= dpdx*dpdx;
+        //if (rho <= 1e-10|| sigma < 1e-20) sigma=0.;
     }
-    static void munge_der(double& rhoa, double& sigma, double& drx, double& dry, double& drz) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (sigma < 0.0) sigma = 0.0;
-        double p, dpdx;
-        polyn(rhoa, p, dpdx);
-        rhoa = p;
-        sigma *= dpdx*dpdx;
-        drx *=dpdx;
-        dry *=dpdx;
-        drz *=dpdx;
-    }
+
     static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (saa < 0.0) saa = 0.0;
-        if (sab < 0.0) sab = 0.0;
-        if (sbb < 0.0) sbb = 0.0;
-        double pa, pb, dpadx, dpbdx;
-        polyn(rhoa, pa, dpadx);
-        polyn(rhob, pb, dpbdx);
-        rhoa = pa;
-        rhob = pb;
-        saa *= dpadx*dpadx;
-        sab *= dpadx*dpbdx;
-        sbb *= dpbdx*dpbdx;
-    }
-    static void munge5_der(double& rhoa, double& rhob, double& saa, double& sab, double& sbb,
-                           double& drax, double& dray, double& draz,
-                           double& drbx, double& drby, double& drbz) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        if (saa < 0.0) saa = 0.0;
-        if (sab < 0.0) sab = 0.0;
-        if (sbb < 0.0) sbb = 0.0;
-        double pa, pb, dpadx, dpbdx;
-        polyn(rhoa, pa, dpadx);
-        polyn(rhob, pb, dpbdx);
-        rhoa = pa;
-        rhob = pb;
-        saa *= dpadx*dpadx;
-        sab *= dpadx*dpbdx;
-        sbb *= dpbdx*dpbdx;
-
-        drax *=dpadx;
-        dray *=dpadx;
-        draz *=dpadx;
-
-        drbx *=dpbdx;
-        drby *=dpbdx;
-        drbz *=dpbdx;
+        if (rhoa <= 1e-12) rhoa=1e-22;
+        if (rhoa <= 1e-12|| saa <= 1e-22)  saa=1e-9;
+        if (rhob <= 1e-12) rhob=1e-22;
+        if (rhob <= 1e-12|| sbb <= 1e-22)  sbb=1e-9;
+        if (rhoa <= 1e-12 || rhob <= 1e-12 || sab <= 1e-22) sab=1e-9;
+//        // rho(x) --> p(rho(x))
+//        // d/dx p(rho(x)) --> dp/drho * drho/dx
+//        if (saa < 0.0) saa = 0.0;
+//        if (sab < 0.0) sab = 0.0;
+//        if (sbb < 0.0) sbb = 0.0;
+//        double pa, pb, dpadx, dpbdx;
+//        polyn(rhoa, pa, dpadx);
+//        polyn(rhob, pb, dpbdx);
+//        rhoa = pa;
+//        rhob = pb;
+//        saa *= dpadx*dpadx;
+//        sab *= dpadx*dpbdx;
+//        sbb *= dpbdx*dpbdx;
     }
 
 public:
@@ -275,7 +246,10 @@ public:
     /// @param[in] t The input densities and derivatives as required by the functional
     /// @param[in] what Specifies which component of the potential is to be computed as described above
     /// @return The component specified by the \c what parameter
+
     madness::Tensor<double> vxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
+
+    madness::Tensor<double> fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const;
 
     /// Crude function to plot the energy and potential functionals
     void plot() const {
@@ -329,6 +303,24 @@ struct xc_potential {
     {
         MADNESS_ASSERT(xc);
         madness::Tensor<double> r = xc->vxc(t, ispin, what);
+        return r;
+    }
+};
+
+/// Class to compute terms of the kernel
+struct xc_kernel {
+    const XCfunctional* xc;
+    const int what;
+    const int ispin;
+
+    xc_kernel(const XCfunctional& xc, int ispin,int what)
+        : xc(&xc), what(what), ispin(ispin)
+    {}
+
+    madness::Tensor<double> operator()(const madness::Key<3> & key, const std::vector< madness::Tensor<double> >& t) const
+    {
+        MADNESS_ASSERT(xc);
+        madness::Tensor<double> r = xc->fxc(t, ispin, what);
         return r;
     }
 };
