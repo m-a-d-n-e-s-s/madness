@@ -118,7 +118,7 @@ namespace madness {
 	static bool main_instrumented;
 	static bool all_instrumented;
 	static int hpm_thread_id;
-#endif	
+#endif
 
     public:
 
@@ -1000,7 +1000,7 @@ namespace madness {
                 instance()->queue.push_front(task);
             }
             else {
-                instance()->queue.push_back(task, nthread);
+                instance()->queue.push_back(task, task_threads);
             }
 #endif // HAVE_INTEL_TBB
         }
