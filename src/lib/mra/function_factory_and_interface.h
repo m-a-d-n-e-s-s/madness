@@ -79,7 +79,6 @@ namespace madness {
 	class FunctionFunctorInterface {
 	public:
 
-		typedef Tensor<T> tensorT;
 		typedef GenTensor<T> coeffT;
 		typedef Key<NDIM> keyT;
 
@@ -200,7 +199,6 @@ namespace madness {
 	public:
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
         typedef GenTensor<T> coeffT;
-        typedef Tensor<T> tensorT;
 
 		T (*f)(const coordT&);
 
@@ -209,6 +207,7 @@ namespace madness {
 		T operator()(const coordT& x) const {return f(x);}
 
 		coeffT values(const Key<NDIM>& key, const Tensor<double>& quad_x) const {
+	        typedef Tensor<T> tensorT;
             tensorT fval=madness::fcube(key,f,quad_x);
             return coeffT(fval,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
 		}
@@ -221,7 +220,6 @@ namespace madness {
     public:
         typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
         typedef GenTensor<T> coeffT;
-        typedef Tensor<T> tensorT;
 
         opT op;
 
@@ -238,7 +236,6 @@ namespace madness {
 	class ElectronRepulsionInterface : public FunctionFunctorInterface<T,NDIM> {
 
 		typedef GenTensor<T> coeffT;
-		typedef Tensor<T> tensorT;
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
 
 		/// the class computing the coefficients
@@ -283,7 +280,6 @@ namespace madness {
 	class FGIntegralInterface : public FunctionFunctorInterface<T,NDIM> {
 
 		typedef GenTensor<T> coeffT;
-		typedef Tensor<T> tensorT;
 		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
 
 		/// the class computing the coefficients
@@ -314,6 +310,7 @@ namespace madness {
 
 		/// return sum coefficients for imagined node at key
 		coeffT coeff(const Key<NDIM>& key) const {
+	        typedef Tensor<T> tensorT;
 			tensorT e_b=eri.coeff(key)-bsh.coeff(key);
             return coeffT(e_b,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
 		}
@@ -326,7 +323,6 @@ namespace madness {
 	class FunctionInterface : public FunctionFunctorInterface<T,NDIM> {
 
 	    typedef GenTensor<T> coeffT;
-        typedef Tensor<T> tensorT;
         typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
 
         const opT op;

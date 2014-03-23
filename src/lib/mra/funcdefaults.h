@@ -368,7 +368,7 @@ namespace madness {
         }
 
         /// Returns the default tensor type
-        static const TensorType get_tensor_type() {
+        static TensorType get_tensor_type() {
         	return tt;
         }
 
