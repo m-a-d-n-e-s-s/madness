@@ -985,19 +985,24 @@ namespace madness {
 #endif // MADNESS_TASK_PROFILING
 #if HAVE_INTEL_TBB
             ThreadPool::tbb_parent_task->increment_ref_count();
-            ThreadPool::tbb_parent_task->spawn(*task);
+            if (task->is_high_priority()) {
+                ThreadPool::tbb_parent_task->spawn(*task);
+            }
+            else {
+                ThreadPool::tbb_parent_task->enqueue(*task);
+            }
 #else
             if (!task) MADNESS_EXCEPTION("ThreadPool: inserting a NULL task pointer", 1);
-            int nthread = task->get_nthread();
+            int task_threads = task->get_nthread();
             // Currently multithreaded tasks must be shoved on the end of the q
             // to avoid a race condition as multithreaded task is starting up
-            if (task->is_high_priority() && nthread==1) {
+            if (task->is_high_priority() && (task_threads == 1)) {
                 instance()->queue.push_front(task);
             }
             else {
                 instance()->queue.push_back(task, nthread);
             }
-#endif
+#endif // HAVE_INTEL_TBB
         }
 
         template <typename opT>
