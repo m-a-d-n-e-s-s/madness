@@ -1457,10 +1457,10 @@ namespace madness {
             Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
 
 
-            fprintf(pFile,"\\psset{unit=0.1cm}\n");
+            fprintf(pFile,"\\psset{unit=1cm}\n");
             fprintf(pFile,"\\begin{pspicture}(%4.2f,%4.2f)(%4.2f,%4.2f)\n",
 //            		cell(xaxis,0),cell(xaxis,1),cell(yaxis,0),cell(yaxis,1));
-            		-5.0,5.0,-5.0,5.0);
+            		-5.0,-5.0,5.0,5.0);
             fprintf(pFile,"\\pslinewidth=0.1pt\n");
 
             for (std::vector<Tensor<double> >::const_iterator it=plotinfo.begin(); it!=plotinfo.end(); ++it) {

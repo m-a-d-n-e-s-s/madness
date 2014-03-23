@@ -90,85 +90,49 @@ namespace madness {
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {
 public:
-	enum corrfactype {None, GaussSlater, Two};
+	enum corrfactype {None, GaussSlater, LinearSlater, Quartic, Polynomial,
+		Slater, Two};
+	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
+
 	/// ctor
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
 	NuclearCorrelationFactor(World& world, const Calculation& calc)
-		: world(world) {}
+		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
+		, molecule(calc.molecule) {}
 
-	virtual corrfactype type() const = 0;
-
-	/// apply the regularized potential U_nuc on a given function rhs
-	virtual real_function_3d apply_U(const real_function_3d& rhs) const = 0;
-
-	/// return the nuclear correlation factor
-	virtual real_function_3d function() const = 0;
-
-	/// return the square of the nuclear correlation factor
-	virtual real_function_3d square() const = 0;
-
-	/// return the inverse nuclear correlation factor
-	virtual real_function_3d inverse() const = 0;
-
-	/// return the U1 term of the correlation function
-	virtual real_function_3d U1(const int axis) const = 0;
-
-	/// return the U2 term of the correlation function
-	virtual real_function_3d U2() const = 0;
-
-	/// the world
-	World& world;
-
-};
-
-/// A nuclear correlation factor class
-
-/// The nuclear correlation factor is given by
-/// \[f
-/// 	R = \prod S_A	; S_A=exp(-Z_A r_{1A}) + ( 1 - exp(-r_{1A}^2) )
-/// \]f
-class GaussSlater : public NuclearCorrelationFactor {
-public:
-	/// ctor
-
-	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
-	GaussSlater(World& world, const Calculation& calc)
-		: NuclearCorrelationFactor(world,calc), molecule(calc.molecule)
-		, vtol(FunctionDefaults<3>::get_thresh()*0.1) {
-
-		if (world.rank()==0) {
-			print("constructed nuclear correlation factor of the form");
-			print("  R   = Prod_A S_A");
-			print("  S_A = exp(-Z_A r_{1A}) + (1 - exp(-Z_A^2*r_{1A}^2))");
-			print("which is of Gaussian-Slater type\n");
-		}
-
+	/// initialize the regularized potentials U1 and U2
+	void initialize() {
 
 		// construct the potential functions
 		// keep tighter threshold for orthogonalization
 		for (int axis=0; axis<3; ++axis) {
+			functorT U1f=functorT(new U1_functor(this,axis));
 			U1_function.push_back(real_factory_3d(world).thresh(vtol)
-					.functor2(U1_functor(molecule,axis)).truncate_on_project());
+					.functor(U1f).truncate_on_project());
 			U1_function.back().set_thresh(FunctionDefaults<3>::get_thresh());
 		}
 
+		// U2 is the term -S"/S - Z/r
+		functorT U2f=functorT(new U2_functor(this));
 		U2_function=real_factory_3d(world).thresh(vtol)
-				.functor2(U2_functor(molecule)).truncate_on_project();
+				.functor(U2f).truncate_on_project();
 		U2_function.set_thresh(FunctionDefaults<3>::get_thresh());
+
+		// U3 is the term SA'/SA . SB'/SB
+		functorT U3f=functorT(new U3_functor(this));
 		real_function_3d tmp=real_factory_3d(world).thresh(vtol)
-				.functor2(U3_functor(molecule)).truncate_on_project();
+				.functor(U3f).truncate_on_project();
 		tmp.set_thresh(FunctionDefaults<3>::get_thresh());
 		U2_function+=tmp;
 		U2_function.truncate();
 	}
 
-	corrfactype type() const {return NuclearCorrelationFactor::GaussSlater;}
+	virtual corrfactype type() const = 0;
 
 	/// apply the regularized potential U_nuc on a given function rhs
-	real_function_3d apply_U(const real_function_3d& rhs) const {
+	virtual real_function_3d apply_U(const real_function_3d& rhs) const {
 
 		// the purely local part
 		real_function_3d result=(U2()*rhs).truncate();
@@ -185,65 +149,89 @@ public:
         return result;
 	}
 
-	real_function_3d function() const {
+	/// return the nuclear correlation factor
+	virtual real_function_3d function() const {
+		functorT Rf=functorT(new R_functor(this,1));
 		real_function_3d r=real_factory_3d(world).thresh(vtol)
-				.functor2(R(1,molecule)).truncate_on_project();
+				.functor(Rf).truncate_on_project();
 		return r;
 	}
 
-	real_function_3d square() const {
+	/// return the square of the nuclear correlation factor
+	virtual real_function_3d square() const {
 		real_function_3d R2=real_factory_3d(world).thresh(vtol)
-				.functor2(R(2,molecule)).truncate_on_project();
+				.functor2(R_functor(this,2)).truncate_on_project();
 		return R2;
 	}
 
-	real_function_3d inverse() const {
+	/// return the inverse nuclear correlation factor
+	virtual real_function_3d inverse() const {
 		real_function_3d R_inverse=real_factory_3d(world).thresh(vtol)
-				.functor2(R(-1,molecule)).truncate_on_project();
+				.functor2(R_functor(this,-1)).truncate_on_project();
 		return R_inverse;
 	}
 
 	/// return the U1 term of the correlation function
-	real_function_3d U1(const int axis) const {return U1_function[axis];}
+	virtual real_function_3d U1(const int axis) const {
+		return U1_function[axis];
+	}
 
 	/// return the U2 term of the correlation function
-	real_function_3d U2() const {return U2_function;}
+	virtual real_function_3d U2() const  {return U2_function;}
 
 private:
 
-//	static double norm() {return sqrt(M_PI)*0.125;}
-	static double norm() {return 1.0;}
+	/// the world
+	World& world;
 
-	/// underlying molecule
+	/// the threshold for initial projection
+	double vtol;
+
+	/// the molecule
 	const Molecule& molecule;
 
-	/// the components of the U1 potential
+	/// the three components of the U1 potential
 	std::vector<real_function_3d> U1_function;
 
 	/// the purely local U2 potential, having absorbed the nuclear pot V_nuc
 	real_function_3d U2_function;
 
-	/// the threshold for initial projection
-	double vtol;
+	/// the correlation factor S wrt a given atom
 
-	struct R {
-		int exponent;	/// return R^{exponent}
-		const Molecule& molecule;
+	/// @param[in]	r	the distance of the req'd coord to the nucleus
+	/// @param[in]	Z	the nuclear charge
+	/// @return		the nuclear correlation factor S_A(r_1A)
+	virtual double S(const double& r, const double& Z) const = 0;
 
-		R(const int e, const Molecule& m) : exponent(e), molecule(m) {}
-        double operator()(const coord_3d& r) const {
-			const double x=r[0], y=r[1], z=r[2];
+	/// the partial derivative of correlation factor S' wrt a given atom
+
+	/// @param[in]	vr1A	the vector of the req'd coord to the nucleus
+	/// @param[in]	Z	the nuclear charge
+	/// @return		the gradient of the nuclear correlation factor S'_A(r_1A)
+	virtual coord_3d Sp(const coord_3d& vr1A, const double& Z) const = 0;
+
+	/// the regularized potential wrt a given atom
+
+	/// this is:  -S"/S - Z/r
+	/// @param[in]	r	the distance of the req'd coord to the nucleus
+	/// @param[in]	Z	the nuclear charge
+	/// @return 	the Laplacian of the nuclear correlation factor divided
+	///				by the correlation factor minus the nuclear potential
+	virtual double Spp_div_S(const double& r, const double& Z) const = 0;
+
+	class R_functor : public FunctionFunctorInterface<double,3> {
+		const NuclearCorrelationFactor* ncf;
+		int exponent;
+	public:
+		R_functor(const NuclearCorrelationFactor* ncf, const int e=1)
+			: ncf(ncf), exponent(e) {}
+		double operator()(const coord_3d& xyz) const {
 			double result=1.0;
-			for (int i=0; i<molecule.natom(); ++i) {
-				const Atom& atom=molecule.get_atom(i);
-				const double& xA=atom.x;
-				const double& yA=atom.y;
-				const double& zA=atom.z;
-				const double rr=sqrt((x-xA)*(x-xA)+(y-yA)*(y-yA)+(z-zA)*(z-zA));
-				const double rho=atom.q*rr;
-				const double rho2=rho*rho;
-
-				result*=norm()*exp(-rho)+(1.0-exp(-rho2));
+			for (int i=0; i<ncf->molecule.natom(); ++i) {
+				const Atom& atom=ncf->molecule.get_atom(i);
+				const coord_3d vr1A=xyz-atom.get_coords();
+				const double r=vr1A.normf();
+				result*=ncf->S(r,atom.q);
 			}
 			if (exponent==-1) return 1.0/result;
 			else if (exponent==2) return result*result;
@@ -251,264 +239,586 @@ private:
 			else {
 				return std::pow(result,double(exponent));
 			}
+
+		}
+		std::vector<coord_3d> special_points() const {
+			return ncf->molecule.get_all_coords_vec();
 		}
 	};
 
-	/// functor for the local part of the singly connected part [T,\rho]
-    struct U1_functor {
+	class U1_functor : public FunctionFunctorInterface<double,3> {
 
-    	const Molecule& molecule;
-    	const int axis;
+		const NuclearCorrelationFactor* ncf;
+		const int axis;
 
-    	U1_functor(const Molecule& molecule, const int axis)
-    		: molecule(molecule), axis(axis) {}
+	public:
+		U1_functor(const NuclearCorrelationFactor* ncf, const int axis)
+			: ncf(ncf), axis(axis) {}
 
-        double operator()(const coord_3d& r) const {
-        	double result=0.0;
-        	for (int i=0; i<molecule.natom(); ++i) {
-    			const Atom& atom1=molecule.get_atom(i);
-    			const double& ZA=atom1.q;
-    			coord_3d vr1A=r-atom1.get_coords();
-    			const double r1A=sqrt(vr1A[0]*vr1A[0] +
-    					vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
-
-				const double eA=norm()*exp(-ZA*r1A);
-    			const double gA=exp(-ZA*ZA*r1A*r1A);
-    			const double SA_inv=1.0/(1.0-gA+eA);
-    			coord_3d termA=SA_inv*(2.0*gA*ZA*ZA*vr1A-ZA*eA*n12(vr1A,1.e-8));
-    			result+=termA[axis];
-        	}
+		double operator()(const coord_3d& xyz) const {
+			double result=0.0;
+			for (int i=0; i<ncf->molecule.natom(); ++i) {
+				const Atom& atom=ncf->molecule.get_atom(i);
+				const coord_3d vr1A=xyz-atom.get_coords();
+				const double r=vr1A.normf();
+				result+=(ncf->Sp(vr1A,atom.q)[axis]/ncf->S(r,atom.q));
+			}
 			return -1.0*result;
-        }
-    };
+		}
+		std::vector<coord_3d> special_points() const {
+			return ncf->molecule.get_all_coords_vec();
+		}
+	};
 
-    /// functor for the term -1/2 S"/S - V_nuc
-    struct U2_functor {
+	class U2_functor : public FunctionFunctorInterface<double,3> {
+		const NuclearCorrelationFactor* ncf;
+	public:
+		U2_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
+		double operator()(const coord_3d& xyz) const {
+			double result=0.0;
+			for (int i=0; i<ncf->molecule.natom(); ++i) {
+				const Atom& atom=ncf->molecule.get_atom(i);
+				const coord_3d vr1A=xyz-atom.get_coords();
+				const double r=vr1A.normf();
+				result+=ncf->Spp_div_S(r,atom.q);
+			}
+			return result;
+		}
+		std::vector<coord_3d> special_points() const {
+			return ncf->molecule.get_all_coords_vec();
+		}
+	};
 
-    	const Molecule& molecule;
-    	U2_functor(const Molecule& molecule) : molecule(molecule) {}
+	class U3_functor : public FunctionFunctorInterface<double,3> {
+		const NuclearCorrelationFactor* ncf;
+	public:
+		U3_functor(const NuclearCorrelationFactor* ncf) : ncf(ncf) {}
+		double operator()(const coord_3d& xyz) const {
+			std::vector<coord_3d> all_terms(ncf->molecule.natom());
+			for (int i=0; i<ncf->molecule.natom(); ++i) {
+				const Atom& atom=ncf->molecule.get_atom(i);
+				const coord_3d vr1A=xyz-atom.get_coords();
+				const double r=vr1A.normf();
+				all_terms[i]=ncf->Sp(vr1A,atom.q)*(1.0/ncf->S(r,atom.q));
+			}
 
-        double operator()(const coord_3d& r) const {
-        	double result=0.0;
-        	for (int i=0; i<molecule.natom(); ++i) {
-    			const Atom& atom1=molecule.get_atom(i);
-    			const double& Z=atom1.q;
-    			const coord_3d vr1A=r-atom1.get_coords();
-    			const double r1A=sqrt(vr1A[0]*vr1A[0] +
-    					vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+			double result=0.0;
+			for (int i=0; i<ncf->molecule.natom(); ++i) {
+				for (int j=0; j<i; ++j) {
+					result+=all_terms[i][0]*all_terms[j][0]
+					       +all_terms[i][1]*all_terms[j][1]
+					       +all_terms[i][2]*all_terms[j][2];
+				}
+			}
 
-    			const double e=norm()*exp(-Z*r1A);
-    			const double g=exp(-Z*Z*r1A*r1A);
+			return -1.0*result;
+		}
+		std::vector<coord_3d> special_points() const {
+			return ncf->molecule.get_all_coords_vec();
+		}
+	};
 
-    			const double S_inv=1.0/(1.0-g+e);
-    			const double term1=-Z/r1A*(1.0-g);
-    			const double term2=-g*Z*Z*(3.0-2.0*Z*Z*r1A*r1A) - Z*Z/2.0*e;
-    			result+=S_inv*(term1+term2);
-    		}
-        	return result;
-        }
-    };
+};
 
-    /// functor for the term -1/2 S'_A/S_A . S'_B/S_B
-    struct U3_functor {
+/// A nuclear correlation factor class
 
-    	const Molecule& molecule;
-    	U3_functor(const Molecule& molecule) : molecule(molecule) {}
+/// The nuclear correlation factor is given by
+/// \[f
+/// 	R = \prod S_A	; S_A=exp(-Z_A r_{1A}) + ( 1 - exp(-r_{1A}^2) )
+/// \]f
+class GaussSlater : public NuclearCorrelationFactor {
+public:
+	/// ctor
 
-        double operator()(const coord_3d& r) const {
-        	double result=0.0;
-        	for (int i=0; i<molecule.natom(); ++i) {
-    			const Atom& atom1=molecule.get_atom(i);
-    			const double& ZA=atom1.q;
-    			const coord_3d vr1A=r-atom1.get_coords();
-    			const double r1A=sqrt(vr1A[0]*vr1A[0] +
-    					vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+	/// @param[in]	world	the world
+	/// @param[in]	molecule	molecule with the sites of the nuclei
+	GaussSlater(World& world, const Calculation& calc)
+		: NuclearCorrelationFactor(world,calc) {
 
-    			const double eA=norm()*exp(-ZA*r1A);
-    			const double gA=exp(-ZA*ZA*r1A*r1A);
-    			const double SA_inv=1.0/(1.0-gA+eA);
-    			const coord_3d termA=SA_inv*2.0*ZA*ZA*gA*vr1A - SA_inv*ZA*eA*n12(vr1A);
+		if (world.rank()==0) {
+			print("constructed nuclear correlation factor of the form");
+			print("  R   = Prod_A S_A");
+			print("  S_A = exp(-Z_A r_{1A}) + (1 - exp(-Z_A^2*r_{1A}^2))");
+			print("which is of Gaussian-Slater type\n");
+		}
 
-            	for (int j=0; j<i; ++j) {
-        			const Atom& atom2=molecule.get_atom(j);
-        			const double& ZB=atom2.q;
-        			const coord_3d vr1B=r-atom2.get_coords();
-        			const double r1B=sqrt(vr1B[0]*vr1B[0] +
-        					vr1B[1]*vr1B[1] + vr1B[2]*vr1B[2]);
+		initialize();
+	}
 
-        			const double eB=norm()*exp(-ZB*r1B);
-        			const double gB=exp(-ZB*ZB*r1B*r1B);
-        			const double SB_inv=1.0/(1.0-gB+eB);
+	corrfactype type() const {return NuclearCorrelationFactor::GaussSlater;}
 
-        			const coord_3d termB=SB_inv*(2.0*ZB*ZB*gB*vr1B-ZB*eB*n12(vr1B));
-        			result+=(termA[0]*termB[0]+termA[1]*termB[1]+termA[2]*termB[2]);
-        		}
-    		}
-        	return -1.0*result;
-        }
-    };
+private:
+
+	/// the nuclear correlation factor
+	double S(const double& r, const double& Z) const {
+		const double rho=r*Z;
+		return exp(-rho)+(1.0-exp(-(rho*rho)));
+	}
+
+	/// radial part first derivative of the nuclear correlation factor
+	coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+		const double r=sqrt(vr1A[0]*vr1A[0] +
+				vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+
+		const double eA=exp(-Z*r);
+		const double gA=exp(-Z*Z*r*r);
+		coord_3d term=(2.0*gA*Z*Z*vr1A-Z*eA*n12(vr1A,1.e-8));
+		return term;
+	}
+
+	/// second derivative of the nuclear correlation factor
+
+	/// -1/2 S"/S - Z/r
+	double Spp_div_S(const double& r, const double& Z) const {
+		const double rho=Z*r;
+		const double e=exp(-rho);
+		const double g=exp(-rho*rho);
+		const double term1=-Z/r*(1.0-g);
+		const double term2=-g*Z*Z*(3.0-2.0*Z*Z*r*r) - Z*Z/2.0*e;
+		const double S_inv=exp(-rho)+(1.0-exp(-(rho*rho)));
+		return (term1+term2)/S_inv;
+	}
+
+};
+
+
+
+/// A nuclear correlation factor class
+
+/// The nuclear correlation factor is given by
+/// \[f
+/// 	R = \prod S_A	; S_A= -Z_A r_{1A} exp(-Z_A r_{1A}) + 1
+/// \]f
+class LinearSlater : public NuclearCorrelationFactor {
+public:
+	/// ctor
+
+	/// @param[in]	world	the world
+	/// @param[in]	molecule	molecule with the sites of the nuclei
+	LinearSlater(World& world, const Calculation& calc)
+		: NuclearCorrelationFactor(world,calc) {
+
+		if (world.rank()==0) {
+			print("constructed nuclear correlation factor of the form");
+			print("  R   = Prod_A S_A");
+			print("  S_A = -Z_A r_{1A} exp(-Z_A r_{1A}) + 1");
+			print("which is of linear Slater type\n");
+		}
+		initialize();
+	}
+
+	corrfactype type() const {return NuclearCorrelationFactor::LinearSlater;}
+
+private:
+
+	static double b_param() {return 1.0;}
+
+	/// the nuclear correlation factor
+	double S(const double& r, const double& Z) const {
+		const double rho=r*Z;
+		const double b=b_param();
+		return (-rho)*exp(-b*rho)+1.0;
+	}
+
+	/// radial part first derivative of the nuclear correlation factor
+	coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+		const double b=b_param();
+		const double r=sqrt(vr1A[0]*vr1A[0] +
+				vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
+
+		const double ebrz=exp(-b*r*Z);
+		const coord_3d term=Z*ebrz*(b*Z*(vr1A) - n12(vr1A));
+		return term;
+	}
+
+	/// second derivative of the nuclear correlation factor
+
+	/// -1/2 S"/S - Z/r
+	double Spp_div_S(const double& r, const double& Z) const {
+
+		const double b=b_param();
+		const double rho=Z*r;
+    	if (rho<1.e-4) {
+    		const double O0=1.0- 3.0* b;
+    		const double O1=Z - 4.0*b*Z + 3.0*b*b*Z;
+    		const double O2=Z*Z - 5.0*b*Z*Z + 6.5*b*b*Z*Z - 5.0/3.0*b*b*b*Z*Z;
+    		return Z*Z*(O0 + O1*r + O2*r*r);
+
+    	} else {
+			const double ebrz=exp(-b*rho);
+			const double num=Z* (ebrz - 1.0 + 0.5*ebrz*rho* (2.0 + b*(b*rho-4.0)));
+			const double denom=r*(rho*ebrz-1.0);
+			return -num/denom;
+    	}
+	}
+};
+
+
+
+/// A nuclear correlation factor class
+class Slater : public NuclearCorrelationFactor {
+public:
+	/// ctor
+
+	/// @param[in]	world	the world
+	/// @param[in]	molecule	molecule with the sites of the nuclei
+	Slater(World& world, const Calculation& calc)
+		: NuclearCorrelationFactor(world,calc) {
+
+		if (world.rank()==0) {
+			print("constructed nuclear correlation factor of the form");
+			print("  R   = Prod_A S_A");
+			print("  S_A = 1/(a-1) exp(-a Z_A r_{1A}) + 1");
+			print("which is of Slater type\n");
+		}
+		initialize();
+	}
+
+	corrfactype type() const {return NuclearCorrelationFactor::Slater;}
+
+private:
+
+	static double a_param() {return 1.5;}
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+    	const double a=a_param();
+    	return 1.0+1.0/(a-1.0) * exp(-a*Z*r);
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+    	const double a=a_param();
+		const double r=vr1A.normf();
+    	return -(a*exp(-a*Z*r)*Z)/(a-1.0)*n12(vr1A);
+    }
+
+    /// second derivative of the nuclear correlation factor
+    double Spp_div_S(const double& r, const double& Z) const {
+    	const double a=a_param();
+
+    	if (r*Z<1.e-4) {
+    		const double O0=1.0-(1.5*a);
+    		const double O1=(a-1.0)*(a-1.0)*Z;
+    		const double O2=(1.0/12.0 * (a-1.0)*(12.0+a*(5*a-18.0)))*Z*Z;
+    		return Z*Z*(O0 + O1*r + O2*r*r);
+
+    	} else {
+    		const double earz=exp(-a*r*Z);
+    		const double num=Z*(-earz + a*earz - (a-1.0) - 0.5*a*a*r*Z*earz);
+    		const double denom=(r*earz + (a-1.0) * r);
+    		return num/denom;
+    	}
+    }
+
+};
+
+
+/// A nuclear correlation factor class
+class Quartic : public NuclearCorrelationFactor {
+public:
+	/// ctor
+
+	/// @param[in]	world	the world
+	/// @param[in]	molecule	molecule with the sites of the nuclei
+	Quartic(World& world, const Calculation& calc)
+		: NuclearCorrelationFactor(world,calc) {
+
+		if (world.rank()==0) {
+			print("constructed nuclear correlation factor of the form");
+			print("  R   = Prod_A S_A");
+			print("  S_A = 1 + a (b*r -1)^4  if  r<1/b, with  b= (1+a) Z / (4a)");
+			print("      = 1                 else ");
+			print("which is of quartic type\n");
+		}
+		initialize();
+	}
+
+	corrfactype type() const {return NuclearCorrelationFactor::Quartic;}
+
+private:
+
+	/// length scale parameter a, chosen that linear terms in U2 vanish
+//	static double a() {return -3.0+2.0*sqrt(3.0);}
+	static double a_param() {return 0.46410161513775458704;}
+	static double b_param(const double& a) {return 4.0*a/(1.0+a);}
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+
+    	const double rho=r*Z;
+    	const double a=Quartic::a_param();
+    	const double b=Quartic::b_param(a);
+
+    	if (rho<b) {
+    		const double arg=-1.0 + rho/b;
+    		return 1.0 + a* arg*arg*arg*arg;
+    	} else {
+    		return 1.0;
+    	}
+
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+		const double r=vr1A.normf();
+    	const double rho=r*Z;
+    	const double a=Quartic::a_param();
+    	const double b=Quartic::b_param(a);
+
+    	const double arg=-1.0 + rho/b;
+    	if (rho<b) return ((1.0 + a) *Z* arg*arg*arg)*n12(vr1A);
+    	return coord_3d(0.0);
+    }
+
+    /// second derivative of the nuclear correlation factor
+
+    /// -1/2 S"/S - Z/r
+    double Spp_div_S(const double& r, const double& Z) const {
+
+    	const double rho=r*Z;
+    	const double a=Quartic::a_param();
+    	const double b=Quartic::b_param(a);
+
+    	if (rho<1.e-6) {
+    		const double a0=(9.0+a)/(8.0*a);
+    		const double a1=(-3.0+6.0*a+a*a)/(8.0*a*a);
+    		const double a2=(5.0-95.0*a+35*a*a+7.0*a*a*a)/(128.0*a*a*a);
+    		return Z*Z*(-a0 - a1*r - a2*r*r);
+
+    	} else if (rho<b) {
+    		const double arg=-1.0+rho/b;
+    		const double d0=1.0+a*(arg*arg*arg*arg);
+    		const double d2=-0.5*3.0*(1.0+a)*(1.0+a)*Z*Z*arg*arg/(4.0*a);
+    		const double d1=-Z*(1.0+(1.0+a)*(arg*arg*arg) + a*(arg*arg*arg*arg))*Z/rho;
+    		return (d2+d1)/d0;
+
+    	} else {
+    		return -Z*Z/rho;
+    	}
+    }
+
+};
+
+
+/// A nuclear correlation factor class
+
+/// should reduce to quartic for N=4
+/// @tparam[in]	N	the exponent of the polynomial
+template<std::size_t N>
+class Polynomial : public NuclearCorrelationFactor {
+public:
+	/// ctor
+
+	/// @param[in]	world	the world
+	/// @param[in]	molecule	molecule with the sites of the nuclei
+	Polynomial(World& world, const Calculation& calc)
+		: NuclearCorrelationFactor(world,calc) {
+
+		if (world.rank()==0) {
+			print("constructed nuclear correlation factor of the form");
+			print("  R   = Prod_A S_A");
+			print("  S_A = 1 + a (r/b -1)^N  if  r<b, with  b= (N*a)/((1+a) Z)");
+			print("      = 1                 else ");
+			print("which is of polynomial type with exponent N = ",N);
+		}
+		initialize();
+	}
+
+	corrfactype type() const {return NuclearCorrelationFactor::Polynomial;}
+
+private:
+
+	/// length scale parameter a, chosen that linear terms in U2 vanish
+	static double a_param() {
+		const double a=(2. + (-2. + sqrt(-1. + N))*N)/(-2. + N);
+		return a;
+	}
+
+	static double b_param(const double& a) {return N*a/(1.0+a);}
+
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+
+    	const double rho=r*Z;
+    	const double a=Polynomial<N>::a_param();
+    	const double b=Polynomial<N>::b_param(a);
+
+    	if (rho<b) {
+    		const double arg=-1.0 + rho/b;
+    		return 1.0 + power<N>(-1.0) * a*power<N>(arg);
+    	} else {
+    		return 1.0;
+    	}
+
+    }
+
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+
+		const double r=vr1A.normf();
+    	const double rho=r*Z;
+    	const double a=Polynomial<N>::a_param();
+    	const double b=Polynomial<N>::b_param(a);
+
+    	if (rho<b) {
+    		return power<N>(-1.)*(1.+a)* Z* power<N-1>(-1.+rho/b)*n12(vr1A);
+    	}
+    	return coord_3d(0.0);
+    }
+
+    /// second derivative of the nuclear correlation factor
+
+    /// -1/2 S"/S - Z/r
+    double Spp_div_S(const double& r, const double& Z) const {
+
+    	const double rho=r*Z;
+    	const double a=Polynomial<N>::a_param();
+    	const double b=Polynomial<N>::b_param(a);
+
+    	if (rho<1.e-6) {
+    		const double ap1=1.0+a;
+    		const double c0=((3. *(1. + a) - (3. + a) * N))/(2.* a*N);
+    		const double c1=((2.* ap1*ap1 - ap1* (3. + a)*N + N*N)*Z)/(a*a*N*N);
+    		const double c2=((30.*ap1*ap1*ap1- ap1*ap1* (55 + 18* a)*N +
+    				   30 *ap1 *N*N + (-5 + a* (8 + a)) *N*N*N)* Z*Z)/(12 *a*a*a*N*N*N);
+    		return Z*Z*(c0 + c1*r + c2*r*r);
+
+    	} else if (rho<b) {
+
+    		const double num=Z* (2 + (power<N>(-1)* a* power<N>(-1 + rho/b)
+    			    * (-2 *a*N*N + (1 + a) *N* (1 + a *(-3 + N) + N)* rho +
+    			      2 *(1 + a)*(1+a)* rho*rho))/power<2>(a* N - (1 + a)*rho));
+
+    		const double denom=2.* (r + power<N>(-1) *a* r* power<N>(-1 + rho/b));
+    		return -num/denom;
+
+    	} else {
+    		return -Z*Z/rho;
+    	}
+    }
 
 };
 
 
 class PseudoNuclearCorrelationFactor : public NuclearCorrelationFactor {
 
-	/// underlying potential (=molecule)
-    std::shared_ptr<PotentialManager> potentialmanager;
-
 public:
 	/// ctor
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	PseudoNuclearCorrelationFactor(World& world, const Calculation& calc)
+	PseudoNuclearCorrelationFactor(World& world, const Calculation& calc,
+			const double fac)
 		: NuclearCorrelationFactor(world,calc),
-		  potentialmanager(calc.potentialmanager) {
+		  potentialmanager(calc.potentialmanager), fac(fac) {
 
 		if (world.rank()==0) {
-			print("constructed nuclear correlation factor of the form 1");
+			print("constructed nuclear correlation factor of the form");
 			print("    R   = 1");
 			print("which means it's a conventional calculation\n");
 		}
+		initialize();
+
+		// add the missing -Z/r part to U2!
 	}
 
 	corrfactype type() const {return None;}
 
-	/// apply the regularized potential U_nuc on a given function rhs
-	real_function_3d apply_U(const real_function_3d& rhs) const {
-		const real_function_3d& Vnuc=potentialmanager->vnuclear();
-        return (Vnuc*rhs).truncate();
-	}
-
-	real_function_3d function() const {
-		real_function_3d R1=real_factory_3d(world)
-				.functor2(R()).truncate_on_project();
-		return R1;
-	}
-
-	/// the inverse of this is this
-	real_function_3d inverse() const {
-		real_function_3d R_inverse=real_factory_3d(world)
-				.functor2(R()).truncate_on_project();
-		return R_inverse;
-	}
-
-	/// the inverse of this is this
-	real_function_3d square() const {
-		real_function_3d R2=real_factory_3d(world)
-				.functor2(R()).truncate_on_project();
-		return R2;
-	}
-
-	/// return the U1 term of the correlation function
-
-	/// the term is the local part of  R^{-1} (\vec\nabla R) \nabla,
-	/// without the trailing grad operator
-	/// this is an empty function [T,1]=0
-	real_function_3d U1(const int axis) const {
-		return real_factory_3d(world);
-	}
-
 	/// return the U2 term of the correlation function
 
-	/// the term is R^{-1} (\nabla^2 R)
-	/// this is the nuclear potential [T,1] + V_nuc = 0 + V_nuc
+	/// overloading to avoid inconsistent state of U2, which needs the
+	/// nuclear potential
 	real_function_3d U2() const {
-		const real_function_3d Vnuc=potentialmanager->vnuclear();
-		return Vnuc;
+
+//		if (not U2_function.is_initialized()) {
+			MADNESS_ASSERT(potentialmanager->vnuclear().is_initialized());
+//		}
+		return potentialmanager->vnuclear();
+	}
+
+	/// apply the regularized potential U_nuc on a given function rhs
+
+	/// overload the base class method for efficiency
+	real_function_3d apply_U(const real_function_3d& rhs) const {
+        return (U2()*rhs).truncate();
 	}
 
 
 private:
-
-	struct R {
-		double operator()(const coord_3d& r) const {return 1.0;}
-	};
-
-};
-
-
-
-class TwoNuclearCorrelationFactor : public NuclearCorrelationFactor {
 
 	/// underlying potential (=molecule)
     std::shared_ptr<PotentialManager> potentialmanager;
 
-public:
-	/// ctor
+    /// the factor of the correlation factor: R=fac;
+	const double fac;
 
-	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
-	TwoNuclearCorrelationFactor(World& world, const Calculation& calc)
-		: NuclearCorrelationFactor(world,calc),
-		  potentialmanager(calc.potentialmanager) {
+    /// the nuclear correlation factor
+    double S(const double& r, const double& Z) const {
+    	return fac;
+    }
 
-		if (world.rank()==0) {
-			print("constructed nuclear correlation factor of the form 1");
-			print("    R   = 2");
-			print("which means it's nearly a conventional calculation\n");
-		}
-	}
+    /// radial part first derivative of the nuclear correlation factor
+    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
+    	return coord_3d(0.0);
+    }
 
-	corrfactype type() const {return Two;}
+    /// second derivative of the nuclear correlation factor
 
-	/// apply the regularized potential U_nuc on a given function rhs
-	real_function_3d apply_U(const real_function_3d& rhs) const {
-		const real_function_3d& Vnuc=potentialmanager->vnuclear();
-        return (Vnuc*rhs).truncate();
-	}
-
-	real_function_3d function() const {
-		real_function_3d R1=real_factory_3d(world)
-				.functor2(R(2.0)).truncate_on_project();
-		return R1;
-	}
-
-	/// the inverse of this is this
-	real_function_3d inverse() const {
-		real_function_3d R_inverse=real_factory_3d(world)
-				.functor2(R(0.5)).truncate_on_project();
-		return R_inverse;
-	}
-
-	/// the inverse of this is this
-	real_function_3d square() const {
-		real_function_3d R2=real_factory_3d(world)
-				.functor2(R(4.0)).truncate_on_project();
-		return R2;
-	}
-
-	/// return the U1 term of the correlation function
-
-	/// the term is the local part of  R^{-1} (\vec\nabla R) \nabla,
-	/// without the trailing grad operator
-	/// this is an empty function [T,1]=0
-	real_function_3d U1(const int axis) const {
-		return real_factory_3d(world);
-	}
-
-	/// return the U2 term of the correlation function
-
-	/// the term is R^{-1} (\nabla^2 R)
-	/// this is the nuclear potential [T,1] + V_nuc = 0 + V_nuc
-	real_function_3d U2() const {
-		const real_function_3d Vnuc=potentialmanager->vnuclear();
-		return Vnuc;
-	}
-
-
-private:
-
-	struct R {
-		double fac;
-		R(const double f) : fac(f){}
-		double operator()(const coord_3d& r) const {return fac;}
-	};
-
+    /// this is missing the -Z/r part!
+    double Spp_div_S(const double& r, const double& Z) const {
+    	return 0.0;
+    }
 };
 
+/// create and return a new nuclear correlation factor
 
-/// a class holding the correlation factor for R12 theory
+/// @param[in]	world	the world
+/// @param[in]	calc	the calculation as read from the input file
+/// @return 	a nuclear correlation factor
+static std::shared_ptr<NuclearCorrelationFactor>
+create_nuclear_correlation_factor(World& world, const Calculation& calc) {
+
+	std::string corrfac=lowercase(calc.param.nuclear_corrfac);
+
+	typedef std::shared_ptr<NuclearCorrelationFactor> ncf_ptr;
+
+	if (corrfac == "gaussslater") {
+		return ncf_ptr(new GaussSlater(world, calc));
+	} else if (corrfac == "linearslater") {
+		return ncf_ptr(new LinearSlater(world, calc));
+	} else if (corrfac == "slater") {
+		return ncf_ptr(new Slater(world, calc));
+	} else if (corrfac == "quartic") {
+		return ncf_ptr(new Quartic(world, calc));
+	} else if (corrfac == "polynomial4") {
+		return ncf_ptr(new Polynomial<4>(world, calc));
+	} else if (corrfac == "polynomial5") {
+		return ncf_ptr(new Polynomial<5>(world, calc));
+	} else if (corrfac == "polynomial6") {
+		return ncf_ptr(new Polynomial<6>(world, calc));
+	} else if (corrfac == "polynomial7") {
+		return ncf_ptr(new Polynomial<7>(world, calc));
+	} else if (corrfac == "polynomial8") {
+		return ncf_ptr(new Polynomial<8>(world, calc));
+	} else if (corrfac == "polynomial9") {
+		return ncf_ptr(new Polynomial<9>(world, calc));
+	} else if (corrfac == "polynomial10") {
+		return ncf_ptr(new Polynomial<10>(world, calc));
+	} else if ((corrfac == "none") or (corrfac == "one")) {
+		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,1.0));
+	} else if (corrfac == "two") {
+		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,2.0));
+	} else {
+		if (world.rank()==0) print(calc.param.nuclear_corrfac);
+		MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
+	}
+}
+
+/// a class holding the electronic correlation factor for R12 theory
 class CorrelationFactor {
 
     World& world;

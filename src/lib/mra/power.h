@@ -104,6 +104,37 @@ namespace madness {
     inline int power<12>(int base) {
         return (power<3>(power<4>(base)));
     }
+
+
+    // Florian: following code from the internet (stackoverflow)
+    namespace detail {
+		template<class T, int N>
+		struct helper {
+			static T pow(const T x){
+				return helper<T, N-1>::pow(x) * x;
+			}
+		};
+
+		template<class T>
+		struct helper<T, 1> {
+			static T pow(const T x){
+				return x;
+			}
+		};
+
+		template<class T>
+		struct helper<T, 0> {
+			static T pow(const T x){
+				return 1;
+			}
+		};
+    }
+
+    template<int N, class T>
+    T power(T const x) {
+    	return detail::helper<T, N>::pow(x);
+    }
+
 }
 
 #endif

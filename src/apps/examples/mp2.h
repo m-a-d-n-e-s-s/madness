@@ -708,7 +708,7 @@ namespace madness {
 				result.converged=((std::abs(old_energy-energy)<result.function.thresh()*0.01)
 						and (std::abs(old_fnorm-fnorm)<result.function.thresh()*0.1));
 				result.store_pair(world);
-				save_function(result.function,"pair_iteration"+stringify(result.iteration));
+//				save_function(result.function,"pair_iteration"+stringify(result.iteration));
 
 				if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
 						result.iteration, wall_time(),energy);

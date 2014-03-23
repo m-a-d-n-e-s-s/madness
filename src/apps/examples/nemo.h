@@ -137,7 +137,19 @@ public:
 	/// @param[in]	calc	the Calculation
 	Nemo(World& world1, std::shared_ptr<Calculation> calc) :
 			world(world1), calc(calc), coords_sum(-1.0) {
-		initialize();
+
+		// construct the Poisson solver
+		poisson = std::shared_ptr<real_convolution_3d>(
+				CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
+
+		// print some output for the user
+		if (world.rank() == 0) calc->molecule.print();
+
+		// construct the nuclear correlation factor:
+		nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
+		R = nuclear_correlation->function();
+		R_inverse = nuclear_correlation->inverse();
+
 	}
 
 	double value() {
@@ -159,6 +171,8 @@ public:
 		calc->potentialmanager->vnuclear().print_size("vnuc");
 		calc->project_ao_basis(world);
 		save_function(calc->potentialmanager->vnuclear(),"vnuc");
+
+		print_nuclear_corrfac();
 
 		// read converged wave function from disk if there is one
 		if (calc->param.no_compute) {
@@ -222,33 +236,19 @@ private:
 	/// a poisson solver
 	std::shared_ptr<real_convolution_3d> poisson;
 
-	void initialize() {
-		// construct the nuclear correlation factor:
-		// use a Gauss-Slater factor, or the identity
-		if (calc->param.nuclear_corrfac == "GaussSlater") {
-			nuclear_correlation = std::shared_ptr<NuclearCorrelationFactor>(
-					new GaussSlater(world, *calc));
-		} else if (calc->param.nuclear_corrfac == "none") {
-			nuclear_correlation = std::shared_ptr<NuclearCorrelationFactor>(
-					new PseudoNuclearCorrelationFactor(world, *calc));
-		} else if (calc->param.nuclear_corrfac == "two") {
-			nuclear_correlation = std::shared_ptr<NuclearCorrelationFactor>(
-					new TwoNuclearCorrelationFactor(world, *calc));
-		} else {
-			if (world.rank()==0) print(calc->param.nuclear_corrfac);
-			MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
-		}
+	void print_nuclear_corrfac() {
 
 		// the nuclear correlation function
-		R = nuclear_correlation->function();
-		R_inverse = nuclear_correlation->inverse();
+		save_function(R,"R");
+		save_function(nuclear_correlation->U2(),"U2");
+		save_function(nuclear_correlation->U1(0),"U1x");
+		save_function(nuclear_correlation->U1(1),"U1y");
+		save_function(nuclear_correlation->U1(2),"U1z");
 
-		// construct the Poisson solver
-		poisson = std::shared_ptr<real_convolution_3d>(
-				CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
+		plot_plane(world,R,"R");
+		plot_plane(world,nuclear_correlation->U2(),"U2");
+		plot_plane(world,nuclear_correlation->U1(0),"U1x");
 
-		// print some output for the user
-		if (world.rank() == 0) calc->molecule.print();
 	}
 
 	/// solve the HF equations
@@ -306,11 +306,13 @@ private:
 			const tensorT U=calc->get_fock_transformation(world,overlap,
 		    		fock,calc->aeps,calc->aocc,FunctionDefaults<3>::get_thresh());
 
+			START_TIMER(world);
 			nemo = transform(world, nemo, U, trantol, true);
 			rotate_subspace(world, U, solver, 0, nemo.size(), trantol);
 
 			truncate(world, nemo);
 			normalize(nemo);
+			END_TIMER(world, "transform orbitals");
 
 			// update the nemos
 
@@ -322,8 +324,13 @@ private:
 			// make the potential * nemos term; make sure it's in phase with nemo
 			START_TIMER(world);
 			vecfuncT Vpsi = add(world, sub(world, Jnemo, Knemo), Unemo);
-			Vpsi = transform(world, Vpsi, U, trantol, true);
+			truncate(world,Vpsi);
 			END_TIMER(world, "make Vpsi");
+
+			START_TIMER(world);
+			Vpsi = transform(world, Vpsi, U, trantol, true);
+			truncate(world,Vpsi);
+			END_TIMER(world, "transform Vpsi");
 
 			// apply the BSH operator on the wave function
 			START_TIMER(world);
