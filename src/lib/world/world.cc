@@ -187,7 +187,8 @@ namespace madness {
         start_cpu_time = cpu_time();
         start_wall_time = wall_time();
         ThreadPool::begin();        // Must have thread pool before any AM arrives
-        RMI::begin();               // Must have RMI while still running single threaded
+        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+            RMI::begin();           // Must have RMI while still running single threaded
 
 #ifdef HAVE_PAPI
         begin_papi_measurement();
@@ -217,7 +218,8 @@ namespace madness {
         elem::Finalize();
 #endif
 
-        RMI::end();
+        if(SafeMPI::COMM_WORLD.Get_size() > 1)
+            RMI::end();
         ThreadPool::end();
         detail::WorldMpi::finalize();
         madness_initialized_ = false;

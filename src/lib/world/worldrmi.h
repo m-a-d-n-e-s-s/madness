@@ -245,8 +245,7 @@ namespace madness {
     public:
 
         static std::size_t max_msg_len() {
-            MADNESS_ASSERT(task_ptr);
-            return task_ptr->max_msg_len_;
+            return (task_ptr ? task_ptr->max_msg_len_ : DEFAULT_MAX_MSG_LEN);
         }
         static std::size_t maxq() {
             MADNESS_ASSERT(task_ptr);
