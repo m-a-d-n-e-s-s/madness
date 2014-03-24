@@ -122,12 +122,12 @@ static __inline__ unsigned long long rdtsc(void)
   unsigned long long int result=0;
   unsigned long int upper, lower,tmp;
   __asm__ volatile(
-                "0:                  \n"
-                "\tmftbu   %0           \n"
-                "\tmftb    %1           \n"
-                "\tmftbu   %2           \n"
-                "\tcmpw    %2,%0        \n"
-                "\tbne     0b         \n"
+                "0:            "
+                "mftbu   %0    "
+                "mftb    %1    "
+                "mftbu   %2    "
+                "cmpw    %2,%0 "
+                "bne     0b    "
                 : "=r"(upper),"=r"(lower),"=r"(tmp)
                 );
   result = upper;

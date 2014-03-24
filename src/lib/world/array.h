@@ -437,7 +437,19 @@ namespace madness {
         return l;
     }
 
+    /// Compute norm of a \c Vector
 
+    /// \tparam T The \c Vector element type
+    /// \tparam N The \c Vector size
+    /// \param v The \c Vector
+    /// \return \f$ ||v||_2 = \sqrt{\sum_{k=1}^N v_i^2} \f$
+    template <typename T, std::size_t N>
+    T norm(Vector<T,N> v) {
+      T norm2 = 0.0;
+      for (std::size_t i = 0; i < N; ++i)
+        norm2 += v[i] * v[i];
+      return sqrt(norm2);
+    }
 
     /// Your friendly neighborhood factory function
     template <typename T>

@@ -381,6 +381,8 @@ namespace SafeMPI {
             return pimpl->group;
         }
 
+        Group(const Group& other) : pimpl(other.pimpl) { }
+
     private:
 
         struct Impl {

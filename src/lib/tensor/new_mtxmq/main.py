@@ -27,9 +27,13 @@ def tester(m, versions):
         else:
             print("\tCXX=g++", file=mf)
             march = "ssse3"
+            extra = ''
             if type(m) == MTXMAVX:
                 march = "avx"
-            print("\tCXXFLAGS=-O3 -m{} -lrt -lm".format(march), file=mf)
+            if type(m) == MTXMAVX2:
+                march = "avx2"
+                extra = "-march=core-avx2"
+            print("\tCXXFLAGS=-O3 {} -m{} -lrt -lm".format(extra, march), file=mf)
         print("all:", file=mf)
 
         while versions:
@@ -61,7 +65,7 @@ def main():
             help='A (left) matrix is complex', dest='cxa')
     parser.add_argument('-b', '--complex-b', action='store_true', default=False,
             help='B (right) matrix is complex', dest='cxb')
-    parser.add_argument('-m', '--arch', default='sse', choices=['sse', 'avx', 'bgp', 'bgq'],
+    parser.add_argument('-m', '--arch', default='sse', choices=['sse', 'avx', 'avx2', 'bgp', 'bgq'],
             help='Target architecture')
     parser.add_argument('-n', '--name', default='mtxmq',
             help='Name of function to generate')
@@ -95,6 +99,14 @@ def main():
                 (True, False) : ("ijk", {'i':4, 'j':12, 'k':1}, args.name), # ijk_i4j8k1 is better for 400 20 20 but worse on others
                 (False, True) : ("ijk", {'i':3, 'j':12, 'k':1}, args.name), # jik_i3j12k1 best on avg across tested sizes, ijk_i4j8k1 best on 400 20 20
                 (True, True)  : ("ijk", {'i':2, 'j':16, 'k':1}, args.name)} # jik is better for squares, ijk better for 400 20 20 and similar
+        versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
+    elif args.arch == 'avx2':
+        M = MTXMAVX2
+        bests = {
+                (False, False): ("jik", {'i':2, 'j':20, 'k':1}, args.name),
+                (True, False) : ("jik", {'i':3, 'j':16, 'k':1}, args.name),
+                (False, True) : ("jik", {'i':3, 'j':16, 'k':1}, args.name),
+                (True, True)  : ("ijk", {'i':2, 'j':20, 'k':1}, args.name)}
         versions = [(lo, {'i':i, 'j':j, 'k':1}, '{}_i{}j{}k1'.format(lo, i,j)) for i in range(1,10) for j in range(4,21,4) for lo in ["ijk", "jik"] if i*j <= 60]
     elif args.arch == 'bgp':
         M = MTXMBGP

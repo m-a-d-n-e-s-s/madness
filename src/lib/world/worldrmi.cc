@@ -42,151 +42,136 @@
 
 namespace madness {
 
-    RMI* RMI::instance_ptr = 0;
+    RMI::RmiTask* RMI::task_ptr = NULL;
 
 #if HAVE_INTEL_TBB
-    tbb::empty_task* RMI::tbb_rmi_parent_task = 0;
+    tbb::task* RMI::tbb_rmi_parent_task = NULL;
 #endif
 
-    bool RMI::is_ordered(attrT attr) {
-        return attr & ATTR_ORDERED;
-    }
+    void RMI::RmiTask::process_some() {
 
-    void RMI::run() {
-        ThreadBase::set_affinity(1); // The RMI thread is logical thread 1
-        if (debugging)
-            std::cerr << rank << ":RMI: server thread is running" << std::endl;
-        // The RMI server thread spends its life in here
+        if (debugging && n_in_q)
+            std::cerr << rank << ":RMI: about to call Waitsome with "
+                      << n_in_q << " messages in the queue" << std::endl;
 
-        ScopedArray<SafeMPI::Status> status(new SafeMPI::Status[maxq_]);
-        ScopedArray<int> ind(new int[maxq_]);
-        ScopedArray<qmsg> q(new qmsg[maxq_]);
-        int n_in_q = 0;
+        // If MPI is not safe for simultaneous entry by multiple threads we
+        // cannot call Waitsome ... have to poll via Testsome
+        int narrived = 0, iterations = 0;
 
-        while (1) {
-
-            if (debugging && n_in_q)
-                std::cerr << rank << ":RMI: about to call Waitsome with "
-                          << n_in_q << " messages in the queue" << std::endl;
-
-            // If MPI is not safe for simultaneous entry by multiple threads we
-            // cannot call Waitsome ... have to poll via Testsome
-            int narrived;
-
-            MutexWaiter waiter;
-            while (!(narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get()))) {
-                if (finished) return;
-	//	TAU_START("MutexWaiter wait()");
+        MutexWaiter waiter;
+        while((narrived == 0) && (iterations < 1000)) {
+            narrived = SafeMPI::Request::Testsome(maxq_, recv_req.get(), ind.get(), status.get());
+            ++iterations;
+//  TAU_START("MutexWaiter wait()");
 #if defined(HAVE_CRAYXT) || defined(HAVE_IBMBGP)
-                myusleep(1);
+            myusleep(1);
 #else
-                waiter.wait();
+            waiter.wait();
 #endif
-	//	TAU_STOP("MutexWaiter wait()");
-            }
+//  TAU_STOP("MutexWaiter wait()");
+        }
 
 #ifndef HAVE_CRAYXT
-            waiter.reset();
+        waiter.reset();
 #endif
 
-            if (debugging)
-                std::cerr << rank << ":RMI: " << narrived
-                          << " messages just arrived" << std::endl;
+        if (debugging)
+            std::cerr << rank << ":RMI: " << narrived
+                      << " messages just arrived" << std::endl;
 
-            if (narrived) {
-                for (int m=0; m<narrived; ++m) {
-                    int src = status[m].Get_source();
-                    size_t len = status[m].Get_count(MPI_BYTE);
-                    int i = ind[m];
+        if (narrived) {
+            for (int m=0; m<narrived; ++m) {
+                const int src = status[m].Get_source();
+                const size_t len = status[m].Get_count(MPI_BYTE);
+                const int i = ind[m];
 
-                    ++(stats.nmsg_recv);
-                    stats.nbyte_recv += len;
+                ++(stats.nmsg_recv);
+                stats.nbyte_recv += len;
 
-                    const header* h = (const header*)(recv_buf[i]);
-                    rmi_handlerT func = h->func;
-                    attrT attr = h->attr;
-                    counterT count = (attr>>16); //&&0xffff;
+                const header* h = (const header*)(recv_buf[i]);
+                rmi_handlerT func = h->func;
+                const attrT attr = h->attr;
+                const counterT count = (attr>>16); //&&0xffff;
 
-                    if (!is_ordered(attr) || count==recv_counters[src]) {
-                        // Unordered and in order messages should be digested as soon as possible.
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: invoking from=" << src
-                                      << " nbyte=" << len
-                                      << " func=" << func
-                                      << " ordered=" << is_ordered(attr)
-                                      << " count=" << count
-                                      << std::endl;
+                if (!is_ordered(attr) || count==recv_counters[src]) {
+                    // Unordered and in order messages should be digested as soon as possible.
+                    if (debugging)
+                        std::cerr << rank
+                                  << ":RMI: invoking from=" << src
+                                  << " nbyte=" << len
+                                  << " func=" << func
+                                  << " ordered=" << is_ordered(attr)
+                                  << " count=" << count
+                                  << std::endl;
 
-                        if (is_ordered(attr)) ++(recv_counters[src]);
-                        func(recv_buf[i], len);
-                        post_recv_buf(i);
-                    }
-                    else {
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: enqueing from=" << src
-                                      << " nbyte=" << len
-                                      << " func=" << func
-                                      << " ordered=" << is_ordered(attr)
-                                      << " fromcount=" << count
-                                      << " herecount=" << int(recv_counters[src])
-                                      << std::endl;
-                        // Shove it in the queue
-                        int n = n_in_q++;
-                        if (n >= (int)maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
-                        q[n] = qmsg(len, func, i, src, attr, count);
-                    }
+                    if (is_ordered(attr)) ++(recv_counters[src]);
+                    func(recv_buf[i], len);
+                    post_recv_buf(i);
                 }
-
-                // Only ordered messages can end up in the queue due to
-                // out-of-order receipt or order of recv buffer processing.
-
-                // Sort queued messages by ascending recv count
-                TAU_START("Sort queued messages by ascending recv count");
-                std::sort(q.get(),q.get()+n_in_q);
-                TAU_STOP("Sort queued messages by ascending recv count");
-
-                // Loop thru messages ... since we have sorted only one pass
-                // is necessary and if we cannot process a message we
-                // save it at the beginning of the queue
-                int nleftover = 0;
-                for (int m=0; m<n_in_q; ++m) {
-                    int src = q[m].src;
-                    if (q[m].count == recv_counters[src]) {
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: queue invoking from=" << src
-                                      << " nbyte=" << q[m].len
-                                      << " func=" << q[m].func
-                                      << " ordered=" << is_ordered(q[m].attr)
-                                      << " count=" << q[m].count
-                                      << std::endl;
-
-                        ++(recv_counters[src]);
-                        q[m].func(recv_buf[q[m].i], q[m].len);
-                        post_recv_buf(q[m].i);
-                    }
-                    else {
-                        q[nleftover++] = q[m];
-                        if (debugging)
-                            std::cerr << rank
-                                      << ":RMI: queue pending out of order from=" << src
-                                      << " nbyte=" << q[m].len
-                                      << " func=" << q[m].func
-                                      << " ordered=" << is_ordered(q[m].attr)
-                                      << " count=" << q[m].count
-                                      << std::endl;
-                    }
+                else {
+                    if (debugging)
+                        std::cerr << rank
+                                  << ":RMI: enqueing from=" << src
+                                  << " nbyte=" << len
+                                  << " func=" << func
+                                  << " ordered=" << is_ordered(attr)
+                                  << " fromcount=" << count
+                                  << " herecount=" << int(recv_counters[src])
+                                  << std::endl;
+                    // Shove it in the queue
+                    const int n = n_in_q++;
+                    if (n >= (int)maxq_) MADNESS_EXCEPTION("RMI:server: overflowed out-of-order message q\n", n);
+                    q[n] = qmsg(len, func, i, src, attr, count);
                 }
-                n_in_q = nleftover;
-
-                post_pending_huge_msg();
             }
+
+            // Only ordered messages can end up in the queue due to
+            // out-of-order receipt or order of recv buffer processing.
+
+            // Sort queued messages by ascending recv count
+            TAU_START("Sort queued messages by ascending recv count");
+            std::sort(q.get(),q.get()+n_in_q);
+            TAU_STOP("Sort queued messages by ascending recv count");
+
+            // Loop thru messages ... since we have sorted only one pass
+            // is necessary and if we cannot process a message we
+            // save it at the beginning of the queue
+            int nleftover = 0;
+            for (int m=0; m<n_in_q; ++m) {
+                const int src = q[m].src;
+                if (q[m].count == recv_counters[src]) {
+                    if (debugging)
+                        std::cerr << rank
+                                  << ":RMI: queue invoking from=" << src
+                                  << " nbyte=" << q[m].len
+                                  << " func=" << q[m].func
+                                  << " ordered=" << is_ordered(q[m].attr)
+                                  << " count=" << q[m].count
+                                  << std::endl;
+
+                    ++(recv_counters[src]);
+                    q[m].func(recv_buf[q[m].i], q[m].len);
+                    post_recv_buf(q[m].i);
+                }
+                else {
+                    q[nleftover++] = q[m];
+                    if (debugging)
+                        std::cerr << rank
+                                  << ":RMI: queue pending out of order from=" << src
+                                  << " nbyte=" << q[m].len
+                                  << " func=" << q[m].func
+                                  << " ordered=" << is_ordered(q[m].attr)
+                                  << " count=" << q[m].count
+                                  << std::endl;
+                }
+            }
+            n_in_q = nleftover;
+
+            post_pending_huge_msg();
         }
     }
 
-    void RMI::post_pending_huge_msg() {
+    void RMI::RmiTask::post_pending_huge_msg() {
         if (recv_buf[nrecv_]) return;      // Message already pending
         TAU_START("RMI::post_pending_huge_msg()");
         if (!hugeq.empty()) {
@@ -206,7 +191,7 @@ namespace madness {
         TAU_STOP("RMI::post_pending_huge_msg()");
     }
 
-    void RMI::post_recv_buf(int i) {
+    void RMI::RmiTask::post_recv_buf(int i) {
       TAU_START("RMI::post_recv_buf");
         if (i < (int)nrecv_) {
             recv_req[i] = comm.Irecv(recv_buf[i], max_msg_len_, MPI_BYTE, MPI_ANY_SOURCE, SafeMPI::RMI_TAG);
@@ -222,7 +207,7 @@ namespace madness {
       TAU_STOP("RMI::post_recv_buf");
     }
 
-    RMI::~RMI() {
+    RMI::RmiTask::~RmiTask() {
         //         if (!SafeMPI::Is_finalized()) {
         //             for (int i=0; i<nrecv_; ++i) {
         //                 if (!recv_req[i].Test())
@@ -232,7 +217,7 @@ namespace madness {
         //for (int i=0; i<nrecv_; ++i) free(recv_buf[i]);
     }
 
-    RMI::RMI()
+    RMI::RmiTask::RmiTask()
             : comm(SafeMPI::COMM_WORLD)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
@@ -245,6 +230,10 @@ namespace madness {
             , maxq_(DEFAULT_NRECV + 1)
             , recv_buf()
             , recv_req()
+            , status()
+            , ind()
+            , q()
+            , n_in_q(0)
     {
         // Get the maximum buffer size from the MAD_BUFFER_SIZE environment
         // variable.
@@ -304,6 +293,11 @@ namespace madness {
         std::fill_n(send_counters.get(), nproc, 0);
         std::fill_n(recv_counters.get(), nproc, 0);
 
+        // Allocate buffers for message tracking
+        status.reset(new SafeMPI::Status[maxq_]);
+        ind.reset(new int[maxq_]);
+        q.reset(new qmsg[maxq_]);
+
         // Allocate recive buffers
         if(nproc > 1) {
             for(int i = 0; i < (int)nrecv_; ++i) {
@@ -312,37 +306,22 @@ namespace madness {
                 post_recv_buf(i);
             }
             recv_buf[nrecv_] = 0;
-#if HAVE_INTEL_TBB
-            tbb_rmi_parent_task = new(tbb::task::allocate_root()) tbb::empty_task;
-            tbb_rmi_parent_task->set_ref_count(2);
-
-            RMI_TBB_TASK* rmi_task = new (tbb_rmi_parent_task->allocate_child()) RMI_TBB_TASK(this);
-
-            tbb_rmi_parent_task->enqueue(*rmi_task);
-#else
-            start();
-#endif
         }
     }
 
-    RMI* RMI::instance() {
-        if (!instance_ptr) {
-            instance_ptr = new RMI();
-        }
-        return instance_ptr;
-    }
 
-    void RMI::huge_msg_handler(void *buf, size_t /*nbytein*/) {
+    void RMI::RmiTask::huge_msg_handler(void *buf, size_t /*nbytein*/) {
         const size_t* info = (size_t *)(buf);
         int nword = HEADER_LEN/sizeof(size_t);
         int src = info[nword];
         size_t nbyte = info[nword+1];
 
-        instance()->hugeq.push_back(std::make_pair(src,nbyte));
-        instance()->post_pending_huge_msg();
+        RMI::task_ptr->hugeq.push_back(std::make_pair(src,nbyte));
+        RMI::task_ptr->post_pending_huge_msg();
     }
 
-    RMI::Request RMI::private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
+    RMI::Request
+    RMI::RmiTask::RmiTask::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr) {
         int tag = SafeMPI::RMI_TAG;
 
         if (nbyte > max_msg_len_) {
@@ -355,7 +334,7 @@ namespace madness {
 
             int ack;
             Request req_ack = comm.Irecv(&ack, sizeof(ack), MPI_BYTE, dest, SafeMPI::RMI_HUGE_ACK_TAG);
-            Request req_send = private_isend(info, sizeof(info), dest, RMI::huge_msg_handler, ATTR_UNORDERED);
+            Request req_send = isend(info, sizeof(info), dest, RMI::RmiTask::huge_msg_handler, ATTR_UNORDERED);
 
             MutexWaiter waiter;
             while (!req_send.Test()) waiter.wait();
@@ -369,7 +348,7 @@ namespace madness {
         }
 
         if (debugging)
-            std::cerr << instance_ptr->rank
+            std::cerr << rank
                       << ":RMI: sending buf=" << buf
                       << " nbyte=" << nbyte
                       << " dest=" << dest
@@ -403,40 +382,6 @@ namespace madness {
         unlock();
 
         return result;
-    }
-
-    void RMI::private_exit() {
-        if (debugging)
-            std::cerr << instance_ptr->rank << ":RMI: sending exit request to server thread" << std::endl;
-
-        finished = true;
-        myusleep(10000);
-
-        //delete this;
-    }
-
-    RMI::Request RMI::isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr) {
-        return instance()->private_isend(buf, nbyte, dest, func, attr);
-    }
-
-    void RMI::end() {
-        if (instance_ptr) instance_ptr->private_exit();
-    }
-
-    void RMI::begin() {
-        instance();
-    }
-
-    void RMI::set_debug(bool status) {
-        instance()->debugging = status;
-    }
-
-    bool RMI::get_debug() {
-        return instance()->debugging;
-    }
-
-    const RMIStats& RMI::get_stats() {
-        return instance()->stats;
     }
 
 } // namespace madness

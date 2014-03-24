@@ -1,5 +1,5 @@
 #include <madness_config.h>
-#include <DFcode/xcfunctional.h>
+#include <moldft/xcfunctional.h>
 #include <tensor/tensor.h>
 #include <iostream>
 #include <string>
@@ -488,7 +488,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     			else if (what == 1) {
     			// Vaa
     				for (long j=0; j<np; j++) {
-    					res[j] += vs[nvsig*j + 2*ispin ] * funcs[i].second;
+    					res[j] += vs[nvsig*j + 2*ispin] * funcs[i].second;
     					if (isnan_x(res[j])) throw "ouch";
     				}
     			}
@@ -541,7 +541,7 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     			else if (what == 1) {
     			// Vaa
     				for (long j=0; j<np; j++) {
-    					res[j] += vs[nvsig*j + 2*ispin ]*funcs[i].second*0.0;
+    					res[j] += vs[nvsig*j + 2*ispin]*funcs[i].second*0.0;
     					if (isnan_x(res[j])) throw "ouch";
     				}
     			}
@@ -584,3 +584,70 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
+madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<double> >& t, const int ispin, const int what) const
+{
+    madness::Tensor<double> rho, sigma;
+    make_libxc_args(t, rho, sigma);
+
+    const int np = t[0].size();
+
+    int nvsig, nvrho;
+    if (spin_polarized) {
+    	nvrho = 2;
+    	nvsig = 3;
+    }
+    else {
+    	nvrho = 1;
+    	nvsig = 1;
+    }
+
+    madness::Tensor<double> result(3L, t[0].dims());
+    double * restrict res = result.ptr();
+    const double * restrict dens = rho.ptr();
+    for (long j=0; j<np; j++) 
+    			res[j] = 0.0;
+
+    if(what ==4){
+       for (long j=0; j<np; j++) {
+  	     	res[j] = dens[j]*.5;
+  	     	if (isnan_x(res[j])) throw "ouch";
+	     }
+    }
+    else {
+    for (unsigned int i=0; i<funcs.size(); i++) {
+       	switch(funcs[i].first->info->family) {
+       	     case XC_FAMILY_LDA:
+                {
+                madness::Tensor<double> vrho(nvrho*np);
+    		double * restrict vr = vrho.ptr();
+    		xc_lda_fxc(funcs[i].first, np, dens, vr);
+             	if (what < 2) {
+                     for (long j=0; j<np; j++) {
+    			     	res[j] += vr[nvrho*j+ispin]*funcs[i].second;
+    			     	//res[j] += vr[nvrho*j+ispin]*funcs[i].second*dens[j];
+    			     	//res[j] = vr[j];
+    			     	//res[j] += vr[nvrho*j+ispin]*funcs[i].second;
+    			     	if (isnan_x(res[j])) throw "ouch";
+    			     }
+    			}
+    		}
+
+		break;
+
+             case XC_FAMILY_GGA:
+    		{
+    				throw "ouch";
+   		}
+    		break;
+         	case XC_FAMILY_HYB_GGA:
+        	{
+       				throw "ouch";
+        	}
+    	break;
+    	default:
+    	throw "UGH!";
+    	}
+    }
+    }
+    return result;
+}

@@ -110,7 +110,7 @@ namespace madness {
         }
 
         qmsg() {}
-    };
+    }; // struct qmsg
 
 
     // Holds message passing statistics
@@ -124,10 +124,13 @@ namespace madness {
                 : nmsg_sent(0), nbyte_sent(0), nmsg_recv(0), nbyte_recv(0) {}
     };
 
-    class RMI : private madness::ThreadBase , private madness::Mutex {
+    class RMI  {
         typedef uint16_t counterT;
         typedef uint32_t attrT;
     public:
+
+        typedef SafeMPI::Request Request;
+
         // Choose header length to hold at least sizeof(header) and
         // also to ensure good alignment of the user payload.
         static const size_t ALIGNMENT = 64;
@@ -135,23 +138,98 @@ namespace madness {
         static const attrT ATTR_UNORDERED=0x0;
         static const attrT ATTR_ORDERED=0x1;
 
-        typedef SafeMPI::Request Request;
 
     private:
-#if HAVE_INTEL_TBB
-        static tbb::empty_task* tbb_rmi_parent_task;
 
-        class RMI_TBB_TASK : public tbb::task {
-        private:
-            RMI* rmi;
+        class RmiTask
+#if HAVE_INTEL_TBB
+                : public tbb::task, private madness::Mutex
+#else
+                : public madness::ThreadBase, private madness::Mutex
+#endif // HAVE_INTEL_TBB
+        {
         public:
-            RMI_TBB_TASK(RMI* rmi_) : rmi(rmi_) {}
+
+            struct header {
+                rmi_handlerT func;
+                attrT attr;
+            }; // struct header
+
+            std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
+
+            RMIStats stats;
+            SafeMPI::Intracomm comm;
+            const int nproc;            // No. of processes in comm world
+            const ProcessID rank;       // Rank of this process
+            volatile bool debugging;    // True if debugging
+            volatile bool finished;     // True if finished
+
+            ScopedArray<volatile counterT> send_counters;
+            ScopedArray<counterT> recv_counters;
+            std::size_t max_msg_len_;
+            std::size_t nrecv_;
+            std::size_t maxq_;
+            ScopedArray<void*> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
+            ScopedArray<SafeMPI::Request> recv_req;
+
+            ScopedArray<SafeMPI::Status> status;
+            ScopedArray<int> ind;
+            ScopedArray<qmsg> q;
+            int n_in_q;
+
+            static inline bool is_ordered(attrT attr) { return attr & ATTR_ORDERED; }
+
+            void process_some();
+
+            RmiTask();
+            virtual ~RmiTask();
+
+#if HAVE_INTEL_TBB
             tbb::task* execute() {
-                rmi->run();
+                // Process some messages
+                process_some();
+                if(! finished) {
+                   tbb::task::increment_ref_count();
+                   tbb::task::recycle_as_safe_continuation();
+                }
                 return NULL;
             }
-        };
-#endif
+#else
+            void run() {
+                try {
+                    while (! finished) process_some();
+                } catch(...) {
+                    delete this;
+                    throw;
+                }
+                delete this;
+            }
+#endif // HAVE_INTEL_TBB
+
+            void exit() {
+                if (debugging)
+                    std::cerr << rank << ":RMI: sending exit request to server thread" << std::endl;
+
+                // Set finished flag
+                finished = true;
+                myusleep(10000);
+            }
+
+            static void huge_msg_handler(void *buf, size_t nbytein);
+
+            Request isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr);
+
+            void post_pending_huge_msg();
+
+            void post_recv_buf(int i);
+
+        }; // class RmiTask
+
+#if HAVE_INTEL_TBB
+        static tbb::task* tbb_rmi_parent_task;
+#endif // HAVE_INTEL_TBB
+
+        static RmiTask* task_ptr;    // Pointer to the singleton instance
 
         static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;
 #ifdef HAVE_CRAYXT
@@ -160,70 +238,67 @@ namespace madness {
         static const int DEFAULT_NRECV=32;
 #endif
 
-        std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
-
-        RMIStats stats;
-        SafeMPI::Intracomm comm;
-        const int nproc;            // No. of processes in comm world
-        const ProcessID rank;       // Rank of this process
-        volatile bool debugging;    // True if debugging
-        volatile bool finished;     // True if finished
-
-        ScopedArray<volatile counterT> send_counters;
-        ScopedArray<counterT> recv_counters;
-        std::size_t max_msg_len_;
-        std::size_t nrecv_;
-        std::size_t maxq_;
-        ScopedArray<void*> recv_buf; // Will be at least ALIGNMENT aligned ... +1 for huge messages
-        ScopedArray<SafeMPI::Request> recv_req;
-
-        static RMI* instance_ptr;    // Pointer to the singleton instance
-
-        static bool is_ordered(attrT attr);
-
-        struct header {
-            rmi_handlerT func;
-            attrT attr;
-        };
-
-        void run();
-
-        void post_pending_huge_msg();
-
-        void post_recv_buf(int i);
-
-        virtual ~RMI();
-
-        RMI();
-
-        static RMI* instance();
-
-        static void huge_msg_handler(void *buf, size_t nbytein);
-
-        Request private_isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, attrT attr);
-
-        void private_exit();
+        // Not allowed
+        RMI(const RMI&);
+        RMI& operator=(const RMI&);
 
     public:
 
-        static std::size_t max_msg_len() { return instance()->max_msg_len_; }
-        static std::size_t maxq() { return instance()->maxq_; }
-        static std::size_t nrecv() { return instance()->nrecv_; }
+        static std::size_t max_msg_len() {
+            return (task_ptr ? task_ptr->max_msg_len_ : DEFAULT_MAX_MSG_LEN);
+        }
+        static std::size_t maxq() {
+            MADNESS_ASSERT(task_ptr);
+            return task_ptr->maxq_;
+        }
+        static std::size_t nrecv() {
+            MADNESS_ASSERT(task_ptr);
+            return task_ptr->nrecv_;
+        }
 
-        static Request isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED);
+        static Request
+        isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED) {
+            return task_ptr->isend(buf, nbyte, dest, func, attr);
+        }
 
-        static void end();
+        static void begin() {
+            MADNESS_ASSERT(task_ptr == NULL);
+#if HAVE_INTEL_TBB
+            tbb_rmi_parent_task = new( tbb::task::allocate_root() ) tbb::empty_task;
+            tbb_rmi_parent_task->set_ref_count(2);
 
-        static void begin();
+            task_ptr = new( tbb_rmi_parent_task->allocate_child() ) RmiTask();
+            tbb::task::enqueue(*task_ptr, tbb::priority_high);
+#else
+            task_ptr = new RmiTask();
+            task_ptr->start();
+#endif // HAVE_INTEL_TBB
+        }
 
-        static void set_debug(bool status);
+        static void end() {
+            if(task_ptr) {
+                task_ptr->exit();
+#if HAVE_INTEL_TBB
+                tbb_rmi_parent_task->wait_for_all();
+                tbb::task::destroy(*tbb_rmi_parent_task);
+#endif // HAVE_INTEL_TBB
+                task_ptr = NULL;
+            }
+        }
 
-        static bool get_debug();
+        static void set_debug(bool status) {
+            MADNESS_ASSERT(task_ptr);
+            task_ptr->debugging = status;
+        }
 
-        static const RMIStats& get_stats();
-    };
-}
+        static bool get_debug() { return (task_ptr ? task_ptr->debugging : false); }
 
+        static const RMIStats& get_stats() {
+            MADNESS_ASSERT(task_ptr);
+            return task_ptr->stats;
+        }
+    }; // class RMI
 
+} // namespace madness
 
 #endif // MADNESS_WORLD_WORLDRMI_H__INCLUDED

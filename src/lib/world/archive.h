@@ -155,7 +155,7 @@
   the appropriate class(es).  Do \em not overload any of the function
   templates.
 
-  <em>Symmetric instrusive method</em>
+  <em>Symmetric intrusive method</em>
 
   Many classes can use the same code for serializing and
   deserializing.  If such a class can be modified, the cleanest way

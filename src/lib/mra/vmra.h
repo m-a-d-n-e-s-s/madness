@@ -341,34 +341,38 @@ namespace madness {
         return x;
     }
 
-
-    template <typename T, typename R, std::size_t NDIM>
-    struct MatrixInnerTask : public TaskInterface {
-        Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
-        const Function<T,NDIM>& f;
-        const std::vector< Function<R,NDIM> >& g;
-        long jtop;
-
-        MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
-                        const Function<T,NDIM>& f,
-                        const std::vector< Function<R,NDIM> >& g,
-                        long jtop)
-                : result(result), f(f), g(g), jtop(jtop) {}
-
-        void run(World& world) {
-            for (long j=0; j<jtop; ++j) {
-                result(j) = f.inner_local(g[j]);
-            }
-        }
-
-    private:
-        /// Get the task id
-
-        /// \param id The id to set for this task
-        virtual void get_id(std::pair<void*,unsigned short>& id) const {
-            PoolTaskInterface::make_id(id, *this);
-        }
-    }; // struct MatrixInnerTask
+// !!! FIXME: this task is broken because FunctionImpl::inner_local forces a
+// future on return from WorldTaskQueue::reduce, which will causes a deadlock if
+// run inside a task. This behavior must be changed before this task can be used
+// again.
+//
+//    template <typename T, typename R, std::size_t NDIM>
+//    struct MatrixInnerTask : public TaskInterface {
+//        Tensor<TENSOR_RESULT_TYPE(T,R)> result; // Must be a copy
+//        const Function<T,NDIM>& f;
+//        const std::vector< Function<R,NDIM> >& g;
+//        long jtop;
+//
+//        MatrixInnerTask(const Tensor<TENSOR_RESULT_TYPE(T,R)>& result,
+//                        const Function<T,NDIM>& f,
+//                        const std::vector< Function<R,NDIM> >& g,
+//                        long jtop)
+//                : result(result), f(f), g(g), jtop(jtop) {}
+//
+//        void run(World& world) {
+//            for (long j=0; j<jtop; ++j) {
+//                result(j) = f.inner_local(g[j]);
+//            }
+//        }
+//
+//    private:
+//        /// Get the task id
+//
+//        /// \param id The id to set for this task
+//        virtual void get_id(std::pair<void*,unsigned short>& id) const {
+//            PoolTaskInterface::make_id(id, *this);
+//        }
+//    }; // struct MatrixInnerTask
 
 
     /// Computes the matrix inner product of two function vectors - q(i,j) = inner(f[i],g[j])
@@ -390,30 +394,30 @@ namespace madness {
         compress(world, f);
         if (&f != &g) compress(world, g);
 
-//         for (long i=0; i<n; ++i) {
-//             long jtop = m;
-//             if (sym) jtop = i+1;
-//             for (long j=0; j<jtop; ++j) {
-//                 r(i,j) = f[i].inner_local(g[j]);
-//                 if (sym) r(j,i) = conj(r(i,j));
-//             }
-//         }
+         for (long i=0; i<n; ++i) {
+             long jtop = m;
+             if (sym) jtop = i+1;
+             for (long j=0; j<jtop; ++j) {
+                 r(i,j) = f[i].inner_local(g[j]);
+                 if (sym) r(j,i) = conj(r(i,j));
+             }
+         }
 
-        for (long i=n-1; i>=0; --i) {
-            long jtop = m;
-            if (sym) jtop = i+1;
-            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
-        }
+//        for (long i=n-1; i>=0; --i) {
+//            long jtop = m;
+//            if (sym) jtop = i+1;
+//            world.taskq.add(new MatrixInnerTask<T,R,NDIM>(r(i,_), f[i], g, jtop));
+//        }
         world.gop.fence();
         world.gop.sum(r.ptr(),n*m);
 
-        if (sym) {
-            for (int i=0; i<n; ++i) {
-                for (int j=0; j<i; ++j) {
-                    r(j,i) = conj(r(i,j));
-                }
-            }
-        }
+//        if (sym) {
+//            for (int i=0; i<n; ++i) {
+//                for (int j=0; j<i; ++j) {
+//                    r(j,i) = conj(r(i,j));
+//                }
+//            }
+//        }
         return r;
     }
 

@@ -397,7 +397,7 @@ namespace madness {
             world_.mpi.binary_tree_info(root, parent, child0, child1);
 
             // Set the local data, except on the root process
-            if(world_.rank() != root)
+            if(parent != -1)
                 detail::DistCache<keyT>::set_cache_value(key, value);
 
             // Precompute send checks
@@ -436,8 +436,10 @@ namespace madness {
             group.make_tree(group_root, parent, child0, child1);
 
             // Set the local data
-            if(group.rank() != group_root)
+            if(parent != -1) {
                 detail::DistCache<keyT>::set_cache_value(key, value);
+                group.remote_update();
+            }
 
             // Precompute send checks
             const bool send0 = (child0 != -1);
@@ -526,15 +528,14 @@ namespace madness {
         void bcast_internal(const keyT& key, Future<valueT>& value,
                 const ProcessID group_root, const Group& group) const
         {
-            // Typedefs
+            // Construct the internal broadcast key
             typedef TaggedKey<keyT, tagT> key_type;
             const key_type tagged_key(key);
 
             if(group.rank() == group_root) {
                 // This process owns the data to be broadcast.
                 if(value.probe())
-                    group_bcast_task(tagged_key, value.get(), group_root,
-                            group);
+                    group_bcast_task(tagged_key, value.get(), group_root, group);
                 else
                     world_.taskq.add(this, & WorldGopInterface::template group_bcast_task<key_type, valueT>,
                             tagged_key, value, group_root, group,
@@ -544,6 +545,9 @@ namespace madness {
 
                 // This is not the root process, so retrieve the broadcast data
                 detail::DistCache<key_type>::get_cache_value(tagged_key, value);
+
+                // Increment local use counter for group
+                group.local_update();
             }
         }
 
@@ -617,16 +621,6 @@ namespace madness {
             return Future<result_type>::default_initializer();
         }
 
-
-        /// Check that \c group is initialized correctly
-
-        /// \param group The group to be checked
-        void varify_group(const Group& group) const {
-            MADNESS_ASSERT(! group.empty());
-            MADNESS_ASSERT(group.is_registered());
-            MADNESS_ASSERT(group.get_world().id() == world_.id());
-            MADNESS_ASSERT(group.rank(world_.rank()) != -1);
-        }
 
     public:
 
@@ -983,7 +977,8 @@ namespace madness {
         /// the associated operation has finished.
         template <typename keyT, typename opT>
         void lazy_sync(const keyT& key, const opT& op, const Group& group) const {
-            varify_group(group);
+            MADNESS_ASSERT(! group.empty());
+            MADNESS_ASSERT(group.get_world().id() == world_.id());
 
             if(group.size() > 1) { // Do nothing for the trivial case
                 // Get the binary tree data
@@ -1051,7 +1046,8 @@ namespace madness {
         void bcast(const keyT& key, Future<valueT>& value,
                 const ProcessID group_root, const Group& group) const
         {
-            varify_group(group);
+            MADNESS_ASSERT(! group.empty());
+            MADNESS_ASSERT(group.get_world().id() == world_.id());
             MADNESS_ASSERT((group_root >= 0) && (group_root < group.size()));
             MADNESS_ASSERT((group.rank() == group_root) || (! value.probe()));
 
@@ -1155,7 +1151,8 @@ namespace madness {
         reduce(const keyT& key, const valueT& value, const opT& op,
                 const ProcessID group_root, const Group& group)
         {
-            varify_group(group);
+            MADNESS_ASSERT(! group.empty());
+            MADNESS_ASSERT(group.get_world().id() == world_.id());
             MADNESS_ASSERT((group_root >= 0) && (group_root < group.size()));
 
             // Get the binary tree data
@@ -1268,7 +1265,8 @@ namespace madness {
         template <typename keyT, typename valueT, typename opT>
         Future<typename detail::result_of<opT>::type>
         all_reduce(const keyT& key, const valueT& value, const opT& op, const Group& group) {
-            varify_group(group);
+            MADNESS_ASSERT(! group.empty());
+            MADNESS_ASSERT(group.get_world().id() == world_.id());
 
             // Compute the parent and child processes of this process in a binary tree.
             Hash<keyT> hasher;
