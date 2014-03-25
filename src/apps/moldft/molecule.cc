@@ -91,6 +91,7 @@ void Molecule::read_file(const std::string& filename) {
     atoms.clear();
     rcut.clear();
     eprec = 1e-4;
+    units = atomic;
     std::ifstream f(filename.c_str());
     if(f.fail()) {
         std::string errmsg = std::string("Failed to open file: ") + filename;
@@ -115,6 +116,7 @@ void Molecule::read_file(const std::string& filename) {
                 scale = 1.0;
             }
             else if (tag == "angstrom" || tag == "angs") {
+                units = angstrom;
                 scale = 1e-10 / madness::constants::atomic_unit_of_length;
                 printf("\nAngstrom being used to read input coordinates (1 Bohr = %.8f Angstrom)\n\n", scale);
             }
@@ -453,7 +455,8 @@ void Molecule::identify_point_group() {
         pointgroup = "D2";
     }
     else {
-        throw "Confused assigning pointgroup";
+        madness::print("Not-quite-symmetric geometry (clean up to fix), will assume C1");
+        pointgroup = "C1";
     }
 
     madness::print("\n The point group is", pointgroup);

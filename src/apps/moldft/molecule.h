@@ -85,6 +85,7 @@ private:
     std::vector<Atom> atoms;
     std::vector<double> rcut;  // Reciprocal of the smoothing radius
     double eprec;              // Error in energy/atom due to smoothing
+    enum {atomic, angstrom} units;
     CorePotentialManager core_pot;
     madness::Tensor<double> field;
 
