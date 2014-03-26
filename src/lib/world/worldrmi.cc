@@ -43,6 +43,8 @@
 namespace madness {
 
     RMI::RmiTask* RMI::task_ptr = NULL;
+    RMIStats RMI::stats;
+    volatile bool RMI::debugging = false;
 
 #if HAVE_INTEL_TBB
     tbb::task* RMI::tbb_rmi_parent_task = NULL;
@@ -50,7 +52,9 @@ namespace madness {
 
     void RMI::RmiTask::process_some() {
 
-        if (debugging && n_in_q)
+        const bool print_debug_info = RMI::debugging;
+
+        if (print_debug_info && n_in_q)
             std::cerr << rank << ":RMI: about to call Waitsome with "
                       << n_in_q << " messages in the queue" << std::endl;
 
@@ -75,7 +79,7 @@ namespace madness {
         waiter.reset();
 #endif
 
-        if (debugging)
+        if (print_debug_info)
             std::cerr << rank << ":RMI: " << narrived
                       << " messages just arrived" << std::endl;
 
@@ -85,8 +89,8 @@ namespace madness {
                 const size_t len = status[m].Get_count(MPI_BYTE);
                 const int i = ind[m];
 
-                ++(stats.nmsg_recv);
-                stats.nbyte_recv += len;
+                ++(RMI::stats.nmsg_recv);
+                RMI::stats.nbyte_recv += len;
 
                 const header* h = (const header*)(recv_buf[i]);
                 rmi_handlerT func = h->func;
@@ -95,7 +99,7 @@ namespace madness {
 
                 if (!is_ordered(attr) || count==recv_counters[src]) {
                     // Unordered and in order messages should be digested as soon as possible.
-                    if (debugging)
+                    if (print_debug_info)
                         std::cerr << rank
                                   << ":RMI: invoking from=" << src
                                   << " nbyte=" << len
@@ -109,7 +113,7 @@ namespace madness {
                     post_recv_buf(i);
                 }
                 else {
-                    if (debugging)
+                    if (print_debug_info)
                         std::cerr << rank
                                   << ":RMI: enqueing from=" << src
                                   << " nbyte=" << len
@@ -140,7 +144,7 @@ namespace madness {
             for (int m=0; m<n_in_q; ++m) {
                 const int src = q[m].src;
                 if (q[m].count == recv_counters[src]) {
-                    if (debugging)
+                    if (print_debug_info)
                         std::cerr << rank
                                   << ":RMI: queue invoking from=" << src
                                   << " nbyte=" << q[m].len
@@ -155,7 +159,7 @@ namespace madness {
                 }
                 else {
                     q[nleftover++] = q[m];
-                    if (debugging)
+                    if (print_debug_info)
                         std::cerr << rank
                                   << ":RMI: queue pending out of order from=" << src
                                   << " nbyte=" << q[m].len
@@ -221,7 +225,6 @@ namespace madness {
             : comm(SafeMPI::COMM_WORLD)
             , nproc(comm.Get_size())
             , rank(comm.Get_rank())
-            , debugging(false)
             , finished(false)
             , send_counters(new unsigned short[nproc])
             , recv_counters(new unsigned short[nproc])
@@ -347,7 +350,7 @@ namespace madness {
             MADNESS_EXCEPTION("RMI::isend --- your buffer is too small to hold the header", static_cast<int>(nbyte));
         }
 
-        if (debugging)
+        if (RMI::debugging)
             std::cerr << rank
                       << ":RMI: sending buf=" << buf
                       << " nbyte=" << nbyte
@@ -373,8 +376,8 @@ namespace madness {
         h->func = func;
         h->attr = attr;
 
-        ++(stats.nmsg_sent);
-        stats.nbyte_sent += nbyte;
+        ++(RMI::stats.nmsg_sent);
+        RMI::stats.nbyte_sent += nbyte;
 
         Request result = comm.Isend(buf, nbyte, MPI_BYTE, dest, tag);
 

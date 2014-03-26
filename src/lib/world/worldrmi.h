@@ -157,11 +157,9 @@ namespace madness {
 
             std::list< std::pair<int,size_t> > hugeq; // q for incoming huge messages
 
-            RMIStats stats;
             SafeMPI::Intracomm comm;
             const int nproc;            // No. of processes in comm world
             const ProcessID rank;       // Rank of this process
-            volatile bool debugging;    // True if debugging
             volatile bool finished;     // True if finished
 
             ScopedArray<volatile counterT> send_counters;
@@ -230,6 +228,8 @@ namespace madness {
 #endif // HAVE_INTEL_TBB
 
         static RmiTask* task_ptr;    // Pointer to the singleton instance
+        static RMIStats stats;
+        static volatile bool debugging;    // True if debugging
 
         static const size_t DEFAULT_MAX_MSG_LEN = 3*512*1024;
 #ifdef HAVE_CRAYXT
@@ -258,6 +258,7 @@ namespace madness {
 
         static Request
         isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED) {
+            MADNESS_ASSERT(task_ptr);
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
@@ -286,17 +287,11 @@ namespace madness {
             }
         }
 
-        static void set_debug(bool status) {
-            MADNESS_ASSERT(task_ptr);
-            task_ptr->debugging = status;
-        }
+        static void set_debug(bool status) { debugging = status; }
 
-        static bool get_debug() { return (task_ptr ? task_ptr->debugging : false); }
+        static bool get_debug() { return debugging; }
 
-        static const RMIStats& get_stats() {
-            MADNESS_ASSERT(task_ptr);
-            return task_ptr->stats;
-        }
+        static const RMIStats& get_stats() { return stats; }
     }; // class RMI
 
 } // namespace madness
