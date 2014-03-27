@@ -1,7 +1,8 @@
 # This must match definition of AC_CONFIG_MACRO_DIR in configure.ac
 ACLOCAL_AMFLAGS = -I ./config
 
-SUBDIRS = include src config
+SRC_SUBDIRS = include src
+SUBDIRS = $(SRC_SUBDIRS) config
 
 doc:
 	cd doc; $(MAKE)
@@ -10,7 +11,7 @@ doc:
 .PHONY:
 
 libraries:	$(lib_LIBRARIES)
-	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+	for dir in $(SRC_SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 
 world:
 	$(MAKE) -C src/lib/world libraries
@@ -34,7 +35,7 @@ mra: linalg tinyxml muparser
 	$(MAKE) -C src/lib/mra libraries
 
 install-libraries:
-	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+	for dir in $(SRC_SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
 	
 install-madinclude:
 	$(MAKE) -C include install-libraries
