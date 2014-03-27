@@ -1,7 +1,7 @@
 AC_PREREQ(2.59)
 # was 2.61 but jaguar is not up to date so backported which
 # involved replacing AC_PROG_SED and UINT*_T type checks.
-AC_INIT([madness], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
+AC_INIT([MADNESS], [0.9], [http://code.google.com/p/m-a-d-n-e-s-s])
 AC_CONFIG_SRCDIR([configure.ac])
 
 # This is where autoconf automatically generated files go
@@ -320,6 +320,7 @@ AC_ARG_WITH([fortran-int32],
 case $acx_fortran_int_size in
 4)
   AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
+  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4])
   AC_MSG_NOTICE([Default Fortran integer: integer*4])
 ;;
 8)
@@ -327,6 +328,7 @@ case $acx_fortran_int_size in
     AC_MSG_ERROR([The compiler does not support int64_t, which is required by MADNESS. Rerun configure and add the '--with-fortran-int32' option.])
   fi
   AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8],[Default Fortran integer size.])
+  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8])
   AC_MSG_NOTICE([Default Fortran integer: integer*8])
 esac
 
@@ -369,7 +371,9 @@ AC_MSG_NOTICE([LIBS     = $LIBS])
 # please maintain the directory tree file order and indenting.
 AC_CONFIG_FILES([
  Makefile
+    config/Makefile
     config/Makefile.sample
+    config/MADNESS.pc
     include/Makefile
     src/Makefile
     src/lib/Makefile

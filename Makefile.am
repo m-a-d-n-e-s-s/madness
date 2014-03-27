@@ -1,12 +1,12 @@
 # This must match definition of AC_CONFIG_MACRO_DIR in configure.ac
 ACLOCAL_AMFLAGS = -I ./config
 
-SUBDIRS = include src
+SUBDIRS = include src config
 
 doc:
 	cd doc; $(MAKE)
 
-	
+
 .PHONY:
 
 libraries:	$(lib_LIBRARIES)
@@ -59,4 +59,3 @@ install-linalg: install-tensor linalg
 
 install-mra: install-linalg install-muparser install-tinyxml mra
 	$(MAKE) -C src/lib/mra install-libraries
-
