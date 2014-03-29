@@ -4854,6 +4854,10 @@ namespace madness {
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc, key));
 
+            //
+            // !! THIS IS NO NUMERICALLY STABLE CODE !!
+            //
+#if 0
             // the sum coefficients on this level, and their norm
             const tensorT s=downsample(key,v);
             const double snorm=s.normf();
@@ -4867,7 +4871,20 @@ namespace madness {
 
             // the error; equivalent to the norm of the wavelet coefficients
             const double error=sqrt(dnorm-snorm*snorm);
+#else
+            int i=0;
+            tensorT d(cdata.v2k);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+//                d(child_patch(kit.key())) += v[i].get();
+                d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            }
 
+            d = filter(d);
+            tensorT s=copy(d(cdata.s0));
+            d(cdata.s0) = 0.0;
+            const double error=d.normf();
+
+#endif
             nodeT& node = coeffs.find(key).get()->second;
 
             if (error < truncate_tol(tol,key)) {
