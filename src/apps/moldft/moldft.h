@@ -2595,15 +2595,16 @@ struct Calculation {
         }
 
         do_step_restriction(world,amo,amo_new,"alpha");
-        do_step_restriction(world,bmo,bmo_new,"beta");
-
         orthonormalize(world,amo_new);
-        orthonormalize(world,bmo_new);
-
         amo = amo_new;
-        bmo = bmo_new;
 
-
+        if (!param.spin_restricted && param.nbeta != 0) {
+        	do_step_restriction(world,bmo,bmo_new,"beta");
+        	orthonormalize(world,bmo_new);
+        	bmo = bmo_new;
+        } else {
+        	bmo = amo;
+        }
     }
 
     /// perform step restriction following the KAIN solver
