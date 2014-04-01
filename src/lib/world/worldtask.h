@@ -1106,13 +1106,13 @@ namespace madness {
             double start;
             ProbeAllDone(tbb::empty_task* tq) : tq(tq), start(cpu_time()) {}
             bool operator()() const {
-                if (cpu_time()-start > 1200) {
+                if (cpu_time()-start > 120000) {
                     for (int loop = 0; loop<3; ++loop) {
                         std::cout << "HUNG Q? " << tq->ref_count()-1 << std::endl;
                         std::cout.flush();
                         myusleep(1000000);
                     }
-                    MADNESS_ASSERT(cpu_time()-start < 1200);
+                    MADNESS_ASSERT(cpu_time()-start < 120000);
                 }
                 return (tq->ref_count() == 1);
             }
