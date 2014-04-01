@@ -993,10 +993,10 @@ namespace madness {
 
 					}
                 }
-    			asymmetry(Uphi0,"final Uphi0");
+    			asymmetry(Uphi0,"Uphi0");
 
                 // save the function for restart
-                save_function(Uphi0,"Uphi0");
+//                save_function(Uphi0,"Uphi0");
             }
 
             // sanity check: <ij| [T,g12] |ij> = <ij | U |ij> - <ij| g12 | ij> = 0
@@ -1049,7 +1049,7 @@ namespace madness {
 								.particle2(copy(hf->R2orbitals()[j]));
 					double a1=inner(Kfphi0,tmp);
 					if (world.rank()==0) printf("< nemo0 | R^2 R-1 K f R | nemo0 >  %12.8f\n",a1);
-					save_function(Kfphi0,"Kfphi0");
+//					save_function(Kfphi0,"Kfphi0");
 				}
 				const real_function_6d fKphi0=make_fKphi0(pair.i,pair.j);
 				{
@@ -1060,7 +1060,7 @@ namespace madness {
 					if (world.rank()==0) printf("< nemo0 | R^2 R-1 f K R | nemo0 >  %12.8f\n",a2);
 				}
 	            KffKphi0=(Kfphi0-fKphi0).truncate().reduce_rank();
-				save_function(KffKphi0,"KffKphi0");
+//				save_function(KffKphi0,"KffKphi0");
 			}
 
 			// sanity check
@@ -1573,23 +1573,33 @@ namespace madness {
                     // note integer arithmetic
                     if (world.rank()==0) print("axis, axis^%3, axis/3+1",axis, axis%3, axis/3+1);
                     const real_function_3d U1_axis=hf->nemo_calc.nuclear_correlation->U1(axis%3);
-                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
-                    vphi+=x;
+//                    real_function_6d x=multiply(copy(Drhs),copy(U1_axis),axis/3+1).truncate();
+
+                    real_function_6d x;
+                    if (axis/3+1==1) {
+						x=CompositeFactory<double,6,3>(world)
+								.ket(Drhs).V_for_particle1(U1_axis);
+                    } else if (axis/3+1==2) {
+                    	x=CompositeFactory<double,6,3>(world)
+								.ket(Drhs).V_for_particle2(U1_axis);
+                    }
+					x.fill_tree(op_mod);
+					vphi+=x;
                     vphi.truncate().reduce_rank();
 
                 }
 				vphi.print_size("(U_nuc + J1 + J2) |ket>:  made V tree");
     			asymmetry(vphi,"U+J");
-    			save_function(vphi,"UJphi");
-    			plot_plane(world,vphi,"UJphi");
+//    			save_function(vphi,"UJphi");
+//    			plot_plane(world,vphi,"UJphi");
 
             }
 
             // and the exchange
             vphi=(vphi-K(f,i==j)).truncate().reduce_rank();
 			asymmetry(vphi,"U+J-K");
-			plot_plane(world,vphi,"UJKphi");
-			save_function(vphi,"UJKphi");
+//			plot_plane(world,vphi,"UJKphi");
+//			save_function(vphi,"UJKphi");
 
             return vphi;
         }

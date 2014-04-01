@@ -57,7 +57,7 @@ namespace madness {
         	// the overlap of all orbitals with the rhs
         	Tensor<double> ovlp=inner(world,f,p_);
 
-            for (int i=0; i<p_.size(); ++i) {
+            for (std::size_t i=0; i<p_.size(); ++i) {
             	if (ovlp(i) != T(0.0)) sum.gaxpy(1.0,p_[i],ovlp(i),false);
             }
             world.gop.fence();

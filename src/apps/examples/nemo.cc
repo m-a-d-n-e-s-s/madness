@@ -64,17 +64,17 @@ int main(int argc, char** argv) {
     // take the HF orbitals to start
     const std::string input="input";
 	std::shared_ptr<Calculation> calc(new Calculation(world,input.c_str()));
-    calc->molecule.print();
-    print("\n");
-    calc->param.print(world);
-
+	if (world.rank()==0) {
+		calc->molecule.print();
+		print("\n");
+		calc->param.print(world);
+	}
     Nemo nemo(world,calc);
     const double energy=nemo.value();
     if (world.rank()==0) {
     	printf("final energy   %12.8f\n", energy);
+    	printf("finished at time %.1f\n", wall_time());
     }
-
-    if (world.rank() == 0) printf("finished at time %.1f\n", wall_time());
     finalize();
     return 0;
 }

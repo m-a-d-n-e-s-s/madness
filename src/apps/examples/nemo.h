@@ -142,9 +142,6 @@ public:
 		poisson = std::shared_ptr<real_convolution_3d>(
 				CoulombOperatorPtr(world, calc->param.lo, calc->param.econv));
 
-		// print some output for the user
-		if (world.rank() == 0) calc->molecule.print();
-
 		// construct the nuclear correlation factor:
 		nuclear_correlation=create_nuclear_correlation_factor(world,*calc);
 		R = nuclear_correlation->function();
@@ -189,6 +186,7 @@ public:
 
 		double energy = solve();
 		if (calc->param.save) calc->save_mos(world);
+		calc->current_energy=energy;
 
 		// save the converged orbitals and nemos
 		vecfuncT psi = mul(world, R, calc->amo);
@@ -245,11 +243,14 @@ private:
 		save_function(nuclear_correlation->U1(1),"U1y");
 		save_function(nuclear_correlation->U1(2),"U1z");
 
-		plot_plane(world,R,"R");
-		plot_plane(world,nuclear_correlation->U2(),"U2");
-		plot_plane(world,nuclear_correlation->U1(0),"U1x");
-
+		// FIXME: plot_plane doesn't work for more that 1 rank
+		if (world.size()==0) {
+			plot_plane(world,R,"R");
+			plot_plane(world,nuclear_correlation->U2(),"U2");
+			plot_plane(world,nuclear_correlation->U1(0),"U1x");
+		}
 	}
+
 
 	/// solve the HF equations
 	double solve() {
@@ -372,9 +373,9 @@ private:
 		}
 
 		if (converged) {
-			print("\nIterations converged\n");
+			if (world.rank()==0) print("\nIterations converged\n");
 		} else {
-			print("\nIterations failed\n");
+			if (world.rank()==0) print("\nIterations failed\n");
 			energy = 0.0;
 		}
 

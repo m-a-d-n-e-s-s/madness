@@ -117,7 +117,49 @@ namespace madness {
         MADNESS_ASSERT(gauss_legendre_test());
         MADNESS_ASSERT(test_two_scale_coefficients());
 
-        //if (world.rank() == 0) print("done with startup");
+        // print the configuration options
+        if (world.rank() == 0) {
+            print("");
+            print("--------------------------------------------");
+            print("   MADNESS",PACKAGE_VERSION, "multiresolution suite");
+            print("--------------------------------------------");
+            print("");
+            print("   number of processors ...", world.size());
+            print("    processor frequency ...", cpu_frequency());
+            print("            host system ...", HOST_SYSTEM);
+            print("          configured by ...", MADNESS_CONFIGURATION_USER);
+            print("          configured on ...", MADNESS_CONFIGURATION_HOST);
+            print("          configured at ...", MADNESS_CONFIGURATION_DATE);
+            print("                    CXX ...", MADNESS_CONFIGURATION_CXX);
+            print("               CXXFLAGS ...", MADNESS_CONFIGURATION_CXXFLAGS);
+#ifdef WORLD_WATCHDOG
+            print("               watchdog ...", WATCHDOG_BARK_INTERVAL, WATCHDOG_TIMEOUT);
+#endif
+#ifdef OPTERON_TUNE
+            print("             tuning for ...", "opteron");
+#elif defined(CORE_DUO_TUNE)
+            print("             tuning for ...", "core duo");
+#else
+            print("             tuning for ...", "core2");
+#endif
+#ifdef BOUNDS_CHECKING
+            print(" tensor bounds checking ...", "enabled");
+#endif
+#ifdef TENSOR_INSTANCE_COUNT
+            print("  tensor instance count ...", "enabled");
+#endif
+#if HAVE_INTEL_TBB
+            print("              Intel TBB ...", "yes ");
+#else
+            print("              Intel TBB ...", "no ");
+#endif
+           	print("               compiled ...",__TIME__," on ",__DATE__);
+
+
+            //         print(" ");
+            //         IndexIterator::test();
+        }
+
 
         world.gop.fence();
     }
