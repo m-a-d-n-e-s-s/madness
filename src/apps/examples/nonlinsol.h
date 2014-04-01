@@ -52,6 +52,35 @@
 
 namespace madness {
 
+
+	/// check for subspace linear dependency
+
+	/// if the subspace is linearly dependent the coefficients in c
+	/// will be highly oscillating.
+	/// @param[in]		Q	the input matrix for KAIN
+	/// @param[inout]	c	the coefficients for constructing the new solution
+	template<typename C>
+	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c) {
+		double rcond = 1e-12;
+		int m = c.dim(0);
+
+		while(1){
+			c = KAIN(Q, rcond);
+			//if (world.rank() == 0) print("kain c:", c);
+			if(std::abs(c[m - 1]) < 3.0){
+				break;
+			} else  if(rcond < 0.01){
+				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
+				rcond *= 100;
+			} else {
+				print("Forcing full step due to subspace malfunction");
+				c = 0.0;
+				c[m - 1] = 1.0;
+				break;
+			}
+		}
+		print("subspace solution",c);
+	}
 	/// A simple Krylov-subspace nonlinear equation solver
 
     /// \ingroup nonlinearsolve
@@ -86,6 +115,7 @@ namespace madness {
 			}
 			Q = Qnew;
 			real_tensor c = KAIN(Q);
+			check_linear_dependence(Q,c);
 
 			// Form new solution in u
 			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
@@ -193,35 +223,9 @@ namespace madness {
 		return unew;
 	}
 
-    private:
-
-	/// check for subspace linear dependency
-
-	/// if the subspace is linearly dependent the coefficients in c
-	/// will be highly oscillating.
-	/// @param[in]	Q	the
-	/// @param[inout]	c	the coefficients for constructing the new solution
-	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c) const {
-		double rcond = 1e-12;
-		int m = ulist.size();
-
-		while(1){
-			c = KAIN(Q, rcond);
-			//if (world.rank() == 0) print("kain c:", c);
-			if(std::abs(c[m - 1]) < 3.0){
-				break;
-			} else  if(rcond < 0.01){
-				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
-				rcond *= 100;
-			} else {
-				print("Forcing full step due to subspace malfunction");
-				c = 0.0;
-				c[m - 1] = 1.0;
-				break;
-			}
-		}
-	}
     };
+
+
 
 }
 #endif
