@@ -738,7 +738,9 @@ struct CalculationParameters {
               tdksprop = true;
             }
             else if (s == "nuclear_corrfac") {
-              f >> nuclear_corrfac;
+                std::string str;
+                std::getline(f,str);
+            	nuclear_corrfac=str;
             }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;

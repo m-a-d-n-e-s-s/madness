@@ -514,6 +514,7 @@ namespace madness {
 
 
     /// plot a 2-d slice of a given function and the according MRA structure
+    /// FIXME: doesn't work for more than 1 rank
 
     /// the plotting parameters are taken from the input file "input" and its
     /// data group "plot", e.g. plotting the xy plane around (0,0,0.7):
@@ -530,6 +531,7 @@ namespace madness {
     void plot_plane(World& world, const Function<double,NDIM>& function,
     		const std::string name) {
 
+		if (world.size()>0) return;
         // determine the ploting plane
     	std::string c1, c2;
 

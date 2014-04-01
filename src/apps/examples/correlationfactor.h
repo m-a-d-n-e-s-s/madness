@@ -90,7 +90,7 @@ namespace madness {
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {
 public:
-	enum corrfactype {None, GaussSlater, LinearSlater, Quartic, Polynomial,
+	enum corrfactype {None, GaussSlater, LinearSlater, Polynomial,
 		Slater, Two};
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
@@ -372,12 +372,16 @@ private:
 	/// -1/2 S"/S - Z/r
 	double Spp_div_S(const double& r, const double& Z) const {
 		const double rho=Z*r;
-		const double e=exp(-rho);
-		const double g=exp(-rho*rho);
-		const double term1=-Z/r*(1.0-g);
-		const double term2=-g*Z*Z*(3.0-2.0*Z*Z*r*r) - Z*Z/2.0*e;
-		const double S_inv=exp(-rho)+(1.0-exp(-(rho*rho)));
-		return (term1+term2)/S_inv;
+    	if (rho<1.e-4) {
+    		return Z*Z*(-3.5 - 4.0*rho + 6.0*rho*rho + 12.0*rho*rho*rho);
+    	} else {
+			const double e=exp(-rho);
+			const double g=exp(-rho*rho);
+			const double term1=-Z/r*(1.0-g);
+			const double term2=-g*Z*Z*(3.0-2.0*Z*Z*r*r) - Z*Z/2.0*e;
+			const double S_inv=exp(-rho)+(1.0-exp(-(rho*rho)));
+			return (term1+term2)/S_inv;
+    	}
 	}
 
 };
@@ -396,13 +400,15 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	LinearSlater(World& world, const Calculation& calc)
-		: NuclearCorrelationFactor(world,calc) {
+	LinearSlater(World& world, const Calculation& calc, const double a)
+		: NuclearCorrelationFactor(world,calc), a_(1.0) {
+
+		if (a!=0.0) a_=a;
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
-			print("  R   = Prod_A S_A");
 			print("  S_A = -Z_A r_{1A} exp(-Z_A r_{1A}) + 1");
+			print("    a = ",a_);
 			print("which is of linear Slater type\n");
 		}
 		initialize();
@@ -412,19 +418,22 @@ public:
 
 private:
 
-	static double b_param() {return 1.0;}
+	/// the length scale parameter a
+	double a_;
+
+	double a_param() const {return 1.0;}
 
 	/// the nuclear correlation factor
 	double S(const double& r, const double& Z) const {
 		const double rho=r*Z;
-		const double b=b_param();
+		const double b=a_param();
 		return (-rho)*exp(-b*rho)+1.0;
 	}
 
 	/// radial part first derivative of the nuclear correlation factor
 	coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
 
-		const double b=b_param();
+		const double b=a_param();
 		const double r=sqrt(vr1A[0]*vr1A[0] +
 				vr1A[1]*vr1A[1] + vr1A[2]*vr1A[2]);
 
@@ -438,7 +447,7 @@ private:
 	/// -1/2 S"/S - Z/r
 	double Spp_div_S(const double& r, const double& Z) const {
 
-		const double b=b_param();
+		const double b=a_param();
 		const double rho=Z*r;
     	if (rho<1.e-4) {
     		const double O0=1.0- 3.0* b;
@@ -464,13 +473,15 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Slater(World& world, const Calculation& calc)
-		: NuclearCorrelationFactor(world,calc) {
+	Slater(World& world, const Calculation& calc, const double a)
+		: NuclearCorrelationFactor(world,calc), a_(1.5) {
+
+		if (a!=0.0) a_=a;
 
 		if (world.rank()==0) {
-			print("constructed nuclear correlation factor of the form");
-			print("  R   = Prod_A S_A");
+			print("\nconstructed nuclear correlation factor of the form");
 			print("  S_A = 1/(a-1) exp(-a Z_A r_{1A}) + 1");
+			print("    a = ",a_);
 			print("which is of Slater type\n");
 		}
 		initialize();
@@ -480,7 +491,10 @@ public:
 
 private:
 
-	static double a_param() {return 1.5;}
+	/// the length scale parameter
+	double a_;
+
+	double a_param() const {return a_;}
 
     /// the nuclear correlation factor
     double S(const double& r, const double& Z) const {
@@ -515,95 +529,6 @@ private:
 
 };
 
-
-/// A nuclear correlation factor class
-class Quartic : public NuclearCorrelationFactor {
-public:
-	/// ctor
-
-	/// @param[in]	world	the world
-	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Quartic(World& world, const Calculation& calc)
-		: NuclearCorrelationFactor(world,calc) {
-
-		if (world.rank()==0) {
-			print("constructed nuclear correlation factor of the form");
-			print("  R   = Prod_A S_A");
-			print("  S_A = 1 + a (b*r -1)^4  if  r<1/b, with  b= (1+a) Z / (4a)");
-			print("      = 1                 else ");
-			print("which is of quartic type\n");
-		}
-		initialize();
-	}
-
-	corrfactype type() const {return NuclearCorrelationFactor::Quartic;}
-
-private:
-
-	/// length scale parameter a, chosen that linear terms in U2 vanish
-//	static double a() {return -3.0+2.0*sqrt(3.0);}
-	static double a_param() {return 0.46410161513775458704;}
-	static double b_param(const double& a) {return 4.0*a/(1.0+a);}
-
-    /// the nuclear correlation factor
-    double S(const double& r, const double& Z) const {
-
-    	const double rho=r*Z;
-    	const double a=Quartic::a_param();
-    	const double b=Quartic::b_param(a);
-
-    	if (rho<b) {
-    		const double arg=-1.0 + rho/b;
-    		return 1.0 + a* arg*arg*arg*arg;
-    	} else {
-    		return 1.0;
-    	}
-
-    }
-
-    /// radial part first derivative of the nuclear correlation factor
-    coord_3d Sp(const coord_3d& vr1A, const double& Z) const {
-
-		const double r=vr1A.normf();
-    	const double rho=r*Z;
-    	const double a=Quartic::a_param();
-    	const double b=Quartic::b_param(a);
-
-    	const double arg=-1.0 + rho/b;
-    	if (rho<b) return ((1.0 + a) *Z* arg*arg*arg)*n12(vr1A);
-    	return coord_3d(0.0);
-    }
-
-    /// second derivative of the nuclear correlation factor
-
-    /// -1/2 S"/S - Z/r
-    double Spp_div_S(const double& r, const double& Z) const {
-
-    	const double rho=r*Z;
-    	const double a=Quartic::a_param();
-    	const double b=Quartic::b_param(a);
-
-    	if (rho<1.e-6) {
-    		const double a0=(9.0+a)/(8.0*a);
-    		const double a1=(-3.0+6.0*a+a*a)/(8.0*a*a);
-    		const double a2=(5.0-95.0*a+35*a*a+7.0*a*a*a)/(128.0*a*a*a);
-    		return Z*Z*(-a0 - a1*r - a2*r*r);
-
-    	} else if (rho<b) {
-    		const double arg=-1.0+rho/b;
-    		const double d0=1.0+a*(arg*arg*arg*arg);
-    		const double d2=-0.5*3.0*(1.0+a)*(1.0+a)*Z*Z*arg*arg/(4.0*a);
-    		const double d1=-Z*(1.0+(1.0+a)*(arg*arg*arg) + a*(arg*arg*arg*arg))*Z/rho;
-    		return (d2+d1)/d0;
-
-    	} else {
-    		return -Z*Z/rho;
-    	}
-    }
-
-};
-
-
 /// A nuclear correlation factor class
 
 /// should reduce to quartic for N=4
@@ -615,8 +540,13 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Polynomial(World& world, const Calculation& calc)
+	Polynomial(World& world, const Calculation& calc, const double a)
 		: NuclearCorrelationFactor(world,calc) {
+
+		/// length scale parameter a, default chosen that linear terms in U2 vanish
+		a_=(2. + (-2. + sqrt(-1. + N))*N)/(-2. + N);
+
+		if (a!=0.0) a_=a;
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
@@ -632,12 +562,12 @@ public:
 
 private:
 
-	/// length scale parameter a, chosen that linear terms in U2 vanish
-	static double a_param() {
-		const double a=(2. + (-2. + sqrt(-1. + N))*N)/(-2. + N);
-		return a;
-	}
+	/// length scale parameter a, default chosen that linear terms in U2 vanish
+	double a_;
 
+	double a_param() const {return a_;}
+
+	/// the cutoff
 	static double b_param(const double& a) {return N*a/(1.0+a);}
 
     /// the nuclear correlation factor
@@ -718,8 +648,8 @@ public:
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
-			print("    R   = 1");
-			print("which means it's a conventional calculation\n");
+			print("    R   = ",fac);
+			print("which means it's (nearly) a conventional calculation\n");
 		}
 		initialize();
 
@@ -782,36 +712,48 @@ private:
 static std::shared_ptr<NuclearCorrelationFactor>
 create_nuclear_correlation_factor(World& world, const Calculation& calc) {
 
-	std::string corrfac=lowercase(calc.param.nuclear_corrfac);
+	std::stringstream ss(lowercase(calc.param.nuclear_corrfac));
+	std::string corrfac, factor;
+	ss >> corrfac >> factor;
+
+	// read the length scale factor if there is one
+	double a=0.0;
+	if (factor.size()>0) {
+		std::stringstream fss(factor);
+		if (not (fss >> a)) {
+			if (world.rank()==0) print("could not read the length scale parameter a: ",a);
+			MADNESS_EXCEPTION("input error in the nuclear correlation factor",1);
+		}
+	}
 
 	typedef std::shared_ptr<NuclearCorrelationFactor> ncf_ptr;
 
 	if (corrfac == "gaussslater") {
 		return ncf_ptr(new GaussSlater(world, calc));
 	} else if (corrfac == "linearslater") {
-		return ncf_ptr(new LinearSlater(world, calc));
+		return ncf_ptr(new LinearSlater(world, calc, a));
 	} else if (corrfac == "slater") {
-		return ncf_ptr(new Slater(world, calc));
-	} else if (corrfac == "quartic") {
-		return ncf_ptr(new Quartic(world, calc));
+		return ncf_ptr(new Slater(world, calc, a));
 	} else if (corrfac == "polynomial4") {
-		return ncf_ptr(new Polynomial<4>(world, calc));
+		return ncf_ptr(new Polynomial<4>(world, calc, a ));
 	} else if (corrfac == "polynomial5") {
-		return ncf_ptr(new Polynomial<5>(world, calc));
+		return ncf_ptr(new Polynomial<5>(world, calc, a));
 	} else if (corrfac == "polynomial6") {
-		return ncf_ptr(new Polynomial<6>(world, calc));
+		return ncf_ptr(new Polynomial<6>(world, calc, a));
 	} else if (corrfac == "polynomial7") {
-		return ncf_ptr(new Polynomial<7>(world, calc));
+		return ncf_ptr(new Polynomial<7>(world, calc, a));
 	} else if (corrfac == "polynomial8") {
-		return ncf_ptr(new Polynomial<8>(world, calc));
+		return ncf_ptr(new Polynomial<8>(world, calc, a));
 	} else if (corrfac == "polynomial9") {
-		return ncf_ptr(new Polynomial<9>(world, calc));
+		return ncf_ptr(new Polynomial<9>(world, calc, a));
 	} else if (corrfac == "polynomial10") {
-		return ncf_ptr(new Polynomial<10>(world, calc));
+		return ncf_ptr(new Polynomial<10>(world, calc, a));
 	} else if ((corrfac == "none") or (corrfac == "one")) {
 		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,1.0));
 	} else if (corrfac == "two") {
 		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,2.0));
+	} else if (corrfac == "linear") {
+		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,a));
 	} else {
 		if (world.rank()==0) print(calc.param.nuclear_corrfac);
 		MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
