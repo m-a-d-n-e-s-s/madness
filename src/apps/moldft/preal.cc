@@ -9,7 +9,8 @@ using namespace madness;
 #include <moldft/molecularbasis.h>
 #include <moldft/xcfunctional.h>
 
-#include "gth_pseudopotential.h"
+//#include "gth_pseudopotential.h"
+#include "wst_functional.h"
 
 static const double twopi = 2.0*constants::pi;
 
@@ -302,6 +303,8 @@ private:
     Molecule molecule;
     AtomicBasisSet aobasis;
     BoysLocalization boys;
+    XCfunctional xc;
+    
 
 public:
     MiniDFT(double              thresh,
@@ -313,6 +316,14 @@ public:
         FunctionDefaults<3>::set_k(kwavelet);
         FunctionDefaults<3>::set_cubic_cell(-boxsize,boxsize);
         FunctionDefaults<3>::set_truncate_mode(truncate_mode);
+
+	std::string xc_data;
+	//xc_data="lda";
+        xc_data = "GGA_X_PBE 1.0 GGA_C_PBE 1.0";
+	//xc_data="GGA_X_PBE 1.";
+	//xc_data="GGA_C_PBE 1.";
+	//xc_data="GGA_X_B88 1.";
+	xc.initialize(xc_data, false);
     }
 
     // Make the atomic basis functions
@@ -476,19 +487,22 @@ public:
         if (world.rank() == 0) printf("thresh: %15.4e\n", thresh); 
 
         // Nuclear potential (don't need if using pseudopotential)
-        //real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
+        //real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(
+        //  new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
         auto safety = 0.1;
         auto vtol = FunctionDefaults<3>::get_thresh() * safety;
-        real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
+        real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(
+          new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
         vnuc.reconstruct();
         print("total nuclear charge", vnuc.trace());
         //vnuc = -1.0*make_coulomb_potential(world, vnuc);
     
         // Create pseudopotential
-        GTHPseudopotential<double> ppotential(world, molecule);
+        //GTHPseudopotential<double> ppotential(world, molecule);
     
         // Guess density
-        real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(new MolecularGuessDensityFunctor(molecule,aobasis))).truncate_on_project();
+        real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(
+          new MolecularGuessDensityFunctor(molecule,aobasis))).truncate_on_project();
         double nel = rho.trace();
         if(world.rank() == 0)
             print("guess dens trace", nel);
@@ -502,22 +516,45 @@ public:
         double ravg = 10000.0;
         for (int iter=0; iter<100 && ravg > 1e-6; iter++) {
 
-            //if (iter==1) {
-            //    boys.set_size(psi.size());
-            //}            
-            //if (iter > 0) {
-            //    real_tensor U = boys(world, psi);
-            //    print(U);
-            //}
+            bool doboys = false;
+            if (doboys) {
+                if (iter==1) {
+                    boys.set_size(psi.size());
+                }            
+                if (iter > 0) {
+                    real_tensor U = boys(world, psi);
+                    print(U);
+                }
+            }
  
             print("\n\n  Iteration",iter,"\n");
             auto rtr = rho.trace();
             print("rho trace:  ", rtr);
-            //real_function_3d v = vnuc + make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
-            //vector_real_function_3d vpsi = apply_potential(world, v, psi);
-    
-            auto v = make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
-            auto vpsi = ppotential.apply_potential(world, v, psi);
+
+            WSTFunctional wstf;
+            real_function_3d rho_half = 0.5 * rho;
+            std::pair<real_function_3d, double> pair_xc = wstf.apply_xc(world,xc,rho_half);
+            real_function_3d vxc = pair_xc.first;
+            real_function_3d vxc2 = make_lda_potential(world,rho);
+            double exc = pair_xc.second;
+            real_function_3d v = vnuc + make_coulomb_potential(world,rho) + vxc;
+            vector_real_function_3d vpsi = apply_potential(world, v, psi);
+
+            bool doplots = true;
+            if (doplots) {
+                char rho_name[25]; sprintf(rho_name, "rho_%d.dat", iter);
+                char vxc_name[25]; sprintf(vxc_name, "vxc_%d.dat", iter);
+                char vxc2_name[25]; sprintf(vxc2_name, "vxc2_%d.dat", iter);
+                char v_name[25]; sprintf(v_name, "v_%d.dat", iter);
+                int ppnts = 5001; 
+                plot_line(rho_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), rho); 
+                plot_line(vxc_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc); 
+                plot_line(vxc2_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc2); 
+                plot_line(v_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), v); 
+            }
+
+            //auto v = make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
+            //auto vpsi = ppotential.apply_potential(world, v, psi);
             //auto vpsi = ppotential.apply_potential_ne(world, v, psi);
     
             auto ke_mat = kinetic_energy_matrix(world, psi);
@@ -572,7 +609,7 @@ public:
               FunctionDefaults<3>::set_k(kwavelet);
               FunctionDefaults<3>::set_thresh(thresh);
               vnuc = madness::project(vnuc, kwavelet, thresh, true);
-              ppotential.reproject(kwavelet, thresh);
+              //ppotential.reproject(kwavelet, thresh);
               for (int i = 0; i < nmo; i++) psi[i] = madness::project(psi[i], kwavelet, thresh, true);  
             }
     
@@ -592,6 +629,9 @@ int main(int argc, char** argv) {
     std::cout.precision(9);
 
     Molecule molecule;
+
+    //print("Env: MADNESS_HAS_LIBXC =      ", MADNESS_HAS_LIBXC);
+    //print("Env: MADNESS_HAS_MADXC =      ", MADNESS_HAS_MADXC);
 
     // Hydrogen atom
     // Also for hydrogen need to make changes to nmo (set to 1)
@@ -625,10 +665,14 @@ int main(int argc, char** argv) {
     //molecule.add_atom(1.23943, -0.3422, 5, 2.0, 4);
     
     // Water (doesn't work)
-    molecule.add_atom( 1.4375, 0, 1.15, 1.0, 1);
-    molecule.add_atom(-1.4375, 0, 1.15, 1.0, 1);
-    molecule.add_atom(0, 0, 0, 6.0, 8);
-    
+    //molecule.add_atom( 1.4375, 0, 1.15, 1.0, 1);
+    //molecule.add_atom(-1.4375, 0, 1.15, 1.0, 1);
+    //molecule.add_atom(0, 0, 0, 8.0, 8);
+   
+    // H2 
+    molecule.add_atom(0.0, 0.0,  0.7  , 1.0, 1); 
+    molecule.add_atom(0.0, 0.0, -0.7  , 1.0, 1); 
+
     // CO2 (doesn't work)
     //molecule.add_atom(0.0, 0.0, 0.0, 4.0, 6);
     //molecule.add_atom(0.0, 0.0, 2.24064, 6.0, 8);
