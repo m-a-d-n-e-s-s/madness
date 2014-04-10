@@ -3692,6 +3692,7 @@ namespace madness {
 
                 // new coeffs are simply the hartree/kronecker/outer product --
                 coeffT coeff=outer(s1,s2);
+                change_tensor_type(coeff,result->get_tensor_args());
                 // no post-determination
 //                is_leaf=leaf_op(key,coeff);
                 return std::pair<bool,coeffT>(is_leaf,coeff);
@@ -5269,7 +5270,7 @@ namespace madness {
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.01;
+            apply_targs.thresh=tol/fac*0.1;
 
             double maxnorm=0.0;
             // for the kernel it may be more efficient to do the convolution in full rank
@@ -5365,13 +5366,14 @@ namespace madness {
 
 
         /// after apply we need to do some cleanup;
-        void finalize_apply(const bool fence=true) {
+        double finalize_apply(const bool fence=true) {
             TensorArgs tight_args(targs);
             tight_args.thresh*=0.01;
+            double begin=wall_time();
             flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
 
             // reduce the rank of the final nodes, leave full tensors unchanged
-            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
+//            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
             flo_unary_op_node_inplace(do_reduce_rank(targs),true);
 
             // change TT_FULL to low rank
@@ -5380,10 +5382,13 @@ namespace madness {
             // truncate leaf nodes to avoid excessive tree refinement
             flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
 
+            double end=wall_time();
+            double elapsed=end-begin;
             this->compressed=true;
             this->nonstandard=true;
             this->redundant=false;
             if (fence) world.gop.fence();
+            return elapsed;
         }
 
         /// traverse a non-existing tree, make its coeffs and apply an operator

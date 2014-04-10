@@ -94,7 +94,7 @@ namespace madness {
         if (leaf) lb.add_tree(f,LBCost(1.0,0.1));
         else lb.add_tree(f,LBCost(0.001,1.0));
         FunctionDefaults<6>::redistribute(f.world(), lb.load_balance(2.0,false));
-        if(f.world().rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
+//        if(f.world().rank() == 0) printf("redistributed at time   %.1fs\n", wall_time());
     }
 
     class HartreeFock {
@@ -314,7 +314,8 @@ namespace madness {
 
         int i, j;                       ///< orbitals i and j
         real_function_6d function;      ///< pair function for a specific pair w/o correlation factor part
-        real_function_6d r12phi;       ///< orbital product multiplied with the correlation factor
+        real_function_6d r12phi;      	///< orbital product multiplied with the correlation factor
+        real_function_6d constant_term;	///< the first order contribution to the MP1 wave function
 
         real_function_6d Uphi0;         ///< the function U |phi^0>  (U being Kutzelnigg's potential)
         real_function_6d KffKphi0;      ///< the function [K,f12] |phi^0>
@@ -336,9 +337,12 @@ namespace madness {
         /// load the function only if there is one
         /// don't serialize recomputable intermediates r12phi, Uphi, KffKphi
         template <typename Archive> void serialize (Archive& ar) {
-        	bool exist=function.is_initialized();
-			ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged & iteration & exist;
-			if (exist) ar & function;
+        	bool fexist=function.is_initialized();
+        	bool cexist=constant_term.is_initialized();
+			ar & ij_gQf_ij & ji_gQf_ij & e_singlet & e_triplet & converged
+				& iteration & fexist & cexist;
+			if (fexist) ar & function;
+			if (cexist) ar & constant_term;
         }
 
         bool load_pair(World& world) {
@@ -658,6 +662,8 @@ namespace madness {
 
         	if (world.rank()==0) printf("\n\nsolving electron pair (%d, %d)\n\n",i,j);
             ElectronPair result=guess_mp1_3(i,j);
+            result.store_pair(world);
+
             double energy=compute_energy(result);
             if (world.rank()==0) printf("finished with prep step at time %6.1fs with energy %12.8f\n\n",
             		wall_time(),energy);
@@ -675,8 +681,8 @@ namespace madness {
 //            increment(result,green);
 
 			if (world.rank()==0) print("computing iteratively");
-			real_function_6d constant_term;
-			load_function(constant_term,"GVpair");
+//			real_function_6d constant_term;
+//			load_function(constant_term,"GVpair");
 
 			NonlinearSolverND<6> solver;
 			// increment iteration counter upon entry
@@ -692,8 +698,8 @@ namespace madness {
 
 				// we have to solve this equation:
 				// psi1 = psi0 + GVpsi1 <=> psi0 + GVpsi1 - psi1 = r =0
-				tmp=(Q12(constant_term + tmp)).truncate();
-				const double old_fnorm=result.function.norm2();
+				tmp=(Q12(result.constant_term + tmp)).truncate();
+//				const double old_fnorm=result.function.norm2();
 
 				real_function_6d residual=result.function - tmp;
 				result.function=Q12(solver.update(tmp,residual));
@@ -706,9 +712,9 @@ namespace madness {
 				energy=compute_energy(result);
 
 				result.converged=((std::abs(old_energy-energy)<result.function.thresh()*0.01)
-						and (std::abs(old_fnorm-fnorm)<result.function.thresh()*0.1));
+						and (rnorm<result.function.thresh()));
 				result.store_pair(world);
-//				save_function(result.function,"pair_iteration"+stringify(result.iteration));
+				save_function(result.function,"pair_iter"+stringify(result.iteration));
 
 				if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
 						result.iteration, wall_time(),energy);
@@ -779,6 +785,7 @@ namespace madness {
         double asymmetry(const real_function_6d& f, const std::string s) const {
         	const real_function_6d ff=swap_particles(f);
         	double diff=(ff-f).norm2();
+        	f.check_symmetry();
         	if (world.rank()==0) print("asymmetry of ",s,"  ",diff);
         	return diff;
         }
@@ -939,10 +946,10 @@ namespace madness {
 				        real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps),0.0001,1e-5);
 				        op_mod.modified()=true;
 
-						real_function_3d u1_nuc=hf->nemo_calc.nuclear_correlation->U1(axis);
-						real_function_3d u1_nuc_nemo_i=u1_nuc*hf->nemo(i);
-						real_function_3d u1_nuc_nemo_j=u1_nuc*hf->nemo(j);
-						real_function_6d u1_el=corrfac.U1(axis);
+						const real_function_3d u1_nuc=hf->nemo_calc.nuclear_correlation->U1(axis);
+						const real_function_3d u1_nuc_nemo_i=u1_nuc*hf->nemo(i);
+						const real_function_3d u1_nuc_nemo_j=u1_nuc*hf->nemo(j);
+						const real_function_6d u1_el=corrfac.U1(axis);
 //						u1_nuc.print_size("u1_nuc");
 //						plot_plane(world,u1_nuc,"u1_nuc");
 //						u1_nuc_nemo_i.print_size("u1_nuc_nemo_i");
@@ -1218,8 +1225,8 @@ namespace madness {
 			GVpair=Q12(GVpair);
 			asymmetry(GVpair,"GVpair after Q12");
             pair.function=GVpair;
+            pair.constant_term=copy(GVpair);
             save_function(GVpair,"GVpair");
-            pair.store_pair(world);
 
             return pair;
         }
@@ -1338,7 +1345,7 @@ namespace madness {
             real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
             op.particle()=particle;
 
-            if (world.rank()==0) printf("start multiplication before K at time %.1f\n",wall_time());
+//            if (world.rank()==0) printf("start multiplication before K at time %.1f\n",wall_time());
 
             // multiply the orbital to the pair function
 //            real_function_6d x=(particle==1)
@@ -1348,19 +1355,19 @@ namespace madness {
             real_function_6d x=multiply(copy(f),copy(orbital_bra),particle).truncate();
 
             // apply the Poisson operator
-            if (world.rank()==0) printf("start exchange at time %.1f\n",wall_time());
+//            if (world.rank()==0) printf("start exchange at time %.1f\n",wall_time());
             load_balance(x,false);
             x=op(x).truncate();
 
             // do the final multiplication with the orbital
-            if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
+//            if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
 //            real_function_6d result= (particle==1)
 //            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital))
 //            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital));
 //            result.fill_tree().truncate().reduce_rank();
             real_function_6d result=multiply(copy(x),copy(orbital_ket),particle).truncate();
 
-            if (world.rank()==0) printf("end multiplication after K at time %.1f\n",wall_time());
+//            if (world.rank()==0) printf("end multiplication after K at time %.1f\n",wall_time());
             return result;
         }
 
@@ -1578,17 +1585,17 @@ namespace madness {
                     real_function_6d x;
                     if (axis/3+1==1) {
 						x=CompositeFactory<double,6,3>(world)
-								.ket(Drhs).V_for_particle1(U1_axis);
+								.ket(Drhs).V_for_particle1(copy(U1_axis));
                     } else if (axis/3+1==2) {
                     	x=CompositeFactory<double,6,3>(world)
-								.ket(Drhs).V_for_particle2(U1_axis);
+								.ket(Drhs).V_for_particle2(copy(U1_axis));
                     }
 					x.fill_tree(op_mod);
 					vphi+=x;
                     vphi.truncate().reduce_rank();
 
                 }
-				vphi.print_size("(U_nuc + J1 + J2) |ket>:  made V tree");
+				vphi.print_size("(U_nuc + J) |ket>:  made V tree");
     			asymmetry(vphi,"U+J");
 //    			save_function(vphi,"UJphi");
 //    			plot_plane(world,vphi,"UJphi");
@@ -1598,6 +1605,7 @@ namespace madness {
             // and the exchange
             vphi=(vphi-K(f,i==j)).truncate().reduce_rank();
 			asymmetry(vphi,"U+J-K");
+			vphi.print_size("(U_nuc + J - K) |ket>:  made V tree");
 //			plot_plane(world,vphi,"UJKphi");
 //			save_function(vphi,"UJKphi");
 

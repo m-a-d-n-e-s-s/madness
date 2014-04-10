@@ -531,12 +531,15 @@ namespace madness {
     void plot_plane(World& world, const Function<double,NDIM>& function,
     		const std::string name) {
 
-		if (world.size()>0) return;
+		if (world.size()>1) return;
         // determine the ploting plane
     	std::string c1, c2;
 
     	// zoom factor
     	double zoom=1.0;
+
+    	// output type: mathematica or gnuplot
+    	std::string output_type="gnuplot";
 
     	// number of points in each direction
         int npoints=200;
@@ -555,6 +558,8 @@ namespace madness {
         		f >> c1 >> c2;
         	} else if (s == "zoom") {
         		f >> zoom;
+        	} else if (s == "output") {
+        		f >> output_type;
         	} else if (s == "points") {
         		f >> npoints;
         	} else if (s == "origin") {
@@ -605,8 +610,8 @@ namespace madness {
         					function(coord));
 
         		}
-        		// uncomment for gnuplot-style; leave commented out for mathematica
-				fprintf(f,"\n");
+        		// additional blank line between blocks for gnuplot
+        		if (output_type=="gnuplot") fprintf(f,"\n");
         	}
         	fclose(f);
 

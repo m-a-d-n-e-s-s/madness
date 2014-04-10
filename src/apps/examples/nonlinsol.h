@@ -67,7 +67,8 @@ namespace madness {
 		while(1){
 			c = KAIN(Q, rcond);
 			//if (world.rank() == 0) print("kain c:", c);
-			if(std::abs(c[m - 1]) < 3.0){
+//			if(std::abs(c[m - 1]) < 3.0){
+			if (c.absmax()<2.5) {
 				break;
 			} else  if(rcond < 0.01){
 				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
@@ -81,6 +82,7 @@ namespace madness {
 		}
 		print("subspace solution",c);
 	}
+
 	/// A simple Krylov-subspace nonlinear equation solver
 
     /// \ingroup nonlinearsolve

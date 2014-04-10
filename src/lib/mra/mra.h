@@ -1873,11 +1873,12 @@ namespace madness {
         		r1.get_impl().get(),true);			// will fence here
 
 
-        if (NDIM==6) {
+		double time=result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
+        if (opT::opdim==6) {
             result.get_impl()->print_timer();
             op.print_timer();
+    		if (result.world().rank()==0) print("time in finlize_apply", time);
         }
-		result.get_impl()->finalize_apply(fence);	// need fence before reconstruction
 
         return result;
     }
@@ -1899,7 +1900,7 @@ namespace madness {
 
     	if (VERIFY_TREE) ff.verify_tree();
     	ff.reconstruct();
-        if (NDIM==6) ff.print_size("ff in apply after reconstruct");
+        if (opT::opdim==6) ff.print_size("ff in apply after reconstruct");
 
     	if (op.modified()) {
 
@@ -1914,8 +1915,8 @@ namespace madness {
 //    		Function<R,NDIM> fff=copy(ff);
     		Function<R,NDIM> fff=(ff);
             fff.nonstandard(op.doleaves, true);
-            if (NDIM==6) fff.print_size("ff in apply after nonstandard");
-            if ((NDIM==6) and (f.world().rank()==0)) {
+            if (opT::opdim==6) fff.print_size("ff in apply after nonstandard");
+            if ((opT::opdim==6) and (f.world().rank()==0)) {
                 fff.get_impl()->timer_filter.print("filter");
                 fff.get_impl()->timer_compress_svd.print("compress_svd");
             }
@@ -1930,7 +1931,7 @@ namespace madness {
             }
 
     	}
-        if (NDIM==6) result.print_size("result after reconstruction");
+        if (opT::opdim==6) result.print_size("result after reconstruction");
         return result;
     }
 
@@ -2033,33 +2034,33 @@ namespace madness {
         Function<T,LDIM>& gg = const_cast< Function<T,LDIM>& >(g);
 
         if (0) {
-        gg.nonstandard(true,false);
-        ff.nonstandard(true,false);
-        result.world().gop.fence();
+        	gg.nonstandard(true,false);
+        	ff.nonstandard(true,false);
+        	result.world().gop.fence();
 
-        result.get_impl()->multiply(ff.get_impl().get(),gg.get_impl().get(),particle);
-        result.world().gop.fence();
+        	result.get_impl()->multiply(ff.get_impl().get(),gg.get_impl().get(),particle);
+        	result.world().gop.fence();
 
-        gg.standard(false);
-        ff.standard(false);
-        result.world().gop.fence();
+        	gg.standard(false);
+        	ff.standard(false);
+        	result.world().gop.fence();
 
         } else {
-        FunctionImpl<T,NDIM>* fimpl=ff.get_impl().get();
-        FunctionImpl<T,LDIM>* gimpl=gg.get_impl().get();
-        gimpl->make_redundant(true);
-        fimpl->make_redundant(false);
-        result.world().gop.fence();
+        	FunctionImpl<T,NDIM>* fimpl=ff.get_impl().get();
+        	FunctionImpl<T,LDIM>* gimpl=gg.get_impl().get();
+        	gimpl->make_redundant(true);
+        	fimpl->make_redundant(false);
+        	result.world().gop.fence();
 
-        result.get_impl()->multiply(fimpl,gimpl,particle);
-        result.world().gop.fence();
+        	result.get_impl()->multiply(fimpl,gimpl,particle);
+        	result.world().gop.fence();
 
-        fimpl->undo_redundant(false);
-        gimpl->undo_redundant(fence);
+        	fimpl->undo_redundant(false);
+        	gimpl->undo_redundant(fence);
         }
 
-        if (particle==1) result.print_size("finished multiplication f(1,2)*g(1)");
-        if (particle==2) result.print_size("finished multiplication f(1,2)*g(2)");
+//        if (particle==1) result.print_size("finished multiplication f(1,2)*g(1)");
+//        if (particle==2) result.print_size("finished multiplication f(1,2)*g(2)");
 
         return result;
     }
