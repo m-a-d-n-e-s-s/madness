@@ -47,6 +47,8 @@ testper_SOURCES = testper.cc test_sepop.cc
 testbsh_SOURCES = testbsh.cc
 test6_SOURCES = test6.cc
 testseprep_SOURCES = testseprep.cc
+testseprep_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
+
 testbc_SOURCES = testbc.cc
 testproj_SOURCES = testproj.cc
 testgconv_SOURCES = testgconv.cc

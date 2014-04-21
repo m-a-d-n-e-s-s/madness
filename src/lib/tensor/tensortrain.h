@@ -63,8 +63,6 @@ namespace madness {
 	 * The tensor train representation is suited for any number of dimensions and
 	 * in general at least as fast as the 2-way decomposition SVD. If the tensor
 	 * has full rank it will need about twice the storage space of the full tensor
-	 *
-	 * TODO: implement tt representation of tensors with unequal dimensions
 	 */
 	template<typename T>
 	class TensorTrain {
@@ -89,25 +87,75 @@ namespace madness {
 		/// @param[in]	t	full representation of a tensor
 		/// @param[in]	eps	the accuracy threshold
 		TensorTrain(const Tensor<T>& t, double eps)
-			: core(std::vector<Tensor<T> >(t.ndim())), zero_rank(false) {
+			: core(), zero_rank(false) {
 
 		    MADNESS_ASSERT(t.size() != 0);
             MADNESS_ASSERT(t.ndim() != 0);
 
-			eps=eps/sqrt(t.ndim()-1);	// error is relative
+            std::vector<long> dims(t.ndim());
+            for (int d=0; d<t.ndim(); ++d) dims[d]=t.dim(d);
+            decompose(t.flat(),eps,dims);
+
+		}
+
+		/// ctor for a TensorTrain, with the tolerance eps
+
+		/// The tensor train will represent the input tensor with
+		/// accuracy || t - this ||_2 < eps
+		///
+		/// Note that we rely on specific layout of the memory in the tensors, e.g.
+		/// we pass SliceTensors on to lapack. This will only work if the slices are
+		/// contiguous.
+		///
+		/// @param[in]	t		full representation of a tensor
+		/// @param[in]	eps		the accuracy threshold
+		/// @param[in]	dims	the tt structure
+		TensorTrain(const Tensor<T>& t, double eps, const std::vector<long> dims)
+			: core(), zero_rank(false) {
+
+		    MADNESS_ASSERT(t.size() != 0);
+            MADNESS_ASSERT(t.ndim() != 0);
+            decompose(t,eps,dims);
+		}
+
+		/// decompose the input tensor into a TT representation
+
+		/// @param[in]	t		tensor in full rank
+		/// @param[in]	eps		the precision threshold
+		/// @param[in]	dims	the tt structure
+		void decompose(const Tensor<T>& t, double eps,
+				const std::vector<long>& dims) {
+
+			core.resize(dims.size());
+			eps=eps/sqrt(dims.size()-1);	// error is relative
 
 			// the maximum rank is the smaller one of the ranks unfolded from the
 			// left and the right.
 			int rmax1=1;
 			int rmax2=1;
-			for (int i=0, j=t.ndim()-1; i<=j; ++i, --j) {
-				rmax1*=t.dim(i);
-				rmax2*=t.dim(j);
+			long n1=1, n2=1;
+			long lwork=0;
+			for (int i=0, j=dims.size()-1; i<=j; ++i, --j) {
+				rmax1*=dims[i];
+				rmax2*=dims[j];
+
+				// work array for dgesvd
+				n1*=dims[i];
+				long m1=t.size()/dims[i];
+				n2*=dims[j];
+				long m2=t.size()/dims[j];
+				long max1=std::max(n1,m1);
+				long max2=std::max(n2,m2);
+				long min1=std::min(n1,m1);
+				long min2=std::min(n2,m2);
+
+				lwork=std::max(lwork,std::max(3*min1+max1,5*min1));
+				lwork=std::max(lwork,std::max(3*min2+max2,5*min2));
 			}
 			const int rmax=std::min(rmax1,rmax2);
 
 			// these are max dimensions, so we can avoid frequent reallocation
-			Tensor<T> u(rmax,rmax);
+			Tensor<T> u(rmax1*rmax2);
 			Tensor<T> dummy;
 			Tensor< typename Tensor<T>::scalar_type > s(rmax);
 
@@ -118,19 +166,18 @@ namespace madness {
 			Tensor<T> c=copy(t);
 
 			// work array for dgesvd
-			long lwork =std::max(3*std::min(rmax1,rmax2)+std::max(rmax1,rmax2),5*std::min(rmax1,rmax2)-4)*32;
 			Tensor<T> work(lwork);
 
 
 			// this keeps track of the ranks
-			std::vector<long> r(t.ndim()+1,0l);
-			r[0] = r[t.ndim()] = 1;
+			std::vector<long> r(dims.size()+1,0l);
+			r[0] = r[dims.size()] = 1;
 
-			for (long d=1; d<t.ndim(); ++d) {
+			for (std::size_t d=1; d<dims.size(); ++d) {
 
 				// the core tensors will have dimensions c(rank_left,k,rank_right)
 				// or for lapack's purposes c(d1,rank_right)
-				const long k=t.dim(d-1);
+				const long k=dims[d-1];
 				const long d1=r[d-1]*k;
 				c=c.reshape(d1,c.size()/d1);
 				const long rmax=std::min(c.dim(0),c.dim(1));
@@ -185,39 +232,70 @@ namespace madness {
 						}
 					}
 
-					if (d == t.ndim()-1)
-						core[d]=c;
+					if (d == dims.size()-1) core[d]=c;
 				}
 				else {
 					zero_rank = true;
 					core[d-1] = Tensor<T>(r[d-1],k,long(0));
 					// iterate through the rest -- fast forward
-					for(++d; d<t.ndim(); ++d) {
-						const long k=t.dim(d-1);
+					for(++d; d<dims.size(); ++d) {
+						const long k=dims[d-1];
 						core[d-1] = Tensor<T>(long(0),k,long(0));
 					}
-					core[t.ndim()-1] = Tensor<T>(long(0),t.dim(t.ndim()-1));
+					core[dims.size()-1] = Tensor<T>(long(0),dims[dims.size()-1]);
 				}
 			}
 			core[0]=core[0].fusedim(0);
+
+
 		}
+
+		/// merge two dimensions into one
+
+		/// merge dimension i and i+1 into new dimension i
+		/// @param[in]	i	the first dimension
+		void fusedim(const long i) {
+			// core_new = left * right
+			// (r1, k1*k2, r3) = sum_r2 (r1, k1, r2) * (r2, k2, r3)
+
+			// determine index
+			const int index=core[i].ndim()-2;	// (r-1, k, k, .. , k, r1)
+
+			if (not zero_rank) core[i]=inner(core[i],core[i+1]);
+			core[i]=core[i].fusedim(index);
+
+			// shift all subsequent cores and remove the last one
+			for (std::size_t d=i+1; d<core.size()-1; ++d) core[d]=core[d+1];
+			core.pop_back();
+
+		}
+
 
 		/// reconstruct this to a full representation
 
+		/// @param[in]	flat	return this in flat representation
 		/// @return	this in full rank representation
-		Tensor<T> reconstruct() const {
+		Tensor<T> reconstruct(const bool flat=false) const {
 
 			if (zero_rank) {
-				std::vector<long> d(this->ndim());
-				d[0]=core[0].dim(0);	// first core tensor has shape (k,r1)
-				for (int i=1; i<this->ndim(); ++i) d[i]=core[i].dim(1);
-				return Tensor<T>(d);
+				if (flat) {
+					long size=1;
+					for (int i=1; i<this->ndim(); ++i) size*=core[i].dim(1);
+					return Tensor<T>(size);
+				} else {
+					std::vector<long> d(this->ndim());
+					d[0]=core[0].dim(0);	// first core tensor has shape (k,r1)
+					for (int i=1; i<this->ndim(); ++i) d[i]=core[i].dim(1);
+					return Tensor<T>(d);
+				}
 			}
+
 			Tensor<T> result=core.front();
 			typename std::vector<Tensor<T> >::const_iterator it;
 
 			for (it=++core.begin(); it!=core.end(); ++it) {
 				result=inner(result,*it);
+				if (flat) result=result.fusedim(0);
 			}
 			return result;
 		}
@@ -275,6 +353,12 @@ namespace madness {
 			n+=core.size() * sizeof(Tensor<T>);
 			n+=sizeof(*this);
 			return n;
+		}
+
+		/// return the number of entries in dimension i
+		long dim(const int i) const {
+			if (i==0) return core[0].dim(0);
+			return core[i].dim(1);
 		}
 
 		/// if rank is zero

@@ -190,6 +190,7 @@ public:
 
 		// save the converged orbitals and nemos
 		vecfuncT psi = mul(world, R, calc->amo);
+		truncate(world,psi);
 		for (std::size_t imo = 0; imo < calc->amo.size(); ++imo) {
 			save_function(calc->amo[imo], "nemo" + stringify(imo));
 			save_function(psi[imo], "psi" + stringify(imo));

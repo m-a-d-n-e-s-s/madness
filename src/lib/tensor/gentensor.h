@@ -379,10 +379,29 @@ namespace madness {
 			if (ttype==TT_2D) {
 
 #if 1
-				TensorTrain<T> tt(rhs,targs.thresh*facReduce());
 				Tensor<T> U,VT;
 				Tensor< typename Tensor<T>::scalar_type > s;
-				tt.two_mode_representation(U,VT,s);
+
+				// add some extra dimensions if this is supposedly NS form:
+				// separate sum and wavelet coeffs
+				if (rhs.dim(0)%2==0) {
+					std::vector<long> dims(rhs.ndim()*2);
+					for (int i=0; i<rhs.ndim(); ++i) {
+						int k=rhs.dim(i);
+						dims[2*i]=k/2;
+						dims[2*i+1]=2;
+					}
+					TensorTrain<T> tt(rhs,targs.thresh*facReduce(),dims);
+					// fuse sum and wavelet coeffs back together
+					for (int i=0; i<rhs.ndim(); ++i) tt.fusedim(i);
+					// fuse dimensions into particles 1 and 2
+					tt.two_mode_representation(U,VT,s);
+
+				} else {
+					TensorTrain<T> tt(rhs,targs.thresh*facReduce());
+					tt.two_mode_representation(U,VT,s);
+				}
+
 				const long r=VT.dim(0);
 				const long nd=VT.ndim();
 				if (r==0) {
