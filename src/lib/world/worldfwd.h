@@ -657,7 +657,7 @@ namespace madness {
             probe_task( const Probe &p ) : my_probe(p) {}
             tbb::task* execute() {
                if( !my_probe() ) {
-                   probe_task* new_task = new (allocate_continuation()) probe_task(my_probe); // a continuation “inherits” the parent and keeps its ref count the same
+                   probe_task* new_task = new (allocate_continuation()) probe_task(my_probe); // a continuation inherits the parent and keeps its ref count the same
 //                   spawn(*new_task);
                    enqueue(*new_task);
                 }
@@ -673,12 +673,17 @@ namespace madness {
             PROFILE_MEMBER_FUNC(World);
             // NEED TO RESTORE THE WATCHDOG STUFF
             if (!probe()) {
-                tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
-                local_wait_task->set_ref_count(2); // 1 for child, 1 for blocking
-                tbb::task* pt = new (local_wait_task->allocate_child()) probe_task<Probe>(probe);
-                local_wait_task->enqueue(*pt);
-                local_wait_task->wait_for_all(); // will only return when the probe is true.
-                tbb::task::destroy(*local_wait_task);
+                if(dowork) {
+                    tbb::empty_task* local_wait_task = new (tbb::task::allocate_root()) tbb::empty_task;
+                    local_wait_task->set_ref_count(2); // 1 for child, 1 for blocking
+                    tbb::task* pt = new (local_wait_task->allocate_child()) probe_task<Probe>(probe);
+                    local_wait_task->enqueue(*pt);
+                    local_wait_task->wait_for_all(); // will only return when the probe is true.
+                    tbb::task::destroy(*local_wait_task);
+                } else {
+                    while(!probe())
+                        myusleep(100);
+                }
             }
         }
 #else
