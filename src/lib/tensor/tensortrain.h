@@ -38,6 +38,7 @@
 #include "tensor/srconf.h"
 #include <linalg/clapack.h>
 #include <linalg/tensor_lapack.h>
+#include <fortran_ctypes.h>
 
 
 /**
@@ -333,6 +334,20 @@ namespace madness {
               VT = Tensor<T>(long(0),dim2);
               s = Tensor< typename Tensor<T>::scalar_type >(VT.dim(0));
 			}
+		}
+
+		/// recompress and truncate this TT representation
+
+		/// @param[in]	eps	the truncation threshold
+		/// @return		this in recompressed TT form with optimal rank
+		void truncate(double eps) {
+			eps=eps/sqrt(this->ndim());
+			Tensor<T> tau;
+			Tensor<integer> jpvt;
+			Tensor<T> A=core[0];
+			geqp3(A,tau,jpvt);
+
+
 		}
 
 		/// return the number of dimensions

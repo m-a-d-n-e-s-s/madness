@@ -392,9 +392,12 @@ namespace madness {
         	/// These files contain the restart information for each pair.
         	bool restart;
 
+        	/// maximum number of subspace vectors in KAIN
+        	int maxsub;
+
         	/// ctor reading out the input file
         	Parameters(const std::string& input) : thresh_(-1.0), i(-1), j(-1),
-        			freeze(0), restart(false) {
+        			freeze(0), restart(false), maxsub(2) {
 
         		// get the parameters from the input file
                 std::ifstream f(input.c_str());
@@ -405,6 +408,7 @@ namespace madness {
                     if (s == "end") break;
                     else if (s == "econv") f >> thresh_;
                     else if (s == "pair") f >> i >> j;
+                    else if (s == "maxsub") f >> maxsub;
                     else if (s == "freeze") f >> freeze;
                     else if (s == "restart") restart=true;
                     else continue;
@@ -614,6 +618,7 @@ namespace madness {
         				if (pair(i,j).converged) {
         					pair(i,j).print_energy();
 							correlation_energy+=pair(i,j).e_singlet+pair(i,j).e_triplet;
+							make_Rpsi(pair(i,j));
         				} else {
 							pair(i,j)=solve_residual_equations(i,j);
 							correlation_energy+=pair(i,j).e_singlet+pair(i,j).e_triplet;
@@ -643,6 +648,7 @@ namespace madness {
             		if (param.freeze>0) madness::print("   # frozen orbitals ",0, " to ",param.freeze-1);
 					madness::print(" correlated orbitals ", param.freeze," to ",hf->nocc()-1);
             	}
+        		madness::print("   max KAIN subspace ", param.maxsub);
             }
         }
 
@@ -684,7 +690,7 @@ namespace madness {
 //			real_function_6d constant_term;
 //			load_function(constant_term,"GVpair");
 
-			NonlinearSolverND<6> solver;
+			NonlinearSolverND<6> solver(param.maxsub);
 			// increment iteration counter upon entry
 			for (++result.iteration; result.iteration<20; ++result.iteration) {
 
@@ -730,6 +736,15 @@ namespace madness {
             // print the final pair energies
             result.print_energy();
             return result;
+        }
+
+        real_function_6d make_Rpsi(const ElectronPair& pair) const {
+            const real_function_3d R=hf->nemo_calc.R;
+        	real_function_6d Rpair1=multiply(pair.function,R,1).truncate();
+        	real_function_6d Rpair=multiply(Rpair1,R,2).truncate();
+        	int i=pair.i, j=pair.j;
+        	std::string name1="pair_"+stringify(i)+stringify(j)+"_Rpsi1_converged";
+            save_function(Rpair,name1);
         }
 
 		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
@@ -783,6 +798,7 @@ namespace madness {
         }
 
         double asymmetry(const real_function_6d& f, const std::string s) const {
+        	return 0.0;
         	const real_function_6d ff=swap_particles(f);
         	double diff=(ff-f).norm2();
         	f.check_symmetry();
@@ -1023,6 +1039,7 @@ namespace madness {
                 if (error>thresh()) print("WARNING : Kutzelnigg's potential inaccurate");
                 if (error>thresh()*10.0) MADNESS_EXCEPTION("Kutzelnigg's potential plain wrong",1);
             }
+            Uphi0.print_size("Uphi0");
             return Uphi0;
         }
 
@@ -1080,7 +1097,7 @@ namespace madness {
                 if (std::fabs(a)>thresh()) print("WARNING : exchange commutator inaccurate");
                 if (std::fabs(a)>thresh()*10.0) MADNESS_EXCEPTION("exchange commutator plain wrong",1);
             }
-
+            KffKphi0.print_size("KffKphi0");
 			return KffKphi0;
         }
 
@@ -1349,8 +1366,8 @@ namespace madness {
 
             // multiply the orbital to the pair function
 //            real_function_6d x=(particle==1)
-//            		? CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle1(copy(orbital))
-//            		: CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle2(copy(orbital));
+//            		? CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle1(copy(orbital_bra))
+//            		: CompositeFactory<double,6,3>(world).ket(copy(f)).V_for_particle2(copy(orbital_bra));
 //            x.fill_tree().truncate();
             real_function_6d x=multiply(copy(f),copy(orbital_bra),particle).truncate();
 
@@ -1362,8 +1379,8 @@ namespace madness {
             // do the final multiplication with the orbital
 //            if (world.rank()==0) printf("start multiplication after K at time %.1f\n",wall_time());
 //            real_function_6d result= (particle==1)
-//            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital))
-//            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital));
+//            		? CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle1(copy(orbital_ket))
+//            		: CompositeFactory<double,6,3>(world).ket(copy(x)).V_for_particle2(copy(orbital_ket));
 //            result.fill_tree().truncate().reduce_rank();
             real_function_6d result=multiply(copy(x),copy(orbital_ket),particle).truncate();
 

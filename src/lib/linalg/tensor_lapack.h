@@ -37,6 +37,7 @@
 #define MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED
 
 #include <tensor/tensor.h>
+#include <fortran_ctypes.h>
 
 /*!
   \file tensor_lapack.h
@@ -116,6 +117,9 @@ namespace madness {
     /// \ingroup linalg
     template <typename T>
     void cholesky(Tensor<T>& A);
+
+    template <typename T>
+    void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt);
 
     /// Dunno
     

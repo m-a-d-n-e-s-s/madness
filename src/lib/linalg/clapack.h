@@ -205,6 +205,31 @@ extern "C"
                 real8 *w,  complex_real8 *work,  integer *lwork, real8 *rwork,
                 integer *info, char_len jobzlen, char_len uplo_len );
 
+//    	dgepq3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
+
+extern "C"
+    void sgeqp3_(integer *m, integer *n,
+                 real4 *a, integer *lda, integer *jpvt, real4 *tau,
+                 real4 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+    void dgeqp3_(integer *m, integer *n,
+            	 real8 *a, integer *lda, integer *jpvt, real8 *tau,
+            	 real8 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+    void cgeqp3_(integer *m, integer *n, complex_real4 *a,
+    			 integer *lda, integer *jpvt, complex_real4 *tau,
+    			 complex_real4 *work, integer *lwork, real4 *rwork,
+    			 integer *infoOUT);
+
+extern "C"
+    void zgeqp3_(integer *m, integer *n, complex_real8 *a,
+			 	 integer *lda, integer *jpvt, complex_real8 *tau,
+			 	 complex_real8 *work, integer *lwork, real8 *rwork,
+			 	 integer *infoOUT);
+
+
 extern "C"
 void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);
 

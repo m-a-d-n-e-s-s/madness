@@ -538,6 +538,42 @@ namespace madness {
             for (int j=0; j<i; ++j)
                 A(i,j) = 0.0;
     }
+
+    /** \brief  Compute the QR factorization.
+
+	Q is returned in the lapack-specific format
+
+    */
+    template<typename T>
+    void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt) {
+
+    	TENSOR_ASSERT(A.ndim() == 2, "geqp requires a matrix",A.ndim(),&A);
+
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	jpvt=Tensor<integer>(n);
+    	tau=Tensor<T>(std::min(n,m));
+    	integer lwork=2*n+(n+1)*64;
+    	Tensor<T> work(lwork);
+    	geqp3_result(A,tau,jpvt,work);
+    }
+
+    template<typename T>
+    void geqp3_result(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt,
+    		Tensor<T>& work) {
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	integer lwork=work.size();
+    	integer info;
+
+//    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
+    	dgeqp3_(&m, &n, A.ptr(), &m, jpvt.ptr(), tau.ptr(), work.ptr(),
+    			&lwork, &info);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "dgepq3: Lapack failed", info, &A);
+
+    }
+
 #endif //MADNESS_HAS_EIGEN3
 
 //     template <typename T>
@@ -775,6 +811,9 @@ namespace madness {
 
     template
     void cholesky(Tensor<double>& A);
+
+    template
+    void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
 
 //     template
 //     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
