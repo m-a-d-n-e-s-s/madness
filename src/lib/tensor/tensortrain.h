@@ -221,7 +221,8 @@ namespace madness {
 				if (r[d]) {
 
 					// done with this dimension -- slice and deep-copy
-					core[d-1]=copy((u(Slice(0,c.dim(0)*rmax-1))).reshape(c.dim(0),rmax)(_,Slice(0,rank-1)));
+					core[d-1]=copy((u(Slice(0,c.dim(0)*rmax-1)))
+							.reshape(c.dim(0),rmax)(_,Slice(0,rank-1)));
 					core[d-1]=core[d-1].reshape(r[d-1],k,r[d]);
 
 					// continue with the next dimension
@@ -249,6 +250,65 @@ namespace madness {
 			core[0]=core[0].fusedim(0);
 
 
+		}
+
+		/// inplace addition of two Tensortrains; will increase ranks of this
+
+		/// inefficient if many additions are performed, since it requires
+		/// many calls of new.
+		/// @param[in]	rhs	a TensorTrain to be added
+		TensorTrain<T>& operator+=(const TensorTrain<T>& rhs) {
+
+			// make sure dimensions conform
+			MADNESS_ASSERT(this->ndim()==rhs.ndim());
+
+			if (this->zero_rank) {
+				*this=rhs;
+			} else if (rhs.zero_rank) {
+				;
+			} else {
+
+				// special treatment for first border cores (k,r1)
+				{
+					long k=core[0].dim(0);
+					long r1_this=core[0].dim(1);
+					long r1_rhs=rhs.core[0].dim(1);
+					Tensor<T> core_new(k,r1_this+r1_rhs);
+					core_new(_,Slice(0,r1_this-1))=core[0];
+					core_new(_,Slice(r1_this,r1_this+r1_rhs-1))=rhs.core[0];
+					core[0]=core_new;
+				}
+
+				// interior cores (r0,k,r1)
+				for (std::size_t i=1; i<core.size()-1; ++i) {
+					MADNESS_ASSERT(core[i].ndim()==3 or i==core.size()-1);
+					long r0_this=core[i].dim(0);
+					long r0_rhs=rhs.core[i].dim(0);
+					long k=core[i].dim(1);
+					long r1_this=core[i].dim(2);
+					long r1_rhs=rhs.core[i].dim(2);
+					Tensor<T> core_new(r0_this+r0_rhs,k,r1_this+r1_rhs);
+					core_new(Slice(0,r0_this-1),_,Slice(0,r1_this-1))=core[i];
+					core_new(Slice(r0_this,r0_this+r0_rhs-1),_,Slice(r1_this,r1_this+r1_rhs-1))=rhs.core[i];
+					core[i]=core_new;
+				}
+
+				// special treatment for last border core (r0,k)
+				{
+					std::size_t d=core.size()-1;
+					long r0_this=core[d].dim(0);
+					long r0_rhs=rhs.core[d].dim(0);
+					long k=core[d].dim(1);
+					Tensor<T> core_new(r0_this+r0_rhs,k);
+					core_new(Slice(0,r0_this-1),_)=core[d];
+					core_new(Slice(r0_this,r0_this+r0_rhs-1),_)=rhs.core[d];
+					core[d]=core_new;
+				}
+
+			}
+
+
+			return *this;
 		}
 
 		/// merge two dimensions into one
@@ -342,11 +402,65 @@ namespace madness {
 		/// @return		this in recompressed TT form with optimal rank
 		void truncate(double eps) {
 			eps=eps/sqrt(this->ndim());
-			Tensor<T> tau;
-			Tensor<integer> jpvt;
-			Tensor<T> A=core[0];
-			geqp3(A,tau,jpvt);
 
+			// right-to-left orthogonalization (line 4)
+			Tensor<T> R;
+			long dims[TENSOR_MAXDIM];
+			for (std::size_t d=core.size()-1; d>0; --d) {
+
+				// save tensor structure
+				const long ndim=core[d].ndim();
+				for (int i=0; i<ndim; ++i) dims[i]=core[d].dim(i);
+
+				// G(r0, k*r1)
+				const long r0=core[d].dim(0);
+				core[d]=core[d].reshape(r0,core[d].size()/r0);
+
+				// decompose the core tensor (line 5)
+				lq(core[d],R);
+				core[d]=core[d].reshape(ndim,dims);
+
+				// multiply to the left (line 6)
+				core[d-1]=inner(core[d-1],R);
+			}
+
+			// left-to-right SVD (line 9)
+			for (std::size_t d=0; d<core.size()-1; ++d) {
+
+				// save tensor structure
+				const long ndim=core[d].ndim();
+				for (int i=0; i<ndim; ++i) dims[i]=core[d].dim(i);
+
+				// reshape the core tensor (r0*k, r1)
+				long r1=core[d].dim(core[d].ndim()-1);
+				core[d]=core[d].reshape(core[d].size()/r1,r1);
+
+				Tensor<T> U,VT;
+				long rmax=std::min(core[d].dim(0),core[d].dim(1));
+				Tensor< typename Tensor<T>::scalar_type > s(rmax);
+
+				// decompose (line 10)
+				svd(core[d],U,s,VT);
+
+				// truncate the SVD
+				int r_truncate=SRConf<T>::max_sigma(eps,rmax,s)+1;
+				U=copy(U(_,Slice(0,r_truncate-1)));
+				VT=copy(VT(Slice(0,r_truncate-1),_));
+
+				dims[ndim-1]=r_truncate;
+				core[d]=U.reshape(ndim,dims);
+
+
+				for (int i=0; i<VT.dim(0); ++i) {
+					for (int j=0; j<VT.dim(1); ++j) {
+						VT(i,j)*=s(j);
+					}
+				}
+
+				// multiply to the right (line 11)
+				core[d+1]=inner(VT,core[d+1]);
+
+			}
 
 		}
 
@@ -378,6 +492,15 @@ namespace madness {
 
 		/// if rank is zero
 		bool is_zero_rank() const {return zero_rank;}
+
+		/// return the TT ranks
+		std::vector<long> ranks() const {
+			if (zero_rank) return std::vector<long>(0,core.size()-1);
+			std::vector<long> r(core.size()-1);
+			for (std::size_t i=0; i<r.size(); ++i) r[i]=core[i+1].dim(0);
+			return r;
+		}
+
 	};
 
 

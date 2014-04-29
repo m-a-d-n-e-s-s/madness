@@ -712,6 +712,45 @@ void test(const long& k, const long& dim, const TensorArgs& targs) {
 }
 
 
+int test_TT_truncate(const long k, const long dim, const TensorArgs targs) {
+	print("entering test_TT_truncate");
+
+	int nerror=0;
+	double eps=targs.thresh;
+
+	// set up a tensor of low rank
+	{
+		std::vector<long> d(dim,k);
+		Tensor<double> t(d);
+		t.fillindex();
+		t.scale(1.0/t.normf());
+
+		TensorTrain<double> tt1(t,targs.thresh);
+		double error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"low rank;  k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+		print("tt ranks",tt1.ranks());
+
+		tt1+=tt1;
+		t+=t;
+//		TensorTrain<double> tt1(t,targs.thresh);
+		error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"low rank;  k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+		print("tt ranks",tt1.ranks());
+
+		tt1.truncate(eps);
+		error1=(t-tt1.reconstruct()).normf();
+		print(ok(is_small(error1,eps)),"low rank;  k=",k,"dim=",dim,"error=",error1,"size=",tt1.size());
+		if (!is_small(error1,eps)) nerror++;
+		print("tt ranks",tt1.ranks());
+
+
+	}
+	return nerror;
+}
+
+
 int main(int argc, char**argv) {
 
 //    initialize(argc,argv);
@@ -735,6 +774,7 @@ int main(int argc, char**argv) {
     for (int kk=4; kk<k+1; ++kk) {
     	for (int d=2; d<dim+1; ++d) {
     	    error+=testTensorTrain(kk,d,TensorArgs(eps,TT_2D));
+    	    error+=test_TT_truncate(kk,d,TensorArgs(eps,TT_2D));
     	}
     }
 
