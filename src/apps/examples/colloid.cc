@@ -35,7 +35,7 @@ This proram simulates the effect of surface solute interaction between a colloid
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <ctime>
 #include <list>
 #include <jacob/molecule.h>

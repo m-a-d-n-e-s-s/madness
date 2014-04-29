@@ -36,7 +36,7 @@
 /// \brief fitting parameters of Model Core Potential
 
 #include <mra/mra.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <moldft/corepotential.h>
 #include <iostream>
 #include <iomanip>

@@ -4,7 +4,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
-#include <linalg/elem.h>
+#include <tensor/elem.h>
 
 using namespace elem;
 using namespace madness;

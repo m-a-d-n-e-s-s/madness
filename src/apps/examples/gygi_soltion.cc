@@ -53,7 +53,7 @@ $Id$
 #include <mra/mra.h>
 #include <constants.h>
 #include <ctime>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <mra/funcplot.h>
 #include <examples/nonlinsol.h>
 using namespace madness;

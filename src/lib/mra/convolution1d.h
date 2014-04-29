@@ -43,7 +43,7 @@
 #include <mra/twoscale.h>
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <algorithm>
 
 /// \file mra/convolution1d.h

@@ -33,7 +33,7 @@
 #include <mra/mra.h>
 //#include <mra/lbdeux.h>
 #include <world/world.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <vector>
 #include <fortran_ctypes.h>
 #include <cmath>

@@ -38,7 +38,7 @@
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <ctime>
 #include <list>
 #include <mra/sdf_shape_3D.h>

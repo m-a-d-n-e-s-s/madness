@@ -36,7 +36,7 @@
 #include <madness_config.h>
 #include <tensor/tensor.h>
 #include <world/world.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #ifdef MADNESS_HAS_ELEMENTAL
 
 #include <iostream>

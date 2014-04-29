@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
-bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir testqm testper test6 testseprep test_gentensor
+bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir testqm testper test6
 lib_LIBRARIES = libMADmra.a
 
 
@@ -35,10 +35,6 @@ libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       funcplot.h function_common_data.h
 
 
-test_gentensor_SOURCES = test_gentensor.cc
-test_gentensor_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_gentensor_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
 
 
 testsuite_SOURCES = testsuite.cc test_sepop.cc
@@ -46,8 +42,6 @@ testperiodic_SOURCES = testperiodic.cc
 testper_SOURCES = testper.cc test_sepop.cc
 testbsh_SOURCES = testbsh.cc
 test6_SOURCES = test6.cc
-testseprep_SOURCES = testseprep.cc
-testseprep_LDADD = $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) 
 
 testbc_SOURCES = testbc.cc
 testproj_SOURCES = testproj.cc

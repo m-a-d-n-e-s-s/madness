@@ -48,7 +48,7 @@
  */
 
 #include <mra/mra.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 
 namespace madness {
 

@@ -10,7 +10,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 using namespace madness;
 
 #include <DFcode/molecule.h>

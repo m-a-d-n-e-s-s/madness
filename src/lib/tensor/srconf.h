@@ -41,8 +41,8 @@
 
 #include "tensor/tensor.h"
 #include "mra/funcdefaults.h"
-#include <linalg/clapack.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/clapack.h>
+#include <tensor/tensor_lapack.h>
 
 namespace madness {
 

@@ -1,5 +1,5 @@
-#include <linalg/tensor_lapack.h>
-#include <linalg/solvers.h>
+#include <tensor/tensor_lapack.h>
+#include <tensor/solvers.h>
 #include <world/print.h>
 #include <cmath>
 #include <iostream>

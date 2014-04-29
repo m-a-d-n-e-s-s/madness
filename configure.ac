@@ -382,7 +382,6 @@ AC_CONFIG_FILES([
        src/lib/misc/Makefile
        src/lib/tinyxml/Makefile
        src/lib/tensor/Makefile
-       src/lib/linalg/Makefile
        src/lib/mra/Makefile
     src/apps/Makefile
        src/apps/examples/Makefile

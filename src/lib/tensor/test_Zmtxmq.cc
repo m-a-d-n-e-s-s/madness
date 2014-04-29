@@ -46,7 +46,7 @@ int main() {std::cout << "x86 only\n"; return 0;}
 
 #include <world/posixmem.h>
 #include <world/safempi.h>
-#include <linalg/cblas.h>
+#include <tensor/cblas.h>
 #include <tensor/mtxmq.h>
 #include <tensor/tensor.h>
 

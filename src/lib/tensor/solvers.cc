@@ -30,7 +30,7 @@
 
   $Id$
 */
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 
 namespace madness {
 

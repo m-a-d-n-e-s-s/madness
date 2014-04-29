@@ -40,7 +40,7 @@ $Id$
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <ctime>
 #include <vector>
 using namespace madness;

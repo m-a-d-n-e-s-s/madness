@@ -38,7 +38,7 @@
  ///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
  ///#include <mra/mra.h>
  #include <tensor/tensor.h>
- #include <linalg/tensor_lapack.h>
+ #include <tensor/tensor_lapack.h>
  #include <constants.h>
  #include <jacob/molecule.h>
  #include <jacob/atomutil.h>

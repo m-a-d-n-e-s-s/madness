@@ -2,7 +2,7 @@
 
 #ifdef MADNESS_HAS_ELEMENTAL
 
-#include <linalg/elem.h>
+#include <tensor/elem.h>
 
 namespace madness {
     template

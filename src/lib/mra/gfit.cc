@@ -30,7 +30,7 @@
 
   $Id$
 */
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <world/print.h>
 
 using std::cout;

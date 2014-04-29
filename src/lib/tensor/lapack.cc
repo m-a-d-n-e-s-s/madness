@@ -53,12 +53,12 @@ using std::max;
 using madness::Tensor;
 
 #ifdef MADNESS_HAS_EIGEN3
-#  include <linalg/eigen.h>
+#  include <tensor/eigen.h>
 #endif
 
 #ifndef MADNESS_HAS_EIGEN3  // ignore lapack+blas
-#  include <linalg/tensor_lapack.h>
-#  include <linalg/clapack.h>
+#  include <tensor/tensor_lapack.h>
+#  include <tensor/clapack.h>
 #endif
 
 

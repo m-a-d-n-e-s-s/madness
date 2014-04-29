@@ -36,7 +36,7 @@
 #include <string>
 #include <constants.h>
 #include <mra/mra.h>
-#include <linalg/gmres.h>
+#include <tensor/gmres.h>
 
 using namespace std;
 using namespace madness;
