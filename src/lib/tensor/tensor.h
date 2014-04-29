@@ -2087,7 +2087,7 @@ namespace madness {
             s.unsetf(std::ios::scientific);
             s << std::endl;
         }
-        s.setf(oldflags);
+        s.setf(oldflags,std::ios::floatfield);
         s.precision(oldprec);
         s.width(oldwidth);
 
