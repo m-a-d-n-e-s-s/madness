@@ -344,7 +344,7 @@ private:
 	    	if (not guess_phases_.has_data()) {
 
 				// read koala's orbitals from disk
-				for (std::size_t i=0; i<nmo; ++i) {
+				for (std::size_t i=nfreeze_; i<nmo; ++i) {
 					real_function_3d x_i=real_factory_3d(world).empty();
 					const std::string valuefile="grid.koala.orbital"+stringify(i);
 					x_i.get_impl()->read_grid2<3>(valuefile,functorT());
@@ -352,11 +352,12 @@ private:
 				}
 				// this is the transformation matrix for the rotation
 				guess_phases_=matrix_inner(world,koala_amo,get_calc().amo);
+				guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
 
 	    	}
 
 	    	// read the actual external guess from file
-	    	for (std::size_t i=0; i<noct; ++i) {
+	    	for (std::size_t i=nfreeze_; i<nmo; ++i) {
 
     	    	// this is the file where the guess is on disk
         	    const std::string valuefile="grid.koala.orbital"+stringify(i)
@@ -380,7 +381,7 @@ private:
 
 	    	// now rotate the active orbitals from the guess to conform with
     	    // the MRA orbitals
-	    	Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+//	    	Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
     	    root.x=transform(world,root.x,Sinv);
     	    save_root(world,iroot,root);
 
