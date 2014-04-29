@@ -44,18 +44,26 @@
 
 */
 
-#include <examples/mp2.h>
+#include <examples/projector.h>
+//#include <examples/mp2.h>
 
-
+#include<examples/nonlinsol.h>
+#include<moldft/moldft.h>
 #include <mra/operator.h>
 #include <mra/mra.h>
+#include <mra/vmra.h>
 #include <mra/lbdeux.h>
+
+#include<iomanip>
+#include<iostream>
 
 using namespace madness;
 
+const static double bsh_eps=1.e-6;
+
 namespace madness {
 
-
+typedef std::vector<Function<double,3> > vecfuncT;
 
 // This class is used to store information for the non-linear solver
 struct F {
@@ -140,6 +148,9 @@ struct xyz {
 
 /// The CIS class holds all machinery to compute excited state properties
 class CIS {
+	typedef SeparatedConvolution<double,3> operatorT;
+	typedef std::shared_ptr<operatorT> poperatorT;
+	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 public:
 
@@ -148,10 +159,10 @@ public:
 	/// @param[in]	world	the world
 	/// @param[in]	hf		the HartreeFock reference state
 	/// @param[in]	input	the input file name
-	CIS(World& world, const HartreeFock& hf, const std::string input)
-		: world(world), hf_(hf), guess_("all_orbitals"), nroot_(5)
-		, nfreeze_(0), econv_(hf.get_calc().param.econv)
-		, dconv_(hf.get_calc().param.dconv), print_grid_(false),
+	CIS(World& world, const Calculation& calc, const std::string input)
+		: world(world), calc_(calc), guess_("all_orbitals"), nroot_(5)
+		, nfreeze_(0), econv_(calc.param.econv)
+		, dconv_(calc.param.dconv), print_grid_(false),
 		fixed_point_(false) {
 
 
@@ -187,7 +198,7 @@ public:
             madness::print("\n ======= CIS info =======\n");
     		if (nfreeze_==0) madness::print("   # frozen orbitals ","none");
     		if (nfreeze_>0) madness::print("   # frozen orbitals ",0, " to ",nfreeze_-1);
-			madness::print("     active orbitals ", nfreeze_," to ",hf_.nocc()-1);
+			madness::print("     active orbitals ", nfreeze_," to ",get_calc().param.nalpha-1);
 
             madness::print("          guess from ", guess_);
             madness::print("        threshold 3D ", FunctionDefaults<3>::get_thresh());
@@ -198,17 +209,17 @@ public:
 
         }
 
-
+        lo=get_calc().param.lo;
 	}
 
 	/// return the HF reference
-	const HartreeFock& hf() const {return hf_;}
+	const Calculation& get_calc() const {return calc_;}
 
 	/// solve the CIS equations for n roots
 	void solve() {
 
 		// for convenience
-	    const vecfuncT& amo=hf().get_calc().amo;
+	    const vecfuncT& amo=get_calc().amo;
 	    const std::size_t nmo=amo.size();
 		const int noct=nmo-nfreeze_;	// # of active orbitals
 
@@ -248,7 +259,7 @@ private:
 	World& world;
 
 	/// the HartreeFock reference state
-	const HartreeFock& hf_;
+	const Calculation& calc_;
 
 	/// the excited states aka the roots of the response equation
     std::vector<root> roots_;
@@ -261,6 +272,9 @@ private:
 	/// \]
     /// with p \in noct, i \in nocc
     std::vector<vecfuncT> exchange_intermediate_;
+
+    /// the coulomb potential
+    mutable real_function_3d coulomb_;
 
     /// where we get our guess from (all_virtual, koala)
     std::string guess_;
@@ -291,6 +305,8 @@ private:
     /// perform a fixed-point iteration of the given excitation energies
     bool fixed_point_;
 
+    double lo;
+
     /// guess amplitudes
 
     /// note that the orbitals from an external guess might be rotated wrt the
@@ -302,7 +318,7 @@ private:
     root guess_amplitudes(const int iroot) {
 
     	// for convenience
-    	const std::size_t nmo=hf().get_calc().amo.size();	// all orbitals
+    	const std::size_t nmo=get_calc().amo.size();	// all orbitals
     	const int noct=nmo-nfreeze_;						// active orbitals
 
     	// default empty root
@@ -310,7 +326,7 @@ private:
 		root.amplitudes_=std::vector<double>(nmo,1.0);
 
         // guess an excitation energy: 0.9* HOMO or use input from file
-        root.omega=-0.9*hf().get_calc().aeps(nmo-1);
+        root.omega=-0.9*get_calc().aeps(nmo-1);
     	if (omega_[iroot]!=100.0) root.omega=omega_[iroot];
 
     	// check if there's a root on disk, if so return those amplitudes
@@ -328,19 +344,20 @@ private:
 	    	if (not guess_phases_.has_data()) {
 
 				// read koala's orbitals from disk
-				for (std::size_t i=0; i<nmo; ++i) {
+				for (std::size_t i=nfreeze_; i<nmo; ++i) {
 					real_function_3d x_i=real_factory_3d(world).empty();
 					const std::string valuefile="grid.koala.orbital"+stringify(i);
 					x_i.get_impl()->read_grid2<3>(valuefile,functorT());
 					koala_amo.push_back(x_i);
 				}
 				// this is the transformation matrix for the rotation
-				guess_phases_=matrix_inner(world,koala_amo,hf().get_calc().amo);
+				guess_phases_=matrix_inner(world,koala_amo,get_calc().amo);
+				guess_phases_=guess_phases_(_,Slice(nfreeze_,nmo-1));
 
 	    	}
 
 	    	// read the actual external guess from file
-	    	for (std::size_t i=0; i<noct; ++i) {
+	    	for (std::size_t i=nfreeze_; i<nmo; ++i) {
 
     	    	// this is the file where the guess is on disk
         	    const std::string valuefile="grid.koala.orbital"+stringify(i)
@@ -364,7 +381,7 @@ private:
 
 	    	// now rotate the active orbitals from the guess to conform with
     	    // the MRA orbitals
-	    	Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
+//	    	Sinv=Sinv(Slice(nfreeze_,nmo-1),Slice(nfreeze_,nmo-1));
     	    root.x=transform(world,root.x,Sinv);
     	    save_root(world,iroot,root);
 
@@ -377,12 +394,12 @@ private:
     			print("taking as guess all orbitals");
     		}
     		real_function_3d all_orbitals=real_factory_3d(world);
-    		for (std::size_t ivir=0; ivir<hf().get_calc().ao.size(); ++ivir) {
-    			all_orbitals+=hf().get_calc().ao[ivir];
+    		for (std::size_t ivir=0; ivir<get_calc().ao.size(); ++ivir) {
+    			all_orbitals+=get_calc().ao[ivir];
 			}
 
     		// construct the projector on the occupied space
-    		const vecfuncT& amo=hf().get_calc().amo;
+    		const vecfuncT& amo=get_calc().amo;
     		Projector<double,3> rho0(amo);
 
     	    real_function_3d r=real_factory_3d(world).f(rfunction);
@@ -429,7 +446,7 @@ private:
 		}
 
 		// construct the projector on the occupied space
-		const vecfuncT& amo=hf().get_calc().amo;
+		const vecfuncT& amo=get_calc().amo;
 	    vecfuncT act=this->active_mo();
 		const std::size_t noct=act.size();
 		Projector<double,3> rho0(amo);
@@ -463,7 +480,7 @@ private:
 				for (std::size_t j=0; j<roots.size(); ++j) {
 					Tensor<double> eij=inner(world,roots[i].x,roots[j].x);
 					for (int ii=0; ii<noct; ++ii) {
-						Fock_pt(i,j)-=hf().get_calc().aeps[ii+nfreeze_]*eij[ii];
+						Fock_pt(i,j)-=get_calc().aeps[ii+nfreeze_]*eij[ii];
 					}
 				}
 			}
@@ -529,7 +546,7 @@ private:
 	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot) const {
 
 		// for convenience
-		const vecfuncT& amo=hf().get_calc().amo;
+		const vecfuncT& amo=get_calc().amo;
 		const int nmo=amo.size();		// # of orbitals in the HF calculation
 		const int noct=nmo-nfreeze_;	// # of active orbitals
 
@@ -556,7 +573,7 @@ private:
 		// the bound-state helmholtz function for omega < orbital energy
 	    std::vector<poperatorT> bsh(noct);
 	    for(int p = 0; p<noct; ++p){
-	        double eps = hf().orbital_energy(p+nfreeze_) + omega;
+	        double eps = get_calc().aeps[p+nfreeze_] + omega;	// orbital energy
 	        if(eps > 0){
 	            if(world.rank() == 0)
 	            	print("bsh: warning: positive eigenvalue", p+nfreeze_, eps);
@@ -626,7 +643,7 @@ private:
 			const std::vector<root >& excited_states, const int iteration) const {
 
 		// for convenience
-		const vecfuncT& amo=hf().get_calc().amo;
+		const vecfuncT& amo=get_calc().amo;
 		const int nmo=amo.size();		// # of orbitals in the HF calculation
 		const int noct=nmo-nfreeze_;	// # of active orbitals
 
@@ -653,7 +670,7 @@ private:
 		// the bound-state helmholtz function for omega < orbital energy
 	    std::vector<poperatorT> bsh(noct);
 	    for(int p = 0; p<noct; ++p){
-	        double eps = hf().orbital_energy(p+nfreeze_) + omega;
+	        double eps = get_calc().aeps[p+nfreeze_] + omega;
 	        if(eps > 0){
 	            if(world.rank() == 0)
 	            	print("bsh: warning: positive eigenvalue", p+nfreeze_, eps);
@@ -804,14 +821,16 @@ private:
 	vecfuncT apply_fock_potential(const vecfuncT& x) const {
 
 	    // the local potential V^0 of Eq. (4)
-	    real_function_3d vlocal = hf().get_nuclear_potential() + hf().get_coulomb_potential();
+		real_function_3d coulomb;
+	    real_function_3d vlocal = get_calc().potentialmanager->vnuclear() +
+	    		get_coulomb_potential();
 
 	    // make the potential for V0*xp
 		vecfuncT Vx=mul(world,vlocal,x);
 
 		// and the exchange potential is K xp
-		vecfuncT Kx=hf().get_calc().apply_hf_exchange(world,hf().get_calc().aocc,
-				hf().get_calc().amo,x);
+		vecfuncT Kx=get_calc().apply_hf_exchange(world,get_calc().aocc,
+				get_calc().amo,x);
 
 		// sum up: V0 xp = V_loc xp - K xp
 		vecfuncT V0=sub(world,Vx,Kx);
@@ -819,6 +838,16 @@ private:
 		return V0;
 
 	}
+
+    /// return the Coulomb potential
+    real_function_3d get_coulomb_potential() const {
+        MADNESS_ASSERT(get_calc().param.spin_restricted);
+        if (coulomb_.is_initialized()) return copy(coulomb_);
+        functionT rho = get_calc().make_density(world, get_calc().aocc,
+        		get_calc().amo).scale(2.0);
+        coulomb_=get_calc().make_coulomb_potential(rho);
+        return copy(coulomb_);
+    }
 
 	/// make the 2-electron interaction intermediate
 
@@ -1081,7 +1110,7 @@ private:
 
 	/// return the active MOs only, note the shallow copy
 	const vecfuncT active_mo() const {
-		const vecfuncT& amo=hf_.get_calc().amo;
+		const vecfuncT& amo=get_calc().amo;
 	    vecfuncT actmo;
 	    for (std::size_t i=nfreeze_; i<amo.size(); ++i) actmo.push_back(amo[i]);
 	    return actmo;
@@ -1114,27 +1143,30 @@ int main(int argc, char** argv) {
     print("\n");
     calc.param.print(world);
 
-    HartreeFock hf(world,calc);
-    double hf_energy=hf.value();
+    // solve the ground state energy; calc is a reference
+    MolecularEnergy me(world,calc);
+    double hf_energy=me.value(calc.molecule.get_all_coords());
+
     if (world.rank()==0) print("MRA hf energy", hf_energy);
     if (world.rank()==0) {
     	printf("\n\n starting TDHF section at time %.1f\n",wall_time());
-    	print("nuclear repulsion: ", hf.get_calc().molecule.nuclear_repulsion_energy());
+    	print("nuclear repulsion: ", calc.molecule.nuclear_repulsion_energy());
     	print("hf energy:         ", hf_energy);
     	print("orbital energies:  ");
-    	for (std::size_t i=0; i<hf.get_calc().amo.size(); ++i)
-    		print("     ",hf.get_calc().aeps[i]);
+    	for (std::size_t i=0; i<calc.amo.size(); ++i)
+    		print("     ",calc.aeps[i]);
     }
 
 
+
     // construct the CIS solver, it requires a converged HF reference
-    CIS cis(world,hf,input);
+    CIS cis(world,calc,input);
 
     // print grid information to file to get a better guess from external
     if (cis.print_grid()) {
     	if (world.rank()==0) print("printing grid for koala\n");
-    	real_function_3d density=hf.get_calc().make_density(world,hf.get_calc().aocc,
-    		hf.get_calc().amo);
+    	real_function_3d density=cis.get_calc().make_density(world,calc.aocc,
+    		calc.amo);
     	density.get_impl()->print_grid("grid");
     } else {
 

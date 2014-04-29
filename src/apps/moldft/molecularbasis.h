@@ -428,12 +428,27 @@ public:
     void read_file(std::string filename) {
         static const bool debug = false;
         TiXmlDocument doc(filename);
+
+        // try to read the AO basis from current directory, otherwise from
+        // the environment variable MRA_DATA_DIR
         if (!doc.LoadFile()) {
-            std::cout << "AtomicBasisSet: Failed loading from file " << filename
+        	std::cout << "AtomicBasisSet: Trying to get AO basis from MRA_DATA_DIR" << std::endl;
+
+            char* data_dir=getenv("MRA_DATA_DIR");
+            char buf[32768];
+            buf[0] = 0;
+            strcat(buf,data_dir);
+            strcat(buf,"/");
+            strcat(buf,filename.c_str());
+            filename = strdup(buf);
+            if (!doc.LoadFile(filename)) {
+
+            	std::cout << "AtomicBasisSet: Failed loading from file " << filename
                       << " : ErrorDesc  " << doc.ErrorDesc()
                       << " : Row " << doc.ErrorRow()
                       << " : Col " << doc.ErrorCol() << std::endl;
-            MADNESS_EXCEPTION("AtomicBasisSet: Failed loading basis set",0);
+            	MADNESS_EXCEPTION("AtomicBasisSet: Failed loading basis set",0);
+            }
         }
         for (TiXmlElement* node=doc.FirstChildElement(); node; node=node->NextSiblingElement()) {
             if (strcmp(node->Value(),"name") == 0) {

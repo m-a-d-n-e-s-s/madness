@@ -204,6 +204,76 @@ extern "C"
                 complex_real8 *a, integer *lda, complex_real8 *b, integer *ldb,
                 real8 *w,  complex_real8 *work,  integer *lwork, real8 *rwork,
                 integer *info, char_len jobzlen, char_len uplo_len );
+// dgeqrf (M, N, A, LDA, TAU, WORK, LWORK, INFO)
+//
+// DGEQRF computes a QR factorization of a real M-by-N matrix A:
+// A = Q * R.
+
+extern "C"
+	void sgeqrf_(integer *m, integer *n,
+            	 real4 *a, integer *lda, real4 *tau,
+            	 real4 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+	void dgeqrf_(integer *m, integer *n,
+            	 real8 *a, integer *lda, real8 *tau,
+            	 real8 *work, integer *lwork, integer *infoOUT);
+
+//    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
+
+// PURPOSE
+//		DGEQP3 computes a QR factorization with column pivoting of a
+//		matrix A:  A*P = Q*R  using Level 3 BLAS.
+
+extern "C"
+    void sgeqp3_(integer *m, integer *n,
+                 real4 *a, integer *lda, integer *jpvt, real4 *tau,
+                 real4 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+    void dgeqp3_(integer *m, integer *n,
+            	 real8 *a, integer *lda, integer *jpvt, real8 *tau,
+            	 real8 *work, integer *lwork, integer *infoOUT);
+
+extern "C"
+    void cgeqp3_(integer *m, integer *n, complex_real4 *a,
+    			 integer *lda, integer *jpvt, complex_real4 *tau,
+    			 complex_real4 *work, integer *lwork, real4 *rwork,
+    			 integer *infoOUT);
+
+extern "C"
+    void zgeqp3_(integer *m, integer *n, complex_real8 *a,
+			 	 integer *lda, integer *jpvt, complex_real8 *tau,
+			 	 complex_real8 *work, integer *lwork, real8 *rwork,
+			 	 integer *infoOUT);
+
+// SUBROUTINE DORGQR( M, N, K, A, LDA, TAU, WORK, LWORK, INFO )
+// SUBROUTINE ZUNGQR( M, N, K, A, LDA, TAU, WORK, LWORK, INFO )
+
+// PURPOSE
+//     DORGQR generates an M-by-N real matrix Q with orthonormal
+//     columns, which is defined as the first N columns of a pro-
+//     duct of K elementary reflectors of order M
+
+extern "C"
+    void sorgqr_(integer *m, integer *n, integer *k,
+                 real4 *a, integer *lda, real4 *tau,
+                 real4 *work, integer *lwork, integer *info);
+
+extern "C"
+    void dorgqr_(integer *m, integer *n, integer *k,
+            	 real8 *a, integer *lda, real8 *tau,
+            	 real8 *work, integer *lwork, integer *info);
+
+extern "C"
+    void cungqr_(integer *m, integer *n, integer *k,
+    			 complex_real4 *a, integer *lda, complex_real4 *tau,
+    			 complex_real4 *work, integer *lwork, integer *info);
+
+extern "C"
+    void zungqr_(integer *m, integer *n, integer *k,
+    			 complex_real8 *a, integer *lda, complex_real8 *tau,
+			 	 complex_real8 *work, integer *lwork, integer *info);
 
 extern "C"
 void dpotrf_(const char *uplo, const integer* n, real8 *a, const integer *lda, integer *info, char_len uplo_len);

@@ -222,6 +222,28 @@ STATIC void dsyev_(const char* jobz, const char* uplo, integer *n,
            info, jobzlen, uplo_len );
 }
 
+
+
+/// These oddly-named wrappers enable the generic orgqr/unggr iterface to get
+/// the correct LAPACK routine based upon the argument type.  Internal
+/// use only.
+STATIC inline void dorgqr_(integer *m, integer *n, integer *k,
+        real4 *a, integer *lda, real4 *tau,
+        real4 *work, integer *lwork, integer *info) {
+    sorgqr_(m, n, k, a, m, tau, work, lwork, info);
+}
+
+STATIC void dorgqr_(integer *m, integer *n, integer *k,
+		 complex_real4 *a, integer *lda, complex_real4 *tau,
+		 complex_real4 *work, integer *lwork, integer *info) {
+	cungqr_(m, n, k, a, m, tau, work, lwork, info);
+}
+
+STATIC void dorgqr_(integer *m, integer *n, integer *k,
+		 complex_real8 *a, integer *lda, complex_real8 *tau,
+	 	 complex_real8 *work, integer *lwork, integer *info) {
+	zungqr_(m, n, k, a, m, tau, work, lwork, info);
+}
 #endif //MADNESS_HAS_EIGEN3
 
 namespace madness {
@@ -538,6 +560,164 @@ namespace madness {
             for (int j=0; j<i; ++j)
                 A(i,j) = 0.0;
     }
+
+    /** \brief  Compute the QR factorization.
+
+	Q is returned in the lapack-specific format
+
+    */
+    template<typename T>
+    void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt) {
+
+    	TENSOR_ASSERT(A.ndim() == 2, "geqp requires a matrix",A.ndim(),&A);
+
+    	A=transpose(A);
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	jpvt=Tensor<integer>(n);
+    	tau=Tensor<T>(std::min(n,m));
+    	integer lwork=2*n+(n+1)*64;
+    	Tensor<T> work(lwork);
+    	geqp3_result(A,tau,jpvt,work);
+    	A=transpose(A);
+    }
+
+    template<typename T>
+    void geqp3_result(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt,
+    		Tensor<T>& work) {
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	integer lwork=work.size();
+    	integer info;
+
+//    	dgeqp3(M, N, A, LDA, JPVT, TAU, WORK, LWORK, INFO );
+    	std::cout << jpvt[0] << std::endl;
+    	dgeqp3_(&m, &n, A.ptr(), &m, jpvt.ptr(), tau.ptr(), work.ptr(),
+    			&lwork, &info);
+    	std::cout << jpvt[0] << std::endl;
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "dgeqp3: Lapack failed", info, &A);
+    }
+
+    /// compute the QR decomposition of the matrix A
+
+    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    ///						on exit the Q matrix
+    /// @param[out]		R	the (n,n) matrix R (square form)
+    template<typename T>
+    void qr(Tensor<T>& A, Tensor<T>& R) {
+    	TENSOR_ASSERT(A.ndim() == 2, "qr requires a matrix",A.ndim(),&A);
+
+    	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
+    	A=transpose(A);
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	Tensor<T> tau(std::min(n,m));
+    	integer lwork=2*n+(n+1)*64;
+    	Tensor<T> work(lwork);
+
+    	lq_result(A,R,tau,work,true);
+
+    	A=transpose(A);
+    }
+
+    /// compute the LQ decomposition of the matrix A = L Q
+
+    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    ///						on exit the Q matrix
+    /// @param[out]		L	the (n,n) matrix L (square form)
+    template<typename T>
+    void lq(Tensor<T>& A, Tensor<T>& R) {
+    	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
+
+    	integer m=A.dim(0);
+    	integer n=A.dim(1);
+    	Tensor<T> tau(std::min(n,m));
+    	integer lwork=2*n+(n+1)*64;
+    	Tensor<T> work(lwork);
+
+    	lq_result(A,R,tau,work,false);
+    }
+
+    /// compute the LQ decomposition of the matrix A = L Q
+
+    /// @param[inout]	A	on entry the (n,m) matrix to be decomposed
+    ///						on exit the Q matrix
+    /// @param[out]		L	the (n,n) matrix L (square form)
+    template<typename T>
+    void lq_result(Tensor<T>& A, Tensor<T>& R, Tensor<T>& tau, Tensor<T>& work,
+    		bool do_qr) {
+    	TENSOR_ASSERT(A.ndim() == 2, "lq requires a matrix",A.ndim(),&A);
+
+    	integer m=A.dim(1);		// -- use transpose(A)
+    	integer n=A.dim(0);
+    	integer lwork=work.size();
+    	integer info;
+
+    	dgeqrf_(&m, &n, A.ptr(), &m, tau.ptr(), work.ptr(),
+    			&lwork, &info);
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "dgeqrf_: Lapack failed", info, &A);
+
+    	// reconstruction of R	 -- use transpose(A)
+        integer r_rows= (m>=n) ? n : m;
+        integer r_cols=n;
+		if (do_qr) {
+			R=Tensor<T>(r_rows,r_cols);
+			for (int i=0; i<r_rows; ++i) {
+				for (int j=i; j<r_cols; ++j) {
+					R(i,j)=A(j,i);	// <- transpose(A)
+				}
+			}
+		} else {
+			R=Tensor<T>(r_cols,r_rows);
+			for (int i=0; i<r_rows; ++i) {
+				for (int j=i; j<r_cols; ++j) {
+					R(j,i)=A(j,i);
+				}
+			}
+		}
+
+		// reconstruction of Q
+    	integer k=tau.size();
+    	integer q_rows=m;
+    	integer q_cols= (m>=n) ? n : m;
+    	dorgqr_(&q_rows, &q_cols, &k, A.ptr(), &q_rows, const_cast<T*>(tau.ptr()),
+    			work.ptr(), &lwork, &info);
+    	A=A(Slice(0,q_cols-1),Slice(0,q_rows-1));	// -- use transpose(A)
+        mask_info(info);
+        TENSOR_ASSERT(info == 0, "dorgqr_: Lapack failed", info, &A);
+
+    }
+
+
+    /// reconstruct the orthogonal matrix Q (e.g. from QR factorization)
+
+    /// @param[inout]	A
+    ///    On entry, the i-th column must contain the vector which
+    ///    defines the elementary reflector H(i), for i = 1,2,...,k, as
+    ///    returned by DGEQRF in the first k columns of its array
+    ///    argument A.
+    ///    On exit, the M-by-N matrix Q.
+    /// @param[in]	tau
+    ///	   TAU(i) must contain the scalar factor of the elementary
+    ///    reflector H(i), as returned by DGEQRF.
+    template<typename T>
+    void orgqr(Tensor<T>& A, const Tensor<T>& tau) {
+    	A=transpose(A);
+    	integer n=A.dim(0);
+    	integer m=A.dim(1);
+    	integer k=tau.size();
+    	integer lwork=64*n;
+    	Tensor<T> work(lwork);
+    	integer info;
+    	dorgqr_(&m, &n, &k, A.ptr(), &m, const_cast<T*>(tau.ptr()),
+    			work.ptr(), &lwork, &info);
+        mask_info(info);
+    	A=transpose(A);
+        TENSOR_ASSERT(info == 0, "xorgqr: Lapack failed", info, &A);
+    }
+
 #endif //MADNESS_HAS_EIGEN3
 
 //     template <typename T>
@@ -670,6 +850,46 @@ namespace madness {
         return (LLT - aa).normf()/n;
     }
 
+    template <typename T>
+    double test_qr() {
+
+		Tensor<T> R;
+		double error=0.0;
+
+		// test QR and LQ with random dimensions
+		for (int i=0; i<20; ++i) {
+			madness::Random(100);
+			int n= (madness::RandomValue<long>() % 4) + 2;
+			int m= (madness::RandomValue<long>() % 3) + 3;
+
+			{	// QR
+				Tensor<T> AA(n,m);
+				AA.fillrandom();
+				Tensor<T> A=copy(AA);
+				qr(A,R);
+				Tensor<T> A_reconstructed=inner(A,R);
+				double err1=(AA-A_reconstructed).normf();
+				std::cout << "test QR: n, m, error" << " " << n << " " << m
+						 << " " << err1 << std::endl;;
+				error+=err1;
+			}
+
+			{	// LQ
+				Tensor<T> AA(n,m);
+				AA.fillrandom();
+				Tensor<T> A=copy(AA);
+				lq(A,R);
+				Tensor<T> A_reconstructed=inner(R,A);
+				double err1=(AA-A_reconstructed).normf();
+				std::cout << "test LQ: n, m, error" << " " << n << " " << m
+						 << " " << err1 << std::endl;;
+				error+=err1;
+			}
+		}
+		return error;
+    }
+
+
     void init_tensor_lapack() {
 #ifndef MADNESS_HAS_EIGEN3
 	char e[] = "e";
@@ -730,6 +950,11 @@ namespace madness {
             cout << endl;
             cout << "error in double cholesky " << test_cholesky<double>(22) << endl;
             cout << endl;
+
+            cout << endl;
+            cout << "error in double QR/LQ " << test_qr<double>() << endl;
+            cout << endl;
+
         }
 
         catch (TensorException e) {
@@ -754,6 +979,9 @@ namespace madness {
     void svd_result(Tensor<float>& a, Tensor<float>& U,
              Tensor<Tensor<float>::scalar_type >& s, Tensor<float>& VT, Tensor<float>& work);
 
+    template
+    void orgqr(Tensor<float>& A, const Tensor<float>& tau);
+
 
     template
     void svd(const Tensor<double>& a, Tensor<double>& U,
@@ -776,9 +1004,23 @@ namespace madness {
     template
     void cholesky(Tensor<double>& A);
 
+    template
+    void qr(Tensor<double>& A, Tensor<double>& R);
+
+    template
+    void lq(Tensor<double>& A, Tensor<double>& L);
+
+
+    template
+    void geqp3(Tensor<double>& A, Tensor<double>& tau, Tensor<integer>& jpvt);
+
 //     template
 //     void triangular_solve(const Tensor<double>& L, Tensor<double>& B,
 //                           const char* side, const char* transa);
+
+    template
+    void orgqr(Tensor<double>& A, const Tensor<double>& tau);
+
 
     template
     void svd_result(Tensor<float_complex>& a, Tensor<float_complex>& U,
@@ -820,6 +1062,14 @@ namespace madness {
     template
     void sygv(const Tensor<double_complex>& A, const Tensor<double_complex>& B, int itype,
               Tensor<double_complex>& V, Tensor<Tensor<double_complex>::scalar_type >& e);
+
+    template
+    void orgqr(Tensor<complex_real4>& A, const Tensor<complex_real4>& tau);
+
+    template
+    void orgqr(Tensor<double_complex>& A, const Tensor<double_complex>& tau);
+
+
 //#endif //MADNESS_HAS_EIGEN
 
 }

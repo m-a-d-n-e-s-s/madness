@@ -37,6 +37,7 @@
 #define MADNESS_LINALG_TENSOR_LAPACK_H__INCLUDED
 
 #include <tensor/tensor.h>
+#include <fortran_ctypes.h>
 
 /*!
   \file tensor_lapack.h
@@ -116,6 +117,27 @@ namespace madness {
     /// \ingroup linalg
     template <typename T>
     void cholesky(Tensor<T>& A);
+
+    /// QR decomposition
+    template<typename T>
+    void qr(Tensor<T>& A, Tensor<T>& R);
+
+    /// LQ decomposition
+    template<typename T>
+    void lq(Tensor<T>& A, Tensor<T>& L);
+
+    template <typename T>
+    void geqp3(Tensor<T>& A, Tensor<T>& tau, Tensor<integer>& jpvt);
+
+    /// orgqr generates an M-by-N complex matrix Q with orthonormal columns
+
+    /// which is defined as the first N columns of a product of K elementary
+    /// reflectors of order M
+    ///       Q  =  H(1) H(2) . . . H(k)
+    /// as returned by ZGEQRF.
+    template <typename T>
+    void orgqr(Tensor<T>& A, const Tensor<T>& tau);
+
 
     /// Dunno
     

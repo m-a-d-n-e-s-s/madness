@@ -1,6 +1,10 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver tdhf
+bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+ sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
+ dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
+ testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
+ tdhf nemo
 
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -22,6 +26,8 @@ testspectralprop_SOURCES = testspectralprop.cc
 testsolver_SOURCES = testsolver.cc
 
 tdhf_SOURCES = tdhf.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
+
+nemo_SOURCES = nemo.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
 
 newsolver_SOURCES = newsolver.cc
 

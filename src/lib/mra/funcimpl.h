@@ -1398,9 +1398,12 @@ namespace madness {
                     double yhiright = scale*(l[yaxis]+1);
 
                     // convert back to user coordinates
-                    Vector<double,6> sim, user;
-                    sim[0]=xloleft; sim[1]=yloleft; sim[2]=xhiright; sim[3]=yhiright;
-                    sim_to_user<6>(sim,user);
+                    Vector<double,4> user;
+                    user[0]=xloleft*FunctionDefaults<NDIM>::get_cell_width()[xaxis] + FunctionDefaults<NDIM>::get_cell()(xaxis,0);
+                    user[2]=xhiright*FunctionDefaults<NDIM>::get_cell_width()[xaxis] + FunctionDefaults<NDIM>::get_cell()(xaxis,0);
+                    user[1]=yloleft*FunctionDefaults<NDIM>::get_cell_width()[yaxis] + FunctionDefaults<NDIM>::get_cell()(yaxis,0);
+                    user[3]=yhiright*FunctionDefaults<NDIM>::get_cell_width()[yaxis] + FunctionDefaults<NDIM>::get_cell()(yaxis,0);
+
 
 //                    if ((xloleft<-5.0) or (yloleft<-5.0) or (xhiright>5.0) or (yhiright>5.0)) continue;
                     if ((user[0]<-5.0) or (user[1]<-5.0) or (user[2]>5.0) or (user[3]>5.0)) continue;
@@ -1454,10 +1457,10 @@ namespace madness {
             Tensor<double> cell=FunctionDefaults<NDIM>::get_cell();
 
 
-            fprintf(pFile,"\\psset{unit=0.1cm}\n");
+            fprintf(pFile,"\\psset{unit=1cm}\n");
             fprintf(pFile,"\\begin{pspicture}(%4.2f,%4.2f)(%4.2f,%4.2f)\n",
 //            		cell(xaxis,0),cell(xaxis,1),cell(yaxis,0),cell(yaxis,1));
-            		-5.0,5.0,-5.0,5.0);
+            		-5.0,-5.0,5.0,5.0);
             fprintf(pFile,"\\pslinewidth=0.1pt\n");
 
             for (std::vector<Tensor<double> >::const_iterator it=plotinfo.begin(); it!=plotinfo.end(); ++it) {
@@ -2506,6 +2509,9 @@ namespace madness {
                 const keyT& key = it->first;
                 const nodeT& fnode = it->second;
 
+                // skip internal nodes
+                if (fnode.has_children()) return 0.0;
+
                 if (f->world.size()>1) return 0.0;
 
                 // exchange particles
@@ -2518,16 +2524,35 @@ namespace madness {
                 for (std::size_t i=0; i<NDIM; ++i) l[map[i]] = key.translation()[i];
                 const keyT mapkey(key.level(),l);
 
+                double norm=0.0;
+
+
                 // hope it's local
-                MADNESS_ASSERT(f->get_coeffs().probe(mapkey));
-                const nodeT& mapnode=f->get_coeffs().find(mapkey).get()->second;
+                if (f->get_coeffs().probe(mapkey)) {
+					MADNESS_ASSERT(f->get_coeffs().probe(mapkey));
+					const nodeT& mapnode=f->get_coeffs().find(mapkey).get()->second;
 
-                tensorT c1=fnode.coeff().full_tensor_copy();
-                tensorT c2=mapnode.coeff().full_tensor_copy();
+					bool have_c1=fnode.coeff().has_data() and fnode.coeff().config().has_data();
+					bool have_c2=mapnode.coeff().has_data() and mapnode.coeff().config().has_data();
 
-                if (c2.size()) c2 = copy(c2.mapdim(map));
-                double norm=(c1-=c2).normf();
-                return norm*norm;
+					if (have_c1 and have_c2) {
+						tensorT c1=fnode.coeff().full_tensor_copy();
+						tensorT c2=mapnode.coeff().full_tensor_copy();
+						c2 = copy(c2.mapdim(map));
+						norm=(c1-c2).normf();
+					} else if (have_c1) {
+						tensorT c1=fnode.coeff().full_tensor_copy();
+						norm=c1.normf();
+					} else if (have_c2) {
+						tensorT c2=mapnode.coeff().full_tensor_copy();
+						norm=c2.normf();
+					} else {
+						norm=0.0;
+					}
+                } else {
+                	norm=fnode.coeff().normf();
+                }
+				return norm*norm;
             }
 
             double operator()(double a, double b) const {
@@ -2588,7 +2613,7 @@ namespace madness {
             std::vector<long> map;
             implT* f;
 
-            do_mapdim() {};
+            do_mapdim() : f(0) {};
             do_mapdim(const std::vector<long> map, implT& f) : map(map), f(&f) {}
 
             bool operator()(typename rangeT::iterator& it) const {
@@ -3667,6 +3692,7 @@ namespace madness {
 
                 // new coeffs are simply the hartree/kronecker/outer product --
                 coeffT coeff=outer(s1,s2);
+                change_tensor_type(coeff,result->get_tensor_args());
                 // no post-determination
 //                is_leaf=leaf_op(key,coeff);
                 return std::pair<bool,coeffT>(is_leaf,coeff);
@@ -4829,6 +4855,10 @@ namespace madness {
             typename dcT::accessor acc;
             MADNESS_ASSERT(coeffs.find(acc, key));
 
+            //
+            // !! THIS IS NO NUMERICALLY STABLE CODE !!
+            //
+#if 0
             // the sum coefficients on this level, and their norm
             const tensorT s=downsample(key,v);
             const double snorm=s.normf();
@@ -4842,7 +4872,20 @@ namespace madness {
 
             // the error; equivalent to the norm of the wavelet coefficients
             const double error=sqrt(dnorm-snorm*snorm);
+#else
+            int i=0;
+            tensorT d(cdata.v2k);
+            for (KeyChildIterator<NDIM> kit(key); kit; ++kit,++i) {
+//                d(child_patch(kit.key())) += v[i].get();
+                d(child_patch(kit.key())) += v[i].get().full_tensor_copy();
+            }
 
+            d = filter(d);
+            tensorT s=copy(d(cdata.s0));
+            d(cdata.s0) = 0.0;
+            const double error=d.normf();
+
+#endif
             nodeT& node = coeffs.find(key).get()->second;
 
             if (error < truncate_tol(tol,key)) {
@@ -5227,7 +5270,7 @@ namespace madness {
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.01;
+            apply_targs.thresh=tol/fac*0.1;
 
             double maxnorm=0.0;
             // for the kernel it may be more efficient to do the convolution in full rank
@@ -5245,7 +5288,10 @@ namespace madness {
 
                 keyT disp1;
                 if (op->particle()==1) disp1=it->merge_with(nullkey);
-                if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                else if (op->particle()==2) disp1=nullkey.merge_with(*it);
+                else {
+                	MADNESS_EXCEPTION("confused particle in operato??",1);
+                }
 
                 keyT dest = neighbor(key, disp1, is_periodic);
 
@@ -5320,13 +5366,14 @@ namespace madness {
 
 
         /// after apply we need to do some cleanup;
-        void finalize_apply(const bool fence=true) {
+        double finalize_apply(const bool fence=true) {
             TensorArgs tight_args(targs);
             tight_args.thresh*=0.01;
+            double begin=wall_time();
             flo_unary_op_node_inplace(do_consolidate_buffer(tight_args),true);
 
             // reduce the rank of the final nodes, leave full tensors unchanged
-            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
+//            flo_unary_op_node_inplace(do_reduce_rank(tight_args.thresh),true);
             flo_unary_op_node_inplace(do_reduce_rank(targs),true);
 
             // change TT_FULL to low rank
@@ -5335,10 +5382,13 @@ namespace madness {
             // truncate leaf nodes to avoid excessive tree refinement
             flo_unary_op_node_inplace(do_truncate_NS_leafs(this),true);
 
+            double end=wall_time();
+            double elapsed=end-begin;
             this->compressed=true;
             this->nonstandard=true;
             this->redundant=false;
             if (fence) world.gop.fence();
+            return elapsed;
         }
 
         /// traverse a non-existing tree, make its coeffs and apply an operator
