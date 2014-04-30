@@ -39,10 +39,11 @@
 
 //#define BENCH 0
 
+#include <world/print.h>
 #include "tensor/tensor.h"
-#include "mra/funcdefaults.h"
 #include <tensor/clapack.h>
 #include <tensor/tensor_lapack.h>
+#include <list>
 
 namespace madness {
 

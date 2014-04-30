@@ -41,9 +41,6 @@
 #include <iostream>
 #include <madness_config.h>
 
-
-//#include <mra/mra.h>
-
 using namespace madness;
 
 
