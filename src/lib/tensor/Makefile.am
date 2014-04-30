@@ -57,7 +57,7 @@ test_gentensor_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
 test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBMISC) $(LIBWORLD) libMADtensor.a $(LIBLINALG)
 
 testseprep_SOURCES = testseprep.cc
-testseprep_LDADD = $(LIBTENSOR) $(LIBMISC) $(LIBWORLD) $(LIBLINALG)
+testseprep_LDADD = $(LIBMISC) $(LIBWORLD) $(LIBLINALG) $(LIBTENSOR) 
 
 
 libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \

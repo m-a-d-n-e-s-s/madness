@@ -154,6 +154,16 @@ namespace madness {
             print("              Intel TBB ...", "no ");
 #endif
            	print("               compiled ...",__TIME__," on ",__DATE__);
+            if (getenv("GITREVISION")) {
+                 const char* gitrev=getenv("GITREVISION");
+                 const std::string gitrevision(gitrev);
+                 print("           git revision ...", gitrevision);
+            }
+            if (getenv("SVNVERSION")) {
+                 const char* svnrev=getenv("SVNVERSION");
+                 const std::string svnrevision(svnrev);
+                 print("           svn revision ...", svnrevision);
+            }
 
 
             //         print(" ");
