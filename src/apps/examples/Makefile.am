@@ -1,6 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-GITREV="GITREVISION=\"`git -C $(top_srcdir) rev-parse HEAD`\" "
+GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 SVNREV="SVNREVISION=\"`svnversion $(top_srcdir)`\" "
 
 AM_CPPFLAGS += -D$(GITREV) -D$(SVNREV)
