@@ -53,7 +53,21 @@ int main(int argc, char** argv) {
     startup(world,argc,argv);
     std::cout.precision(6);
 
+#ifdef GITREVISION
+    const  char* gitrev =  GITREVISION;
+    const std::string gitrevision(gitrev);
+    if (world.rank()==0) {
+    	print("           git revision ...",gitrevision);
+    }
+#endif
 
+#ifdef SVNREVISION
+    const  char* svnrev =  SVNREVISION;
+    const std::string svnrevision(svnrev);
+    if (world.rank()==0) {
+    	print("           svn revision ...",svnrevision);
+    }
+#endif
     if (world.rank()==0) {
     	print("main() in mp2.cc compiled at ",__TIME__," on ",__DATE__);
 #ifdef MADNESS_HAS_GOOGLE_PERF_MINIMAL
