@@ -61,6 +61,22 @@ int main(int argc, char** argv) {
     std::cout.precision(6);
     typedef std::vector<functionT> vecfuncT;
 
+#ifdef GITREVISION
+    const  char* gitrev =  GITREVISION;
+    const std::string gitrevision(gitrev);
+    if (world.rank()==0) {
+    	print("           git revision ...",gitrevision);
+    }
+#endif
+
+#ifdef SVNREVISION
+    const  char* svnrev =  SVNREVISION;
+    const std::string svnrevision(svnrev);
+    if (world.rank()==0) {
+    	print("           svn revision ...",svnrevision);
+    }
+#endif
+
     // take the HF orbitals to start
     const std::string input="input";
 	std::shared_ptr<Calculation> calc(new Calculation(world,input.c_str()));
