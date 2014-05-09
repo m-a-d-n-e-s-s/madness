@@ -82,7 +82,7 @@ struct unaryexp {
 };
 
 // Returns exp(-I*t*V)
-Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
+static Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
     v.reconstruct();
     Function<double_complex,3> expV = double_complex(0.0,-t)*v;
     expV.unaryop(unaryexp<3>());
@@ -92,7 +92,7 @@ Function<double_complex,3> make_exp(double t, const Function<double,3>& v) {
 
 extern void drot(long n, double* restrict a, double* restrict b, double s, double c, long inc);
 
-void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
+static void drot3(long n, double* restrict a, double* restrict b, double s, double c, long inc) {
     if (inc == 1) {
         n*=3;
         for (long i=0; i<n; i+=3) {
@@ -177,11 +177,11 @@ extern tensorT distributed_localize_PM(World & world,
                                        const bool doprint = false);
 
 static double ttt, sss;
-void START_TIMER(World& world) {
+static void START_TIMER(World& world) {
     world.gop.fence(); ttt=wall_time(); sss=cpu_time();
 }
 
-void END_TIMER(World& world, const char* msg) {
+static void END_TIMER(World& world, const char* msg) {
     ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
 }
 
@@ -200,7 +200,7 @@ inline double mask1(double x) {
     return x;
 }
 
-double mask3(const coordT& ruser) {
+static double mask3(const coordT& ruser) {
     coordT rsim;
     user_to_sim(ruser, rsim);
     double x= rsim[0], y=rsim[1], z=rsim[2];
@@ -347,7 +347,7 @@ public:
     }
 };
 
-double rsquared(const coordT& r) {
+static double rsquared(const coordT& r) {
     return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
 }
 
@@ -388,7 +388,7 @@ public:
 
 
 /// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
-tensorT Q3(const tensorT& s) {
+static tensorT Q3(const tensorT& s) {
     tensorT Q = inner(s,s);
     Q.gaxpy(0.2,s,-2.0/3.0);
     for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.0;
@@ -396,7 +396,7 @@ tensorT Q3(const tensorT& s) {
 }
 
 /// Computes matrix square root (not used any more?)
-tensorT sqrt(const tensorT& s, double tol=1e-8) {
+static tensorT sqrt(const tensorT& s, double tol=1e-8) {
     int n=s.dim(0), m=s.dim(1);
     MADNESS_ASSERT(n==m);
     tensorT c, e;
@@ -900,7 +900,7 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
-            molecule.orient();
+            //molecule.orient();
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
