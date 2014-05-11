@@ -900,7 +900,7 @@ struct Calculation {
                 n_core = molecule.n_core_orb_all();
             }
 
-            //molecule.orient();
+            molecule.orient();
             aobasis.read_file(param.aobasis);
             param.set_molecular_info(molecule, aobasis, n_core);
         }
