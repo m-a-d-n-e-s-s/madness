@@ -155,7 +155,6 @@ namespace madness {
 #endif
            	print("               compiled ...",__TIME__," on ",__DATE__);
 
-
             //         print(" ");
             //         IndexIterator::test();
         }

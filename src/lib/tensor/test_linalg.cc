@@ -34,15 +34,12 @@
 
   
 
-/// \file ../linalg/test.cc
+/// \file ../tensor/test.cc
 /// \brief Test code for LAPACK, Tensor+LAPACK, etc.
 
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <iostream>
 #include <madness_config.h>
-
-
-//#include <mra/mra.h>
 
 using namespace madness;
 

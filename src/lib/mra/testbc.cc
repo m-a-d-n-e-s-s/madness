@@ -38,7 +38,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <constants.h>
 
 using namespace madness;

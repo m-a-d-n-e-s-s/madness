@@ -37,7 +37,7 @@
 /// \brief Simple management of molecular information and potential
 
 #include <tensor/tensor.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <constants.h>
 #include <DFcode/molecule.h>
 #include <DFcode/atomutil.h>

@@ -36,7 +36,7 @@
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <mra/funcplot.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <examples/molecularmask.h>
 #include <examples/nonlinsol.h>
 #include <constants.h>

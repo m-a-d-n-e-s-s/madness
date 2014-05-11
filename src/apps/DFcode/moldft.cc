@@ -45,8 +45,8 @@
 #include <misc/ran.h>
 
 #include <tensor/systolic.h>
-#include <linalg/solvers.h>
-#include <linalg/elem.h>
+#include <tensor/solvers.h>
+#include <tensor/elem.h>
 
 #include <ctime>
 #include <list>

@@ -73,7 +73,7 @@
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
-#include <linalg/gmres.h>
+#include <tensor/gmres.h>
 #include <muParser/muParser.h>
 #include "test_problems.h"
 

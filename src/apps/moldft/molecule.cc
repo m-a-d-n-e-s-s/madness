@@ -38,7 +38,7 @@
 
 #include <TAU.h>
 #include <tensor/tensor.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <constants.h>
 #include <moldft/molecule.h>
 #include <moldft/atomutil.h>

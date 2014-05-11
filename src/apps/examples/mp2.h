@@ -374,6 +374,7 @@ namespace madness {
     	/// POD for MP2 keywords
         struct Parameters {
         	double thresh_;			///< the accuracy threshold
+        	double dconv_;			///< threshold for the MP1 residual
         	int i; 					///< electron 1, used only if a specific pair is requested
         	int j; 					///< electron 2, used only if a specific pair is requested
 
@@ -396,8 +397,8 @@ namespace madness {
         	int maxsub;
 
         	/// ctor reading out the input file
-        	Parameters(const std::string& input) : thresh_(-1.0), i(-1), j(-1),
-        			freeze(0), restart(false), maxsub(2) {
+        	Parameters(const std::string& input) : thresh_(-1.0), dconv_(-1.0),
+        			i(-1), j(-1), freeze(0), restart(false), maxsub(2) {
 
         		// get the parameters from the input file
                 std::ifstream f(input.c_str());
@@ -407,12 +408,15 @@ namespace madness {
                 while (f >> s) {
                     if (s == "end") break;
                     else if (s == "econv") f >> thresh_;
+                    else if (s == "dconv") f >> dconv_;
                     else if (s == "pair") f >> i >> j;
                     else if (s == "maxsub") f >> maxsub;
                     else if (s == "freeze") f >> freeze;
                     else if (s == "restart") restart=true;
                     else continue;
                 }
+                // set default for dconv if not explicitly given
+                if (dconv_<0.0) dconv_=sqrt(thresh_)*0.1;
         	}
 
             /// check the user input
@@ -636,6 +640,8 @@ namespace madness {
                 madness::print("         MP2 restart ", param.restart);
                 madness::print("        threshold 3D ", FunctionDefaults<3>::get_thresh());
                 madness::print("        threshold 6D ", FunctionDefaults<6>::get_thresh());
+                madness::print("    threshold energy ", param.thresh_);
+                madness::print("  threshold residual ", param.dconv_);
                 madness::print("     truncation mode ", FunctionDefaults<6>::get_truncate_mode());
                 madness::print("         tensor type ", FunctionDefaults<6>::get_tensor_type());
                 madness::print("           facReduce ", GenTensor<double>::fac_reduce());
@@ -1064,7 +1070,47 @@ namespace madness {
 				if (not intermediates.Kfphi0.empty()) {
 					load_function(Kfphi0,intermediates.Kfphi0);
 				} else {
-					Kfphi0=K(r12nemo,i==j);
+//					Kfphi0=K(r12nemo,i==j);
+
+					const real_function_3d& phi_i=hf->nemo(i);
+					const real_function_3d& phi_j=hf->nemo(j);
+
+					real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+					op.particle()=1;
+
+					real_convolution_3d op_mod=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+	                op_mod.modified()=true;
+
+					real_function_6d result=real_factory_6d(world);
+					for (int k=0; k<hf->nocc(); ++k) {
+						const real_function_3d& phi_k_bra=hf->R2orbital(k);
+						const real_function_3d& phi_k_ket=hf->nemo(k);
+						real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+								.g12(corrfac.f())
+								.particle1(copy(phi_i*phi_k_bra))
+								.particle2(copy(phi_j));
+						f_ijk.fill_tree(op_mod).truncate();
+						real_function_6d x=op(f_ijk).truncate();
+			            result+=multiply(copy(x),copy(phi_k_ket),1).truncate();
+					}
+
+					if (i==j) {
+						result+=swap_particles(result);
+					} else {
+						op.particle()=2;
+						for (int k=0; k<hf->nocc(); ++k) {
+							const real_function_3d& phi_k_bra=hf->R2orbital(k);
+							const real_function_3d& phi_k_ket=hf->nemo(k);
+							real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+									.g12(corrfac.f())
+									.particle1(copy(phi_i))
+									.particle2(copy(phi_j*phi_k_bra));
+							f_ijk.fill_tree(op_mod).truncate();
+							real_function_6d x=op(f_ijk).truncate();
+				            result+=multiply(copy(x),copy(phi_k_ket),2).truncate();
+						}
+					}
+					Kfphi0=result;
 				}
 
 				{
@@ -1213,8 +1259,11 @@ namespace madness {
 //			}
 //			if (world.rank()==0) print("h = <nemo |R2 (U_R -K_R) |nemo> \n",h);
 
-			// the result function
-        	real_function_6d r1=real_factory_6d(world);
+			// the result function; adding many functions requires tighter threshold
+			const double thresh=FunctionDefaults<6>::get_thresh();
+			const double tight_thresh=thresh*0.1;
+			FunctionDefaults<6>::set_thresh(tight_thresh);
+        	real_function_6d r1=real_factory_6d(world).thresh(tight_thresh);
         	for (int k=0; k<hf->nocc(); ++k) {
 
         		// make the term  tmp2(2) = |UK_k(2)> - 1/2 |l(2)> h(kl)
@@ -1222,10 +1271,12 @@ namespace madness {
         		for (int l=0; l<hf->nocc(); ++l) tmp2-= 0.5*h(k,l)*hf->nemo(l);
 
         		// now apply the Greens' function (including the -2.0 factor in one term)
-				r1=r1-green(-2.0*hf->nemo(k),tmp2);
+				real_function_6d tmp=green(-2.0*hf->nemo(k),tmp2);
+				tmp.set_thresh(tight_thresh);
+				r1=(r1-tmp).truncate(tight_thresh);
         	}
         	if (world.rank()==0) print("symmetry r1");
-			asymmetry(r1,"r1");
+        	r1.print_size("r1");
 
         	for (int l=0; l<hf->nocc(); ++l) {
 
@@ -1234,10 +1285,20 @@ namespace madness {
         		for (int k=0; k<hf->nocc(); ++k) tmp1-= 0.5*h(k,l)*hf->nemo(k);
 
         		// now apply the Greens' function (including the -2.0 factor in one term)
-				r1=r1-green(tmp1,-2.0*hf->nemo(l));
+				real_function_6d tmp=green(tmp1,-2.0*hf->nemo(l));
+				tmp.set_thresh(tight_thresh);
+				r1=(r1-tmp).truncate(tight_thresh);
         	}
+        	r1.truncate();
+        	r1.print_size("r1");
+        	GVpair.set_thresh(tight_thresh);
         	GVpair=(GVpair+r1).truncate().reduce_rank();
-			asymmetry(GVpair,"GVpair before Q12");
+
+        	FunctionDefaults<6>::set_thresh(thresh);
+        	GVpair.set_thresh(thresh);
+        	GVpair.truncate().reduce_rank();
+
+        	asymmetry(GVpair,"GVpair before Q12");
 
 			GVpair=Q12(GVpair);
 			asymmetry(GVpair,"GVpair after Q12");

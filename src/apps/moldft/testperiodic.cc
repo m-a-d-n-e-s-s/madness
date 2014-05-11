@@ -11,7 +11,7 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #define NO_GENTENSOR
 #include <mra/mra.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 using namespace madness;
 
 #include <moldft/molecule.h>

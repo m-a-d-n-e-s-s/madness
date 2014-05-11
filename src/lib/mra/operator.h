@@ -42,7 +42,7 @@
 #include <mra/adquad.h>
 #include <tensor/mtxmq.h>
 #include <tensor/aligned.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 #include <constants.h>
 
 #include <mra/simplecache.h>

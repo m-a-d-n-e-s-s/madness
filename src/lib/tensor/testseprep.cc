@@ -823,7 +823,7 @@ int main(int argc, char**argv) {
 int main(int argc, char** argv) {
 
     initialize(argc,argv);
-    World world(MPI::COMM_WORLD);
+    World world(SafeMPI::COMM_WORLD);
     print("no testseprep without having a GenTensor");
     world.gop.fence();
     finalize();

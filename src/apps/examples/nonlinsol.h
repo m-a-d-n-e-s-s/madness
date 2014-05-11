@@ -48,7 +48,7 @@
  */
 
 #include <mra/mra.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 
 namespace madness {
 
@@ -104,6 +104,7 @@ namespace madness {
 		/// @param r Corresponding residual
 		/// @return Next trial solution vector
 		Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r) {
+			if (maxsub==1) return u;
 			int iter = ulist.size();
 			ulist.push_back(u);
 			rlist.push_back(r);
@@ -195,6 +196,7 @@ namespace madness {
 	/// @param r Corresponding residual
 	/// @return Next trial solution vector
 	T update(const T& u, const T& r) {
+		if (maxsub==1) return u;
 		int iter = ulist.size();
 		ulist.push_back(u);
 		rlist.push_back(r);

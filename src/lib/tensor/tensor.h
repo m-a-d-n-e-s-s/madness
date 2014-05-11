@@ -63,6 +63,13 @@
 #include <tensor/tensorexcept.h>
 #include <tensor/tensoriter.h>
 
+#ifdef NO_GENTENSOR
+#define HAVE_GENTENSOR 0
+#else
+#define HAVE_GENTENSOR 1
+#endif
+
+
 /*!
   \file tensor.h
   \brief Defines and implements most of Tensor
@@ -262,6 +269,22 @@ namespace madness {
     }
 
     template <class T> class SliceTensor;
+
+
+    /// low rank representations of tensors (see gentensor.h)
+	enum TensorType {TT_NONE, TT_FULL, TT_2D};
+
+    static
+    inline
+    std::ostream& operator << (std::ostream& s, const TensorType& tt) {
+       	std::string str="confused tensor type";
+       	if (tt==TT_FULL) str="full rank tensor";
+       	if (tt==TT_2D) str="low rank tensor 2-way";
+       	if (tt==TT_NONE) str="no tensor type specified";
+       	s << str.c_str();
+        return s;
+    }
+
 
 
     /// A tensor is a multidimension array

@@ -36,8 +36,8 @@
 
 #include "tensor/tensor.h"
 #include "tensor/srconf.h"
-#include <linalg/clapack.h>
-#include <linalg/tensor_lapack.h>
+#include <tensor/clapack.h>
+#include <tensor/tensor_lapack.h>
 #include <fortran_ctypes.h>
 
 

@@ -40,7 +40,7 @@
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>
-#include <linalg/solvers.h>
+#include <tensor/solvers.h>
 #include <mra/qmprop.h>
 #include <ctime>
 #include <list>

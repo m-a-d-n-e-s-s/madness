@@ -5270,7 +5270,7 @@ namespace madness {
 
             // for accumulation: keep slightly tighter TensorArgs
             TensorArgs apply_targs(targs);
-            apply_targs.thresh=tol/fac*0.1;
+            apply_targs.thresh=tol/fac*0.03;
 
             double maxnorm=0.0;
             // for the kernel it may be more efficient to do the convolution in full rank
@@ -6165,9 +6165,17 @@ namespace madness {
             const double d=sizeof(T);
             const double fac=1024*1024*1024;
 
+            double norm=0.0;
+            {
+                double local = norm2sq_local();
+                this->world.gop.sum(local);
+                this->world.gop.fence();
+                norm=sqrt(local);
+            }
+
             if (this->world.rank()==0) {
-                printf("%s at time %.1fs: tree/real/size: %zu, %6.3f, %6.3f GByte\n",
-                		(name.c_str()), wall, tsize,double(rsize)/fac,double(size)/fac*d);
+                printf("%s at time %.1fs: norm/tree/real/size: %7.5f %zu, %6.3f, %6.3f GByte\n",
+                		(name.c_str()), wall, norm, tsize,double(rsize)/fac,double(size)/fac*d);
             }
         }
 

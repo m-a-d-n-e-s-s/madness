@@ -34,7 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <cmath>
-#include <linalg/cblas.h>
+#include <tensor/cblas.h>
 
 #ifdef __bgp__
 extern "C" {

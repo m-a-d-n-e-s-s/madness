@@ -37,7 +37,7 @@
 #include <mra/sdf_shape_3D.h>
 #include <constants.h>
 #include <misc/interpolation_1d.h>
-#include <linalg/gmres.h>
+#include <tensor/gmres.h>
 #include "envelopedpulse.h"
 #include "frequencyhandler.h"
 #include "complex_fun.h"

@@ -36,7 +36,7 @@
 #include <tensor/tensor.h>
 #include <world/print.h>
 #include <iostream>
-#include <linalg/tensor_lapack.h>
+#include <tensor/tensor_lapack.h>
 
 /*!
   \file solvers.h
