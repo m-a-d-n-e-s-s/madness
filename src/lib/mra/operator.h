@@ -1537,7 +1537,7 @@ namespace madness {
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
 
-        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+        GFit<double,NDIM> fit=GFit<double,NDIM>::BSHFit(mu,lo,hi,eps,false);
 		Tensor<double> coeff=fit.coeffs();
 		Tensor<double> expnt=fit.exponents();
 
