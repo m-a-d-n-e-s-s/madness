@@ -395,30 +395,30 @@ static tensorT Q3(const tensorT& s) {
     return Q.scale(15.0/8.0);
 }
 
-/// Computes matrix square root (not used any more?)
-static tensorT sqrt(const tensorT& s, double tol=1e-8) {
-    int n=s.dim(0), m=s.dim(1);
-    MADNESS_ASSERT(n==m);
-    tensorT c, e;
-    //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
-    syev(s, c, e);
-    for (int i=0; i<n; ++i) {
-        if (e(i) < -tol) {
-            MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
-        }
-        else if (e(i) < tol) { // Ugh ..
-            print("Matrix square root: Warning: small eigenvalue ", i, e(i));
-            e(i) = tol;
-        }
-        e(i) = 1.0/sqrt(e(i));
-    }
-    for (int j=0; j<n; ++j) {
-        for (int i=0; i<n; ++i) {
-            c(j,i) *= e(i);
-        }
-    }
-    return c;
-}
+///// Computes matrix square root (not used any more?)
+//static tensorT sqrt(const tensorT& s, double tol=1e-8) {
+//    int n=s.dim(0), m=s.dim(1);
+//    MADNESS_ASSERT(n==m);
+//    tensorT c, e;
+//    //s.gaxpy(0.5,transpose(s),0.5); // Ensure exact symmetry
+//    syev(s, c, e);
+//    for (int i=0; i<n; ++i) {
+//        if (e(i) < -tol) {
+//            MADNESS_EXCEPTION("Matrix square root: negative eigenvalue",i);
+//        }
+//        else if (e(i) < tol) { // Ugh ..
+//            print("Matrix square root: Warning: small eigenvalue ", i, e(i));
+//            e(i) = tol;
+//        }
+//        e(i) = 1.0/sqrt(e(i));
+//    }
+//    for (int j=0; j<n; ++j) {
+//        for (int i=0; i<n; ++i) {
+//            c(j,i) *= e(i);
+//        }
+//    }
+//    return c;
+//}
 
 template <typename T, int NDIM>
 struct lbcost {

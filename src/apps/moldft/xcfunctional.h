@@ -107,7 +107,7 @@ protected:
         // rho(x) --> p(rho(x))
         // d/dx p(rho(x)) --> dp/drho * drho/dx
         //if (sigma < 0.0) sigma = 0.0;
-        double p;
+//        double p;
         if (rho <= 1e-12) rho=1e-22;
         if (rho <= 1e-12|| sigma <= 1e-22)  sigma=1e-9;
       //  polyn(rho, p);
