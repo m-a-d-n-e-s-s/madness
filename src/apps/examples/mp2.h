@@ -751,6 +751,7 @@ namespace madness {
         	int i=pair.i, j=pair.j;
         	std::string name1="pair_"+stringify(i)+stringify(j)+"_Rpsi1_converged";
             save_function(Rpair,name1);
+            return Rpair;
         }
 
 		/// compute increments: psi^1 = C + GV C + GVGV C + GVGVGV C + ..
@@ -851,7 +852,7 @@ namespace madness {
             //  < ij | fg | kl >
             const real_function_3d ik_fg=(gg)(ik) - fourpi*fg(ik);
             const double a=inner(ik_fg,jl)/(2.0*corrfac.gamma());
-            if (world.rank()==0) printf("<%d%d | f/r              | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,a);
+            if (world.rank()==0) printf("<%d%d | f/r              | %d%d>  %12.8f\n",i,j,k,l,a);
 
 
             // compute <ij| f (O1 + O2) g | ij>
@@ -873,9 +874,7 @@ namespace madness {
             //   = \sum_m < chi^f_i*,m(2) j*(2) | chi^g_k,m*(2) l(2) >
             //   = \sum_m < xi^f_im,j | xi^g_km,l >
             const double o1a=inner(world,xi_ij_f_bra,xi_ij_g_ket).sum();
-//            const Tensor<double> o1b=inner(world,xi_ij_f_bra,xi_ji_g_ket);
-//            const double o1=0.5*(o1a.sum()+o1b.sum());
-            if (world.rank()==0) printf("< ij | f12 O1 g12      | ij > %12.8f\n",o1a);
+            if (world.rank()==0) printf("<%d%d | f12 O1 g12       | %d%d>  %12.8f\n",i,j,k,l,o1a);
 
 
             // < ij | f12 O2 g12 | kl >
@@ -883,120 +882,18 @@ namespace madness {
             //    = \sum_m <chi^f_j*,m(1) i*(1) | chi^g_l,m*(1) k(1) >
             //    = \sum_m < xi^f_jm,i | xi^g_lm,k >
             const double o2a=inner(world,xi_ji_f_bra,xi_ji_g_ket).sum();
-//            const Tensor<double> o2b=inner(world,xi_ji_f_bra,xi_ij_g_ket);
-//            const double o2=0.5*(o2a.sum()+o2b.sum());
-            if (world.rank()==0) printf("< ij | f12 O2 g12      | ij > %12.8f\n",o2a);
+            if (world.rank()==0) printf("<%d%d | f12 O2 g12       | %d%d>  %12.8f\n",i,j,k,l,o2a);
 
 
-            // compute <ij| f O1 O2 g | kl>
-            const Tensor<double> f_ijmn = matrix_inner(world,xi_ji_f_bra,hf->nemos());
+            // compute <ij| f O1 O2 g | kl>  // why do I need to swap ij in g_ijkl??
+            const Tensor<double> f_ijmn = matrix_inner(world,xi_ij_f_bra,hf->nemos());
             const Tensor<double> g_ijmn = matrix_inner(world,hf->R2orbitals(),xi_ji_g_ket);
             const double o12=f_ijmn.trace(g_ijmn);
-            if (world.rank()==0) printf("< ij | f12 O12 g12     | ij > %12.8f\n",o12);
+            if (world.rank()==0) printf("<%d%d | f12 O12 g12      | %d%d>  %12.8f\n",i,j,k,l,o12);
+
 
             const double e=a-o1a-o2a+o12;
-            if (world.rank()==0) printf("<%d%d | g Q12 f          | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,e);
-
-            return e;
-        }
-
-        /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
-
-        /// as for the formulas cf the article mra_molecule
-        /// @return 	the energy <ij | g Q f | kl>
-        double compute_gQf_slow(const int i, const int j, ElectronPair& pair) const {
-
-        	// for clarity of notation
-        	const int k=pair.i;
-        	const int l=pair.j;
-
-        	// the ket space
-            const real_function_3d& phi_i=hf->nemo(i);
-            const real_function_3d& phi_j=hf->nemo(j);
-
-            // the bra space
-            const real_function_3d& phi_k=hf->R2orbital(k);
-            const real_function_3d& phi_l=hf->R2orbital(l);
-
-            // compute ket space: f12 | ij >
-            real_function_6d r12nemo=CompositeFactory<double,6,3>(world).g12(corrfac.f())
-                     .particle1(copy(phi_i)).particle2(copy(phi_j));
-            r12nemo.fill_tree();
-
-            // compute <ij| fg |kl>: do it in 3D as (ik| fg |jl)
-            // the operator fg can be rewritten as 1/r12 - f/r12
-            // i.e. as poisson kernel and a bsh kernel. Note the
-            // the bsh kernel includes a factor of 1/(4 pi)
-            const real_function_3d ik=phi_i*phi_k;
-            const real_function_3d jl=phi_j*phi_l;
-
-            const double fourpi=4.0*constants::pi;
-            real_convolution_3d fg = BSHOperator<3>(world, corrfac.gamma(), lo, bsh_eps/fourpi);
-            real_convolution_3d gg = CoulombOperator(world,lo,bsh_eps);
-            const real_function_3d ik_fg=(gg)(ik) - fourpi*fg(ik);
-            const double a=inner(ik_fg,jl)/(2.0*corrfac.gamma());
-
-            if (world.rank()==0) printf("<%d%d | f/r              | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,a);
-
-
-            // flotest
-            real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(), lo, bsh_eps/fourpi);
-            const double aaa=inner(ik,slaterf12(jl));
-            if (world.rank()==0) printf("<%d%d | f                | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,aaa);
-
-            // flotest
-
-            // compute <ij| g O f | ij>
-
-            // compute bra space xi(ik,j)^dagger, i.e. the hermitian conjugate of xi
-            std::vector<real_function_3d> xi_ij=make_xi(phi_k,phi_l,*poisson,true);       // xi_{ki},j
-            std::vector<real_function_3d> xi_ji=make_xi(phi_l,phi_k,*poisson,true);       // xi_{kj},i
-            if (world.rank()==0) printf("<k xi(ik,j) | f        | kl>\n");
-            double b=0.0;
-            for (int kk=0; kk<hf->nocc(); ++kk) {
-
-            	// r12nemo is ket space, tmp1 is bra space
-                const real_function_3d& phi_kk=hf->R2orbital(kk);
-                real_function_6d tmp1=CompositeFactory<double,6,3>(world)
-                                        .particle1(copy(phi_kk))
-                                        .particle2(copy(xi_ij[kk]));
-                const double b1=inner(r12nemo,tmp1);
-                if (world.rank()==0) printf("<%d xi(%d%d,%d) | f        | %d%d>  %12.8f b1\n",kk,i,kk,j,k,l,b1);
-
-                real_function_6d tmp3=CompositeFactory<double,6,3>(world)
-                						.particle1(copy(xi_ji[kk]))
-                						.particle2(copy(phi_kk));
-                const double b3=inner(r12nemo,tmp3);
-                if (world.rank()==0) printf("<%d xi(%d%d,%d) | f        | %d%d>  %12.8f b3\n",j,kk,i,kk,k,l,b3);
-
-
-                b+=b1+b3;
-            }
-            if (world.rank()==0) printf("<%d%d | g (O1+O2) f      | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,b);
-
-            // compute <ij| g O1O2 f |ij>
-            double c=0.0;
-            for (int kk=0; kk<hf->nocc(); ++kk) {
-            	for (int ll=0; ll<hf->nocc(); ++ll) {
-                    const real_function_3d& phi_kk=hf->R2orbital(kk);
-                    const real_function_3d& phi_ll=hf->R2orbital(ll);
-                    const real_function_3d& phi_ll_ket=hf->nemo(ll);
-
-                    const double g_ijkl=inner(xi_ij[kk],phi_ll_ket);
-                    if (world.rank()==0) printf("<%d%d | g                | %d%d>  %12.8f\n",kk,ll,i,j,g_ijkl);
-                    real_function_6d tmp2=CompositeFactory<double,6,3>(world)
-                                            .particle1(copy(phi_kk))
-                                            .particle2(copy(phi_ll));
-                    const double f_ijkl=inner(r12nemo,tmp2);
-                    if (world.rank()==0) printf("<%d%d | f                | %d%d>  %12.8f\n",kk,ll,i,j,f_ijkl);
-                    c+=g_ijkl*f_ijkl;
-                }
-            }
-
-            if (world.rank()==0) printf("<%d%d | g O1 O2 f        | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,c);
-
-            const double e=a-b+c;
-            if (world.rank()==0) printf("<%d%d | g Q12 f          | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,e);
+            if (world.rank()==0) printf("<%d%d | g Q12 f          | %d%d>  %12.8f\n",i,j,k,l,e);
 
             return e;
         }

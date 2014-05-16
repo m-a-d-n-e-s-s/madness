@@ -152,6 +152,15 @@ private:
 	/// the exponents of the expansion f(x) = \sum_m coeffs[m] exp(-exponents[m] * x^2)
 	Tensor<T> exponents_;
 
+	/// fit the function exp(-mu r)/r
+
+	/// formulas taken from
+	/// G. Beylkin and L. Monzon, ÒOn approximation of functions by exponential sums,Ó
+	/// Appl Comput Harmon A, vol. 19, no. 1, pp. 17Ð48, Jul. 2005.
+	/// and
+	/// R. J. Harrison, G. I. Fann, T. Yanai, and G. Beylkin,
+	/// ÒMultiresolution Quantum Chemistry in Multiwavelet Bases,Ó
+	/// Lecture Notes in Computer Science, vol. 2660, p. 707, 2003.
 	static void bsh_fit(double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
@@ -331,6 +340,11 @@ private:
 	}
 
 	/// fit a Slater function using a sum of Gaussians
+
+	/// formula inspired by the BSH fit, with the roles of r and mu exchanged
+	/// see also Eq. (A3) in
+	/// S. Ten-no, ÒInitiation of explicitly correlated Slater-type geminal theory,Ó
+	/// Chem. Phys. Lett., vol. 398, no. 1, pp. 56Ð61, 2004.
 	static void slater_fit(double gamma, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
