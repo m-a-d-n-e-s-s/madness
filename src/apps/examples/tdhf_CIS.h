@@ -166,7 +166,8 @@ public:
   fixed_point_(false),
   fock_(true),
   guess_save_(false),
-  noise_(false){
+  noise_(false),
+  hf_(false){
 
 
 		omega_=std::vector<double>(9,100.0);
@@ -197,6 +198,7 @@ public:
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
 			else if (tag == "guess_save") guess_save_=true;
+			else if (tag == "hf") hf_=true;
 			else if (tag == "omega0") ss >> omega_[0];
 			else if (tag == "omega1") ss >> omega_[1];
 			else if (tag == "omega2") ss >> omega_[2];
@@ -352,6 +354,9 @@ private:
 
 	/// Add noise to the guess
 	bool noise_;
+
+	/// Compute only Hartree Fock (for later restarts)
+	bool hf_;
 
 	double lo;
 

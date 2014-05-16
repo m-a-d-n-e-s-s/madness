@@ -9,8 +9,8 @@ bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo
-
+ tdhf nemo harmonic hydrogena hf
+ 
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
@@ -22,6 +22,12 @@ oep_SOURCES = oep.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularb
 
 tiny_SOURCES = tiny.cc
 
+hf_SOURCES = hf.cc
+
+harmonic_SOURCES = harmonic.cc
+
+hydrogena_SOURCES = hydrogena.cc
+
 dataloadbal_SOURCES = dataloadbal.cc
 
 dielectric_external_field_SOURCES = dielectric_external_field.cc
@@ -30,7 +36,7 @@ testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
 
-tdhf_SOURCES = tdhf.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
+tdhf_SOURCES = tdhf.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc tdhf_CIS.cc
 
 nemo_SOURCES = nemo.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
 

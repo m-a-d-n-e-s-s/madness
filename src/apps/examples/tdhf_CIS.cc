@@ -7,6 +7,7 @@
 
 #include <examples/tdhf_CIS.h>
 
+using namespace madness;
 /// Print information of root vector
 void CIS::print_roots(const std::vector<root> &roots) const{
 
@@ -45,44 +46,15 @@ void CIS::solve() {
 	loose.econv=guess_econv_;
 	loose.dconv=guess_dconv_;
 	loose.fock=true;
+	prec MO_guess;
+	MO_guess.thresh=guess_thresh_;
+	MO_guess.econv=guess_econv_;
+	MO_guess.dconv=guess_dconv_;
+	MO_guess.fock=false;
 
 	set_prot(world,loose);
 
-	/*if(guess_ == "physical"){
-
-		if(world.rank()==0)print("Starting Solve with lose convergence and Fock-Matrix update without solver");
-		if(world.rank()==0)print("Guess is physical: x,y,z,r");
-
-		int iterations = 5;
-
-		// Create first 3 Guess fuctions (MO*x,y,z) and iterate them 5 times
-		START_TIMER(world);
-		std::vector<root> guess = guess_big();
-		END_TIMER(world,"Guess Calculation");
-		std::vector<root> roots;
-		for(int i=0;i<3;i++){roots.push_back(guess[i]);}
-		orthonormalize(world,roots);
-		solve_internal_par(0,roots,0,3,iterations);
-
-		// Create the 4th guess_function and iterate 5 times
-		roots.push_back(guess[3]);
-		orthonormalize(world,roots);
-		solve_internal_par(0,roots,3,4,iterations);
-
-		// iterate the first 4 guess functions
-		solve_internal_par(0,roots,0,4,10);
-
-		// Create the next 3+1 guess functions and pre iterate 5 times
-		for(int i=0;i<3;i++){roots.push_back(guess[i]);}
-		orthonormalize(world,roots);
-		solve_internal_par(0,roots,4,7,iterations);
-		roots.push_back(guess[3]);
-		orthonormalize(world,roots);
-		solve_internal_par(0,roots,7,8,iterations);
-	}//*/
-
 	std::vector<root> roots = initialize_roots();
-
 
 	// Pre iteration with loose prec,
 	if(guess_ == "physical"){
@@ -90,9 +62,21 @@ void CIS::solve() {
 	solve_internal_par(0,roots,0,8,5);
 	}
 
+	if(guess_ != "MO"){
 	// Iterate only the roots of interest + guess_roots_ till convergence
 	// Default for guess_roots_ is 8, this could take long for big molecules
 	solve_internal_par(0,roots,0,guess_roots_,guess_iter_);
+	}
+
+	if(guess_ == "MO"){
+	// Damp the Energy Update in the beginning (set it back to the guess)
+	double initial_guess_energy = roots[0].omega;
+	set_prot(world,MO_guess);
+	for(int i=0;i<guess_iter_;i++){
+		solve_internal_par(0,roots,0,1,1);
+		roots[0].omega=initial_guess_energy;
+		}
+	}
 
 	//change to tight convergence criteria and second order update
 	set_prot(world,tight);
@@ -258,6 +242,33 @@ std::vector<root> CIS::initialize_roots(){
 	// The guess roots
 	std::vector<root> guess_roots=guess_big();
 
+	// Simplest guess: Start with the MOs
+	//(Only if just one root will be optimized, else the roots can not be othogonal)
+	if(guess_ == "MO"){
+		if(nroot_ != 1)print("Guess = MO and more than one root to optimize will not work!!!!!");
+		root tmp(world);
+		//for(size_t i=0;i<get_calc().ao.size();i++){
+		//	tmp.x.push_back(get_calc().ao[i]);
+		//}
+
+		real_function_3d all_orbitals=real_factory_3d(world);
+		for (std::size_t ivir=0; ivir<get_calc().ao.size(); ++ivir) {
+			all_orbitals+=get_calc().ao[ivir];
+		}
+		const std::size_t nmo=get_calc().amo.size();
+		for(int i=0;i<nmo;i++){tmp.x.push_back(all_orbitals);}
+
+
+		tmp.omega = -0.9*get_calc().aeps(nmo-1);
+		roots.push_back(tmp);
+
+		std::vector<root> debug;
+		debug.push_back(guess_roots[0]);
+		normalize(world,roots[0]);
+		orthonormalize(world,roots);
+		return roots;
+		print("should not be here");
+	}
 
 	// Read saved roots from previous calculations
 	if(guess_ == "read"){
@@ -639,8 +650,6 @@ bool CIS::iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
 	//Iterate theif(guess==true) iter_max=guess_iter_hf_;
 	for (int iter=0; iter<iter_max; ++iter) {
 
-		// Add Noise if demanded
-		if(noise_==true){add_noise(roots);}
 
 		std::vector<double> error(end_root- start_root);
 		// print progress on the computation
@@ -1210,5 +1219,4 @@ const vecfuncT CIS::active_mo() const {
 	for (int i=nfreeze_; i<amo.size(); ++i) actmo.push_back(amo[i]);
 	return actmo;
 }
-
 
