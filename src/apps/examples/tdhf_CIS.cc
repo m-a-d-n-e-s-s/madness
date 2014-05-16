@@ -14,7 +14,8 @@ void CIS::print_roots(const std::vector<root> &roots) const{
 	if (world.rank()==0) {
 		print(" root   excitation energy   energy correction     error		converged");
 		for(size_t i=0;i<roots.size();i++){
-			std::cout << " " << i << " " ;
+			// $ for better grep
+			std::cout << " $ " << i << " $ " ;
 			print_root(roots[i]);
 			std::cout << std::endl;
 		}
@@ -68,15 +69,6 @@ void CIS::solve() {
 	solve_internal_par(0,roots,0,guess_roots_,guess_iter_);
 	}
 
-	if(guess_ == "MO"){
-	// Damp the Energy Update in the beginning (set it back to the guess)
-	double initial_guess_energy = roots[0].omega;
-	set_prot(world,MO_guess);
-	for(int i=0;i<guess_iter_;i++){
-		solve_internal_par(0,roots,0,1,1);
-		roots[0].omega=initial_guess_energy;
-		}
-	}
 
 	//change to tight convergence criteria and second order update
 	set_prot(world,tight);
@@ -245,35 +237,42 @@ std::vector<root> CIS::initialize_roots(){
 	// Simplest guess: Start with the MOs
 	//(Only if just one root will be optimized, else the roots can not be othogonal)
 	if(guess_ == "MO"){
-		if(nroot_ != 1)print("Guess = MO and more than one root to optimize will not work!!!!!");
-		root tmp(world);
-		//for(size_t i=0;i<get_calc().ao.size();i++){
-		//	tmp.x.push_back(get_calc().ao[i]);
-		//}
+		// for convenience
+		root all_orbitals_root(world);
+		all_orbitals_root.amplitudes_=std::vector<double>(nmo,1.0);
+		// Create the all_orbitals guess
 
 		real_function_3d all_orbitals=real_factory_3d(world);
 		for (std::size_t ivir=0; ivir<get_calc().ao.size(); ++ivir) {
 			all_orbitals+=get_calc().ao[ivir];
 		}
-		const std::size_t nmo=get_calc().amo.size();
-		for(int i=0;i<nmo;i++){tmp.x.push_back(all_orbitals);}
 
 
-		tmp.omega = -0.9*get_calc().aeps(nmo-1);
-		roots.push_back(tmp);
+		for(size_t i=nfreeze_;i<nmo;i++){
 
-		std::vector<root> debug;
-		debug.push_back(guess_roots[0]);
-		normalize(world,roots[0]);
-		orthonormalize(world,roots);
+			real_function_3d tmp = all_orbitals;
+			double norm = tmp.norm2();
+			tmp.scale(1.0/norm);
+			all_orbitals_root.x.push_back(copy(tmp));
+			if(plot_==true) plot_plane(world,tmp,"MO_guess_"+stringify(i));
+		}
+		all_orbitals_root.omega = -0.9*get_calc().aeps(nmo-1);
+
+
+		// Preoptimize the all_orbital guess one by one
+		for(int i=0;i<guess_roots_;i++){
+			roots.push_back(all_orbitals_root);
+			if(i>0) roots[i].omega = roots[i-1].omega;
+			solve_internal_par(0,roots,0,roots.size(),guess_iter_);
+
+		}
 		return roots;
-		print("should not be here");
 	}
 
 	// Read saved roots from previous calculations
 	if(guess_ == "read"){
-		for(int iroot=0;iroot<nroot_;iroot++){
-			if(world.rank()==0) print("Trying to load root ",iroot," out of ",nroot_," roots");
+		for(int iroot=0;iroot<guess_roots_;iroot++){
+			if(world.rank()==0) print("Trying to load root ",iroot," out of ",guess_roots_," roots");
 			root tmp(world); bool check=false;
 			// Correct size of X-Vector is necessary for the load_root function
 			tmp.x.resize(noct);

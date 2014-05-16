@@ -188,6 +188,7 @@ public:
 			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "guess_dconv") ss >> guess_dconv_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
+			else if (tag == "guess_roots") ss >> guess_roots_;
 			else if (tag == "thresh") ss >> thresh_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
