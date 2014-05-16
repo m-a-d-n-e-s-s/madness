@@ -817,9 +817,94 @@ namespace madness {
 		
         /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
+        /// scales quartically. I think I can get this down to cubically by
+        /// setting Q12 = (1 - O1)(1 - O2) = 1- O1(1 - 0.5 O2) - O2 (1 - 0.5 O1)
         /// as for the formulas cf the article mra_molecule
         /// @return 	the energy <ij | g Q f | kl>
         double compute_gQf(const int i, const int j, ElectronPair& pair) const {
+
+        	// for clarity of notation
+        	const int k=pair.i;
+        	const int l=pair.j;
+
+        	// the ket space
+            const real_function_3d& ket_i=hf->nemo(i);
+            const real_function_3d& ket_j=hf->nemo(j);
+
+            // the bra space
+            const real_function_3d& bra_k=hf->R2orbital(k);
+            const real_function_3d& bra_l=hf->R2orbital(l);
+
+            // compute <ij| fg |kl>: do it in 3D as (ik| fg |jl)
+            // the operator fg can be rewritten as 1/r12 - f/r12
+            // i.e. as poisson kernel and a bsh kernel. Note the
+            // the bsh kernel includes a factor of 1/(4 pi)
+            const real_function_3d ik=ket_i*bra_k;
+            const real_function_3d jl=ket_j*bra_l;
+
+            // make all the operators that we need
+            const double fourpi=4.0*constants::pi;
+            real_convolution_3d fg = BSHOperator<3>(world, corrfac.gamma(), lo, bsh_eps/fourpi);
+            real_convolution_3d gg = CoulombOperator(world,lo,bsh_eps);
+            real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(), lo, bsh_eps/fourpi);
+
+            //  < ij | fg | kl >
+            const real_function_3d ik_fg=(gg)(ik) - fourpi*fg(ik);
+            const double a=inner(ik_fg,jl)/(2.0*corrfac.gamma());
+            if (world.rank()==0) printf("<%d%d | f/r              | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,a);
+
+
+            // compute <ij| f (O1 + O2) g | ij>
+
+            // compute bra space xi(ik,j)^dagger, i.e. the hermitian conjugate of xi
+            // the index k is implicit in the vector of functions
+            // naming: xi _ orbitals _ operator _ hc
+            std::vector<real_function_3d> xi_ij_g_ket=make_xi(ket_i,ket_j,*poisson,false);       // xi_{i,m*},j
+            std::vector<real_function_3d> xi_ji_g_ket=make_xi(ket_j,ket_i,*poisson,false);       // xi_{j,m*},i
+
+            std::vector<real_function_3d> xi_ij_f_bra=make_xi(bra_k,bra_l,slaterf12,true);       // xi_{i*,m},j*
+            std::vector<real_function_3d> xi_ji_f_bra=make_xi(bra_l,bra_k,slaterf12,true);       // xi_{j*,m},i*
+
+            // in the following do NOT use antisymmetrized pair functions:
+            // |ij> -> 0.5 |ij - ji>
+
+            // < ij | f12 O1 g12 | kl >
+            //   = \sum_m <i(1) j(2) | f12 | m(1) >< m(3) | g23 | k(3) l(2)>
+            //   = \sum_m < chi^f_i*,m(2) j*(2) | chi^g_k,m*(2) l(2) >
+            //   = \sum_m < xi^f_im,j | xi^g_km,l >
+            const double o1a=inner(world,xi_ij_f_bra,xi_ij_g_ket).sum();
+//            const Tensor<double> o1b=inner(world,xi_ij_f_bra,xi_ji_g_ket);
+//            const double o1=0.5*(o1a.sum()+o1b.sum());
+            if (world.rank()==0) printf("< ij | f12 O1 g12      | ij > %12.8f\n",o1a);
+
+
+            // < ij | f12 O2 g12 | kl >
+            //    = \sum_m <i(1) j(2) | f12 | m(2) >< m(3) | g13 | k(1) l(3)>
+            //    = \sum_m <chi^f_j*,m(1) i*(1) | chi^g_l,m*(1) k(1) >
+            //    = \sum_m < xi^f_jm,i | xi^g_lm,k >
+            const double o2a=inner(world,xi_ji_f_bra,xi_ji_g_ket).sum();
+//            const Tensor<double> o2b=inner(world,xi_ji_f_bra,xi_ij_g_ket);
+//            const double o2=0.5*(o2a.sum()+o2b.sum());
+            if (world.rank()==0) printf("< ij | f12 O2 g12      | ij > %12.8f\n",o2a);
+
+
+            // compute <ij| f O1 O2 g | kl>
+            const Tensor<double> f_ijmn = matrix_inner(world,xi_ji_f_bra,hf->nemos());
+            const Tensor<double> g_ijmn = matrix_inner(world,hf->R2orbitals(),xi_ji_g_ket);
+            const double o12=f_ijmn.trace(g_ijmn);
+            if (world.rank()==0) printf("< ij | f12 O12 g12     | ij > %12.8f\n",o12);
+
+            const double e=a-o1a-o2a+o12;
+            if (world.rank()==0) printf("<%d%d | g Q12 f          | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,e);
+
+            return e;
+        }
+
+        /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
+
+        /// as for the formulas cf the article mra_molecule
+        /// @return 	the energy <ij | g Q f | kl>
+        double compute_gQf_slow(const int i, const int j, ElectronPair& pair) const {
 
         	// for clarity of notation
         	const int k=pair.i;
@@ -853,11 +938,19 @@ namespace madness {
 
             if (world.rank()==0) printf("<%d%d | f/r              | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,a);
 
+
+            // flotest
+            real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(), lo, bsh_eps/fourpi);
+            const double aaa=inner(ik,slaterf12(jl));
+            if (world.rank()==0) printf("<%d%d | f                | %d%d>  %12.8f <ij| . |ij>\n",i,j,k,l,aaa);
+
+            // flotest
+
             // compute <ij| g O f | ij>
 
             // compute bra space xi(ik,j)^dagger, i.e. the hermitian conjugate of xi
-            std::vector<real_function_3d> xi_ij=make_xi(phi_k,phi_l,true);       // xi_{ki},j
-            std::vector<real_function_3d> xi_ji=make_xi(phi_l,phi_k,true);       // xi_{kj},i
+            std::vector<real_function_3d> xi_ij=make_xi(phi_k,phi_l,*poisson,true);       // xi_{ki},j
+            std::vector<real_function_3d> xi_ji=make_xi(phi_l,phi_k,*poisson,true);       // xi_{kj},i
             if (world.rank()==0) printf("<k xi(ik,j) | f        | kl>\n");
             double b=0.0;
             for (int kk=0; kk<hf->nocc(); ++kk) {
@@ -1070,47 +1163,47 @@ namespace madness {
 				if (not intermediates.Kfphi0.empty()) {
 					load_function(Kfphi0,intermediates.Kfphi0);
 				} else {
-//					Kfphi0=K(r12nemo,i==j);
+					Kfphi0=K(r12nemo,i==j);
 
-					const real_function_3d& phi_i=hf->nemo(i);
-					const real_function_3d& phi_j=hf->nemo(j);
-
-					real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
-					op.particle()=1;
-
-					real_convolution_3d op_mod=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
-	                op_mod.modified()=true;
-
-					real_function_6d result=real_factory_6d(world);
-					for (int k=0; k<hf->nocc(); ++k) {
-						const real_function_3d& phi_k_bra=hf->R2orbital(k);
-						const real_function_3d& phi_k_ket=hf->nemo(k);
-						real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
-								.g12(corrfac.f())
-								.particle1(copy(phi_i*phi_k_bra))
-								.particle2(copy(phi_j));
-						f_ijk.fill_tree(op_mod).truncate();
-						real_function_6d x=op(f_ijk).truncate();
-			            result+=multiply(copy(x),copy(phi_k_ket),1).truncate();
-					}
-
-					if (i==j) {
-						result+=swap_particles(result);
-					} else {
-						op.particle()=2;
-						for (int k=0; k<hf->nocc(); ++k) {
-							const real_function_3d& phi_k_bra=hf->R2orbital(k);
-							const real_function_3d& phi_k_ket=hf->nemo(k);
-							real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
-									.g12(corrfac.f())
-									.particle1(copy(phi_i))
-									.particle2(copy(phi_j*phi_k_bra));
-							f_ijk.fill_tree(op_mod).truncate();
-							real_function_6d x=op(f_ijk).truncate();
-				            result+=multiply(copy(x),copy(phi_k_ket),2).truncate();
-						}
-					}
-					Kfphi0=result;
+//					const real_function_3d& phi_i=hf->nemo(i);
+//					const real_function_3d& phi_j=hf->nemo(j);
+//
+//					real_convolution_3d op=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+//					op.particle()=1;
+//
+//					real_convolution_3d op_mod=CoulombOperator(world,0.0001,hf->get_calc().param.econv);
+//	                op_mod.modified()=true;
+//
+//					real_function_6d result=real_factory_6d(world);
+//					for (int k=0; k<hf->nocc(); ++k) {
+//						const real_function_3d& phi_k_bra=hf->R2orbital(k);
+//						const real_function_3d& phi_k_ket=hf->nemo(k);
+//						real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+//								.g12(corrfac.f())
+//								.particle1(copy(phi_i*phi_k_bra))
+//								.particle2(copy(phi_j));
+//						f_ijk.fill_tree(op_mod).truncate();
+//						real_function_6d x=op(f_ijk).truncate();
+//			            result+=multiply(copy(x),copy(phi_k_ket),1).truncate();
+//					}
+//
+//					if (i==j) {
+//						result+=swap_particles(result);
+//					} else {
+//						op.particle()=2;
+//						for (int k=0; k<hf->nocc(); ++k) {
+//							const real_function_3d& phi_k_bra=hf->R2orbital(k);
+//							const real_function_3d& phi_k_ket=hf->nemo(k);
+//							real_function_6d f_ijk=CompositeFactory<double,6,3>(world)
+//									.g12(corrfac.f())
+//									.particle1(copy(phi_i))
+//									.particle2(copy(phi_j*phi_k_bra));
+//							f_ijk.fill_tree(op_mod).truncate();
+//							real_function_6d x=op(f_ijk).truncate();
+//				            result+=multiply(copy(x),copy(phi_k_ket),2).truncate();
+//						}
+//					}
+//					Kfphi0=result;
 				}
 
 				{
@@ -1151,19 +1244,19 @@ namespace madness {
         ElectronPair make_pair(const int i, const int j) const {
 
             ElectronPair p=ElectronPair(i,j);
-			p.load_pair(world);
+            p.load_pair(world);
 
-            // some functions repeatedly used
-            if (intermediates.r12phi.empty()) {
-                p.r12phi=CompositeFactory<double,6,3>(world)
-                            .g12(corrfac.f())
-                            .particle1(copy(hf->orbital(i)))
-                            .particle2(copy(hf->orbital(j)));
-                p.r12phi.fill_tree().truncate().reduce_rank();
-                save_function(p.r12phi,"r12phi");
-            } else {
-            	load_function(p.r12phi,intermediates.r12phi);
-            }
+//            // some functions repeatedly used
+//            if (intermediates.r12phi.empty()) {
+//                p.r12phi=CompositeFactory<double,6,3>(world)
+//                            .g12(corrfac.f())
+//                            .particle1(copy(hf->orbital(i)))
+//                            .particle2(copy(hf->orbital(j)));
+//                p.r12phi.fill_tree().truncate().reduce_rank();
+//                save_function(p.r12phi,"r12phi");
+//            } else {
+//            	load_function(p.r12phi,intermediates.r12phi);
+//            }
 
             // compute and store them if they have not been read from disk
             if (p.ij_gQf_ij==ElectronPair::uninitialized()) {
@@ -1226,22 +1319,27 @@ namespace madness {
 
 			// compute the matrix elements h(kl) = <k(1) l(2) | [H,f] + 1/r12 | phi0 >
 			Tensor<double> h(hf->nocc(),hf->nocc());
+            const double fourpi=4.0*constants::pi;
+            real_convolution_3d slaterf12 = SlaterF12Operator(world, corrfac.gamma(), lo, bsh_eps/fourpi);
+
 			for (int k=0; k<hf->nocc(); ++k) {
 
 	            // for the matrix element <ij|kl> = (ik|jl)
 	            const real_function_3d ik=hf->orbital(i)*hf->orbital(k);
 	            const real_function_3d gik=(*poisson)(ik).truncate();
+	            const real_function_3d fik=slaterf12(ik).truncate();
 
 	            // the function Of(2) = <k(1) | f12 | phi0 >
-	            const real_function_3d Of=pair.r12phi.project_out(hf->orbital(k),0);
+//	            const real_function_3d Of=pair.r12phi.project_out(hf->orbital(k),0);
 
 				for (int l=0; l<hf->nocc(); ++l) {
 
 					const real_function_3d jl=hf->orbital(j)*hf->orbital(l);
 		            const double g_ijkl=inner(jl,gik);
+		            const double f_ijkl=inner(jl,fik);
 
 		            // the matrix element <kl | f12 | ij>
-		            const double f_ijkl=inner(hf->orbital(l),Of);
+//		            const double f_ijkl=inner(hf->orbital(l),Of);
                     const double e_kl=zeroth_order_energy(k,l);
                     const double e_ij=zeroth_order_energy(i,j);
 
@@ -1320,7 +1418,7 @@ namespace madness {
             if (world.rank()==0) printf("V2: <phi^0 | J-K        | psi^1>  %12.8f\n",a11);
 
             // this will be the bra space
-            real_function_6d eri=ERIFactory<double,6>(world).dcut(dcut);
+            real_function_6d eri=TwoElectronFactory(world).dcut(dcut);
             real_function_6d ij_g=CompositeFactory<double,6,3>(world)
 						.particle1(copy(hf->R2orbital(pair.i)))
 						.particle2(copy(hf->R2orbital(pair.j)))
@@ -1451,12 +1549,16 @@ namespace madness {
 
         /// make the quantity chi_k
 
-        /// chi is the Poisson kernel applied on an orbital product of the input function and the vector of orbitals
-        /// \f[ \chi_{ki}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \f]
+        /// chi is the Poisson kernel applied on an orbital product of the
+        /// input function and the vector of orbitals
+        /// \f[ \chi_{k{*} i}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \f]
+        /// \f[ \chi_{ki{*}}(1) = \int dr_2 \frac{k(2) i(2)}{|r_1-r_2|} \f] if hc
         /// @param[in]  phi		orbital phi_i
-        /// @param[in]	hc		compute hermitian conjugate -> swap bra and ket space
+        /// @param[in]	op		the operator in SeparatedConvolution form
+        /// @param[in]	hc		compute hermitian conjugate -> pass the correct phi!
         /// @return a vector of length nocc
         std::vector<real_function_3d> make_chi(const real_function_3d& phi,
+        		const real_convolution_3d& op,
         		const bool hc=false) const {
 
             const double tol=0.0;
@@ -1465,7 +1567,7 @@ namespace madness {
             if (hc) psif = mul_sparse(world, phi, hf->nemos(), tol);
             else psif = mul_sparse(world, phi, hf->R2orbitals(), tol);
             truncate(world, psif);
-            psif = apply(world, *poisson, psif);
+            psif = apply(world, op, psif);
             truncate(world, psif);
             return psif;
         }
@@ -1473,15 +1575,18 @@ namespace madness {
         /// make the quantity xi_k
 
         /// xi is chi multiplied with an orbital j
-        /// \f[ \xi_{ki,j}(1) = \chi_{ki}(1) j(1) \f]
+        /// \f[ \xi_{k{*}i,j}(1) = \chi_{ki}(1) j(1) \f]
+        /// \f[ \xi_{ki{*},j{*}}(1) = \chi_{k{*}i}(1) j(1) \f]  if hc
         /// @param[in]  phi_i   orbital i
         /// @param[in]  phi_j   orbital j
-        /// @param[in]	hc		compute hermitian conjugate -> swap bra and ket space
+        /// @param[in]	op		the operator in SeparatedConvolution form
+        /// @param[in]	hc		compute hermitian conjugate  -> pass the correct phi!
         /// @return a vector of length k=0,..,nocc
         std::vector<real_function_3d> make_xi(const real_function_3d& phi_i,
-        		const real_function_3d& phi_j, const bool hc=false) const {
+        		const real_function_3d& phi_j, const real_convolution_3d& op,
+        		const bool hc=false) const {
             const double tol=0.0;
-            return mul_sparse(world, phi_j, make_chi(phi_i,hc), tol);
+            return mul_sparse(world, phi_j, make_chi(phi_i,op,hc), tol);
         }
 
         /// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>

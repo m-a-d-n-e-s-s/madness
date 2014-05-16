@@ -49,18 +49,10 @@
 #include <mra/convolution1d.h>
 #include <mra/displacements.h>
 #include <mra/function_common_data.h>
+#include <mra/gfit.h>
 
 namespace madness {
 
-
-    extern void truncate_periodic_expansion(Tensor<double>& c, Tensor<double>& e,
-      double L, bool discardG0);
-
-    extern void bsh_fit(double mu, double lo, double hi, double eps,
-                            Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
-
-    extern void bsh_fit_ndim(int ndim, double mu, double lo, double hi, double eps,
-                                 Tensor<double> *pcoeff, Tensor<double> *pexpnt, bool prnt=false);
 
     /// SeparatedConvolutionInternal keeps data for 1 term and all dimensions and 1 displacement
     /// Why is this here?? Why don't you just use ConvolutionND in SeparatedConvolutionData??
@@ -78,7 +70,7 @@ namespace madness {
         std::vector< SeparatedConvolutionInternal<Q,NDIM> > muops;
         double norm;
 
-        SeparatedConvolutionData(int rank) : muops(rank) {}
+        SeparatedConvolutionData(int rank) : muops(rank), norm(0.0) {}
         SeparatedConvolutionData(const SeparatedConvolutionData<Q,NDIM>& q) {
             muops = q.muops;
             norm = q.norm;
@@ -138,6 +130,10 @@ namespace madness {
         Timer timer_low_transf;
         Timer timer_low_accumulate;
 
+        // if this is a Slater-type convolution kernel: 1-exp(-mu r12)/(2 mu)
+        bool is_slaterf12;
+        double mu_;
+
     private:
 
 
@@ -164,6 +160,9 @@ namespace madness {
 
         bool& destructive() {return destructive_;}
         const bool& destructive() const {return destructive_;}
+
+        const double& gamma() const {return mu_;}
+        const double& mu() const {return mu_;}
 
     private:
 
@@ -879,6 +878,8 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
+                , is_slaterf12(false)
+                , mu_(0.0)
                 , bc(bc)
                 , k(k)
                 , cdata(FunctionCommonData<Q,NDIM>::get(k))
@@ -912,6 +913,8 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
+                , is_slaterf12(false)
+                , mu_(0.0)
                 , ops(argops)
                 , bc(bc)
                 , k(k)
@@ -933,13 +936,16 @@ namespace madness {
                              const Tensor<Q>& coeff, const Tensor<double>& expnt,
                              const BoundaryConditions<NDIM>& bc = FunctionDefaults<NDIM>::get_bc(),
                              int k=FunctionDefaults<NDIM>::get_k(),
-                             bool doleaves = false)
+                             bool doleaves = false,
+                             double mu=0.0)
                 : WorldObject< SeparatedConvolution<Q,NDIM> >(world)
                 , doleaves(doleaves)
                 , isperiodicsum(bc(0,0)==BC_PERIODIC)
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
+                , is_slaterf12(mu>0.0)
+                , mu_(mu)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -983,6 +989,8 @@ namespace madness {
                 , modified_(false)
                 , particle_(1)
                 , destructive_(false)
+                , is_slaterf12(false)
+                , mu_(0.0)
                 , ops(coeff.dim(0))
                 , bc(bc)
                 , k(k)
@@ -1091,6 +1099,7 @@ namespace madness {
         template <typename T, size_t LDIM>
         Function<TENSOR_RESULT_TYPE(T,Q),LDIM+LDIM>
         operator()(const Function<T,LDIM>& f1, const Function<Q,LDIM>& f2) const {
+        	MADNESS_ASSERT(not is_slaterf12);
             return madness::apply(*this, f1, f2);
         }
 
@@ -1447,18 +1456,15 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        const double pi = constants::pi;
 
-        // bsh_fit generates representation for 1/4Pir but we want 1/r
-        // so have to scale eps by 1/4Pi
+        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
 
-        Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
-
-        if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+		if (bc(0,0) == BC_PERIODIC) {
+        	fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
-        coeff.scale(4.0*pi);
+
         return SeparatedConvolution<double_complex,3>(world, args, coeff, expnt, bc, k, false);
 //        return SeparatedConvolution<double_complex,3>(world, coeff, expnt, bc, k);
 
@@ -1476,18 +1482,15 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        const double pi = constants::pi;
 
-        // bsh_fit generates representation for 1/4Pir but we want 1/r
-        // so have to scale eps by 1/4Pi
+        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
 
-        Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
 
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
-        coeff.scale(4.0*pi);
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
@@ -1504,16 +1507,13 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        const double pi = constants::pi;
+        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
 
-        // bsh_fit generates representation for 1/4Pir but we want 1/r
-        // so have to scale eps by 1/4Pi
-        Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), true);
         }
-        coeff.scale(4.0*pi);
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
 
@@ -1536,10 +1536,13 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<NDIM>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        Tensor<double> coeff, expnt;
-        bsh_fit_ndim(NDIM, mu, lo, hi, eps, &coeff, &expnt, false);
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
 
         return SeparatedConvolution<double,NDIM>(world, coeff, expnt, bc, k);
@@ -1560,13 +1563,37 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
+
+    /// Factory function generating separated kernel for convolution with (1 - exp(-mu*r))/(2 mu) in 3D
+    static inline SeparatedConvolution<double,3> SlaterF12Operator(World& world,
+    		double mu, double lo, double eps,
+    		const BoundaryConditions<3>& bc=FunctionDefaults<3>::get_bc(),
+    		int k=FunctionDefaults<3>::get_k()) {
+
+        const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
+        double hi = cell_width.normf(); // Diagonal width of cell
+        if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
+
+        GFit<double,3> fit=GFit<double,3>::SlaterFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
+        if (bc(0,0) == BC_PERIODIC) {
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+        }
+        return SeparatedConvolution<double,3>(world, coeff, expnt, bc, k, false, mu);
+    }
+
 
     /// Factory function generating separated kernel for convolution with exp(-mu*r)/(4*pi*r) in 3D
     static
@@ -1581,10 +1608,13 @@ namespace madness {
         const Tensor<double>& cell_width = FunctionDefaults<3>::get_cell_width();
         double hi = cell_width.normf(); // Diagonal width of cell
         if (bc(0,0) == BC_PERIODIC) hi *= 100; // Extend range for periodic summation
-        Tensor<double> coeff, expnt;
-        bsh_fit(mu, lo, hi, eps, &coeff, &expnt, false);
+
+        GFit<double,3> fit=GFit<double,3>::BSHFit(mu,lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
+
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
+            fit.truncate_periodic_expansion(coeff, expnt, cell_width.max(), false);
         }
         return new SeparatedConvolution<double,3>(world, coeff, expnt, bc, k);
     }
@@ -1611,16 +1641,14 @@ namespace madness {
         const bool isperiodicsum = (bc(0,0)==BC_PERIODIC);
         if (isperiodicsum) hi *= 100; // Extend range for periodic summation
 
-        // bsh_fit generates representation for 1/4Pir but we want 1/r
-        // so have to scale eps by 1/4Pi
-        Tensor<double> coeff, expnt;
-        bsh_fit(0.0, lo, hi, eps/(4.0*pi), &coeff, &expnt, false);
+        GFit<double,3> fit=GFit<double,3>::CoulombFit(lo,hi,eps,false);
+		Tensor<double> coeff=fit.coeffs();
+		Tensor<double> expnt=fit.exponents();
 
         if (bc(0,0) == BC_PERIODIC) {
-            truncate_periodic_expansion(coeff, expnt, width.max(), true);
+            fit.truncate_periodic_expansion(coeff, expnt, width.max(), true);
         }
 
-        coeff.scale(4.0*pi);
         int rank = coeff.dim(0);
 
         std::vector<real_convolution_3d_ptr> gradG(3);

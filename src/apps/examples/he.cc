@@ -129,7 +129,8 @@ class YetAnotherWrapperClass {
 public:
     YetAnotherWrapperClass(const real_function_6d& f)
         : f(f)
-        , eri(ERIFactory<double,6>(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh*0.1).k(k))
+		, eri(TwoElectronFactory(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh*0.1).k(k))
+//        , eri(ERIFactory(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh*0.1).k(k))
         , qx(FunctionCommonData<double,6>::get(k).quad_x)
     {
 //        eri=ERIFactory<double,6>(f.get_impl()->world).dcut(dcut*dcut).thresh(thresh).k(k);

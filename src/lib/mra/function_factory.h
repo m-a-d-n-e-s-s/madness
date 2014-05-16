@@ -32,13 +32,13 @@
 */
 
 
-#ifndef MADNESS_MRA_FUNCTION_FACTORY_AND_INTERFACE_H__INCLUDED
-#define MADNESS_MRA_FUNCTION_FACTORY_AND_INTERFACE_H__INCLUDED
+#ifndef MADNESS_MRA_FUNCTION_FACTORY_H__INCLUDED
+#define MADNESS_MRA_FUNCTION_FACTORY_H__INCLUDED
 
 #include <tensor/tensor.h>
 #include "tensor/gentensor.h"
 #include <mra/key.h>
-#include "mra/electron_repulsion.h"
+#include <mra/function_interface.h>
 
 
 /// Holds machinery to set up Functions/FuncImpls using various Factories and Interfaces
@@ -50,301 +50,17 @@
 ///  - CompositeFunctionInterface to provide on-demand coefficients of pair functions
 ///
 /// Each of these Interfaces can be used in a FunctionFactory to set up a Function
-
-
-
 namespace madness {
+
+	// needed for the CompositeFactory
+	template<typename T, std::size_t NDIM>
+	class FunctionImpl;
 
 	template<typename T, std::size_t NDIM>
 	class Function;
 
-	template<typename T, std::size_t NDIM>
-	class FunctionImpl;
-
-    template<typename T, std::size_t NDIM>
-    class FunctionFactory;
-
-    template<typename T, std::size_t NDIM, std::size_t MDIM>
-    class CompositeFactory;
-
     template<typename T, std::size_t NDIM>
     Tensor<T> fcube(const Key<NDIM>&, T (*f)(const Vector<double,NDIM>&), const Tensor<double>&);
-}
-
-
-namespace madness {
-
-	/// Abstract base class interface required for functors used as input to Functions
-	template<typename T, std::size_t NDIM>
-	class FunctionFunctorInterface {
-	public:
-
-		typedef GenTensor<T> coeffT;
-		typedef Key<NDIM> keyT;
-
-		/// You should implement this to return \c f(x)
-		virtual T operator()(const Vector<double, NDIM>& x) const = 0;
-
-		/// Override this to return list of special points to be refined more deeply
-		virtual std::vector< Vector<double,NDIM> > special_points() const {
-			return std::vector< Vector<double,NDIM> >();
-		}
-
-		/// Override this change level refinement for special points (default is 6)
-		virtual Level special_level() {return 6;}
-
-		virtual ~FunctionFunctorInterface() {}
-
-		virtual coeffT coeff(const keyT&) const {
-			MADNESS_EXCEPTION("implement coeff for FunctionFunctorInterface",0);
-			return coeffT();
-		}
-
-        virtual coeffT values(const keyT& key, const Tensor<double>& tensor) const {
-            MADNESS_EXCEPTION("implement values for FunctionFunctorInterface",0);
-            return coeffT();
-        }
-
-		/// does this functor directly provide sum coefficients? or only function values?
-		virtual bool provides_coeff() const {
-			return false;
-		}
-
-	};
-
-
-	/// CompositeFunctorInterface implements a wrapper of holding several functions and functors
-
-	/// Use this to "connect" several functions and/or functors and to return their coefficients
-	/// e.g. connect f1 and f2 with an addition, you can request the coefficients of any node
-	/// and they will be computed on the fly and returned. Mainly useful to connect a functor
-	/// with a function, if the functor is too large to be represented in MRA (e.g. 1/r12)
-	///
-	/// as of now, the operation connecting the functions/functors is simply addition.
-	/// need to implement expression templates, if I only knew what that was...
-	template<typename T, std::size_t NDIM, std::size_t MDIM>
-	class CompositeFunctorInterface : public FunctionFunctorInterface<T,NDIM> {
-
-		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-
-		World& world;
-
-	public:
-		/// various MRA functions of NDIM dimensionality
-		std::shared_ptr< FunctionImpl<T,NDIM> > impl_ket;	///< supposedly the pair function
-		std::shared_ptr< FunctionImpl<T,NDIM> > impl_eri;	///< supposedly 1/r12
-
-		/// various MRA functions of MDIM dimensionality (e.g. 3, if NDIM==6)
-		std::shared_ptr< FunctionImpl<T,MDIM> > impl_m1;	///< supposedly 1/r1
-		std::shared_ptr< FunctionImpl<T,MDIM> > impl_m2;	///< supposedly 1/r2
-		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p1;	///< supposedly orbital 1
-		std::shared_ptr< FunctionImpl<T,MDIM> > impl_p2;	///< supposedly orbital 2
-
-	public:
-
-		/// constructor takes its Factory
-		CompositeFunctorInterface(const CompositeFactory<T,NDIM,MDIM>& factory)
-			: world(factory.get_world())
-			, impl_ket(factory._ket)
-			, impl_eri(factory._g12)
-			, impl_m1(factory._v1)
-			, impl_m2(factory._v2)
-			, impl_p1(factory._particle1)
-			, impl_p2(factory._particle2)
-		{
-
-			// some consistency checks
-			// either a pair ket is provided, or two particles (tba)
-			MADNESS_ASSERT(impl_ket or (impl_p1 and impl_p2));
-
-			// prepare base functions that make this function
-			if (impl_ket and (not impl_ket->is_on_demand())) impl_ket->make_redundant(false);
-			if (impl_eri) {
-				if (not impl_eri->is_on_demand()) impl_eri->make_redundant(false);
-			}
-			if (impl_m1 and (not impl_m1->is_on_demand())) impl_m1->make_redundant(false);
-			if (impl_m2 and (not impl_m2->is_on_demand())) impl_m2->make_redundant(false);
-
-			if (impl_p1 and (not impl_p1->is_on_demand())) impl_p1->make_redundant(false);
-			if (impl_p2 and (not impl_p2->is_on_demand())) impl_p2->make_redundant(false);
-			world.gop.fence();
-
-		}
-
-
-		/// return value at point x; fairly inefficient
-		T operator()(const coordT& x) const {
-			print("there is no operator()(coordT&) in CompositeFunctorInterface, for good reason");
-			MADNESS_ASSERT(0);
-			return T(0);
-		};
-
-		bool provides_coeff() const {
-			return false;
-		}
-
-	};
-
-
-	/// ElementaryInterface (formerly FunctorInterfaceWrapper) interfaces a c-function
-
-	/// hard-code your favorite function and interface it with this; Does only
-	/// provide function values, no MRA coefficients. Care must be taken if the
-	/// function we refer to is a singular function, and a on-demand function
-	/// at the same time, since direct computation of coefficients via mraimpl::project
-	/// might suffer from inaccurate quadrature.
-	template<typename T, std::size_t NDIM>
-	class ElementaryInterface : public FunctionFunctorInterface<T,NDIM> {
-
-	public:
-		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-        typedef GenTensor<T> coeffT;
-
-		T (*f)(const coordT&);
-
-		ElementaryInterface(T (*f)(const coordT&)) : f(f) {}
-
-		T operator()(const coordT& x) const {return f(x);}
-
-		coeffT values(const Key<NDIM>& key, const Tensor<double>& quad_x) const {
-	        typedef Tensor<T> tensorT;
-            tensorT fval=madness::fcube(key,f,quad_x);
-            return coeffT(fval,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
-		}
-	};
-
-    /// FunctorInterface interfaces a class or struct with an operator()()
-    template<typename T, std::size_t NDIM, typename opT>
-    class FunctorInterface : public FunctionFunctorInterface<T,NDIM> {
-
-    public:
-        typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-        typedef GenTensor<T> coeffT;
-
-        opT op;
-
-        FunctorInterface(const opT& op) : op(op) {}
-
-        T operator()(const coordT& x) const {return op(x);}
-    };
-
-
-	/// ElectronRepulsionInterface implements the electron repulsion term 1/r12
-
-	/// this is essentially just a wrapper around ElectronRepulsion
-	template<typename T, std::size_t NDIM>
-	class ElectronRepulsionInterface : public FunctionFunctorInterface<T,NDIM> {
-
-		typedef GenTensor<T> coeffT;
-		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-
-		/// the class computing the coefficients
-		ElectronRepulsion<NDIM> eri;
-
-	public:
-
-		/// constructor takes the same parameters as the Coulomb operator
-		/// which it uses to compute the coefficients
-		ElectronRepulsionInterface(World& world,double lo,double eps,
-                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
-                int k=FunctionDefaults<NDIM>::get_k())
-			: eri(ElectronRepulsion<NDIM>(world,eps,eps,0.0,bc,k)) {
-		}
-
-		bool provides_coeff() const {
-			return true;
-		}
-
-		/// return value at point x; fairly inefficient
-		T operator()(const coordT& x) const {
-			print("there is no operator()(coordT&) in ElectronRepulsionInterface, for good reason");
-			MADNESS_ASSERT(0);
-			return T(0);
-		};
-
-
-		/// return sum coefficients for imagined node at key
-		coeffT coeff(const Key<NDIM>& key) const {
-            return coeffT(this->eri.coeff(key),FunctionDefaults<NDIM>::get_thresh(),
-                    TT_FULL);
-		}
-
-	};
-
-	/// FGIntegralInterface implements the two-electron integral (1-exp(-gamma*r12))/r12
-
-	/// this is essentially just a wrapper around ElectronRepulsion
-	/// The integral expressed as:   1/r12 - exp(-gamma*r12)/r12
-	/// which can be expressed with an eri and a bsh
-	template<typename T, std::size_t NDIM>
-	class FGIntegralInterface : public FunctionFunctorInterface<T,NDIM> {
-
-		typedef GenTensor<T> coeffT;
-		typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-
-		/// the class computing the coefficients
-		ElectronRepulsion<NDIM> eri;
-		ElectronRepulsion<NDIM> bsh;
-
-	public:
-
-		/// constructor takes the same parameters as the Coulomb operator
-		/// which it uses to compute the coefficients
-		FGIntegralInterface(World& world, double lo, double eps, double gamma,
-                const BoundaryConditions<NDIM>& bc=FunctionDefaults<NDIM>::get_bc(),
-                int k=FunctionDefaults<NDIM>::get_k())
-			: eri(ElectronRepulsion<NDIM>(world,eps,eps,0.0,bc,k))
-			, bsh(ElectronRepulsion<NDIM>(world,eps,eps,gamma,bc,k)) {
-		}
-
-		bool provides_coeff() const {
-			return true;
-		}
-
-		/// return value at point x; fairly inefficient
-		T operator()(const coordT& x) const {
-			print("there is no operator()(coordT&) in FGIntegralInterface, for good reason");
-			MADNESS_ASSERT(0);
-			return T(0);
-		};
-
-		/// return sum coefficients for imagined node at key
-		coeffT coeff(const Key<NDIM>& key) const {
-	        typedef Tensor<T> tensorT;
-			tensorT e_b=eri.coeff(key)-bsh.coeff(key);
-            return coeffT(e_b,FunctionDefaults<NDIM>::get_thresh(),TT_FULL);
-		}
-
-	};
-
-
-	/// FunctionInterface implements a wrapper around any class with the operator()()
-	template<typename T, size_t NDIM, typename opT>
-	class FunctionInterface : public FunctionFunctorInterface<T,NDIM> {
-
-	    typedef GenTensor<T> coeffT;
-        typedef Vector<double, NDIM> coordT; ///< Type of vector holding coordinates
-
-        const opT op;
-
-    public:
-        FunctionInterface(const opT& op) : op(op) {}
-
-        T operator()(const coordT& coord) const {return op(coord);}
-
-        bool provides_coeff() const {return false;}
-
-	};
-
-
-//	/// A helper function to turn a given class into a FunctionInterface
-//	template<typename T, size_t NDIM, typename opT>
-//	std::shared_ptr<FunctionFunctorInterface<T,NDIM> > make_functor(opT& op) {
-//	    FunctionInterface<T,NDIM,opT> a(op);
-//	    FunctionFunctorInterface<T,NDIM>* ff=dynamic_cast<FunctionFunctorInterface<T,NDIM>* >(&a);
-//	    std::shared_ptr<FunctionFunctorInterface<T,NDIM> > f(ff);
-//	    return f;
-//	}
 
 	/// FunctionFactory implements the named-parameter idiom for Function
 
@@ -413,106 +129,109 @@ namespace madness {
 		functor(
 			const std::shared_ptr<FunctionFunctorInterface<T, NDIM> >& f) {
 			_functor = f;
-			return *this;
+			return self();
 		}
 		template<typename opT>
 		FunctionFactory&
         functor2(const opT& op) {
-            _functor=std::shared_ptr<FunctionInterface<T,NDIM,opT> >(new FunctionInterface<T,NDIM,opT>(op));
-            return *this;
-        }
+            _functor=std::shared_ptr<FunctionInterface<T,NDIM,opT> >
+            (new FunctionInterface<T,NDIM,opT>(op));
+			return self();
+     }
 
 		FunctionFactory&
 		no_functor() {
 			_functor.reset();
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		f(T
 		  (*f)(const coordT&)) {
 			functor(std::shared_ptr<ElementaryInterface<T, NDIM> > (
 						new ElementaryInterface<T,NDIM>(f)));
-			return *this;
+			return self();
 		}
-		virtual FunctionFactory&
-		k(int k) {
+
+		virtual FunctionFactory& k(int k) {
 			_k = k;
-			return *this;
+			return self();
 		}
-		virtual FunctionFactory&
-		thresh(double thresh) {
+
+		virtual FunctionFactory& thresh(double thresh) {
 			_thresh = thresh;
-			return *this;
+			return self();
 		}
+
 		FunctionFactory&
 		initial_level(int initial_level) {
 			_initial_level = initial_level;
-			return *this;
+			return self();
 		}
+
 		FunctionFactory&
 		max_refine_level(int max_refine_level) {
 			_max_refine_level = max_refine_level;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		truncate_mode(int truncate_mode) {
 			_truncate_mode = truncate_mode;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		refine(bool refine = true) {
 			_refine = refine;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		norefine(bool norefine = true) {
 			_refine = !norefine;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		empty() {
 			_empty = true;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		autorefine() {
 			_autorefine = true;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		noautorefine() {
 			_autorefine = false;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		truncate_on_project() {
 			_truncate_on_project = true;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		notruncate_on_project() {
 			_truncate_on_project = false;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		fence(bool fence = true) {
 			_fence = fence;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		nofence() {
 			_fence = false;
-			return *this;
+			return self();
 		}
 		virtual FunctionFactory&
 		is_on_demand() {
 			_is_on_demand = true;
-			return *this;
+			return self();
 		}
 		FunctionFactory&
 		pmap(const std::shared_ptr<WorldDCPmapInterface<Key<NDIM> > >& pmap) {
 			_pmap = pmap;
-			return *this;
+			return self();
 		}
 
 		int get_k() const {return _k;};
@@ -523,6 +242,10 @@ namespace madness {
 		virtual std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
     		return _functor;
     	}
+
+		/// implement this in all derived classes for correct chaining
+		FunctionFactory& self() {return *this;}
+
 	};
 
 
@@ -573,28 +296,28 @@ namespace madness {
 //        ket(const std::shared_ptr<FunctionImpl<T, NDIM> >& f) {
         ket(const Function<T, NDIM>& f) {
         	_ket = f.get_impl();
-        	return *this;
+			return self();
         }
 
         /// g12 is the interaction potential (6D)
         CompositeFactory&
         g12(const Function<T, NDIM>& f) {
         	_g12 = f.get_impl();
-        	return *this;
+			return self();
         }
 
         /// a one-particle potential, acting on particle 1
         CompositeFactory&
         V_for_particle1(const Function<T, MDIM>& f) {
         	_v1 = f.get_impl();
-        	return *this;
+			return self();
         }
 
         /// a one-particle potential, acting on particle 2
         CompositeFactory&
         V_for_particle2(const Function<T, MDIM>& f) {
         	_v2 = f.get_impl();
-        	return *this;
+			return self();
         }
 
         /// provide particle 1, used with particle 2 to set up a pair function by
@@ -602,7 +325,7 @@ namespace madness {
         CompositeFactory&
         particle1(const Function<T, MDIM>& f) {
         	_particle1 = f.get_impl();
-        	return *this;
+			return self();
         }
 
         /// provide particle 2, used with particle 1 to set up a pair function by
@@ -610,14 +333,8 @@ namespace madness {
         CompositeFactory&
         particle2(const Function<T, MDIM>& f) {
         	_particle2 = f.get_impl();
-        	return *this;
+			return self();
         }
-
-        CompositeFactory&
-		thresh(double thresh) {
-			this->_thresh = thresh;
-			return *this;
-		}
 
     	// access to the functor *only* via this
     	std::shared_ptr<FunctionFunctorInterface<T, NDIM> > get_functor() const {
@@ -630,20 +347,190 @@ namespace madness {
     		// pass *this to the interface
     		const_cast< std::shared_ptr<CompositeFunctorInterface<T, NDIM, MDIM> >& >(this->_func)=
     				std::shared_ptr<CompositeFunctorInterface<T, NDIM, MDIM> >(
-    				new CompositeFunctorInterface<double, NDIM, MDIM>(*this));
+    				new CompositeFunctorInterface<double, NDIM, MDIM>(
+    						this->_world,_ket,_g12,_v1,_v2,_particle1,_particle2
+    						));
 
     		return this->_func;
     	}
 
+    	CompositeFactory& self() {return *this;}
     };
 
+    /// factory for generating TwoElectronInterfaces
+    class TwoElectronFactory : public FunctionFactory<double,6> {
+
+    protected:
+    	typedef std::shared_ptr<FunctionFunctorInterface<double, 6> > InterfacePtr;
+
+    public:
+    	TwoElectronFactory(World& world)
+    		: FunctionFactory(world)
+    		, type_(coulomb_)
+    		, interface_()
+			, dcut_(FunctionDefaults<3>::get_thresh())
+    		, gamma_(-1.0)
+			, bc_(FunctionDefaults<6>::get_bc()) {
+    		_is_on_demand=true;
+    		this->_thresh=(FunctionDefaults<3>::get_thresh());
+    		this->_k=(FunctionDefaults<3>::get_k());
+
+    	}
+
+    	/// the smallest length scale to be represented (aka lo)
+    	TwoElectronFactory& dcut(double dcut) {
+    		dcut_=dcut;
+    		return self();
+    	}
+
+    	/// the requested precision
+    	TwoElectronFactory& thresh(double thresh) {
+    		_thresh=thresh;
+    		return self();
+    	}
+
+    	/// the exponent of a slater function
+    	TwoElectronFactory& gamma(double g) {
+    		gamma_=g;
+    		return self();
+    	}
+
+    	/// return the operator  (1 - exp(-gamma x) / (2 gamma)
+    	TwoElectronFactory& f12() {
+    		type_=f12_;
+    		return self();
+    	}
+
+    	/// return the operator  (1 - exp(-gamma x) / (2 gamma)
+    	TwoElectronFactory& slater() {
+    		type_=slater_;
+    		return self();
+    	}
+
+    	// access to the functor *only* via this
+    	InterfacePtr get_functor() const {
+
+    		// return if we already have a valid interface
+    		if (this->interface_) return this->interface_;
+
+    		// construction of the functor is const in spirit, but non-const in sad reality..
+    		if (type_==coulomb_) {
+    			const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new ElectronRepulsionInterface(
+    						dcut_,_thresh,bc_,_k));
+    		} else if (type_==f12_) {
+    			// make sure gamma is set
+    			MADNESS_ASSERT(gamma_>0);
+    			const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new SlaterF12Interface(
+    						gamma_,dcut_,_thresh,bc_,_k));
+    		} else if (type_==slater_) {
+    			// make sure gamma is set
+    			MADNESS_ASSERT(gamma_>0);
+    			const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new SlaterFunctionInterface(
+    						gamma_,dcut_,_thresh,bc_,_k));
+    		} else {
+    			MADNESS_EXCEPTION("unimplemented integral kernel",1);
+    		}
+    		return this->interface_;
+    	}
+
+    	TwoElectronFactory& self() {return *this;}
+
+    protected:
+
+    	enum operatortype {coulomb_, slater_, f12_, bsh_, fg_};
+
+    	operatortype type_;
+
+    	/// the interface providing the actual coefficients
+    	InterfacePtr interface_;
+
+    	double dcut_;		///< cutoff radius for 1/r12, aka regularization
+
+    	double gamma_;
+
+        BoundaryConditions<6> bc_;
+
+    };
+
+#if 0
+    class ERIFactory : public TwoElectronFactory<ERIFactory> {
+    public:
+    	ERIFactory(World& world) : TwoElectronFactory<ERIFactory>(world) {}
+
+    	// access to the functor *only* via this
+    	InterfacePtr get_functor() const {
+
+    		// return if we already have a valid interface
+    		if (this->interface_) return this->interface_;
+
+    		// construction of the functor is const in spirit, but non-const in sad reality..
+    		const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new ElectronRepulsionInterface(
+    						dcut_,thresh_,bc_,k_));
+    		return this->interface_;
+    	}
+
+    	ERIFactory& self() {return *this;}
+
+    };
+
+	/// a function like f(x) = 1 - exp(-mu x)
+    class SlaterFunctionFactory : public TwoElectronFactory<SlaterFunctionFacto> {
+    public:
+    	SlaterFunctionFactory(World& world)
+    		: TwoElectronFactory(world), gamma_(-1.0), f12_(false) {}
+
+    	/// set the exponent of the Slater function
+    	SlaterFunctionFactory& gamma(double gamma) {
+			this->gamma_ = gamma;
+			return self();
+		}
+
+    	/// do special f12 function
+    	SlaterFunctionFactory& f12() {
+			this->f12_=true;
+			return self();
+		}
+
+    	// access to the functor *only* via this
+    	InterfacePtr get_functor() const {
+
+    		// return if we already have a valid interface
+    		if (this->interface_) return this->interface_;
+
+    		// make sure gamma is set
+    		MADNESS_ASSERT(gamma_>0);
+
+    		// construction of the functor is const in spirit, but non-const in sad reality..
+    		if (f12_) {
+    			const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new SlaterF12Interface(
+    						gamma_,dcut_,this->_thresh,bc_,this->_k));
+    		} else {
+    			const_cast<InterfacePtr& >(this->interface_)=
+    				InterfacePtr(new SlaterFunctionInterface(
+    						gamma_,dcut_,this->_thresh,bc_,this->_k));
+    		}
+    		return this->interface_;
+    	}
+
+    	SlaterFunctionFactory& self() {return *this;}
+
+    private:
+
+    	double gamma_;		///< the exponent of the Slater function f(x)=exp(-gamma x)
+    	bool f12_;			///< use 1-exp(-gamma x)  instead of exp(-gamma x)
+    };
 
     /// Factory to set up an ElectronRepulsion Function
     template<typename T, std::size_t NDIM>
     class ERIFactory : public FunctionFactory<T, NDIM> {
 
     private:
-    	std::shared_ptr<ElectronRepulsionInterface<T, NDIM> > _eri;
+    	std::shared_ptr<ElectronRepulsionInterface> _eri;
 
     public:
 
@@ -683,23 +570,23 @@ namespace madness {
 //    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
 
     		// construction of the functor is const in spirit, but non-const in sad reality..
-    		const_cast< std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >& >(this->_eri)=
-    				std::shared_ptr<ElectronRepulsionInterface<T, NDIM> >(
-    				new ElectronRepulsionInterface<double,NDIM>(this->_world,_dcut,this->_thresh,
+    		const_cast< std::shared_ptr<ElectronRepulsionInterface>& >(this->_eri)=
+    				std::shared_ptr<ElectronRepulsionInterface>(
+    				new ElectronRepulsionInterface(_dcut,this->_thresh,
     		                _bc,this->_k));
 
     		return this->_eri;
     	}
 
     };
-
+#endif
 
     /// Factory to set up an ElectronRepulsion Function
     template<typename T, std::size_t NDIM>
     class FGFactory : public FunctionFactory<T, NDIM> {
 
     private:
-    	std::shared_ptr<FGIntegralInterface<T, NDIM> > _fg;
+    	std::shared_ptr<FGInterface> _fg;
 
     public:
 
@@ -741,9 +628,9 @@ namespace madness {
 //    		if (this->_world.rank()==0) print("set dcut in ERIFactory to ", _dcut);
 
     		// construction of the functor is const in spirit, but non-const in sad reality..
-    		const_cast< std::shared_ptr<FGIntegralInterface<T, NDIM> >& >(this->_fg)=
-    				std::shared_ptr<FGIntegralInterface<T, NDIM> >(
-    				new FGIntegralInterface<double,NDIM>(this->_world,_dcut,this->_thresh,
+    		const_cast< std::shared_ptr<FGInterface>& >(this->_fg)=
+    				std::shared_ptr<FGInterface>(
+    				new FGInterface(this->_world,_dcut,this->_thresh,
     		                _gamma,_bc,this->_k));
 
     		return this->_fg;
@@ -753,4 +640,4 @@ namespace madness {
 
 }
 
-#endif // MADNESS_MRA_FUNCTION_FACTORY_AND_INTERFACE_H__INCLUDED
+#endif // MADNESS_MRA_FUNCTION_FACTORY_H__INCLUDED

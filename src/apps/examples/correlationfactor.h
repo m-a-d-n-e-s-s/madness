@@ -881,7 +881,10 @@ public:
 
     /// return the correlation factor as on-demand function
     real_function_6d f() const {
-        real_function_6d tmp=real_factory_6d(world).functor2(*this).is_on_demand();
+//        real_function_6d tmp=real_factory_6d(world).functor2(*this).is_on_demand();
+    	double thresh=FunctionDefaults<3>::get_thresh();
+        real_function_6d tmp=TwoElectronFactory(world)
+        		.dcut(dcut).gamma(_gamma).f12().thresh(thresh);
         return tmp;
     }
 

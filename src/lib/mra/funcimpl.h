@@ -46,7 +46,7 @@
 #include <tensor/tensor.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
-#include "mra/function_factory_and_interface.h"
+#include "mra/function_factory.h"
 #include "tensor/gentensor.h"
 #include <world/typestuff.h>
 #include "mra/function_common_data.h"

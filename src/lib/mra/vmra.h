@@ -712,6 +712,7 @@ namespace madness {
 
         std::vector< Function<TENSOR_RESULT_TYPE(typename opT::opT,R), NDIM> > result(f.size());
         for (unsigned int i=0; i<f.size(); ++i) {
+            MADNESS_ASSERT(not op[i]->is_slaterf12);
             result[i] = apply_only(*op[i], f[i], false);
         }
 
@@ -747,6 +748,14 @@ namespace madness {
 
         standard(world, ncf, false);  // restores promise of logical constness
         reconstruct(world, result);
+
+        if (op.is_slaterf12) {
+        	MADNESS_ASSERT(not op.destructive());
+            for (unsigned int i=0; i<f.size(); ++i) {
+            	double trace=f[i].trace();
+                result[i]=(result[i]-trace).scale(-0.5/op.mu());
+            }
+        }
 
         return result;
     }
