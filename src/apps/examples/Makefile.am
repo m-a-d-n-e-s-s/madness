@@ -1,5 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
+
 GITREV="GITREVISION=\"`git --git-dir=$(top_srcdir)/.git rev-parse HEAD`\" "
 SVNREV="SVNREVISION=\"`svnversion $(top_srcdir)`\" "
 
@@ -9,7 +10,7 @@ bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo harmonic hydrogena hf
+ tdhf nemo 
  
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -21,12 +22,6 @@ mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularb
 oep_SOURCES = oep.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
 
 tiny_SOURCES = tiny.cc
-
-hf_SOURCES = hf.cc
-
-harmonic_SOURCES = harmonic.cc
-
-hydrogena_SOURCES = hydrogena.cc
 
 dataloadbal_SOURCES = dataloadbal.cc
 
