@@ -724,7 +724,7 @@ namespace madness {
 				energy=compute_energy(result);
 
 				result.converged=((std::abs(old_energy-energy)<result.function.thresh()*0.01)
-						and (rnorm<result.function.thresh()));
+						and (rnorm<param.dconv_));
 				result.store_pair(world);
 				save_function(result.function,"pair_iter"+stringify(result.iteration));
 
@@ -814,6 +814,34 @@ namespace madness {
         }
 
         void test(const std::string filename) {
+        	// compute the singlet pair function and save to file
+        	real_function_6d plain_pair;
+        	load_function(plain_pair,filename);
+
+        	{
+				real_function_6d plain_pair_swapped=swap_particles(plain_pair);
+
+				real_function_6d singlet=(plain_pair+plain_pair_swapped).truncate().reduce_rank();
+				save_function(singlet,"singlet"+filename);
+
+				real_function_6d triplet=(plain_pair-plain_pair_swapped).truncate().reduce_rank();
+				save_function(triplet,"triplet"+filename);
+        	}
+
+        	hf->value();
+        	const real_function_3d R=hf->nemo_calc.R;
+        	real_function_6d Rpair1=multiply(plain_pair,R,1).truncate();
+        	plain_pair=multiply(Rpair1,R,2).truncate();
+        	{
+				real_function_6d plain_pair_swapped=swap_particles(plain_pair);
+
+				real_function_6d singlet=(plain_pair+plain_pair_swapped).truncate().reduce_rank();
+				save_function(singlet,"Rsinglet"+filename);
+
+				real_function_6d triplet=(plain_pair-plain_pair_swapped).truncate().reduce_rank();
+				save_function(triplet,"Rtriplet"+filename);
+        	}
+
         }
 		
         /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
