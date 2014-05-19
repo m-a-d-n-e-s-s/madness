@@ -158,6 +158,7 @@ public:
   guess_dconv_(0.03),
   guess_iter_(20),
   guess_roots_(8),
+  guess_mode_("all_orbitals"),
   thresh_(dconv_*0.01),
   bsh_eps_(1.e-6),
   iter_max_(50),
@@ -189,6 +190,7 @@ public:
 			else if (tag == "guess_dconv") ss >> guess_dconv_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
 			else if (tag == "guess_roots") ss >> guess_roots_;
+			else if (tag == "guess_mode") ss >> guess_mode_;
 			else if (tag == "thresh") ss >> thresh_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
 			else if (tag == "iter_max") ss >> iter_max_;
@@ -322,6 +324,9 @@ private:
 
 	/// number of roots to guess
 	int guess_roots_;
+
+	/// Creating the guess with ... (all_orbitals, mo or homo) * (x,y,z,r)
+	std::string guess_mode_;
 
 	/// Thresh for CIS calculation
 	double thresh_;

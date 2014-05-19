@@ -88,6 +88,8 @@ int main(int argc, char** argv) {
 
 
 
+
+
     // construct the CIS solver, it requires a converged HF reference
     CIS cis(world,calc,input);
 

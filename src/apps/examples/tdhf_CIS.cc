@@ -347,7 +347,11 @@ void CIS::add_noise(std::vector<root> &roots)const{
 
 // Creates an (xyz and r)*MO guess
 std::vector<root> CIS::guess_big(){
-	if(world.rank()==0){printf("\n \n");print("Create guess functions...");printf("\n\n");}
+	if(world.rank()==0){
+		printf("\n \n");print("Create guess functions...");
+		print("guess_mode is: ",guess_mode_);
+		printf("\n\n");
+	}
 	// default empty root vector
 	std::vector<root> roots;
 
@@ -405,7 +409,19 @@ std::vector<root> CIS::guess_big(){
 		// For all MOs
 		for(size_t i=nfreeze_;i<amo.size();i++){
 
-			real_function_3d tmp = all_orbitals*exfunctions[iroot];
+			real_function_3d tmp = real_factory_3d(world);
+
+			if(guess_mode_ == "mo"){
+				tmp = get_calc().ao[iroot]*exfunctions[iroot];
+			}
+
+			if(guess_mode_ == "homo"){
+				tmp = get_calc().ao[nmo-1]*exfunctions[iroot];
+			}
+
+			if(guess_mode_ == "all_orbitals"){
+			tmp = all_orbitals*exfunctions[iroot];
+			}
 			// construct the projector on the occupied space
 			const vecfuncT& amo=get_calc().amo;
 			Projector<double,3> rho0(amo);
