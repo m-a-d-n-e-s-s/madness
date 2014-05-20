@@ -40,7 +40,7 @@ namespace madness {
 
         void DeferredCleanup::destroy(bool mode) {
             mutex_.lock();
-            destroy_ = true;
+            destroy_ = mode;
             mutex_.unlock();
         }
 
