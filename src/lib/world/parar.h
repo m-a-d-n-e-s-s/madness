@@ -221,7 +221,7 @@ namespace madness {
             }
 
             void set_dofence(bool dofence) {
-                this->dofence = do_fence;
+                do_fence = dofence;
             }
         };
 
