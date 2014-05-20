@@ -300,7 +300,7 @@ namespace madness {
         // I can not get the TaskThreadEnv to work with Barrier
         // Need to figure out why
         TaskThreadEnv(int nthread, int id)
-            : _nthread(1), _id(id), _barrier(NULL)
+            : _nthread(nthread), _id(id), _barrier(NULL)
         {};
 #endif
 
