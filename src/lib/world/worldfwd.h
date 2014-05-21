@@ -583,8 +583,10 @@ namespace madness {
 
         /// Same as world.unregister_ptr(world.ptr_from_id<T>(id));
         template <typename T>
-        void unregister_ptr(uniqueidT id) {
-            unregister_ptr(ptr_from_id<T>(id));
+        void unregister_ptr(const uniqueidT id) {
+            T* const ptr = ptr_from_id<T>(id);
+            map_id_to_ptr.erase(id);
+            map_ptr_to_id.erase((void *) ptr);
         }
 
 
