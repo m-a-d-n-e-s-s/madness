@@ -3500,6 +3500,13 @@ public:
         calc.molecule.set_all_coords(x.reshape(calc.molecule.natom(),3));
         coords_sum = xsq;
 
+		// read converged wave function from disk if there is one
+		if (calc.param.no_compute) {
+			calc.load_mos(world);
+			calc.make_nuclear_potential(world);
+			return calc.current_energy;
+			}
+
         // The below is missing convergence test logic, etc.
 
         // Make the nuclear potential, initial orbitals, etc.
