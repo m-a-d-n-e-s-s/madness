@@ -24,6 +24,7 @@
 
 using namespace madness;
 
+
 typedef std::vector<Function<double,3> > vecfuncT;
 struct noise : public FunctionFunctorInterface<double,3> {
 
@@ -61,7 +62,7 @@ public:
 struct root {
 	root(World& world) : world(world), omega(0.0),converged(false),err(10.0),delta(10.0) {}
 	root(World& world,vecfuncT& x, double omega) :world(world), x(x), omega(omega),converged(false),err(10.0),delta(10.0) {}
-    root(World& world, const vecfuncT& x1) : world(world), x(x1),converged(false),err(10.0),delta(10.0) {}
+	root(World& world, const vecfuncT& x1) : world(world), x(x1),converged(false),err(10.0),delta(10.0){}
     root(const root& other) : world(other.world), x(other.x), omega(other.omega), converged(other.converged),err(other.err),delta(other.delta){}
 
 	World &world;
@@ -70,11 +71,19 @@ struct root {
 	bool converged;
 	double err;
 	double delta;
+	//solverT solver; // Maybe later
 	std::vector<double> amplitudes_;
 
 	// Operators needed by the nonlinear solver
     root& operator=(const root& other) {
     	x=other.x;
+    	// This is new, needed for sort function
+    	// Not shure if this changes something when KAIN is used again
+    	omega=other.omega;
+    	converged=other.converged;
+    	err=other.err;
+    	delta=other.delta;
+    	amplitudes_=other.amplitudes_;
     	return *this;
     }
 
@@ -91,6 +100,18 @@ struct root {
     	scale(world,x,a);
         return *this;
     }
+    // An operator for the sort function
+    bool operator<(const root &other){
+    	return (this->omega<other.omega);
+    }
+    bool operator>(const root &other){
+    	return (this->omega>other.omega);
+    }
+
+
+
+
+
 
 };
 // The default constructor for functions does not initialize
@@ -167,6 +188,11 @@ private:
 	static double random_number(const coord_3d &r){
 		Random random;
 		return random.get();
+	}
+
+	// For the sorting of the roots
+	static bool compare_roots(const root &a,const root &b){
+		return a.omega<b.omega;
 	}
 
 public:
@@ -307,11 +333,14 @@ public:
 	void print_roots(const std::vector<root> &roots,const int iter) const;
 	void print_root(const root &root) const;
 
+	/// If roots[j] < roots[i] and i<j then the roots will switch places
+	void sort_roots(std::vector<root> & roots);
+
 	/// solve the CIS equations for n roots
 	void solve();
 
 	// Internal solver for parallel or sequential optimization
-	bool solve_internal_par(const bool option,std::vector<root> &roots,const int iter_max);
+	bool solve_internal_par(const std::string mode,std::vector<root> &roots,const int iter_max);
 
 	/// return the roots of the response equation
 	std::vector<root>& roots();
@@ -485,7 +514,7 @@ private:
 	/// @return	convergence reached or not
 	template<typename solverT>
 	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-			std::vector<root>& roots,const bool fock_,const int iter_max) const;
+			std::vector<root>& roots,const std::string mode,const int iter_max) const;
 
 
 	/// iterate the TDHF or CIS equations
@@ -506,7 +535,7 @@ private:
 	bool check_convergence(std::vector<root> &roots)const;
 
 	template<typename solverT>
-	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const bool fock_)const;
+	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const std::string mode)const;
 
 	/// iterate the TDHF or CIS equations -- deprecated !!
 

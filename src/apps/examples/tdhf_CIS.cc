@@ -47,11 +47,18 @@ void CIS::print_root(const root &root) const{
 	}
 }
 
+void CIS::sort_roots(std::vector<root> & roots){
+	if(world.rank()==0) print("Sorting roots ...");
+	std::sort(roots.begin(),roots.end(),compare_roots);
+}
+
+
 /// solve the CIS equations for n roots
 void CIS::solve() {
 	// Set convergence criteria for the actual CIS calculation
 	// tight: Final iterations with second order and Gram-Schmidt
 	// loose: Pre iteration with Fock Matrix
+
 	prec tight;
 	tight.thresh=thresh_;
 	tight.econv=econv_;
@@ -87,25 +94,25 @@ void CIS::solve() {
 			if(world.rank()==0)print("Noise will be added all ", guess_iter_," iterations");
 			for(int cycle=0;cycle<40;cycle++){
 				add_noise(world,roots);
-				solve_internal_par(true,roots,guess_iter_);
+				solve_internal_par("fock",roots,guess_iter_);
 			}
 		}
-		else solve_internal_par(true,roots,guess_iter_);
+		else solve_internal_par("fock",roots,guess_iter_);
 	}
 
 
-	// Scheme: Iterate with Fock then iterate iter_max times with KAIN (just planned ... KAIN makes problems right now)
-	solve_internal_par(false,roots,iter_max_);
+	// Iterate with lose convergence criteria
+	int cycles_ = 10; // make this member variable later
+	for(int cycles=0; cycles<cycles_;cycles++){
+	solve_internal_par("second order",roots,iter_max_);
 	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
-	solve_internal_par(true,roots,1);
-	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
-	solve_internal_par(false,roots,iter_max_);
-	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
-	solve_internal_par(true,roots,1);
-	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
+	solve_internal_par("second order",roots,1);
+	if(check_convergence(roots))break;
+	}
 
 
-	//change to tight convergence criteria and second order update
+
+	//change to tight convergence criteria and second order update (use kain)
 	set_prot(world,tight);
 	if(world.rank()==0)print("Changing convergence criteria to tight");// and the update mode to second order - KAIN will be used form now on");
 	// Iterate all roots of interest till convergence (converged roots are not iterated anymore)
@@ -113,16 +120,17 @@ void CIS::solve() {
 	// erase all roots that are not of interest
 	int old_size = roots.size();
 	for(int i=nroot_;i<old_size;i++){roots.pop_back();}
-	// Convergence criteria changed: set all roots back to non-converged (else the first iteration will do nothing)
-	for(size_t iroot=0;iroot<roots.size();iroot++) roots[iroot].converged = false;
-	solve_internal_par(false,roots,iter_max_);
 
-	// Check convergence
-	if(world.rank()==0) print("---------final convergence check----------");
+	// Convergence criteria changed: set all roots back to non-converged (else the first iteration will do nothing)
 	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
-	solve_internal_par(true,roots,1); // with fock matrix update
+
+	// Iterate with tight convergence criteria
+	if(world.rank()==0) print("using KAIN now");
+	solve_internal_par("KAIN",roots,iter_max_*cycles_);
 	for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
-	solve_internal_par(false,roots,iter_max_); // if converged this ends after the first iteration
+	solve_internal_par("second order",roots,1);
+
+
 
 	analyze(roots);
 
@@ -136,7 +144,7 @@ void CIS::solve() {
 }
 
 
-bool CIS::solve_internal_par(const bool fock_,std::vector<root> &roots,const int iter_max) {
+bool CIS::solve_internal_par(const std::string mode,std::vector<root> &roots,const int iter_max) {
 
 
 	// for convenience
@@ -156,7 +164,7 @@ bool CIS::solve_internal_par(const bool fock_,std::vector<root> &roots,const int
 	// if you want to update guess roots (more than nroot_) with KAIN this will fail
 	std::vector<solverT> solver(nroot_,onesolver);
 
-	bool converged=iterate_all_CIS_roots(world,solver,roots,fock_,iter_max);
+	bool converged=iterate_all_CIS_roots(world,solver,roots,mode,iter_max);
 	if (converged) {
 		//analyze(roots);
 		if (world.rank()==0) print(" CIS iterations converged ");
@@ -296,8 +304,9 @@ void CIS::guess_MO(World &world,std::vector<root> &roots){
 		all_orbitals_root.x.push_back(copy(tmp));
 		if(plot_==true) plot_plane(world,tmp,"MO_guess_"+stringify(i));
 	}
-	orbitals_root.omega = guess_omega_;
-	all_orbitals_root.omega = guess_omega_;
+
+//	orbitals_root.omega = guess_omega_;
+//	all_orbitals_root.omega = guess_omega_;
 
 
 	// Preoptimize the all_orbital guess one by one
@@ -325,6 +334,17 @@ void CIS::guess_MO(World &world,std::vector<root> &roots){
 			//if(guess_mode_=="noise")roots.push_back();
 			roots.push_back(all_orbitals_root);
 		}
+
+
+		// these are the active orbitals in a vector (shallow-copied)
+		//vecfuncT act=this->active_mo();
+		//const vecfuncT& amo=get_calc().amo;
+		// the projector on the unperturbed density
+		//Projector<double,3> rho0(amo);
+		//make_perturbed_fock_matrix(roots,act,rho0);
+
+
+
 		if(guess_damp_ == true){
 			if(check==false){
 				std::vector<double> starting_energies;
@@ -332,8 +352,12 @@ void CIS::guess_MO(World &world,std::vector<root> &roots){
 				if(world.rank()==0)print("Pre iteration without energy update:");
 				for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
 				for(int instances=0;instances<guess_damp_iter_;instances++){
+
+					// Fock Matrix update for energy guess
+					solve_internal_par("fock",roots,1);
+
 					if(world.rank()==0)print("Damped Iteration ",instances);
-					solve_internal_par(guess_damp_fock_,roots,1);
+					solve_internal_par("second_order",roots,1);
 
 					if(instances<2){
 						for(size_t iroot=0;iroot<roots.size();iroot++){roots[iroot].omega=starting_energies[iroot];}
@@ -357,16 +381,16 @@ void CIS::guess_MO(World &world,std::vector<root> &roots){
 				}
 
 
-				// Iterate one time (or if demanded more times with Fock matrix update to built LKs of guess functions
+
 				// set back convergence
 				for(size_t iroot=0;iroot<roots.size();iroot++){roots[iroot].converged = false;}
-				solve_internal_par(true,roots,guess_iter_fock_);
+				solve_internal_par("second order",roots,guess_iter_);
 				for(size_t i=0;i<roots.size();i++){roots[i].converged=false;}
 
 			}
 		}
 		// Iterate the guess MOs
-		solve_internal_par(guess_damp_fock_,roots,guess_iter_);
+		solve_internal_par("second order",roots,guess_iter_);
 
 
 
@@ -397,8 +421,8 @@ void CIS::guess_read(World &world,std::vector<root> &roots){
 	if(world.rank()==0) print("Read roots are:");
 	print_roots(roots);
 
-	// Do one fock update to sort the roots
-	solve_internal_par(true,roots,1);
+	// Sort the roots
+	sort_roots(roots);
 
 }
 
@@ -477,7 +501,7 @@ void CIS::guess_koala(World &world,std::vector<root> &roots){
 		for(size_t iroot=0;iroot<roots.size();iroot++){ starting_energies.push_back(roots[iroot].omega);}
 		if(world.rank()==0)print("Pre iteration without energy update:");
 		for(int instances=0;instances<guess_damp_iter_;instances++){
-			solve_internal_par(false,roots,1);
+			solve_internal_par("fock",roots,1);
 			for(size_t iroot=0;iroot<roots.size();iroot++){roots[iroot].omega=starting_energies[iroot];}
 
 		}
@@ -510,14 +534,14 @@ void CIS::guess_physical(World &world,std::vector<root> &roots){
 			for(size_t iroot=0;iroot<roots.size();iroot++){roots[iroot].omega=starting_energies[iroot];}
 		}
 	}
-	solve_internal_par(false,roots,iterations+1);
+	solve_internal_par("second order",roots,iterations+1);
 
 	if(noise_ == true){
 		if(world.rank()==0)print("Adding noise to the guess function ...");
 		add_noise(world,roots);
 	}
 	// iterate the first 4 guess functions 3 times
-	solve_internal_par(false,roots,iterations+1);
+	solve_internal_par("second order",roots,iterations+1);
 
 	// Cont. if more than 4 roots are demanded for the guess
 	if(guess_roots_>4){
@@ -535,7 +559,7 @@ void CIS::guess_physical(World &world,std::vector<root> &roots){
 			}
 		}
 		orthonormalize(world,roots);
-		solve_internal_par(false,roots,iterations);
+		solve_internal_par("second order",roots,iterations);
 	}
 
 	// Save the guess roots if demanded
@@ -871,7 +895,7 @@ root CIS::guess_amplitudes(const int iroot) {
 
 template<typename solverT>
 bool CIS::iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-		std::vector<root>& roots,const bool fock_,const int iter_max) const {
+		std::vector<root>& roots,const std::string mode,const int iter_max) const {
 
 	// check orthogonality of the roots
 	orthonormalize(world,roots);
@@ -904,7 +928,7 @@ bool CIS::iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
 		for (std::size_t iroot=0; iroot<roots.size(); ++iroot) {
 			std::cout << std::setw(4) << iroot << " ";
 			if(roots[iroot].converged != true){
-				roots[iroot].err=iterate_one_CIS_root(world,solver[iroot],roots[iroot],fock_);
+				roots[iroot].err=iterate_one_CIS_root(world,solver[iroot],roots[iroot],mode);
 
 			}
 			if(plot_==true) {
@@ -920,10 +944,11 @@ bool CIS::iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
 		// Orthonormalization using Gram-Schmidt (fock_==false) or the perturbed fock-matrix (fock_==true)
 		// Orthonormalization with the fock matrix updates the energy
 		// if fock==false the energy has been updated during the second order step (if fock==true this has been suppresed)
-		if(fock_ == true){
+		if(mode == "fock"){
 			orthonormalize_fock(world,roots);
 		}
-		if(fock_==false){
+		else{
+			if(mode != "KAIN")std::sort(roots.begin(),roots.end(),compare_roots);
 			orthonormalize(world,roots);
 		}
 
@@ -979,10 +1004,7 @@ bool CIS::check_convergence(std::vector<root> &roots)const{
 /// @param[inout]	root	the current root that we solve
 /// @return			the residual error
 template<typename solverT>
-double CIS::iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const bool fock_) const {
-
-	// for now use this, make this member variable later
-	bool kain_=false;
+double CIS::iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const std::string mode) const {
 
 	const vecfuncT& amo=get_calc().amo;
 	const int nmo=amo.size();		// # of orbitals in the HF calculation
@@ -1054,14 +1076,12 @@ double CIS::iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,c
 	// Use the solver only when using the second order update
 	// For the Fock Matrix procedure do not use the solver because the X-Vectors will be sorted
 	// update the x vector: orthogonalize against the occupied space
-	if (fock_ == true) {
+	if (mode == "fock") {
 		x=GVphi;
-	} if(fock_==false) {
+	}else {
 		omega+=delta;
-		if(kain_==true){
-		root ff=solver.update(root(world,x),root(world,residual));
-		x=ff.x;
-		}else {x=GVphi;}
+		if(mode=="KAIN"){root ff=solver.update(root(world,x),root(world,residual));x=ff.x;}
+		else {x=GVphi;}
 	}
 
 	for (int p=0; p<noct; ++p) x[p] -= rho0(GVphi[p]);
@@ -1373,10 +1393,37 @@ void CIS::orthonormalize(World& world, std::vector<root>& roots) const {
 		normalize(world,roots[r]);
 	}
 
-	// orthogonalize the roots wrt each other
+	// project out the converged roots
+	root converged_roots(world);
+	for(std::size_t i=0;i<roots.size();i++){
+		if(roots[i].converged==false){
+			for(std::size_t j=0;j<roots.size();j++){
+				vecfuncT& ucx =roots[i].x;
+				if(roots[j].converged==true){
+					vecfuncT& cx=roots[j].x;
+					const double overlap=inner(world,cx,ucx).sum();
+					compress(world,cx,false);
+					compress(world,ucx,true);
+
+					for (unsigned int p=0; p<ucx.size(); ++p) {
+						ucx[p].gaxpy(1.0, cx[p], -overlap, false);
+					}
+					world.gop.fence();
+
+				}
+			}
+		}
+	}
+
+
+	// orthogonalize the unconverged roots wrt each other
+	// Do not operate on converged roots
 	for (std::size_t r=0; r<roots.size(); ++r) {
+		if(roots[r].converged==false){
 		vecfuncT& x=roots[r].x;
 		for (std::size_t rr=0; rr<r; ++rr) {
+			if(roots[rr].converged==false){
+
 			const vecfuncT& lower=roots[rr].x;
 
 			const double ovlp=inner(world,lower,x).sum();
@@ -1389,8 +1436,8 @@ void CIS::orthonormalize(World& world, std::vector<root>& roots) const {
 			world.gop.fence();
 		}
 		normalize(world,roots[r]);
-	}
-}
+	}}
+}}
 
 /// compute the overlap between 2 sets of roots
 Tensor<double> CIS::overlap(const std::vector<root>& r1,
