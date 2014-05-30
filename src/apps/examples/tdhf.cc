@@ -102,6 +102,15 @@ int main(int argc, char** argv) {
     } else {
     	
     	
+    	// Print the coordinates
+    	if (world.rank()==0){
+    		print("Coordinates after MolDFT:");
+    		Tensor<double> Coord = calc.molecule.get_all_coords();
+    		for(int i=0;i<calc.molecule.natom();i++){
+    			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
+    		}
+    	}
+
     	// solve the response equation
     	cis.solve();
     }

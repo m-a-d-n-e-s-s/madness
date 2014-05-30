@@ -25,6 +25,36 @@
 using namespace madness;
 
 typedef std::vector<Function<double,3> > vecfuncT;
+struct noise : public FunctionFunctorInterface<double,3> {
+
+typedef std::shared_ptr<FunctionFunctorInterface<double,3> > functorT;
+
+public:
+	noise(double size){noise(size,1.0);}
+	noise(double size,double width)  {
+	 Random random(wall_time()*1.e8);
+	 x=size*(random.get()-random.get());
+	 y=size*(random.get()-random.get());
+	 z=size*(random.get()-random.get());
+	 prefactor= x*y*z/(fabs(x*y*z));
+	 sigma=width;
+	// print("Noise constructor x,y,z,pre,sigma are: ",x,y,z,prefactor,sigma);
+	}
+
+
+private:
+	real_function_3d gauss_function;
+	double x,y,z;
+	double sigma;
+	double prefactor;
+
+public:
+	double operator()(const coord_3d &r) const{
+		double r2 = (r[0]-x)*(r[0]-x)+(r[1]-y)*(r[1]-y)+(r[2]-z)*(r[2]-z);
+		return prefactor*exp(-r2/(2.0*sigma*sigma));
+	}
+
+};
 
 
 /// POD holding excitation energy and response vector for a single excitation
@@ -132,8 +162,9 @@ private:
 	static double y(const coord_3d &r){return r[1];}
 	static double z(const coord_3d &r){return r[2];}
 
+
 	// Random number Generator from Madness lib misc/ran.h
-	static double noise(const coord_3d &r){
+	static double random_number(const coord_3d &r){
 		Random random;
 		return random.get();
 	}
@@ -157,6 +188,7 @@ public:
   guess_econv_(0.001),
   guess_dconv_(0.03),
   guess_iter_(20),
+  guess_iter_fock_(1),
   guess_roots_(8),
   guess_mode_("all_orbitals"),
   thresh_(dconv_*0.01),
@@ -165,12 +197,23 @@ public:
   print_grid_(false),
   plot_(false),
   fixed_point_(false),
-  fock_(true),
+
   guess_save_(false),
+  guess_damp_(false),
+  guess_damp_iter_(6),
+  guess_damp_fock_(false),
   noise_(false),
-  hf_(false){
+  noise_box_(get_calc().molecule.bounding_cube()),
+  noise_comp_(0.01),
+  noise_width_(3.5),
+  noise_gaussnumber_(25),
+  hf_(false),
+  triplet_(false),
+  read_and_save_koala_(false),
+  guess_exf_("dipole"){
 
-
+		size_t nmo = get_calc().amo.size();
+		guess_omega_=-0.9*get_calc().aeps(nmo-1);
 		omega_=std::vector<double>(9,100.0);
 
 
@@ -189,7 +232,9 @@ public:
 			else if (tag == "guess_econv") ss >> guess_econv_;
 			else if (tag == "guess_dconv") ss >> guess_dconv_;
 			else if (tag == "guess_iter") ss >> guess_iter_;
+			else if (tag == "guess_iter_fock") ss >> guess_iter_fock_;
 			else if (tag == "guess_roots") ss >> guess_roots_;
+			else if (tag == "guess_omega") ss >> guess_omega_;
 			else if (tag == "guess_mode") ss >> guess_mode_;
 			else if (tag == "thresh") ss >> thresh_;
 			else if (tag == "bsh_eps") ss >> bsh_eps_;
@@ -201,7 +246,18 @@ public:
 			else if (tag == "print_grid") print_grid_=true;
 			else if (tag == "plot") plot_=true;
 			else if (tag == "guess_save") guess_save_=true;
+			else if (tag == "guess_damp") guess_damp_=true;
+			else if (tag == "guess_damp_iter") ss >> guess_damp_iter_;
+			else if (tag == "guess_damp_fock") guess_damp_fock_ = true;
+			else if (tag == "noise") noise_=true;
+			else if (tag == "noise_box") ss >> noise_box_;
+			else if (tag == "noise_comp") ss >> noise_comp_;
+			else if (tag == "noise_width") ss >> noise_width_;
+			else if (tag == "noise_gaussnumber") ss >> noise_gaussnumber_;
 			else if (tag == "hf") hf_=true;
+			else if (tag == "triplet") triplet_=true;
+			else if (tag == "koala_read_and_save") read_and_save_koala_=true;
+			else if (tag == "guess_exf") ss >> guess_exf_;
 			else if (tag == "omega0") ss >> omega_[0];
 			else if (tag == "omega1") ss >> omega_[1];
 			else if (tag == "omega2") ss >> omega_[2];
@@ -241,7 +297,6 @@ public:
 		FunctionDefaults<3>::set_thresh(a.thresh);
 		econv_ = a.econv;
 		dconv_ = a.dconv;
-		fock_ =a.fock;
 	}
 
 	/// return the HF reference
@@ -249,16 +304,14 @@ public:
 
 	// print information of root or root vector
 	void print_roots(const std::vector<root> &roots) const;
+	void print_roots(const std::vector<root> &roots,const int iter) const;
 	void print_root(const root &root) const;
 
 	/// solve the CIS equations for n roots
 	void solve();
 
 	// Internal solver for parallel or sequential optimization
-	// option = 0 (std solve), option = 1 (perform big guess)
-	bool solve_internal_par(bool option);
-	bool solve_internal_par(bool option,std::vector<root> &roots,const size_t start_root, const size_t end_root,const int iter_max);
-	void solve_internal_seq();
+	bool solve_internal_par(const bool option,std::vector<root> &roots,const int iter_max);
 
 	/// return the roots of the response equation
 	std::vector<root>& roots();
@@ -321,9 +374,13 @@ private:
 
 	/// how many iterations for guess roots
 	int guess_iter_;
+	int guess_iter_fock_;
 
 	/// number of roots to guess
 	int guess_roots_;
+
+	/// Guess excitation energy
+	double guess_omega_;
 
 	/// Creating the guess with ... (all_orbitals, mo or homo) * (x,y,z,r)
 	std::string guess_mode_;
@@ -352,33 +409,54 @@ private:
 	/// perform a fixed-point iteration of the given excitation energies
 	bool fixed_point_;
 
-	/// Internal switch for fock or second order update
-	bool fock_;
-
 	/// Save the guess roots
 	bool guess_save_;
 
-	/// Add noise to the guess
+	/// Damp the first guess_damp_iter guess interations
+	bool guess_damp_;
+	int guess_damp_iter_;
+	bool guess_damp_fock_;
+	/// Add noise to the guess, noise_comp_ is the prefactor to make it small
+	/// noise_width is the width for the gauss functions
+	/// noise_gaussnumber_ is the number of gauss functions computed for the noise
 	bool noise_;
+	double noise_box_;
+	double noise_comp_;
+	double noise_width_;
+	double noise_gaussnumber_;
 
 	/// Compute only Hartree Fock (for later restarts)
 	bool hf_;
 
+	/// Compute triplets (when false singlets are computed, default is false)
+	bool triplet_;
+
+	/// Just read and save the koala guess
+	bool read_and_save_koala_;
+
+	/// Dipole or quadrupole guess
+	std::string guess_exf_;
+
 	double lo;
 
-	// Reads in Roots from Guess or from Koala
-	// If neither is demanded it gives back an empty root vector
-	std::vector<root> initialize_roots();
+	/// Initialize the roots
+	/// Depending on the keyword guess_MO, guess_read, guess_koala or guess_physical will be called
+	void initialize_roots(World &world,std::vector<root> &roots);
 
-	void add_noise(std::vector<root> &roots)const;
+	void guess_MO(World &world,std::vector<root> &roots);
+	void guess_read(World &world,std::vector<root> &roots);
+	void guess_koala(World &world,std::vector<root> &roots);
+	void guess_physical(World &world,std::vector<root> &roots);
+
+	void add_noise(World & world,std::vector<root> &roots)const;
 
 	std::vector<root> guess();
 
-	// Guess Function that guesses 12 symmetries
-	std::vector<root> guess_big();
+	// Guess Function
+	std::vector<root> guess_big(const std::string exf);
 
 	// Excitation functions for the guess (x,y,z,r,x^2,xy,xz ...)
-	std::vector<real_function_3d> excitation_functions() const;
+	std::vector<real_function_3d> excitation_functions(const std::string exf) const;
 
 	root guess_seq(int iroot) const;
 
@@ -407,20 +485,8 @@ private:
 	/// @return	convergence reached or not
 	template<typename solverT>
 	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-				std::vector<root>& roots) const;
-	template<typename solverT>
-	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-			std::vector<root>& roots,const bool guess) const;
-	template<typename solverT>
-	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-			std::vector<root>& roots,const bool guess,const size_t start_root, const size_t end_root) const;
-	template<typename solverT>
-	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
-			std::vector<root>& roots,const bool guess,const size_t start_root, const size_t end_root,const int iter_max) const;
+			std::vector<root>& roots,const bool fock_,const int iter_max) const;
 
-	/// iterate the guess
-	template<typename solverT>
-	double iterate_one_guess_root(World& world, solverT& solver, root& thisroot,int iter) const;
 
 	/// iterate the TDHF or CIS equations
 
@@ -436,8 +502,11 @@ private:
 	/// @param[in]		solver	the KAIN solver (not used right now..)
 	/// @param[inout]	root	the current root that we solve
 	/// @return			the residual error
+
+	bool check_convergence(std::vector<root> &roots)const;
+
 	template<typename solverT>
-	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const int iter)const;
+	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const bool fock_)const;
 
 	/// iterate the TDHF or CIS equations -- deprecated !!
 
@@ -535,6 +604,9 @@ private:
 	/// @param[in]		world the world
 	/// @param[inout]	x	the excitation vector
 	void normalize(World& world, root& x) const;
+
+	/// orthonormalize all roots using the perturbed fock-matrix (energy update included)
+	void orthonormalize_fock(World &world,std::vector<root> &roots)const;
 
 	/// orthonormalize all roots using Gram-Schmidt
 	void orthonormalize(World& world, std::vector<root>& roots) const;
