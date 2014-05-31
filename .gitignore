@@ -29,3 +29,5 @@ autom4te.cache
 configure
 test-driver
 log.00*
+org.eclipse.cdt.core.prefs
+org.eclipse.cdt.ui.prefs
