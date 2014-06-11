@@ -3403,7 +3403,7 @@ struct Calculation {
                         print(" ");
                         print("alpha eigenvalues");
                         print(aeps);
-                        if(param.nbeta==0.0 && !param.spin_restricted){
+                        if(param.nbeta != 0 && !param.spin_restricted){
                             print("beta eigenvalues");
                             print(beps);
                         }
@@ -3412,7 +3412,7 @@ struct Calculation {
                     if (param.localize) {
                         // Restore the diagonal elements for the analysis
                         for (unsigned int i=0; i<amo.size(); ++i) aeps[i] = focka(i,i);
-                        for (unsigned int i=0; i<bmo.size(); ++i) beps[i] = fockb(i,i);
+                        if(param.nbeta !=0 && !param.spin_restricted) for (unsigned int i=0; i<bmo.size(); ++i) beps[i] = fockb(i,i);
                     }
 
                     break;
