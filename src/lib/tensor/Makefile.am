@@ -36,13 +36,13 @@ jimkernel_SOURCES = jimkernel.cc
 jimkernel_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_linalg_SOURCES = test_linalg.cc
-test_linalg_LDADD = libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+test_linalg_LDADD = libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_solvers_SOURCES = test_solvers.cc
-test_solvers_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+test_solvers_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_elemental_SOURCES = test_elemental.cc
-test_elemental_LDADD =  libMADlinalg.a $(LIBTENSOR) $(LIBMISC) $(LIBWORLD)
+test_elemental_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)
@@ -54,14 +54,13 @@ test_systolic_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
 test_gentensor_SOURCES = test_gentensor.cc
 test_gentensor_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
 test_gentensor_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBMISC) $(LIBWORLD) libMADtensor.a $(LIBLINALG)
+test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBMISC) $(LIBWORLD) libMADtensor.a libMADlinalg.a
 
 testseprep_SOURCES = testseprep.cc
-testseprep_LDADD = $(LIBMISC) $(LIBWORLD) $(LIBLINALG) $(LIBTENSOR) 
+testseprep_LDADD = $(LIBMISC) $(LIBWORLD) libMADlinalg.a libMADtensor.a 
 
 
 libMADtensor_a_SOURCES = tensor.cc tensoriter.cc basetensor.cc mtxmq.cc vmath.cc \
-                         \
                         aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
                         basetensor.h  tensor.h        tensor_macros.h    vector_factory.h \
                         mtxmq.h     slice.h   tensoriter.h    tensor_spec.h vmath.h systolic.h gentensor.h srconf.h \
