@@ -63,10 +63,10 @@
 #include <tensor/tensorexcept.h>
 #include <tensor/tensoriter.h>
 
-#ifdef NO_GENTENSOR
-#define HAVE_GENTENSOR 0
-#else
+#ifdef USE_GENTENSOR
 #define HAVE_GENTENSOR 1
+#else
+#define HAVE_GENTENSOR 0
 #endif
 
 

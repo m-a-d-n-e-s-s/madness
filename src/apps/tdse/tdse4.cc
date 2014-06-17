@@ -46,7 +46,6 @@
 
 using namespace madness;
 
-#define NO_GENTENSOR
 
 template <typename T, int NDIM>
 struct lbcost {
