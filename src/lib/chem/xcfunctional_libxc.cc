@@ -1,5 +1,5 @@
 #include <madness_config.h>
-#include <moldft/xcfunctional.h>
+#include <chem/xcfunctional.h>
 #include <tensor/tensor.h>
 #include <iostream>
 #include <string>

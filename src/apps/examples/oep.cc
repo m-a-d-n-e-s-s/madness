@@ -502,7 +502,7 @@ int main(int argc, char** argv) {
 
     // take as a guess the HF orbitals
     const std::string input="input";
-	std::shared_ptr<Calculation> calc(new Calculation(world,input.c_str()));
+	std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
 	HartreeFock hf(world,calc);
     hf.value();
     print("nuclear repulsion: ",hf.get_calc().molecule.nuclear_repulsion_energy());

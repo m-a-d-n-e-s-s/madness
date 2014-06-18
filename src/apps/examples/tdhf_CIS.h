@@ -8,11 +8,11 @@
 #ifndef TDHFCIS_H_
 #define TDHFCIS_H_
 
-#include <examples/projector.h>
+#include <chem/projector.h>
 //#include <examples/mp2.h>
 
 #include<examples/nonlinsol.h>
-#include<moldft/moldft.h>
+#include<chem/SCF.h>
 #include <mra/operator.h>
 #include <mra/mra.h>
 #include <mra/vmra.h>
@@ -23,6 +23,7 @@
 
 
 using namespace madness;
+
 
 
 typedef std::vector<Function<double,3> > vecfuncT;
@@ -202,7 +203,7 @@ public:
 	/// @param[in]	world	the world
 	/// @param[in]	hf		the HartreeFock reference state
 	/// @param[in]	input	the input file name
-	CIS(World& world, const Calculation& calc, const std::string input)
+	CIS(World& world, const SCF& calc, const std::string input)
 : world(world),
   calc_(calc),
   guess_("physical"),
@@ -326,7 +327,7 @@ public:
 	}
 
 	/// return the HF reference
-	const Calculation& get_calc() const {return calc_;}
+	const SCF& get_calc() const {return calc_;}
 
 	// print information of root or root vector
 	void print_roots(const std::vector<root> &roots) const;
@@ -354,7 +355,7 @@ private:
 	World& world;
 
 	/// the HartreeFock reference state
-	const Calculation& calc_;
+	const SCF& calc_;
 
 	/// the excited states aka the roots of the response equation
 	std::vector<root> roots_;

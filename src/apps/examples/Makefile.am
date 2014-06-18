@@ -17,9 +17,9 @@ thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 
-mp2_SOURCES = mp2.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
+mp2_SOURCES = mp2.cc 
 
-oep_SOURCES = oep.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
+oep_SOURCES = oep.cc 
 
 tiny_SOURCES = tiny.cc
 
@@ -31,24 +31,24 @@ testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
 
-tdhf_SOURCES = tdhf.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc tdhf_CIS.cc
+tdhf_SOURCES = tdhf.cc  tdhf_CIS.cc
 
-nemo_SOURCES = nemo.cc ../moldft/molecule.cc ../moldft/lda.cc ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc ../moldft/xcfunctional_ldaonly.cc ../moldft/distpm.cc
+nemo_SOURCES = nemo.cc
 
 newsolver_SOURCES = newsolver.cc
 
-hedft_SOURCES = hedft.cc ../moldft/molecule.cc  ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc  ../moldft/distpm.cc
-h2dft_SOURCES = h2dft.cc ../moldft/molecule.cc  ../moldft/molecularbasis.cc ../moldft/atomutil.cc ../moldft/corepotential.cc  ../moldft/distpm.cc
+hedft_SOURCES = hedft.cc 
+h2dft_SOURCES = h2dft.cc  
 if MADNESS_HAS_LIBXC
-hedft_SOURCES += ../moldft/xcfunctional_libxc.cc
-h2dft_SOURCES += ../moldft/xcfunctional_libxc.cc
+hedft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
+h2dft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
 endif
 if MADNESS_HAS_MADXC
 hedft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
 h2dft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
 else
-hedft_SOURCES += ../moldft/xcfunctional_ldaonly.cc ../moldft/lda.cc
-h2dft_SOURCES += ../moldft/xcfunctional_ldaonly.cc ../moldft/lda.cc
+hedft_SOURCES += ../../lib/chem/xcfunctional_ldaonly.cc 
+h2dft_SOURCES += ../../lib/chem/xcfunctional_ldaonly.cc 
 endif
 
 sininteg_SOURCES = sininteg.cc

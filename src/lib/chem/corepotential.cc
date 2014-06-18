@@ -39,7 +39,7 @@
 #include <constants.h>
 #include <mra/mra.h>
 #include <tinyxml/tinyxml.h>
-#include <moldft/corepotential.h>
+#include <chem/corepotential.h>
 #include <cstdio>
 #include <cmath>
 #include <string>
@@ -328,12 +328,18 @@ static AtomCore read_atom(TiXmlElement* e, unsigned int atn, double eprec) {
 }
 
 void CorePotentialManager::read_file(string filename, std::set<unsigned int> atomset, double eprec) {
-    core_type = filename;
-    guess_filename = dir + filename + "_guess";
 
-    TiXmlDocument doc(dir + core_type);
+	char* data_dir=NULL;
+	if (getenv("MRA_DATA_DIR")) data_dir = getenv("MRA_DATA_DIR");
+	std::string datadir(data_dir);
+	datadir+="/"+dir;
+
+	core_type = filename;
+    guess_filename = datadir+"/"+dir + filename + "_guess";
+
+    TiXmlDocument doc(datadir + core_type);
     if (!doc.LoadFile()) {
-        MADNESS_EXCEPTION(("CORE_INFO: Failed to load core_info data file: " + dir + core_type).c_str(), -1);
+        MADNESS_EXCEPTION(("CORE_INFO: Failed to load core_info data file: " + datadir + core_type).c_str(), -1);
         return;
     }
     TiXmlElement* core_info = doc.FirstChildElement();

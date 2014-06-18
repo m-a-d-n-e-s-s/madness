@@ -1,4 +1,6 @@
 include $(top_srcdir)/config/MakeGlobal.am
+AUTOMAKE_OPTIONS = subdir-objects
+
 
 
 if MADNESS_HAS_LIBXC
@@ -7,31 +9,18 @@ else
 LDADD = $(MRALIBS)
 endif
 
-bin_PROGRAMS = testpg moldft mcpfit testperiodic testxc
+bin_PROGRAMS = testpg moldft mcpfit testperiodic 
 
-moldft_SOURCES = moldft.cc lda.cc  molecule.cc \
-                 molecule.h molecularbasis.h molecularbasis.cc \
-                 atomutil.h atomutil.cc \
-                 corepotential.h corepotential.cc \
-                 xcfunctional.h xcfunctional_ldaonly.cc  distpm.cc
+moldft_SOURCES = moldft.cc
 
 testpg_SOURCES = testpg.cc pointgroup.h
 
-testperiodic_SOURCES = testperiodic.cc lda.cc  molecule.cc \
-                 molecule.h molecularbasis.h molecularbasis.cc \
-                 atomutil.h atomutil.cc \
-                 corepotential.h corepotential.cc \
-                 xcfunctional.h xcfunctional_ldaonly.cc
+testperiodic_SOURCES = testperiodic.cc
 
-mcpfit_SOURCES = mcpfit.cc atomutil.h atomutil.cc corepotential.h corepotential.cc
-
-testxc_SOURCES = testxc.cc xcfunctional.h
+mcpfit_SOURCES = mcpfit.cc
 
 if MADNESS_HAS_LIBXC
-moldft_SOURCES += xcfunctional_libxc.cc
-testperiodic_SOURCES += xcfunctional_libxc.cc
-testxc_SOURCES += xcfunctional_libxc.cc
-else
-testxc_SOURCES += xcfunctional_ldaonly.cc lda.cc
+moldft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
+testperiodic_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
 endif
 

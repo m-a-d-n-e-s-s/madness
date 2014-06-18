@@ -50,12 +50,24 @@
 #include <mra/funcplot.h>
 #include <mra/operator.h>
 #include <mra/lbdeux.h>
-#include <moldft/moldft.h>
-#include <examples/correlationfactor.h>
+#include <chem/SCF.h>
+#include <chem/correlationfactor.h>
 #include <examples/nonlinsol.h>
 #include <mra/vmra.h>
 
 namespace madness {
+
+extern Tensor<double> Q3(const Tensor<double>& s);
+
+static double ttt, sss;
+void START_TIMER(World& world) {
+    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+}
+
+void END_TIMER(World& world, const char* msg) {
+    ttt=wall_time()-ttt; sss=cpu_time()-sss;
+    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+}
 
 // this class needs to be moved to vmra.h !!
 
@@ -134,8 +146,8 @@ public:
 	/// ctor
 
 	/// @param[in]	world	the world
-	/// @param[in]	calc	the Calculation
-	Nemo(World& world1, std::shared_ptr<Calculation> calc) :
+	/// @param[in]	calc	the SCF
+	Nemo(World& world1, std::shared_ptr<SCF> calc) :
 			world(world1), calc(calc), coords_sum(-1.0) {
 
 		// construct the Poisson solver
@@ -206,7 +218,7 @@ public:
 //        return calc->derivatives(world);
 	}
 
-	std::shared_ptr<Calculation> get_calc() const {return calc;}
+	std::shared_ptr<SCF> get_calc() const {return calc;}
 
 
 private:
@@ -214,7 +226,7 @@ private:
 	/// the world
 	World& world;
 
-	std::shared_ptr<Calculation> calc;
+	std::shared_ptr<SCF> calc;
 
 public:
 

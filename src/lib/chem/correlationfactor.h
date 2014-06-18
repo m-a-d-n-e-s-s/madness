@@ -79,10 +79,10 @@
 
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <moldft/molecule.h>
-#include <moldft/potentialmanager.h>
+#include <chem/molecule.h>
+#include <chem/potentialmanager.h>
+#include <chem/SCF.h>
 
-using namespace madness;
 
 namespace madness {
 
@@ -98,7 +98,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	NuclearCorrelationFactor(World& world, const Calculation& calc)
+	NuclearCorrelationFactor(World& world, const SCF& calc)
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
 		, molecule(calc.molecule) {}
 
@@ -332,7 +332,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	GaussSlater(World& world, const Calculation& calc)
+	GaussSlater(World& world, const SCF& calc)
 		: NuclearCorrelationFactor(world,calc) {
 
 		if (world.rank()==0) {
@@ -400,7 +400,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	LinearSlater(World& world, const Calculation& calc, const double a)
+	LinearSlater(World& world, const SCF& calc, const double a)
 		: NuclearCorrelationFactor(world,calc), a_(1.0) {
 
 		if (a!=0.0) a_=a;
@@ -473,7 +473,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Slater(World& world, const Calculation& calc, const double a)
+	Slater(World& world, const SCF& calc, const double a)
 		: NuclearCorrelationFactor(world,calc), a_(1.5) {
 
 		if (a!=0.0) a_=a;
@@ -540,7 +540,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Polynomial(World& world, const Calculation& calc, const double a)
+	Polynomial(World& world, const SCF& calc, const double a)
 		: NuclearCorrelationFactor(world,calc) {
 
 		/// length scale parameter a, default chosen that linear terms in U2 vanish
@@ -641,7 +641,7 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	PseudoNuclearCorrelationFactor(World& world, const Calculation& calc,
+	PseudoNuclearCorrelationFactor(World& world, const SCF& calc,
 			const double fac)
 		: NuclearCorrelationFactor(world,calc),
 		  potentialmanager(calc.potentialmanager), fac(fac) {
@@ -704,61 +704,8 @@ private:
     }
 };
 
-/// create and return a new nuclear correlation factor
-
-/// @param[in]	world	the world
-/// @param[in]	calc	the calculation as read from the input file
-/// @return 	a nuclear correlation factor
-static std::shared_ptr<NuclearCorrelationFactor>
-create_nuclear_correlation_factor(World& world, const Calculation& calc) {
-
-	std::stringstream ss(lowercase(calc.param.nuclear_corrfac));
-	std::string corrfac, factor;
-	ss >> corrfac >> factor;
-
-	// read the length scale factor if there is one
-	double a=0.0;
-	if (factor.size()>0) {
-		std::stringstream fss(factor);
-		if (not (fss >> a)) {
-			if (world.rank()==0) print("could not read the length scale parameter a: ",a);
-			MADNESS_EXCEPTION("input error in the nuclear correlation factor",1);
-		}
-	}
-
-	typedef std::shared_ptr<NuclearCorrelationFactor> ncf_ptr;
-
-	if (corrfac == "gaussslater") {
-		return ncf_ptr(new GaussSlater(world, calc));
-	} else if (corrfac == "linearslater") {
-		return ncf_ptr(new LinearSlater(world, calc, a));
-	} else if (corrfac == "slater") {
-		return ncf_ptr(new Slater(world, calc, a));
-	} else if (corrfac == "polynomial4") {
-		return ncf_ptr(new Polynomial<4>(world, calc, a ));
-	} else if (corrfac == "polynomial5") {
-		return ncf_ptr(new Polynomial<5>(world, calc, a));
-	} else if (corrfac == "polynomial6") {
-		return ncf_ptr(new Polynomial<6>(world, calc, a));
-	} else if (corrfac == "polynomial7") {
-		return ncf_ptr(new Polynomial<7>(world, calc, a));
-	} else if (corrfac == "polynomial8") {
-		return ncf_ptr(new Polynomial<8>(world, calc, a));
-	} else if (corrfac == "polynomial9") {
-		return ncf_ptr(new Polynomial<9>(world, calc, a));
-	} else if (corrfac == "polynomial10") {
-		return ncf_ptr(new Polynomial<10>(world, calc, a));
-	} else if ((corrfac == "none") or (corrfac == "one")) {
-		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,1.0));
-	} else if (corrfac == "two") {
-		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,2.0));
-	} else if (corrfac == "linear") {
-		return ncf_ptr(new PseudoNuclearCorrelationFactor(world, calc,a));
-	} else {
-		if (world.rank()==0) print(calc.param.nuclear_corrfac);
-		MADNESS_EXCEPTION("unknown nuclear correlation factor", 1);
-	}
-}
+std::shared_ptr<NuclearCorrelationFactor>
+create_nuclear_correlation_factor(World& world, const SCF& calc);
 
 /// a class holding the electronic correlation factor for R12 theory
 class CorrelationFactor {

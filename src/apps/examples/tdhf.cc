@@ -67,7 +67,7 @@ int main(int argc, char** argv) {
 
     // take the HF orbitals to start
     const std::string input="input";
-	Calculation calc(world,input.c_str());
+	SCF calc(world,input.c_str());
     calc.molecule.print();
     print("\n");
     calc.param.print(world);

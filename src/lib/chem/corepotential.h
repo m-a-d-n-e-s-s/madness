@@ -40,7 +40,7 @@
 
 #include <madness_config.h>
 #include <constants.h>
-#include <moldft/atomutil.h>
+#include <chem/atomutil.h>
 #include <world/print.h>
 #include <map>
 #include <set>

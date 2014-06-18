@@ -14,9 +14,9 @@
 #include <tensor/solvers.h>
 using namespace madness;
 
-#include <moldft/molecule.h>
-#include <moldft/molecularbasis.h>
-#include <moldft/xcfunctional.h>
+#include <chem/molecule.h>
+#include <chem/molecularbasis.h>
+#include <chem/xcfunctional.h>
 
 static const double_complex I(0,1);
 static const double twopi = 2.0*constants::pi;

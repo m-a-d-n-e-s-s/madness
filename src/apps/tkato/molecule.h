@@ -1,1 +1,1 @@
-../moldft/molecule.h
+../../lib/chem/molecule.h

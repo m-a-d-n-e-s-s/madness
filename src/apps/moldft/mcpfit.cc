@@ -37,7 +37,7 @@
 
 #include <mra/mra.h>
 #include <tensor/solvers.h>
-#include <moldft/corepotential.h>
+#include <chem/corepotential.h>
 #include <iostream>
 #include <iomanip>
 #include <set>

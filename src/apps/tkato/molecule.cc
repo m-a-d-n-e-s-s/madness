@@ -1,1 +1,1 @@
-../moldft/molecule.cc
+../../lib/chem/molecule.cc

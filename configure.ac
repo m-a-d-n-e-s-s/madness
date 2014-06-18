@@ -383,6 +383,7 @@ AC_CONFIG_FILES([
        src/lib/tinyxml/Makefile
        src/lib/tensor/Makefile
        src/lib/mra/Makefile
+       src/lib/chem/Makefile
     src/apps/Makefile
        src/apps/examples/Makefile
        src/apps/tdse/Makefile
@@ -390,6 +391,7 @@ AC_CONFIG_FILES([
        src/apps/exciting/Makefile
        src/apps/moldft/Makefile
        src/apps/nick/Makefile
+       src/apps/tkato/Makefile
        src/apps/jacob/Makefile
        src/apps/interior_bc/Makefile
        src/apps/interior_bc/nanophoto/Makefile

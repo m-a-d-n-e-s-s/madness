@@ -40,8 +40,8 @@
 #include <tensor/tensor.h>
 #include <tensor/tensor_lapack.h>
 #include <constants.h>
-#include <moldft/molecule.h>
-#include <moldft/atomutil.h>
+#include <chem/molecule.h>
+#include <chem/atomutil.h>
 #include <misc/misc.h>
 #include <iomanip>
 #include <set>

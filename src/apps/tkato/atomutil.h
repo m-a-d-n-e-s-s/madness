@@ -1,1 +1,1 @@
-../moldft/atomutil.h
+../../lib/chem/atomutil.h

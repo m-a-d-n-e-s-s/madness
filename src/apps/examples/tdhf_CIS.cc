@@ -8,6 +8,18 @@
 #include <examples/tdhf_CIS.h>
 
 using namespace madness;
+
+
+static double ttt, sss;
+void START_TIMER(World& world) {
+    world.gop.fence(); ttt=wall_time(); sss=cpu_time();
+}
+
+void END_TIMER(World& world, const char* msg) {
+    ttt=wall_time()-ttt; sss=cpu_time()-sss;
+    if (world.rank()==0) printf("timer: %20.20s %8.2fs %8.2fs\n", msg, sss, ttt);
+}
+
 /// Print information of root vector
 void CIS::print_roots(const std::vector<root> &roots,const int iter) const{
 

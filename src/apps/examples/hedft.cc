@@ -21,7 +21,7 @@
 #include <tensor/elem.h>
 
 
-#include <moldft/xcfunctional.h>
+#include <chem/xcfunctional.h>
 
 
 using namespace madness;

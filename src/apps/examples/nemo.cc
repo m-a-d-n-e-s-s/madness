@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
 
     // take the HF orbitals to start
     const std::string input="input";
-	std::shared_ptr<Calculation> calc(new Calculation(world,input.c_str()));
+	std::shared_ptr<SCF> calc(new SCF(world,input.c_str()));
 	if (world.rank()==0) {
 		calc->molecule.print();
 		print("\n");

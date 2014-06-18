@@ -36,8 +36,8 @@
 /// \file moldft/potentialmanager.h
 /// \brief Declaration of molecule related classes and functions
 
-#include <moldft/corepotential.h>
-#include <moldft/atomutil.h>
+#include <chem/corepotential.h>
+#include <chem/atomutil.h>
 #include <world/array.h>
 #include <vector>
 #include <string>
@@ -50,6 +50,7 @@
 #include <tensor/tensor.h>
 #include <misc/misc.h>
 
+namespace madness {
 class MolecularPotentialFunctor : public FunctionFunctorInterface<double,3> {
 private:
     const Molecule& molecule;
@@ -210,5 +211,6 @@ public:
         }
     }
 };
+}
 
 #endif

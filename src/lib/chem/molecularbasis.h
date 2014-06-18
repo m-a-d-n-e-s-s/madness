@@ -35,7 +35,7 @@
 
 #include <madness_config.h>
 #include <constants.h>
-#include <moldft/molecule.h>
+#include <chem/molecule.h>
 #include <tinyxml/tinyxml.h>
 #include <tensor/tensor.h>
 using namespace madness;
@@ -425,85 +425,12 @@ public:
         read_file(filename);
     }
 
-    void read_file(std::string filename) {
-        static const bool debug = false;
-        TiXmlDocument doc(filename);
+    /// read the atomic basis set from file
 
-        // try to read the AO basis from current directory, otherwise from
-        // the environment variable MRA_DATA_DIR
-        if (!doc.LoadFile()) {
-        	std::cout << "AtomicBasisSet: Trying to get AO basis from MRA_DATA_DIR" << std::endl;
-
-            char* data_dir=getenv("MRA_DATA_DIR");
-            char buf[32768];
-            buf[0] = 0;
-            strcat(buf,data_dir);
-            strcat(buf,"/");
-            strcat(buf,filename.c_str());
-            filename = strdup(buf);
-            if (!doc.LoadFile(filename)) {
-
-            	std::cout << "AtomicBasisSet: Failed loading from file " << filename
-                      << " : ErrorDesc  " << doc.ErrorDesc()
-                      << " : Row " << doc.ErrorRow()
-                      << " : Col " << doc.ErrorCol() << std::endl;
-            	MADNESS_EXCEPTION("AtomicBasisSet: Failed loading basis set",0);
-            }
-        }
-        for (TiXmlElement* node=doc.FirstChildElement(); node; node=node->NextSiblingElement()) {
-            if (strcmp(node->Value(),"name") == 0) {
-                name = node->GetText();
-                if (debug) std::cout << "Loading basis set " << name << std::endl;
-            }
-            else if (strcmp(node->Value(), "basis") == 0) {
-                const char* symbol = node->Attribute("symbol");
-                if (debug) std::cout << "  found basis set for " << symbol << std::endl;
-                int atn = symbol_to_atomic_number(symbol);
-                std::vector<ContractedGaussianShell> g;
-                for (TiXmlElement* shell=node->FirstChildElement(); shell; shell=shell->NextSiblingElement()) {
-                    const char* type = shell->Attribute("type");
-                    int nprim=-1;
-                    shell->Attribute("nprim",&nprim);
-                    if (debug) std::cout << "      found shell " << type << " " << nprim << std::endl;
-                    std::vector<double> expnt = load_tixml_vector<double>(shell, nprim, "exponents");
-                    if (strcmp(type,"L") == 0) {
-                        std::vector<double> scoeff = load_tixml_vector<double>(shell, nprim, "scoefficients");
-                        std::vector<double> pcoeff = load_tixml_vector<double>(shell, nprim, "pcoefficients");
-                        g.push_back(ContractedGaussianShell(0,scoeff,expnt));
-                        g.push_back(ContractedGaussianShell(1,pcoeff,expnt));
-                    }
-                    else {
-                        static const char* tag[] = {"S","P","D","F","G"};
-                        int i;
-                        for (i=0; i<5; ++i) {
-                            if (strcmp(type,tag[i]) == 0) goto foundit;
-                        }
-                        MADNESS_EXCEPTION("Loading atomic basis set: bad shell type?",0);
-foundit:
-                        std::vector<double> coeff = load_tixml_vector<double>(shell, nprim, "coefficients");
-                        g.push_back(ContractedGaussianShell(i, coeff, expnt));
-                    }
-                }
-                ag[atn] = AtomicBasis(g);
-            }
-            else if (strcmp(node->Value(), "atomicguess") == 0) {
-                const char* symbol = node->Attribute("symbol");
-                if (debug) std::cout << "  atomic guess info for " << symbol << std::endl;
-                int atn = symbol_to_atomic_number(symbol);
-                MADNESS_ASSERT(is_supported(atn));
-                int nbf = ag[atn].nbf();
-                Tensor<double> dmat = load_tixml_matrix<double>(node, nbf, nbf, "guessdensitymatrix");
-                Tensor<double> avec = load_tixml_matrix<double>(node, nbf, nbf, "alphavectors");
-                Tensor<double> bvec = load_tixml_matrix<double>(node, nbf, nbf, "betavectors");
-                ag[atn].set_guess_info(dmat, avec, bvec);
-            }
-            else {
-                MADNESS_EXCEPTION("Loading atomic basis set: unexpected XML element", 0);
-            }
-        }
-
-    }
-
+    /// use the default location MRA_CHEMDATA_DIR as defined in the Makefile.am
+    /// unless it is overridden by the environment variable MRA_CHEMDATA_DIR
+    /// @param[in]	filename	the name of the basis set (sto-3g, 6-31g, etc)
+    void read_file(std::string filename);
 
     /// Makes map from atoms to first basis function on atom and number of basis functions on atom
     void atoms_to_bfn(const Molecule& molecule, std::vector<int>& at_to_bf, std::vector<int>& at_nbf) {

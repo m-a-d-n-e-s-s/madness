@@ -1,1 +1,1 @@
-../moldft/atomutil.cc
+../../lib/chem/atomutil.cc

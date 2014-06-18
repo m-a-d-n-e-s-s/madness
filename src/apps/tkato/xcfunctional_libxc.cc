@@ -1,1 +1,1 @@
-../moldft/xcfunctional_libxc.cc
+../../lib/chem/xcfunctional_libxc.cc

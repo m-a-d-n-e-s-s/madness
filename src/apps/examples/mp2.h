@@ -50,10 +50,10 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
-#include <moldft/moldft.h>
+#include <chem/SCF.h>
 #include <examples/nonlinsol.h>
-#include <examples/projector.h>
-#include <examples/correlationfactor.h>
+#include <chem/projector.h>
+#include <chem/correlationfactor.h>
 #include <examples/nemo.h>
 
 #include <iostream>
@@ -99,7 +99,7 @@ namespace madness {
 
     class HartreeFock {
         World& world;
-        std::shared_ptr<Calculation> calc;
+        std::shared_ptr<SCF> calc;
         mutable double coords_sum;     // sum of square of coords at last solved geometry
 
         // save the Coulomb potential
@@ -116,7 +116,7 @@ namespace madness {
 
         Nemo nemo_calc;
 
-        HartreeFock(World& world, std::shared_ptr<Calculation> calc1) :
+        HartreeFock(World& world, std::shared_ptr<SCF> calc1) :
         	world(world), calc(calc1), coords_sum(-1.0), nemo_calc(world,calc1) {
         }
 
@@ -201,8 +201,8 @@ namespace madness {
 
         double coord_chksum() const {return coords_sum;}
 
-        const Calculation& get_calc() const {return *calc;}
-        Calculation& get_calc() {return *calc;}
+        const SCF& get_calc() const {return *calc;}
+        SCF& get_calc() {return *calc;}
 
         /// return full orbital i, multiplied with the nuclear correlation factor
 
@@ -430,7 +430,7 @@ namespace madness {
 
 
         World& world;                           ///< the world
-        Parameters param;						///< calculation parameters for MP2
+        Parameters param;						///< SCF parameters for MP2
         std::shared_ptr<HartreeFock> hf;        ///< our reference
         CorrelationFactor corrfac;              ///< correlation factor: Slater
         std::shared_ptr<NuclearCorrelationFactor> nuclear_corrfac;
@@ -494,8 +494,8 @@ namespace madness {
             , intermediates() {
 
         	{
-        		std::shared_ptr<Calculation> calc=std::shared_ptr<Calculation>
-        				(new Calculation(world,input.c_str()));
+        		std::shared_ptr<SCF> calc=std::shared_ptr<SCF>
+        				(new SCF(world,input.c_str()));
 
         		// get parameters form input file for hf
         		if (world.rank()==0) print("accuracy from dft will be overriden by mp2 to 0.01*thresh");
@@ -633,7 +633,7 @@ namespace madness {
             return correlation_energy;
         }
 
-        /// print the calculation parameters
+        /// print the SCF parameters
         void print_info(World& world) const {
             if (world.rank()==0) {
                 madness::print("\n === MP2 info === \n");
@@ -1165,7 +1165,7 @@ namespace madness {
 			return KffKphi0;
         }
 
-        /// compute some matrix elements that don't change during the calculation
+        /// compute some matrix elements that don't change during the SCF
         ElectronPair make_pair(const int i, const int j) const {
 
             ElectronPair p=ElectronPair(i,j);

@@ -7,6 +7,7 @@ LIBTENSORDIR=$(top_builddir)/src/lib/tensor
 LIBLINALGDIR=$(top_builddir)/src/lib/linalg
 LIBMISCDIR=$(top_builddir)/src/lib/misc
 LIBMRADIR=$(top_builddir)/src/lib/mra
+LIBCHEMDIR=$(top_builddir)/src/lib/chem
 LIBTINYXMLDIR=$(top_builddir)/src/lib/tinyxml
 LIBMUPARSERDIR=$(top_builddir)/src/lib/muParser
 
@@ -16,9 +17,10 @@ LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
 LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
 LIBMISC=$(LIBMISCDIR)/libMADmisc.a
 LIBMRA=$(LIBMRADIR)/libMADmra.a
+LIBCHEM=$(LIBCHEMDIR)/libMADchem.a
 LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
 LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
 
 # Most scientific/numeric applications will link against these libraries
-MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
+MRALIBS=$(LIBCHEM) $(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
 
