@@ -35,6 +35,7 @@
 /// \file tensor/test.cc
 /// \brief New test code for Tensor class using Google unit test
 
+#define USE_GENTENSOR
 #include <tensor/tensor.h>
 #include <tensor/gentensor.h>
 #include <world/print.h>

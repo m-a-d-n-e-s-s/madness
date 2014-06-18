@@ -3,6 +3,8 @@
 /// \brief test the SeparatedRepresentation (SepRep) for representing matrices
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#define USE_GENTENSOR
+
 #include "tensor/gentensor.h"
 
 using namespace madness;

@@ -260,11 +260,11 @@ namespace madness {
 	template <class Archive, typename T>
 	struct ArchiveLoadImpl< Archive, GenTensor<T> > {
 		static void load(const Archive& s, GenTensor<T>& t) {
-            long sz = 0l, id = 0l;
+			long sz = 0l, id =0l;
 			s & sz & id;
 			if (id != t.id()) throw "type mismatch deserializing a tensor";
 			if (sz) {
-				long _ndim = 0l, _dim[TENSOR_MAXDIM];
+				long _ndim=0l, _dim[TENSOR_MAXDIM];
 				s & _ndim & wrap(_dim,TENSOR_MAXDIM);
 				t = Tensor<T>(_ndim, _dim, false);
 				if (sz != t.size()) throw "size mismatch deserializing a tensor";

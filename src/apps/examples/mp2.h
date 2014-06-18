@@ -46,6 +46,7 @@
 #ifndef MP2_H_
 #define MP2_H_
 
+#define USE_GENTENSOR
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
