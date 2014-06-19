@@ -70,6 +70,13 @@
   \vec U1		= (\vec \nabla f12)
   \vec U1		= R^{-1}(\vec \nabla R)
 
+  To construct a nuclear correlation factor write:
+
+  std::shared_ptr<NuclearCorrelationFactor> nuclear_correlation
+   = create_nuclear_correlation_factor(world,*calc);
+
+  where calc is an SCF calculation which holds the molecule and the
+  nuclear_corrfac parameter name.
 */
 
 
@@ -81,11 +88,9 @@
 #include <mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
-#include <chem/SCF.h>
 
-
+class SCF;
 namespace madness {
-
 
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {
@@ -98,9 +103,9 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	NuclearCorrelationFactor(World& world, const SCF& calc)
+	NuclearCorrelationFactor(World& world, const Molecule& mol)
 		: world(world), vtol(FunctionDefaults<3>::get_thresh()*0.1)
-		, molecule(calc.molecule) {}
+		, molecule(mol) {}
 
 	/// initialize the regularized potentials U1 and U2
 	void initialize() {
@@ -332,8 +337,8 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	GaussSlater(World& world, const SCF& calc)
-		: NuclearCorrelationFactor(world,calc) {
+	GaussSlater(World& world, const Molecule& mol)
+		: NuclearCorrelationFactor(world,mol) {
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");
@@ -400,8 +405,8 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	LinearSlater(World& world, const SCF& calc, const double a)
-		: NuclearCorrelationFactor(world,calc), a_(1.0) {
+	LinearSlater(World& world, const Molecule& mol, const double a)
+		: NuclearCorrelationFactor(world,mol), a_(1.0) {
 
 		if (a!=0.0) a_=a;
 
@@ -473,8 +478,8 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Slater(World& world, const SCF& calc, const double a)
-		: NuclearCorrelationFactor(world,calc), a_(1.5) {
+	Slater(World& world, const Molecule& mol, const double a)
+		: NuclearCorrelationFactor(world,mol), a_(1.5) {
 
 		if (a!=0.0) a_=a;
 
@@ -540,8 +545,8 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	Polynomial(World& world, const SCF& calc, const double a)
-		: NuclearCorrelationFactor(world,calc) {
+	Polynomial(World& world, const Molecule& mol, const double a)
+		: NuclearCorrelationFactor(world,mol) {
 
 		/// length scale parameter a, default chosen that linear terms in U2 vanish
 		a_=(2. + (-2. + sqrt(-1. + N))*N)/(-2. + N);
@@ -641,10 +646,9 @@ public:
 
 	/// @param[in]	world	the world
 	/// @param[in]	molecule	molecule with the sites of the nuclei
-	PseudoNuclearCorrelationFactor(World& world, const SCF& calc,
-			const double fac)
-		: NuclearCorrelationFactor(world,calc),
-		  potentialmanager(calc.potentialmanager), fac(fac) {
+	PseudoNuclearCorrelationFactor(World& world, const Molecule& mol,
+			const std::shared_ptr<PotentialManager> pot, const double fac)
+		: NuclearCorrelationFactor(world,mol), potentialmanager(pot), fac(fac) {
 
 		if (world.rank()==0) {
 			print("constructed nuclear correlation factor of the form");

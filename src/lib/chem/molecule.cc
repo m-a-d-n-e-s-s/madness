@@ -46,8 +46,6 @@
 #include <iomanip>
 #include <set>
 
-static const double PI = 3.1415926535897932384;
-
 static inline double distance(double x1, double y1, double z1, double x2, double y2, double z2) {
     double xx = x1-x2;
     double yy = y1-y2;

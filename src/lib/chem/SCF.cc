@@ -42,6 +42,25 @@
 
 #include <chem/SCF.h>
 
+#include <tensor/elem.h>
+#include <TAU.h>
+#include <mra/lbdeux.h>
+#include <mra/qmprop.h>
+#include <misc/misc.h>
+#include <misc/ran.h>
+
+
+template<int NDIM>
+struct unaryexp {
+    void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
+        //vzExp(t.size, t.ptr(), t.ptr());
+        UNARY_OPTIMIZED_ITERATOR(double_complex, t, *_p0 = exp(*_p0););
+    }
+    template <typename Archive>
+    void serialize(Archive& ar) {}
+};
+
+
 
 
 static double rsquared(const coordT& r) {

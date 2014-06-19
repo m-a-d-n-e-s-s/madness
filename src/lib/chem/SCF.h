@@ -40,48 +40,19 @@
 #ifndef SCF_H_
 #define SCF_H_
 
-
-
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
+
 #include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <mra/qmprop.h>
-
-#include <misc/misc.h>
-#include <misc/ran.h>
-
-#include <tensor/systolic.h>
-#include <tensor/solvers.h>
-#include <tensor/elem.h>
-
-#include <ctime>
-#include <list>
-
-#include <TAU.h>
-using namespace madness;
-
 
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
 #include <chem/corepotential.h>
 #include <chem/xcfunctional.h>
-
 #include <chem/potentialmanager.h>
 
-//#include <jacob/abinitdftsolventsolver.h>
-//#include <examples/molecularmask.h>
+#include <tensor/solvers.h>
 
-template<int NDIM>
-struct unaryexp {
-    void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
-        //vzExp(t.size, t.ptr(), t.ptr());
-        UNARY_OPTIMIZED_ITERATOR(double_complex, t, *_p0 = exp(*_p0););
-    }
-    template <typename Archive>
-    void serialize(Archive& ar) {}
-};
-
-
+using namespace madness;
 
 
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
@@ -776,7 +747,8 @@ public:
         gradop = gradient_operator<double,3>(world);
         mask = functionT(factoryT(world).f(mask3).initial_level(4).norefine());
         if(world.rank() == 0){
-            print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k", FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
+            print("\nSolving NDIM=",NDIM," with thresh", thresh, "    k",
+            	FunctionDefaults<NDIM>::get_k(), "   conv", std::max(thresh, param.dconv), "\n");
         }
     }
 
