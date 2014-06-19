@@ -37,13 +37,12 @@
 #define MADNESS_MRA_MRAIMPL_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/funcimpl.h>
-#include <mra/mra.h>
-#include <mra/funcimpl.h>
-//#include <mra/loadbal.h>
-#include <mra/function_common_data.h>
-#include <world/worldhashmap.h>
 #include <math.h>
+#include <world/worldhashmap.h>
+#include <mra/function_common_data.h>
+
+#include <mra/funcimpl.h>
+#include <mra/displacements.h>
 
 /// \file mra/mraimpl.h
 /// \brief Declaration and initialization of static data, some implementation, some instantiation

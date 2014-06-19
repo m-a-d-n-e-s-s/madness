@@ -73,10 +73,8 @@ namespace madness {
 #include <world/parar.h>
 #include <world/worlddc.h>
 #include <mra/funcdefaults.h>
-#include <mra/derivative.h>
 #include <mra/function_factory.h>
 #include <mra/lbdeux.h>
-#include <mra/funcimpl.h>
 
 // some forward declarations
 namespace madness {
@@ -113,12 +111,6 @@ namespace madness {
 
     template<typename T, std::size_t NDIM>
     struct error_leaf_op;
-
-    template<typename T, std::size_t NDIM>
-    struct noop;
-
-    template<std::size_t NDIM, std::size_t LDIM>
-    class PartialKeyMap;
 
 }
 

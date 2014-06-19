@@ -50,6 +50,7 @@
 #include <world/enable_if.h>
 #include <new>
 #include <stdio.h>
+#include <map>
 
 namespace madness {
 

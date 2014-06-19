@@ -42,15 +42,16 @@
 #include <world/world.h>
 #include <world/print.h>
 #include <world/scopedptr.h>
+#include <world/typestuff.h>
 #include <misc/misc.h>
 #include <tensor/tensor.h>
+#include "tensor/gentensor.h"
+
+#include "mra/function_common_data.h"
+#include <mra/indexit.h>
 #include <mra/key.h>
 #include <mra/funcdefaults.h>
 #include "mra/function_factory.h"
-#include "tensor/gentensor.h"
-#include <world/typestuff.h>
-#include "mra/function_common_data.h"
-#include <mra/indexit.h>
 
 namespace madness {
     template <typename T, std::size_t NDIM>
@@ -74,11 +75,6 @@ namespace madness {
     template<int D>
     class LoadBalImpl;
 
-    template<int D>
-    class LBTree;
-
-    template<int D>
-    class MyPmap;
 }
 
 namespace madness {

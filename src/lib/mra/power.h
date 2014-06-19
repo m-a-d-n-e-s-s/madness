@@ -36,13 +36,12 @@
 #ifndef MADNESS_MRA_POWER_H__INCLUDED
 #define MADNESS_MRA_POWER_H__INCLUDED
 
-//using namespace std;
 
 namespace madness {
 
     template <int D>
     inline int power(int base = 2) {
-        return (int) pow((double) base, (int) D);
+        return (int) std::pow((double) base, (int) D);
     }
 
     template <>

@@ -33,17 +33,26 @@
 #ifndef MADNESS_MRA_IBDEUX_H__INCLUDED
 #define MADNESS_MRA_IBDEUX_H__INCLUDED
 
-#include <mra/mra.h>
 #include <madness_config.h>
 #include <map>
 #include <queue>
 #include <world/atomicint.h>
+#include <world/worlddc.h>
+
+#include <mra/key.h>
+#include <mra/funcdefaults.h>
 
 /// \file mra/lbdeux.h
 /// \brief Implements (2nd generation) static load/data balancing for functions
 /// \ingroup function
 
 namespace madness {
+
+	template<typename T, std::size_t NDIM>
+	class FunctionNode;
+
+	template<typename T, std::size_t NDIM>
+	class Function;
 
     template <std::size_t NDIM>
     class LBDeuxPmap : public WorldDCPmapInterface< Key<NDIM> > {

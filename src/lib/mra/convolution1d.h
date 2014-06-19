@@ -34,7 +34,6 @@
 #define MADNESS_MRA_CONVOLUTION1D_H__INCLUDED
 
 #include <world/array.h>
-//#include <mra/mra.h>
 #include <constants.h>
 #include <limits.h>
 #include <tensor/tensor.h>

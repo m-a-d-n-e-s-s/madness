@@ -31,7 +31,7 @@
   $Id$
 */
 
-
+#include <mra/funcdefaults.h>
 
 #ifndef FUNCTIONCOMMONDATA_H_
 #define FUNCTIONCOMMONDATA_H_
