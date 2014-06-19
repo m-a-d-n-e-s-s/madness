@@ -19,6 +19,7 @@ namespace {
     }
 }
 
+namespace madness {
 struct xc_name_map {
     const std::string name;
     const int id;
@@ -650,4 +651,5 @@ madness::Tensor<double> XCfunctional::fxc(const std::vector< madness::Tensor<dou
     }
     }
     return result;
+}
 }

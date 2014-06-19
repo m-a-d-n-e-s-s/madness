@@ -19,8 +19,4 @@ testperiodic_SOURCES = testperiodic.cc
 
 mcpfit_SOURCES = mcpfit.cc
 
-if MADNESS_HAS_LIBXC
-moldft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
-testperiodic_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
-endif
 

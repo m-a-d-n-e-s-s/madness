@@ -47,6 +47,9 @@
 
 #include <cmath>
 
+namespace madness {
+
+
 const double c_b2  = 0.333333333333333333333333333333333;
 const double c_b7  = 0.333333333333333333333333333333;
 const double c_b14 = 1.333333333333333333333333333333;
@@ -340,3 +343,4 @@ int c_uks_vwn5__(double *ra, double *rb, double * f, double *dfdra, double *dfdr
     return 0;
 } /* c_uks_vwn5__ */
 
+}

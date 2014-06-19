@@ -6,6 +6,9 @@
 #include <tensor/tensor.h>
 #include <sstream>
 
+namespace madness {
+
+
 int x_rks_s__(const double *r__, double *f, double * dfdra);
 int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
 int x_uks_s__(double *ra, double *rb, double *f, double *dfdra, double *dfdrb);
@@ -130,5 +133,5 @@ madness::Tensor<double> XCfunctional::vxc(const std::vector< madness::Tensor<dou
     return result;
 }
 
-
+}
 #endif

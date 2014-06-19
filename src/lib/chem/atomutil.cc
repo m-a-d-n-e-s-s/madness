@@ -42,6 +42,7 @@
 /// \file atomutil.cc
 /// \brief implementation of utility functions for atom
 
+namespace madness {
 static const unsigned int NUMBER_OF_ATOMS_IN_TABLE = 110;
 static const AtomicData atomic_data[NUMBER_OF_ATOMS_IN_TABLE] = {
     {"Bq",  "bq",   0  ,  0   ,  0.0               , 0.0           ,0.0             , 0.0    },
@@ -479,3 +480,4 @@ double smoothed_density(double r) {
 //     return ((-3.0/2.0+(1.0/3.0)*r^2)*exp(-r^2)+(-32.0+(256.0/3.0)*r^2)*exp(-4.0*r^2))*RPITO1P5;
 // }
 
+}

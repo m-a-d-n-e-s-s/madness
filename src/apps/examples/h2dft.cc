@@ -21,7 +21,7 @@
 #include <tensor/elem.h>
 
 
-#include <DFcode/xcfunctional.h>
+#include <chem/xcfunctional.h>
 
 
 using namespace madness;
@@ -43,23 +43,20 @@ typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
 
-
-using namespace madness;
-
 static const double R = 1.4;    // bond length
 static const double L = 64.0*R; // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-5; // precision
 
-XCfunctional xc;
+//XCfunctional xc;
 std::vector< std::shared_ptr<real_derivative_3d> > gradop;
 
-functionT make_dft_potential(World & world, const vecfuncT& vf, int ispin, int what)
+functionT make_dft_potential(World & world, XCfunctional& xc, const vecfuncT& vf, int ispin, int what)
 {
 	return multiop_values<double, xc_potential, 3>(xc_potential(xc, ispin, what), vf);
 }
 
-double make_dft_energy(World & world, const vecfuncT& vf, int ispin)
+double make_dft_energy(World & world, XCfunctional& xc, const vecfuncT& vf, int ispin)
 {
 	functionT vlda = multiop_values<double, xc_functional, 3>(xc_functional(xc, ispin), vf);
 	return vlda.trace();
@@ -123,6 +120,7 @@ int main(int argc, char** argv) {
 	//xc_data="GGA_X_PBE 1.";
 	//xc_data="GGA_C_PBE 1.";
 	//xc_data="GGA_X_B88 1.";
+	XCfunctional xc;
 	xc.initialize(xc_data, false);
 
         poperatorT coulop;
@@ -154,13 +152,13 @@ int main(int argc, char** argv) {
                                     rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
                               }
                         }
-                        //double exc = make_dft_energy(world, vf, 0);
+                        //double exc = make_dft_energy(world,xc, vf, 0);
                         //print("exc=",exc );
 
-                        real_function_3d vxc =  make_dft_potential(world, vf, 0, 0);
+                        real_function_3d vxc =  make_dft_potential(world,xc, vf, 0, 0);
 
 			if (xc.is_gga()) {
-                                functionT vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
+                                functionT vsigaa = make_dft_potential(world,xc, vf, 0, 1).truncate();
 
                                 for (int axis=0; axis<1; axis++) {
                                         Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
@@ -201,7 +199,7 @@ int main(int argc, char** argv) {
 	rho.reconstruct();
 	vecfuncT vf;
 	vf.push_back(rho);
-	double exc=make_dft_energy(world, vf, 0); // Exc
+	double exc=make_dft_energy(world,xc, vf, 0); // Exc
         double nuclear_repulsion_energy = 1.0/R;
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
 	double total_energy = kinetic_energy + two_electron_energy + 

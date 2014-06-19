@@ -80,8 +80,8 @@
 */
 
 
-#ifndef NUCLEARCORRELATIONFACTOR_H_
-#define NUCLEARCORRELATIONFACTOR_H_
+#ifndef MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H__INCLUDED
+#define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H__INCLUDED
 
 
 #include <mra/mra.h>
@@ -89,8 +89,8 @@
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
 
-class SCF;
 namespace madness {
+class SCF;
 
 /// ABC for the nuclear correlation factors
 class NuclearCorrelationFactor {

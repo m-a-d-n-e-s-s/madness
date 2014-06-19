@@ -39,6 +39,8 @@
 
 #include <chem/SCF.h>
 
+using namespace madness;
+
 int main(int argc, char** argv) {
     TAU_START("main()");
     TAU_START("initialize()");

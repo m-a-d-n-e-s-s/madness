@@ -37,8 +37,8 @@
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 
-#ifndef SCF_H_
-#define SCF_H_
+#ifndef MADNESS_CHEM_SCF_H__INCLUDED
+#define MADNESS_CHEM_SCF_H__INCLUDED
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
@@ -52,8 +52,8 @@
 
 #include <tensor/solvers.h>
 
-using namespace madness;
 
+namespace madness {
 
 typedef std::shared_ptr< WorldDCPmapInterface< Key<3> > > pmapT;
 typedef Vector<double,3> coordT;
@@ -80,7 +80,6 @@ extern tensorT distributed_localize_PM(World & world,
                                 const double thetamax = 0.5,
                                 const bool randomize = true,
                                        const bool doprint = false);
-
 
 inline double mask1(double x) {
     /* Iterated first beta function to switch smoothly
@@ -1049,7 +1048,7 @@ public:
         return calc.derivatives(world);
     }
 };
-
+}
 
 #endif /* SCF_H_ */
 

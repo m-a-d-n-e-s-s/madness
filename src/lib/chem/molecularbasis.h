@@ -30,15 +30,15 @@
 
   $Id$
 */
-#ifndef MOLECULAR_BASIS_H
-#define MOLECULAR_BASIS_H
+#ifndef MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
+#define MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 
 #include <madness_config.h>
 #include <constants.h>
 #include <chem/molecule.h>
+#include <chem/atomutil.h>
 #include <tinyxml/tinyxml.h>
 #include <tensor/tensor.h>
-using namespace madness;
 
 #include <vector>
 #include <algorithm>
@@ -47,6 +47,7 @@ using namespace madness;
 #include <iomanip>
 #include <cstdio>
 
+namespace madness {
 /// Represents a single shell of contracted, Cartesian, Gaussian primitives
 class ContractedGaussianShell {
     int type;  ///< Angular momentum = 0, 1, 2, ...
@@ -605,7 +606,7 @@ public:
         ar & name & ag;
     }
 };
-
+}
 
 
 #endif

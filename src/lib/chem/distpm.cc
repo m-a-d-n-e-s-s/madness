@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-using namespace madness;
+namespace madness {
 
 typedef Tensor<double> tensorT;
 typedef Function<double,3> functionT;
@@ -352,4 +352,4 @@ tensorT distributed_localize_PM(World & world,
     return U;
 }
 
-    
+}

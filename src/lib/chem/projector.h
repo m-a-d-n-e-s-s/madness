@@ -5,8 +5,8 @@
  *      Author: fbischoff
  */
 
-#ifndef PROJECTOR_H_
-#define PROJECTOR_H_
+#ifndef MADNESS_CHEM_PROJECTOR_H__INCLUDED
+#define MADNESS_CHEM_PROJECTOR_H__INCLUDED
 
 #include <mra/mra.h>
 

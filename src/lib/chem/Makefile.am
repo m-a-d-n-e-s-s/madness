@@ -23,9 +23,13 @@ libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
                        distpm.cc SCF.cc
                        
-if !MADNESS_HAS_LIBXC
-  libMADchem_a_SOURCES += xcfunctional_ldaonly.cc 
+if MADNESS_HAS_LIBXC
+   libMADchem_a_SOURCES += xcfunctional_libxc.cc
+else
+   libMADchem_a_SOURCES += xcfunctional_ldaonly.cc 
 endif
+
+
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done

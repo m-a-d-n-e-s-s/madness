@@ -1,5 +1,5 @@
-#ifndef MOLDFT_XCMOLDFT_H
-#define MOLDFT_XCMOLDFT_H
+#ifndef MADNESS_CHEM_XCFUNCTIONAL_H__INCLUDED
+#define MADNESS_CHEM_XCFUNCTIONAL_H__INCLUDED
 
 #include <madness_config.h>
 
@@ -17,6 +17,7 @@
 #include <xc.h>
 #endif
 
+namespace madness {
 /// Compute the spin-restricted LDA potential using unaryop (only for the initial guess)
 struct xc_lda_potential {
     xc_lda_potential() {}
@@ -324,5 +325,6 @@ struct xc_kernel {
         return r;
     }
 };
+}
 
 #endif

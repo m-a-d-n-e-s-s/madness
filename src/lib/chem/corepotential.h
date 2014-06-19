@@ -32,8 +32,8 @@
   $Id$
 */
 
-#ifndef MADNESS_COREPOTENTIAL_H
-#define MADNESS_COREPOTENTIAL_H
+#ifndef MADNESS_CHEM_COREPOTENTIAL_H__INCLUDED
+#define MADNESS_CHEM_COREPOTENTIAL_H__INCLUDED
 
 /// \file corepotential.h
 /// \brief Declaration of core potential related class
@@ -52,6 +52,8 @@
 using std::cout;
 using std::endl;
 using std::vector;
+
+namespace madness {
 
 /// Represents a core potential
 
@@ -223,6 +225,6 @@ public:
         }
     }
 };
-
+}
 
 #endif

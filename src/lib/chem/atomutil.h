@@ -33,14 +33,15 @@
 */
 
 
-#ifndef MADNESS_ATOMUTIL_H
-#define MADNESS_ATOMUTIL_H
+#ifndef MADNESS_CHEM_ATOMUTIL_H__INCLUDED
+#define MADNESS_CHEM_ATOMUTIL_H__INCLUDED
 
 #include <string>
 
 /// \file atomutil.h
 /// \brief Declaration of utility class and functions for atom
 
+namespace madness {
 struct AtomicData {
     // !!! The order of declaration here must match the order in the initializer !!!
 
@@ -70,6 +71,6 @@ double smoothing_parameter(double Z, double eprec);
 double smoothed_potential(double r);
 double dsmoothed_potential(double r);
 double smoothed_density(double r);
-
+}
 #endif
 

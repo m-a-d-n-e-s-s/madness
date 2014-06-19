@@ -30,8 +30,8 @@
 
   $Id$
 */
-#ifndef MADNESS_MOLECULE_H
-#define MADNESS_MOLECULE_H
+#ifndef MADNESS_CHEM_MOLECULE_H__INCLUDED
+#define MADNESS_CHEM_MOLECULE_H__INCLUDED
 
 /// \file moldft/molecule.h
 /// \brief Declaration of molecule related classes and functions
@@ -50,6 +50,7 @@
 #include <tensor/tensor.h>
 #include <misc/misc.h>
 
+namespace madness {
 
 class Atom {
 public:
@@ -210,6 +211,6 @@ public:
         ar & atoms & rcut & eprec & core_pot;
     }
 };
-
+}
 
 #endif

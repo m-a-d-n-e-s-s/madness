@@ -33,6 +33,7 @@
 
 #include <chem/molecularbasis.h>
 
+namespace madness {
 
 std::ostream& operator<<(std::ostream& s, const ContractedGaussianShell& c) {
     static const char* tag[] = {"s","p","d","f","g"};
@@ -183,3 +184,4 @@ foundit:
 
 }
 
+}

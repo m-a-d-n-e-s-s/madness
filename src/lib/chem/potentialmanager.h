@@ -30,8 +30,8 @@
 
   $Id$
 */
-#ifndef MADNESS_POTENTIALMANAGER_H
-#define MADNESS_POTENTIALMANAGER_H
+#ifndef MADNESS_CHEM_POTENTIALMANAGER_H__INCLUDED
+#define MADNESS_CHEM_POTENTIALMANAGER_H__INCLUDED
 
 /// \file moldft/potentialmanager.h
 /// \brief Declaration of molecule related classes and functions

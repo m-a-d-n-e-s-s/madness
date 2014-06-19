@@ -49,7 +49,7 @@
 #include <misc/misc.h>
 #include <misc/ran.h>
 
-
+namespace madness {
 template<int NDIM>
 struct unaryexp {
     void operator()(const Key<NDIM>& key, Tensor<double_complex>& t) const {
@@ -89,13 +89,12 @@ extern void drot(long n, double* restrict a, double* restrict b, double s, doubl
 
 
 /// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
-namespace madness {
+
 tensorT Q3(const tensorT& s) {
     tensorT Q = inner(s,s);
     Q.gaxpy(0.2,s,-2.0/3.0);
     for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.0;
     return Q.scale(15.0/8.0);
-}
 }
 
 
@@ -2434,3 +2433,4 @@ void SCF::solve(World & world) {
 
 }        // end solve function
 
+}

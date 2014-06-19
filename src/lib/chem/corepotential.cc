@@ -50,7 +50,9 @@
 #include <set>
 using std::string;
 using std::vector;
-using namespace madness;
+
+
+namespace madness {
 
 typedef Vector<double,3> coordT;
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
@@ -382,4 +384,6 @@ void CorePotentialManager::set_rcut(double value) {
         it->second.potential.rcut0 = (value<=0.0) ? 1.0 : value;
         it->second.potential.rcut = (value<=0.0) ? 1.0 : value;
     }
+}
+
 }
