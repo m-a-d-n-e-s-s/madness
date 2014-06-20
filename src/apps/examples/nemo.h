@@ -193,12 +193,15 @@ public:
 			calc->load_mos(world);
 		} else {
 			calc->initial_guess(world);
+
+			// guess: multiply the guess orbitals with the inverse R
+			calc->amo = mul(world, R_inverse, calc->amo);
 			calc->param.restart = true;
 		}
 
 		double energy = solve();
-		if (calc->param.save) calc->save_mos(world);
 		calc->current_energy=energy;
+		if (calc->param.save) calc->save_mos(world);
 
 		// save the converged orbitals and nemos
 		vecfuncT psi = mul(world, R, calc->amo);
@@ -268,9 +271,7 @@ private:
 	/// solve the HF equations
 	double solve() {
 
-		// guess: multiply the guess orbitals with the inverse R
-		calc->amo = mul(world, R_inverse, calc->amo);
-
+		// guess has already been performed in value()
 		vecfuncT& nemo = calc->amo;
 		long nmo = nemo.size();
 
