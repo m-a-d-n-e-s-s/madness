@@ -3,7 +3,6 @@
 /// \brief test the SeparatedRepresentation (SepRep) for representing matrices
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#define USE_GENTENSOR
 
 #include "tensor/gentensor.h"
 
@@ -824,11 +823,7 @@ int main(int argc, char**argv) {
 #else
 int main(int argc, char** argv) {
 
-    initialize(argc,argv);
-    World world(SafeMPI::COMM_WORLD);
     print("no testseprep without having a GenTensor");
-    world.gop.fence();
-    finalize();
     return 0;
 }
 

@@ -46,6 +46,9 @@
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <examples/mp2.h>
 
+using namespace madness;
+
+#ifdef USE_GENTENSOR
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -124,3 +127,25 @@ int main(int argc, char** argv) {
 
     return 0;
 }
+
+#else
+
+
+int main(int argc, char** argv) {
+    initialize(argc, argv);
+    World world(SafeMPI::COMM_WORLD);
+    startup(world,argc,argv);
+    if(world.rank() == 0) {
+
+    	print("\nYou can't run mp2 because you have configured MADNESS ");
+    	print("without the --enable-gentensor flag");
+    	print("You need to reconfigure and recompile\n");
+
+    }
+    world.gop.fence();
+    finalize();
+
+    return 0;
+
+}
+#endif

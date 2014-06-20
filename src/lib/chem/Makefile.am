@@ -17,6 +17,7 @@ data_DATA = sto-3g sto-6g 6-31g coredata
 
 
 testxc_SOURCES = testxc.cc xcfunctional.h xcfunctional_ldaonly.cc lda.cc
+testxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
 
 
 libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \

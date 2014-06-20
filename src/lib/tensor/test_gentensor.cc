@@ -35,13 +35,12 @@
 /// \file tensor/test.cc
 /// \brief New test code for Tensor class using Google unit test
 
-#define USE_GENTENSOR
 #include <tensor/tensor.h>
 #include <tensor/gentensor.h>
 #include <world/print.h>
 
 
-#ifdef MADNESS_HAS_GOOGLE_TEST
+#if defined USE_GENTENSOR && MADNESS_HAS_GOOGLE_TEST
 
 // The test code deliberately uses only the dumb ITERATOR macros
 // in order to test the optimized iterators used by the implementation.
@@ -613,11 +612,17 @@ int main(int argc, char** argv) {
     return RUN_ALL_TESTS();
 }
 
-#else
-
+#elif USE_GENTENSOR
 #include <iostream>
 int main() {
     std::cout << "U need to build with Google test to enable the tensor test code\n";
+    return 0;
+}
+
+#elif MADNESS_HAS_GOOGLE_TEST
+#include <iostream>
+int main() {
+    std::cout << "U need to build with --enable-gentensor to enable the tensor test code\n";
     return 0;
 }
 

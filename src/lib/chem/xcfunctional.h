@@ -22,7 +22,7 @@ namespace madness {
 struct xc_lda_potential {
     xc_lda_potential() {}
 
-    void operator()(const madness::Key<3> & key, madness::Tensor<double>& t) const
+    void operator()(const Key<3> & key, Tensor<double>& t) const
     {
         int x_rks_s__(const double *r__, double *f, double * dfdra);
         int c_rks_vwn5__(const double *r__, double *f, double * dfdra);
