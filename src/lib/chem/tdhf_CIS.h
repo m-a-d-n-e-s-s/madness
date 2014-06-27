@@ -1,9 +1,56 @@
 /*
- * tdhfCIS.h
+  This file is part of MADNESS.
+
+  Copyright (C) 2007,2010 Oak Ridge National Laboratory
+
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License as published by
+  the Free Software Foundation; either version 2 of the License, or
+  (at your option) any later version.
+
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+  GNU General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+  For more information please contact:
+
+  Robert J. Harrison
+  Oak Ridge National Laboratory
+  One Bethel Valley Road
+  P.O. Box 2008, MS-6367
+
+  email: harrisonrj@ornl.gov
+  tel:   865-241-3937
+  fax:   865-572-0680
+
+  $Id$
+*/
+/* * tdhfCIS.h
  *
  *  Created on: May 5, 2014
  *      Author: kottmanj
  */
+
+/*!
+  \file examples/tdhf_CIS.h
+  \brief The CIS.h class
+
+  \class CIS
+  \brief CIS class provides all necessary function to do a CIS calculation (currently only HF exchange)
+
+
+  The source is
+  <a href=http://code.google.com/p/m-a-d-n-e-s-s/source/browse/local
+  /trunk/src/apps/examples/tdhf.cc>here</a>.
+
+  ... moved to github (source tree is the same)
+
+*/
 
 #ifndef TDHFCIS_H_
 #define TDHFCIS_H_
@@ -25,8 +72,32 @@
 using namespace madness;
 
 
-
 typedef std::vector<Function<double,3> > vecfuncT;
+
+/// Gauss_function structure is needed to mimic noise
+// This is not used anymore, but maybe will be useful later
+struct gauss_function : public FunctionFunctorInterface<double,3> {
+
+	typedef std::shared_ptr<FunctionFunctorInterface<double,3> > functorT;
+
+public:
+	gauss_function(double molecule_box) : sigma(molecule_box){}
+
+private:
+	real_function_3d function;
+	double sigma;
+
+
+public:
+	double operator()(const coord_3d &r)const {
+		double r2=r[0]*r[0]+r[1]*r[1]+r[2]*r[2];
+		double prefactor = 1.0/(sqrt(2.0*constants::pi)*sigma);
+		return prefactor*exp(-r2/(2.0*sigma*sigma));
+	}
+};
+
+/// Try to create noise using random gauss functions
+// Not used anymore but maybe useful later
 struct noise : public FunctionFunctorInterface<double,3> {
 
 typedef std::shared_ptr<FunctionFunctorInterface<double,3> > functorT;
@@ -61,17 +132,26 @@ public:
 
 /// POD holding excitation energy and response vector for a single excitation
 struct root {
-	root(World& world) : world(world), omega(0.0),converged(false),err(10.0),delta(10.0) {}
-	root(World& world,vecfuncT& x, double omega) :world(world), x(x), omega(omega),converged(false),err(10.0),delta(10.0) {}
-	root(World& world, const vecfuncT& x1) : world(world), x(x1),converged(false),err(10.0),delta(10.0){}
-    root(const root& other) : world(other.world), x(other.x), omega(other.omega), converged(other.converged),err(other.err),delta(other.delta){}
+	root(World& world) : world(world), omega(0.0),expv(0.0),converged(false),err(10.0),delta(10.0),iter(0) {}
+	root(World& world,vecfuncT& x, double omega) :world(world), x(x), omega(omega),converged(false),err(10.0),delta(10.0),iter(0) {}
+	root(World& world, const vecfuncT& x1) : world(world), x(x1),converged(false),err(10.0),delta(10.0),iter(1){}
+    root(const root& other) : world(other.world), x(other.x),
+    		omega(other.omega),expv(other.expv), converged(other.converged),
+    		err(other.err),delta(other.delta),iter(other.iter),number(other.number){}
+
+    // Constructor for the print routine to create a copy without the x functions
+    root(World &world,double omega,double expv, double delta, double error, bool converged,int iter, int number) : world(world),
+    		omega(omega),expv(expv),converged(converged),err(error),delta(delta),iter(iter),number(number) {}
 
 	World &world;
 	vecfuncT x;
 	double omega;
+	double expv; // expectation_value
 	bool converged;
 	double err;
 	double delta;
+	int iter;
+	int number;
 	//solverT solver; // Maybe later
 	std::vector<double> amplitudes_;
 
@@ -81,10 +161,13 @@ struct root {
     	// This is new, needed for sort function
     	// Not shure if this changes something when KAIN is used again
     	omega=other.omega;
+    	expv=other.expv;
     	converged=other.converged;
     	err=other.err;
     	delta=other.delta;
     	amplitudes_=other.amplitudes_;
+    	number=other.number;
+    	iter=other.iter;
     	return *this;
     }
 
@@ -102,50 +185,14 @@ struct root {
         return *this;
     }
     // An operator for the sort function
-    bool operator<(const root &other){
+    bool operator<(const root &other)const{
     	return (this->omega<other.omega);
     }
-    bool operator>(const root &other){
+    bool operator>(const root &other)const{
     	return (this->omega>other.omega);
     }
-
-
-
-
-
-
-};
-// The default constructor for functions does not initialize
-// them to any value, but the solver needs functions initialized
-// to zero for which we also need the world object.
-struct allocator {
-    World& world;
-    const int n;
-
-    /// @param[in]	world	the world
-    /// @param[in]	nn		the number of functions in a given vector
-    allocator(World& world, const int nn) : world(world), n(nn) {}
-
-    /// allocate a vector of n empty functions
-    root operator()() {
-        return root(world,zero_functions<double,3>(world,n));
-    }
 };
 
-/// for convenience
-static double inner(const root& a, const root& b) {
-	if (a.x.size()==0) return 0.0;
-	return madness::inner(a.x[0].world(),a.x,b.x).sum();
-}
-
-/// helper struct for computing the moments
-struct xyz {
-	int direction;
-	xyz(int direction) : direction(direction) {}
-	double operator()(const coord_3d& r) const {
-		return r[direction];
-	}
-};
 
 namespace madness {
 
@@ -159,13 +206,6 @@ class CIS {
 	typedef std::shared_ptr<operatorT> poperatorT;
 	typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
-	struct prec{
-		double thresh;
-		double econv;
-		double dconv;
-		bool fock;
-	};
-
 private:
 	#define TRUE  1
 	#define FALSE 0
@@ -178,12 +218,25 @@ private:
 	    return sqrt(r[0]*r[0] + r[1]*r[1] + r[2]*r[2])+1.0;
 	}
 
+	// r^2
+	static double monopole(const coord_3d &r){
+		return r[0]*r[0] + r[1]*r[1] + r[2]*r[2];
+	}
+
 	static double x(const coord_3d &r){return r[0];}
 	static double x2(const coord_3d &r){return r[0]-0.7;}
 	static double x3(const coord_3d &r){return r[0]+0.7;}
 	static double y(const coord_3d &r){return r[1];}
 	static double z(const coord_3d &r){return r[2];}
 
+	/// Cumstomized function to create point-group guess for benzene
+	static double b1u(const coord_3d &r){return r[0]*(r[0]*r[0]-3*r[1]*r[1]);}
+	static double b2u(const coord_3d &r){return r[1]*(3*r[0]*r[0]-r[1]*r[1]);}
+	static double e1g1(const coord_3d &r){return r[0]*r[2];}
+	static double e1g2(const coord_3d &r){return r[1]*r[2];}
+	static double a2u(const coord_3d &r){return r[2];}
+	static double e2u1(const coord_3d &r){return r[2]*(r[0]*r[0]-r[1]*r[1]);}
+	static double e2u2(const coord_3d &r){return r[0]*r[1]*r[2];}
 
 	// Random number Generator from Madness lib misc/ran.h
 	static double random_number(const coord_3d &r){
@@ -191,10 +244,16 @@ private:
 		return random.get();
 	}
 
+
+
 	// For the sorting of the roots
 	static bool compare_roots(const root &a,const root &b){
 		return a.omega<b.omega;
 	}
+	static bool compare_roots_error(const root &a,const root &b){
+		return a.err<b.err;
+	}
+
 
 public:
 
@@ -215,20 +274,23 @@ public:
   guess_econv_(0.001),
   guess_dconv_(0.03),
   guess_iter_(20),
-  guess_iter_fock_(1),
+  guess_iter_fock_(5),
   guess_roots_(8),
   guess_mode_("all_orbitals"),
   thresh_(dconv_*0.01),
   bsh_eps_(1.e-6),
   iter_max_(50),
+  exchange_("hf"),
   print_grid_(false),
   plot_(false),
   fixed_point_(false),
 
   guess_save_(false),
   guess_damp_(false),
+  guess_pull_(false),
   guess_damp_iter_(6),
-  guess_damp_fock_(false),
+  guess_damp_fock_(true),
+
   noise_(false),
   noise_box_(get_calc().molecule.bounding_cube()),
   noise_comp_(0.01),
@@ -237,12 +299,13 @@ public:
   hf_(false),
   triplet_(false),
   read_and_save_koala_(false),
+  analyze_("false"),
   guess_exf_("dipole"){
 
 		size_t nmo = get_calc().amo.size();
 		guess_omega_=-0.9*get_calc().aeps(nmo-1);
 		omega_=std::vector<double>(9,100.0);
-
+		active_mo_ = nmo-nfreeze_;
 
 		std::ifstream f(input.c_str());
 		position_stream(f, "CIS");
@@ -274,6 +337,7 @@ public:
 			else if (tag == "plot") plot_=true;
 			else if (tag == "guess_save") guess_save_=true;
 			else if (tag == "guess_damp") guess_damp_=true;
+			else if (tag == "guess_pull") guess_pull_=true;
 			else if (tag == "guess_damp_iter") ss >> guess_damp_iter_;
 			else if (tag == "guess_damp_fock") guess_damp_fock_ = true;
 			else if (tag == "noise") noise_=true;
@@ -294,6 +358,9 @@ public:
 			else if (tag == "omega6") ss >> omega_[6];
 			else if (tag == "omega7") ss >> omega_[7];
 			else if (tag == "omega8") ss >> omega_[8];
+			else if (tag == "active_mo") ss >> active_mo_;
+			else if (tag == "active_mo") guess_mode_="active_space";
+			else if (tag == "analyze") analyze_=true;
 			else continue;
 		}
 
@@ -320,11 +387,6 @@ public:
 		lo=get_calc().param.lo;
 	}
 
-	void set_prot(World &world,prec &a){
-		FunctionDefaults<3>::set_thresh(a.thresh);
-		econv_ = a.econv;
-		dconv_ = a.dconv;
-	}
 
 	/// return the HF reference
 	const SCF& get_calc() const {return calc_;}
@@ -335,7 +397,10 @@ public:
 	void print_root(const root &root) const;
 
 	/// If roots[j] < roots[i] and i<j then the roots will switch places
-	void sort_roots(std::vector<root> & roots);
+	void sort_roots(std::vector<root> & roots,std::string criterium)const;
+
+	// read and analyze roots
+	void Analyze();
 
 	/// solve the CIS equations for n roots
 	void solve();
@@ -427,6 +492,9 @@ private:
 	/// guess for the excitation energies
 	std::vector<double> omega_;
 
+	/// Exchange
+	std::string exchange_;
+
 
 	/// flag if the grid for the density should be printed
 
@@ -443,9 +511,12 @@ private:
 	bool guess_save_;
 
 	/// Damp the first guess_damp_iter guess interations
+	// Not used anymore, but maybe again with DFT
 	bool guess_damp_;
+	bool guess_pull_;
 	int guess_damp_iter_;
 	bool guess_damp_fock_;
+
 	/// Add noise to the guess, noise_comp_ is the prefactor to make it small
 	/// noise_width is the width for the gauss functions
 	/// noise_gaussnumber_ is the number of gauss functions computed for the noise
@@ -459,10 +530,17 @@ private:
 	bool hf_;
 
 	/// Compute triplets (when false singlets are computed, default is false)
+	// Calculating triplets does not work right now
 	bool triplet_;
 
 	/// Just read and save the koala guess
 	bool read_and_save_koala_;
+
+	/// Active space guess for the physical guess
+	int active_mo_;
+
+	// just read and alalyze the roots
+	bool analyze_;
 
 	/// Dipole or quadrupole guess
 	std::string guess_exf_;
@@ -473,37 +551,42 @@ private:
 	/// Depending on the keyword guess_MO, guess_read, guess_koala or guess_physical will be called
 	void initialize_roots(World &world,std::vector<root> &roots);
 
+	/// Sum up all atomic orbitals created by moldft and iterate one by one
 	void guess_MO(World &world,std::vector<root> &roots);
+	/// Read roots from previous calculations
 	void guess_read(World &world,std::vector<root> &roots);
+	/// Read roots from a Koala calculation
+	// you need to print out the grid before and then use koala
+	// 1. Madness tdhf calculation with keyword print_grid in CIS
+	// 2. Koala calculation using this grid
+	// 3. Madness tdhf calculation with keyword guess koala in CIS
 	void guess_koala(World &world,std::vector<root> &roots);
+	/// Create an extended dipole guess (xyz * all_orbitals)
 	void guess_physical(World &world,std::vector<root> &roots);
 
+	/// Use some random Gauss functions as guess (not recommended)
+	void guess_noise(World &world,std::vector<root> & roots);
+	/// Define which excitation function and which occupied orbitals you want to use (not recommended)
+	void guess_aspace(World &world,std::vector<root> & roots);
+	/// Old version of the guess_pull keyword which works with MO and physical guess
+	void guess_forced(World &world,std::vector<root> & roots);
+	/// Custom guess for benzene (Speed benchmark)
+	void guess_benzene_custom(World &world,std::vector<root> & roots);
+
+	// Add noise to a vector of roots (noise are random gauss functions)
 	void add_noise(World & world,std::vector<root> &roots)const;
 
 	std::vector<root> guess();
 
-	// Guess Function
+	/// Used by guess_physical and others to create dipole or quadrupole guesses
 	std::vector<root> guess_big(const std::string exf);
 
 	// Excitation functions for the guess (x,y,z,r,x^2,xy,xz ...)
 	std::vector<real_function_3d> excitation_functions(const std::string exf) const;
 
-	root guess_seq(int iroot) const;
-
-	/// note that the orbitals from an external guess might be rotated wrt the
-	/// MRA orbitals, which would spoil the guess. Therefore we rotate the
-	/// guess with the overlap matrix so that the guess conforms with the MRA
-	/// phases. The overlap to the external orbitals (if applicable) is computed
-	/// only once
-	/// @param[in]	iroot	guess for root iroot
-	root guess_amplitudes(const int iroot);
-
+	/// Orthonormalize using the perurbed fock matrix, the energy will also be updated
 	bool orthogonalize_fock(World& world,std::vector<root> &roots) const;
 	bool orthogonalize_fock(World& world,std::vector<root> &roots,int iter) const;
-
-	/// solve the CIS equations in a sequential way
-	template<typename solverT>
-	bool iterate_sequential(World& world, std::vector<solverT> & solver,std::vector<root> & guess_roots) const;
 
 	/// solve the CIS equations for all roots
 
@@ -517,6 +600,7 @@ private:
 	bool iterate_all_CIS_roots(World& world, std::vector<solverT>& solver,
 			std::vector<root>& roots,const std::string mode,const int iter_max) const;
 
+	bool check_convergence(std::vector<root> &roots)const;
 
 	/// iterate the TDHF or CIS equations
 
@@ -532,32 +616,15 @@ private:
 	/// @param[in]		solver	the KAIN solver (not used right now..)
 	/// @param[inout]	root	the current root that we solve
 	/// @return			the residual error
-
-	bool check_convergence(std::vector<root> &roots)const;
-
 	template<typename solverT>
 	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const std::string mode)const;
 
-	/// iterate the TDHF or CIS equations -- deprecated !!
-
-	/// follow Eq (4) of
-	/// T. Yanai, R. J. Harrison, and N. Handy,
-	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
-	/// density functional theory with asymptotically corrected potentials in
-	/// local density and generalized gradient approximations,Ó
-	/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
-	///
-	/// The convergence criterion is that the excitation amplitudes don't change
-	/// @param[in]		world	the world
-	/// @param[in]		solver	the KAIN solver
-	/// @param[inout]	root	the current root that we solve
-	/// @param[in]		excited_states all lower-lying excited states for orthog.
-	/// @param[in]		iteration	the current iteration
-	/// @return			if the iteration on this root has converged
-
 	template<typename solverT>
-	bool iterate_CIS(World& world, solverT& solver, root& thisroot,
-			const std::vector<root >& excited_states, const int iteration) const;
+	double iterate_one_CIS_root(World& world, solverT& solver, root& thisroot,const std::string mode,vecfuncT &Vphi)const;
+
+	// Update the Gamma Potential
+	vecfuncT gamma_update(World &world, const root root)const;
+
 
 	/// apply the gamma potential of Eq. (6) on the x vector
 
@@ -567,8 +634,6 @@ private:
 	/// @return		(1-\rho^0) \Gamma \phi_p
 	vecfuncT apply_gamma(const vecfuncT& x, const vecfuncT& act,
 			const Projector<double,3>& rho0) const ;
-
-	/// make the zeroth-order potential J-K+V_nuc
 
 	/// note the use of all (frozen & active) orbitals in the computation
 	/// @param[in]	x	the response vector
@@ -590,6 +655,9 @@ private:
 	std::vector<vecfuncT> make_exchange_intermediate(const vecfuncT& active_mo,
 			const vecfuncT& amo) const;
 
+	/// Compute the expectation value of the perturbed Fock operator for one root
+	double expectation_value(World &world,const root &thisroot,const vecfuncT &Vx)const;
+
 	/// compute the perturbed fock matrix
 
 	/// the matrix is given by
@@ -603,8 +671,8 @@ private:
 	/// \f]
 	/// and similar for the Fock matrix elements.
 	/// Note this is NOT the response matrix A
-	Tensor<double> make_perturbed_fock_matrix(const std::vector<root>& roots,
-			const vecfuncT& act, const Projector<double,3>& rho0) const;
+	Tensor<double> make_perturbed_fock_matrix(const std::vector<root>& roots, const std::vector<vecfuncT> &V) const;
+			//const vecfuncT& act, const Projector<double,3>& rho0) const;
 
 	/// load a converged root from disk
 
@@ -635,8 +703,11 @@ private:
 	/// @param[inout]	x	the excitation vector
 	void normalize(World& world, root& x) const;
 
-	/// orthonormalize all roots using the perturbed fock-matrix (energy update included)
+	// For the calculation of the guess energy
 	void orthonormalize_fock(World &world,std::vector<root> &roots)const;
+
+	/// orthonormalize all roots using the perturbed fock-matrix (energy update included)
+	void orthonormalize_fock(World &world,std::vector<root> &roots, const std::vector<vecfuncT> &Vphi)const;
 
 	/// orthonormalize all roots using Gram-Schmidt
 	void orthonormalize(World& world, std::vector<root>& roots) const;

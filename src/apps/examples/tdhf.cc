@@ -44,7 +44,7 @@
 
 */
 
-#include <examples/tdhf_CIS.h>
+#include <chem/tdhf_CIS.h>
 //#include <examples/TD.h>
 
 #include<iomanip>
@@ -63,7 +63,17 @@ int main(int argc, char** argv) {
     }
     startup(world,argc,argv);
     std::cout.precision(6);
+
+#ifdef GITREVISION
+    const  char* gitrev =  GITREVISION;
+    const std::string gitrevision(gitrev);
+    if (world.rank()==0) {
+    	print("           git revision ...",gitrevision);
+    }
+#endif
+
     typedef std::vector<functionT> vecfuncT;
+
 
     // take the HF orbitals to start
     const std::string input="input";
@@ -110,6 +120,8 @@ int main(int argc, char** argv) {
     			print(calc.molecule.get_atom(i).atomic_number,Coord(i,0),Coord(i,1),Coord(i,2));
     		}
     	}
+
+
 
     	// solve the response equation
     	cis.solve();

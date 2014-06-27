@@ -31,7 +31,7 @@ testspectralprop_SOURCES = testspectralprop.cc
 
 testsolver_SOURCES = testsolver.cc
 
-tdhf_SOURCES = tdhf.cc  tdhf_CIS.cc
+tdhf_SOURCES = tdhf.cc  ../../lib/chem/tdhf_CIS.cc
 
 nemo_SOURCES = nemo.cc
 
