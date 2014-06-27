@@ -10,7 +10,6 @@ LIBS     = @LIBS@
 # Directories holding libraries
 LIBWORLDDIR=$(TRUNK)/src/lib/world
 LIBTENSORDIR=$(TRUNK)/src/lib/tensor
-LIBLINALGDIR=$(TRUNK)/src/lib/linalg
 LIBMISCDIR=$(TRUNK)/src/lib/misc
 LIBMRADIR=$(TRUNK)/src/lib/mra
 LIBTINYXMLDIR=$(TRUNK)/src/lib/tinyxml
@@ -19,7 +18,7 @@ LIBMUPARSERDIR=$(TRUNK)/src/lib/muParser
 # Individual libraries
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
 LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
-LIBLINALG=$(LIBLINALGDIR)/libMADlinalg.a
+LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
 LIBMISC=$(LIBMISCDIR)/libMADmisc.a
 LIBMRA=$(LIBMRADIR)/libMADmra.a
 LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
