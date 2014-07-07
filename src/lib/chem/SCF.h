@@ -285,6 +285,7 @@ struct CalculationParameters {
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
     bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
+    double orbitalshift;		///< scf orbital shift: shift the occ orbitals to lower energies
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
     std::string aobasis;        ///< AO basis used for initial guess (6-31g or sto-3g)
@@ -318,8 +319,10 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & no_compute & maxsub & npt_plot & plot_cell & aobasis;
+        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
+           & nopen & maxiter & nio & spin_restricted;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm
+           & restart & save & no_compute & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -351,6 +354,7 @@ struct CalculationParameters {
     	, no_compute(false)
         , save(true)
         , maxsub(8)
+    	, orbitalshift(0.0)
         , npt_plot(101)
         , aobasis("6-31g")
         , core_type("")
@@ -514,6 +518,9 @@ struct CalculationParameters {
                 f >> maxsub;
                 if (maxsub <= 0) maxsub = 1;
                 if (maxsub > 20) maxsub = 20;
+            }
+            else if (s == "orbitalshift") {
+                f >> orbitalshift;
             }
             else if (s == "core_type") {
                 f >> core_type;

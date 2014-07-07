@@ -725,7 +725,7 @@ namespace madness {
 				result.converged=((std::abs(old_energy-energy)<result.function.thresh()*0.01)
 						and (rnorm<param.dconv_));
 				result.store_pair(world);
-				save_function(result.function,"pair_iter"+stringify(result.iteration));
+//				save_function(result.function,"pair_iter"+stringify(result.iteration));
 
 				if (world.rank()==0) printf("finished iteration %2d at time %8.1fs with energy %12.8f\n\n",
 						result.iteration, wall_time(),energy);
@@ -1081,7 +1081,7 @@ namespace madness {
                          .particle1(copy(hf->nemo(i))).particle2(copy(hf->nemo(j)));
                 r12nemo.fill_tree().truncate().reduce_rank();
                 r12nemo.print_size("r12nemo");
-                save_function(r12nemo,"r12nemo");
+//                save_function(r12nemo,"r12nemo");
 
 				real_function_6d Kfphi0;
 				if (not intermediates.Kfphi0.empty()) {
@@ -1516,37 +1516,24 @@ namespace madness {
         /// compute the terms O1 (U - [K,f]) |phi0> and O2 UK |phi0>
         void OUKphi0(ElectronPair& pair) const {
 
-			std::vector<real_function_3d> phi_k_UK_phi0;
-			std::vector<real_function_3d> phi_l_UK_phi0;
+        	std::vector<real_function_3d> phi_k_UK_phi0;
+        	std::vector<real_function_3d> phi_l_UK_phi0;
 
-        	if (not intermediates.OUKphi0.empty()) {
-        		const std::string root=intermediates.OUKphi0;
-        		for (int k=0; k<hf->nocc(); ++k) {
-        			real_function_3d tmp;
-        			load_function(tmp,root+"_k_"+stringify(k));
-    				phi_k_UK_phi0.push_back(tmp);
-        			load_function(tmp,root+"_l_"+stringify(k));
-    				phi_l_UK_phi0.push_back(tmp);
-    			}
-        	} else {
+        	pair.Uphi0.verify();
+        	pair.KffKphi0.verify();
+        	const std::string root="OUKphi0";
 
-				pair.Uphi0.verify();
-				pair.KffKphi0.verify();
-        		const std::string root="OUKphi0";
+        	for (int k=0; k<hf->nocc(); ++k) {
+        		real_function_3d tmp;
+        		tmp=pair.Uphi0.project_out(hf->R2orbitals()[k],0)
+									- pair.KffKphi0.project_out(hf->R2orbitals()[k],0);
+        		phi_k_UK_phi0.push_back(tmp);
 
-        		for (int k=0; k<hf->nocc(); ++k) {
-					real_function_3d tmp;
-					tmp=pair.Uphi0.project_out(hf->R2orbitals()[k],0)
-							- pair.KffKphi0.project_out(hf->R2orbitals()[k],0);
-					save_function(tmp,root+"_k_"+stringify(k));
-					phi_k_UK_phi0.push_back(tmp);
-
-					tmp=pair.Uphi0.project_out(hf->R2orbitals()[k],1)
-							- pair.KffKphi0.project_out(hf->R2orbitals()[k],1);
-					save_function(tmp,root+"_l_"+stringify(k));
-					phi_l_UK_phi0.push_back(tmp);
-				}
+        		tmp=pair.Uphi0.project_out(hf->R2orbitals()[k],1)
+									- pair.KffKphi0.project_out(hf->R2orbitals()[k],1);
+        		phi_l_UK_phi0.push_back(tmp);
         	}
+
         	pair.phi_k_UK_phi0=phi_k_UK_phi0;
         	pair.phi_l_UK_phi0=phi_l_UK_phi0;
         }

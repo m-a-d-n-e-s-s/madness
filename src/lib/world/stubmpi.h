@@ -30,6 +30,12 @@ typedef int MPI_Comm;
 #define MPI_ERR_ARG         12      /* Invalid argument */
 #define MPI_MAX_ERROR_STRING 1024
 
+/* Results of the compare operations. */
+#define MPI_IDENT     0
+#define MPI_CONGRUENT 1
+#define MPI_SIMILAR   2
+#define MPI_UNEQUAL   3
+
 /* MPI null objects */
 #define MPI_COMM_NULL       ((MPI_Comm)0x04000000)
 #define MPI_OP_NULL         ((MPI_Op)0x18000000)
@@ -89,8 +95,20 @@ typedef int MPI_Op;
 #define MPI_MAXLOC  ((MPI_Op)0x5800000c)
 #define MPI_REPLACE ((MPI_Op)0x5800000d)
 
-inline int MPI_Group_translate_ranks(const MPI_Group&, int, const int*, const MPI_Group&, int* ranks2) {
+/* FIXME This function should agree with http://www.mpich.org/static/docs/v3.1/www3/MPI_Group_translate_ranks.html */
+#warning This is not equivalent to the interface defined by the MPI standard!
+inline int MPI_Group_translate_ranks(const MPI_Group&, int n, const int*, const MPI_Group&, int* ranks2) {
     *ranks2 = 0;
+    return MPI_SUCCESS;
+}
+
+/* TODO The NO-OP implementation of may not be adequate. */
+inline int MPI_Group_incl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup) {
+    return MPI_SUCCESS;
+}
+
+/* TODO The NO-OP implementation may not be adequate. */
+inline int MPI_Group_free(MPI_Group *group) {
     return MPI_SUCCESS;
 }
 
@@ -166,6 +184,21 @@ inline int MPI_Comm_group(MPI_Comm, MPI_Group* group) {
     *group = MPI_GROUP_NULL;
     return MPI_SUCCESS;
 }
+
+inline int MPI_Comm_free(MPI_Comm * comm) {
+    *comm = MPI_COMM_NULL;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *result) {
+    if (comm1 == comm2) {
+        *result = MPI_IDENT;
+    } else {
+        *result = MPI_UNEQUAL;
+    }
+    return MPI_SUCCESS;
+}
+
 
 inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
     switch(errorcode) {

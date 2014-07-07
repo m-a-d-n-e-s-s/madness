@@ -4,7 +4,6 @@ AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src/lib  -I$(top_srcdir)/s
 # Define directories holding libraries and variables for corresponding libraries
 LIBWORLDDIR=$(top_builddir)/src/lib/world
 LIBTENSORDIR=$(top_builddir)/src/lib/tensor
-LIBLINALGDIR=$(top_builddir)/src/lib/linalg
 LIBMISCDIR=$(top_builddir)/src/lib/misc
 LIBMRADIR=$(top_builddir)/src/lib/mra
 LIBCHEMDIR=$(top_builddir)/src/lib/chem
@@ -13,7 +12,6 @@ LIBMUPARSERDIR=$(top_builddir)/src/lib/muParser
 
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
 LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
-#LIBLINALG=$(LIBLINALGDIR)/libMADlinalg.a
 LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
 LIBMISC=$(LIBMISCDIR)/libMADmisc.a
 LIBMRA=$(LIBMRADIR)/libMADmra.a

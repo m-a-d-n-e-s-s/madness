@@ -310,7 +310,7 @@ private:
 			for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
 			double max_fock_offidag=fock_offdiag.absmax();
 			if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
-//			print(fock);
+			print(fock);
 
 			double oldenergy=energy;
 			energy = compute_energy(psi, mul(world, R, Jnemo),
@@ -333,7 +333,14 @@ private:
 
 			// construct the BSH operator
 			tensorT eps(nmo);
-			for (int i = 0; i < nmo; ++i) eps(i) = std::min(-0.05, fock(i, i));
+			for (int i = 0; i < nmo; ++i) {
+				eps(i) = std::min(-0.05, fock(i, i));
+			}
+			if (calc->param.orbitalshift>0.0) {
+				if (world.rank()==0) print("shifting orbitals by "
+						,calc->param.orbitalshift," to lower energies");
+				eps-=calc->param.orbitalshift;
+			}
 			std::vector<poperatorT> ops = calc->make_bsh_operators(world, eps);
 
 			// make the potential * nemos term; make sure it's in phase with nemo
