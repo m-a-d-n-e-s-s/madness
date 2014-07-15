@@ -10,7 +10,7 @@ bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo 
+ tdhf nemo helium_exact
  
 thisincludedir = $(includedir)/examples
 thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -18,6 +18,8 @@ thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 AUTOMAKE_OPTIONS = subdir-objects
 
 mp2_SOURCES = mp2.cc 
+
+helium_exact_SOURCES = helium_exact.cc 
 
 oep_SOURCES = oep.cc 
 

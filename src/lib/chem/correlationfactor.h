@@ -251,6 +251,9 @@ private:
 		}
 	};
 
+	/// functor for the local part of the U1 potential -- NOTE THE SIGN
+
+	/// U1 = -S'/S
 	class U1_functor : public FunctionFunctorInterface<double,3> {
 
 		const NuclearCorrelationFactor* ncf;
@@ -966,6 +969,193 @@ private:
         return r[axis]-r[axis+3];
     }
 
+
+};
+
+/// a class holding the electronic correlation factor for R12 theory
+class CorrelationFactor2 {
+
+    World& world;
+    double _gamma;      ///< the correlation factor exp(-gamma r12)
+	typedef std::shared_ptr< FunctionFunctorInterface<double,6> > functorT;
+
+public:
+
+    double dcut;		///< the cutoff for the 1/r potential
+    double lo;			///< smallest length scale to be resolved
+    double vtol;		///< initial projection threshold
+
+
+    /// ctor, use negative gamma for linear correlation factor r12
+    CorrelationFactor2(World& world) : world(world), _gamma(0.5), dcut(1.e-10),
+    	lo(1.e-10), vtol(FunctionDefaults<3>::get_thresh()*0.1) {
+    	MADNESS_ASSERT(_gamma==0.5);
+    }
+
+    /// return the exponent of this correlation factor
+    double gamma() const {return _gamma;}
+
+    real_function_6d function() const {
+    	functorT R=functorT(new R_functor(_gamma,1));
+    	return real_factory_6d(world).functor(R).is_on_demand();
+    }
+
+    real_function_6d square() const {
+    	functorT R2=functorT(new R_functor(_gamma,2));
+    	return real_factory_6d(world).functor(R2).is_on_demand();
+    }
+
+    real_function_6d inverse() const {
+    	functorT R=functorT(new R_functor(_gamma,-1));
+    	return real_factory_6d(world).functor(R).is_on_demand();
+    }
+
+    /// return the U1 term of the correlation function
+    real_function_6d U1(const int axis) const {
+		functorT U1f=functorT(new U1_functor(_gamma,axis));
+    	return real_factory_6d(world).functor(U1f).is_on_demand();
+    }
+
+    /// return the U2 term of the correlation function
+    real_function_6d U2() const {
+    	functorT U2f=functorT(new U2_functor(_gamma));
+    	return real_factory_6d(world).functor(U2f).is_on_demand();
+    }
+
+    /// apply Kutzelnigg's regularized potential to an orbital product
+    real_function_6d apply_U(const real_function_6d& psi, const double eps) const {
+    	const double bsh_thresh=1.e-7;
+
+    	real_function_6d result=real_factory_6d(world);
+
+    	real_convolution_6d op_mod = BSHOperator<6>(world, sqrt(-2*eps), lo,bsh_thresh);
+    	op_mod.modified()=true;
+
+    	for (int axis=0; axis<3; ++axis) {
+    		if (world.rank()==0) print("working on axis",axis);
+    		real_derivative_6d D1 = free_space_derivative<double,6>(world, axis);
+    		real_derivative_6d D2 = free_space_derivative<double,6>(world, axis+3);
+    		const real_function_6d Drhs1=D1(psi).truncate();
+    		const real_function_6d Drhs2=D2(psi).truncate();
+
+    		const real_function_6d u1=U1(axis);
+
+    		real_function_6d tmp1=CompositeFactory<double,6,3>(world)
+                        		 .g12(u1).ket(copy(Drhs1));
+    		tmp1.fill_tree(op_mod).truncate();
+
+    		real_function_6d tmp2=CompositeFactory<double,6,3>(world)
+                        		 .g12(u1).ket(copy(Drhs2));
+    		tmp2.fill_tree(op_mod).truncate();
+    		if (world.rank()==0) print("done with fill_tree");
+
+    		result=result+(tmp1-tmp2).truncate();
+    		tmp1.clear();
+    		tmp2.clear();
+    		world.gop.fence();
+    		result.truncate().reduce_rank();
+
+    		if (world.rank()==0)
+    			printf("done with multiplication with U at ime %.1f\n",wall_time());
+    		result.print_size("result");
+    	}
+
+    	real_function_6d u2=U2();
+    	real_function_6d r2=CompositeFactory<double,6,3>(world).ket(copy(psi))
+     								.g12(u2);
+    	r2.fill_tree(op_mod);
+    	result=(result+r2).truncate();
+    	return result;
+    }
+
+
+private:
+
+    /// functor for the correlation factor R
+    class R_functor : public FunctionFunctorInterface<double,6> {
+    	double gamma;
+    	int exponent;
+
+    public:
+    	R_functor(double gamma, int e=1) : gamma(gamma), exponent(e) {
+    		MADNESS_ASSERT(gamma=0.5);
+    	}
+
+        // only valid for gamma=1
+        double operator()(const coord_6d& r) const {
+            const double rr=r12(r);
+            double val=(1.0-0.5*exp(-gamma*rr));
+            if (exponent==1) return val;
+            else if (exponent==2) return val*val;
+            else if (exponent==-1) return 1.0/val;
+            else {
+            	MADNESS_EXCEPTION("fancy exponent in correlationfactor2",1);
+            }
+        }
+    };
+
+    /// functor for the U2 local potential
+    class U2_functor : public FunctionFunctorInterface<double,6> {
+    	double gamma;
+
+    public:
+    	U2_functor(double gamma) : gamma(gamma) {
+    		MADNESS_ASSERT(gamma=0.5);
+    	}
+
+        // only valid for gamma=1
+        double operator()(const coord_6d& r) const {
+        	const double rr=r12(r);
+        	// Taylor expansion for small r
+        	if (rr<1.e-4) {	// valid for gamma==0.5, otherwise singular
+        		return 5./4.0 - rr + (35.0* rr*rr)/48.0 - (101.0*rr*rr*rr)/192.0;
+        	}
+        	const double egr=exp(-gamma*rr);
+        	return -(-8.*egr + 8.0 + rr*egr)/(4.0 *rr*egr - 8 *rr);
+        }
+    };
+
+    /// functor for the U1 = -\frac{\vec\nabla_1 f_{12}}{f_{12}}  potential
+
+    /// the potential is given by
+    /// U1 = -\frac{\vec\nabla_1 f_{12}}{f_{12}}
+    ///    =  \frac{e^{-r12/2}{4-2e^{-r12/2}} \vec n12
+    /// the derivative operators are not included
+    class U1_functor : public FunctionFunctorInterface<double,6> {
+        double gamma;
+        int axis;
+
+    public:
+        U1_functor(double gamma, int axis) : gamma(gamma), axis(axis) {
+        	MADNESS_ASSERT(gamma==0.5);
+        	MADNESS_ASSERT(axis<3);
+        }
+
+        double operator()(const coord_6d& r) const {
+        	const double rr=r12(r);
+        	const coord_3d vr12=vec(r[0]-r[3],r[1]-r[4],r[2]-r[5]);
+        	const coord_3d N=n12(vr12);
+        	// Taylor expansion for small r
+        	double val;
+        	if (rr<1.e-4) {	// valid for gamma==0.5, otherwise singular
+        		val = 0.5 - 0.5*rr + 0.125*(3.*rr*rr) - (13.* rr*rr*rr)/48.0;
+        	} else {
+            	const double egr=exp(-gamma*rr);
+        		val=egr/(4.0-2.0*egr);
+        	}
+        	// NOTE the sign
+        	return -val*N[axis];
+        }
+    };
+
+    /// helper function
+    static double r12(const coord_6d& r) {
+        const double x12=r[0]-r[3];
+        const double y12=r[1]-r[4];
+        const double z12=r[2]-r[5];
+        const double r12=sqrt(x12*x12 + y12*y12 + z12*z12);
+        return r12;
+    }
 
 };
 

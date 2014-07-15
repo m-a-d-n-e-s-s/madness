@@ -167,7 +167,7 @@ static double u(double r, double c) {
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    
+
     return pot/c;
 }
 
@@ -193,9 +193,9 @@ static double coul(const coord_6d& r) {
 //	const double x1=r[0], x2=r[3];
 //	const double y1=r[1], y2=r[4];
 //	const double z1=r[2], z2=r[5];
-//	
+//
 //	const double xx=x1-x2, yy=y1-y2, zz=z1-z2;
-//	
+//
 ////	const double r1 = sqrt(x1*x1 + y1*y1 + z1*z1 + dcut*dcut);
 ////	const double r2 = sqrt(x2*x2 + y2*y2 + z2*z2 + dcut*dcut);
 //	const double r12= sqrt(xx*xx + yy*yy + zz*zz + dcut*dcut*1.e6);
@@ -516,7 +516,7 @@ void iterate(World& world, real_function_6d& Vpsi, real_function_6d& psi, double
     MADNESS_ASSERT(eps<0.0);
     real_convolution_6d op = BSHOperator<6>(world, sqrt(-2*eps), 0.00001, 1e-6);
     op.modified()=false;
-    
+
     if(world.rank() == 0) printf("starting convolution at time %.1fs\n", wall_time());
     real_function_6d tmp = op(Vpsi);
     if(world.rank() == 0) printf("ending convolution at time   %.1fs\n", wall_time());
@@ -751,7 +751,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 			if (world.rank()==0) print("virial ratio in iteration  :",i, pe/ke, ke+pe);
 		}
 	}
-	
+
 
     // plot xy plane containing the origin
     for (int i=0; i<20; i++) {
@@ -775,7 +775,7 @@ void solve(World& world, real_function_6d& pair, double& energy, long maxiter, d
 	double ke, pe;
 	compute_energy(world,pair,pot1,pot2,ke,pe);
 	if (world.rank()==0) print("virial ratio   :", pe/ke, ke+pe);
-  
+
 
 }
 
@@ -1221,7 +1221,7 @@ int main(int argc, char** argv) {
     // one orbital at a time
 	real_function_3d orbital=real_factory_3d(world).f(he_orbital_McQuarrie);
 
-	{ 
+	{
 		long tree_size=orbital.tree_size();
 		long size=orbital.size();
 		if (world.rank()==0) {
@@ -1282,7 +1282,7 @@ int main(int argc, char** argv) {
     }
     if(world.rank() == 0) printf("\npair function at time %.1fs\n\n", wall_time());
 
-    { 
+    {
     	long tree_size=pair.tree_size();
     	long size=pair.size();
     	if (world.rank()==0) {
@@ -1290,8 +1290,8 @@ int main(int argc, char** argv) {
     	    print("pair.size()     ",size);
     	}
     }
-    
-    // initial energy 
+
+    // initial energy
 //    if (not restart) {
         double ke,pe;
         real_function_3d pot1=real_factory_3d(world).f(Z2);
@@ -1317,7 +1317,7 @@ int main(int argc, char** argv) {
     	solve(world,pair1,energy,4,1.e-4);
     	pair=pair1;
     	current_thresh=1.e-3;
-    }	
+    }
 
     // solve for thresh=1.e-4
     if ((current_thresh>1.e-4) and (max_thresh<9.e-4)) {
