@@ -158,7 +158,7 @@ int main(int argc, char** argv) {
 			if (xc.is_gga()) {
                                 functionT vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
 
-                                for (int axis=0; axis<1; axis++) {
+                                for (int axis=0; axis<3; axis++) {
                                         Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
                                         real_function_3d  gradn = D(rho);
                                         real_function_3d  ddel = vsigaa*gradn;
