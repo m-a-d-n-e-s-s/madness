@@ -3721,6 +3721,20 @@ namespace madness {
 
         /// traverse a non-existing tree
 
+        /// part II: activate coeff_op, i.e. retrieve all the necessary remote boxes (communication)
+        /// @param[in]	coeff_op	operator making the coefficients that needs activation
+        /// @param[in]	apply_op	just passing thru
+        /// @param[in]	key			the key we are working on
+        /// @return 	nothing, but will forward all input to traverse_tree()
+        template<typename coeff_opT, typename apply_opT>
+        Void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
+        	MADNESS_ASSERT(coeffs.is_local(key));
+        	Future<coeff_opT> active_coeff=coeff_op.activate();
+            woT::task(world.rank(), &implT:: template traverse_tree<coeff_opT,apply_opT>, active_coeff, apply_op, key);
+        	return None;
+        }
+        /// traverse a non-existing tree
+
         /// part I: make the coefficients, process them and continue the recursion if necessary
         /// @param[in]	coeff_op	operator making the coefficients and determining them being leaves
         /// @param[in]	apply_op	operator processing the coefficients
@@ -3740,27 +3754,16 @@ namespace madness {
         			const keyT& child=kit.key();
                 	coeff_opT child_op=coeff_op.make_child(child);
                 	// spawn activation where child is local
-        			ProcessID p=coeffs.owner(child);
-                    woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, child_op, apply_op, child);
+                        ProcessID p=coeffs.owner(child);
+
+                        madness::Void (implT::*ft)(const coeff_opT&, const apply_opT&, const keyT&) const = &implT::forward_traverse<coeff_opT,apply_opT>;
+
+                        woT::task(p, ft, child_op, apply_op, child);
         		}
         	}
         	return None;
         }
 
-        /// traverse a non-existing tree
-
-        /// part II: activate coeff_op, i.e. retrieve all the necessary remote boxes (communication)
-        /// @param[in]	coeff_op	operator making the coefficients that needs activation
-        /// @param[in]	apply_op	just passing thru
-        /// @param[in]	key			the key we are working on
-        /// @return 	nothing, but will forward all input to traverse_tree()
-        template<typename coeff_opT, typename apply_opT>
-        Void forward_traverse(const coeff_opT& coeff_op, const apply_opT& apply_op, const keyT& key) const {
-        	MADNESS_ASSERT(coeffs.is_local(key));
-        	Future<coeff_opT> active_coeff=coeff_op.activate();
-            woT::task(world.rank(), &implT:: template traverse_tree<coeff_opT,apply_opT>, active_coeff, apply_op, key);
-        	return None;
-        }
 
         /// given two functions of LDIM, perform the Hartree/Kronecker/outer product
 
