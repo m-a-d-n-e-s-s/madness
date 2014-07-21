@@ -203,7 +203,7 @@ static xc_name_map map[] = {
 };
 
 static int lookup_name(const std::string& name) {
-    const xc_name_map* map = ::map;
+    const xc_name_map* map = madness::map;
     while (map->id > 0) {
         if (name == map->name) return map->id;
         map++;

@@ -4132,8 +4132,9 @@ namespace madness {
 						noop<T,NDIM> no;
 						// spawn activation where child is local
 						ProcessID p=result->get_coeffs().owner(child);
-						result->task(p, &implT:: template forward_traverse<this_type,noop<T,NDIM> >,
-								child_op, no, child);
+
+                                                madness::Void (implT::*ft)(const Vphi_op_NS<opT,LDIM>&, const noop<T,NDIM>&, const keyT&) const = &implT:: template forward_traverse< Vphi_op_NS<opT,LDIM>, noop<T,NDIM> >;
+						result->task(p, ft, child_op, no, child);
 					}
 				}
                 // return e sum coeffs; also return always is_leaf=true:
