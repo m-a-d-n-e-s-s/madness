@@ -38,6 +38,7 @@
 /// \file gfit.h
 /// \brief fit isotropic functions to a set of Gaussians with controlled precision
 
+//#include <iostream>
 #include<tensor/tensor.h>
 #include<constants.h>
 namespace madness {
@@ -164,6 +165,8 @@ private:
 	static void bsh_fit(double mu, double lo, double hi, double eps,
 			Tensor<double>& pcoeff, Tensor<double>& pexpnt, bool prnt) {
 
+                if (mu < 0.0) throw "cannot handle negative mu in bsh_fit";
+
 		if (mu > 0) {
 			// Restrict hi according to the exponential decay
 			double r = -log(4*constants::pi*0.01*eps);
@@ -189,6 +192,7 @@ private:
 			slo = log(eps/hi) - 1.0;
 		}
 		shi = 0.5*log(TT/(lo*lo));
+                if (shi <= slo) throw "bsh_fit: logic error in slo,shi";
 
 		// Resolution required for quadrature over s
 		double h = 1.0/(0.2-.50*log10(eps)); // was 0.5 was 0.47
@@ -208,7 +212,7 @@ private:
 		long npt = long((shi-slo)/h+0.5);
 
 		//if (prnt)
-		//cout << "slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << endl;
+                //std::cout << "mu " << mu << " slo " << slo << " shi " << shi << " npt " << npt << " h " << h << " " << eps << std::endl;
 
 		Tensor<double> coeff(npt), expnt(npt);
 
