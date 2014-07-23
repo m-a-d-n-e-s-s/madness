@@ -1,7 +1,7 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
 bin_PROGRAMS = test_world test_hashthreaded test_dc test_future2 test_future3 test_prof \
-               test_hello test_future test_atomicint test_hashdc test_array \
+               test_hello test_future test_atomicint test_hashdc test_array test_ar \
                test_googletest test_queue test_worldprofile test_worldptr test_worldref
 
 lib_LIBRARIES = libMADworld.a
@@ -45,6 +45,9 @@ test_worldref_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
 
 test_prof_SOURCES = test_prof.cc
 test_prof_LDADD = libMADworld.a
+
+test_ar_SOURCES = test_ar.cc
+test_ar_LDADD = libMADworld.a
 
 test_hashdc_SOURCES = test_hashdc.cc
 test_hashdc_LDADD = libMADworld.a
