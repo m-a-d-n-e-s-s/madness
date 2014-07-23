@@ -234,6 +234,8 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
     double factor;
     spin_polarized = polarized;
 
+    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values
+
     std::stringstream line(input_line);
     std::string name;
 
@@ -247,6 +249,18 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
             if (! (line >> factor)) factor = 1.0;
             funcs.push_back(std::make_pair(lookup_func("LDA_X",polarized),factor));
             funcs.push_back(std::make_pair(lookup_func("LDA_C_VWN",polarized),factor));
+        }
+        else if (name == "RHOMIN") {
+            line >> rhomin;
+        }
+        else if (name == "RHOTOL") {
+            line >> rhotol;
+        }
+        else if (name == "SIGMIN") {
+            line >> sigmin;
+        }
+        else if (name == "SIGTOL") {
+            line >> sigtol;
         }
         else if (name == "HF" || name == "HF_X") {
             if (! (line >> factor)) factor = 1.0;

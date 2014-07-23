@@ -42,6 +42,7 @@ class XCfunctional {
 protected:
     bool spin_polarized;        ///< True if the functional is spin polarized
     double hf_coeff;            ///< Factor multiplying HF exchange (+1.0 gives HF)
+    double rhomin, rhotol, sigmin, sigtol; // See initialize and munge*
 
 #ifdef MADNESS_HAS_LIBXC
     std::vector< std::pair<xc_func_type*,double> > funcs;
@@ -51,92 +52,25 @@ protected:
     int nderiv;
 #endif
 
-    /// Smoothly switches between constant (x<xmin) and linear function (x>xmax)
 
-    /// \f[
-    /// f(x,x_{\mathrm{min}},x_{\mathrm{max}}) = \left\{
-    ///   \begin{array}{ll}
-    ///     x_{\mathrm{min}}                       & x < x_{\mathrm{min}}                  
-    ///     p(x,x_{\mathrm{min}},x_{\mathrm{max}}) & x_{\mathrm{min}} \leq x_{\mathrm{max}}
-    ///     x                                      & x_{\mathrm{max}} < x
-    ///   \end{array}
-    /// \right.
-    /// \f]
-    /// where \f$p(x)\f$ is the unique quintic polynomial that
-    /// satisfies \f$p(x_{min})=x_{min}\f$, \f$p(x_{max})=x_{max}\f$,
-    /// \f$dp(x_{max})/dx=1\f$, and
-    /// \f$dp(x_{min})/dx=d^2p(x_{min})/dx^2=d^2p(x_{max})/dx^2=0\f$.
-    static void polyn(const double x, double& p, double& dpdx) {
-        // All of the static const stuff is evaluated at compile time
-
-        static const double xmin = 1e-10; // <<<< MINIMUM VALUE OF DENSITY
-        static const double xmax = 1e-8;  // <<<< DENSITY SMOOTHLY MODIFIED BELOW THIS VALUE
-
-        static const double xmax2 = xmax*xmax;
-        static const double xmax3 = xmax2*xmax;
-        static const double xmin2 = xmin*xmin;
-        static const double xmin3 = xmin2*xmin;
-        static const double r = 1.0/((xmax-xmin)*(-xmin3+(3.0*xmin2+(-3.0*xmin+xmax)*xmax)*xmax));
-        static const double a0 = xmax3*xmin*(xmax-4.0*xmin)*r;
-        static const double a = xmin2*(xmin2+(-4.0*xmin+18.0*xmax)*xmax)*r;
-        static const double b = -6.0*xmin*xmax*(3.0*xmax+2.0*xmin)*r;
-        static const double c = (4.0*xmin2+(20.0*xmin+6.0*xmax)*xmax)*r;
-        static const double d = -(8.0*xmax+7.0*xmin)*r;
-        static const double e = 3.0*r;
-
-        if (x > xmax) {
-            p = x;
-            dpdx = 1.0;
-        }
-        else if (x < xmin) {
-            p = xmin;
-            dpdx = 0.0;
-        }
-        else {
-            p = a0+(a+(b+(c+(d+e*x)*x)*x)*x)*x;
-            dpdx = a+(2.0*b+(3.0*c+(4.0*d+5.0*e*x)*x)*x)*x;
-        }
+    double munge(double rho) const {
+        if (rho <= rhotol) rho=rhomin;
+        return rho;
     }
 
-    static double munge(double rho) {
-        double p, dpdx;
-        polyn(rho, p, dpdx);
-        return p;
+    void munge2(double& rho, double& sigma) const {
+        if (rho < rhotol) rho=rhomin;
+        if (rho < rhotol || sigma < sigtol) sigma=sigmin;
     }
 
-    static void munge2(double& rho, double& sigma) {
-        // rho(x) --> p(rho(x))
-        // d/dx p(rho(x)) --> dp/drho * drho/dx
-        //if (sigma < 0.0) sigma = 0.0;
-//        double p;
-        if (rho <= 1e-12) rho=1e-22;
-        if (rho <= 1e-12|| sigma <= 1e-22)  sigma=1e-9;
-      //  polyn(rho, p);
-        //polyng(rho, dpdx);
-      //  rho = p;
-        //sigma *= dpdx*dpdx;
-        //if (rho <= 1e-10|| sigma < 1e-20) sigma=0.;
-    }
+    void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) const {
+        if (rhoa < rhotol || rhob < rhotol || sab < sigtol) sab=sigmin; // ??????????
 
-    static void munge5(double& rhoa, double& rhob, double& saa, double& sab, double& sbb) {
-        if (rhoa <= 1e-12) rhoa=1e-22;
-        if (rhoa <= 1e-12|| saa <= 1e-22)  saa=1e-9;
-        if (rhob <= 1e-12) rhob=1e-22;
-        if (rhob <= 1e-12|| sbb <= 1e-22)  sbb=1e-9;
-        if (rhoa <= 1e-12 || rhob <= 1e-12 || sab <= 1e-22) sab=1e-9;
-//        // rho(x) --> p(rho(x))
-//        // d/dx p(rho(x)) --> dp/drho * drho/dx
-//        if (saa < 0.0) saa = 0.0;
-//        if (sab < 0.0) sab = 0.0;
-//        if (sbb < 0.0) sbb = 0.0;
-//        double pa, pb, dpadx, dpbdx;
-//        polyn(rhoa, pa, dpadx);
-//        polyn(rhob, pb, dpbdx);
-//        rhoa = pa;
-//        rhob = pb;
-//        saa *= dpadx*dpadx;
-//        sab *= dpadx*dpbdx;
-//        sbb *= dpbdx*dpbdx;
+        if (rhoa < rhotol) rhoa=rhomin;
+        if (rhoa < rhotol || saa < sigtol) saa=sigmin;
+
+        if (rhob < rhotol) rhob=rhomin;
+        if (rhob < rhotol || sbb < sigtol) sbb=sigmin;
     }
 
 public:

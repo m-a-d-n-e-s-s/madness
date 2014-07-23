@@ -18,6 +18,8 @@ XCfunctional::XCfunctional() : hf_coeff(0.0) {}
 
 void XCfunctional::initialize(const std::string& input_line, bool polarized) 
 {
+    rhotol=1e-12; rhomin=1e-22; sigtol=1e-7; sigmin=1e-7; // default values 
+
     spin_polarized = polarized;
     
     std::stringstream s(input_line);
@@ -28,6 +30,18 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
         if (token == "LDA") {
             hf_coeff = 0.0;
             found_valid_token = true;
+        }
+        else if (name == "RHOMIN") {
+            line >> rhomin;
+        }
+        else if (name == "RHOTOL") {
+            line >> rhotol;
+        }
+        else if (name == "SIGMIN") {
+            line >> sigmin;
+        }
+        else if (name == "SIGTOL") {
+            line >> sigtol;
         }
         else if (token == "HF") {
             hf_coeff = 1.0;
