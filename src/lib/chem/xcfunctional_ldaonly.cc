@@ -31,17 +31,17 @@ void XCfunctional::initialize(const std::string& input_line, bool polarized)
             hf_coeff = 0.0;
             found_valid_token = true;
         }
-        else if (name == "RHOMIN") {
-            line >> rhomin;
+        else if (token == "RHOMIN") {
+            s >> rhomin;
         }
-        else if (name == "RHOTOL") {
-            line >> rhotol;
+        else if (token == "RHOTOL") {
+            s >> rhotol;
         }
-        else if (name == "SIGMIN") {
-            line >> sigmin;
+        else if (token == "SIGMIN") {
+            s >> sigmin;
         }
-        else if (name == "SIGTOL") {
-            line >> sigtol;
+        else if (token == "SIGTOL") {
+            s >> sigtol;
         }
         else if (token == "HF") {
             hf_coeff = 1.0;
