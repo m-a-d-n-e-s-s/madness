@@ -51,6 +51,17 @@
 #ifdef STUBOUTMPI
 #include <world/stubmpi.h>
 #else
+
+#ifdef SEEK_SET
+#undef SEEK_SET
+#endif
+#ifdef SEEK_CUR
+#undef SEEK_CUR
+#endif
+#ifdef SEEK_END
+#undef SEEK_END
+#endif
+
 #include <mpi.h>
 #endif
 

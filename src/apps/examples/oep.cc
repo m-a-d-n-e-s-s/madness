@@ -47,7 +47,6 @@
 
 #include <mra/operator.h>
 #include <mra/mra.h>
-#include <mra/mraimpl.h>
 #include <mra/operator.h>
 #include <mra/lbdeux.h>
 

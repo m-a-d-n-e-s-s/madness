@@ -75,6 +75,7 @@ namespace madness {
 #include <mra/funcdefaults.h>
 #include <mra/function_factory.h>
 #include <mra/lbdeux.h>
+#include <mra/funcimpl.h>
 
 // some forward declarations
 namespace madness {
@@ -2196,6 +2197,6 @@ namespace madness {
 #include <mra/operator.h>
 #include <mra/functypedefs.h>
 #include <mra/vmra.h>
-#include <mra/mraimpl.h>
+// #include <mra/mraimpl.h> !!!!!!!!!!!!! NOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO  !!!!!!!!!!!!!!!!!!
 
 #endif // MADNESS_MRA_MRA_H__INCLUDED

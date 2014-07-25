@@ -365,7 +365,7 @@ namespace madness {
 
     public:
     	TwoElectronFactory(World& world)
-    		: FunctionFactory(world)
+	  : FunctionFactory<double,6>(world)
     		, type_(coulomb_)
     		, interface_()
 			, dcut_(FunctionDefaults<3>::get_thresh())

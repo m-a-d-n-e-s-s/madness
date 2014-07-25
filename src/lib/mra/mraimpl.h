@@ -1,4 +1,3 @@
-
 /*
   This file is part of MADNESS.
 
@@ -36,8 +35,14 @@
 #ifndef MADNESS_MRA_MRAIMPL_H__INCLUDED
 #define MADNESS_MRA_MRAIMPL_H__INCLUDED
 
+#ifndef MPRAIMPLX
+#error "mraimpl.h should ONLY be included in one of the mraX.cc files (x=1..6)"
+#endif
+
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <math.h>
+#include <world/worldobj.h>
+#include <world/worlddc.h>
 #include <world/worldhashmap.h>
 #include <mra/function_common_data.h>
 

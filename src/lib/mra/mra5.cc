@@ -30,7 +30,12 @@
   
   $Id$
 */
+#include <mra/mra.h>
+#define MPRAIMPLX
 #include <mra/mraimpl.h>
+#include <world/worldobj.h>
+#include <world/worldmutex.h>
+#include <list>
 
 #ifdef FUNCTION_INSTANTIATE_5
 namespace madness {
@@ -49,5 +54,27 @@ namespace madness {
                                    const std::vector<long>&, bool binary);
     template void plotdx<double_complex,5>(const Function<double_complex,5>&, const char*, const Tensor<double>&,
                                            const std::vector<long>&, bool binary);
+
+    template void fcube<double,5>(const Key<5>&, const FunctionFunctorInterface<double,5>&, const Tensor<double>&, Tensor<double>&);
+    template Tensor<double> fcube<double, 5>(Key<5> const&, double (*)(Vector<double, 5> const&), Tensor<double> const&);
+    template void fcube<std::complex<double>,5>(const Key<5>&, const FunctionFunctorInterface<std::complex<double>,5>&, const Tensor<double>&, Tensor<std::complex<double> >&);
+  template Tensor<std::complex<double> > fcube<std::complex<double>, 5>(Key<5> const&, std::complex<double> (*)(Vector<double, 5> const&), Tensor<double> const&);
+
+    volatile std::list<detail::PendingMsg> WorldObject<FunctionImpl<double,5> >::pending;
+    Spinlock WorldObject<FunctionImpl<double,5> >::pending_mutex;
+    volatile std::list<detail::PendingMsg> WorldObject<madness::FunctionImpl<std::complex<double>, 5> >::pending;
+    Spinlock WorldObject<FunctionImpl<std::complex<double>, 5> >::pending_mutex;
+
+    volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<5>, FunctionNode<double, 5>, Hash<Key<5> > > >::pending;
+    Spinlock WorldObject<WorldContainerImpl<Key<5>, FunctionNode<double, 5>, Hash<Key<5> > > >::pending_mutex;
+    volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<5>, FunctionNode<std::complex<double>, 5>, Hash<Key<5> > > >::pending;
+    Spinlock WorldObject<WorldContainerImpl<Key<5>, FunctionNode<std::complex<double>, 5>, Hash<Key<5> > > >::pending_mutex;
+
+    volatile std::list<detail::PendingMsg> WorldObject<DerivativeBase<double,5> >::pending;
+    Spinlock WorldObject<DerivativeBase<double,5> >::pending_mutex;
+    volatile std::list<detail::PendingMsg> WorldObject<DerivativeBase<std::complex<double>,5> >::pending;
+    Spinlock WorldObject<DerivativeBase<std::complex<double>,5> >::pending_mutex;
+
+
 }
 #endif
