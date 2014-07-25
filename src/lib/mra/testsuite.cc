@@ -35,7 +35,7 @@
 /// \file testsuite.cc
 /// \brief The QA/test suite for Function
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#define NO_GENTENSOR
 #include <mra/mra.h>
 #include <unistd.h>
 #include <cstdio>
