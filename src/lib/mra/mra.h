@@ -806,9 +806,17 @@ namespace madness {
         }
 
         /// Process 0 prints a summary of all nodes in the tree (collective)
-        void print_tree() const {
+        void print_tree(std::ostream& os = std::cout) const {
             PROFILE_MEMBER_FUNC(Function);
-            if (impl) impl->print_tree();
+            if (impl) impl->print_tree(os);
+        }
+
+        /// Process 0 prints a graphviz-formatted output of all nodes in the tree (collective)
+        void print_tree_graphviz(std::ostream& os = std::cout) const {
+            PROFILE_MEMBER_FUNC(Function);
+            os << "digraph G {" << std::endl;
+            if (impl) impl->print_tree_graphviz(os);
+            os << "}" << std::endl;
         }
 
         /// Print a summary of the load balancing info

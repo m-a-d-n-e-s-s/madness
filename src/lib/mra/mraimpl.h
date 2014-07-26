@@ -643,29 +643,63 @@ namespace madness {
 
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::print_tree(Level maxlevel) const {
-        if (world.rank() == 0) do_print_tree(cdata.key0, maxlevel);
+    void FunctionImpl<T,NDIM>::print_tree(std::ostream& os, Level maxlevel) const {
+        if (world.rank() == 0) do_print_tree(cdata.key0, os, maxlevel);
         world.gop.fence();
-        if (world.rank() == 0) std::cout.flush();
+        if (world.rank() == 0) os.flush();
         world.gop.fence();
     }
 
 
     template <typename T, std::size_t NDIM>
-    void FunctionImpl<T,NDIM>::do_print_tree(const keyT& key, Level maxlevel) const {
+    void FunctionImpl<T,NDIM>::do_print_tree(const keyT& key, std::ostream& os, Level maxlevel) const {
         typename dcT::const_iterator it = coeffs.find(key).get();
         if (it == coeffs.end()) {
             //MADNESS_EXCEPTION("FunctionImpl: do_print_tree: null node pointer",0);
-            for (int i=0; i<key.level(); ++i) std::cout << "  ";
-            std::cout << key << "  missing --> " << coeffs.owner(key) << "\n";
+            for (int i=0; i<key.level(); ++i) os << "  ";
+            os << key << "  missing --> " << coeffs.owner(key) << "\n";
         }
         else {
             const nodeT& node = it->second;
-            for (int i=0; i<key.level(); ++i) std::cout << "  ";
-            std::cout << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
+            for (int i=0; i<key.level(); ++i) os << "  ";
+            os << key << "  " << node << " --> " << coeffs.owner(key) << "\n";
             if (key.level() < maxlevel  &&  node.has_children()) {
                 for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
-                    do_print_tree(kit.key(),maxlevel);
+                    do_print_tree(kit.key(),os,maxlevel);
+                }
+            }
+        }
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::print_tree_graphviz(std::ostream& os, Level maxlevel) const {
+        if (world.rank() == 0) do_print_tree_graphviz(cdata.key0, os, maxlevel);
+        world.gop.fence();
+        if (world.rank() == 0) os.flush();
+        world.gop.fence();
+    }
+
+    template <typename T, std::size_t NDIM>
+    void FunctionImpl<T,NDIM>::do_print_tree_graphviz(const keyT& key, std::ostream& os, Level maxlevel) const {
+
+        struct uniqhash {
+            static int64_t value(const keyT& key) {
+              int64_t result = 0;
+              for (int64_t j = 0; j <= key.level()-1; ++j) {
+                  result += (1 << j*NDIM);
+              }
+              result += key.translation()[0];
+              return result;
+            }
+        };
+
+        typename dcT::const_iterator it = coeffs.find(key).get();
+        if (it != coeffs.end()) {
+            const nodeT& node = it->second;
+            if (key.level() < maxlevel  &&  node.has_children()) {
+                for (KeyChildIterator<NDIM> kit(key); kit; ++kit) {
+                  os << uniqhash::value(key) << " -> " << uniqhash::value(kit.key()) << "\n";
+                  do_print_tree_graphviz(kit.key(),os,maxlevel);
                 }
             }
         }

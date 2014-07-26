@@ -1310,9 +1310,13 @@ namespace madness {
             return cdata.key0;
         }
 
-        void print_tree(Level maxlevel = 10000) const;
+        void print_tree(std::ostream& os = std::cout, Level maxlevel = 10000) const;
 
-        void do_print_tree(const keyT& key, Level maxlevel) const;
+        void do_print_tree(const keyT& key, std::ostream& os, Level maxlevel) const;
+
+        void print_tree_graphviz(std::ostream& os = std::cout, Level maxlevel = 10000) const;
+
+        void do_print_tree_graphviz(const keyT& key, std::ostream& os, Level maxlevel) const;
 
         /// convert a number [0,limit] to a hue color code [blue,red],
         /// or, if log is set, a number [1.e-10,limit]
