@@ -612,14 +612,8 @@ int main(int argc, char** argv) {
     return RUN_ALL_TESTS();
 }
 
-#elif USE_GENTENSOR
-#include <iostream>
-int main() {
-    std::cout << "U need to build with Google test to enable the tensor test code\n";
-    return 0;
-}
+#else
 
-#elif MADNESS_HAS_GOOGLE_TEST
 #include <iostream>
 int main() {
     std::cout << "U need to build with --enable-gentensor to enable the tensor test code\n";
