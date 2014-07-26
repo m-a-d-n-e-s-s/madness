@@ -35,7 +35,6 @@
 /// \file mraplot.cc
 /// \brief Function plotting utility
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <unistd.h>
 #include <cstdio>

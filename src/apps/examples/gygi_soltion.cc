@@ -49,7 +49,7 @@ $Id$
   - The test system isa hydrogen atom (1s orbital)
 */
  //We will test this for a hydrogen atom
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <constants.h>
 #include <ctime>

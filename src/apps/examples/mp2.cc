@@ -43,7 +43,7 @@
 */
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <examples/mp2.h>
 
 using namespace madness;

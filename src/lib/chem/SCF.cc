@@ -37,7 +37,7 @@
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 
 #include <chem/SCF.h>

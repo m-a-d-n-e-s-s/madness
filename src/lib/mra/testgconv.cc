@@ -35,7 +35,6 @@
 /// \file mra/testgconv.cc
 /// \brief Test convolution with Gaussian * polyn
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <constants.h>

@@ -46,7 +46,7 @@
 /// Tightening up the default tolerance of the MADNESS functions makes this
 /// go away.
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <tensor/gmres.h>
 

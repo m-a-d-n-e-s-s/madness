@@ -34,7 +34,7 @@
 /// \brief Evolves the hydrogen molecular ion in 4D ... 3 electron + 1 nuclear degree of freedom
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/funcimpl.h>
 #include <mra/qmprop.h>

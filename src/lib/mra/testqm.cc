@@ -35,7 +35,6 @@
 /// \file testsuite.cc
 /// \brief The QA/test suite for Function
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <unistd.h>
 #include <cstdio>

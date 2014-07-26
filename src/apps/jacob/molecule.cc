@@ -35,7 +35,7 @@
 
  /// \file moldft/molecule.cc
  /// \brief Simple management of molecular information and potential
- ///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+ /////#define WORLD_INSTANTIATE_STATIC_TEMPLATES
  ///#include <mra/mra.h>
  #include <tensor/tensor.h>
  #include <tensor/tensor_lapack.h>

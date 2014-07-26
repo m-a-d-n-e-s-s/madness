@@ -1,7 +1,6 @@
 /// \file testdiff2D.cc
 /// \brief testing for diff() in 2D
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 //#include <mra/mraimpl.h> !!!!!!!!!!!!!! NOOOOOOOOOOOOOOOOOOOOOOOOO  !!!!!!!!!!!!!
 #include <string>

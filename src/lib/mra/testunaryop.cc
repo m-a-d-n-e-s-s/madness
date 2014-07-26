@@ -35,8 +35,7 @@
 /// \file testunaryop.cc
 /// \brief test a unary op
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
+s#include <mra/mra.h>
 #include <constants.h>
 
 using namespace madness;

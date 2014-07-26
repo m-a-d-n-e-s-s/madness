@@ -32,7 +32,7 @@
 */
 
 #include <madness_config.h>
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <mra/mra.h>
 #include <tensor/tensor.h>

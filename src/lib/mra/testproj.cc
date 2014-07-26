@@ -35,7 +35,6 @@
 /// \file testproj.cc
 /// \brief test box size dependence of projection etc.
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <constants.h>
 #include <vector>

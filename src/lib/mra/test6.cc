@@ -35,7 +35,6 @@
 /// \file test6.cc
 /// \brief test various functionality for 6d functions
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include "mra/mra.h"
 
 using namespace madness;

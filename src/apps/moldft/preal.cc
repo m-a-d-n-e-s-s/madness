@@ -1,4 +1,4 @@
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <tensor/solvers.h>
 #include <tinyxml/tinyxml.h>

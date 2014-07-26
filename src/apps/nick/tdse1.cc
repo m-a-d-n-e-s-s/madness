@@ -34,7 +34,7 @@
 /// \brief Evolves the 1D hydrogen atom in imaginary and also real time
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/qmprop.h>
 #include <mra/operator.h>

@@ -35,7 +35,7 @@
 /// \file moldft.cc
 /// \brief Molecular HF and DFT code
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <misc/ran.h>

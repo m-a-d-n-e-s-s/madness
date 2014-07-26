@@ -30,7 +30,7 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include "dft.h"
 #include "util.h"
 //#include <moldft/xc/f2c.h>

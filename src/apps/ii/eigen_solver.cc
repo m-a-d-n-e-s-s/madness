@@ -33,7 +33,7 @@
 /// \file testsystolic.cc
 /// systolic example of eigen solver using one-sided Jacobi method.
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <world/world.h>
 #include <utility>
 #include <tensor/tensor.h>

@@ -83,6 +83,14 @@ namespace madness {
     template <> volatile std::list<detail::PendingMsg> WorldObject<DerivativeBase<std::complex<double>,1> >::pending = std::list<detail::PendingMsg>();
     template <> Spinlock WorldObject<DerivativeBase<std::complex<double>,1> >::pending_mutex(0);
 
+    template <> volatile std::list<detail::PendingMsg> WorldObject<SeparatedConvolution<double,1> >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<SeparatedConvolution<double,1> >::pending_mutex(0);
+    template <> volatile std::list<detail::PendingMsg> WorldObject<SeparatedConvolution<std::complex<double>,1> >::pending = std::list<detail::PendingMsg>();
+    template <> Spinlock WorldObject<SeparatedConvolution<std::complex<double>,1> >::pending_mutex(0);
+
+    template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<1>, LBNodeDeux<1>, Hash<Key<1> > > >::pending = std::list<detail::PendingMsg>();
+    template <>  Spinlock WorldObject<WorldContainerImpl<Key<1>, LBNodeDeux<1>, Hash<Key<1> > > >::pending_mutex(0);
+
     template void plotdx<double,1>(const Function<double,1>&, const char*, const Tensor<double>&,
                                    const std::vector<long>&, bool binary);
     template void plotdx<double_complex,1>(const Function<double_complex,1>&, const char*, const Tensor<double>&,

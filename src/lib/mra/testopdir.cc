@@ -35,7 +35,6 @@
 /// \file testopdir.cc
 /// \brief test different operators in different directions
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
 #include <mra/funcplot.h>

@@ -98,7 +98,7 @@
 */
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #define NO_GENTENSOR
 #include <mra/mra.h>
 #include <mra/qmprop.h>

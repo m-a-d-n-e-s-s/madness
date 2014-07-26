@@ -51,7 +51,7 @@
            This code generated the data in Figure 3 of the above reference.
 */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <tensor/gmres.h>
 #include "basisfunction.h"

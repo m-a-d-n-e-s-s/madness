@@ -1,7 +1,6 @@
 /// \file testdiff1Db.cc
 /// \brief testing for diff() in 1D
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 // #include <mra/mraimpl.h> !!!!!!!!!!!!!! NOOOOOOOOOOOOOOOOOO  !!!!!!!!!!!!!!!!!
 
