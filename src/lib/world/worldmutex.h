@@ -103,7 +103,8 @@ namespace madness {
 
     public:
         /// Make and initialize a mutex ... initial state is unlocked
-        Mutex() {
+        Mutex(int junk=0) // Junk so that can force initializer in mraX.cc
+        {
             const int result = pthread_mutex_init(&mutex, 0);
             if (result) MADNESS_EXCEPTION("failed to initialize mutex", result);
         }
@@ -209,7 +210,8 @@ namespace madness {
 
     public:
         /// Make and initialize a spinlock ... initial state is unlocked
-        Spinlock() {
+        Spinlock(int junk=0)  // Junk so that can force initializer in mraX.cc
+        {
             pthread_spin_init(&spinlock, PTHREAD_PROCESS_PRIVATE);
         }
 

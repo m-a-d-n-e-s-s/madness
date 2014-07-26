@@ -371,7 +371,7 @@ namespace madness {
 		ElectronRepulsionInterface(double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
-			: TwoElectronInterface(lo,eps,bc,kk) {
+		  : TwoElectronInterface<double,6>(lo,eps,bc,kk) {
 
 			initialize(eps);
 		}
@@ -396,7 +396,7 @@ namespace madness {
 		BSHFunctionInterface(double mu, double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
-			: TwoElectronInterface(lo,eps,bc,kk), mu(mu) {
+		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
 
 			initialize(eps);
 		}
@@ -423,7 +423,7 @@ namespace madness {
 		SlaterFunctionInterface(double mu, double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
-			: TwoElectronInterface(lo,eps,bc,kk), mu(mu) {
+		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
 
 			initialize(eps);
 		}
@@ -450,7 +450,7 @@ namespace madness {
 		SlaterF12Interface(double mu, double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
-			: TwoElectronInterface(lo,eps,bc,kk), mu(mu) {
+		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
 
 			initialize(eps);
 		}
@@ -493,7 +493,7 @@ namespace madness {
 		FGInterface(double mu, double lo,double eps,
 				const BoundaryConditions<6>& bc=FunctionDefaults<6>::get_bc(),
 				int kk=FunctionDefaults<6>::get_k())
-			: TwoElectronInterface(lo,eps,bc,kk), mu(mu) {
+		  : TwoElectronInterface<double,6>(lo,eps,bc,kk), mu(mu) {
 
 			initialize(eps);
 		}
