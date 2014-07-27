@@ -1811,9 +1811,22 @@ namespace madness {
         
         /// Invoked as a task by do_binary_op with the actual coefficients
         template <typename L, typename R, typename opT>
-        Void do_binary_op(const keyT& key, const Tensor<L>& left,
-                          const std::pair< keyT, Tensor<R> >& arg,
-                          const opT& op);
+	  Void do_binary_op(const keyT& key, const Tensor<L>& left,
+			    const std::pair< keyT, Tensor<R> >& arg,
+			    const opT& op) {
+	  PROFILE_MEMBER_FUNC(FunctionImpl);
+	  const keyT& rkey = arg.first;
+	  const Tensor<R>& rcoeff = arg.second;
+	  Tensor<R> rcube = fcube_for_mul(key, rkey, rcoeff);
+	  Tensor<L> lcube = fcube_for_mul(key, key, left);
+	  
+	  Tensor<T> tcube(cdata.vk,false);
+	  op(key, tcube, lcube, rcube);
+	  double scale = pow(0.5,0.5*NDIM*key.level())*sqrt(FunctionDefaults<NDIM>::get_cell_volume());
+	  tcube = transform(tcube,cdata.quad_phiw).scale(scale);
+	  coeffs.replace(key, nodeT(coeffT(tcube,targs),false));
+	  return None;
+	}
         
         /// Invoked by result to perform result += alpha*left+beta*right in wavelet basis
         
