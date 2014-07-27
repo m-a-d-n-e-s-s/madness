@@ -4263,7 +4263,27 @@ namespace madness {
         /// @param[in]	gimpl	the funcimpl of the function of particle 2
         template<typename opT, std::size_t LDIM>
         void recursive_apply(opT& apply_op, const FunctionImpl<T,LDIM>* fimpl,
-                             const FunctionImpl<T,LDIM>* gimpl, const bool fence);
+                             const FunctionImpl<T,LDIM>* gimpl, const bool fence) {
+
+            const keyT& key0=cdata.key0;
+
+            if (world.rank() == coeffs.owner(key0)) {
+
+                CoeffTracker<T,LDIM> ff(fimpl);
+                CoeffTracker<T,LDIM> gg(gimpl);
+
+                typedef recursive_apply_op<opT,LDIM> coeff_opT;
+                coeff_opT coeff_op(this,ff,gg,&apply_op);
+
+                typedef noop<T,NDIM> apply_opT;
+                apply_opT apply_op;
+
+                ProcessID p= coeffs.owner(key0);
+                woT::task(p, &implT:: template forward_traverse<coeff_opT,apply_opT>, coeff_op, apply_op, key0);
+
+            }
+            if (fence) world.gop.fence();
+        }
         
         /// recursive part of recursive_apply
         template<typename opT, std::size_t LDIM>
