@@ -1218,10 +1218,10 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 
 		if (xc.is_gga() ) {
 			// get Vsigma_aa (if it is the case and Vsigma_bb)
-			functionT vsigaa = make_dft_potential(world, vf, ispin, 1).truncate();
+                    functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
 			functionT vsigab;
 			if (xc.is_spin_polarized())// V_ab
-			vsigab = make_dft_potential(world, vf, ispin, 2).truncate();
+                            vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
 
 			for (int axis=0; axis<3; axis++) {
 				functionT gradn = delrho[axis + 3*ispin];
@@ -1233,13 +1233,15 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 				}
 				Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
 				functionT vxc2=D(ddel);
-				vloc = vloc - vxc2.truncate();
+				vloc = vloc - vxc2;//.truncate();
 			}
 		} //is gga
 #endif
 		END_TIMER(world, "DFT potential");
 		TAU_STOP("DFT potential");
 	}
+
+        vloc.truncate();
 
 	TAU_START("V*psi");
 	START_TIMER(world);
