@@ -4765,9 +4765,8 @@ namespace madness {
 
         /// Return the local part of inner product with external function ... no communication.
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
-        /// @return Returns to local part of the inner product, i.e. over the domain of all function nodes on this compute node.
+        /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
         T inner_ext_local(T (*f)(const coordT&)) const {
-            PROFILE_MEMBER_FUNC(FunctionImpl);
             typedef Range<typename dcT::const_iterator> rangeT;
 
             return world.taskq.reduce<T, rangeT, do_inner_ext_local>(rangeT(coeffs.begin(),coeffs.end()), 

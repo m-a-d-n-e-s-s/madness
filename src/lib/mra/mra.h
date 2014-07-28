@@ -1172,6 +1172,24 @@ namespace madness {
             return local;
         }
 
+        /// Return the local part of inner product with external function ... no communication.
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
+        T inner_ext_local(T (*f)(const coordT&)) const {
+            PROFILE_MEMBER_FUNC(Function);
+            return impl->inner_ext_local(f);
+        }
+
+        /// Return the inner product with external function ... requires communication.
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @return Returns the inner product
+        T inner_ext(T (*f)(const coordT&)) const {
+            double local = impl->inner_ext_local(f);
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            return local;
+        }
+
         /// Returns the inner product for one on-demand function
 
         /// It does work, but it might not give you the precision you expect.
