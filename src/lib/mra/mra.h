@@ -1184,7 +1184,7 @@ namespace madness {
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @return Returns the inner product
         T inner_ext(T (*f)(const coordT&)) const {
-            double local = impl->inner_ext_local(f);
+            T local = impl->inner_ext_local(f);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;
