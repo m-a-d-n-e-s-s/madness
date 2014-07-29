@@ -4680,7 +4680,98 @@ namespace madness {
             return world.taskq.reduce<resultT,rangeT,do_inner_local<R> >
                 (rangeT(coeffs.begin(),coeffs.end()),do_inner_local<R>(&g, leaves_only));
         }
-        
+
+        /// Return the inner product with an external function on a specified function node.
+        /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
+        /// @param[in] c Tensor of coefficients for the function at the function node given by key
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @return Returns the inner product over the domain of a single function node, no guarantee of accuracy.   
+        T inner_ext_node(keyT key, coeffT c, T (*f)(const coordT&)) const {
+            tensorT fvals, fcoeffs;
+            // Compute the value of the external function at the quadrature points.
+            fvals = madness::fcube(key, f, cdata.quad_x);
+            // Convert quadrature point values to scaling coefficients.
+            fcoeffs = values2coeffs(key, fvals);
+            // Return the inner product of the two functions' scaling coefficients.
+            return c.trace_conj(fcoeffs);
+        } 
+
+        /// Call inner_ext_node recursively until convergence.
+        /// @param[in] key Key of the function node to compute the inner product on. (the domain of integration)
+        /// @param[in] c Tensor of coefficients for the function at the function node given by key
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] old_inner T type value of the inner product on the parent function node
+        /// @return Returns the inner product over the domain of a single function, checks for convergence.
+        /// TODO: Add option to turn off recursion
+        T inner_ext_node_recursive(keyT key, coeffT c, T (*f)(const coordT&), T old_inner=0.0) const {
+            int i = 0;
+            std::vector<coeffT> c_child;
+            Tensor<T> inner_child; 
+            T new_inner, result = 0.0;
+
+            c_child = std::vector<coeffT>(pow(2, NDIM));  // vector of child coefficients
+            inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
+
+            // If old_inner is default value, assume this is the first call and compute inner product on this node.
+            if (old_inner == 0.0) {
+                old_inner = inner_ext_node(key, c, f);
+            }
+
+            // Iterate over all children of this compute node, computing the inner product on each child node.
+            // new_inner will store the sum of these, yielding a more accurate inner product.
+            for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                c_child[i] = project(it.key());
+                inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
+            }
+            new_inner = inner_child.sum();
+            
+            // Check for convergence. If converged...yay, we're done. If not, call inner_ext_node_recursive on 
+            // each child node and accumulate the inner product in result.
+            if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
+                // Question: should this use truncate_tol for the current level or the next one down?
+                result = new_inner;
+            } else {
+                i = 0;
+                for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                    result += inner_ext_node_recursive(it.key(), c_child[i], f, inner_child(i));
+                }
+            }
+
+            return result;
+        }
+
+        struct do_inner_ext_local {
+            T (*fptr)(const coordT&);
+            const implT * impl;
+
+            do_inner_ext_local(T (*f)(const coordT&), const implT * impl) : fptr(f), impl(impl) {};
+
+            T operator()(typename dcT::const_iterator& it) const {
+                if (it->second.is_leaf()) {
+                    return impl->inner_ext_node_recursive(it->first, it->second.coeff(), fptr);
+                } else {
+                    return 0.0;
+                }
+            }
+
+            T operator()(T a, T b) const {
+                return (a + b);
+            }
+
+            template <typename Archive> void serialize(const Archive& ar) {
+                throw "NOT IMPLEMENTED";
+            }
+        };
+
+        /// Return the local part of inner product with external function ... no communication.
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
+        T inner_ext_local(T (*f)(const coordT&)) const {
+            typedef Range<typename dcT::const_iterator> rangeT;
+
+            return world.taskq.reduce<T, rangeT, do_inner_ext_local>(rangeT(coeffs.begin(),coeffs.end()), 
+                    do_inner_ext_local(f, this));
+        } 
         
         /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
         
