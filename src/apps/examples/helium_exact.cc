@@ -291,13 +291,13 @@ double compute_energy(World& world, const real_function_6d& psi,
 	return (pe1 + pe2 + pe + ke)/norm;
 }
 
-void save(const real_function_6d& f, std::string filename) {
-	archive::ParallelOutputArchive ar(f.world(), filename.c_str(), 1);
+void save(World& world, const real_function_6d& f, std::string filename) {
+	archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
-void load( real_function_6d& f, std::string filename) {
-	archive::ParallelInputArchive ar(f.world(), filename.c_str(), 1);
+void load(World& world, real_function_6d& f, std::string filename) {
+	archive::ParallelInputArchive ar(world, filename.c_str(), 1);
 	ar & f;
 }
 
@@ -470,15 +470,16 @@ int main(int argc, char** argv) {
 		real_convolution_6d bsh = BSHOperator<6>(world, sqrt(-2 * eps), lo,
 				bsh_eps);
 		bsh.destructive() = true;
-		save(Vpsi,"Vpsi");
+		save(world,Vpsi,"Vpsi");
 		real_function_6d tmp = bsh(Vpsi).truncate();// green is destructive
 		tmp.print_size("GV Psi");
+		save(world,tmp,"GVpsi");
 
 		// second order update of the energy
 		real_function_6d r = tmp - psi;
 		double rnorm = r.norm2();
 		double norm = tmp.norm2();
-		load(Vpsi,"Vpsi");
+		load(world,Vpsi,"Vpsi");
 		double eps_new = eps - 0.5 * inner(Vpsi, r) / (norm * norm);
 		if (world.rank() == 0) {
 			print("norm=", norm, " eps=", eps, " err(psi)=", rnorm,
