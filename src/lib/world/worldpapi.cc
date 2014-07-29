@@ -77,4 +77,8 @@ namespace madness {
     }
 }
 
+#else
+
+int this_just_to_make_stupid_intel_linker_happy_123435;
+
 #endif
