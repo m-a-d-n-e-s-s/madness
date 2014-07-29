@@ -39,16 +39,6 @@
 
 #ifdef FUNCTION_INSTANTIATE_5
 namespace madness {
-    template class FunctionDefaults<5>;
-    template class Function<double, 5>;
-    template class Function<std::complex<double>, 5>;
-    template class FunctionImpl<double, 5>;
-    template class FunctionImpl<std::complex<double>, 5>;
-    template class FunctionCommonData<double, 5>;
-    template class FunctionCommonData<double_complex, 5>;
-    template class Displacements<5>;
-    template class DerivativeBase<double,5>;
-    template class DerivativeBase<double_complex,5>;
 
     template void plotdx<double,5>(const Function<double,5>&, const char*, const Tensor<double>&,
                                    const std::vector<long>&, bool binary);
@@ -83,6 +73,17 @@ namespace madness {
     template <> volatile std::list<detail::PendingMsg> WorldObject<WorldContainerImpl<Key<5>, LBNodeDeux<5>, Hash<Key<5> > > >::pending = std::list<detail::PendingMsg>();
     template <>  Spinlock WorldObject<WorldContainerImpl<Key<5>, LBNodeDeux<5>, Hash<Key<5> > > >::pending_mutex(0);
 
+    // These implicit instantiations must be below the explicit ones above in order not to offend LLVM
+    template class FunctionDefaults<5>;
+    template class Function<double, 5>;
+    template class Function<std::complex<double>, 5>;
+    template class FunctionImpl<double, 5>;
+    template class FunctionImpl<std::complex<double>, 5>;
+    template class FunctionCommonData<double, 5>;
+    template class FunctionCommonData<double_complex, 5>;
+    template class Displacements<5>;
+    template class DerivativeBase<double,5>;
+    template class DerivativeBase<double_complex,5>;
 
 }
 #endif
