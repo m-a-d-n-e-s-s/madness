@@ -760,6 +760,24 @@ namespace madness {
 			return overlap(*(this->_ptr),*rhs._ptr);
 		}
 
+        /// returns the trace of <this|rhs>
+		template<typename Q>
+		TENSOR_RESULT_TYPE(T,Q) trace_conj(const Tensor<Q>& rhs) const {
+            if (TensorTypeData<T>::iscomplex) MADNESS_EXCEPTION("no complex trace in GenTensor, sorry",1);
+            if (TensorTypeData<Q>::iscomplex) MADNESS_EXCEPTION("no complex trace in GenTensor, sorry",1);
+
+            typedef TENSOR_RESULT_TYPE(T,Q) resultT;
+			// fast return if possible
+			if ((this->rank()==0)) return resultT(0.0);
+
+			// fast return if this is a full tensor
+			// otherwise reconstruct this to a full tensor, since it's presumably
+			// faster than turning the full tensor rhs into a low-rank approximation
+			if (this->tensor_type()==TT_FULL) return full_tensor().trace_conj(rhs);
+			else return full_tensor_copy().trace_conj(rhs);
+
+		}
+
         /// Inplace multiply by corresponding elements of argument Tensor
         GenTensor<T>& emul(const GenTensor<T>& t) {
         	print("no GenTensor<T>::emul yet");

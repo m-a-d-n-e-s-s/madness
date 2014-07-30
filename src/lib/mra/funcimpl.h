@@ -4720,7 +4720,8 @@ namespace madness {
             // Iterate over all children of this compute node, computing the inner product on each child node.
             // new_inner will store the sum of these, yielding a more accurate inner product.
             for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                c_child[i] = project(it.key());
+            	// convert tensorT to coeffT
+            	c_child[i] = coeffT(project(it.key()),thresh,FunctionDefaults<NDIM>::get_tensor_type());
                 inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
             }
             new_inner = inner_child.sum();
