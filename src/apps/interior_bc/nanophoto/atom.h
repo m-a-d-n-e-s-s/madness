@@ -39,7 +39,7 @@
 #ifndef MADNESS_INTERIOR_BC_ATOM_H__INCLUDED
 #define MADNESS_INTERIOR_BC_ATOM_H__INCLUDED
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include "basisfunction.h"
 #include <string>
