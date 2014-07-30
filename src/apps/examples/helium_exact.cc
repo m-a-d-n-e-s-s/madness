@@ -485,6 +485,7 @@ int main(int argc, char** argv) {
 			print("norm=", norm, " eps=", eps, " err(psi)=", rnorm,
 					" err(eps)=", eps_new - eps);
 		}
+		Vpsi.clear();
 		tmp.scale(1.0 / norm);
 		psi = copy(tmp);
 		if (iter >1) {
@@ -492,11 +493,11 @@ int main(int argc, char** argv) {
 				print("updating energy");
 			eps = eps_new;
 		}
-		real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());
-		double energy=compute_energy(world,psi,ecf,ncf,vnuc);
-
 		archive::ParallelOutputArchive ar(world, filename.c_str(), 1);
 		ar & psi & eps;
+
+		real_function_3d vnuc=copy(calc->potentialmanager->vnuclear());
+		double energy=compute_energy(world,psi,ecf,ncf,vnuc);
 
 		if (world.rank()==0) {
 			print(" total energy ",eps,energy);
