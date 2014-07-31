@@ -199,7 +199,7 @@ int main(int argc, char * argv[]) {
                 mTxm (ni,nj,nk,c,a,b);
                 mTxmq(ni,nj,nk,d,a,b);
                 for (i=0; i<ni*nj; ++i) {
-                    double err = fabs(d[i]-c[i]);
+                    double err = std::abs(d[i]-c[i]);
                     /* This test is sensitive to the compilation options.
                        Be sure to have the reference code above compiled
                        -msse2 -fpmath=sse if using GCC.  Otherwise, to
@@ -216,6 +216,7 @@ int main(int argc, char * argv[]) {
     }
     printf("... OK!\n");
 
+    printf("%20s %3s %3s %3s %8s %8s (GF/s)\n", "type", "M", "N", "K", "LOOP", "BLAS");
     for (ni=2; ni<60; ni+=2) timer("(m*m)T*(m*m)", ni,ni,ni,a,b,c);
     for (m=2; m<=30; m+=2) timer("(m*m,m)T*(m*m)", m*m,m,m,a,b,c);
     for (m=2; m<=30; m+=2) trantimer("tran(m,m,m)", m*m,m,m,a,b,c);
