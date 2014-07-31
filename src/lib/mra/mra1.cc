@@ -50,19 +50,6 @@ namespace madness {
 
 #ifdef FUNCTION_INSTANTIATE_1
 
-    template class WorldObject<FunctionImpl<double,1> >;
-    template class WorldObject<FunctionImpl<std::complex<double>,1> >;
-    template class FunctionDefaults<1>;
-    template class Function<double, 1>;
-    template class Function<std::complex<double>, 1>;
-    template class FunctionImpl<double, 1>;
-    template class FunctionImpl<std::complex<double>, 1>;
-    template class FunctionCommonData<double, 1>;
-    template class FunctionCommonData<double_complex, 1>;
-    template class Displacements<1>;
-    template class DerivativeBase<double,1>;
-    template class DerivativeBase<double_complex,1>;
-
     template void fcube<double,1>(const Key<1>&, const FunctionFunctorInterface<double,1>&, const Tensor<double>&, Tensor<double>&);
     template Tensor<double> fcube<double, 1>(Key<1> const&, double (*)(Vector<double, 1> const&), Tensor<double> const&);
     template void fcube<std::complex<double>,1>(const Key<1>&, const FunctionFunctorInterface<std::complex<double>,1>&, const Tensor<double>&, Tensor<std::complex<double> >&);
@@ -95,6 +82,20 @@ namespace madness {
                                    const std::vector<long>&, bool binary);
     template void plotdx<double_complex,1>(const Function<double_complex,1>&, const char*, const Tensor<double>&,
                                            const std::vector<long>&, bool binary);
+
+    // These implicit instantiations must be below the explicit ones above in order not to offend LLVM
+    template class WorldObject<FunctionImpl<double,1> >;
+    template class WorldObject<FunctionImpl<std::complex<double>,1> >;
+    template class FunctionDefaults<1>;
+    template class Function<double, 1>;
+    template class Function<std::complex<double>, 1>;
+    template class FunctionImpl<double, 1>;
+    template class FunctionImpl<std::complex<double>, 1>;
+    template class FunctionCommonData<double, 1>;
+    template class FunctionCommonData<double_complex, 1>;
+    template class Displacements<1>;
+    template class DerivativeBase<double,1>;
+    template class DerivativeBase<double_complex,1>;
 #endif
 
 }

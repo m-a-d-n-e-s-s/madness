@@ -252,7 +252,7 @@ int test_periodic_bsh(World& world)
   FunctionDefaults<3>::set_cubic_cell(0,L);
   FunctionDefaults<3>::set_thresh(thresh);
 
-  ::mu = -15.3;
+  ::mu = 15.3;
 
   Function<double_complex,3> f = FunctionFactory<double_complex,3>(world).f(pw_rhs);
   f.truncate();
