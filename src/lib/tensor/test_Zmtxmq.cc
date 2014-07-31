@@ -58,7 +58,8 @@ using namespace madness;
 
 void mTxm_dgemm(long ni, long nj, long nk, double_complex* c, const double_complex* a, const double_complex*b ) {
   double_complex one=1.0;
-  madness::cblas::gemm(madness::cblas::NoTrans,madness::cblas::Trans,nj,ni,nk,one,b,nj,a,ni,one,c,nj);
+  double_complex zer=1.0;
+  madness::cblas::gemm(madness::cblas::NoTrans,madness::cblas::Trans,nj,ni,nk,one,b,nj,a,ni,zer,c,nj);
 }
 
 #endif
@@ -101,22 +102,26 @@ void timer(const char* s, long ni, long nj, long nk, double_complex *a, double_c
 
   double nflop = 2.0*ni*nj*nk;
   long loop;
-  for (loop=0; loop<30; ++loop) {
+  for (int t=0; t<100/nk; t++) {
     double rate;
     double start = SafeMPI::Wtime();
-    mTxmq(ni,nj,nk,c,a,b);
+    for (loop=0; loop<100; ++loop) {
+      mTxmq(ni,nj,nk,c,a,b);
+    }
     start = SafeMPI::Wtime() - start;
-    rate = 1.e-9*nflop/start;
+    rate = 1.e-9*nflop/(start/100.0);
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
-  for (loop=0; loop<30; ++loop) {
+  for (int t=0; t<100/nk; t++) {
     double rate;
     double start = SafeMPI::Wtime();
-    mTxm_dgemm(ni,nj,nk,c,a,b);
+    for (loop=0; loop<100; ++loop) {
+      mTxm_dgemm(ni,nj,nk,c,a,b);
+    }
     start = SafeMPI::Wtime() - start;
-    rate = 1.e-9*nflop/start;
+    rate = 1.e-9*nflop/(start/100.0);
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
@@ -129,26 +134,30 @@ void trantimer(const char* s, long ni, long nj, long nk, double_complex *a, doub
 
   double nflop = 3.0*2.0*ni*nj*nk;
   long loop;
-  for (loop=0; loop<30; ++loop) {
+  for (int t=0; t<100/nk; t++) {
     double rate;
     double start = SafeMPI::Wtime();
-    mTxmq(ni,nj,nk,c,a,b);
-    mTxmq(ni,nj,nk,a,c,b);
-    mTxmq(ni,nj,nk,c,a,b);
+    for (loop=0; loop<100; ++loop) {
+      mTxmq(ni,nj,nk,c,a,b);
+      mTxmq(ni,nj,nk,a,c,b);
+      mTxmq(ni,nj,nk,c,a,b);
+    }
     start = SafeMPI::Wtime() - start;
-    rate = 1.e-9*nflop/start;
+    rate = 1.e-9*nflop/(start/100.0);
     crap(rate,fastest,start);
     if (rate > fastest) fastest = rate;
   }
 #ifdef TIME_DGEMM
-  for (loop=0; loop<30; ++loop) {
+  for (int t=0; t<100/nk; t++) {
     double rate;
     double start = SafeMPI::Wtime();
-    mTxm_dgemm(ni,nj,nk,c,a,b);
-    mTxm_dgemm(ni,nj,nk,a,c,b);
-    mTxm_dgemm(ni,nj,nk,c,a,b);
+    for (loop=0; loop<100; ++loop) {
+      mTxm_dgemm(ni,nj,nk,c,a,b);
+      mTxm_dgemm(ni,nj,nk,a,c,b);
+      mTxm_dgemm(ni,nj,nk,c,a,b);
+    }
     start = SafeMPI::Wtime() - start;
-    rate = 1.e-9*nflop/start;
+    rate = 1.e-9*nflop/(start/100.0);
     crap(rate,fastest_dgemm,start);
     if (rate > fastest_dgemm) fastest_dgemm = rate;
   }
