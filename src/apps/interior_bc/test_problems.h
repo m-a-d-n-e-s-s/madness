@@ -64,7 +64,7 @@
 #ifndef MADNESS_INTERIOR_BC_TEST_PROBLEMS_H__INCLUDED
 #define MADNESS_INTERIOR_BC_TEST_PROBLEMS_H__INCLUDED
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <mra/sdf_shape_3D.h>

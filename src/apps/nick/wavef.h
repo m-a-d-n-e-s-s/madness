@@ -45,7 +45,7 @@
  *        mpfr                            http://www.mpfr.org/
  * By:    Nick Vence
  ************************************************************************/
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <complex>
 #include <iostream>

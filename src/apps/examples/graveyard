@@ -32,7 +32,7 @@
   
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <mra/mra.h>
 #include <mra/operator.h>
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
 /// \file bigboy.cc
 /// \brief artificial benchmark for Cray XT testing
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 using namespace madness;
 
@@ -541,7 +541,7 @@ int main(int argc, char** argv) {
   
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <mra/mra.h>
 #include <mra/operator.h>
@@ -929,7 +929,7 @@ end
   
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <mra/mra.h>
 #include <mra/operator.h>
