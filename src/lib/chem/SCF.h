@@ -49,6 +49,7 @@
 #include <chem/corepotential.h>
 #include <chem/xcfunctional.h>
 #include <chem/potentialmanager.h>
+#include <chem/gth_pseudopotential.h> 
 
 #include <tensor/solvers.h>
 
@@ -309,6 +310,7 @@ struct CalculationParameters {
     std::string algopt;         ///< algorithm used for optimization
     bool tdksprop;               ///< time-dependent Kohn-Sham equation propagate
     std::string nuclear_corrfac;	///< nuclear correlation factor
+    bool psp_calc;                ///< pseudopotential calculation or all electron
     //bool absolvent;             ///< If true calculate solvation effects
     //double epsilon_2;           ///< dielectric constant of solvent
     //double Gamma;               ///< surface tension of solvent
@@ -323,7 +325,7 @@ struct CalculationParameters {
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
-        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop;
+        ar & gopt & gtol & gtest & gval & gprec & gmaxiter & algopt & tdksprop & psp_calc;
         //ar & absolvent & epsilon_2 & Gamma & Gamma & beta & rho_0 & sigma;
     }
 
@@ -373,6 +375,7 @@ struct CalculationParameters {
         , algopt("BFGS")
         , tdksprop(false)
         , nuclear_corrfac("none")
+        , psp_calc(false)
           //, absolvent(false)
           //, epsilon_2(78.304)
           //, Gamma(0.0719)
@@ -558,6 +561,9 @@ struct CalculationParameters {
                 std::getline(f,str);
             	nuclear_corrfac=str;
             }
+            else if (s == "psp_calc") {
+              psp_calc = true;
+            }
             else {
                 std::cout << "moldft: unrecognized input keyword " << s << std::endl;
                 MADNESS_EXCEPTION("input error",0);
@@ -679,6 +685,7 @@ struct CalculationParameters {
 class SCF {
 public:
     std::shared_ptr<PotentialManager> potentialmanager;
+    std::shared_ptr<GTHPseudopotential<double>> gthpseudopotential;
     Molecule molecule;
     CalculationParameters param;
     XCfunctional xc;
@@ -844,7 +851,7 @@ public:
 
 	vecfuncT apply_potential(World & world, const tensorT & occ,
 			const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
-			const functionT & vlocal, double & exc, int ispin);
+			const functionT & vlocal, double & exc, double & enl, int ispin);
 
     tensorT derivatives(World & world);
 

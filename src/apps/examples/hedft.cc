@@ -23,6 +23,8 @@
 
 #include <chem/xcfunctional.h>
 
+#include <mra/legendre.h>
+
 
 using namespace madness;
 
@@ -44,7 +46,7 @@ typedef Convolution1D<double_complex> complex_operatorT;
 
 
 
-static const double L = 50.0; // box size
+static const double Length = 50.0; // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-8; // precision
 
@@ -73,6 +75,21 @@ static double V(const coord_3d& r) {
 }
 
 
+/*static double guess_density(const coord_3d& r) {
+	const double x=r[0], y=r[1], z=r[2];
+	return (4.0*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(12.566358048);
+}
+
+//d/dx**2+d/dy**2+d/dz**2
+static double guess_gradient(const coord_3d& r) {
+	const double x=r[0], y=r[1], z=r[2];
+        double dx=(-8.0*x*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+        double dy=(-8.0*y*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+        double dz=(-8.0*z*exp(-2.0*sqrt(x*x+y*y+z*z+1e-6)))/(sqrt(z*z+y*y+x*x+1e-6)*12.566358048);
+	return dx*dx+dy*dy+dz*dz;
+}*/
+
+
 //template <class solverT>
 double iterate_ground(World& world, NonlinearSolver& solver, 
 		real_function_3d& V, real_function_3d& psi, 
@@ -99,14 +116,14 @@ int main(int argc, char** argv) {
 	World world(SafeMPI::COMM_WORLD);
 
 	startup(world,argc,argv);
-	std::cout.precision(6);
+	std::cout.precision(12);
 
 	FunctionDefaults<3>::set_k(k);
 	FunctionDefaults<3>::set_thresh(thresh);
 	FunctionDefaults<3>::set_refine(true);
 	FunctionDefaults<3>::set_initial_level(5);
 	FunctionDefaults<3>::set_truncate_mode(1);  
-	FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
+	FunctionDefaults<3>::set_cubic_cell(-Length/2, Length/2);
 
 	if (world.rank() == 0) print("\n  Solving for the KS aux. wave function\n");
 	functionT Vnuc = real_factory_3d(world).f(V);
@@ -114,8 +131,10 @@ int main(int argc, char** argv) {
 	psi.truncate();
 	psi.scale(1.0/psi.norm2());
 
+
 	std::string xc_data;
-	xc_data="lda";
+	//xc_data="LDA_X 1.0 LDA_C_VWN 1.0";
+	xc_data="GGA_X_PBE 1.0 GGA_C_PBE 1.0";
 	//xc_data="GGA_X_PBE 1.";
 	//xc_data="GGA_C_PBE 1.";
 	//xc_data="GGA_X_B88 1.";
@@ -131,19 +150,27 @@ int main(int argc, char** argv) {
 		NonlinearSolver solver;
 		for (int iter=0; iter<20; iter++) {
                         functionT rho = square(psi).truncate();
-
+                        //functionT rho  = real_factory_3d(world).f(guess_density);
+                        //rho.truncate();
 			rho.reconstruct();
+
 			vecfuncT delrho;
                         vecfuncT vf;
 
 			vf.push_back(rho);
-// ADD SIGMA
+
+                        // ADD SIGMA
+                        functionT saa;
 			if (xc.is_gga()) {
                               for(int axis = 0;axis < 3;++axis){
                                        Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
                                        delrho.push_back(D(rho));
                               }
-                              functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+                              saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+                              //saa  = real_factory_3d(world).f(guess_gradient);
+                              //saa.truncate();
+                              //saa.reconstruct();
+
                               vf.push_back(saa); // sigma_aa
                               if (vf.size()) {
                                     reconstruct(world, vf);
@@ -155,8 +182,10 @@ int main(int argc, char** argv) {
 
                         real_function_3d vxc =  make_dft_potential(world, vf, 0, 0);
 
+
+                        functionT vsigaa;
 			if (xc.is_gga()) {
-                                functionT vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
+                                vsigaa = make_dft_potential(world, vf, 0, 1).truncate();
 
                                 for (int axis=0; axis<3; axis++) {
                                         Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
@@ -169,21 +198,86 @@ int main(int argc, char** argv) {
                                 }
                         }
 
+                        real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
 
-                        if(iter == 0){
+                        //deactivate test printing for now
+                        if(iter == 0 && false){
+ 			   std::ofstream file;
+	                   std::ostringstream iter_str;
+	                   iter_str << iter;
+
+ 			   file.open ("iter"+iter_str.str()+".txt");
+	                   file.precision(12);
 			   coord_3d r(0.0);
-			   for (int i=0; i<201; i++) {
-			      //r[2] = -L/2. + L*i/200.0;
-			      r[0] =  20.*i/400.0;
-			      //print(r[2], vf[1](r));
-			      //print(r[2], vsigaa(r));
-		//	      print(r[0], vxc(r)*r[0]);
-			    } 
-                       }
-                       real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
+                           double av, avrho, avpot;
+                           //double dx=0.1;
+                           //int imax=Length/dx;
+                           int imax=1024;
+			   for (int i=0; i<=imax; i++) {
+			      r[0] = -Length/2. + Length*i/imax;
+                              /*av=0.0;avrho=0.0;avpot=0.0;
+			      for (int j=0; j<=imax; j++) {
+			         r[1] = -L/2. + L*j/imax;
+			         for (int k=0; k<=imax; k++) {
+			            r[0] = -L/2. + L*k/imax;
 
-                       double err  = iterate_ground(world, solver, potential, psi, eps);
-                       if (err < thresh) break;
+			            //print(r[2], vf[1](r));
+			            //print(r[2], vsigaa(r));
+			            //print(r[0], vxc(r)*r[0]);
+			            //print(r[0], vxc(r)*r[0], r[2], vf[1](r), r[2], vsigaa(r));
+			            //if (xc.is_gga()) 
+			            //   {file << r[0] << "\t" << vxc(r)*r[0] << "\t" << r[2] << "\t" << vf[1](r) << "\t" << r[2] << "\t" << vsigaa(r) << "\n";}
+			            //else
+			            //{file << r[0] << "\t" << r[1] << "\t" << r[2] << "\t" << vxc(r) << "\t" << vxc(r)*r[0] << "\t" << vxc(r)*r[1] << "\t" << vxc(r)*r[2] << "\n" ;}
+
+			            av+=vxc(r);
+			            avrho+=rho(r);
+			            avpot+=potential(r);
+			         } 
+			      }*/
+                              r[2]=0.01;r[1]=0.01;
+                              /*file << r[2] << "\t" << vxc(r) << "\t" << vxc_trunc(r) << "\t" << av/((imax+1)*(imax+1)) << "\t";
+                              file << potential(r) << "\t" << avpot/((imax+1)*(imax+1)) << "\t" << Vnuc(r) << "\t"  << rho(r) << "\t" << avrho/((imax+1)*(imax+1));
+                              file << "\t" << psi(r) << "\n" ;*/
+
+                              //functionT rho_nt = square(psi);
+                              //functionT rho_rec = square(psi).truncate();
+			      //rho_rec.reconstruct();
+                              functionT rho_nt = real_factory_3d(world);
+                              functionT rho_rec = real_factory_3d(world);
+
+                              file << r[0] << "\t" << vxc(r) << "\t" << potential(r) << "\t" << Vnuc(r) << "\t";
+                              file << rho(r) << "\t" << rho_nt(r) << "\t"  << rho_rec(r) << "\t" << psi(r);
+
+			      if (xc.is_gga()) {
+                                 file << "\t" << saa(r) << "\t" << vsigaa(r);
+                              }
+
+                              file << "\n";
+		           } 
+                           file.close();
+
+                           ///////////////////////////////////////////////////////////
+                           /*{                   
+                              int npt_plot=101;
+                              tensorT plot_cell;
+                              //plot_cell = tensorT(3L,2L);
+                              std::vector<long> npt(3,npt_plot);
+                      
+                              if (plot_cell.size() == 0)
+                                  plot_cell = copy(FunctionDefaults<3>::get_cell());
+                      
+                                  plotdx(rho, "density.dx", plot_cell, npt, true);
+                                  plotdx(Vnuc, "vnuc.dx", plot_cell, npt, true);
+                      
+                           }*/
+                           ///////////////////////////////////////////////////////////
+
+                        }
+
+                        double err  = iterate_ground(world, solver, potential, psi, eps);
+
+                        if (err < thresh) break;
 		}
 	}
 	double kinetic_energy = 0.0;
@@ -198,6 +292,20 @@ int main(int argc, char** argv) {
 	rho.reconstruct();
 	vecfuncT vf;
 	vf.push_back(rho);
+	vecfuncT delrho;
+
+	if (xc.is_gga()) {
+             for(int axis = 0;axis < 3;++axis){
+                       Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
+                        delrho.push_back(D(rho));
+              }
+              functionT saa = delrho[0]*delrho[0]+delrho[1]*delrho[1]+delrho[2]*delrho[2];
+              vf.push_back(saa); // sigma_aa
+              if (vf.size()) {
+                      reconstruct(world, vf);
+                      rho.refine_to_common_level(vf); // Ugly but temporary (I hope!)
+              }
+        }
 	double exc=make_dft_energy(world, vf, 0); // Exc
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
 	double total_energy = kinetic_energy + two_electron_energy + 
@@ -215,7 +323,36 @@ int main(int argc, char** argv) {
 	}
 
 
+
+        //print out scaling functions
+        /*{
+        std::ofstream file;
+ 	file.open ("scalingc.txt");
+	file.precision(12);
+        double phi[k];
+        double dx=0.01;
+        int l=1;
+        int imax=2*l/dx;
+        double x=-l;
+        for (int n=0;n<=64;n++) {
+        x=-1;
+        for (int i=0; i<=imax; i++) {
+          legendre_polynomials(x,k,phi);
+          file << x+n*2*l;
+          for (int j=0;j<k;j++) {
+            file << "\t" << phi[j];
+          }
+          file << "\n";
+          x+=dx;
+        }
+        }
+        file.close();
+        }*/
+
 	world.gop.fence();
 	finalize();
 	return 0;
 }
+
+
+

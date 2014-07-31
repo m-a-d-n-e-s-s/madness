@@ -157,13 +157,22 @@ void Molecule::add_atom(double x, double y, double z, double q, int atomic_numbe
     rcut.push_back(1.0/c);
 }
 
+void Molecule::set_atom_charge(unsigned int i, double zeff) {
+  if (i>=atoms.size()) throw "trying to set charge of invalid atom";
+  atoms[i].q = zeff;
+}
+
+unsigned int Molecule::get_atom_number(unsigned int i) {
+  if (i>=atoms.size()) throw "trying to set charge of invalid atom";
+  return atoms[i].atomic_number;
+}
+
 void Molecule::set_atom_coords(unsigned int i, double x, double y, double z) {
     if (i>=atoms.size()) throw "trying to set coords of invalid atom";
     atoms[i].x = x;
     atoms[i].y = y;
     atoms[i].z = z;
 }
-
 
 madness::Tensor<double> Molecule::get_all_coords() const {
     madness::Tensor<double> c(natom(),3);
@@ -245,6 +254,20 @@ double Molecule::nuclear_repulsion_energy() const {
         if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
         for (unsigned int j=i+1; j<atoms.size(); ++j) {
             unsigned int z2 = atoms[j].atomic_number;
+            if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
+            sum += z1 * z2 / inter_atomic_distance(i,j);
+        }
+    }
+    return sum;
+}
+
+double Molecule::nuclear_repulsion_energy_pseudo() const {
+    double sum = 0.0;
+    for (unsigned int i=0; i<atoms.size(); ++i) {
+        unsigned int z1 = atoms[i].q;
+        if (core_pot.is_defined(z1)) z1 -= core_pot.n_core_orb(z1) * 2;
+        for (unsigned int j=i+1; j<atoms.size(); ++j) {
+            unsigned int z2 = atoms[j].q;
             if (core_pot.is_defined(z2)) z2 -= core_pot.n_core_orb(z2) * 2;
             sum += z1 * z2 / inter_atomic_distance(i,j);
         }

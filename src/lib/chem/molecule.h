@@ -144,6 +144,10 @@ public:
         return atoms.size();
     };
 
+    void set_atom_charge(unsigned int i, double zeff);
+
+    unsigned int get_atom_number(unsigned int i);
+
     void set_atom_coords(unsigned int i, double x, double y, double z);
 
     madness::Tensor<double> get_all_coords() const;
@@ -179,6 +183,8 @@ public:
     double inter_atomic_distance(unsigned int i,unsigned int j) const;
 
     double nuclear_repulsion_energy() const;
+
+    double nuclear_repulsion_energy_pseudo() const;
 
     double nuclear_repulsion_derivative(int i, int j) const;
 

@@ -3,13 +3,19 @@
 #include <mra/mra.h>
 #include <tinyxml/tinyxml.h>
 
-using namespace madness;
+//using namespace madness;
 
-#include <moldft/molecule.h>
-#include <moldft/molecularbasis.h>
-#include <moldft/xcfunctional.h>
+#include <chem/molecule.h>
+#include <chem/molecularbasis.h>
+#include <chem/xcfunctional.h>
 
-template <typename Q, int NDIM>
+namespace madness {
+
+typedef Tensor<double> tensorT;
+
+double get_charge_from_file(const std::string filename, unsigned int atype);
+
+/*template <typename Q, int NDIM>
 struct function_real2complex_op
 {
   typedef std::complex<Q> resultT;
@@ -26,7 +32,7 @@ struct function_real2complex_op
 Function<std::complex<double>,3> function_real2complex(const Function<double,3>& r)
 {
   return unary_op_coeffs(r, function_real2complex_op<double,3>());
-}
+}*/
 
 class VLocalFunctor : public FunctionFunctorInterface<double,3> {
 private:
@@ -66,13 +72,16 @@ private:
     coord_3d center;
     std::vector<coord_3d> specialpts;
     // gamma of half-integers starting and 1 (which means 1/2)
-    const double gamma_data[17] = {1.0, 0.0, 1.0/2.0, 0.0, 3.0/4.0, 0.0, 15.0/8.0, 0.0, 105.0/16.0, 0.0, 
-            945.0/32.0, 0.0, 10395.0/64.0, 0.0, 135135.0/128.0, 0.0, 2027025.0/256.0};
+    /*const double gamma_data[17] = {1.0, 0.0, 1.0/2.0, 0.0, 3.0/4.0, 0.0, 15.0/8.0, 0.0, 105.0/16.0, 0.0, 
+        945.0/32.0, 0.0, 10395.0/64.0, 0.0, 135135.0/128.0, 0.0, 2027025.0/256.0};*/
+
     double sqrtPI;
     int itmp, itmp2;
     double t1;
     
 public:
+
+    static const double gamma_data[17];
     
     ProjFunctor(double alpha, int l, int i, const coord_3d& center) 
      : alpha(alpha), l(l), i(i), center(center) {
@@ -122,13 +131,15 @@ private:
     coord_3d center;
     std::vector<coord_3d> specialpts;
     // gamma of half-integers starting and 1 (which means 1/2)
-    const double gamma_data[17] = {1.0, 0.0, 1.0/2.0, 0.0, 3.0/4.0, 0.0, 15.0/8.0, 0.0, 105.0/16.0, 0.0, 
-        945.0/32.0, 0.0, 10395.0/64.0, 0.0, 135135.0/128.0, 0.0, 2027025.0/256.0};
+    /*const double gamma_data[17] = {1.0, 0.0, 1.0/2.0, 0.0, 3.0/4.0, 0.0, 15.0/8.0, 0.0, 105.0/16.0, 0.0, 
+        945.0/32.0, 0.0, 10395.0/64.0, 0.0, 135135.0/128.0, 0.0, 2027025.0/256.0};*/
     double sqrtPI;
     int itmp, itmp2;
     double t1;
     
 public:
+
+    static const double gamma_data[17];
     
     ProjRLMFunctor(double alpha, int l, int m, int i, const coord_3d& center) 
      : alpha(alpha), l(l), m(m), i(i), center(center) {
@@ -443,10 +454,14 @@ public:
     real_function_3d vlocalp;
     std::vector<unsigned int> atoms_with_projectors;
 
+
 public:
-    GTHPseudopotential(World& world, Molecule molecule) : molecule(molecule) {
+    GTHPseudopotential(World& world, Molecule molecule) : molecule(molecule) {}
+
+    void make_pseudo_potential(World& world) {
         // Load info from file
         load_pseudo_from_file("gth.xml");
+        atoms_with_projectors.clear();
         
         // fill list with atoms-with-projectors (i.e. not H or He)
         for (int iatom = 0; iatom < molecule.natom(); iatom++) {
@@ -477,6 +492,10 @@ public:
         }
     }
 
+    real_function_3d vlocalpot() {
+        return vlocalp;
+    }
+
     void reproject(int k, double thresh) {
       vlocalp = madness::project(vlocalp, k, thresh, true);
     }
@@ -502,7 +521,7 @@ public:
                 }
                 else if (strcmp(node->Value(), "atom") == 0) {
                     const char* symbol = node->Attribute("symbol");
-                    int atn = symbol_to_atomic_number(symbol);
+                    unsigned int atn = symbol_to_atomic_number(symbol);
                     if (atype == atn) {
                         success = true;
                         if (debug) std::cout << "  found atomic pseudopotential " << symbol << std::endl;
@@ -645,11 +664,11 @@ public:
         return vpsi;
     }
 
-    std::vector<Function<Q,3> > apply_potential(World& world, const real_function_3d& potential, const std::vector<Function<Q,3> >& psi) {
+    std::vector<Function<Q,3> > apply_potential(World& world, const real_function_3d& potential, const std::vector<Function<Q,3> >& psi, const tensorT & occ, Q & enl) {
         bool debug = (world.rank() == 0) && false;
         double thresh = FunctionDefaults<3>::get_thresh();
         double vtol = 1e-2*thresh;
-        std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential + vlocalp), psi, vtol);
+        std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential), psi, vtol);
         print("multiplied local");
 
         unsigned int norbs = psi.size();
@@ -661,8 +680,8 @@ public:
 
         // Hard code maxLL 
         unsigned int maxLL = 0;
-        for (int iatom = 0; iatom < natoms; iatom++) {
-            // Get atom and it's associated GTH tensors
+        for (unsigned int iatom = 0; iatom < natoms; iatom++) {
+            // Get atom and its associated GTH tensors
             Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
             unsigned int atype = atom.atomic_number;
             real_tensor& atom_radii = radii[atype-1];
@@ -673,7 +692,7 @@ public:
 
         Tensor<int> Pilm_lookup((unsigned int) natoms, (unsigned long) 3, (unsigned long) maxLL+1, (unsigned long) 2*maxLL+1);
         for (unsigned int iatom = 0; iatom < natoms; iatom++) {
-            // Get atom and it's associated GTH tensors
+            // Get atom and its associated GTH tensors
             Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
             coord_3d center = atom.get_coords();
             unsigned int atype = atom.atomic_number;
@@ -683,8 +702,8 @@ public:
             // Create function stores for projectors
             ProjRLMStore prlmstore(atom_radii, center);
             for (unsigned int j = 1; j <= 3; j++) {
-                for (int l = 0; l <= maxLL; l++) {
-                    for (int m = 0; m < 2*maxLL+1; m++) {
+                for (unsigned int l = 0; l <= maxLL; l++) {
+                    for (unsigned int m = 0; m < 2*maxLL+1; m++) {
                        Pilm_lookup(iatom, j-1, l, m) = lidx++;
                        if (m < 2*l+1) localproj.push_back(prlmstore.nlmproj(world,l,m,j)); 
                        else localproj.push_back(real_factory_3d(world));
@@ -700,7 +719,7 @@ public:
         Tensor<Q> Qilm((unsigned int) natoms, (unsigned long) 3, (unsigned long) maxLL+1, (unsigned long) 2*maxLL+1, (unsigned int) norbs);
         for (unsigned int iorb=0; iorb<psi.size(); iorb++) {
             for (unsigned int iatom = 0; iatom < natoms; iatom++) {
-                // Get atom and it's associated GTH tensors
+                // Get atom and its associated GTH tensors
                 Atom atom = molecule.get_atom(atoms_with_projectors[iatom]);
                 unsigned int atype = atom.atomic_number;
                 real_tensor& atom_radii = radii[atype-1];
@@ -725,9 +744,35 @@ public:
         double trantol = vtol2 / std::min(30.0, double(localproj.size()));
         print("localproj size: ", localproj.size(), "Qilm dims: ", Qilm.dim(0), Qilm.dim(1));
         vector_real_function_3d dpsi = transform(world, localproj, Qilm, trantol, true);
-        gaxpy(world, 1.0, vpsi, 1.0, dpsi);    
+
+        // calculate non-local energy
+        tensorT nlmat = matrix_inner(world, dpsi, psi, true);
+        int nocc = occ.size();
+        enl = 0.0;
+        for(int i = 0;i < nocc;++i){
+            enl += occ[i] * nlmat(i, i);
+        }
+
+        //test
+        /*tensorT lmat = matrix_inner(world, vpsi, psi, true);
+        Q el = 0.0;
+        for(int i = 0;i < nocc;++i){
+            el += occ[i] * lmat(i, i);
+        }
+
+        if(world.rank() == 0){
+            printf("\n              enl, el, epot %16.8f  %16.8f  %16.8f\n", enl, el, enl+el);
+        }*/
+
+        gaxpy(world, 1.0, vpsi, 1.0, dpsi);  
 
         return vpsi;
     }
 
+
 };
+
+
+
+
+}

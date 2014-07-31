@@ -5,11 +5,11 @@
 
 using namespace madness;
 
-#include <moldft/molecule.h>
-#include <moldft/molecularbasis.h>
-#include <moldft/xcfunctional.h>
+#include <chem/molecule.h>
+#include <chem/molecularbasis.h>
+#include <chem/xcfunctional.h>
 
-//#include "gth_pseudopotential.h"
+#include <chem/gth_pseudopotential.h>
 #include "wst_functional.h"
 
 static const double twopi = 2.0*constants::pi;
@@ -448,7 +448,7 @@ public:
         for (int i=0; i<nmo; i++) {
             double rnorm = (psi[i]-new_psi[i]).norm2();
             ravg += rnorm/(double)nmo;
-            printf("%4d  %15.10f  %10.1e\n", i, e[i], rnorm);
+            printf("%4d  %15.10f  %18.6e\n", i, e[i], rnorm);
             new_psi[i] = damp*psi[i] + (1.0-damp)*new_psi[i];
         }
     
@@ -481,6 +481,8 @@ public:
     
         aobasis.read_file("6-31g");
 
+        bool do_psp = true;
+
         auto kwavelet = FunctionDefaults<3>::get_k();
         auto thresh = FunctionDefaults<3>::get_thresh();
         if (world.rank() == 0) printf("wavelet order: %d\n", kwavelet); 
@@ -491,14 +493,21 @@ public:
         //  new NuclearDensityFunctor(molecule))).truncate_mode(0).truncate_on_project();
         auto safety = 0.1;
         auto vtol = FunctionDefaults<3>::get_thresh() * safety;
-        real_function_3d vnuc = real_factory_3d(world).functor(real_functor_3d(
-          new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
-        vnuc.reconstruct();
-        print("total nuclear charge", vnuc.trace());
+
+        real_function_3d vnuc;
+        if (! do_psp){
+          vnuc = real_factory_3d(world).functor(real_functor_3d(
+            new MolecularPotentialFunctor(molecule))).thresh(vtol).truncate_on_project();
+          vnuc.reconstruct();
+          print("total nuclear charge", vnuc.trace());
+        }
         //vnuc = -1.0*make_coulomb_potential(world, vnuc);
     
         // Create pseudopotential
-        //GTHPseudopotential<double> ppotential(world, molecule);
+        GTHPseudopotential<double> ppotential(world, molecule);
+        if (do_psp){
+          ppotential.make_pseudo_potential(world);
+        }
     
         // Guess density
         real_function_3d rho = real_factory_3d(world).functor(real_functor_3d(
@@ -537,11 +546,23 @@ public:
             real_function_3d vxc = pair_xc.first;
             real_function_3d vxc2 = make_lda_potential(world,rho);
             double exc = pair_xc.second;
-            real_function_3d v = vnuc + make_coulomb_potential(world,rho) + vxc;
-            vector_real_function_3d vpsi = apply_potential(world, v, psi);
 
-            bool doplots = true;
-            if (doplots) {
+            vector_real_function_3d vpsi;
+            if (!do_psp){
+              real_function_3d v = vnuc + make_coulomb_potential(world,rho) + vxc;
+              vpsi = apply_potential(world, v, psi);
+            }
+            else{
+              double enl=0.0;
+              tensorT occ = tensorT(nmo);
+              for(int i = 0;i < nmo;++i)
+                  occ[i] = 1.0;
+              auto v = make_coulomb_potential(world,rho) + vxc + ppotential.vlocalp;
+              vpsi = ppotential.apply_potential(world, v, psi, occ, enl);
+            }
+
+            bool doplots = false;
+            /*if (doplots) {
                 char rho_name[25]; sprintf(rho_name, "rho_%d.dat", iter);
                 char vxc_name[25]; sprintf(vxc_name, "vxc_%d.dat", iter);
                 char vxc2_name[25]; sprintf(vxc2_name, "vxc2_%d.dat", iter);
@@ -551,12 +572,8 @@ public:
                 plot_line(vxc_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc); 
                 plot_line(vxc2_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), vxc2); 
                 plot_line(v_name, ppnts, vec(0.0,0.0,-50.0),  vec(0.0,0.0,50.0), v); 
-            }
-
-            //auto v = make_coulomb_potential(world,rho) + make_lda_potential(world,rho);
-            //auto vpsi = ppotential.apply_potential(world, v, psi);
-            //auto vpsi = ppotential.apply_potential_ne(world, v, psi);
-    
+            }*/
+   
             auto ke_mat = kinetic_energy_matrix(world, psi);
             auto pe_mat = matrix_inner(world, psi, vpsi, true);
             auto ov_mat = matrix_inner(world, psi, psi, true);
@@ -608,8 +625,10 @@ public:
               thresh /= 100.0;
               FunctionDefaults<3>::set_k(kwavelet);
               FunctionDefaults<3>::set_thresh(thresh);
-              vnuc = madness::project(vnuc, kwavelet, thresh, true);
-              //ppotential.reproject(kwavelet, thresh);
+              if (!do_psp){
+                vnuc = madness::project(vnuc, kwavelet, thresh, true);}
+              else{
+                ppotential.reproject(kwavelet, thresh);}
               for (int i = 0; i < nmo; i++) psi[i] = madness::project(psi[i], kwavelet, thresh, true);  
             }
     
@@ -654,6 +673,9 @@ int main(int argc, char** argv) {
     
     // Calcium atom
     //molecule.add_atom(0, 0, 0, 2.0, 20);
+
+    // Silicon atom
+    //molecule.add_atom(0, 0, 0, 4.0, 14);
     
     // Carbon atom
     //molecule.add_atom(0, 0, 0, 4.0, 6);
@@ -692,6 +714,7 @@ int main(int argc, char** argv) {
     int kwavelet = 6;
     int truncate_mode = 0; 
     double L = 50.0;
+
     MiniDFT dft(thresh, kwavelet, truncate_mode, L, molecule);
     dft.doit(world);
     return 0;
