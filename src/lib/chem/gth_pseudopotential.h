@@ -460,7 +460,7 @@ public:
 
     void make_pseudo_potential(World& world) {
         // Load info from file
-        load_pseudo_from_file("gth.xml");
+        load_pseudo_from_file(world, "gth.xml");
         atoms_with_projectors.clear();
         
         // fill list with atoms-with-projectors (i.e. not H or He)
@@ -480,8 +480,10 @@ public:
             unsigned int atype = atom.atomic_number;
             // do local part
             real_tensor atom_localp = localp[atype-1];
-            print("Atomic PP parameters: ", atom_localp[0], atom_localp[1], atom_localp[2], atom_localp[3], atom_localp[4], atom_localp[5]);
-            print("center at: ", center);
+            if (world.rank() == 0) {
+               print("Atomic PP parameters: ", atom_localp[0], atom_localp[1], atom_localp[2], atom_localp[3], atom_localp[4], atom_localp[5]);
+               print("center at: ", center);
+            }
             real_function_3d temp = real_factory_3d(world).functor(
                 real_functor_3d(new 
                 VLocalFunctor(atom_localp[0], atom_localp[1], atom_localp[2], atom_localp[3], atom_localp[4], atom_localp[5], center))).
@@ -500,7 +502,7 @@ public:
       vlocalp = madness::project(vlocalp, k, thresh, true);
     }
 
-    void load_pseudo_from_file(const std::string filename) {
+    void load_pseudo_from_file(World& world, const std::string filename) {
         bool debug = true;
        
         TiXmlDocument doc(filename);
@@ -511,23 +513,23 @@ public:
         for (int iatom = 0; iatom < molecule.natom(); iatom++) {
             Atom atom = molecule.get_atom(iatom);
             unsigned int atype = atom.atomic_number;
-            printf("atom atomic_number = %d\n", atype);
+            if (world.rank() == 0) {printf("atom atomic_number = %d\n", atype);}
     
             bool success = false;
             for (TiXmlElement* node=doc.FirstChildElement(); node && !success; node=node->NextSiblingElement()) {
                 if (strcmp(node->Value(),"name") == 0) {
                     std::string name = node->GetText();
-                    if (debug) std::cout << "Loading pseudopotential file " << name << std::endl;
+                    if (debug && world.rank() == 0) std::cout << "Loading pseudopotential file " << name << std::endl;
                 }
                 else if (strcmp(node->Value(), "atom") == 0) {
                     const char* symbol = node->Attribute("symbol");
                     unsigned int atn = symbol_to_atomic_number(symbol);
                     if (atype == atn) {
                         success = true;
-                        if (debug) std::cout << "  found atomic pseudopotential " << symbol << std::endl;
+                        if (debug && world.rank() == 0) std::cout << "  found atomic pseudopotential " << symbol << std::endl;
                         int lmax = -1;
                         node->Attribute("lmax", &lmax);
-                        if (debug) std::cout << "  maximum L is " << lmax << std::endl;
+                        if (debug && world.rank() == 0) std::cout << "  maximum L is " << lmax << std::endl;
                         real_tensor t_radii((long)lmax+1); 
                         real_tensor t_hlij((long)lmax+1, (long)3, (long)3);
                         real_tensor t_klij((long)lmax+1, (long)3, (long)3);
@@ -592,7 +594,7 @@ public:
         double thresh = FunctionDefaults<3>::get_thresh();
         double vtol = 1e-2*thresh;
         std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential + vlocalp), psi, vtol);
-        print("multiplied local");
+        if (world.rank() == 0) {print("multiplied local");}
 
         // Non-local part of potential
         unsigned int natoms = atoms_with_projectors.size();
@@ -603,7 +605,7 @@ public:
             unsigned int atype = atom.atomic_number;
             real_tensor& atom_radii = radii[atype-1];
             real_tensor& atom_hlij = hlij[atype-1];
-            if (debug) {
+            if (debug && world.rank() == 0) {
               print("pseudo atom:  ", atype);
               print("center:");
               print(center);
@@ -634,7 +636,7 @@ public:
                     }
                 }
             }
-            printf("size of localproj: %d\n", localproj.size()); 
+            if (world.rank() == 0) {printf("size of localproj: %d\n", localproj.size());}
 
             Tensor<Q> Pilm = matrix_inner(world, localproj, psi);
             Pilm = Pilm.reshape(3, maxL+1, 2*maxL+1, norbs);
@@ -657,7 +659,7 @@ public:
 
             double vtol2 = 1e-4*thresh;
             double trantol = vtol2 / std::min(30.0, double(localproj.size()));
-            print("localproj size: ", localproj.size(), "Qilm dims: ", Qilm.dim(0), Qilm.dim(1));
+            if (world.rank() == 0) {print("localproj size: ", localproj.size(), "Qilm dims: ", Qilm.dim(0), Qilm.dim(1));}
             vector_real_function_3d dpsi = transform(world, localproj, Qilm, trantol, true);
             gaxpy(world, 1.0, vpsi, 1.0, dpsi);    
         }
@@ -669,7 +671,7 @@ public:
         double thresh = FunctionDefaults<3>::get_thresh();
         double vtol = 1e-2*thresh;
         std::vector<Function<Q,3> > vpsi = mul_sparse(world,(potential), psi, vtol);
-        print("multiplied local");
+        if (world.rank() == 0) {print("multiplied local");}
 
         unsigned int norbs = psi.size();
         unsigned int natoms = atoms_with_projectors.size();
@@ -711,7 +713,7 @@ public:
                 }
             }
         }
-        printf("size of localproj: %d\n", localproj.size()); 
+        if (world.rank() == 0) {printf("size of localproj: %d\n", localproj.size());}
 
         Tensor<Q> Pilm = matrix_inner(world, localproj, psi);
         Pilm = Pilm.reshape(natoms, 3, maxLL+1, 2*maxLL+1, norbs);
@@ -742,7 +744,7 @@ public:
 
         double vtol2 = 1e-4*thresh;
         double trantol = vtol2 / std::min(30.0, double(localproj.size()));
-        print("localproj size: ", localproj.size(), "Qilm dims: ", Qilm.dim(0), Qilm.dim(1));
+        if (world.rank() == 0) {print("localproj size: ", localproj.size(), "Qilm dims: ", Qilm.dim(0), Qilm.dim(1));}
         vector_real_function_3d dpsi = transform(world, localproj, Qilm, trantol, true);
 
         // calculate non-local energy

@@ -1270,7 +1270,7 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 
 		if (xc.is_gga() ) {
 			// get Vsigma_aa (if it is the case and Vsigma_bb)
-                    functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
+                        functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
 			functionT vsigab;
 			if (xc.is_spin_polarized())// V_ab
                             vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();

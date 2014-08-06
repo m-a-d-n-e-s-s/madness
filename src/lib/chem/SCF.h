@@ -685,7 +685,7 @@ struct CalculationParameters {
 class SCF {
 public:
     std::shared_ptr<PotentialManager> potentialmanager;
-    std::shared_ptr<GTHPseudopotential<double>> gthpseudopotential;
+    std::shared_ptr<GTHPseudopotential <double> > gthpseudopotential;
     Molecule molecule;
     CalculationParameters param;
     XCfunctional xc;
