@@ -96,7 +96,7 @@ public:
         double minexpnt = expnt[0];
         for (unsigned int i=1; i<expnt.size(); ++i)
             minexpnt = std::min(minexpnt,expnt[i]);
-        rsqmax = 18.4/minexpnt;  // 18.4 = 8*ln(10)
+        rsqmax = 27.6/minexpnt;  // 27.6 = log(1e12)
     }
 
 
@@ -112,7 +112,7 @@ public:
         double sum = 0.0;
         for (unsigned int i=0; i<coeff.size(); ++i) {
             double ersq = expnt[i]*rsq;
-            if (ersq < 18.4) sum += coeff[i]*exp(-ersq);
+            if (ersq < 27.6) sum += coeff[i]*exp(-ersq); // 27.6 = log(1e12)
         }
         return sum;
     }
@@ -121,7 +121,7 @@ public:
     /// Evaluates the entire shell returning the incremented result pointer
     double* eval(double rsq, double x, double y, double z, double* bf) const {
         double R = eval_radial(rsq);
-        if (fabs(R) < 1e-8) {
+        if (fabs(R) < 1e-12) {
             for (int i=0; i<numbf; ++i) bf[i] = 0.0;
 
         }

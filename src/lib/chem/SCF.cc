@@ -1278,11 +1278,11 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 			for (int axis=0; axis<3; axis++) {
 				functionT gradn = delrho[axis + 3*ispin];
 				functionT ddel = vsigaa*gradn;
-				ddel.scale(2.0);
 				if (xc.is_spin_polarized()) {
-					functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
-					ddel = ddel + vsab;
+                                    functionT vsab = vsigab*delrho[axis + 3*(1-ispin)];
+                                    ddel = ddel + vsab;
 				}
+				ddel.scale(xc.is_spin_polarized() ? 2.0 : 4.0);
 				Derivative<double,3> D = free_space_derivative<double,3>(world, axis);
 				functionT vxc2=D(ddel);
 				vloc = vloc - vxc2;//.truncate();
