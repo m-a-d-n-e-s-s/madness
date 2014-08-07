@@ -142,6 +142,16 @@ SCF::SCF(World & world, const char *filename) {
 	if (world.rank() == 0) {
 		molecule.read_file(filename);
 		param.read_file(filename);
+
+                //modify atomic charge for PSP calc
+                if (param.psp_calc){
+                  for (unsigned int iatom = 0; iatom < molecule.natom(); iatom++) {
+                     unsigned int an=molecule.get_atom_number(iatom);
+                     double zeff=get_charge_from_file("gth.xml",an);
+                     molecule.set_atom_charge(iatom,zeff);
+                  }
+                }
+
 		unsigned int n_core = 0;
 		if (param.core_type != "") {
 			molecule.read_core_file(param.core_type);
@@ -167,6 +177,8 @@ SCF::SCF(World & world, const char *filename) {
 
 	potentialmanager = std::shared_ptr < PotentialManager
 			> (new PotentialManager(molecule, param.core_type));
+        gthpseudopotential = std::shared_ptr<GTHPseudopotential<double> 
+                        >(new GTHPseudopotential<double>(world, molecule));
 	TAU_STOP("Calculation (World &, const char *");
 }
 
@@ -362,7 +374,10 @@ void SCF::project(World & world) {
 void SCF::make_nuclear_potential(World & world) {
 	TAU_START("Project vnuclear");
 	START_TIMER(world);
-	potentialmanager->make_nuclear_potential(world);
+        if (param.psp_calc){
+          gthpseudopotential->make_pseudo_potential(world);}
+        else{
+          potentialmanager->make_nuclear_potential(world);}
 	END_TIMER(world, "Project vnuclear");
 	TAU_STOP("Project vnuclear");
 }
@@ -884,11 +899,22 @@ void SCF::initial_guess(World & world) {
 		if (world.rank() == 0)
 			print("guess dens trace", nel);
 
+                // rescale density
+                if (param.psp_calc){
+                   int nmo = int(molecule.total_nuclear_charge() + 0.1)/2;
+                   rho.scale((2.0*nmo)/nel); 
+                }
+
 		if (world.size() > 1) {
 			TAU_START("guess loadbal");
 			START_TIMER(world);
 			LoadBalanceDeux < 3 > lb(world);
-			real_function_3d vnuc = potentialmanager->vnuclear();
+			real_function_3d vnuc;
+                        if (param.psp_calc){
+                           vnuc = gthpseudopotential->vlocalpot();}
+                        else{
+                           vnuc = potentialmanager->vnuclear();}
+
 			lb.add_tree(vnuc,
 					lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
 			lb.add_tree(rho, lbcost<double, 3>(1.0, 8.0), true);
@@ -903,7 +929,11 @@ void SCF::initial_guess(World & world) {
 		if (param.nalpha + param.nbeta > 1) {
 			TAU_START("guess Coulomb potn");
 			START_TIMER(world);
-			real_function_3d vnuc = potentialmanager->vnuclear();
+                        real_function_3d vnuc;
+                        if (param.psp_calc){
+                           vnuc = gthpseudopotential->vlocalpot();}
+                        else{
+                           vnuc = potentialmanager->vnuclear();}
 			vlocal = vnuc + apply(*coulop, rho);
 			END_TIMER(world, "guess Coulomb potn");
 			TAU_STOP("guess Coulomb potn");
@@ -913,14 +943,22 @@ void SCF::initial_guess(World & world) {
 			vlocal.truncate();
 			param.spin_restricted = save;
 		} else {
-			real_function_3d vnuc = potentialmanager->vnuclear();
+                        real_function_3d vnuc;
+                        if (param.psp_calc){
+                           vnuc = gthpseudopotential->vlocalpot();}
+                        else{
+                           vnuc = potentialmanager->vnuclear();}
 			vlocal = vnuc;
 		}
 		rho.clear();
 		vlocal.reconstruct();
 		if (world.size() > 1) {
 			LoadBalanceDeux < 3 > lb(world);
-			real_function_3d vnuc = potentialmanager->vnuclear();
+                        real_function_3d vnuc;
+                        if (param.psp_calc){
+                           vnuc = gthpseudopotential->vlocalpot();}
+                        else{
+                           vnuc = potentialmanager->vnuclear();}
 			lb.add_tree(vnuc,
 					lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0), false);
 			for (unsigned int i = 0; i < ao.size(); ++i) {
@@ -938,7 +976,16 @@ void SCF::initial_guess(World & world) {
 		TAU_STOP("guess Kinet potn");
 		reconstruct(world, ao);
 		vlocal.reconstruct();
-		vecfuncT vpsi = mul_sparse(world, vlocal, ao, vtol);
+		vecfuncT vpsi;
+                if (param.psp_calc){
+                  double enl;
+                  tensorT occ = tensorT(ao.size());
+                  for(unsigned int i = 0;i < ao.size();++i){
+                      occ[i] = 1.0;}
+                  vpsi = gthpseudopotential->apply_potential(world, vlocal, ao, occ, enl);}
+                else{
+                  vpsi = mul_sparse(world, vlocal, ao, vtol);}
+
 		compress(world, vpsi);
 		truncate(world, vpsi);
 		compress(world, ao);
@@ -1030,7 +1077,11 @@ void SCF::initial_guess(World & world) {
 
 void SCF::initial_load_bal(World & world) {
 	LoadBalanceDeux < 3 > lb(world);
-	real_function_3d vnuc = potentialmanager->vnuclear();
+        real_function_3d vnuc;
+        if (param.psp_calc){
+          vnuc = gthpseudopotential->vlocalpot();}
+        else{
+          vnuc = potentialmanager->vnuclear();}
 	lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0));
 
 	FunctionDefaults < 3 > ::redistribute(world, lb.load_balance(6.0));
@@ -1188,9 +1239,10 @@ functionT SCF::make_lda_potential(World & world, const functionT & arho) {
 
 vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 		const vecfuncT & amo, const vecfuncT& vf, const vecfuncT& delrho,
-		const functionT & vlocal, double & exc, int ispin) {
+		const functionT & vlocal, double & exc, double & enl, int ispin) {
 	functionT vloc = vlocal;
 	exc = 0.0;
+        enl = 0.0;
 
 	//print("DFT", xc.is_dft(), "LDA", xc.is_lda(), "GGA", xc.is_gga(), "POLAR", xc.is_spin_polarized());
 	if (xc.is_dft() && !(xc.hf_exchange_coefficient() == 1.0)) {
@@ -1218,7 +1270,7 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 
 		if (xc.is_gga() ) {
 			// get Vsigma_aa (if it is the case and Vsigma_bb)
-                    functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
+                        functionT vsigaa = make_dft_potential(world, vf, ispin, 1); //.truncate();
 			functionT vsigab;
 			if (xc.is_spin_polarized())// V_ab
                             vsigab = make_dft_potential(world, vf, ispin, 2); //.truncate();
@@ -1245,7 +1297,11 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 
 	TAU_START("V*psi");
 	START_TIMER(world);
-	vecfuncT Vpsi = mul_sparse(world, vloc, amo, vtol);
+        vecfuncT Vpsi;
+        if (param.psp_calc){
+          Vpsi = gthpseudopotential->apply_potential(world, vloc, amo, occ, enl);}
+        else{
+          Vpsi = mul_sparse(world, vloc, amo, vtol);}
 	END_TIMER(world, "V*psi");
 	TAU_STOP("V*psi");
 	print_meminfo(world.rank(), "V*psi");
@@ -1266,7 +1322,8 @@ vecfuncT SCF::apply_potential(World & world, const tensorT & occ,
 		TAU_STOP("HF exchange");
 		exc = exchf * xc.hf_exchange_coefficient() + exc;
 	}
-	potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);
+        if (!param.psp_calc){
+          potentialmanager->apply_nonlocal_potential(world, amo, Vpsi);}
 
 	if (param.core_type.substr(0, 3) == "mcp") {
 		TAU_START("MCP Core Projector");
@@ -1698,7 +1755,11 @@ void SCF::loadbal(World & world, functionT & arho, functionT & brho,
 		return;
 
 	LoadBalanceDeux < 3 > lb(world);
-	real_function_3d vnuc = potentialmanager->vnuclear();
+        real_function_3d vnuc;
+        if (param.psp_calc){
+          vnuc = gthpseudopotential->vlocalpot();}
+        else{
+          vnuc = potentialmanager->vnuclear();}
 	lb.add_tree(vnuc, lbcost<double, 3>(vnucextra * 1.0, vnucextra * 8.0),
 			false);
 	lb.add_tree(arho, lbcost<double, 3>(1.0, 8.0), false);
@@ -2185,7 +2246,11 @@ void SCF::solve(World & world) {
 		//print("Rho Elec Solvent , Gas Phase Density ", rho_elec.trace(), vacuo_rho.trace()); // DEBUG
 		// double Xrhoetrace = rho_elec.trace(); //DEBUG
 		rho.truncate();
-		real_function_3d vnuc = potentialmanager->vnuclear();
+                real_function_3d vnuc;
+                if (param.psp_calc){
+                   vnuc = gthpseudopotential->vlocalpot();}
+                else{
+                   vnuc = potentialmanager->vnuclear();}
 		double enuclear = inner(rho, vnuc);
 
 		// DEBUG
@@ -2271,13 +2336,18 @@ void SCF::solve(World & world) {
 			}
 		}
 
+                double enla = 0.0, enlb = 0.0;
 		vecfuncT Vpsia = apply_potential(world, aocc, amo, vf, delrho, vlocal,
-				exca, 0);
+				exca, enla, 0);
 		vecfuncT Vpsib;
 		if (!param.spin_restricted && param.nbeta) {
 			Vpsib = apply_potential(world, bocc, bmo, vf, delrho, vlocal, excb,
-					1);
+					enlb, 1);
 		}
+                else if (param.nbeta != 0) {
+                        enlb = enla;
+                }
+
 
 		double ekina = 0.0, ekinb = 0.0;
 		tensorT focka = make_fock_matrix(world, amo, Vpsia, aocc, ekina);
@@ -2301,15 +2371,23 @@ void SCF::solve(World & world) {
 			}
 		}
 
-		double enrep = molecule.nuclear_repulsion_energy();
+		double enrep;
+                if (param.psp_calc){
+                  enrep = molecule.nuclear_repulsion_energy_pseudo();           
+                }
+                else{
+                  enrep = molecule.nuclear_repulsion_energy();
+                }
 		double ekinetic = ekina + ekinb;
+                double enonlocal = enla + enlb;
 		double exc = exca + excb;
-		double etot = ekinetic + enuclear + ecoulomb + exc + enrep;
+		double etot = ekinetic + enuclear + ecoulomb + exc + enrep + enonlocal;
 		current_energy = etot;
 		esol = etot;
 
 		if (world.rank() == 0) {
 			printf("\n              kinetic %16.8f\n", ekinetic);
+                         printf("         nonlocal psp %16.8f\n", enonlocal);
 			printf("   nuclear attraction %16.8f\n", enuclear);
 			printf("              coulomb %16.8f\n", ecoulomb);
 			printf(" exchange-correlation %16.8f\n", exc);

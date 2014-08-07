@@ -1,7 +1,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 
 #include <mra/mra.h>
-#include <moldft/xcfunctional.h>
+#include <chem/xcfunctional.h>
 
 using namespace madness;
 

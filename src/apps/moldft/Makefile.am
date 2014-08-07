@@ -9,14 +9,16 @@ else
 LDADD = $(MRALIBS)
 endif
 
-bin_PROGRAMS = testpg moldft mcpfit testperiodic 
+bin_PROGRAMS = testpg moldft mcpfit testperiodic preal
 
 moldft_SOURCES = moldft.cc
+
+
+preal_SOURCES = preal.cc
 
 testpg_SOURCES = testpg.cc pointgroup.h
 
 testperiodic_SOURCES = testperiodic.cc
 
 mcpfit_SOURCES = mcpfit.cc
-
 

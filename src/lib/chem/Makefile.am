@@ -23,7 +23,7 @@ testxc_LDADD = libMADchem.a $(LIBMRA) $(LIBWORLD)
 
 libMADchem_a_SOURCES = correlationfactor.cc molecule.cc molecularbasis.cc \
                        corepotential.cc atomutil.cc lda.cc \
-                       distpm.cc SCF.cc \
+                       distpm.cc SCF.cc gth_pseudopotential.cc \
                        $(thisinclude_HEADERS)
                        
 if MADNESS_HAS_LIBXC
