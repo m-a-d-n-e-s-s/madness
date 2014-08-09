@@ -6,7 +6,7 @@ LIBWORLDDIR=$(top_builddir)/src/lib/world
 LIBTENSORDIR=$(top_builddir)/src/lib/tensor
 LIBMISCDIR=$(top_builddir)/src/lib/misc
 LIBMRADIR=$(top_builddir)/src/lib/mra
-LIBCHEMDIR=$(top_builddir)/src/lib/chem
+LIBCHEMDIR=$(top_builddir)/src/apps/chem
 LIBTINYXMLDIR=$(top_builddir)/src/lib/tinyxml
 LIBMUPARSERDIR=$(top_builddir)/src/lib/muParser
 
