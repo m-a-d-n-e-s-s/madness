@@ -1,4 +1,4 @@
-SUBDIRS = world tinyxml muParser misc tensor mra
+SUBDIRS = lib world tinyxml muParser misc tensor mra
 
 libraries:	$(lib_LIBRARIES)
 	for dir in $(SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
