@@ -59,8 +59,10 @@ namespace madness {
 	/// will be highly oscillating.
 	/// @param[in]		Q	the input matrix for KAIN
 	/// @param[inout]	c	the coefficients for constructing the new solution
+        /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+        /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
 	template<typename C>
-	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c) {
+	void check_linear_dependence(const Tensor<C>& Q, Tensor<C>& c, const double rcondtol, const double cabsmax) {
 		double rcond = 1e-12;
 		int m = c.dim(0);
 
@@ -68,9 +70,9 @@ namespace madness {
 			c = KAIN(Q, rcond);
 			//if (world.rank() == 0) print("kain c:", c);
 //			if(std::abs(c[m - 1]) < 3.0){
-			if (c.absmax()<2.5) {
+			if (c.absmax()<cabsmax) {
 				break;
-			} else  if(rcond < 0.01){
+			} else  if(rcond < rcondtol){
 				print("Increasing subspace singular value threshold ", c[m - 1], rcond);
 				rcond *= 100;
 			} else {
@@ -80,7 +82,7 @@ namespace madness {
 				break;
 			}
 		}
-		print("subspace solution",c);
+		//print("subspace solution",c);
 	}
 
 	/// A simple Krylov-subspace nonlinear equation solver
@@ -103,7 +105,10 @@ namespace madness {
 		/// @param u Current solution vector
 		/// @param r Corresponding residual
 		/// @return Next trial solution vector
-		Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r) {
+                /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+                /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
+                Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r,
+                                             const double rcondtol=1e-8, const double cabsmax=1000.0) {
 			if (maxsub==1) return u;
 			int iter = ulist.size();
 			ulist.push_back(u);
@@ -118,7 +123,7 @@ namespace madness {
 			}
 			Q = Qnew;
 			real_tensor c = KAIN(Q);
-			check_linear_dependence(Q,c);
+			check_linear_dependence(Q,c,rcondtol,cabsmax);
 
 			// Form new solution in u
 			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
@@ -195,7 +200,9 @@ namespace madness {
 	/// @param u Current solution vector
 	/// @param r Corresponding residual
 	/// @return Next trial solution vector
-	T update(const T& u, const T& r) {
+        /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+        /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
+	T update(const T& u, const T& r, const double rcondtol=1e-8, const double cabsmax=1000.0) {
 		if (maxsub==1) return u;
 		int iter = ulist.size();
 		ulist.push_back(u);
@@ -211,7 +218,7 @@ namespace madness {
 		Q = Qnew;
 		Tensor<C> c = KAIN(Q);
 
-		check_linear_dependence(Q,c);
+		check_linear_dependence(Q,c,rcondtol,cabsmax);
 
 		// Form new solution in u
 		T unew = alloc();
