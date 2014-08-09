@@ -40,15 +40,15 @@ newsolver_SOURCES = newsolver.cc
 hedft_SOURCES = hedft.cc 
 h2dft_SOURCES = h2dft.cc  
 if MADNESS_HAS_LIBXC
-hedft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
-h2dft_SOURCES += ../../lib/chem/xcfunctional_libxc.cc
+hedft_SOURCES += ../../apps/chem/xcfunctional_libxc.cc
+h2dft_SOURCES += ../../apps/chem/xcfunctional_libxc.cc
 endif
 if MADNESS_HAS_MADXC
 hedft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
 h2dft_SOURCES += ../DFcode/xcfunctional_madxc.cc 
 else
-hedft_SOURCES += ../../lib/chem/xcfunctional_ldaonly.cc 
-h2dft_SOURCES += ../../lib/chem/xcfunctional_ldaonly.cc 
+hedft_SOURCES += ../../apps/chem/xcfunctional_ldaonly.cc 
+h2dft_SOURCES += ../../apps/chem/xcfunctional_ldaonly.cc 
 endif
 
 sininteg_SOURCES = sininteg.cc
