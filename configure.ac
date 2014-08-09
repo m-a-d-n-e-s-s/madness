@@ -378,6 +378,7 @@ AC_CONFIG_FILES([
     include/Makefile
     src/Makefile
     src/lib/Makefile
+       src/lib/gtest/Makefile
        src/lib/world/Makefile
        src/lib/muParser/Makefile
        src/lib/misc/Makefile
