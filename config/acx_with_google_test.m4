@@ -2,7 +2,7 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
   acx_with_google_test=""
   AC_ARG_WITH([google-test],
     [AS_HELP_STRING([--with-google-test@<:@=Install DIR|yes|no@:>@],
-      [no disables use of Google unit test; or specify different gtest installation dir to override use of internal version @<:@default=yes@:>@])],
+      [yes/no (en)/(dis)ables use of Google unit test; or specify different gtest installation dir to override use of internal version @<:@default=no@:>@])],
     [
       case $withval in
       yes)
@@ -20,10 +20,10 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
       esac
     ],
     [
-      acx_with_google_test="yes"
-      GTEST_CPPFLAGS="-I`pwd`/src/lib/gtest/include"
-      GTEST_LDFLAGS="-L`pwd`/src/lib/gtest"
-      GTEST_LIBS="-lMADgtest"
+      acx_with_google_test="no"
+      #GTEST_CPPFLAGS="-I`pwd`/src/lib/gtest/include"
+      #GTEST_LDFLAGS="-L`pwd`/src/lib/gtest"
+      #GTEST_LIBS="-lMADgtest"
     ]
   )
   
