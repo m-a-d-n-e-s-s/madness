@@ -385,8 +385,8 @@ AC_CONFIG_FILES([
        src/lib/tinyxml/Makefile
        src/lib/tensor/Makefile
        src/lib/mra/Makefile
-       src/lib/chem/Makefile
     src/apps/Makefile
+       src/apps/chem/Makefile
        src/apps/examples/Makefile
        src/apps/tdse/Makefile
        src/apps/hf/Makefile
