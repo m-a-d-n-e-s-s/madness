@@ -7,6 +7,9 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
       case $withval in
       yes)
         acx_with_google_test="yes"
+        GTEST_CPPFLAGS="-I`pwd`/src/lib/gtest/include"
+        GTEST_LDFLAGS="-L`pwd`/src/lib/gtest"
+        GTEST_LIBS="-lMADgtest"
       ;;
       no)
         acx_with_google_test="no"
@@ -21,12 +24,8 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
     ],
     [
       acx_with_google_test="no"
-      #GTEST_CPPFLAGS="-I`pwd`/src/lib/gtest/include"
-      #GTEST_LDFLAGS="-L`pwd`/src/lib/gtest"
-      #GTEST_LIBS="-lMADgtest"
     ]
   )
-  
   
   AC_ARG_VAR([GTEST_CPPFLAGS], [C-like preprocessor flags for Google Test.])
   AC_ARG_VAR([GTEST_CXXFLAGS], [C++ compile flags for Google Test.])
@@ -82,4 +81,6 @@ AC_DEFUN([ACX_WITH_GOOGLE_TEST], [
     AC_SUBST([GTEST_LIBS])
 
   fi
+
+  AM_CONDITIONAL([MADNESS_HAS_GOOGLE_TEST], [test $acx_with_google_test != no])
 ])
