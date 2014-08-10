@@ -7,7 +7,8 @@ else
 LDADD = $(LIBCHEM) $(MRALIBS)
 endif
 
-bin_PROGRAMS = testpg moldft mcpfit testperiodic
+noinst_PROGRAMS = testpg testperiodic
+bin_PROGRAMS = moldft mcpfit
 #bin_PROGRAMS = testpg moldft mcpfit testperiodic preal
 
 moldft_SOURCES = moldft.cc
