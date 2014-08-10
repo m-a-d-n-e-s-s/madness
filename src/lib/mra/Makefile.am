@@ -3,18 +3,17 @@ include $(top_srcdir)/config/MakeGlobal.am
 #AM_CPPFLAGS += -DMRA_DATA_DIR="\"`pwd`\""
 AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
-bin_PROGRAMS = testsuite  testperiodic testbsh testbc testproj mraplot testpdiff testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir testqm testper test6
-lib_LIBRARIES = libMADmra.a
-
-
-
 #TESTS = testsuite  testperiodic testbc testbsh testproj testpdiff \
 #        testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
 #        testqm testunaryop testper
 
 TESTS = testbsh testproj testpdiff testper \
         testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
-        testsuite 
+        testsuite
+
+bin_PROGRAMS = mraplot
+noinst_PROGRAMS =  testperiodic testbc testproj testqm test6 $(TESTS)
+lib_LIBRARIES = libMADmra.a
 
 
 data_DATA = autocorr coeffs gaussleg

@@ -2,6 +2,7 @@
 AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src/lib  -I$(top_srcdir)/src/apps -I$(top_builddir)/include
 
 # Define directories holding libraries and variables for corresponding libraries
+LIBGTESTDIR=$(top_builddir)/src/gtest
 LIBWORLDDIR=$(top_builddir)/src/lib/world
 LIBTENSORDIR=$(top_builddir)/src/lib/tensor
 LIBMISCDIR=$(top_builddir)/src/lib/misc
@@ -10,6 +11,7 @@ LIBCHEMDIR=$(top_builddir)/src/apps/chem
 LIBTINYXMLDIR=$(top_builddir)/src/lib/tinyxml
 LIBMUPARSERDIR=$(top_builddir)/src/lib/muParser
 
+LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
 LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
 LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
@@ -22,3 +24,6 @@ LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
 # Most scientific/numeric applications will link against these libraries
 MRALIBS=$(LIBCHEM) $(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
 
+LIBGTEST_CPPFLAGS = $(GTEST_CPPFLAGS) -DGTEST_HAS_PTHREAD=1 -isystem $(top_srcdir)/src/gtest/include $(AM_CPPFLAGS)
+LIBGTEST_CXXFLAGS = $(GTEST_CXXFLAGS)  $(AM_CXXFLAGS)
+LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)

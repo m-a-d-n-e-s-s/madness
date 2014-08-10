@@ -377,26 +377,26 @@ AC_CONFIG_FILES([
     config/MADNESS.pc
     include/Makefile
     src/Makefile
-    src/lib/Makefile
-       src/lib/gtest/Makefile
-       src/lib/world/Makefile
-       src/lib/muParser/Makefile
-       src/lib/misc/Makefile
-       src/lib/tinyxml/Makefile
-       src/lib/tensor/Makefile
-       src/lib/mra/Makefile
-    src/apps/Makefile
-       src/apps/chem/Makefile
-       src/apps/examples/Makefile
-       src/apps/tdse/Makefile
-       src/apps/hf/Makefile
-       src/apps/exciting/Makefile
-       src/apps/moldft/Makefile
-       src/apps/nick/Makefile
-       src/apps/tkato/Makefile
-       src/apps/jacob/Makefile
-       src/apps/interior_bc/Makefile
-       src/apps/interior_bc/nanophoto/Makefile
+      src/gtest/Makefile
+      src/lib/Makefile
+        src/lib/world/Makefile
+        src/lib/muParser/Makefile
+        src/lib/misc/Makefile
+        src/lib/tinyxml/Makefile
+        src/lib/tensor/Makefile
+        src/lib/mra/Makefile
+      src/apps/Makefile
+        src/apps/chem/Makefile
+        src/apps/examples/Makefile
+        src/apps/tdse/Makefile
+        src/apps/hf/Makefile
+        src/apps/exciting/Makefile
+        src/apps/moldft/Makefile
+        src/apps/nick/Makefile
+        src/apps/tkato/Makefile
+        src/apps/jacob/Makefile
+        src/apps/interior_bc/Makefile
+        src/apps/interior_bc/nanophoto/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

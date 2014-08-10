@@ -1,13 +1,15 @@
 include $(top_srcdir)/config/MakeGlobal.am
-
-bin_PROGRAMS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott \
-               test_systolic test_linalg test_solvers test_elemental \
-               testseprep test_gentensor
   
 lib_LIBRARIES = libMADtensor.a libMADlinalg.a
 
-TESTS = test oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic \
-  test_linalg test_solvers test_elemental testseprep test_gentensor
+TESTS = oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic \
+        test_linalg test_solvers test_elemental testseprep
+
+if MADNESS_HAS_GOOGLE_TEST
+TESTS += test test_gentensor
+endif
+
+noinst_PROGRAMS = $(TESTS)
 
 thisincludedir = $(includedir)/tensor
 thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h  type_data.h \
@@ -17,10 +19,19 @@ thisinclude_HEADERS = aligned.h     mxm.h     tensorexcept.h  tensoriter_spec.h 
                         tensor_lapack.h cblas.h clapack.h  lapack_functions.h \
                         solvers.cc solvers.h gmres.h elem.h
 
+if MADNESS_HAS_GOOGLE_TEST
+
 test_SOURCES = test.cc
-test_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+test_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.a $(LIBMISC) $(LIBWORLD) 
+
+test_gentensor_SOURCES = test_gentensor.cc
+test_gentensor_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_gentensor_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_gentensor_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADtensor.a libMADlinalg.a  $(LIBMISC) $(LIBWORLD)
+
+endif
 
 oldtest_SOURCES = oldtest.cc
 oldtest_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD) 
@@ -50,11 +61,6 @@ test_Zmtxmq_CPPFLAGS = $(AM_CPPFLAGS) -DTIME_DGEMM
 
 test_systolic_SOURCES = test_systolic.cc
 test_systolic_LDADD = libMADtensor.a $(LIBMISC) $(LIBWORLD)
-
-test_gentensor_SOURCES = test_gentensor.cc
-test_gentensor_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_gentensor_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_gentensor_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) $(LIBMISC) $(LIBWORLD) libMADtensor.a libMADlinalg.a
 
 testseprep_SOURCES = testseprep.cc
 testseprep_LDADD = $(LIBMISC) $(LIBWORLD) libMADlinalg.a libMADtensor.a 

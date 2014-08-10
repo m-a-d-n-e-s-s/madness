@@ -1,4 +1,4 @@
-SUBDIRS = lib apps
+SUBDIRS = gtest lib apps
 
 libraries:	$(lib_LIBRARIES)
 	for dir in lib apps; do $(MAKE) -C $$dir $@ ; done

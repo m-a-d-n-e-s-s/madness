@@ -1,8 +1,5 @@
 include $(top_srcdir)/config/MakeGlobal.am
 
-bin_PROGRAMS = test_world test_hashthreaded test_dc test_future2 test_future3 test_prof \
-               test_hello test_future test_atomicint test_hashdc test_array test_ar \
-               test_googletest test_queue test_worldprofile test_worldptr test_worldref
 
 lib_LIBRARIES = libMADworld.a
 
@@ -18,30 +15,18 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h group.h dist_cache.h dist_keys.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
 	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
+
+
                       
-TESTS = test_array test_worldptr test_worldref test_prof \
-        test_hashdc test_hello test_atomicint test_future2 \
-        test_future3 test_dc test_hashthreaded test_queue test_world test_worldprofile 
-                      
-test_array_SOURCES = test_array.cc
-test_array_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_array_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_array_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+TESTS = test_prof test_ar test_hashdc test_hello test_atomicint test_future \
+        test_future2 test_future3 test_dc test_hashthreaded test_queue test_world \
+        test_worldprofile test_googletest
 
-test_googletest_SOURCES = test_googletest.cc
-test_googletest_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_googletest_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_googletest_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+if MADNESS_HAS_GOOGLE_TEST
+TESTS += test_array test_worldptr test_worldref
+endif
 
-test_worldptr_SOURCES = test_worldptr.cc
-test_worldptr_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_worldptr_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_worldptr_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
-
-test_worldref_SOURCES = test_worldref.cc
-test_worldref_CPPFLAGS = $(GTEST_CPPFLAGS) $(AM_CPPFLAGS)
-test_worldref_CXXFLAGS = $(GTEST_CXXFLAGS) $(AM_CXXFLAGS)
-test_worldref_LDADD = $(GTEST_LDFLAGS) $(GTEST_LIBS) libMADworld.a
+noinst_PROGRAMS = $(TESTS)
 
 test_prof_SOURCES = test_prof.cc
 test_prof_LDADD = libMADworld.a
@@ -81,6 +66,30 @@ test_world_LDADD = libMADworld.a
 
 test_worldprofile_SOURCES = test_worldprofile.cc
 test_worldprofile_LDADD = libMADworld.a
+
+if MADNESS_HAS_GOOGLE_TEST
+
+test_array_SOURCES = test_array.cc
+test_array_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_array_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_array_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+
+test_googletest_SOURCES = test_googletest.cc
+test_googletest_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_googletest_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_googletest_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+
+test_worldptr_SOURCES = test_worldptr.cc
+test_worldptr_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_worldptr_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_worldptr_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+
+test_worldref_SOURCES = test_worldref.cc
+test_worldref_CPPFLAGS = $(LIBGTEST_CPPFLAGS)
+test_worldref_CXXFLAGS = $(LIBGTEST_CXXFLAGS)
+test_worldref_LDADD = $(LIBGTEST_LIBS) $(LIBGTEST) libMADworld.a
+
+endif
 
 libMADworld_a_SOURCES = world.cc redirectio.cc archive_type_names.cc \
 	debug.cc print.cc worldmem.cc worldrmi.cc safempi.cc worldpapi.cc \
