@@ -6,7 +6,7 @@ SVNREV="SVNREVISION=\"`svnversion $(top_srcdir)`\" "
 
 AM_CPPFLAGS += -D$(GITREV) -D$(SVNREV)
 
-bin_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
+noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
@@ -38,7 +38,7 @@ nemo_SOURCES = nemo.cc
 newsolver_SOURCES = newsolver.cc
 
 hedft_SOURCES = hedft.cc 
-h2dft_SOURCES = h2dft.cc  
+h2dft_SOURCES = h2dft.cc
 if MADNESS_HAS_LIBXC
 hedft_SOURCES += ../../apps/chem/xcfunctional_libxc.cc
 h2dft_SOURCES += ../../apps/chem/xcfunctional_libxc.cc
