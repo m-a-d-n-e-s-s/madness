@@ -1,6 +1,6 @@
 SUBDIRS = gtest lib apps
 
-libraries:	$(lib_LIBRARIES)
+libraries:
 	for dir in lib apps; do $(MAKE) -C $$dir $@ ; done
 
 install-libraries:
