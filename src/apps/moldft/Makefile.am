@@ -1,12 +1,10 @@
 include $(top_srcdir)/config/MakeGlobal.am
 AUTOMAKE_OPTIONS = subdir-objects
 
-
-
 if MADNESS_HAS_LIBXC
-LDADD = $(MRALIBS) -lxc
+LDADD = $(LIBCHEM) $(MRALIBS) -lxc
 else
-LDADD = $(MRALIBS)
+LDADD = $(LIBCHEM) $(MRALIBS)
 endif
 
 bin_PROGRAMS = testpg moldft mcpfit testperiodic

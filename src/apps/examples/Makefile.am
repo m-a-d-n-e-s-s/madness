@@ -97,5 +97,5 @@ hatom_1d_SOURCES = hatom_1d.cc
 
 binaryop_SOURCES = binaryop.cc
 
-LDADD = $(MRALIBS)
+LDADD = $(LIBCHEM) $(MRALIBS)
 
