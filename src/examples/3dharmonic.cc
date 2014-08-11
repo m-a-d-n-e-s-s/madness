@@ -116,7 +116,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/funcplot.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 
 using namespace madness;
 

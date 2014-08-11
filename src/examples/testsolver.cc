@@ -1,5 +1,5 @@
 #include <iostream>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 #include <cmath>
 
 using namespace madness;
@@ -48,7 +48,7 @@ double inner(const F& a, const F& b) {
 F allocator() {
     return F(0.0);
 }
- 
+
 // The test code solves r(x) = exp(-x) - x = 0
 F residual(const F& f) {
     double x = f.get();
@@ -65,12 +65,9 @@ int main() {
     F x = 0.5;
     for (int iter=0; iter<8; iter++) {
         std::cout << iter << " " << x.get() << std::endl;
-        x = solver.update(x, residual(x)); 
+        x = solver.update(x, residual(x));
     }
 
     return 0;
 }
-    
-    
-    
-    
+

@@ -9,10 +9,10 @@
 #define TDHFCIS_H_
 
 #include <chem/projector.h>
-//#include <examples/mp2.h>
+//#include "mp2.h"
 
-#include<examples/nonlinsol.h>
-#include<chem/SCF.h>
+#include "nonlinsol.h"
+#include <chem/SCF.h>
 #include <mra/operator.h>
 #include <mra/mra.h>
 #include <mra/vmra.h>
@@ -522,10 +522,10 @@ private:
 
 	/// follow Eq (4) of
 	/// T. Yanai, R. J. Harrison, and N. Handy,
-	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
+	/// Multiresolution quantum chemistry in multiwavelet bases: time-dependent
 	/// density functional theory with asymptotically corrected potentials in
-	/// local density and generalized gradient approximations,Ó
-	/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
+	/// local density and generalized gradient approximations,
+	/// Mol. Phys., vol. 103, no. 2, pp. 413-424, 2005.
 	///
 	/// The convergence criterion is that the excitation amplitudes don't change
 	/// @param[in]		world	the world
@@ -542,10 +542,10 @@ private:
 
 	/// follow Eq (4) of
 	/// T. Yanai, R. J. Harrison, and N. Handy,
-	/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
+	/// Multiresolution quantum chemistry in multiwavelet bases: time-dependent
 	/// density functional theory with asymptotically corrected potentials in
-	/// local density and generalized gradient approximations,Ó
-	/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
+	/// local density and generalized gradient approximations,
+	/// Mol. Phys., vol. 103, no. 2, pp. 413-424, 2005.
 	///
 	/// The convergence criterion is that the excitation amplitudes don't change
 	/// @param[in]		world	the world

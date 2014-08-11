@@ -2,7 +2,7 @@
 #include <mra/mra.h>
 #include <mra/sdf_shape_3D.h>
 #include <mra/funcplot.h>
-#include <examples/molecularmask.h>
+#include "molecularmask.h"
 #include <constants.h>
 #include <vector>
 

@@ -12,7 +12,7 @@ namespace madness {
     double distance(madness::Function<std::complex<double>, 1ul>& a, madness::Function<std::complex<double>, 1ul>& b);
 }
 
-#include <examples/spectralprop.h>
+#include "spectralprop.h"
 
 using namespace madness;
 

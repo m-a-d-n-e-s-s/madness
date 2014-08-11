@@ -1,7 +1,7 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 
 using namespace madness;
 
@@ -47,7 +47,7 @@ double iterate_ground(World& world, NonlinearSolver& solver, real_function_3d& V
 
 double iterate_excite(World& world, NonlinearSolver& solver, real_function_3d& V, real_function_3d& psi, real_function_3d& dpsi, double& eps, real_function_3d& ri) {
     real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
-    real_convolution_3d du = CoulombOperator(world, 0.001, 1e-6); 
+    real_convolution_3d du = CoulombOperator(world, 0.001, 1e-6);
     real_function_3d rhs = V*dpsi + (du(psi*dpsi).scale(2.0) + ri)*psi;
 
     rhs.scale(-2.0).truncate();
@@ -83,7 +83,7 @@ double iterate_xy(World& world, real_function_3d& V, real_function_3d& psi, real
   double errx = (x-new_x).norm2();
   double erry = (y-new_y).norm2();
 
-  if (world.rank() == 0) 
+  if (world.rank() == 0)
       print("errx =", errx, "erry =", erry);
 
   x = new_x.truncate();
@@ -95,7 +95,7 @@ double iterate_xy(World& world, real_function_3d& V, real_function_3d& psi, real
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
-    
+
     startup(world,argc,argv);
     std::cout.precision(6);
 
@@ -103,7 +103,7 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(5);
-    FunctionDefaults<3>::set_truncate_mode(1);  
+    FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
     real_function_3d Vnuc = real_factory_3d(world).f(V);
@@ -114,7 +114,7 @@ int main(int argc, char** argv) {
     real_convolution_3d op = CoulombOperator(world, 0.001, 1e-6);
     double eps = -0.6;
 
-    if (world.rank() == 0) 
+    if (world.rank() == 0)
         print("\n  Solving for the ground state HF orbital\n");
     {
       NonlinearSolver solver;
@@ -137,7 +137,7 @@ int main(int argc, char** argv) {
     double two_electron_energy = inner(op(rho),rho); // <u|rho> = <phi phi | 1/r12 | phi phi>
     double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
     double nuclear_repulsion_energy = 1.0/R;
-    double total_energy = kinetic_energy + two_electron_energy + 
+    double total_energy = kinetic_energy + two_electron_energy +
         nuclear_attraction_energy + nuclear_repulsion_energy;
     double virial = (nuclear_attraction_energy + two_electron_energy + nuclear_repulsion_energy) / kinetic_energy;
 
@@ -212,12 +212,12 @@ int main(int argc, char** argv) {
         print("E2 variational form  =", d2E);
         print(" alpha_static ",alpha_static);
     }
-    
+
     double omega = 0.0;
     for(int j=0; j<=4; j++) {
       omega = 0.365 + (j*0.005);
 
-      if (world.rank() == 0) 
+      if (world.rank() == 0)
           print("\n  Solving for the dynamic response function at omega =",omega,"\n");
 
       real_function_3d x = real_factory_3d(world); //zero
@@ -235,12 +235,12 @@ int main(int argc, char** argv) {
 
       //print("alpha_dynamic +w", 2.0*inner(ri,x*psi));
       //print("alpha_dynamic -w", 2.0*inner(ri,y*psi));
-    
+
       real_function_3d drho = (x*psi)+(psi*y);
-      double alpha_dynamic = -2*inner(ri,drho);    
+      double alpha_dynamic = -2*inner(ri,drho);
       print("alpha_dynamic omega = ",omega," alpha = ",alpha_dynamic);
     }
-    
+
     finalize();
     return 0;
 }

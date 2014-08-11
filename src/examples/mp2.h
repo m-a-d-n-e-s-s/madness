@@ -50,10 +50,10 @@
 #include <mra/mra.h>
 #include <mra/lbdeux.h>
 #include <chem/SCF.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 #include <chem/projector.h>
 #include <chem/correlationfactor.h>
-#include <examples/nemo.h>
+#include "nemo.h"
 
 #include <iostream>
 
@@ -842,7 +842,7 @@ namespace madness {
         	}
 
         }
-		
+
         /// compute the matrix element <ij | g12 Q12 f12 | phi^0>
 
         /// scales quartically. I think I can get this down to cubically by

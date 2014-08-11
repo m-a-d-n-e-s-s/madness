@@ -44,8 +44,8 @@
 
 */
 
-#include <examples/tdhf_CIS.h>
-//#include <examples/TD.h>
+#include "tdhf_CIS.h"
+//#include "TD.h"
 
 #include<iomanip>
 #include<iostream>
@@ -100,8 +100,8 @@ int main(int argc, char** argv) {
     		calc.amo);
     	density.get_impl()->print_grid("grid");
     } else {
-    	
-    	
+
+
     	// Print the coordinates
     	if (world.rank()==0){
     		print("Coordinates after MolDFT:");

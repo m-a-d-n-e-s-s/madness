@@ -43,7 +43,7 @@
 
 */
 
-#include <examples/mp2.h>
+#include "mp2.h"
 
 #include <mra/operator.h>
 #include <mra/mra.h>
@@ -73,7 +73,7 @@ static double u(double r, double c) {
     } else{
         pot = 1.6925687506432689-r2*(0.94031597257959381-r2*(0.39493270848342941-0.12089776790309064*r2));
     }
-    
+
     return pot/c;
 }
 
@@ -112,9 +112,9 @@ void load_function(World& world, Function<double,NDIM>& pair, const std::string 
 struct LBCost {
     double leaf_value;
     double parent_value;
-    LBCost(double leaf_value=1.0, double parent_value=1.0) 
+    LBCost(double leaf_value=1.0, double parent_value=1.0)
         : leaf_value(leaf_value)
-        , parent_value(parent_value) 
+        , parent_value(parent_value)
     {}
 
     double operator()(const Key<6>& key, const FunctionNode<double,6>& node) const {

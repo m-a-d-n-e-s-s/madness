@@ -387,7 +387,6 @@ AC_CONFIG_FILES([
         src/lib/mra/Makefile
       src/apps/Makefile
         src/apps/chem/Makefile
-        src/apps/examples/Makefile
         src/apps/tdse/Makefile
         src/apps/hf/Makefile
         src/apps/exciting/Makefile
@@ -397,6 +396,7 @@ AC_CONFIG_FILES([
         src/apps/jacob/Makefile
         src/apps/interior_bc/Makefile
         src/apps/interior_bc/nanophoto/Makefile
+      src/examples/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

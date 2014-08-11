@@ -5,7 +5,7 @@
  *      Author: kottmanj
  */
 
-#include <examples/tdhf_CIS.h>
+#include "tdhf_CIS.h"
 
 using namespace madness;
 
@@ -1005,10 +1005,10 @@ bool CIS::check_convergence(std::vector<root> &roots)const{
 
 /// follow Eq (4) of
 /// T. Yanai, R. J. Harrison, and N. Handy,
-/// ÒMultiresolution quantum chemistry in multiwavelet bases: time-dependent
+/// Multiresolution quantum chemistry in multiwavelet bases: time-dependent
 /// density functional theory with asymptotically corrected potentials in
-/// local density and generalized gradient approximations,Ó
-/// Mol. Phys., vol. 103, no. 2, pp. 413Ð424, 2005.
+/// local density and generalized gradient approximations,
+/// Mol. Phys., vol. 103, no. 2, pp. 413-424, 2005.
 ///
 /// The convergence criterion is that the excitation amplitudes don't change
 /// @param[in]		world	the world

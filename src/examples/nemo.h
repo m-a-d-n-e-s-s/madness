@@ -52,7 +52,7 @@
 #include <mra/lbdeux.h>
 #include <chem/SCF.h>
 #include <chem/correlationfactor.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 #include <mra/vmra.h>
 
 namespace madness {

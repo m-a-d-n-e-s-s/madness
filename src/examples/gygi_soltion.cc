@@ -55,7 +55,7 @@ $Id$
 #include <ctime>
 #include <tensor/solvers.h>
 #include <mra/funcplot.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 using namespace madness;
 typedef real_function_3d realfunc;
 //define parameter
@@ -191,7 +191,7 @@ public:
   double cavitation_energy() const {
     double fac =1.0/rho_0;
     double quantum_surface = 0.5*fac*beta*grad_rho(rho).norm2();
-    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u
+    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e-4a.u
     return convfact*Gamma*quantum_surface;
   }
   //cavitation potential to be included in the KS equation
@@ -203,7 +203,7 @@ public:
     realfunc gradsq = Dx(rho)*Dx(rho) + Dy(rho)*Dy(rho) + Dz(rho)*Dz(rho);
     realfunc nume = fac*grad_rho(gradsq);
     realfunc denom =(1.0/grad_rho(rho).norm2())*re_grad_rho(rho);
-    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u
+    double convfact = 6.423049507e-4; // 1N/m = 6.423049507e-4a.u
     return nume*denom*convfact*Gamma;
   }
   /*defining the quantum surface with a Gaussian

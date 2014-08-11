@@ -1,7 +1,7 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 
 
 
@@ -91,8 +91,8 @@ static double guess_gradient(const coord_3d& r) {
 
 
 //template <class solverT>
-double iterate_ground(World& world, NonlinearSolver& solver, 
-		real_function_3d& V, real_function_3d& psi, 
+double iterate_ground(World& world, NonlinearSolver& solver,
+		real_function_3d& V, real_function_3d& psi,
 		double& eps) {
 	real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
 	real_function_3d Vpsi = (V*psi);
@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_thresh(thresh);
 	FunctionDefaults<3>::set_refine(true);
 	FunctionDefaults<3>::set_initial_level(5);
-	FunctionDefaults<3>::set_truncate_mode(1);  
+	FunctionDefaults<3>::set_truncate_mode(1);
 	FunctionDefaults<3>::set_cubic_cell(-Length/2, Length/2);
 
 	if (world.rank() == 0) print("\n  Solving for the KS aux. wave function\n");
@@ -225,7 +225,7 @@ int main(int argc, char** argv) {
 			            //print(r[2], vsigaa(r));
 			            //print(r[0], vxc(r)*r[0]);
 			            //print(r[0], vxc(r)*r[0], r[2], vf[1](r), r[2], vsigaa(r));
-			            //if (xc.is_gga()) 
+			            //if (xc.is_gga())
 			            //   {file << r[0] << "\t" << vxc(r)*r[0] << "\t" << r[2] << "\t" << vf[1](r) << "\t" << r[2] << "\t" << vsigaa(r) << "\n";}
 			            //else
 			            //{file << r[0] << "\t" << r[1] << "\t" << r[2] << "\t" << vxc(r) << "\t" << vxc(r)*r[0] << "\t" << vxc(r)*r[1] << "\t" << vxc(r)*r[2] << "\n" ;}
@@ -233,7 +233,7 @@ int main(int argc, char** argv) {
 			            av+=vxc(r);
 			            avrho+=rho(r);
 			            avpot+=potential(r);
-			         } 
+			         }
 			      }*/
                               r[2]=0.01;r[1]=0.01;
                               /*file << r[2] << "\t" << vxc(r) << "\t" << vxc_trunc(r) << "\t" << av/((imax+1)*(imax+1)) << "\t";
@@ -254,22 +254,22 @@ int main(int argc, char** argv) {
                               }
 
                               file << "\n";
-		           } 
+		           }
                            file.close();
 
                            ///////////////////////////////////////////////////////////
-                           /*{                   
+                           /*{
                               int npt_plot=101;
                               tensorT plot_cell;
                               //plot_cell = tensorT(3L,2L);
                               std::vector<long> npt(3,npt_plot);
-                      
+
                               if (plot_cell.size() == 0)
                                   plot_cell = copy(FunctionDefaults<3>::get_cell());
-                      
+
                                   plotdx(rho, "density.dx", plot_cell, npt, true);
                                   plotdx(Vnuc, "vnuc.dx", plot_cell, npt, true);
-                      
+
                            }*/
                            ///////////////////////////////////////////////////////////
 
@@ -308,7 +308,7 @@ int main(int argc, char** argv) {
         }
 	double exc=make_dft_energy(world, vf, 0); // Exc
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
-	double total_energy = kinetic_energy + two_electron_energy + 
+	double total_energy = kinetic_energy + two_electron_energy +
 		nuclear_attraction_energy + exc;
 	double virial = (nuclear_attraction_energy + two_electron_energy ) / kinetic_energy;
 

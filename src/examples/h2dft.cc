@@ -1,7 +1,7 @@
-//#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <mra/mra.h>
 #include <mra/operator.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 
 
 
@@ -75,8 +75,8 @@ static double V(const coord_3d& r) {
 }
 
 //template <class solverT>
-double iterate_ground(World& world, NonlinearSolver& solver, 
-		real_function_3d& V, real_function_3d& psi, 
+double iterate_ground(World& world, NonlinearSolver& solver,
+		real_function_3d& V, real_function_3d& psi,
 		double& eps) {
 	real_convolution_3d op = BSHOperator3D(world, sqrt(-2*eps), 0.001, 1e-6);
 	real_function_3d Vpsi = (V*psi);
@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
 	FunctionDefaults<3>::set_thresh(thresh);
 	FunctionDefaults<3>::set_refine(true);
 	FunctionDefaults<3>::set_initial_level(5);
-	FunctionDefaults<3>::set_truncate_mode(1);  
+	FunctionDefaults<3>::set_truncate_mode(1);
 	FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
 	if (world.rank() == 0) print("\n  Solving for the KS aux. wave function\n");
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
 			      print(r[2], vf[0](r));
 			      //print(r[2], vsigaa(r));
 			      //print(r[0], vxc(r)*r[0]*2.);
-			    } 
+			    }
                        }
                        real_function_3d potential = Vnuc + 2* op(rho).truncate() +vxc.truncate();
 
@@ -202,7 +202,7 @@ int main(int argc, char** argv) {
 	double exc=make_dft_energy(world,xc, vf, 0); // Exc
         double nuclear_repulsion_energy = 1.0/R;
 	double nuclear_attraction_energy = 2.0*inner(Vnuc,rho); // <V|rho> = <phi|V|phi>
-	double total_energy = kinetic_energy + two_electron_energy + 
+	double total_energy = kinetic_energy + two_electron_energy +
 		nuclear_attraction_energy + exc + nuclear_repulsion_energy;
 	double virial = (nuclear_attraction_energy + two_electron_energy ) / kinetic_energy;
 

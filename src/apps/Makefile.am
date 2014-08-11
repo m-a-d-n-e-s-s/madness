@@ -1,5 +1,5 @@
 
-SUBDIRS = chem examples tdse moldft 
+SUBDIRS = chem tdse moldft 
  #hf vnuc nick
 
 libraries:

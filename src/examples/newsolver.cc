@@ -1,7 +1,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
 #include <mra/mra.h>
 #include <mra/operator.h>
-#include <examples/nonlinsol.h>
+#include "nonlinsol.h"
 
 using namespace madness;
 
