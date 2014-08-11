@@ -33,7 +33,7 @@
 */
 
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 void doplotptk(World& world, int step, const functionT& psi, double Lplot, long numpt, const char* fname) {
     double start = wall_time();

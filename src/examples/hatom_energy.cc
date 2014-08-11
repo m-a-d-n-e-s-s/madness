@@ -72,7 +72,7 @@
   The exact answer is \f$-\frac{1}{2}\f$ in atomic units.
 */
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 using namespace madness;
 

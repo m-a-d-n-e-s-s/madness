@@ -79,8 +79,8 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/vmra.h>
-#include <constants.h>
+#include <madness/mra/vmra.h>
+#include <madness/constants.h>
 
 using namespace madness;
 

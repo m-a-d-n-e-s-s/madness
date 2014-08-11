@@ -42,7 +42,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
@@ -51,7 +51,7 @@
 #include <chem/potentialmanager.h>
 #include <chem/gth_pseudopotential.h> 
 
-#include <tensor/solvers.h>
+#include <madness/tensor/solvers.h>
 
 
 namespace madness {

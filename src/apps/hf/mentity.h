@@ -40,7 +40,7 @@
 #include <algorithm>
 #include <ctype.h>
 #include <cmath>
-#include <misc/misc.h>
+#include <madness/misc/misc.h>
 
 struct AtomicData {
     // !!! The order of declaration here must match the order in the initializer !!!

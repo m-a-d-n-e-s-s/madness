@@ -82,8 +82,8 @@
 */
 
 
-#include <mra/legendre.h>
-#include <world/worldexc.h>
+#include <madness/mra/legendre.h>
+#include <madness/world/worldexc.h>
 
 #include <algorithm>
 #include <cmath>

@@ -47,8 +47,8 @@
 /// go away.
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <tensor/gmres.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/gmres.h>
 
 using namespace madness;
 

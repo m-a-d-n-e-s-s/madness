@@ -1,7 +1,7 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/operator.h>
-#include <mra/lbdeux.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
+#include <madness/mra/lbdeux.h>
 
 using namespace madness;
 

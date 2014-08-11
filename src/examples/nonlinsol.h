@@ -43,12 +43,12 @@
   This class implements the solver described in 
   \verbatim
    R. J. Harrison, Krylov subspace accelerated inexact newton method for linear
-   and nonlinear equations, J. Comput. Chem. 25 (2004), no. 3, 328–334.
+   and nonlinear equations, J. Comput. Chem. 25 (2004), no. 3, 328-334.
   \endverbatim
  */
 
-#include <mra/mra.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/solvers.h>
 
 namespace madness {
 

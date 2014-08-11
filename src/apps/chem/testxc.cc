@@ -31,9 +31,9 @@
   $Id$
 */
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <world/world.h>
-#include <mra/mra.h>
-#include <tensor/tensor.h>
+#include <madness/world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/tensor.h>
 #include <fstream>
 #include "xcfunctional.h"
 

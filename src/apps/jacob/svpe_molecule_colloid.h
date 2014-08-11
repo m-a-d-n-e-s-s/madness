@@ -33,13 +33,13 @@
 #ifndef SVPE_MOLECULE_COLLOID_H
 #define SVPE_MOLECULE_COLLOID_H
 
-#include <mra/mra.h>
-#include <mra/operator.h>
-#include <mra/funcplot.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
+#include <madness/mra/funcplot.h>
+#include <madness/tensor/solvers.h>
 #include <examples/molecularmask.h>
 #include <examples/nonlinsol.h>
-#include <constants.h>
+#include <madness/constants.h>
 #include <vector>
 
 using namespace madness;

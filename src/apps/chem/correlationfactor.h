@@ -84,8 +84,8 @@
 #define MADNESS_CHEM_NUCLEARCORRELATIONFACTOR_H__INCLUDED
 
 
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
 #include <chem/molecule.h>
 #include <chem/potentialmanager.h>
 

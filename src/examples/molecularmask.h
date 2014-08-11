@@ -1,8 +1,8 @@
 #ifndef MOLECULAR_MASK_H
 #define MOLECULAR_MASK_H
 
-#include <mra/mra.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 #include <cmath>
 #include <vector>
 

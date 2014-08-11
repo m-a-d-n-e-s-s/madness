@@ -32,10 +32,10 @@
 */
 #ifndef MADNESS_SYSTOLIC_H
 #define MADNESS_SYSTOLIC_H
-#include <world/world.h>
+#include <madness/world/world.h>
 
 #include <utility>
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 
 namespace madness {
 

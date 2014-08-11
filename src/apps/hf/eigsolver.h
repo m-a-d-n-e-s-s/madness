@@ -32,8 +32,8 @@
 */
 #ifndef EIGSOLVER_H_
 #define EIGSOLVER_H_
-#include <mra/mra.h>
-#include <world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/world/world.h>
 #include <vector>
 #include "electronicstructureparams.h"
 

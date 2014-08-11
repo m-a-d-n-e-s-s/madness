@@ -1,7 +1,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <iostream>
 #include <vector>
 
@@ -222,10 +222,10 @@ void test1(World& world) {
 // All this crap for the non-linear TDSE problem //
 ///////////////////////////////////////////////////
 
-#include <mra/mra.h>
-#include <mra/qmprop.h>
-#include <mra/operator.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/qmprop.h>
+#include <madness/mra/operator.h>
+#include <madness/constants.h>
 
 namespace madness {
 

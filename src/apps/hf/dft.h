@@ -33,8 +33,8 @@
 #ifndef DFT_H_
 #define DFT_H_
 
-#include <mra/mra.h>
-#include <world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/world/world.h>
 #include <vector>
 
 #include "eigsolver.h"

@@ -13,11 +13,11 @@
 
 #include "nonlinsol.h"
 #include <chem/SCF.h>
-#include <mra/operator.h>
-#include <mra/mra.h>
-#include <mra/vmra.h>
-#include <mra/lbdeux.h>
-#include <misc/ran.h>
+#include <madness/mra/operator.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/vmra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/misc/ran.h>
 
 
 

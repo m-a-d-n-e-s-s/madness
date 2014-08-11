@@ -39,7 +39,7 @@ $Id$
 #ifndef MADNESS_SCF_H
 #define MADNESS_SCF_H
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <moldft/xcfunctional.h>
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>

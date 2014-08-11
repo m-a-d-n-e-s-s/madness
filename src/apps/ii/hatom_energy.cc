@@ -34,7 +34,7 @@
 /// \file ii/hatom_energy.cc
 /// \brief Compute the energy of the hydrogen atom ground state
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 using namespace madness;
 

@@ -35,11 +35,11 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/lbdeux.h>
-#include <mra/mra.h>
-#include <mra/qmprop.h>
-#include <mra/operator.h>
-#include <constants.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/qmprop.h>
+#include <madness/mra/operator.h>
+#include <madness/constants.h>
 
 using namespace madness;
 

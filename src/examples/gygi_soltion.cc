@@ -50,11 +50,11 @@ $Id$
 */
  //We will test this for a hydrogen atom
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 #include <ctime>
-#include <tensor/solvers.h>
-#include <mra/funcplot.h>
+#include <madness/tensor/solvers.h>
+#include <madness/mra/funcplot.h>
 #include "nonlinsol.h"
 using namespace madness;
 typedef real_function_3d realfunc;

@@ -34,8 +34,8 @@
 #define __frequency_handler__
 
 #include <string>
-#include <constants.h>
-#include <mra/mra.h>
+#include <madness/constants.h>
+#include <madness/mra/mra.h>
 #include "envelopedpulse.h"
 
 using namespace std;

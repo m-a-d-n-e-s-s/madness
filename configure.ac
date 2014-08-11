@@ -16,7 +16,7 @@ m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
 # We want #defines output into a header file
-AC_CONFIG_HEADERS([include/madness_config.h])
+AC_CONFIG_HEADERS([src/madness/madness_config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
@@ -375,16 +375,15 @@ AC_CONFIG_FILES([
     config/Makefile
     config/Makefile.sample
     config/MADNESS.pc
-    include/Makefile
     src/Makefile
       src/gtest/Makefile
-      src/lib/Makefile
-        src/lib/world/Makefile
-        src/lib/muParser/Makefile
-        src/lib/misc/Makefile
-        src/lib/tinyxml/Makefile
-        src/lib/tensor/Makefile
-        src/lib/mra/Makefile
+      src/madness/Makefile
+        src/madness/world/Makefile
+        src/madness/muParser/Makefile
+        src/madness/misc/Makefile
+        src/madness/tinyxml/Makefile
+        src/madness/tensor/Makefile
+        src/madness/mra/Makefile
       src/apps/Makefile
         src/apps/chem/Makefile
         src/apps/tdse/Makefile

@@ -42,12 +42,12 @@
 
 #include <chem/SCF.h>
 
-#include <tensor/elem.h>
-#include <TAU.h>
-#include <mra/lbdeux.h>
-#include <mra/qmprop.h>
-#include <misc/misc.h>
-#include <misc/ran.h>
+#include <madness/tensor/elem.h>
+#include <madness/TAU.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/mra/qmprop.h>
+#include <madness/misc/misc.h>
+#include <madness/misc/ran.h>
 
 namespace madness {
 template<int NDIM>

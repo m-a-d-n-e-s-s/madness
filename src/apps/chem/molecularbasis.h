@@ -33,12 +33,12 @@
 #ifndef MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 #define MADNESS_CHEM_MOLECULAR_BASIS_H__INCLUDED
 
-#include <madness_config.h>
-#include <constants.h>
+#include <madness/madness_config.h>
+#include <madness/constants.h>
 #include <chem/molecule.h>
 #include <chem/atomutil.h>
-#include <tinyxml/tinyxml.h>
-#include <tensor/tensor.h>
+#include <madness/tinyxml/tinyxml.h>
+#include <madness/tensor/tensor.h>
 
 #include <vector>
 #include <algorithm>

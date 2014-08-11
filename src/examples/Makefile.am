@@ -13,7 +13,7 @@ noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  tdhf nemo test_inner
  
 thisincludedir = $(includedir)/examples
-thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
+#thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
 
 AUTOMAKE_OPTIONS = subdir-objects
 

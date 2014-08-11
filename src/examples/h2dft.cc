@@ -1,24 +1,24 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/operator.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
 #include "nonlinsol.h"
 
 
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/operator.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
 
-#include <mra/lbdeux.h>
-#include <mra/qmprop.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/mra/qmprop.h>
 
-#include <misc/misc.h>
-#include <misc/ran.h>
+#include <madness/misc/misc.h>
+#include <madness/misc/ran.h>
 
-#include <tensor/systolic.h>
-#include <tensor/solvers.h>
-#include <tensor/elem.h>
+#include <madness/tensor/systolic.h>
+#include <madness/tensor/solvers.h>
+#include <madness/tensor/elem.h>
 
 
 #include <chem/xcfunctional.h>

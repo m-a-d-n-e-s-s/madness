@@ -1,9 +1,9 @@
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/sdf_shape_3D.h>
-#include <mra/funcplot.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/sdf_shape_3D.h>
+#include <madness/mra/funcplot.h>
 #include "molecularmask.h"
-#include <constants.h>
+#include <madness/constants.h>
 #include <vector>
 
 using namespace madness;

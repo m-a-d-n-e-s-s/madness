@@ -93,13 +93,13 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/operator.h>
-#include <mra/funcplot.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/operator.h>
+#include <madness/mra/funcplot.h>
+#include <madness/tensor/solvers.h>
 #include "molecularmask.h"
 #include "nonlinsol.h"
-#include <constants.h>
+#include <madness/constants.h>
 #include <vector>
 
 using namespace madness;

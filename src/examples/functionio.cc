@@ -90,8 +90,8 @@
  */
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 using namespace madness;
 using namespace std;
 

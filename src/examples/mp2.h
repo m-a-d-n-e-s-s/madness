@@ -47,8 +47,8 @@
 #define MP2_H_
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
 #include "nonlinsol.h"
 #include <chem/projector.h>

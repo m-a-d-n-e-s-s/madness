@@ -46,14 +46,14 @@
 #ifndef NEMO_H_
 #define NEMO_H_
 
-#include <mra/mra.h>
-#include <mra/funcplot.h>
-#include <mra/operator.h>
-#include <mra/lbdeux.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/funcplot.h>
+#include <madness/mra/operator.h>
+#include <madness/mra/lbdeux.h>
 #include <chem/SCF.h>
 #include <chem/correlationfactor.h>
 #include "nonlinsol.h"
-#include <mra/vmra.h>
+#include <madness/mra/vmra.h>
 
 namespace madness {
 

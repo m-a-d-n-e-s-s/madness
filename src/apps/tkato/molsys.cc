@@ -1,4 +1,4 @@
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <tkato/scf.h>
 #include <tkato/molsys.h>
 

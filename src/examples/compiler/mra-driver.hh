@@ -591,7 +591,7 @@ public:
         else if (c.size() == 0) {
             if (s=="Let") {
                 file << "#define WORLD_INSTANTIATE_STATIC_TEMPLATES\n";
-                file << "#include <mra/mra.h>\n";
+                file << "#include <madness/mra/mra.h>\n";
                 file << "using namespace madness;\n";
             }
             else if (s == "In") {

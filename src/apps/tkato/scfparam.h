@@ -40,7 +40,7 @@
 #ifndef MADNESS_SCFPARAM_H
 #define MADNESS_SCFPARAM_H
 
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 

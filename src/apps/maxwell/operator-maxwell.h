@@ -34,9 +34,9 @@
 #define __operator_maxwell__
 
 #include <string>
-#include <constants.h>
-#include <mra/mra.h>
-#include <tensor/gmres.h>
+#include <madness/constants.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/gmres.h>
 
 using namespace std;
 using namespace madness;

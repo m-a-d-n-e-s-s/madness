@@ -40,7 +40,7 @@
 #define MADNESS_INTERIOR_BC_BASISFUNCTION_H__INCLUDED
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <string>
 
 using namespace madness;
