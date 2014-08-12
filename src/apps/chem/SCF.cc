@@ -1448,7 +1448,7 @@ tensorT SCF::dipole(World & world) {
 		print("     x: ", mu[0]);
 		print("     y: ", mu[1]);
 		print("     z: ", mu[2]);
-		print(" Total Dipole Moment: ", mu.normf());
+		print(" Total Dipole Moment: ", mu.normf(),"\n");
 	}
 	END_TIMER(world, "dipole");
 	TAU_STOP("dipole");
@@ -2493,6 +2493,8 @@ void SCF::solve(World & world) {
 	//         printf("                    Molecular Surface: %16.8f\n\n     ",Surface);
 	//     }
 	//  }
+
+        dipole(world);
 
 	if (world.rank() == 0) {
 		if (param.localize)
