@@ -16,7 +16,7 @@ m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
 # We want #defines output into a header file
-AC_CONFIG_HEADERS([src/madness/madness_config.h])
+AC_CONFIG_HEADERS([src/madness/config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
@@ -41,16 +41,20 @@ AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu,
 # Pick out CPUs for which we have special source files (assembler)
 use_x86_64_asm=no
 use_x86_32_asm=no
-case $host_cpu in
-     x86_64)   
-         AC_DEFINE([X86_64], [1], [If set indicates we are using a 64-bit Intel/AMD cpu.]) 
-         use_x86_64_asm=yes
-         ;;
-     i?86*) 
-         AC_DEFINE([X86_32], [1], [If set indicates we are using a 32-bit Intel/AMD cpu.]) 
-         use_x86_32_asm=yes
-         ;;
-esac
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if !(defined(__x86_64__) || defined(_M_X64))
+#error Not x86_64
+#endif
+]])], [use_x86_64_asm=yes])
+
+if test $use_x86_64_asm = no; then
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if !(defined(__i386) || defined(_M_IX86))
+#error Not x86
+#endif
+]])], [use_x86_32_asm=yes])
+fi
 
 # Define AM conditional for use of aforementioned assembler
 AM_CONDITIONAL([USE_X86_64_ASM], [test $use_x86_64_asm = yes])
