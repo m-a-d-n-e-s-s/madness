@@ -303,7 +303,7 @@ AC_ARG_ENABLE([bsend-ack],
      
 # Set the default fortran integer type
 AC_ARG_WITH([fortran-int32],
-            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
+            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 32-bit integers.])],
             [
               case $withval in
               yes)
@@ -316,7 +316,7 @@ AC_ARG_WITH([fortran-int32],
                 AC_MSG_ERROR([Unknown value provided for --with-fortran-int32])
               esac
             ],
-            [acx_fortran_int_size=8])
+            [acx_fortran_int_size=4])
 
 case $acx_fortran_int_size in
 4)
