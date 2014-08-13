@@ -89,12 +89,17 @@ extern void drot(long n, double* restrict a, double* restrict b, double s, doubl
 
 
 /// Given overlap matrix, return rotation with 3rd order error to orthonormalize the vectors
-
 tensorT Q3(const tensorT& s) {
     tensorT Q = inner(s,s);
     Q.gaxpy(0.2,s,-2.0/3.0);
     for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.0;
     return Q.scale(15.0/8.0);
+}
+
+tensorT Q2(const tensorT& s) {
+    tensorT Q = -0.5*s;
+    for (int i=0; i<s.dim(0); ++i) Q(i,i) += 1.5;
+    return Q;
 }
 
 
@@ -145,7 +150,7 @@ SCF::SCF(World & world, const char *filename) {
 
                 //modify atomic charge for PSP calc
                 if (param.psp_calc){
-                  for (unsigned int iatom = 0; iatom < molecule.natom(); iatom++) {
+                  for (int iatom = 0; iatom < molecule.natom(); iatom++) {
                      unsigned int an=molecule.get_atom_number(iatom);
                      double zeff=get_charge_from_file("gth.xml",an);
                      molecule.set_atom_charge(iatom,zeff);
@@ -1959,10 +1964,23 @@ void SCF::orthonormalize(World& world, vecfuncT& amo_new) const {
 	START_TIMER(world);
 	double trantol = vtol / std::min(30.0, double(amo.size()));
 	normalize(world, amo_new);
-	amo_new = transform(world, amo_new,
-			Q3(matrix_inner(world, amo_new, amo_new)), trantol, true);
-	truncate(world, amo_new);
-	normalize(world, amo_new);
+        double maxq;
+        do {
+            tensorT Q = Q2(matrix_inner(world, amo_new, amo_new)); // Q3(matrix_inner(world, amo_new, amo_new))
+            maxq=0.0;
+            for (int i=0; i<Q.dim(0); ++i) 
+                for (int j=0; j<i; ++j)
+                    maxq = std::max(maxq,std::abs(Q(i,j)));
+
+            Q.screen(trantol); // ???? Is this really needed?
+            amo_new = transform(world, amo_new,
+                                Q, trantol, true);
+            truncate(world, amo_new);
+            if (world.rank() == 0) print("ORTHOG2: maxq trantol", maxq, trantol);
+            //print(Q);
+
+        } while (maxq>0.01);
+        normalize(world, amo_new);
 	END_TIMER(world, "Orthonormalize");
 	TAU_STOP("Orthonormalize");
 }
