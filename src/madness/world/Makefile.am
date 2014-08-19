@@ -20,10 +20,10 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
                       
 TESTS = test_prof test_ar test_hashdc test_hello test_atomicint test_future \
         test_future2 test_future3 test_dc test_hashthreaded test_queue test_world \
-        test_worldprofile test_googletest
+        test_worldprofile
 
 if MADNESS_HAS_GOOGLE_TEST
-TESTS += test_array test_worldptr test_worldref
+TESTS += test_googletest test_array test_worldptr test_worldref
 endif
 
 noinst_PROGRAMS = $(TESTS)
