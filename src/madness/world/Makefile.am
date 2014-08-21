@@ -14,13 +14,13 @@ thisinclude_HEADERS = archive.h print.h worldam.h worldfut.h worldmpi.h \
 	worlddc.h deferred_deleter.h scopedptr.h worldtask.h taskfn.h \
 	shared_ptr.h shared_ptr_bits.h stdarray.h ref.h move.h group.h dist_cache.h dist_keys.h \
 	stdarray_bits.h type_traits.h type_traits_bits.h boost_checked_delete_bits.h \
-	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h
+	function_traits_bits.h integral_constant.h stubmpi.h bgq_atomics.h binsorter.h
 
 
                       
 TESTS = test_prof test_ar test_hashdc test_hello test_atomicint test_future \
         test_future2 test_future3 test_dc test_hashthreaded test_queue test_world \
-        test_worldprofile
+        test_worldprofile test_binsorter
 
 if MADNESS_HAS_GOOGLE_TEST
 TESTS += test_googletest test_array test_worldptr test_worldref
@@ -30,6 +30,9 @@ noinst_PROGRAMS = $(TESTS)
 
 test_prof_SOURCES = test_prof.cc
 test_prof_LDADD = libMADworld.a
+
+test_binsorter_SOURCES = test_binsorter.cc
+test_binsorter_LDADD = libMADworld.a
 
 test_ar_SOURCES = test_ar.cc
 test_ar_LDADD = libMADworld.a
