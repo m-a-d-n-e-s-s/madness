@@ -258,7 +258,12 @@ namespace madness {
 
         static Request
         isend(const void* buf, size_t nbyte, ProcessID dest, rmi_handlerT func, unsigned int attr=ATTR_UNORDERED) {
-            MADNESS_ASSERT(task_ptr);
+            if(!task_ptr) {
+              std::cerr <<
+                  "!! MADNESS RMI error: Attempting to send a message when the RMI thread is not running\n"
+                  "!! MADNESS RMI error: This typically occurs when an active message is sent or a remote task is spawned after calling madness::finalize()\n";
+              MADNESS_EXCEPTION("!! MADNESS error: The RMI thread is not running", (task_ptr != NULL));
+            }
             return task_ptr->isend(buf, nbyte, dest, func, attr);
         }
 
