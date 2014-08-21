@@ -1,5 +1,6 @@
 #include <madness/world/world.h>
 #include <madness/world/worldobj.h>
+#include <madness/world/worldexc.h>
 #include <vector>
 
 namespace madness {
@@ -13,7 +14,8 @@ namespace madness {
         std::vector<T>* bins;
         
         void flush(int owner) {
-            this->send(owner, &BinSorter<T,inserterT>::sorter,  bins[owner]);
+            if (bins[owner].size())
+                this->send(owner, &BinSorter<T,inserterT>::sorter,  bins[owner]);
             bins[owner].clear();
         }
         
@@ -43,7 +45,9 @@ namespace madness {
         }
         
         virtual ~BinSorter() {
-            finish();
+            for (int i=0; i<pworld->size(); i++) {
+                MADNESS_ASSERT(bins[i].size() == 0);
+            }
             delete [] bins;
         }
         
