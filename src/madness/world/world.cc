@@ -210,6 +210,8 @@ namespace madness {
     }
 
     void finalize() {
+        World::default_world->gop.fence();
+
         // Destroy the default world
         delete World::default_world;
         World::default_world = NULL;
