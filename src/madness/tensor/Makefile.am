@@ -3,7 +3,7 @@ include $(top_srcdir)/config/MakeGlobal.am
 lib_LIBRARIES = libMADtensor.a libMADlinalg.a
 
 TESTS = oldtest test_mtxmq test_Zmtxmq jimkernel test_scott test_systolic \
-        test_linalg test_solvers test_elemental testseprep
+        test_linalg test_solvers test_elemental testseprep test_distributed_matrix
 
 if MADNESS_HAS_GOOGLE_TEST
 TESTS += test test_gentensor
@@ -54,6 +54,9 @@ test_solvers_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_elemental_SOURCES = test_elemental.cc
 test_elemental_LDADD =  libMADlinalg.a libMADtensor.a $(LIBMISC) $(LIBWORLD)
+
+test_distributed_matrix_SOURCES = test_distributed_matrix.cc
+test_distributed_matrix_LDADD =  libMADtensor.a $(LIBMISC) $(LIBWORLD)
 
 test_Zmtxmq_SOURCES = test_Zmtxmq.cc
 test_Zmtxmq_LDADD = libMADtensor.a $(LIBWORLD)

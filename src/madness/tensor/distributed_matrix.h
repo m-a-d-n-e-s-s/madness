@@ -52,16 +52,10 @@ namespace madness {
     // I.e., a simple global replace will fail, though the existing
     // test suite may not detect that.
 
-    /// Manages data associated with a row/column/block distributed array
 
-    /// The class itself provides limited functionality for accessing the
-    /// data and is primarily intended to provide base functionality for
-    /// use by matrix algorithms and other matrix classes.
-    ///
-    /// The constructor is deliberately simple.  Factory functions
-    /// are expected to be the main construction tool.
-    template <typename T>
-    class DistributedMatrix {
+
+    class DistributedMatrixDistribution {
+    protected:
         World* pworld;
         int64_t P;                //< No. of processors
         ProcessID rank;           //< My processor rank
@@ -77,13 +71,37 @@ namespace madness {
         int64_t jlo,jhi;          //< Range of row indices on this processor
         int64_t idim,jdim;        //< Dimension of data on this processor
 
-        Tensor<T> t;                    //< The data
-
-        static T idij(const int64_t i, const int64_t j) {return (i==j) ?  T(1) : T(0);}
-
     public:
 
-        /// Constructs a distributed matrix dimension (n,m) with specified tile sizes and initialized to zero.
+        /// Default constructor makes an invalid distribution
+        DistributedMatrixDistribution() 
+            : pworld(0)
+            , P(0)
+            , rank(0)
+            , n(0)
+            , m(0)
+            , tilen(0)
+            , tilem(0)
+            , Pcoldim(0)
+            , Prowdim(0)
+            , Pcol(0)
+            , Prow(0)
+            , ilo(0)
+            , ihi(0)
+            , jlo(0)
+            , jhi(0)
+            , idim(0)
+            , jdim(0)
+        {}
+
+        /// Resets state to same as default constructor
+        void clear() {
+            pworld = (World*)(0);
+            P = rank = n = m = tilen = tilem = Pcoldim = Prowdim = Pcol = Prow = ilo = ihi = jlo = jhi = idim = jdim = 0;
+        }
+
+
+        /// Constructs distribution and size info for a matrix 
 
         /// The matrix is tiled over a grid of processes as specified by the tile sizes.
         /// @param[in] World The world
@@ -91,7 +109,7 @@ namespace madness {
         /// @param[in] m The matrix row dimension
         /// @param[in] coltile Tile size for the columns
         /// @param[in] rowtile Tile size for the rows
-        DistributedMatrix(World& world, int64_t n, int64_t m, int64_t coltile, int64_t rowtile)
+        DistributedMatrixDistribution(World& world, int64_t n, int64_t m, int64_t coltile, int64_t rowtile)
             : pworld(&world)
             , P(world.size())
             , rank(world.rank())
@@ -109,57 +127,29 @@ namespace madness {
             , jhi(std::min(jlo+tilem-1,m-1))
             , idim(std::max(ihi-ilo+1,int64_t(0)))
             , jdim(std::max(jhi-jlo+1,int64_t(0)))
-        {
-            //print("DM: dims", n, m, "tiles", tilen, tilem, "ilo ihi jlo jhi", ilo, ihi, jlo, jhi, "idim jdim", idim, jdim);
-
-            if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
-        }
-
-        /// Copy constructor copies dimensions, distribution, and deep copy of content
-        DistributedMatrix(const DistributedMatrix<T>& A)
-            : pworld(A.pworld)
-            , P(A.P)
-            , rank(A.rank)
-            , n(A.n)
-            , m(A.m)
-            , tilen(A.tilen)
-            , tilem(A.tilem)
-            , Pcoldim(A.Pcoldim)
-            , Prowdim(A.Prowdim)
-            , Pcol(A.Pcol)
-            , Prow(A.Prow)
-            , ilo(A.ilo)
-            , ihi(A.ihi)
-            , jlo(A.jlo)
-            , jhi(A.jhi)
-            , idim(A.idim)
-            , jdim(A.jdim)
-            , t(copy(A.t)) // DEEP COPY of content !!!!
         {}
 
-        /// Assigment copies dimensions, distribution, and deep copy of content
-        DistributedMatrix<T>& operator=(const DistributedMatrix<T>& A) {
-            pworld = A.pworld;
-            P = A.P;
-            rank = A.rank;
-            n = A.n;
-            m = A.m;
-            tilen = A.tilen;
-            tilem = A.tilem;
-            Pcoldim = A.Pcoldim;
-            Prowdim = A.Prodwim;
-            Pcol = A.Pcol;
-            Prow = A.Prow;
-            ilo = A.ilo;
-            ihi = A.ihi;
-            jlo = A.jlo;
-            jhi = A.jhi;
-            idim = A.idim;
-            jdim = A.jdim;
-            t = copy(A.t); // DEEP COPY of content !!!!
+        bool operator==(const DistributedMatrixDistribution& d) const {
+            return 
+                pworld  == d.pworld &&
+                P       == d.P      &&
+                rank    == d.rank   &&
+                n       == d.n      &&
+                m       == d.m      &&
+                tilen   == d.tilen  &&
+                tilem   == d.tilem  &&
+                Pcoldim == d.Pcoldim &&
+                Prowdim == d.Prowdim &&
+                Pcol    == d.Pcol   &&
+                Prow    == d.Prow   &&
+                ilo     == d.ilo    &&
+                ihi     == d.ihi    &&
+                jlo     == d.jlo    &&
+                jhi     == d.jhi    &&
+                idim    == d.idim   &&
+                jdim    == d.jdim;
         }
 
-        virtual ~DistributedMatrix() {}
 
         /// Returns the column dimension of the matrix ... i.e., n for A(n,m)
 
@@ -168,12 +158,15 @@ namespace madness {
             return n;
         }
 
+        
         /// Returns the row dimension of the matrix ... i.e., m for A(n,m)
+
 
         /// @return Row dimension of the matrix ... i.e., m for A(n,m)
         int64_t rowdim() const {
             return m;
         }
+
 
         /// Returns the column tile size
 
@@ -182,12 +175,14 @@ namespace madness {
             return tilen;
         }
 
+
         /// Returns the row tile size
 
         /// @return Row tile size
         int64_t rowtile() const {
             return tilem;
         }
+
 
         /// Returns the no. of processors in the column dimension
 
@@ -217,31 +212,6 @@ namespace madness {
 
         /// @return No. of row elements stored on this processor
         int64_t local_rowdim() const {return jdim;}
-
-
-        /// Fills the matrix with the provided function of the indices
-
-        /// @param[in] f The matrix is filled using \c a[i,j]=f(i,j)
-        template <typename funcT>
-        void fill(const funcT& f) {
-            for (int64_t i=ilo; i<=ihi; i++) {
-                for (int64_t j=jlo; j<=jhi; j++) {
-                    t(i-ilo,j-jlo) = f(i,j);
-                }
-            }
-        }
-
-
-        /// Fills the matrix with a scalar
-
-        /// @param[in] value The matrix is filled using \c a[i,j]=value
-        void fill(T value) {
-            t.fill(value);
-        }
-
-        void fill_identity() {
-            fill(DistributedMatrix<T>::idij);
-        }
 
         /// Returns the inclusive range of column indices on this processor
 
@@ -337,6 +307,136 @@ namespace madness {
         World& get_world() const {return *pworld;}
 
 
+        /// Returns true if the matrix is column distributed (i.e., row dimension not distributed)
+
+        /// @return True if the matrix is column distributed (i.e., row dimension not distributed)
+        bool is_column_distributed() const {return process_rowdim()==1;}
+
+
+        /// Returns true if the matrix is row distributed (i.e., column dimension not distributed)
+
+        /// @return True if the matrix is row distributed (i.e., column dimension not distributed)
+        bool is_row_distributed() const {return process_coldim()==1;}
+
+
+        /// Returns the distribution (aka *this)
+        const DistributedMatrixDistribution& distribution() const {return *this;}
+
+
+        /// Returns the number of the process that owns element (i,j)
+        ProcessID owner(int64_t i, int64_t j) const {
+            int pcol = i/coltile();
+            int prow = j/rowtile();
+            
+            return pcol*process_rowdim() + prow;
+        }
+
+        virtual ~DistributedMatrixDistribution() {}
+    };
+
+
+    /// Manages data associated with a row/column/block distributed array
+
+    /// The class itself provides limited functionality for accessing the
+    /// data and is primarily intended to provide base functionality for
+    /// use by matrix algorithms and other matrix classes.
+    ///
+    /// The constructor is deliberately simple.  Factory functions
+    /// are expected to be the main construction tool.
+    ///
+    /// Assignment and copy are shallow just like for tensor and for the same reasons.  
+    ///
+    /// To get a deep copy use the copy function (again just like for tensors).
+    template <typename T>
+    class DistributedMatrix : public DistributedMatrixDistribution {
+        Tensor<T> t;            //< The data
+
+        static T idij(const int64_t i, const int64_t j) {return (i==j) ?  T(1) : T(0);}
+
+    public:
+
+        /// Default constructor makes an empty matrix that cannot be used except as a target for assignemnt
+        DistributedMatrix()
+            : DistributedMatrixDistribution()
+            , t()
+        {}
+
+
+        /// Constructs a distributed matrix dimension (n,m) with specified tile sizes and initialized to zero [deprecated]
+
+        /// The matrix is tiled over a grid of processes as specified by the tile sizes.
+        /// @param[in] World The world
+        /// @param[in] n The matrix column dimension 
+        /// @param[in] m The matrix row dimension
+        /// @param[in] coltile Tile size for the columns
+        /// @param[in] rowtile Tile size for the rows
+        DistributedMatrix(World& world, int64_t n, int64_t m, int64_t coltile, int64_t rowtile)
+            : DistributedMatrixDistribution(world, n, m, coltile, rowtile)
+        {
+            if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
+        }
+
+
+        /// Constructs a distributed matrix with given distribution info
+        DistributedMatrix(const DistributedMatrixDistribution& d)
+            : DistributedMatrixDistribution(d)
+        {
+            if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
+        }
+
+
+        /// Copy constructor copies dimensions, distribution, and shallow copy of content (unless deepcopy=true)
+        DistributedMatrix(const DistributedMatrix<T>& A, bool deepcopy=false)
+            : DistributedMatrixDistribution(A)
+            , t(deepcopy ? copy(A.t) : A.t) 
+        {}
+
+
+        /// Assigment copies dimensions, distribution, and shallow copy of content
+        DistributedMatrix<T>& operator=(const DistributedMatrix<T>& A) {
+            if (this != &A) {
+                DistributedMatrixDistribution::operator=(A);
+                t = A.t;
+            }
+            return *this;
+        }
+
+        virtual ~DistributedMatrix() {}
+
+
+        /// Frees memory and resets state to same as default constructor
+        void clear() {
+            DistributedMatrixDistribution::clear();
+            t.clear();
+        }
+
+
+        /// Fills the matrix with the provided function of the indices
+
+        /// @param[in] f The matrix is filled using \c a[i,j]=f(i,j)
+        template <typename funcT>
+        void fill(const funcT& f) {
+            for (int64_t i=ilo; i<=ihi; i++) {
+                for (int64_t j=jlo; j<=jhi; j++) {
+                    t(i-ilo,j-jlo) = f(i,j);
+                }
+            }
+        }
+
+
+        /// Fills the matrix with a scalar
+
+        /// @param[in] value The matrix is filled using \c a[i,j]=value
+        void fill(T value) {
+            t.fill(value);
+        }
+
+
+        void fill_identity() {
+            fill(DistributedMatrix<T>::idij);
+        }
+
+
         /// Returns reference to the local data 
 
         /// The local data is a tensor dimension \c (local_coldim,local_rowdim) and if either of the dimensions
@@ -363,27 +463,15 @@ namespace madness {
         /// int64_t ilo, ihi, jlo, jhi;
         /// A.local_colrange(ilo,ihi);
         /// A.local_rowrange(jlo,jhi);
-        /// Tensor<T>& t = A.data();
+        /// const Tensor<T>& t = A.data();
         /// for (int64_t i=ilo; i<=ihi; i++) {
         ///    for (int64_t j=jlo; j<=jhi; j++) {
         ///        the ij'th element is t(i-ilo, j-jlo)
         ///    }
         /// }
         /// \endcode
-        /// @return Reference to non-constant tensor holding the local data
+        /// @return Reference to constant tensor holding the local data
         const Tensor<T>& data() const {return t;}
-
-
-        /// Returns true if the matrix is column distributed (i.e., row dimension not distributed)
-
-        /// @return True if the matrix is column distributed (i.e., row dimension not distributed)
-        bool is_column_distributed() const {return process_rowdim()==1;}
-
-
-        /// Returns true if the matrix is row distributed (i.e., column dimension not distributed)
-
-        /// @return True if the matrix is row distributed (i.e., column dimension not distributed)
-        bool is_row_distributed() const {return process_coldim()==1;}
 
 
         /// Copy from the replicated \c (m,n) matrix into the distributed matrix
@@ -463,7 +551,81 @@ namespace madness {
                 U.data()(___) = t(Slice(i0-ilo,i1-ilo),Slice(j0-jlo,j1-jlo));
             }
         }
+
+        template <typename R> 
+        bool has_same_dimension_and_distribution(const DistributedMatrix<R>& A) {
+            return DistributedMatrixDistribution::operator==(A);
+        }
+
+        /// Inplace addition --- dimensions and distribution must be identical
+
+        /// @param[in] A The matrix to add to the current matrix
+        /// @return A reference to the current matrix
+        DistributedMatrix<T>& operator+=(const DistributedMatrix<T>& A) {
+            MADNESS_ASSERT(has_same_dimension_and_distribution(A));
+            t += A.t;
+            return *this;
+        }
+
+
+        /// Out of place addition  --- dimensions and distribution must be identical
+
+        /// @param[in] A The matrix to add to the current matrix
+        /// @return A new matrix with the same dimensions and distribution as the inputs
+        DistributedMatrix<T> operator+(const DistributedMatrix<T>& A) const {
+            MADNESS_ASSERT(has_same_dimension_and_distribution(A));
+            return copy(*this)+=A;
+        }
+
+
+        /// Inplace scale by a constant
+
+        /// @param[in] s The scaling factor
+        /// @return A reference to the current matrix
+        DistributedMatrix<T>& operator*=(const T s) {
+            t.scale(s);
+            return *this;
+        }
+
+        /// Sets element (i,j) to v if (i,j) is local, otherwise throws MadnessException
+        void set(int64_t i, int64_t j, const T x) {
+            MADNESS_ASSERT(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
+            t(i-ilo,j-jlo) = x;
+        }
+
+        /// Gets element (i,j) if (i,j) is local, otherwise throws MadnessException
+        T get(int64_t i, int64_t j) const {
+            MADNESS_ASSERT(i>=ilo && i<=ihi && j>=jlo && j<=jhi);
+            return t(i-ilo,j-jlo);
+        }
     };
+
+
+    /// Deep copy of content
+
+    /// @param[in] A The matrix to be copied
+    /// @return A new matrix with identical dimensions, distribution and content (deep copy)
+    template <typename T>
+    DistributedMatrix<T> copy(const DistributedMatrix<T>& A) {
+        return DistributedMatrix<T>(A,true);
+    }
+    
+
+    /// Generates distribution for an (n,m) matrix distributed by columns (row dimension is not distributed)
+
+    /// Quietly forces an even column tile size for ease of use in the systolic matrix algorithms
+    /// @param[in] World The world
+    /// @param[in] n The column (first) dimension
+    /// @param[in] m The row (second) dimension
+    /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
+    /// @return An object encoding the dimension and distribution information
+    static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile=0) {
+        if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
+        coltile = std::min(coltile,n);
+        if ((coltile&0x1)) ++coltile; // ??? Was before the previous statement
+
+        return DistributedMatrixDistribution(world, n, m, coltile, m);
+    }
 
 
     /// Generates an (n,m) matrix distributed by columns (row dimension is not distributed)
@@ -473,15 +635,26 @@ namespace madness {
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
+    /// @retrun A new zero matrix with the requested dimensions and distribution
     template <typename T>
     DistributedMatrix<T> column_distributed_matrix(World& world, int64_t n, int64_t m, int64_t coltile=0) {
-        if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
-        coltile = std::min(coltile,n);
-        if ((coltile&0x1)) ++coltile; // ??? Was before the previous statement
-
-        return DistributedMatrix<T>(world, n, m, coltile, m);
+        return DistributedMatrix<T>(column_distributed_matrix_distribution(world, n, m, coltile));
     }
 
+
+    /// Generates an (n,m) matrix distribution distributed by rows (column dimension is not distributed)
+
+    /// @param[in] World The world
+    /// @param[in] n The column (first) dimension
+    /// @param[in] m The row (second) dimension
+    /// @param[in] rowtile Tile size for row (default is to use all processes)
+    /// @return An object encoding the dimension and distribution information
+    static inline DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile=0) {
+        if (world.size()*rowtile < m) rowtile = (m-1)/world.size() + 1;
+        rowtile = std::min(rowtile,m);
+
+        return DistributedMatrixDistribution(world, n, m, n, rowtile);
+    }
 
     /// Generates an (n,m) matrix distributed by rows (column dimension is not distributed)
 
@@ -489,12 +662,10 @@ namespace madness {
     /// @param[in] n The column (first) dimension
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)
+    /// @retrun A new zero matrix with the requested dimensions and distribution
     template <typename T>
     DistributedMatrix<T> row_distributed_matrix(World& world, int64_t n, int64_t m, int64_t rowtile=0) {
-        if (world.size()*rowtile < n) rowtile = (n-1)/world.size() + 1;
-        rowtile = std::min(rowtile,m);
-
-        return DistributedMatrix<T>(world, n, m, n, rowtile);
+        return DistributedMatrix<T>(row_distributed_matrix_distribution(world, n, m, rowtile));
     }
 
 

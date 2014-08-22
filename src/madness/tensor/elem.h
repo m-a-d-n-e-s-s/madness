@@ -34,22 +34,119 @@
 
 
 #include <madness/madness_config.h>
-#include <madness/tensor/tensor.h>
-#include <madness/world/world.h>
-#include <madness/tensor/tensor_lapack.h>
+
 #ifdef MADNESS_HAS_ELEMENTAL
 
-#include <iostream>
+#include <madness/world/world.h>
+#include <madness/tensor/tensor.h>
+#include <madness/tensor/tensor_lapack.h>
+#include <madness/tensor/distributed_matrix.h>
 #include <madness/world/print.h>
-#include <iostream>
-
-#include <madness/mra/mra.h>
-#include <madness/mra/lbdeux.h>
+#include <madness/world/binsorter.h>
 
 #include <ctime>
 #include <elemental.hpp>
 
 namespace madness {
+
+    namespace detail {
+
+        template <typename T> 
+        struct Value {
+            int i;
+            int j;
+            T t;
+            Value(int i, int j, T t) : i(i), j(j), t(t) {}
+            Value(){} // required for use in STL container
+            template <typename Archive>
+            void serialize(const Archive& ar) {
+                ar & i & j & t;
+            }
+        };
+
+        template <typename T>  
+        class MadToElemDistCopy {
+            elem::DistMatrix<T>& d;
+        public:
+            MadToElemDistCopy(elem::DistMatrix<T>& d) : d(d) {}
+
+            void operator()(const Value<T>& v) {
+                d.Set(v.i, v.j, v.t);
+            }
+        };
+
+        template <typename T>  
+        class ElemToMadDistCopy {
+            DistributedMatrix<T>& d;
+        public:
+            ElemToMadDistCopy(DistributedMatrix<T>& d) : d(d) {}
+
+            void operator()(const Value<T>& v) {
+                d.set(v.i, v.j, v.t);
+            }
+        };
+
+    }
+
+
+    /// Backport of more recent Elemental DistMatrix API
+    template <typename T>
+    ProcessID Owner(const elem::DistMatrix<T>& d, int i, int j) {
+        int RowOwner = (i+d.ColAlignment()) % d.ColStride(); // is Col/Row Align in later versions ... no ment
+        int ColOwner = (j+d.RowAlignment()) % d.RowStride(); 
+        return RowOwner+ColOwner*d.ColStride();        
+    }
+
+
+    /// Copy a MADNESS distributed matrix into an Elemental distributed matrix
+
+    /// Should work for any distribution of either
+    template <typename T>
+    void copy_to_elemental(const DistributedMatrix<T>& din, elem::DistMatrix<T>& dout) {
+        BinSorter< detail::Value<T> , detail::MadToElemDistCopy<T> > s(din.get_world(), detail::MadToElemDistCopy<T>(dout));
+
+        int64_t ilo, ihi, jlo, jhi;
+        din.local_colrange(ilo,ihi);
+        din.local_rowrange(jlo,jhi);
+        const Tensor<T>& t = din.data();
+        for (int64_t i=ilo; i<=ihi; i++) {
+            for (int64_t j=jlo; j<=jhi; j++) {
+                ProcessID owner = Owner(dout, i, j);
+                s.insert(owner, detail::Value<T>(i,j,t(i-ilo, j-jlo)));
+            }
+        }
+
+        s.finish();
+    }
+
+    /// Copy a MADNESS distributed matrix from an Elemental distributed matrix
+
+    /// Should work for any distribution of either
+    template <typename T>
+    void copy_from_elemental(const elem::DistMatrix<T>& din, DistributedMatrix<T>& dout) {
+        BinSorter< detail::Value<T> , detail::ElemToMadDistCopy<T> > s(dout.get_world(), detail::ElemToMadDistCopy<T>(dout));
+        
+        const int64_t colShift =    din.ColShift(); // first row we own
+        const int64_t rowShift =    din.RowShift(); // first col we own
+        const int64_t colStride =   din.ColStride();
+        const int64_t rowStride =   din.RowStride();
+        const int64_t localHeight = din.LocalHeight();
+        const int64_t localWidth =  din.LocalWidth();
+        
+        for( int64_t jLocal=0; jLocal<localWidth; ++jLocal ) {
+            for( int64_t iLocal=0; iLocal<localHeight; ++iLocal ) {
+                const int64_t i = colShift + iLocal*colStride;
+                const int64_t j = rowShift + jLocal*rowStride;
+
+                const ProcessID owner = dout.owner(i,j);
+                s.insert(owner, detail::Value<T>(i,j,din.GetLocal(iLocal,jLocal)));
+            }
+        }
+
+        s.finish();
+    }
+
+
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 
     This function uses the Elemental HermitianGenDefiniteEig routine.
@@ -74,6 +171,7 @@ namespace madness {
         TENSOR_ASSERT(B.dim(0) == B.dim(1), "sygv requires square matrix",0,&a);
         TENSOR_ASSERT(a.iscontiguous(),"sygvp requires a contiguous matrix (a)",0,&a);
         TENSOR_ASSERT(B.iscontiguous(),"sygvp requires a contiguous matrix (B)",0,&B);
+
         world.gop.broadcast(a.ptr(), a.size(), 0);
         world.gop.broadcast(B.ptr(), B.size(), 0);
 
@@ -82,6 +180,11 @@ namespace madness {
         e = Tensor<typename Tensor<T>::scalar_type>(n);
         V = Tensor<T>(n,n);
 
+        if (a.dim(0) <= 4) {
+            // Work around bug in elemental/pmrrr/mkl/something for n=2,3
+            sygv(a, B, itype, V, e);
+            return;
+        }
 
         world.gop.fence(); //<<<<<< Essential to quiesce MADNESS threads/comms
 
@@ -103,7 +206,7 @@ namespace madness {
                for( int jLocal=0; jLocal<localWidth; ++jLocal )
                {
                    for( int iLocal=0; iLocal<localHeight; ++iLocal )
-                   {
+                       {
                          const int i = colShift + iLocal*colStride;
                          const int j = rowShift + jLocal*rowStride;
                          //gd.Set( iLocal, jLocal, buffer[i+j*n] );
@@ -136,9 +239,15 @@ namespace madness {
             elem::UpperOrLower uplo = elem::CharToUpperOrLower('U');
             elem::DistMatrix<T> Xd( n, n, GG );
             elem::DistMatrix<T,elem::VR,elem::STAR> wd( n, n, GG);
-            elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd );
-            elem::herm_eig::Sort( wd, Xd );
-     
+
+
+            // 0.83+ ???
+            // elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd,elem::SortType::ASCENDING);
+
+            // 0.79-0.82 ?
+            elem::HermitianGenDefiniteEig( eigType, uplo, gd, hd, wd, Xd);
+            elem::hermitian_eig::Sort( wd, Xd );
+
             world.mpi.Barrier();
             //Xd.Print("Xs");
      
