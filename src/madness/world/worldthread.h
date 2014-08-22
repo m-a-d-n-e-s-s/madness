@@ -787,9 +787,10 @@ namespace madness {
             run( TaskThreadEnv(nthread, id) );
             return NULL;
         }
-#endif // HAVE_INTEL_TBB
 
         static inline void * operator new(std::size_t size) throw(std::bad_alloc);
+
+#endif // HAVE_INTEL_TBB
 
         /// Destroy task object
         static inline void operator delete(void* p, std::size_t size) throw() {
@@ -1057,18 +1058,16 @@ namespace madness {
         }
     };
 
+#ifdef HAVE_INTEL_TBB
     inline void * PoolTaskInterface::operator new(std::size_t size) throw(std::bad_alloc)
     {
-#ifdef HAVE_INTEL_TBB
         if(! ThreadPool::tbb_parent_task) {
             std::cerr << "!!! Error: Cannot allocate task object because the thread pool has not been initialized.\n";
             throw std::bad_alloc();
         }
         return ::operator new(size, ThreadPool::tbb_parent_task->allocate_child());
-#else
-        return ::operator new(size);
-#endif // HAVE_INTEL_TBB
     }
+#endif // HAVE_INTEL_TBB
 
 }
 
