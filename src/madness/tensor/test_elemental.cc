@@ -217,21 +217,21 @@ int main(int argc, char** argv) {
     int myrank = world.rank();
     
     try {
-        // for (int n=1; n<100; n++) {
-        //     double err = test_sygvp<double>(world, n);
-        //     if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
-        // }
-        // for (int n=1; n<=128; n*=2) {// was 1024
-        //     double err = test_sygvp<double>(world, n);
-        //     if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
-        // }
-        // if (myrank == 0)  cout << endl; 
+        for (int n=1; n<100; n++) {
+            double err = test_sygvp<double>(world, n);
+            if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
+        }
+        for (int n=1; n<=128; n*=2) {// was 1024
+            double err = test_sygvp<double>(world, n);
+            if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
+        }
+        if (myrank == 0)  cout << endl; 
         
-        // double err = test_gesvp<double>(world, 1800, 1200);
-        // if (myrank == 0)  cout << "error in float gesvp " << err << endl;
-        // if (myrank == 0)  cout << endl; 
+        double err = test_gesvp<double>(world, 1800, 1200);
+        if (myrank == 0)  cout << "error in float gesvp " << err << endl;
+        if (myrank == 0)  cout << endl; 
 
-        // test_copy<double>(world,300,300);
+        test_copy<double>(world,300,300);
 
         for (int n=4; n<=512; n*=2)
             test_distributed_eval<double>(world,n);
