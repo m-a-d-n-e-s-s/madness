@@ -52,6 +52,7 @@
 #include <chem/gth_pseudopotential.h> 
 
 #include <madness/tensor/solvers.h>
+#include <madness/tensor/distributed_matrix.h>
 
 
 namespace madness {
@@ -64,6 +65,7 @@ typedef std::vector<functionT> vecfuncT;
 typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
 typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
+typedef DistributedMatrix<double> distmatT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
@@ -71,7 +73,7 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
-extern tensorT distributed_localize_PM(World & world,
+    extern distmatT distributed_localize_PM(World & world,
                                 const vecfuncT & mo,
                                 const vecfuncT & ao,
                                 const std::vector<int> & set,
@@ -690,12 +692,12 @@ public:
     CalculationParameters param;
     XCfunctional xc;
     AtomicBasisSet aobasis;
-    functionT vacuo_rho;
-    functionT rhoT;
-    functionT rho_elec;
-    functionT rhon;
-    functionT mol_mask;
-    functionT Uabinit;
+    //functionT vacuo_rho;
+    //functionT rhoT;
+    //functionT rho_elec;
+    //functionT rhon;
+    //functionT mol_mask;
+    //functionT Uabinit;
     functionT mask;
     vecfuncT amo, bmo;
     std::vector<int> aset, bset;
@@ -707,8 +709,8 @@ public:
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
-    double esol;//etot;
-    double vacuo_energy;
+    //double esol;//etot;
+    //double vacuo_energy;
     static const int vnucextra = 12; // load balance parameter for nuclear pot.
 
     SCF(World & world, const char *filename);
@@ -770,27 +772,7 @@ public:
 
     void project_ao_basis(World & world);
 
-    double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj,
-    		int lo, int nbf);
-
-
-    void localize_PM_ij(const int seti, const int setj, 
-                        const double tol, const double thetamax,
-                        const int natom, const int nao,  const int nmo,
-                        const std::vector<tensorT>& Svec, 
-                        const std::vector<int>& at_to_bf, const std::vector<int>& at_nbf, 
-                        long& ndone_iter, double& maxtheta, 
-                        double * restrict Qi, double * restrict Qj,  
-                        double * restrict Ci, double * restrict Cj, 
-                        double * restrict Ui, double * restrict Uj);
-
-
-    void localize_PM_task_kernel(tensorT & Q, std::vector<tensorT> & Svec,
-    		tensorT & C, const bool & doprint, const std::vector<int> & set,
-    		const double thetamax, tensorT & U, const double thresh);
-
-
-    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
+    distmatT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
     		const double thresh = 1e-9, const double thetamax = 0.5,
     		const bool randomize = true, const bool doprint = false);
 
@@ -802,11 +784,11 @@ public:
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
 
-    tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
-    		const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
+    // tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
+    // 		const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
 
 
-    tensorT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
+    distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
 
 
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);
@@ -916,6 +898,9 @@ public:
 
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
+    		int lo, int nfunc, double trantol) const;
+
+    void rotate_subspace(World& world, const distmatT& U, subspaceT& subspace,
     		int lo, int nfunc, double trantol) const;
 
     void update_subspace(World & world,
