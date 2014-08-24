@@ -50,11 +50,22 @@ namespace madness {
     // some uses below may contain quantities greater than may be
     // represented in a 32-bit integer and may also be negative.
     // I.e., a simple global replace will fail, though the existing
-    // test suite may not detect that.
+    // test suite may not detect that.  Also, large skinny matrices
+    // could easily need more than 32 bit integers to address.
 
 
+    // Forward declarations for friends
+    class DistributedMatrixDistribution;
+    template <typename T> class DistributedMatrix;
+    
+    static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile=0);
+    static inline DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile=0);
 
     class DistributedMatrixDistribution {
+        friend DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile);
+        friend DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile);
+        template <typename T> friend class DistributedMatrix;
+
     protected:
         World* pworld;
         int64_t P;                //< No. of processors
@@ -71,38 +82,14 @@ namespace madness {
         int64_t jlo,jhi;          //< Range of row indices on this processor
         int64_t idim,jdim;        //< Dimension of data on this processor
 
-    public:
 
-        /// Default constructor makes an invalid distribution
-        DistributedMatrixDistribution() 
-            : pworld(0)
-            , P(0)
-            , rank(0)
-            , n(0)
-            , m(0)
-            , tilen(0)
-            , tilem(0)
-            , Pcoldim(0)
-            , Prowdim(0)
-            , Pcol(0)
-            , Prow(0)
-            , ilo(0)
-            , ihi(0)
-            , jlo(0)
-            , jhi(0)
-            , idim(0)
-            , jdim(0)
-        {}
+        /// Constructs distribution and size info for a matrix (for use by factory functions only)
 
-        /// Resets state to same as default constructor
-        void clear() {
-            pworld = (World*)(0);
-            P = rank = n = m = tilen = tilem = Pcoldim = Prowdim = Pcol = Prow = ilo = ihi = jlo = jhi = idim = jdim = 0;
-        }
-
-
-        /// Constructs distribution and size info for a matrix 
-
+        /// This routine is dumb and just copies the given arguments,
+        /// hence it can easily make an invalid matrix.  The smarts
+        /// are in the factory functions, hence this constructor is
+        /// not for general use.
+        ///
         /// The matrix is tiled over a grid of processes as specified by the tile sizes.
         /// @param[in] World The world
         /// @param[in] n The matrix column dimension 
@@ -127,7 +114,43 @@ namespace madness {
             , jhi(std::min(jlo+tilem-1,m-1))
             , idim(std::max(ihi-ilo+1,int64_t(0)))
             , jdim(std::max(jhi-jlo+1,int64_t(0)))
+        {
+            if (ilo > ihi || jlo > jhi) {
+                ilo = jlo = 0;
+                ihi = jhi = -1;
+            }
+        }
+
+
+    public:
+
+        /// Default constructor makes an invalid distribution
+        DistributedMatrixDistribution() 
+            : pworld(0)
+            , P(0)
+            , rank(0)
+            , n(0)
+            , m(0)
+            , tilen(0)
+            , tilem(0)
+            , Pcoldim(0)
+            , Prowdim(0)
+            , Pcol(0)
+            , Prow(0)
+            , ilo(0)
+            , ihi(-1)
+            , jlo(0)
+            , jhi(-1)
+            , idim(0)
+            , jdim(0)
         {}
+
+
+        /// Resets state to same as default constructor
+        void clear() {
+            pworld = (World*)(0);
+            P = rank = n = m = tilen = tilem = Pcoldim = Prowdim = Pcol = Prow = ilo = ihi = jlo = jhi = idim = jdim = 0;
+        }
 
         bool operator==(const DistributedMatrixDistribution& d) const {
             return 
@@ -158,7 +181,6 @@ namespace madness {
             return n;
         }
 
-        
         /// Returns the row dimension of the matrix ... i.e., m for A(n,m)
 
 
@@ -219,14 +241,8 @@ namespace madness {
         /// @param[out] ilow First column index on this processor (0 if no data)
         /// @param[out] ihigh Last column index on this processor (-1 if no data)
         void local_colrange(int64_t& ilow, int64_t& ihigh) const {
-            if (ilo <= ihi  &&  jlo <= jhi) {
-                ilow = ilo;
-                ihigh = ihi;
-            }
-            else {
-                ilow = 0;
-                ihigh = -1;
-            }
+            ilow = ilo;
+            ihigh = ihi;
         }
 
 
@@ -236,14 +252,31 @@ namespace madness {
         /// @param[out] jlow First row index on this processor (0 if no data)
         /// @param[out] jhigh Last row index on this processor (-1 if no data)
         void local_rowrange(int64_t& jlow, int64_t& jhigh) const {
-            if (ilo <= ihi  &&  jlo <= jhi) {
-                jlow = jlo;
-                jhigh = jhi;
-            }
-            else {
-                jlow = 0;
-                jhigh = -1;
-            }
+            jlow = jlo;
+            jhigh = jhi;
+        }
+
+
+        /// Returns the first column index on this processor (0 if no data present)
+        int64_t local_ilow() const {
+            return ilo;
+        }
+
+        /// Returns the last column index on this processor (-1 if no data present)
+        int64_t local_ihigh() const {
+            return ihi;
+        }
+
+
+        /// Returns the first row index on this processor (0 if no data present)
+        int64_t local_jlow() const  {
+            return jlo;
+        }
+
+
+        /// Returns the last row index on this processor (0 if no data present)
+        int64_t local_jhigh() const  {
+            return jhi;
         }
 
 
@@ -353,17 +386,12 @@ namespace madness {
 
         static T idij(const int64_t i, const int64_t j) {return (i==j) ?  T(1) : T(0);}
 
-    public:
+    protected:
 
-        /// Default constructor makes an empty matrix that cannot be used except as a target for assignemnt
-        DistributedMatrix()
-            : DistributedMatrixDistribution()
-            , t()
-        {}
+        /// Constructs a distributed matrix dimension (n,m) with specified tile sizes and initialized to zero
 
-
-        /// Constructs a distributed matrix dimension (n,m) with specified tile sizes and initialized to zero [deprecated]
-
+        /// [deprecated ... use factory functions instead]
+        /// 
         /// The matrix is tiled over a grid of processes as specified by the tile sizes.
         /// @param[in] World The world
         /// @param[in] n The matrix column dimension 
@@ -375,6 +403,14 @@ namespace madness {
         {
             if (idim>0 && jdim>0) t = Tensor<T>(idim,jdim);
         }
+
+    public:
+
+        /// Default constructor makes an empty matrix that cannot be used except as a target for assignemnt
+        DistributedMatrix()
+            : DistributedMatrixDistribution()
+            , t()
+        {}
 
 
         /// Constructs a distributed matrix with given distribution info
@@ -442,12 +478,9 @@ namespace madness {
         /// The local data is a tensor dimension \c (local_coldim,local_rowdim) and if either of the dimensions
         /// are zero there is no data.  A natural way to loop thru the data that gives you the actual row and column indices is
         /// \code
-        /// int64_t ilo, ihi, jlo, jhi;
-        /// A.local_colrange(ilo,ihi);
-        /// A.local_rowrange(jlo,jhi);
-        /// Tensor<T>& t = A.data();
-        /// for (int64_t i=ilo; i<=ihi; i++) {
-        ///    for (int64_t j=jlo; j<=jhi; j++) {
+        /// const Tensor<T>& t = A.data();
+        /// for (int64_t i=A.get_ilow(); i<=A.get_ihigh(); i++) {
+        ///    for (int64_t j=A.get_jlow(); j<=A.get_jhigh(); j++) {
         ///        the ij'th element is t(i-ilo, j-jlo)
         ///    }
         /// }
@@ -460,12 +493,9 @@ namespace madness {
         /// The local data is a tensor dimension \c (local_coldim,local_rowdim) and if either of the dimensions
         /// are zero there is no data.  A natural way to loop thru the data that gives you the actual row and column indices is
         /// \code
-        /// int64_t ilo, ihi, jlo, jhi;
-        /// A.local_colrange(ilo,ihi);
-        /// A.local_rowrange(jlo,jhi);
         /// const Tensor<T>& t = A.data();
-        /// for (int64_t i=ilo; i<=ihi; i++) {
-        ///    for (int64_t j=jlo; j<=jhi; j++) {
+        /// for (int64_t i=A.get_ilow(); i<=A.get_ihigh(); i++) {
+        ///    for (int64_t j=A.get_jlow(); j<=A.get_jhigh(); j++) {
         ///        the ij'th element is t(i-ilo, j-jlo)
         ///    }
         /// }
@@ -619,7 +649,7 @@ namespace madness {
     /// @param[in] m The row (second) dimension
     /// @param[in] coltile Tile size for columns forced to be even (default is to use all processes)
     /// @return An object encoding the dimension and distribution information
-    static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile=0) {
+    static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile) { // default coltile=0 above
         if (world.size()*coltile < n) coltile = (n-1)/world.size() + 1;
         coltile = std::min(coltile,n);
         if ((coltile&0x1)) ++coltile; // ??? Was before the previous statement
@@ -649,7 +679,7 @@ namespace madness {
     /// @param[in] m The row (second) dimension
     /// @param[in] rowtile Tile size for row (default is to use all processes)
     /// @return An object encoding the dimension and distribution information
-    static inline DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile=0) {
+    static DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile) { // default rowtile=0 above
         if (world.size()*rowtile < m) rowtile = (m-1)/world.size() + 1;
         rowtile = std::min(rowtile,m);
 

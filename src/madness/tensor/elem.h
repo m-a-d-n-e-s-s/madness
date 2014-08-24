@@ -146,6 +146,74 @@ namespace madness {
         s.finish();
     }
 
+    /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
+
+    This function uses the Elemental HermitianGenDefiniteEig routine.
+
+    A should be selfadjoint and B positive definite.
+
+    \verbatim
+    Specifies the problem type to be solved:
+    = 1:  A*x = (lambda)*B*x
+    = 2:  A*B*x = (lambda)*x (TODO)
+    = 3:  B*A*x = (lambda)*x (TODO)
+    \endverbatim
+
+    */
+    template <typename T>
+    void sygv(const DistributedMatrix<T>& A, 
+               const DistributedMatrix<T>& B, 
+               int itype,
+               DistributedMatrix<T>& X, 
+               Tensor< typename Tensor<T>::scalar_type >& e) 
+    {
+        const int64_t n = A.coldim();
+        const int64_t m = A.rowdim();
+        MADNESS_ASSERT(n==m);
+        MADNESS_ASSERT(n==B.coldim() && m==B.rowdim());
+        
+        const int blocksize = 128;
+        const elem::Grid GG(A.get_world().mpi.comm().Get_mpi_comm() );
+        elem::SetBlocksize(blocksize);
+        
+        elem::DistMatrix<T> EA(n,n,GG);
+        elem::DistMatrix<T> EB(n,n,GG);
+        
+        copy_to_elemental(A,EA);
+        copy_to_elemental(B,EB);
+        
+        elem::HermitianGenDefiniteEigType eigType = elem::AXBX;
+        elem::UpperOrLower uplo = elem::CharToUpperOrLower('U');
+        elem::DistMatrix<T> Xd(n,n,GG);
+        elem::DistMatrix<T,elem::VR,elem::STAR> wd( n, n, GG);
+        
+        // 0.83+ ???
+        // elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd, elem::SortType::ASCENDING);
+        
+        // 0.79-0.82 ?
+        elem::HermitianGenDefiniteEig(eigType, uplo, EA, EB, wd, Xd);
+        elem::hermitian_eig::Sort(wd, Xd);
+        
+        A.get_world().mpi.Barrier();
+        
+        X = DistributedMatrix<T>(A.distribution());
+        e = Tensor<typename Tensor<T>::scalar_type>(n);
+        
+        copy_from_elemental(Xd, X);
+        
+        const int  localHeight1 = wd.LocalHeight();
+        const int colShift1 = wd.ColShift(); // first row we own
+        const int colStride1= wd.ColStride();
+        T * buffer = e.ptr();
+        for( int iLocal=0; iLocal<localHeight1; ++iLocal ) {
+            const int jLocal=0;
+            const int i = colShift1 + iLocal*colStride1;
+            //buffer[i]= wd.Get( iLocal, jLocal);
+            buffer[i]= wd.GetLocal( iLocal, jLocal);
+        }
+        
+        A.get_world().gop.sum(e.ptr(),n);
+    }
 
     /** \brief  Generalized real-symmetric or complex-Hermitian eigenproblem.
 

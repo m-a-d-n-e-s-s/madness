@@ -183,6 +183,33 @@ void test_copy(World& world, int n, int m) {
     }
 }
 
+double afiller(int64_t i, int64_t j) {
+    return std::cos((i+j)/10.0) + std::sin(i*j/(i+j+1.0));
+}
+
+template <typename T>
+void test_distributed_eval(World& world, const int N) {
+    DistributedMatrix<T> A = column_distributed_matrix<T>(world, N, N);
+    DistributedMatrix<T> B = row_distributed_matrix<T>(world, N, N); // for perversity
+    B.fill_identity();
+    A.fill(afiller);
+
+    DistributedMatrix<T> X;
+    Tensor<typename Tensor<T>::scalar_type> e;
+    
+    sygv(A, B, 1, X, e);
+
+    Tensor<T> AA(N,N); A.copy_to_replicated(AA);
+    Tensor<T> BB(N,N);  B.copy_to_replicated(BB);
+    Tensor<T> XX(N,N); X.copy_to_replicated(XX);
+
+    double err = 0.0;
+    for (int i=0; i<N; ++i) {
+        err = max(err,(double) (inner(AA,XX(_,i)) - inner(BB,XX(_,i))*(T) e(i)).normf());
+    }
+    if (world.rank() == 0) print(N,err);
+}
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
@@ -190,21 +217,24 @@ int main(int argc, char** argv) {
     int myrank = world.rank();
     
     try {
-        for (int n=1; n<100; n++) {
-            double err = test_sygvp<double>(world, n);
-            if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
-        }
-        for (int n=1; n<=1024; n*=2) {
-            double err = test_sygvp<double>(world, n);
-            if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
-        }
-        if (myrank == 0)  cout << endl; 
+        // for (int n=1; n<100; n++) {
+        //     double err = test_sygvp<double>(world, n);
+        //     if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
+        // }
+        // for (int n=1; n<=128; n*=2) {// was 1024
+        //     double err = test_sygvp<double>(world, n);
+        //     if (myrank == 0)  cout << "n=" << n << " error in double sygvp " << err << endl;
+        // }
+        // if (myrank == 0)  cout << endl; 
         
-        double err = test_gesvp<double>(world, 1800, 1200);
-        if (myrank == 0)  cout << "error in float gesvp " << err << endl;
-        if (myrank == 0)  cout << endl; 
+        // double err = test_gesvp<double>(world, 1800, 1200);
+        // if (myrank == 0)  cout << "error in float gesvp " << err << endl;
+        // if (myrank == 0)  cout << endl; 
 
-        test_copy<double>(world,300,300);
+        // test_copy<double>(world,300,300);
+
+        for (int n=4; n<=512; n*=2)
+            test_distributed_eval<double>(world,n);
     }
     catch (SafeMPI::Exception e) {
         error("caught an MPI exception");
