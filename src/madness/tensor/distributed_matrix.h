@@ -61,6 +61,12 @@ namespace madness {
     static inline DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile=0);
     static inline DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile=0);
 
+    template <typename T>
+    DistributedMatrix<T> concatenate_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
+
+    template <typename T>
+    DistributedMatrix<T> interleave_rows(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
+
     class DistributedMatrixDistribution {
         friend DistributedMatrixDistribution column_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t coltile);
         friend DistributedMatrixDistribution row_distributed_matrix_distribution(World& world, int64_t n, int64_t m, int64_t rowtile);
@@ -382,6 +388,9 @@ namespace madness {
     /// To get a deep copy use the copy function (again just like for tensors).
     template <typename T>
     class DistributedMatrix : public DistributedMatrixDistribution {
+        friend DistributedMatrix<T> interleave_rows<T>(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
+        friend DistributedMatrix<T> concatenate_rows<T>(const DistributedMatrix<T>& a, const DistributedMatrix<T>& b);
+
         Tensor<T> t;            //< The data
 
         static T idij(const int64_t i, const int64_t j) {return (i==j) ?  T(1) : T(0);}
