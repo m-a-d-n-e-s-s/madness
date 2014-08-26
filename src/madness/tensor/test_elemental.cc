@@ -1,14 +1,15 @@
 #include <madness/madness_config.h>
 
-#ifdef MADNESS_HAS_ELEMENTAL
 
 #define WORLD_INSTANTIATE_STATIC_TEMPLATES
 #include <madness/world/world.h>
-#include <madness/tensor/elem.h>
-
-using namespace elem;
 using namespace madness;
 using namespace std;
+
+#ifdef MADNESS_HAS_ELEMENTAL
+
+#include <madness/tensor/elem.h>
+using namespace elem;
 
 #ifdef STATIC
 #  undef STATIC
