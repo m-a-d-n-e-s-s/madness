@@ -1,7 +1,10 @@
-SUBDIRS = lib apps
+SUBDIRS = gtest madness apps examples
 
-libraries:	$(lib_LIBRARIES)
-	for dir in lib ; do $(MAKE) -C $$dir $@ ; done
+thisincludedir = $(includedir)
+thisinclude_HEADERS = madness.h
 
-install-libraries:
-	for dir in lib ; do $(MAKE) -C $$dir $@ ; done
+libraries:
+	for dir in madness apps ; do $(MAKE) -C $$dir libraries ; done
+
+install-libraries: install-thisincludeHEADERS
+	for dir in madness apps ; do $(MAKE) -C $$dir install-libraries ; done

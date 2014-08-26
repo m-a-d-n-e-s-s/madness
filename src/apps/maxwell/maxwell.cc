@@ -30,14 +30,14 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include <string>
-#include <mra/mra.h>
-#include <mra/sdf_shape_3D.h>
-#include <constants.h>
-#include <misc/interpolation_1d.h>
-#include <tensor/gmres.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/sdf_shape_3D.h>
+#include <madness/constants.h>
+#include <madness/misc/interpolation_1d.h>
+#include <madness/tensor/gmres.h>
 #include "envelopedpulse.h"
 #include "frequencyhandler.h"
 #include "complex_fun.h"

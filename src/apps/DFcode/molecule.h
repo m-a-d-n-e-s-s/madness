@@ -38,7 +38,7 @@
 
 #include <DFcode/corepotential.h>
 #include <DFcode/atomutil.h>
-#include <world/array.h>
+#include <madness/world/array.h>
 #include <vector>
 #include <string>
 #include <iostream>
@@ -47,8 +47,8 @@
 #include <algorithm>
 #include <ctype.h>
 #include <cmath>
-#include <tensor/tensor.h>
-#include <misc/misc.h>
+#include <madness/tensor/tensor.h>
+#include <madness/misc/misc.h>
 
 
 class Atom {

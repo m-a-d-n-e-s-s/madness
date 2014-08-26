@@ -225,7 +225,7 @@ parallel program using MADNESS.
 \begin{quote}
 	\begin{verbatim} 
 	#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-	#include <mra/mra.h>
+	#include <madness/mra/mra.h>
 	using namespace madness;
 	
 	int main(int argc, char** argv) {
@@ -324,7 +324,7 @@ Your complete program, \texttt{trunk}\texttt{/src/apps/sininteg.cc, }looks like 
 \begin{quote}
 	\begin{verbatim} 
 		#define WORLD_INSTANTIATE_STATIC_TEMPLATES  
-		#include <mra/mra.h>
+		#include <madness/mra/mra.h>
 		using namespace madness;
 		
 		double myf(const coord_1d& r) {

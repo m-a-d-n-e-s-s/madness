@@ -35,14 +35,14 @@
 
  /// \file moldft/molecule.cc
  /// \brief Simple management of molecular information and potential
- ///#define WORLD_INSTANTIATE_STATIC_TEMPLATES
- ///#include <mra/mra.h>
- #include <tensor/tensor.h>
- #include <tensor/tensor_lapack.h>
- #include <constants.h>
+ /////#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+ ///#include <madness/mra/mra.h>
+ #include <madness/tensor/tensor.h>
+ #include <madness/tensor/tensor_lapack.h>
+ #include <madness/constants.h>
  #include <jacob/molecule.h>
  #include <jacob/atomutil.h>
- #include <misc/misc.h>
+ #include <madness/misc/misc.h>
  #include <iomanip>
  #include <set>
 

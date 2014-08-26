@@ -31,7 +31,7 @@ AC_DEFUN([ACX_ENABLE_WARN], [
   if test $acx_enable_warn != "no"; then
     case $acx_enable_warn_compiler in
       GNU)
-        acx_enable_warn_flags="-Wall -Wno-strict-aliasing -Wno-deprecated"
+        acx_enable_warn_flags="-Wall -Wno-strict-aliasing -Wno-deprecated -Wno-unused-local-typedefs"
       ;;
       clang)
         acx_enable_warn_flags="-Wall"

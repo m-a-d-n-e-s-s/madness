@@ -51,9 +51,9 @@
            This code generated the data in Figure 3 of the above reference.
 */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <tensor/gmres.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/tensor/gmres.h>
 #include "basisfunction.h"
 #include "atom.h"
 #include "density.h"

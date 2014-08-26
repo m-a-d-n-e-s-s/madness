@@ -47,11 +47,11 @@ $Id$
 */
 #ifndef MADNESS_ABINITDFTSOLVENTSOLVER_H
 #define MADNESS_ABINITDFTSOLVENTSOLVER_H
-#include <mra/mra.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 #include <ctime>
-#include <tensor/solvers.h>
-#include <mra/funcplot.h>
+#include <madness/tensor/solvers.h>
+#include <madness/mra/funcplot.h>
 #include <examples/nonlinsol.h>
 
 typedef real_function_3d realfunc;
@@ -387,7 +387,7 @@ public:
   //cavitation energy
   double cavitation_energy() const {
       double quantum_surface = make_surface().trace();
-      double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u 
+      double convfact = 6.423049507e-4; // 1N/m = 6.423049507e-4a.u
       return convfact*Gamma*quantum_surface;
   }
  
@@ -407,7 +407,7 @@ public:
       realfunc gradnormrho = (gxGgx + gyGgy + gzGgz).scale(rnorm);
       realfunc scoef = (make_surface().norm2())*re_grad_rho(rho);
       realfunc ddelG = fac*scoef*gradnormrho;
-      double convfact = 6.423049507e-4; // 1N/m = 6.423049507e−4a.u 
+      double convfact = 6.423049507e-4; // 1N/m = 6.423049507e-4a.u
       return ddelG.scale(convfact);
   }
     //compute the gradient of epsilon[rho] 

@@ -33,10 +33,10 @@
 #ifndef ELECTRONICSTRUCTUREPARAMS_H_
 #define ELECTRONICSTRUCTUREPARAMS_H_
 
-#include <mra/mra.h>
-#include <mra/vmra.h>
-#include <misc/ran.h>
-#include <misc/misc.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/vmra.h>
+#include <madness/misc/ran.h>
+#include <madness/misc/misc.h>
 #include "mentity.h"
 #include "molecularbasis.h"
 

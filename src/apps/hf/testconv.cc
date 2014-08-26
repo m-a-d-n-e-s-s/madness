@@ -30,8 +30,8 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <world/world.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/world/world.h>
 
 using namespace std;
 using namespace madness;

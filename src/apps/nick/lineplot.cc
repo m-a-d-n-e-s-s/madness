@@ -1,9 +1,9 @@
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <world/parar.h>
-#include <constants.h>
-#include <tensor/vmath.h>
-#include <mra/lbdeux.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/world/parar.h>
+#include <madness/constants.h>
+#include <madness/tensor/vmath.h>
+#include <madness/mra/lbdeux.h>
 #include <complex>
 #define PRINT(str) if(world.rank()==0) std::cout << str
 #define PRINTLINE(str) if(world.rank()==0) std::cout << str << std::endl

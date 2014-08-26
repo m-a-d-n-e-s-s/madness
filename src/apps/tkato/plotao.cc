@@ -1,5 +1,5 @@
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
 #include <iostream>
 #include <vector>
 #include <iomanip>

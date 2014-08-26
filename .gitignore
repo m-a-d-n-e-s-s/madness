@@ -23,7 +23,7 @@
 .cproject
 .project
 Makefile.in
-madness_config.h.in
+config.h.in
 aclocal.m4
 autom4te.cache
 configure

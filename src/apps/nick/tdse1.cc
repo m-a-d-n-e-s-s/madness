@@ -34,11 +34,11 @@
 /// \brief Evolves the 1D hydrogen atom in imaginary and also real time
 
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/qmprop.h>
-#include <mra/operator.h>
-#include <constants.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/mra/qmprop.h>
+#include <madness/mra/operator.h>
+#include <madness/constants.h>
 
 using namespace madness;
 const int NDIM = 1;

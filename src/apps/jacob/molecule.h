@@ -46,9 +46,9 @@
 #include <algorithm>
 #include <ctype.h>
 #include <cmath>
-#include <tensor/tensor.h>
-#include <misc/misc.h>
-#include <world/array.h>
+#include <madness/tensor/tensor.h>
+#include <madness/misc/misc.h>
+#include <madness/world/array.h>
 
 
 class Atom {

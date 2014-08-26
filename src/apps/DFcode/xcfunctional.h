@@ -1,17 +1,17 @@
 #ifndef MOLDFT_XCMOLDFT_H
 #define MOLDFT_XCMOLDFT_H
 
-#include <madness_config.h>
+#include <madness/madness_config.h>
 
 /// \file moldft/xcfunctional.h
 /// \brief Defines interface for DFT XC functionals
 /// \ingroup moldft
 
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <vector>
 #include <algorithm>
 #include <utility>
-#include <mra/key.h>
+#include <madness/mra/key.h>
 
 #ifdef MADNESS_HAS_LIBXC
 #include <xc.h>

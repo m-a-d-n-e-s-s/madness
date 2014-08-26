@@ -30,9 +30,9 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <constants.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 #include "eigsolver.h"
 #include "dft.h"
 //#include "outputwriter.h"

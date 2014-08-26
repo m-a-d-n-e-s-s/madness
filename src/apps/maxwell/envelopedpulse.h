@@ -34,9 +34,9 @@
 #define __enveloped_pulse__
 
 #include <string>
-#include <constants.h>
-#include <mra/mra.h>
-#include <misc/interpolation_1d.h>
+#include <madness/constants.h>
+#include <madness/mra/mra.h>
+#include <madness/misc/interpolation_1d.h>
 
 using namespace std;
 using namespace madness;

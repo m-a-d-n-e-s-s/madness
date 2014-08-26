@@ -34,7 +34,7 @@
 /// \file ii/hello.cc
 /// \brief Simplest example program for MADNESS
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 using namespace madness;
 

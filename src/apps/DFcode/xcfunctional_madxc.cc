@@ -1,8 +1,8 @@
-#include <madness_config.h>
+#include <madness/madness_config.h>
 
 
 #include <DFcode/xcfunctional.h>
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <sstream>
 
 #include <libMADxc.h>

@@ -33,8 +33,8 @@
 #ifndef UTIL_H_
 #define UTIL_H_
 
-#include <mra/mra.h>
-#include <world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/world/world.h>
 
 namespace madness {
 //  void printfunc(const World& world, Function<double,3> f, int npts)
@@ -67,8 +67,8 @@ namespace madness {
 //  }
 }
 //
-//#include <mra/mra.h>
-//#include <world/world.h>
+//#include <madness/mra/mra.h>
+//#include <madness/world/world.h>
 //#include <vector>
 //
 //namespace madness

@@ -1,8 +1,7 @@
 # This must match definition of AC_CONFIG_MACRO_DIR in configure.ac
 ACLOCAL_AMFLAGS = -I ./config
 
-SRC_SUBDIRS = include src
-SUBDIRS = $(SRC_SUBDIRS) config
+SUBDIRS = src config
 
 doc:
 	cd doc; $(MAKE)
@@ -10,53 +9,56 @@ doc:
 
 .PHONY:
 
-libraries:	$(lib_LIBRARIES)
-	for dir in $(SRC_SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+libraries:
+	$(MAKE) -C src libraries
 
 world:
-	$(MAKE) -C src/lib/world libraries
+	$(MAKE) -C src/madness/world libraries
 
 tinyxml:
-	$(MAKE) -C src/lib/tinyxml libraries
+	$(MAKE) -C src/madness/tinyxml libraries
 
 muparser:
-	$(MAKE) -C src/lib/muParser libraries
+	$(MAKE) -C src/madness/muParser libraries
 
 misc: world
-	$(MAKE) -C src/lib/misc libraries
+	$(MAKE) -C src/madness/misc libraries
 	
 tensor: misc
-	$(MAKE) -C src/lib/tensor libraries
+	$(MAKE) -C src/madness/tensor libraries
 
-linalg: tensor  
-	$(MAKE) -C src/lib/linalg libraries
-
-mra: linalg tinyxml muparser
-	$(MAKE) -C src/lib/mra libraries
+mra:
+	$(MAKE) -C src libraries
+	
+chem: mra
+	$(MAKE) -C src/apps/chem libraries
 
 install-libraries:
-	for dir in $(SRC_SUBDIRS) ; do $(MAKE) -C $$dir $@ ; done
+	$(MAKE) -C src install-libraries
+	$(MAKE) -C config install
 	
 install-madinclude:
-	$(MAKE) -C include install-libraries
+	$(MAKE) -C src/madness install-thisincludeHEADERS
 
-install-world: world install-madinclude
-	$(MAKE) -C src/lib/world install-libraries
+install-world: install-madinclude
+	$(MAKE) -C src/madness/world install-libraries
 
-install-tinyxml: tinyxml install-madinclude
-	$(MAKE) -C src/lib/tinyxml install-libraries
+install-tinyxml: install-madinclude
+	$(MAKE) -C src/madness/tinyxml install-libraries
 
-install-muparser: muparser install-madinclude
-	$(MAKE) -C src/lib/muParser install-libraries
+install-muparser: install-madinclude
+	$(MAKE) -C src/madness/muParser install-libraries
 
-install-misc: install-world misc
-	$(MAKE) -C src/lib/misc install-libraries
+install-misc: install-world
+	$(MAKE) -C src/madness/misc install-libraries
 
-install-tensor: install-misc tensor
-	$(MAKE) -C src/lib/tensor install-libraries
+install-tensor: install-misc
+	$(MAKE) -C src/madness/tensor install-libraries
 
-install-linalg: install-tensor linalg
-	$(MAKE) -C src/lib/linalg install-libraries
+install-mra: install-tensor install-muparser install-tinyxml
+	$(MAKE) -C src install-thisincludeHEADERS
+	$(MAKE) -C src/madness/mra install-libraries
+	$(MAKE) -C config install
 
-install-mra: install-linalg install-muparser install-tinyxml mra
-	$(MAKE) -C src/lib/mra install-libraries
+install-chem: install-libraries
+

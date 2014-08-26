@@ -71,10 +71,10 @@
        .
     for their effect on convergence of the solution. */
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <tensor/gmres.h>
-#include <muParser/muParser.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/tensor/gmres.h>
+#include <madness/muParser/muParser.h>
 #include "test_problems.h"
 
 using namespace madness;

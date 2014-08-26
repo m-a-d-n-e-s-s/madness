@@ -41,8 +41,8 @@
 #define LIBXC_H_
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/world/world.h>
 //#include "xc.h"
 #include "lda.h"
 

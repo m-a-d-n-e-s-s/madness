@@ -33,8 +33,8 @@
 #ifndef POPERATOR_H_
 #define POPERATOR_H_
 
-#include <constants.h>
-#include "mra/operator.h"
+#include <madness/constants.h>
+#include <madness/mra/operator.h>
 
 #define WST_PI madness::constants::pi
 //#define WST_PI 3.14159265358979323846264338328

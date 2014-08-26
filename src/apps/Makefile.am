@@ -1,6 +1,9 @@
-SUBDIRS = examples tdse moldft 
+
+SUBDIRS = chem tdse moldft 
  #hf vnuc nick
 
 libraries:
-	echo "Nothing to be done"
+	$(MAKE) -C chem libraries
 
+install-libraries:
+	$(MAKE) -C chem install-libraries

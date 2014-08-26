@@ -39,7 +39,7 @@
 /// \file response.h
 /// \brief Coupled-Purturbed HF/KS
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <vector>
 #include <tkato/scf.h>
 #include <tkato/molsys.h>

@@ -1,1 +1,1 @@
-../../lib/chem/lda.cc
+../moldft/lda.cc

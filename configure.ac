@@ -16,7 +16,7 @@ m4_pattern_allow([AM_PROG_AR])
 AM_PROG_AR
 
 # We want #defines output into a header file
-AC_CONFIG_HEADERS([include/madness_config.h])
+AC_CONFIG_HEADERS([src/madness/config.h])
 
 # Detect specific systems so can provide their whacky defaults
 ACX_CRAYXT
@@ -41,16 +41,20 @@ AC_DEFINE_UNQUOTED([HOST_SYSTEM], ["$host_os"], [Defines the host os (linux-gnu,
 # Pick out CPUs for which we have special source files (assembler)
 use_x86_64_asm=no
 use_x86_32_asm=no
-case $host_cpu in
-     x86_64)   
-         AC_DEFINE([X86_64], [1], [If set indicates we are using a 64-bit Intel/AMD cpu.]) 
-         use_x86_64_asm=yes
-         ;;
-     i?86*) 
-         AC_DEFINE([X86_32], [1], [If set indicates we are using a 32-bit Intel/AMD cpu.]) 
-         use_x86_32_asm=yes
-         ;;
-esac
+
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if !(defined(__x86_64__) || defined(_M_X64))
+#error Not x86_64
+#endif
+]])], [use_x86_64_asm=yes])
+
+if test $use_x86_64_asm = no; then
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
+#if !(defined(__i386) || defined(_M_IX86))
+#error Not x86
+#endif
+]])], [use_x86_32_asm=yes])
+fi
 
 # Define AM conditional for use of aforementioned assembler
 AM_CONDITIONAL([USE_X86_64_ASM], [test $use_x86_64_asm = yes])
@@ -191,6 +195,40 @@ ACX_WITH_EIGEN3
 # Check for Elemental
 ACX_WITH_ELEMENTAL
 
+# Set the default fortran integer type
+AC_ARG_WITH([fortran-int32],
+            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 32-bit integers.])],
+            [
+              case $withval in
+              yes)
+                acx_fortran_int_size=4
+              ;;
+              no)
+                acx_fortran_int_size=8
+              ;;
+              *)
+                AC_MSG_ERROR([Unknown value provided for --with-fortran-int32])
+              esac
+            ],
+            [acx_fortran_int_size=4])
+
+case $acx_fortran_int_size in
+4)
+  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
+  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4])
+  AC_MSG_NOTICE([Default Fortran integer: integer*4])
+;;
+8)
+  if test x$ac_cv_type_int64_t = xno; then
+    AC_MSG_ERROR([The compiler does not support int64_t, which is required to link with fortran libraries that use 8 byte integers. Rerun configure with '--with-fortran-int32' option.])
+  fi
+  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8],[Default Fortran integer size.])
+  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8])
+  AC_MSG_NOTICE([Default Fortran integer: integer*8])
+esac
+
+ACX_WITH_MKL
+
 # Checks for Fortran linking conventions and BLAS+LAPACK at the same time
 ACX_FORTRAN_SYMBOLS
 
@@ -300,39 +338,6 @@ AC_ARG_ENABLE([bsend-ack],
             [
              AC_DEFINE([MADNESS_USE_BSEND_ACKS],[1],[Define when MADNESS should use Bsend for huge message acknowledgements.])
             ])
-     
-# Set the default fortran integer type
-AC_ARG_WITH([fortran-int32],
-            [AC_HELP_STRING([--with-fortran-int32], [Set FORTRAN integer size to 32 bit. By default, assume 64-bit integers.])],
-            [
-              case $withval in
-              yes)
-                acx_fortran_int_size=4
-              ;;
-              no)
-                acx_fortran_int_size=8
-              ;;
-              *)
-                AC_MSG_ERROR([Unknown value provided for --with-fortran-int32])
-              esac
-            ],
-            [acx_fortran_int_size=8])
-
-case $acx_fortran_int_size in
-4)
-  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4],[Default Fortran integer size.])
-  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[4])
-  AC_MSG_NOTICE([Default Fortran integer: integer*4])
-;;
-8)
-  if test x$ac_cv_type_int64_t = xno; then
-    AC_MSG_ERROR([The compiler does not support int64_t, which is required by MADNESS. Rerun configure and add the '--with-fortran-int32' option.])
-  fi
-  AC_DEFINE([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8],[Default Fortran integer size.])
-  AC_SUBST([MADNESS_FORTRAN_DEFAULT_INTEGER_SIZE],[8])
-  AC_MSG_NOTICE([Default Fortran integer: integer*8])
-esac
-
 
 # Set the MPI thread level used by MADNESS
 MADNESS_MPI_THREAD_LEVEL=MPI_THREAD_SERIALIZED
@@ -375,27 +380,27 @@ AC_CONFIG_FILES([
     config/Makefile
     config/Makefile.sample
     config/MADNESS.pc
-    include/Makefile
     src/Makefile
-    src/lib/Makefile
-       src/lib/world/Makefile
-       src/lib/muParser/Makefile
-       src/lib/misc/Makefile
-       src/lib/tinyxml/Makefile
-       src/lib/tensor/Makefile
-       src/lib/mra/Makefile
-       src/lib/chem/Makefile
-    src/apps/Makefile
-       src/apps/examples/Makefile
-       src/apps/tdse/Makefile
-       src/apps/hf/Makefile
-       src/apps/exciting/Makefile
-       src/apps/moldft/Makefile
-       src/apps/nick/Makefile
-       src/apps/tkato/Makefile
-       src/apps/jacob/Makefile
-       src/apps/interior_bc/Makefile
-       src/apps/interior_bc/nanophoto/Makefile
+      src/gtest/Makefile
+      src/madness/Makefile
+        src/madness/world/Makefile
+        src/madness/muParser/Makefile
+        src/madness/misc/Makefile
+        src/madness/tinyxml/Makefile
+        src/madness/tensor/Makefile
+        src/madness/mra/Makefile
+      src/apps/Makefile
+        src/apps/chem/Makefile
+        src/apps/tdse/Makefile
+        src/apps/hf/Makefile
+        src/apps/exciting/Makefile
+        src/apps/moldft/Makefile
+        src/apps/nick/Makefile
+        src/apps/tkato/Makefile
+        src/apps/jacob/Makefile
+        src/apps/interior_bc/Makefile
+        src/apps/interior_bc/nanophoto/Makefile
+      src/examples/Makefile
     doc/Makefile
     doc/doxygen.cfg
 ])

@@ -33,7 +33,7 @@
 /// Implementation of functions in frequencyhandler.h
 
 #include "frequencyhandler.h"
-#include <misc/interpolation_1d.h>
+#include <madness/misc/interpolation_1d.h>
 
 bool FrequencyHandler::read_file() {
 	char filename[80];

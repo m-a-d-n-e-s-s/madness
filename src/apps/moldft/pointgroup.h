@@ -36,8 +36,8 @@
 /// \file pointgroup.h
 /// \brief Implements basic functionality for Abelian point groups (D2h and subgroups)
 
-#include <tensor/tensor.h>
-#include <world/array.h>
+#include <madness/tensor/tensor.h>
+#include <madness/world/array.h>
 #include <string>
 #include <ostream>
 #include <sstream>

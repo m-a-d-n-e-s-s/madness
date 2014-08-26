@@ -36,9 +36,9 @@
 /// \brief Molecular HF and DFT code
 /// \defgroup moldft The molecular density funcitonal and Hartree-Fock code
 
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <tensor/solvers.h>
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+#include <madness/mra/mra.h>
+#include <madness/tensor/solvers.h>
 using namespace madness;
 
 

@@ -1,1 +1,1 @@
-../../lib/chem/molecularbasis.cc
+../moldft/molecularbasis.cc

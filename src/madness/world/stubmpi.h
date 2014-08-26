@@ -1,0 +1,227 @@
+#ifndef MADNESS_STUBMPI_H
+#define MADNESS_STUBMPI_H
+
+#include <cstddef>
+#include <cstdlib>
+#include <cstring>
+#include <madness/world/worldtime.h>
+
+typedef int MPI_Group;
+typedef int MPI_Request;
+typedef struct MPI_Status {
+    int count;
+    int cancelled;
+    int MPI_SOURCE;
+    int MPI_TAG;
+    int MPI_ERROR;
+
+} MPI_Status;
+#define MPI_STATUS_IGNORE ((MPI_Status *)1)
+#define MPI_STATUSES_IGNORE ((MPI_Status *)1)
+
+typedef int MPI_Comm;
+#define MPI_COMM_WORLD (0x44000000)
+#define MPI_UNDEFINED      (-32766)
+
+/* MPI's error classes */
+/* these constants are consistent with MPICH2 mpi.h */
+#define MPI_SUCCESS          0      /* Successful return code */
+#define MPI_ERR_COMM         5      /* Invalid communicator */
+#define MPI_ERR_ARG         12      /* Invalid argument */
+#define MPI_MAX_ERROR_STRING 1024
+
+/* Results of the compare operations. */
+#define MPI_IDENT     0
+#define MPI_CONGRUENT 1
+#define MPI_SIMILAR   2
+#define MPI_UNEQUAL   3
+
+/* MPI null objects */
+#define MPI_COMM_NULL       ((MPI_Comm)0x04000000)
+#define MPI_OP_NULL         ((MPI_Op)0x18000000)
+#define MPI_GROUP_NULL      ((MPI_Group)0x08000000)
+#define MPI_DATATYPE_NULL   ((MPI_Datatype)0x0c000000)
+#define MPI_REQUEST_NULL    ((MPI_Request)0x2c000000)
+#define MPI_ERRHANDLER_NULL ((MPI_Errhandler)0x14000000)
+
+/* MPI thread support levels */
+/* these constants are consistent with MPICH2 mpi.h */
+#define MPI_THREAD_SINGLE     0
+#define MPI_THREAD_FUNNELED   1
+#define MPI_THREAD_SERIALIZED 2
+#define MPI_THREAD_MULTIPLE   3
+
+/* these constants are consistent with MPICH2 mpi.h */
+#define MPI_IN_PLACE   ((void *) -1)
+#define MPI_PROC_NULL  -1
+#define MPI_ANY_SOURCE -2
+#define MPI_ANY_TAG    -1
+
+/* MPI data types */
+/* these constants are consistent with MPICH2 mpi.h */
+typedef int MPI_Datatype;
+#define MPI_CHAR               ((MPI_Datatype)0x4c000101)
+#define MPI_SIGNED_CHAR        ((MPI_Datatype)0x4c000118)
+#define MPI_UNSIGNED_CHAR      ((MPI_Datatype)0x4c000102)
+#define MPI_BYTE               ((MPI_Datatype)0x4c00010d)
+#define MPI_WCHAR              ((MPI_Datatype)0x4c00040e)
+#define MPI_SHORT              ((MPI_Datatype)0x4c000203)
+#define MPI_UNSIGNED_SHORT     ((MPI_Datatype)0x4c000204)
+#define MPI_INT                ((MPI_Datatype)0x4c000405)
+#define MPI_UNSIGNED           ((MPI_Datatype)0x4c000406)
+#define MPI_LONG               ((MPI_Datatype)0x4c000807)
+#define MPI_UNSIGNED_LONG      ((MPI_Datatype)0x4c000808)
+#define MPI_FLOAT              ((MPI_Datatype)0x4c00040a)
+#define MPI_DOUBLE             ((MPI_Datatype)0x4c00080b)
+#define MPI_LONG_DOUBLE        ((MPI_Datatype)0x4c00100c)
+#define MPI_LONG_LONG_INT      ((MPI_Datatype)0x4c000809)
+#define MPI_UNSIGNED_LONG_LONG ((MPI_Datatype)0x4c000819)
+#define MPI_LONG_LONG          ((MPI_Datatype)0x4c000809)
+
+/* MPI Reduction operation */
+/* these constants are consistent with MPICH2 mpi.h */
+typedef int MPI_Op;
+#define MPI_MAX     ((MPI_Op)0x58000001)
+#define MPI_MIN     ((MPI_Op)0x58000002)
+#define MPI_SUM     ((MPI_Op)0x58000003)
+#define MPI_PROD    ((MPI_Op)0x58000004)
+#define MPI_LAND    ((MPI_Op)0x58000005)
+#define MPI_BAND    ((MPI_Op)0x58000006)
+#define MPI_LOR     ((MPI_Op)0x58000007)
+#define MPI_BOR     ((MPI_Op)0x58000008)
+#define MPI_LXOR    ((MPI_Op)0x58000009)
+#define MPI_BXOR    ((MPI_Op)0x5800000a)
+#define MPI_MINLOC  ((MPI_Op)0x5800000b)
+#define MPI_MAXLOC  ((MPI_Op)0x5800000c)
+#define MPI_REPLACE ((MPI_Op)0x5800000d)
+
+/* FIXME This function should agree with http://www.mpich.org/static/docs/v3.1/www3/MPI_Group_translate_ranks.html */
+#warning This is not equivalent to the interface defined by the MPI standard!
+inline int MPI_Group_translate_ranks(const MPI_Group&, int n, const int*, const MPI_Group&, int* ranks2) {
+    *ranks2 = 0;
+    return MPI_SUCCESS;
+}
+
+/* TODO The NO-OP implementation of may not be adequate. */
+inline int MPI_Group_incl(MPI_Group group, int n, const int ranks[], MPI_Group *newgroup) {
+    return MPI_SUCCESS;
+}
+
+/* TODO The NO-OP implementation may not be adequate. */
+inline int MPI_Group_free(MPI_Group *group) {
+    return MPI_SUCCESS;
+}
+
+// Initialization and finalize functions
+inline int MPI_Init(int *, char ***) { return MPI_SUCCESS; }
+inline int MPI_Init_thread(int *, char ***, int, int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+inline int MPI_Initialized(int* flag) { *flag = 1; return MPI_SUCCESS; }
+inline int MPI_Finalize() { return MPI_SUCCESS; }
+inline int MPI_Finalized(int* flag) { *flag = 1; return MPI_SUCCESS; }
+inline int MPI_Query_thread(int *provided) { *provided = MPI_THREAD_SERIALIZED; return MPI_SUCCESS; }
+
+// Buffer functions (do nothing since no messages may be sent)
+inline int MPI_Buffer_attach(void*, int) { return MPI_SUCCESS; }
+inline int MPI_Buffer_detach(void* buffer, int* size) { return MPI_SUCCESS; }
+
+inline int MPI_Test(MPI_Request *, int *flag, MPI_Status *) {
+    *flag = 0;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Testany(int, MPI_Request[], int* index, int *flag, MPI_Status*) {
+    *index = MPI_UNDEFINED;
+    *flag = 0;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Testsome(int, MPI_Request*, int *outcount, int*, MPI_Status*) {
+    *outcount = MPI_UNDEFINED;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Get_count(MPI_Status *, MPI_Datatype, int *count) {
+    *count = 0;
+    return MPI_SUCCESS;
+}
+
+// Communicator rank and size
+inline int MPI_Comm_rank(MPI_Comm, int* rank) { *rank = 0; return MPI_SUCCESS; }
+inline int MPI_Comm_size(MPI_Comm, int* size) { *size = 1; return MPI_SUCCESS; }
+
+// There is only one node so sending messages is not allowed. Always return MPI_ERR_COMM
+inline int MPI_Isend(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request *) { return MPI_ERR_COMM; }
+inline int MPI_Send(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
+inline int MPI_Bsend(void*, int, MPI_Datatype, int, int, MPI_Comm) { return MPI_ERR_COMM; }
+inline int MPI_Irecv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Request*) { return MPI_ERR_COMM; }
+inline int MPI_Recv(void*, int, MPI_Datatype, int, int, MPI_Comm, MPI_Status*) { return MPI_ERR_COMM; }
+
+// Bcast does nothing but return MPI_SUCCESS
+inline int MPI_Bcast(void*, int, MPI_Datatype, int, MPI_Comm) { return MPI_SUCCESS; }
+
+// Reduce does memcpy and returns MPI_SUCCESS
+inline int MPI_Reduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, MPI_Op, int, MPI_Comm) {
+    if(sendbuf != MPI_IN_PLACE) std::memcpy(recvbuf, sendbuf, count);
+    return MPI_SUCCESS;
+}
+inline int MPI_Allreduce(void *sendbuf, void *recvbuf, int count, MPI_Datatype, MPI_Op, MPI_Comm) {
+    if(sendbuf != MPI_IN_PLACE) std::memcpy(recvbuf, sendbuf, count);
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_get_attr(MPI_Comm, int, void*, int*) { return MPI_ERR_COMM; }
+
+inline int MPI_Abort(MPI_Comm, int code) { exit(code); return MPI_SUCCESS; }
+
+inline int MPI_Barrier(MPI_Comm) { return MPI_SUCCESS; }
+
+inline int MPI_Comm_create(MPI_Comm,  MPI_Group, MPI_Comm *newcomm) {
+    *newcomm = MPI_COMM_NULL;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_group(MPI_Comm, MPI_Group* group) {
+    *group = MPI_GROUP_NULL;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_free(MPI_Comm * comm) {
+    *comm = MPI_COMM_NULL;
+    return MPI_SUCCESS;
+}
+
+inline int MPI_Comm_compare(MPI_Comm comm1, MPI_Comm comm2, int *result) {
+    if (comm1 == comm2) {
+        *result = MPI_IDENT;
+    } else {
+        *result = MPI_UNEQUAL;
+    }
+    return MPI_SUCCESS;
+}
+
+
+inline int MPI_Error_string(int errorcode, char *string, int *resultlen) {
+    switch(errorcode) {
+        case MPI_SUCCESS:
+            *resultlen = 8;
+            std::strncpy(string, "Success", *resultlen);
+            break;
+        case MPI_ERR_COMM:
+            *resultlen = 21;
+            std::strncpy(string, "Invalid communicator", *resultlen);
+            break;
+        case MPI_ERR_ARG:
+            *resultlen = 17;
+            std::strncpy(string, "Invalid argument", *resultlen);
+            break;
+        default:
+            return MPI_ERR_ARG;
+            break;
+    }
+
+    return MPI_SUCCESS;
+}
+
+inline double MPI_Wtime() { return madness::wall_time(); }
+
+#endif

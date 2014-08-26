@@ -36,12 +36,12 @@
 /// \file moldft/molecule.cc
 /// \brief Simple management of molecular information and potential
 
-#include <tensor/tensor.h>
-#include <tensor/tensor_lapack.h>
-#include <constants.h>
+#include <madness/tensor/tensor.h>
+#include <madness/tensor/tensor_lapack.h>
+#include <madness/constants.h>
 #include <DFcode/molecule.h>
 #include <DFcode/atomutil.h>
-#include <misc/misc.h>
+#include <madness/misc/misc.h>
 #include <iomanip>
 #include <set>
 

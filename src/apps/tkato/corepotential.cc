@@ -1,1 +1,1 @@
-../../lib/chem/corepotential.cc
+../moldft/corepotential.cc

@@ -40,8 +40,8 @@
 #ifndef ELECTRONICSTRUCTUREAPP_H_
 #define ELECTRONICSTRUCTUREAPP_H_
 
-#include <mra/mra.h>
-#include <misc/ran.h>
+#include <madness/mra/mra.h>
+#include <madness/misc/ran.h>
 #include "electronicstructureparams.h"
 //#include "poperator.h"
 #include "libxc.h"

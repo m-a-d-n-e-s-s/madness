@@ -30,9 +30,9 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <iostream>
 #include <cmath>
 #include <complex>

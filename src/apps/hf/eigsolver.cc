@@ -30,13 +30,13 @@
 
   $Id$
 */
-#define WORLD_INSTANTIATE_STATIC_TEMPLATES
+//#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
 #include "eigsolver.h"
 #include "util.h"
 #include "poperator.h"
 #include "outputwriter.h"
-#include <mra/operator.h>
+#include <madness/mra/operator.h>
 
 //#define DEBUG_STREAM *(OutputWriter::instance()->debug_stream())
 //#define LOG_STREAM *(OutputWriter::instance()->log_stream())

@@ -13,6 +13,7 @@ AC_DEFUN([ACX_WITH_GOOGLE_PERF], [
       ;;
       *)
         LIBS="$LIBS -L$withval/lib"
+	CPPFLAGS="-I$withval/include $CPPFLAGS"
         acx_with_google_perf="$withval"
       esac
     ],

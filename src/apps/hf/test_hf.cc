@@ -30,7 +30,7 @@
 
   $Id$
 */
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <iostream>
 
 #include "dft.h"
