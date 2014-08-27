@@ -78,7 +78,7 @@ int test_proj(World& world) {
     FunctionDefaults<NDIM>::set_initial_level(5);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_autorefine(true);
-    FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_truncate_on_project(false);
     int success=0;
 
