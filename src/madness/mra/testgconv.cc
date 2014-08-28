@@ -42,7 +42,7 @@
 using namespace madness;
 
 static const int k = 10;
-static const double thresh = 1e-8;
+static const double thresh = 1e-6;
 static const double L = 17;
 
 // exp(-r^2) / sqrt(pi) = normalized gaussian
@@ -51,8 +51,15 @@ double g(const coord_1d& r) {
     return exp(-r[0]*r[0]) * fac;
 }
 
-// g() conv g()
-double gconvg(const coord_1d& r) {
+
+// g' = exp(-r^2) / sqrt(pi) = derivative of a normalized gaussian
+double gprime(const coord_1d& r) {
+    static const double fac = 1.0/sqrt(constants::pi);
+    return -2.* r[0] * exp(-r[0]*r[0]) * fac;
+}
+
+// conv g()
+double convg(const coord_1d& r) {
     static const double fac = 1.0/sqrt(2.0*constants::pi);
     return exp(-r[0]*r[0]*0.5) * fac;
 }
@@ -68,6 +75,12 @@ double gconvh(const coord_1d& r) {
     return exp(-0.5*r[0]*r[0]) * r[0];
 }
 
+// D(conv) (g())
+double conv_prime_g(const coord_1d& r) {
+    static const double fac = 1.0/sqrt(2.0*constants::pi);
+    return -exp(-0.5*r[0]*r[0]) * r[0] *fac;
+}
+
 
 int test_gconv(World& world) {
     coord_1d origin(0.0), lo(-L), hi(L);
@@ -80,47 +93,82 @@ int test_gconv(World& world) {
     double error=f.trace()-1.0;
     print("error in integral(g) ", error);
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 0 ", success);
 
+    // convolve with a normalized Gaussian kernel
     std::vector< std::shared_ptr< Convolution1D<double> > > ops(1);
     ops[0].reset(new GaussianConvolution1D<double>(k, width/sqrt(constants::pi),
             width*width, 0, false));
     real_convolution_1d op(world, ops);
 
     real_function_1d opf = op(f);
-    print("error in integral(op(g)) ", error);
     error=opf.trace()-1.0;
+    print("error in integral(op(g)) ", error);
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 1 ", success);
 
-    real_function_1d exact = real_factory_1d(world).f(gconvg);
+    real_function_1d exact = real_factory_1d(world).f(convg);
     print("norm2(g conv g - exact)", (opf-exact).norm2());
     error=(opf-exact).norm2();
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 2 ", success);
 
     real_function_1d q = real_factory_1d(world).f(h);
     error=q.trace();
     print("error in integral(h) ", error);
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 3 ", success);
 
     error=q.norm2() - sqrt(sqrt(2.0*constants::pi));
     print("error in norm2(h)", error);
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 4 ", success);
 
     real_function_1d opq = op(q);
     exact = real_factory_1d(world).f(gconvh);
     error=(opq-exact).norm2();
     print("norm2(g conv h - exact)", error);
     if (error>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 5 ", success);
 
-    ops[0].reset(new GaussianConvolution1D<double>(k, width*width*sqrt(8.0),
+
+
+    // test the convolution with a derivative Gaussian:
+    // result(y) = \int g'(x-y) f(x) = \int g(x-y) f'(x)
+    // where we use
+    // f(x)      = exp(-x^2) / sqrt(pi)
+    // f'(x)     = -2 x exp(-x^2) / sqrt(pi)
+    // result(y) = -y exp(-y/2) / sqrt(2 pi)
+
+    // the derivative Gaussian convolution kernel:
+    // note the scaling of the coeffs because the derivative operator brings
+    // down the scaling factor of the exponent
+    ops[0].reset(new GaussianConvolution1D<double>(k, 1.0/sqrt(constants::pi),
             width*width, 1, false));
+
     real_convolution_1d oph(world, ops);
 
-    opq = oph(f);
-    error=(opq-exact).norm2();
-    print("norm2(h conv g - exact)", error);
-    if (error>FunctionDefaults<1>::get_thresh()) success++;
+    // this is the result hardwired
+    const real_function_1d convpg=real_factory_1d(world).f(conv_prime_g);
 
-    plot_line("opf.dat", 1001, lo, hi, q, opq, exact);
+    // apply the derivative Gaussian on f
+    opq = oph(f);
+
+    // apply the Gaussian on the derivative of f
+    const real_function_1d fp=real_factory_1d(world).f(gprime);
+    real_function_1d opfp=op(fp);
+
+    // the error
+    const double error1=(opq-convpg).norm2();
+    const double error2=(opfp-convpg).norm2();
+    print("norm2(conv' g - exact)", error1);
+    print("norm2(conv g' - exact)", error2);
+    if (error1>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 6a ", success);
+    if (error2>FunctionDefaults<1>::get_thresh()) success++;
+    print("success 6b ", success);
+
+    plot_line("opf.dat", 1001, lo, hi, q, opq, convpg);
 
     world.gop.fence();
     return success;
@@ -138,7 +186,12 @@ int main(int argc, char**argv) {
         FunctionDefaults<1>::set_cubic_cell(-L,L);
         FunctionDefaults<1>::set_k(k);
         FunctionDefaults<1>::set_thresh(thresh);
+        FunctionDefaults<1>::set_truncate_mode(1);
         FunctionDefaults<1>::set_initial_level(5);
+        if (world.rank()==0) {
+        	print(" threshold  ", thresh);
+        	print(" polynomial ", k,"\n");
+        }
         success+=test_gconv(world);
 
     }
