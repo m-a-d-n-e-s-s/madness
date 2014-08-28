@@ -155,11 +155,11 @@ int test_opdir(World& world) {
     FunctionDefaults<3>::set_initial_level(3);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_autorefine(true);
-    FunctionDefaults<3>::set_truncate_mode(0);
+    FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_truncate_on_project(false);
 
     real_function_3d f = real_factory_3d(world).functor(real_functor_3d(new Gaussian<double,3>(origin, expnt, coeff)));
-    //f.truncate(); // Comment this out to get 20x reduction in error
+    f.truncate(); // Comment this out to get 20x reduction in error
     f.reconstruct();
 
     double norm = f.trace();
@@ -173,11 +173,17 @@ int test_opdir(World& world) {
     // (error is consistently reduced as compute with higher accuracy)
     //
     // ... seems compiler version sensitive ... sigh.
-    const double errs[] = {7.0e-07,3.2e-06,1.4e-05,9.2e-07,4.9e-06,1.9e-05,
-                           1.2e-05,3.8e-05,4.3e-05,3.2e-6,2.3e-05,6.6e-05,
-                           4.5e-06,3.8e-05,6.3e-05,2.7e-05,7.9e-05,6.2e-05,
-                           2.2e-05,1.9e-04,2.0e-04,3.1e-05,1.5e-04,1.5e-04,
-                           1.8e-04,2.5e-04,2.6e-04};
+//    const double errs[] = {7.0e-07,3.2e-06,1.4e-05,9.2e-07,4.9e-06,1.9e-05,
+//                           1.2e-05,3.8e-05,4.3e-05,3.2e-6,2.3e-05,6.6e-05,
+//                           4.5e-06,3.8e-05,6.3e-05,2.7e-05,7.9e-05,6.2e-05,
+//                           2.2e-05,1.9e-04,2.0e-04,3.1e-05,1.5e-04,1.5e-04,
+//                           1.8e-04,2.5e-04,2.6e-04};
+    const double errs[] = {5.8e-06, 1.0e-05, 1.9e-05, 5.0e-06, 8.1e-06, 1.7e-05,
+                           8.4e-06, 1.1e-05, 4.5e-05, 1.0e-05, 2.3e-05, 2.1e-05,
+                           1.0e-05, 1.2e-05, 1.8e-05, 1.6e-05, 1.5e-05, 5.4e-05,
+                           6.8e-06, 8.5e-06, 2.0e-05, 5.4e-06, 8.7e-06, 3.8e-05,
+                           1.8e-05, 3.0e-05, 1.2e-04 };
+
     const char* msg[] = {"FAIL <<<<<<<<<<<<<","PASS"};
     int inderr = 0;
     for (int mx=0; mx<=2; mx++) {
@@ -189,19 +195,28 @@ int test_opdir(World& world) {
                     double e = expnts[d]*width[d]*width[d];              // Exponent in sim coords
                     double c = sqrt(expnts[d]/constants::pi)*width[d];   // Coeff of user-coords normalized gaussian scaled to sim coords
                     c *= pow(width[d],-m[d]);
-                    ops[0].setop(d, std::shared_ptr< Convolution1D<double> >(new GaussianConvolution1D<double>(k, c, e, m[d], false, 0.0)));
+                    ops[0].setop(d, std::shared_ptr< Convolution1D<double> >(
+                              new GaussianConvolution1D<double>(k, c, e, m[d], false, 0.0)));
                 }
 
                 real_convolution_3d op(world, ops);
+                op.doleaves=true;
 
                 real_function_3d opf = op(f);
                 //double oval=opf(origin), ovalexact=OpFExact(expnt,expnts,m)(origin);
                 //if (world.rank() == 0) print("opf at origin", oval, ovalexact);
-                double opfnorm = opf.trace();
+                double opfnorm = opf.norm2();
                 double opferr = opf.err(OpFExact(expnt,expnts,m));
-                if (world.rank() == 0)
-                    print("m =", m, ", norm =", opfnorm, ", err =", opferr, msg[opferr < 1.1*errs[inderr++]]);
-                if (opferr > 1.1*errs[inderr++]) success++;
+                const real_function_3d exact = real_factory_3d(world)
+                		.functor(real_functor_3d(new OpFExact(expnt,expnts,m)));
+                double exactnorm=exact.norm2();
+
+
+				bool correct=opferr < 1.1 * errs[inderr++];
+				if (world.rank() == 0)
+					print("m =", m, ", norm =", opfnorm, ", norm exact =",
+							exactnorm, ", err =", opferr, msg[correct]);
+				if (not correct) success++;
 
                 // This stuff useful for diagnosing problems
                 // for (int i=-10; i<=10; i++) {
