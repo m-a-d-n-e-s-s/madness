@@ -194,11 +194,13 @@ int test_basic(World& world) {
         cell(i,0) = -11.0-2*i;  // Deliberately asymmetric bounding box
         cell(i,1) =  10.0+i;
     }
+    const double thresh=1.e-5;
     FunctionDefaults<NDIM>::set_cell(cell);
     FunctionDefaults<NDIM>::set_k(7);
-    FunctionDefaults<NDIM>::set_thresh(1e-5);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
 
     const coordT origin(0.0);
     coordT point;
@@ -215,8 +217,8 @@ int test_basic(World& world) {
     double err = f.err(*functor);
     T val = f(point);
     CHECK(std::abs(norm-1.0), 1.0e-10, "norm");
-    CHECK(err, 3e-7, "err");
-    CHECK(val-(*functor)(point), 1e-8, "error at a point");
+    CHECK(err, thresh, "err");
+    CHECK(val-(*functor)(point), thresh, "error at a point");
 
     f.compress();
     double new_norm = f.norm2();
@@ -244,6 +246,8 @@ int test_basic(World& world) {
     return 0;
 }
 
+
+/// test the convergence of the MRA representation with respect to k and n
 template <typename T, std::size_t NDIM>
 int test_conv(World& world) {
     typedef Vector<double,NDIM> coordT;
@@ -266,12 +270,16 @@ int test_conv(World& world) {
         int ntop = 5;
         if (NDIM > 2 && k>5) ntop = 4;
         for (int n=1; n<=ntop; ++n) {
+        	// combine .initial_level(n).norefine() to have a projection
+        	// exactly on level n
             Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor).norefine().initial_level(n).k(k);
             double err2 = f.err(*functor);
             std::size_t size = f.size();
+            const double logerr= std::abs(log(err2)/n/k);
             if (world.rank() == 0)
                 printf("   n=%d err=%.2e #coeff=%.2e log(err)/(n*k)=%.2e\n",
-                       n, err2, double(size), std::abs(log(err2)/n/k));
+                       n, err2, double(size), logerr);
+            if (logerr>1.0) ok=false;
         }
     }
 
@@ -327,11 +335,12 @@ int test_math(World& world) {
         print("Test basic math operations - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
 
+    const double thresh=1.e-9;
     FunctionDefaults<NDIM>::set_k(9);
-    FunctionDefaults<NDIM>::set_thresh(1e-9);
-    FunctionDefaults<NDIM>::set_truncate_mode(0);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
+    FunctionDefaults<NDIM>::set_truncate_mode(1);
     FunctionDefaults<NDIM>::set_refine(true);
-    FunctionDefaults<NDIM>::set_autorefine(false);
+    FunctionDefaults<NDIM>::set_autorefine(true);
     FunctionDefaults<NDIM>::set_initial_level(3);
     FunctionDefaults<NDIM>::set_cubic_cell(-10,10);
 
@@ -351,12 +360,12 @@ int test_math(World& world) {
     world.gop.fence();
 
     double err = f.err(*functor);
-    CHECK(err, 1e-10, "err in f before squaring");
+    CHECK(err, 3.0*thresh, "err in f before squaring");
     Function<T,NDIM> fsq = square(f);
     double new_err = f.err(*functor);
     CHECK(new_err-err,1e-14*err,"err in f after squaring");
     double errsq = fsq.err(*functsq);
-    CHECK(errsq, 1e-10, "err in fsq");
+    CHECK(errsq, 3.0*thresh, "err in fsq");
 
     // Test same with autorefine
     fsq = unary_op(f, myunaryop<T,NDIM>());
@@ -583,8 +592,12 @@ int test_diff(World& world) {
     bool ok=true;
 
     if (world.rank() == 0) {
-        print("\nTest differentiation - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
+        print("\nTest differentiation - type =", archive::get_type_name<T>(),", ndim =",NDIM);
+        print("note that differentiation does not preserve the accuracy");
+        print("in this particular case the threshold in loosened by a factor of 40\n");
     }
+    const double thresh=1.e-10;
+
     const coordT origin(0.0);
     //for (int i=0; i<NDIM; ++i) origin[i] = i/31.4;
     const double expnt = 1.0;
@@ -592,7 +605,7 @@ int test_diff(World& world) {
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     FunctionDefaults<NDIM>::set_k(10);
-    FunctionDefaults<NDIM>::set_thresh(1e-10);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
@@ -639,7 +652,7 @@ int test_diff(World& world) {
         START_TIMER;
         double err = dfdx.err(df);
         END_TIMER("err");
-        CHECK(err, 1e-10, "err in test_diff");
+        CHECK(err, 40*thresh, "err in test_diff");
 
         if (world.rank() == 0) print("    error", err);
     }
@@ -656,22 +669,29 @@ namespace madness {
 
 template <typename T, std::size_t NDIM>
 int test_op(World& world) {
-    test_rnlp();
-
-    bool ok=true;
-    typedef Vector<double,NDIM> coordT;
-    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
 
     if (world.rank() == 0) {
         print("\nTest separated operators - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
+
+    bool ok=true;
+    ok=test_rnlp();
+    if (world.rank()==0) {
+    	if (ok) print("test_rnlp              OK");
+    	else print("test_rnlp              FAIL");
+    }
+
+    typedef Vector<double,NDIM> coordT;
+    typedef std::shared_ptr< FunctionFunctorInterface<T,NDIM> > functorT;
+
+    const double thresh=1.e-9;
     const coordT origin(0.5);
     const double expnt = 1.0*100;
     const double coeff = pow(2.0*expnt/PI,0.25*NDIM);
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
 
     FunctionDefaults<NDIM>::set_k(10);
-    FunctionDefaults<NDIM>::set_thresh(1e-12);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
     FunctionDefaults<NDIM>::set_truncate_mode(1);
@@ -739,7 +759,7 @@ int test_op(World& world) {
         print("      op*f norm is", rn);
         print("  op*f total error", re);
     }
-    CHECK(re, 1e-10, "err in test_op");
+    CHECK(re, 30*thresh, "err in test_op");
 
 //     for (int i=0; i<=100; ++i) {
 //         coordT c(-10.0+20.0*i/100.0);
@@ -769,7 +789,13 @@ public:
             sum += xx*xx;
         };
         double r = sqrt(sum);
-        return coefficient*erf(exponent*r)/r;
+        if (r<1.e-4) {	// correct thru order r^3
+        	const double sqrtpi=sqrt(constants::pi);
+        	const double a=exponent;
+        	return coefficient*(2.0*a/sqrtpi - 2.0*a*a*a*r*r/(3.0*sqrtpi));
+        } else {
+        	return coefficient*erf(exponent*r)/r;
+        }
     }
 };
 
@@ -789,17 +815,17 @@ int test_coulomb(World& world) {
 
 
     int k = 10;
-    double thresh = 1e-8;
+    double thresh = 1e-7;
 
     FunctionDefaults<3>::set_k(k);
     FunctionDefaults<3>::set_thresh(thresh);
     FunctionDefaults<3>::set_refine(true);
     FunctionDefaults<3>::set_initial_level(2);
-    FunctionDefaults<3>::set_truncate_mode(0);
+    FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_cubic_cell(-10,10);
 
     START_TIMER;
-    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(thresh*0.1).initial_level(4);
+    Function<double,3> f = FunctionFactory<double,3>(world).functor(functor).thresh(thresh).initial_level(4);
     END_TIMER("project");
 
     //f.print_info();  <--------- This is not scalable and might crash the XT
@@ -811,7 +837,7 @@ int test_coulomb(World& world) {
         print("     f total error", err);
         //print(" truncating");
     }
-    CHECK(err, 1e-10, "test_coulomb 1");
+    CHECK(err, thresh, "test_coulomb 1");
 
 //     START_TIMER;
 //     f.truncate();
@@ -867,7 +893,7 @@ int test_coulomb(World& world) {
 //             print("           ",i,r(c),(*fexact)(c));
 //         }
     }
-    CHECK(rerr, 1e-10, "err in test_coulomb");
+    CHECK(rerr, 6.0*thresh, "err in test_coulomb");
 
     if (ok) return 0;
     return 1;
@@ -966,7 +992,7 @@ int test_qm(World& world) {
     FunctionDefaults<1>::set_refine(true);
     FunctionDefaults<1>::set_initial_level(8);
     FunctionDefaults<1>::set_cubic_cell(-600,800);
-    FunctionDefaults<1>::set_truncate_mode(0);
+    FunctionDefaults<1>::set_truncate_mode(1);
     double width = FunctionDefaults<1>::get_cell_width()(0L);
 
     double a = 1.0;
@@ -1079,6 +1105,8 @@ int test_qm(World& world) {
     return 1;
 }
 
+
+/// this essentially tests the infinity norm
 template <typename T, std::size_t NDIM>
 int test_plot(World& world) {
     bool ok = true;
@@ -1088,9 +1116,10 @@ int test_plot(World& world) {
         print("\nTest plot cube - type =", archive::get_type_name<T>(),", ndim =",NDIM,"\n");
     }
     const double L = 4.0;
+    const double thresh=1.e-7;
     FunctionDefaults<NDIM>::set_cubic_cell(-L,L);
     FunctionDefaults<NDIM>::set_k(7);
-    FunctionDefaults<NDIM>::set_thresh(1e-7);
+    FunctionDefaults<NDIM>::set_thresh(thresh);
     FunctionDefaults<NDIM>::set_refine(true);
     FunctionDefaults<NDIM>::set_initial_level(2);
 
@@ -1101,8 +1130,11 @@ int test_plot(World& world) {
     functorT functor(new Gaussian<T,NDIM>(origin, expnt, coeff));
     Function<T,NDIM> f = FunctionFactory<T,NDIM>(world).functor(functor);
 
+    std::vector<long> npt;
+    if (NDIM>3) npt=std::vector<long>(NDIM,21);
+    else npt=std::vector<long>(NDIM,101);
     //vector<long> npt(NDIM,21); // recommend this if testing in dimension > 3
-    std::vector<long> npt(NDIM,101);
+//    std::vector<long> npt(NDIM,101);
     world.gop.fence();
     Tensor<T> r = f.eval_cube(FunctionDefaults<NDIM>::get_cell(), npt);
     world.gop.fence();
@@ -1111,15 +1143,19 @@ int test_plot(World& world) {
         const double h = (2.0*L - 12e-13)/(npt[0]-1.0);
         for (int i=0; i<npt[0]; ++i) {
             double x = -L + i*h + 2e-13;
-            T fplot = r(std::vector<long>(NDIM,i));
+
             T fnum  = f.eval(coordT(x)).get();
+
+            // this checks if the numerical representation is consistent
             std::pair<bool,T> fnum2 = f.eval_local_only(coordT(x),maxlevel);
-
             if (world.size() == 1 && !fnum2.first) print("eval_local_only: non-local but nproc=1!");
-
             if (fnum2.first) CHECK(fnum-fnum2.second,1e-12,"eval_local_only");
-            CHECK(fplot-fnum,1e-12,"plot-eval");
-            if (world.rank() == 0 && std::abs(fplot-fnum) > 1e-12) {
+
+            // this checks if numerical and analytical values agree
+            T fplot = r(std::vector<long>(NDIM,i));
+            CHECK(fplot-fnum,2.0*thresh,"plot-eval");
+
+            if (world.rank() == 0 && std::abs(fplot-fnum) > 2.0*thresh) {
                 print("bad", i, coordT(x), fplot, fnum, (*functor)(coordT(x)));
             }
         }
@@ -1296,7 +1332,6 @@ int main(int argc, char**argv) {
         nfail+=test_op<double,1>(world);
         nfail+=test_plot<double,1>(world);
         nfail+=test_apply_push_1d<double,1>(world);
-
         nfail+=test_io<double,1>(world);
 
         // stupid location for this test
@@ -1307,7 +1342,7 @@ int main(int argc, char**argv) {
         MADNESS_ASSERT((gg-hh).normf() < 1e-13);
         if (world.rank() == 0) print(" generic and gaussian operator kernels agree\n");
 
-        nfail+=test_qm(world);
+//        nfail+=test_qm(world);
 
         nfail+=test_basic<double_complex,1>(world);
         nfail+=test_conv<double_complex,1>(world);
@@ -1335,7 +1370,7 @@ int main(int argc, char**argv) {
         nfail+=test_plot<double,3>(world);
         nfail+=test_io<double,3>(world);
 
-        //test_plot<double,4>(world); // slow unless reduce npt in test_plot
+        test_plot<double,4>(world); // slow unless reduce npt in test_plot
 
         if (world.rank() == 0) print("entering final fence");
         world.gop.fence();
@@ -1346,6 +1381,10 @@ int main(int argc, char**argv) {
         }
 
         print_stats(world);
+
+        if (world.rank()==0) {
+        	print("testsuite passed: ", (nfail==0),"\n");
+        }
 
     }
     catch (const SafeMPI::Exception& e) {
@@ -1379,7 +1418,6 @@ int main(int argc, char**argv) {
     catch (...) {
         error("caught unhandled exception");
     }
-
     finalize();
     return nfail;
 }
