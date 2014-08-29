@@ -304,8 +304,10 @@ namespace {
         ITERATOR3(c,ASSERT_EQ(c(_i,_j,_k), b(_i+1,_j+1,_k+1)));
 
         // check did not go out of bounds
-        EXPECT_NEAR(c.normf(), a.normf(), 2e-7);
-        EXPECT_NEAR(b(patch).normf(), a.normf(), 2e-7);
+        typedef typename madness::TensorTypeData<TypeParam>::scalar_type machine_prec;
+        machine_prec small=std::numeric_limits<machine_prec>::epsilon();
+        EXPECT_NEAR(c.normf(), a.normf(), small*a.normf());
+        EXPECT_NEAR(b(patch).normf(), a.normf(), small*a.normf());
 
         // patch assignment interaction with reordering of source and target
 
