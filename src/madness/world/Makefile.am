@@ -24,6 +24,7 @@ TESTS = test_prof test_ar test_hashdc test_hello test_atomicint test_future \
 
 if MADNESS_HAS_GOOGLE_TEST
 TESTS += test_googletest test_array test_worldptr test_worldref
+XFAIL_TESTS =  test_googletest
 endif
 
 noinst_PROGRAMS = $(TESTS)
