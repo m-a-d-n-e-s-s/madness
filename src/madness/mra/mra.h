@@ -1190,6 +1190,16 @@ namespace madness {
             return local;
         }
 
+        /// Return the inner product with external function ... requires communication.
+        /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
+        /// @return Returns the inner product
+        T inner_ext(const FunctionFunctorInterface<T,NDIM>& f) const {
+            T local = impl->inner_ext_local(f);
+            impl->world.gop.sum(local);
+            impl->world.gop.fence();
+            return local;
+        }
+
         /// Returns the inner product for one on-demand function
 
         /// It does work, but it might not give you the precision you expect.

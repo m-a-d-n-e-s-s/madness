@@ -2052,6 +2052,15 @@ namespace madness {
         return fval;
     }
     
+    template <typename T, std::size_t NDIM>
+    Tensor<T> fcube(const Key<NDIM>& key, const FunctionFunctorInterface<T,NDIM>& f, const Tensor<double>& qx) {
+        //      fcube(key,typename FunctionFactory<T,NDIM>::FunctorInterfaceWrapper(f) , qx, fval);
+        std::vector<long> npt(NDIM,qx.dim(0));
+        Tensor<T> fval(npt);
+        fcube(key, f, qx, fval);
+        return fval;
+    }
+    
     
     /// return the values of a Function on a grid
     
