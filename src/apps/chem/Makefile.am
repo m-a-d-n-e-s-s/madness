@@ -7,7 +7,7 @@ noinst_PROGRAMS = testxc
 
 lib_LIBRARIES = libMADchem.a 
 
-data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp_guess coredata/mcp2 coredata/mcp_guess
+data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 
 
 #TESTS = testxc
