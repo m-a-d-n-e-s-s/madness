@@ -42,7 +42,7 @@
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 #include <chem/molecule.h>
 #include <chem/molecularbasis.h>
@@ -51,7 +51,8 @@
 #include <chem/potentialmanager.h>
 #include <chem/gth_pseudopotential.h> 
 
-#include <tensor/solvers.h>
+#include <madness/tensor/solvers.h>
+#include <madness/tensor/distributed_matrix.h>
 
 
 namespace madness {
@@ -64,6 +65,7 @@ typedef std::vector<functionT> vecfuncT;
 typedef std::pair<vecfuncT,vecfuncT> pairvecfuncT;
 typedef std::vector<pairvecfuncT> subspaceT;
 typedef Tensor<double> tensorT;
+typedef DistributedMatrix<double> distmatT;
 typedef FunctionFactory<double,3> factoryT;
 typedef SeparatedConvolution<double,3> operatorT;
 typedef std::shared_ptr<operatorT> poperatorT;
@@ -71,7 +73,7 @@ typedef Function<std::complex<double>,3> complex_functionT;
 typedef std::vector<complex_functionT> cvecfuncT;
 typedef Convolution1D<double_complex> complex_operatorT;
 
-extern tensorT distributed_localize_PM(World & world,
+    extern distmatT distributed_localize_PM(World & world,
                                 const vecfuncT & mo,
                                 const vecfuncT & ao,
                                 const std::vector<int> & set,
@@ -286,6 +288,7 @@ struct CalculationParameters {
     bool no_compute;            ///< If true use orbitals on disk, set value to computed
     bool save;                  ///< If true save orbitals to disk
     unsigned int maxsub;        ///< Size of iterative subspace ... set to 0 or 1 to disable
+    double orbitalshift;		///< scf orbital shift: shift the occ orbitals to lower energies
     int npt_plot;               ///< No. of points to use in each dim for plots
     tensorT plot_cell;          ///< lo hi in each dimension for plotting (default is all space)
     std::string aobasis;        ///< AO basis used for initial guess (6-31g or sto-3g)
@@ -320,8 +323,10 @@ struct CalculationParameters {
 
     template <typename Archive>
     void serialize(Archive& ar) {
-        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta & nopen & maxiter & nio & spin_restricted;
-        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm & restart & save & no_compute & maxsub & npt_plot & plot_cell & aobasis;
+        ar & charge & smear & econv & dconv & k & L & maxrotn & nvalpha & nvbeta
+           & nopen & maxiter & nio & spin_restricted;
+        ar & plotlo & plothi & plotdens & plotcoul & localize & localize_pm
+           & restart & save & no_compute & maxsub & orbitalshift & npt_plot & plot_cell & aobasis;
         ar & nalpha & nbeta & nmo_alpha & nmo_beta & lo;
         ar & core_type & derivatives & conv_only_dens & dipole;
         ar & xc_data & protocol_data;
@@ -353,6 +358,7 @@ struct CalculationParameters {
     	, no_compute(false)
         , save(true)
         , maxsub(8)
+    	, orbitalshift(0.0)
         , npt_plot(101)
         , aobasis("6-31g")
         , core_type("")
@@ -517,6 +523,9 @@ struct CalculationParameters {
                 f >> maxsub;
                 if (maxsub <= 0) maxsub = 1;
                 if (maxsub > 20) maxsub = 20;
+            }
+            else if (s == "orbitalshift") {
+                f >> orbitalshift;
             }
             else if (s == "core_type") {
                 f >> core_type;
@@ -690,12 +699,12 @@ public:
     CalculationParameters param;
     XCfunctional xc;
     AtomicBasisSet aobasis;
-    functionT vacuo_rho;
-    functionT rhoT;
-    functionT rho_elec;
-    functionT rhon;
-    functionT mol_mask;
-    functionT Uabinit;
+    //functionT vacuo_rho;
+    //functionT rhoT;
+    //functionT rho_elec;
+    //functionT rhon;
+    //functionT mol_mask;
+    //functionT Uabinit;
     functionT mask;
     vecfuncT amo, bmo;
     std::vector<int> aset, bset;
@@ -707,8 +716,8 @@ public:
     std::vector< std::shared_ptr<real_derivative_3d> > gradop;
     double vtol;
     double current_energy;
-    double esol;//etot;
-    double vacuo_energy;
+    //double esol;//etot;
+    //double vacuo_energy;
     static const int vnucextra = 12; // load balance parameter for nuclear pot.
 
     SCF(World & world, const char *filename);
@@ -770,27 +779,7 @@ public:
 
     void project_ao_basis(World & world);
 
-    double PM_q(const tensorT & S, const double * restrict Ci, const double * restrict Cj,
-    		int lo, int nbf);
-
-
-    void localize_PM_ij(const int seti, const int setj, 
-                        const double tol, const double thetamax,
-                        const int natom, const int nao,  const int nmo,
-                        const std::vector<tensorT>& Svec, 
-                        const std::vector<int>& at_to_bf, const std::vector<int>& at_nbf, 
-                        long& ndone_iter, double& maxtheta, 
-                        double * restrict Qi, double * restrict Qj,  
-                        double * restrict Ci, double * restrict Cj, 
-                        double * restrict Ui, double * restrict Uj);
-
-
-    void localize_PM_task_kernel(tensorT & Q, std::vector<tensorT> & Svec,
-    		tensorT & C, const bool & doprint, const std::vector<int> & set,
-    		const double thetamax, tensorT & U, const double thresh);
-
-
-    tensorT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
+    distmatT localize_PM(World & world, const vecfuncT & mo, const std::vector<int> & set,
     		const double thresh = 1e-9, const double thetamax = 0.5,
     		const bool randomize = true, const bool doprint = false);
 
@@ -802,11 +791,11 @@ public:
         return dip(i, j, 0) * dip(k, l, 0) + dip(i, j, 1) * dip(k, l, 1) + dip(i, j, 2) * dip(k, l, 2);
     }
 
-    tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
-    		const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
+    // tensorT localize_boys(World & world, const vecfuncT & mo, const std::vector<int> & set,
+    // 		const double thresh = 1e-9, const double thetamax = 0.5, const bool randomize = true);
 
 
-    tensorT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
+    distmatT kinetic_energy_matrix(World & world, const vecfuncT & v) const;
 
 
     vecfuncT core_projection(World & world, const vecfuncT & psi, const bool include_Bc = true);
@@ -916,6 +905,9 @@ public:
 
 
     void rotate_subspace(World& world, const tensorT& U, subspaceT& subspace,
+    		int lo, int nfunc, double trantol) const;
+
+    void rotate_subspace(World& world, const distmatT& U, subspaceT& subspace,
     		int lo, int nfunc, double trantol) const;
 
     void update_subspace(World & world,

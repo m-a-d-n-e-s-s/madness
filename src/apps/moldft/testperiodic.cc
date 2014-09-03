@@ -9,8 +9,8 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/solvers.h>
 using namespace madness;
 
 #include <chem/molecule.h>

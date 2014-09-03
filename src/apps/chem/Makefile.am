@@ -3,11 +3,11 @@ include $(top_srcdir)/config/MakeGlobal.am
 # default location for basis sets etc
 AM_CPPFLAGS += -DMRA_CHEMDATA_DIR=\"$(abs_srcdir)\"
 
-bin_PROGRAMS = testxc
+noinst_PROGRAMS = testxc
 
 lib_LIBRARIES = libMADchem.a 
 
-data_DATA = sto-3g sto-6g 6-31g coredata
+data_DATA = sto-3g sto-6g 6-31g coredata/mcp coredata/mcp2 coredata/mcp_guess
 
 
 #TESTS = testxc

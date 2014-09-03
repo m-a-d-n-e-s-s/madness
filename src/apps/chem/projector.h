@@ -8,7 +8,7 @@
 #ifndef MADNESS_CHEM_PROJECTOR_H__INCLUDED
 #define MADNESS_CHEM_PROJECTOR_H__INCLUDED
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 namespace madness {
 

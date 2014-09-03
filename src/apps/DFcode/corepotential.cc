@@ -35,10 +35,10 @@
 /// \file corepotential.cc
 /// \brief Simple management of core potential and orbital information
 
-#include <madness_config.h>
-#include <constants.h>
-#include <mra/mra.h>
-#include <tinyxml/tinyxml.h>
+#include <madness/madness_config.h>
+#include <madness/constants.h>
+#include <madness/mra/mra.h>
+#include <madness/tinyxml/tinyxml.h>
 #include <DFcode/corepotential.h>
 #include <cstdio>
 #include <cmath>

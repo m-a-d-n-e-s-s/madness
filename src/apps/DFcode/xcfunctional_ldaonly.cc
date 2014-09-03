@@ -1,9 +1,9 @@
-#include <madness_config.h>
+#include <madness/madness_config.h>
 
 #ifndef MADNESS_HAS_LIBXC
 
 #include <DFcode/xcfunctional.h>
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <sstream>
 
 int x_rks_s__(const double *r__, double *f, double * dfdra);

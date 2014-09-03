@@ -1,9 +1,9 @@
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <world/world.h>
-#include <misc/ran.h>
-#include <tensor/tensor.h>
-#include <tensor/systolic.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/world/world.h>
+#include <madness/misc/ran.h>
+#include <madness/tensor/tensor.h>
+#include <madness/tensor/systolic.h>
 
 #include <utility>
 #include <vector>

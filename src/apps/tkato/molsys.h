@@ -39,7 +39,7 @@ $Id$
 #ifndef MADNESS_MOLSYS_H
 #define MADNESS_MOLSYS_H
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <moldft/molecule.h>
 #include <moldft/molecularbasis.h>
 

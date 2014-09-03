@@ -31,7 +31,7 @@
   $Id$
 */
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include "poperator.h"
 
 using namespace madness;

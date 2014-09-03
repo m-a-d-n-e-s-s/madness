@@ -35,15 +35,15 @@
 /// \file svpe.h
 #ifndef MADNESS_SVPE_H
 #define MADNESS_SVPE_H
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <misc/ran.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/misc/ran.h>
+#include <madness/tensor/solvers.h>
 #include <ctime>
 #include <list>
-#include <mra/sdf_shape_3D.h>
-#include <mra/funcplot.h> 
-#include <constants.h> 
+#include <madness/mra/sdf_shape_3D.h>
+#include <madness/mra/funcplot.h> 
+#include <madness/constants.h> 
 #include <vector>  
 
 typedef real_function_3d realfunc;
@@ -110,7 +110,7 @@ public:
   //compute the cavitation energy (surface_tension*solvent accessible surface)
   double make_cav_energy(const double& surface_tension) const {
     //surface tension should be in Newton/meter
-    double convfact = 6.423049507*std::pow(10,-4); // 1N/m = 6.423049507e−4a.u
+    double convfact = 6.423049507*std::pow(10,-4); // 1N/m = 6.423049507e-4a.u
     return surface.trace()*surface_tension*convfact;
   }
   //Compute the reaction potential                                                                              
@@ -280,8 +280,8 @@ public:
     }
 //compute the cavitation energy (surface_tension*solvent accessible surface)                                                                              
     double make_cav_energy(const double& surface_tension) const {
-        //surface tension should be in Newton/meter                                                                                                        
-        double convfact = 6.423049507*std::pow(10,-4); // 1N/m = 6.423049507e−4a.u                                                                       
+        //surface tension should be in Newton/meter
+        double convfact = 6.423049507*std::pow(10,-4); // 1N/m = 6.423049507e-4a.u
         return surface.trace()*surface_tension*convfact;
     }
 //constructor                                                                                                                                                                                                                              

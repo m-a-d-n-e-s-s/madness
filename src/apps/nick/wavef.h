@@ -46,7 +46,7 @@
  * By:    Nick Vence
  ************************************************************************/
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <complex>
 #include <iostream>
 #include <stdio.h>

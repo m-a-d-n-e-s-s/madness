@@ -40,7 +40,7 @@
 #ifndef COMPLEXFUN_H_
 #define COMPLEXFUN_H_
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 
 namespace madness {
 

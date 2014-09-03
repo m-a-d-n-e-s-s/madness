@@ -40,9 +40,9 @@
 #define MADNESS_INTERIOR_BC_DENSITY_H__INCLUDED
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <mra/sdf_shape_3D.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/mra/sdf_shape_3D.h>
 #include <string>
 
 using namespace madness;

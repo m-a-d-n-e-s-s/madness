@@ -1,11 +1,11 @@
-#include <madness_config.h>
+#include <madness/madness_config.h>
 #include <chem/xcfunctional.h>
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <iostream>
 #include <string>
 #include <sstream>
 #include <utility>
-#include <world/worldexc.h>
+#include <madness/world/worldexc.h>
 #include <xc.h>
 #include <xc_funcs.h>
 

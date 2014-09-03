@@ -56,7 +56,7 @@
 #include "wavef.h"
 #include "extra.h"
 //#include "loadParam.h"
-#include <mra/lbdeux.h>
+#include <madness/mra/lbdeux.h>
 #include <string>
 #include <fstream>
 using std::ofstream;

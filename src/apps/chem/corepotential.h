@@ -38,10 +38,10 @@
 /// \file corepotential.h
 /// \brief Declaration of core potential related class
 
-#include <madness_config.h>
-#include <constants.h>
+#include <madness/madness_config.h>
+#include <madness/constants.h>
 #include <chem/atomutil.h>
-#include <world/print.h>
+#include <madness/world/print.h>
 #include <map>
 #include <set>
 #include <vector>

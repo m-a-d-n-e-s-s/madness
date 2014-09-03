@@ -1,15 +1,17 @@
 # Define paths for includes (note convention #include <dir/file.h>)
-AM_CPPFLAGS = -I$(top_srcdir)/include -I$(top_srcdir)/src/lib  -I$(top_srcdir)/src/apps -I$(top_builddir)/include
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_builddir)/src -I$(top_srcdir)/src/apps
 
 # Define directories holding libraries and variables for corresponding libraries
-LIBWORLDDIR=$(top_builddir)/src/lib/world
-LIBTENSORDIR=$(top_builddir)/src/lib/tensor
-LIBMISCDIR=$(top_builddir)/src/lib/misc
-LIBMRADIR=$(top_builddir)/src/lib/mra
+LIBGTESTDIR=$(top_builddir)/src/gtest
+LIBWORLDDIR=$(top_builddir)/src/madness/world
+LIBTENSORDIR=$(top_builddir)/src/madness/tensor
+LIBMISCDIR=$(top_builddir)/src/madness/misc
+LIBMRADIR=$(top_builddir)/src/madness/mra
 LIBCHEMDIR=$(top_builddir)/src/apps/chem
-LIBTINYXMLDIR=$(top_builddir)/src/lib/tinyxml
-LIBMUPARSERDIR=$(top_builddir)/src/lib/muParser
+LIBTINYXMLDIR=$(top_builddir)/src/madness/tinyxml
+LIBMUPARSERDIR=$(top_builddir)/src/madness/muParser
 
+LIBGTEST=$(LIBGTESTDIR)/libMADgtest.a
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a
 LIBTENSOR=$(LIBTENSORDIR)/libMADtensor.a
 LIBLINALG=$(LIBTENSORDIR)/libMADlinalg.a
@@ -20,5 +22,8 @@ LIBTINYXML=$(LIBTINYXMLDIR)/libMADtinyxml.a
 LIBMUPARSER=$(LIBMUPARSERDIR)/libMADmuparser.a
 
 # Most scientific/numeric applications will link against these libraries
-MRALIBS=$(LIBCHEM) $(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
+MRALIBS=$(LIBMRA) $(LIBLINALG) $(LIBTENSOR) $(LIBMISC) $(LIBMUPARSER) $(LIBTINYXML) $(LIBWORLD) 
 
+LIBGTEST_CPPFLAGS = $(GTEST_CPPFLAGS) -DGTEST_HAS_PTHREAD=1 -isystem $(top_srcdir)/src/gtest/include $(AM_CPPFLAGS)
+LIBGTEST_CXXFLAGS = $(GTEST_CXXFLAGS)  $(AM_CXXFLAGS)
+LIBGTEST_LIBS = $(GTEST_LDFLAGS) $(GTEST_LIBS)

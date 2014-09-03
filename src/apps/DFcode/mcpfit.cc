@@ -35,8 +35,8 @@
 /// \file mcpfit.cc
 /// \brief fitting parameters of Model Core Potential
 
-#include <mra/mra.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/tensor/solvers.h>
 #include <moldft/corepotential.h>
 #include <iostream>
 #include <iomanip>

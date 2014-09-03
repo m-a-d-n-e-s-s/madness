@@ -36,15 +36,15 @@
 /// \brief Molecular HF and DFT code
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <misc/ran.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/misc/ran.h>
+#include <madness/tensor/solvers.h>
 #include <ctime>
 #include <list>
-#include <mra/sdf_shape_3D.h>
-#include <mra/funcplot.h> //jacob added
-#include <constants.h> //jacob added
+#include <madness/mra/sdf_shape_3D.h>
+#include <madness/mra/funcplot.h> //jacob added
+#include <madness/constants.h> //jacob added
 #include <vector>  //jacob added
 #include <examples/molecularmask.h> //jacob added
 #include <jacob/svpe_molecule_colloid.h>

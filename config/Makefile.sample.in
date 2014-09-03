@@ -3,17 +3,17 @@
 TRUNK    = @abs_top_srcdir@
 CXX      = @CXX@
 CXXFLAGS = @CXXFLAGS@ 
-CPPFLAGS = @CPPFLAGS@ -I$(TRUNK)/include -I$(TRUNK)/src/lib -I$(TRUNK)/src/apps
+CPPFLAGS = @CPPFLAGS@ -I$(TRUNK)/include -I$(TRUNK)/src -I$(TRUNK)/src/apps
 LDFLAGS  = @LDFLAGS@
 LIBS     = @LIBS@
 
 # Directories holding libraries
-LIBWORLDDIR=$(TRUNK)/src/lib/world
-LIBTENSORDIR=$(TRUNK)/src/lib/tensor
-LIBMISCDIR=$(TRUNK)/src/lib/misc
-LIBMRADIR=$(TRUNK)/src/lib/mra
-LIBTINYXMLDIR=$(TRUNK)/src/lib/tinyxml
-LIBMUPARSERDIR=$(TRUNK)/src/lib/muParser
+LIBWORLDDIR=$(TRUNK)/src/madness/world
+LIBTENSORDIR=$(TRUNK)/src/madness/tensor
+LIBMISCDIR=$(TRUNK)/src/madness/misc
+LIBMRADIR=$(TRUNK)/src/madness/mra
+LIBTINYXMLDIR=$(TRUNK)/src/madness/tinyxml
+LIBMUPARSERDIR=$(TRUNK)/src/madness/muParser
 
 # Individual libraries
 LIBWORLD=$(LIBWORLDDIR)/libMADworld.a

@@ -33,7 +33,7 @@
 /// \file nick/hello.cc
 /// We are projecting a time evolved wave function onto some bound states
 
-#include <mra/mra.h>
+#include <madness/mra/mra.h>
 #include <complex>
 #include <string>
 #include <fstream>

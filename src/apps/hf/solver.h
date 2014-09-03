@@ -30,12 +30,12 @@
 
   $Id$
 */
-#include <mra/mra.h>
-//#include <mra/lbdeux.h>
-#include <world/world.h>
-#include <tensor/solvers.h>
+#include <madness/mra/mra.h>
+//#include <madness/mra/lbdeux.h>
+#include <madness/world/world.h>
+#include <madness/tensor/solvers.h>
 #include <vector>
-#include <fortran_ctypes.h>
+#include <madness/fortran_ctypes.h>
 #include <cmath>
 
 #include "poperator.h"

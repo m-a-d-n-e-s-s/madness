@@ -1,9 +1,9 @@
-#include <mra/mra.h>
-#include <mra/lbdeux.h>
-#include <world/world.h>
-#include <misc/ran.h>
-#include <tensor/tensor.h>
-#include <tensor/systolic.h>
+#include <madness/mra/mra.h>
+#include <madness/mra/lbdeux.h>
+#include <madness/world/world.h>
+#include <madness/misc/ran.h>
+#include <madness/tensor/tensor.h>
+#include <madness/tensor/systolic.h>
 
 #include <utility>
 #include <vector>
@@ -266,16 +266,16 @@ public:
 };
 
 
-tensorT distributed_localize_PM(World & world, 
-                                const vecfuncT & mo, 
-                                const vecfuncT & ao, 
-                                const std::vector<int> & set, 
-                                const std::vector<int> & at_to_bf,
-                                const std::vector<int> & at_nbf, 
-                                const double thresh = 1e-9, 
-                                const double thetamax = 0.5, 
-                                const bool randomize = true, 
-                                const bool doprint = false)
+DistributedMatrix<double> distributed_localize_PM(World & world, 
+                                                  const vecfuncT & mo, 
+                                                  const vecfuncT & ao, 
+                                                  const std::vector<int> & set, 
+                                                  const std::vector<int> & at_to_bf,
+                                                  const std::vector<int> & at_nbf, 
+                                                  const double thresh = 1e-9, 
+                                                  const double thetamax = 0.5, 
+                                                  const bool randomize = true, 
+                                                  const bool doprint = false)
 {
     // Make Svec ... this can be much more efficient!
     tensorT S = matrix_inner(world, ao, ao, true);  
@@ -317,9 +317,11 @@ tensorT distributed_localize_PM(World & world,
     world.taskq.add(new SystolicFixOrbitalOrders(dU));
     world.taskq.fence();
 
-    tensorT U(nmo, nmo);
-    dU.copy_to_replicated(U);
-    U = transpose(U);
+    return dU;
+
+    //tensorT U(nmo, nmo);
+    //dU.copy_to_replicated(U);
+    //U = transpose(U);
         
     // if(world.rank() == 0){
     //     // Fix orbital orders
@@ -347,9 +349,8 @@ tensorT distributed_localize_PM(World & world,
     //         if (U(i,i) < 0.0) U(_,i).scale(-1.0);
     //     }
     // }
-
-    world.gop.broadcast(U.ptr(), U.size(), 0);
-    return U;
+    // world.gop.broadcast(U.ptr(), U.size(), 0);
+    //return U;
 }
 
 }

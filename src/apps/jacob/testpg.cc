@@ -31,7 +31,7 @@
   $Id$
 */
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <world/world.h>
+#include <madness/world/world.h>
 #include <moldft/pointgroup.h>
 
 using namespace madness;

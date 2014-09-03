@@ -41,10 +41,10 @@
 #define LDA_H_
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include <mra/mra.h>
-#include <world/world.h>
+#include <madness/mra/mra.h>
+#include <madness/world/world.h>
 #include <math.h>
-#include <madness_config.h>
+#include <madness/madness_config.h>
 
 typedef double doublereal;
 typedef MADNESS_FORINT integer;

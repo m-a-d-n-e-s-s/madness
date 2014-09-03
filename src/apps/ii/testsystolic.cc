@@ -33,9 +33,9 @@
 /* \file testsystolic2.cc
  * systolic example of eigen solver using one-sided Jacobi method.
  */
-#include <world/world.h>
+#include <madness/world/world.h>
 #include <utility>
-#include <tensor/tensor.h>
+#include <madness/tensor/tensor.h>
 #include <ii/systolic.h>
 #include <ctime>
 

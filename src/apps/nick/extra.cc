@@ -1,5 +1,5 @@
 #include "extra.h"
-#include <world/parar.h>
+#include <madness/world/parar.h>
 //using namespace madness;
 std::ostream& operator<<(std::ostream& s, const InputParameters& p) {
     s << p.L<< " " << p.Lsmall<< " " << p.Llarge<< " " << p.F << " " << p.omega <<

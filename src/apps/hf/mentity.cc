@@ -36,10 +36,10 @@
 /// \file mentity.cc
 /// \brief Simple management of molecular information and potential
 
-#include <mra/mra.h>
-#include <constants.h>
+#include <madness/mra/mra.h>
+#include <madness/constants.h>
 #include "mentity.h"
-#include <misc/misc.h>
+#include <madness/misc/misc.h>
 
 using namespace madness;
 
