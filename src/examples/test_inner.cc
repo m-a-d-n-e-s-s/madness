@@ -5,6 +5,10 @@
 
 using namespace madness;
 
+double ttt, sss;
+#define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
+#define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %-20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
+
 typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
 
 static const double R = 1.4;    // bond length
@@ -14,7 +18,7 @@ static const double thresh = 1e-6; // precision
 
 static double alpha_func(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
-    return (sin(x*x + y*y + z*z));
+    return ((x*x + y*y + z*z) * sin(x*x + y*y + z*z));
 };
 
 static double beta_func(const coord_3d& r) {
@@ -29,7 +33,8 @@ public:
     alpha_functor(double coeff=1.0) : coeff(coeff) {}
 
     virtual double operator()(const coord_3d& r) const {
-        return (coeff * sin(r[0]*r[0] + r[1]*r[1] + r[2]*r[2]));
+        const double x=r[0], y=r[1], z=r[2];
+        return (coeff * (x*x + y*y + z*z) * sin(x*x + y*y + z*z));
     }
 };
 
@@ -60,52 +65,79 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
-    real_function_3d alpha = real_factory_3d(world).f(alpha_func);
+    real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);
+    real_functor_3d alpha1_ffi = real_functor_3d(new alpha_functor());
+
+    if (world.rank() == 0) {
+        print("***************************************************************************");
+        print("alpha is a highly oscillatory function (x^2 sin(x^2)).");
+        print("beta is a pretty boring Gaussian.");
+        print("For the first three timers, the cost of computing alpha in");
+        print("the numerical basis is not included. We see that since beta");
+        print("is a simple Gaussian, it is cheaper to use the inner() method.\n");
+    }
+
+    START_TIMER;
     real_function_3d beta = real_factory_3d(world).f(beta_func);
-    real_functor_3d alpha_ffi = real_functor_3d(new alpha_functor());
+    double ab = alpha1.inner(beta);
+    END_TIMER("1. < a | b >)");
+
+    START_TIMER;
+    double ab_f = alpha1.inner_ext(beta_func);
+    END_TIMER("2. < a | b_func >");
+
+    START_TIMER;
     real_functor_3d beta_ffi = real_functor_3d(new beta_functor());
+    double ab_ffi = alpha1.inner_ext(beta_ffi);
+    END_TIMER("3. < a | b_ffi >");
 
-    if (world.rank() == 0) print("Testing compression and reconstruction.");
-    double norm = beta.norm2();
-    beta.compress();
-    double normc = beta.norm2();
-    beta.reconstruct();
-    double normr = beta.norm2();
+    if (world.rank() == 0) {
+        print("\n***************************************************************************");
+        print("For the next three timers, the cost of computing beta in");
+        print("the numerical basis is not included. We see that since alpha");
+        print("is complicated, it is cheaper to use the inner_ext() method.\n");
+    }
 
-    if (world.rank() == 0) print("Calculating inner product of two Functions.");
+    START_TIMER;
+    real_function_3d alpha = real_factory_3d(world).f(alpha_func);
+    double ba = beta.inner(alpha);
+    END_TIMER("4. < b | a >");
+
+    START_TIMER;
+    double ba_f = beta.inner_ext(alpha_func);
+    END_TIMER("5. < b | a_func >");
+
+    START_TIMER;
+    real_functor_3d alpha_ffi = real_functor_3d(new alpha_functor());
+    double ba_ffi = beta.inner_ext(alpha_ffi);
+    END_TIMER("6. < b | a_ffi >");
+
     double aa = alpha.inner(alpha);
-    double ab = alpha.inner(beta);
     double bb = beta.inner(beta);
 
-    if (world.rank() == 0) print("Calculating inner product of Function with external function.");
     double aa_f = alpha.inner_ext(alpha_func);
-    double ab_f = alpha.inner_ext(beta_func);
-    double ba_f = beta.inner_ext(alpha_func);
     double bb_f = beta.inner_ext(beta_func);
 
-    if (world.rank() == 0) print("Calculating inner product of Function with FunctionFunctorInterface.");
     double aa_ffi = alpha.inner_ext(alpha_ffi);
-    double ab_ffi = alpha.inner_ext(beta_ffi);
-    double ba_ffi = beta.inner_ext(alpha_ffi);
     double bb_ffi = beta.inner_ext(beta_ffi);
 
     if (world.rank() == 0) {
-        print("Norms are ", norm, normc, normr);
-        print("**********************************************************");
+        print("\nTest for correctness");
+        print("***************************************************************************");
         printf("<a|a> (using inner() with Function) =                      %7.10f\n", aa);
         printf("<a|a> (using inner_ext() with external function) =         %7.10f\n", aa_f);
         printf("<a|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", aa_ffi);
-        print("**********************************************************");
+        print("***************************************************************************");
         printf("<b|b> (using inner() with Function) =                      %7.10f\n", bb);
         printf("<b|b> (using inner_ext() with external function) =         %7.10f\n", bb_f);
         printf("<b|b> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", bb_ffi);
-        print("**********************************************************");
+        print("***************************************************************************");
         printf("<a|b> (using inner() with Function) =                      %7.10f\n", ab);
         printf("<a|b> (using inner_ext() with external function) =         %7.10f\n", ab_f);
         printf("<a|b> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ab_ffi);
         printf("<b|a> (using inner_ext() with external function) =         %7.10f\n", ba_f);
         printf("<b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", ba_ffi);
-        print("**********************************************************");
+        print("***************************************************************************");
     }
 
     world.gop.fence();
