@@ -1177,6 +1177,7 @@ namespace madness {
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
         T inner_ext_local(T (*f)(const coordT&)) const {
             PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
             return impl->inner_ext_local(f);
         }
 
@@ -1184,16 +1185,29 @@ namespace madness {
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @return Returns the inner product
         T inner_ext(T (*f)(const coordT&)) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
             T local = impl->inner_ext_local(f);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
             return local;
         }
 
+        /// Return the local part of inner product with external function ... no communication.
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
+        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
+            return impl->inner_ext_local(f);
+        }
+
         /// Return the inner product with external function ... requires communication.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @return Returns the inner product
-        T inner_ext(const FunctionFunctorInterface<T,NDIM>& f) const {
+        T inner_ext(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (is_compressed()) reconstruct();
             T local = impl->inner_ext_local(f);
             impl->world.gop.sum(local);
             impl->world.gop.fence();
