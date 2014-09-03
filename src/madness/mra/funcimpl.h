@@ -4687,13 +4687,14 @@ namespace madness {
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @return Returns the inner product over the domain of a single function node, no guarantee of accuracy.   
         T inner_ext_node(keyT key, coeffT c, T (*f)(const coordT&)) const {
-            tensorT fvals, fcoeffs;
+            tensorT fvals = tensorT(this->cdata.vk);
+            coeffT fc;
             // Compute the value of the external function at the quadrature points.
-            fvals = madness::fcube(key, f, cdata.quad_x);
+            fvals = madness::fcube(key, f, this->cdata.quad_x);
             // Convert quadrature point values to scaling coefficients.
-            fcoeffs = values2coeffs(key, fvals);
+            fc = coeffT(values2coeffs(key, fvals));
             // Return the inner product of the two functions' scaling coefficients.
-            return c.trace_conj(fcoeffs);
+            return c.trace_conj(fc);
         } 
 
         /// Return the inner product with an external function on a specified function node.
@@ -4701,15 +4702,12 @@ namespace madness {
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @return Returns the inner product over the domain of a single function node, no guarantee of accuracy.   
-        T inner_ext_node(keyT key, coeffT c, const FunctionFunctorInterface<T,NDIM>& f) const {
-            tensorT fvals, fcoeffs;
+        T inner_ext_node(keyT key, coeffT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+            tensorT fvals = tensorT(this->cdata.vk);
             // Compute the value of the external function at the quadrature points.
-            // fvals = madness::fcube(key, f, cdata.quad_x);
-            std::vector<long> npt(NDIM,cdata.quad_x.dim(0));
-            Tensor<T> fval(npt);
-            fcube(key, f, cdata.quad_x, fval);
+            fcube(key, *(f), cdata.quad_x, fvals);
             // Convert quadrature point values to scaling coefficients.
-            fcoeffs = values2coeffs(key, fvals);
+            tensorT fcoeffs = values2coeffs(key, fvals);
             // Return the inner product of the two functions' scaling coefficients.
             return c.trace_conj(fcoeffs);
         } 
@@ -4766,7 +4764,7 @@ namespace madness {
         /// @param[in] old_inner T type value of the inner product on the parent function node
         /// @return Returns the inner product over the domain of a single function, checks for convergence.
         /// TODO: Add option to turn off recursion
-        T inner_ext_node_recursive(keyT key, coeffT c, const FunctionFunctorInterface<T,NDIM>& f, T old_inner=0.0) const {
+        T inner_ext_node_recursive(keyT key, coeffT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, T old_inner=0.0) const {
             int i = 0;
             std::vector<coeffT> c_child;
             Tensor<T> inner_child; 
@@ -4828,10 +4826,10 @@ namespace madness {
         };
 
         struct do_inner_ext_local_ffi {
-            const FunctionFunctorInterface<T, NDIM>& fref;
+            const std::shared_ptr< FunctionFunctorInterface<T, NDIM> > fref;
             const implT * impl;
 
-            do_inner_ext_local_ffi(const FunctionFunctorInterface<T,NDIM>& f, const implT * impl) : fref(f), impl(impl) {};
+            do_inner_ext_local_ffi(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, const implT * impl) : fref(f), impl(impl) {};
 
             T operator()(typename dcT::const_iterator& it) const {
                 if (it->second.is_leaf()) {
@@ -4863,7 +4861,7 @@ namespace madness {
         /// Return the local part of inner product with external function ... no communication.
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @return Returns local part of the inner product, i.e. over the domain of all function nodes on this compute node.
-        T inner_ext_local(const FunctionFunctorInterface<T,NDIM>& f) const {
+        T inner_ext_local(const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
             typedef Range<typename dcT::const_iterator> rangeT;
 
             return world.taskq.reduce<T, rangeT, do_inner_ext_local_ffi>(rangeT(coeffs.begin(),coeffs.end()), 

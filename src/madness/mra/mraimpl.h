@@ -2061,7 +2061,6 @@ namespace madness {
         return fval;
     }
     
-    
     /// return the values of a Function on a grid
     
     /// @param[in]  key the key indicating where the quadrature points are located
