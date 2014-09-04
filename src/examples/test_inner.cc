@@ -140,6 +140,21 @@ int main(int argc, char** argv) {
         print("***************************************************************************");
     }
 
+    real_function_3d alphabeta = real_factory_3d(world);
+    alphabeta = alpha + beta;
+    double aba = alphabeta.inner(alpha);
+    double aba_f = alphabeta.inner_ext(alpha_func);
+    double aba_ffi = alphabeta.inner_ext(alpha_ffi);
+
+    if (world.rank() == 0) {
+        print("\nCheck that inner_ext works for Function that lacks a functor");
+        print("***************************************************************************");
+        printf("<a+b|a> (using inner() with Function) =                      %7.10f\n", aba);
+        printf("<a+b|a> (using inner_ext() with external function) =         %7.10f\n", aba_f);
+        printf("<a+b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", aba_ffi);
+        print("***************************************************************************");
+    }
+
     world.gop.fence();
 
     finalize();

@@ -4721,11 +4721,10 @@ namespace madness {
         /// TODO: Add option to turn off recursion
         T inner_ext_node_recursive(keyT key, coeffT c, T (*f)(const coordT&), T old_inner=0.0) const {
             int i = 0;
-            std::vector<coeffT> c_child;
-            Tensor<T> inner_child; 
+            tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
-            c_child = std::vector<coeffT>(pow(2, NDIM));  // vector of child coefficients
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
             inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
 
             // If old_inner is default value, assume this is the first call and compute inner product on this node.
@@ -4733,12 +4732,23 @@ namespace madness {
                 old_inner = inner_ext_node(key, c, f);
             }
 
+            // We need the scaling coefficients of the numerical function at each of the children nodes.
+            // We can't use project because there is no guarantee that the numerical function will have
+            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
+            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
+            // get the scaling coefficients at the next level.
+            tensorT d(cdata.v2k);
+            d = T(0);
+            d(cdata.s0) = copy(c);
+            c_child = unfilter(d);
+
             // Iterate over all children of this compute node, computing the inner product on each child node.
             // new_inner will store the sum of these, yielding a more accurate inner product.
             for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                const keyT& child = it.key();
             	// convert tensorT to coeffT
-            	c_child[i] = coeffT(project(it.key()),thresh,FunctionDefaults<NDIM>::get_tensor_type());
-                inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
+                coeffT cc = coeffT(c_child(child_patch(child)));
+                inner_child(i) = inner_ext_node(child, cc, f);
             }
             new_inner = inner_child.sum();
             
@@ -4750,7 +4760,8 @@ namespace madness {
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                    result += inner_ext_node_recursive(it.key(), c_child[i], f, inner_child(i));
+                    const keyT& child = it.key();
+                    result += inner_ext_node_recursive(child, c_child(child_patch(child)), f, inner_child(i));
                 }
             }
 
@@ -4766,11 +4777,10 @@ namespace madness {
         /// TODO: Add option to turn off recursion
         T inner_ext_node_recursive(keyT key, coeffT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, T old_inner=0.0) const {
             int i = 0;
-            std::vector<coeffT> c_child;
-            Tensor<T> inner_child; 
+            tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
-            c_child = std::vector<coeffT>(pow(2, NDIM));  // vector of child coefficients
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
             inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
 
             // If old_inner is default value, assume this is the first call and compute inner product on this node.
@@ -4778,12 +4788,23 @@ namespace madness {
                 old_inner = inner_ext_node(key, c, f);
             }
 
+            // We need the scaling coefficients of the numerical function at each of the children nodes.
+            // We can't use project because there is no guarantee that the numerical function will have
+            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
+            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
+            // get the scaling coefficients at the next level.
+            tensorT d(cdata.v2k);
+            d = T(0);
+            d(cdata.s0) = copy(c);
+            c_child = unfilter(d);
+
             // Iterate over all children of this compute node, computing the inner product on each child node.
             // new_inner will store the sum of these, yielding a more accurate inner product.
             for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                const keyT& child = it.key();
             	// convert tensorT to coeffT
-            	c_child[i] = coeffT(project(it.key()),thresh,FunctionDefaults<NDIM>::get_tensor_type());
-                inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
+                coeffT cc = coeffT(c_child(child_patch(child)));
+                inner_child(i) = inner_ext_node(child, cc, f);
             }
             new_inner = inner_child.sum();
             
@@ -4795,7 +4816,8 @@ namespace madness {
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                    result += inner_ext_node_recursive(it.key(), c_child[i], f, inner_child(i));
+                    const keyT& child = it.key();
+                    result += inner_ext_node_recursive(child, c_child(child_patch(child)), f, inner_child(i));
                 }
             }
 
