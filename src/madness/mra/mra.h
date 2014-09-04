@@ -1214,6 +1214,31 @@ namespace madness {
             return local;
         }
 
+        /// Return the local part of gaxpy with external function, this*alpha + f*beta ... no communication.
+        /// @param[in] alpha prefactor for this Function
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] beta prefactor for f
+        /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
+        template <typename L>
+        Void gaxpy_ext_local(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol) const {
+            impl->gaxpy_ext_local(left.get_impl().get(), f, alpha, beta, tol);
+            return None;
+        }
+
+        /// Return the inner product with external function, this*alpha + f*beta ... requires communication.
+        /// @param[in] alpha T type coefficient of this Function
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] beta T type coefficient of f
+        /// @return Returns the gaxpy: this*alpha + f*beta
+        //template <typename L>
+        //Void gaxpy_ext(const Function<L,NDIM>* left, T (*f)(const coordT&), T alpha, T beta) const {
+            //T local = impl->gaxpy_ext_local(left.get_impl().get(), f, alpha, beta);
+            //impl->world.gop.sum(local);
+            //impl->world.gop.fence();
+            //return None;
+        //}
+
+
         /// Returns the inner product for one on-demand function
 
         /// It does work, but it might not give you the precision you expect.

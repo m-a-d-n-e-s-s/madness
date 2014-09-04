@@ -4891,6 +4891,162 @@ namespace madness {
                     do_inner_ext_local_ffi(f, this));
         } 
         
+        /// Return the gaxpy product with an external function on a specified function node.
+        /// @param[in] key Key of the function node on which to compute gaxpy
+        /// @param[in] lc Tensor of coefficients for the function at the function node given by key
+        /// @param[in] f Pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] alpha prefactor of c Tensor for gaxpy
+        /// @param[in] beta prefactor of fcoeffs for gaxpy
+        /// @return Returns coefficient tensor of the gaxpy product at specified key, no guarantee of accuracy.   
+        template <typename L>
+        tensorT gaxpy_ext_node(keyT key, Tensor<L>& lc, T (*f)(const coordT&), T alpha, T beta) const {
+            tensorT fvals, fcoeffs;
+            // Compute the value of the external function at the quadrature points.
+            fvals = madness::fcube(key, f, cdata.quad_x);
+            // Convert quadrature point values to scaling coefficients.
+            fcoeffs = values2coeffs(key, fvals);
+            // Return the inner product of the two functions' scaling coefficients.
+            tensorT c2 = copy(lc);
+            c2.gaxpy(alpha, fcoeffs, beta);
+            return c2;
+        } 
+
+        /// Return out of place gaxpy using recursive descent. 
+        /// @param[in] key Key of the function node on which to compute gaxpy
+        /// @param[in] left FunctionImpl, left argument of gaxpy
+        /// @param[in] lc coefficients of left at this node
+        /// @param[in] c coefficients of gaxpy product at this node
+        /// @param[in] f pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] alpha prefactor of left argument for gaxpy
+        /// @param[in] beta prefactor of right argument for gaxpy
+        /// @param[in] tol convergence tolerance...when the norm of the gaxpy's difference coefficients is less than tol, we are done.
+        /// @return Return void but populates tree as side-effect
+        template <typename L>
+        Void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left, 
+                                 tensorT lc, tensorT c, T (*f)(const coordT&), 
+                                 T alpha, T beta, double tol, bool below_leaf) {
+            // If we haven't yet reached the leaf level, check whether the 
+            // current key is a leaf node of left. If so, set below_leaf to 
+            // true and continue. If not, make this a parent, recur down, return.
+            if (not below_leaf) {
+                bool left_leaf = left->coeffs.find(key).get()->second.is_leaf();
+                if (left_leaf) {
+                    below_leaf = true;
+                } else {
+                    this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
+                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                        const keyT& child = it.key();
+                        gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
+                    }
+                    return None;
+                }
+            }
+
+            tensorT c_child, lc_child;
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
+            lc_child = tensorT(cdata.v2k); // tensor of host Function child coeffs
+            
+            // Compute left's coefficients if not provided
+            if (lc.size() == 0) {
+                lc = left->project(key);
+            }
+
+            // Compute this node's coefficients if not provided in function call
+            if (c.size() == 0) {
+                c = gaxpy_ext_node(key, lc, f, alpha, beta); // this node's coefficients
+            }
+
+            // Iterate over children of this node,
+            // storing the gaxpy coeffs in c_child and left's coeffs in lc_child
+            for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                const keyT& child = it.key();
+                lc_child(child_patch(child)) = left->project(child);
+                tensorT lcoeff = lc_child(child_patch(child));
+                c_child(child_patch(child)) = gaxpy_ext_node(key, lcoeff, f, alpha, beta);
+                /* print("lcoeff.size() = ", lcoeff.size()); */
+                /* print("c_child(child_patch(child)).size() = ", c_child(child_patch(child)).size()); */
+            }
+            
+            // Compute the difference coefficients to test for convergence.
+            tensorT d(cdata.v2k);
+            d = filter(c_child);
+            // Filter returns both s and d coefficients, so set scaling 
+            // coefficient part of d to 0 so that we take only the 
+            // norm of the difference coefficients.
+            d(cdata.s0) = T(0);
+            /* d(cdata.s0) = 0.0; */
+            double dnorm = d.normf();
+
+            /* print("d.size() = ", d.size()); */
+            /* print("d(cdata.s0).size() = ", d(cdata.s0).size()); */
+            /* print("c_child.size() = ", c_child.size()); */
+            /* print("key = ", key); */
+            /* print("d(s0).normf() = ", d(cdata.s0).normf()); */
+            /* print("cnormf = ", c.normf()); */
+            /* print("c = "); */
+            /* print(c); */
+            /* print("d(cdata.s0) = "); */
+            /* print(d(cdata.s0)); */
+            /* d(cdata.s0) = 0.0; */
+            /* double dnorm = d.normf(); */
+            /* print("dnormf(after zero) = ", dnorm); */
+            /* print("tol = ", tol); */
+            /* print("truncatetol = ", truncate_tol(tol, key)); */
+            /* print("******************\n"); */
+
+            // Small d.normf means we've reached a good level of resolution
+            // Set the current key to be an interior node.
+            // Store the children's coefficients and return.
+            if (dnorm <= truncate_tol(tol,key)) {
+            /* if (dnorm <= tol) { */
+                this->coeffs.replace(key, nodeT(coeffT(), true)); // interior node
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    coeffT child_coeff = coeffT(c_child(child_patch(child)));
+                    this->coeffs.replace(child, nodeT(child_coeff, false));
+                }
+                return None;
+            } else {
+                // Otherwise, make this a parent node and recur down
+                this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
+                
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    tensorT child_coeff = tensorT(c_child(child_patch(child)));
+                    tensorT left_coeff = tensorT(lc_child(child_patch(child)));
+                    gaxpy_ext_recursive<L> (child, left, left_coeff, child_coeff, f, alpha, beta, tol, below_leaf);
+                    /* woT::task(left->coeffs.owner(child), &implT:: template gaxpy_ext_recursive<L>, child, left, left_coeff, child_coeff, f, alpha, beta, tol); */
+                }
+                return None;
+            }
+            /* return None; */
+        }
+
+        template <typename L>
+        void gaxpy_ext_local(const FunctionImpl<L,NDIM>* left, T (*f)(const coordT&), T alpha, T beta, double tol) {
+            if (world.rank() == coeffs.owner(cdata.key0))
+                gaxpy_ext_recursive<L> (cdata.key0, left, tensorT(), tensorT(), f, alpha, beta, tol, false);
+            /* if (fence) */
+            /*     world.gop.fence(); */
+        }
+
+        /* template <typename L> */
+        /* Void gaxpy_ext_local(const FunctionImpl<L,NDIM>* left, T (*f)(const coordT&), T alpha, T beta) { */
+        /*     //MADNESS_ASSERT(not left.is_compressed()); */
+        /*     coeffT c = coeffT(); */
+        /*     typename dcT::const_iterator end = left->coeffs.end(); */
+        /*     for (typename dcT::const_iterator it = left->coeffs.begin(); it!=end; ++it) { */
+        /*         if (it->second.is_leaf()) */
+        /*             gaxpy_ext_recursive<L> (it->first, left, it->second.coeff(), c, f, alpha, beta, thresh); */
+        /*             /1* woT::task(left->coeffs.owner(it->first), &implT:: template gaxpy_ext_recursive<L>, it->first, left, it->second.coeff(), c, f, alpha, beta, thresh); *1/ */
+        /*         else */
+        /*             coeffs.replace(it->first, nodeT(coeffT(), true)); */
+        /*     } */
+
+        /*     return None; */
+        /* } */
+
+
         /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
         
         /// invoked by the hi-dim function, a function of NDIM+LDIM
