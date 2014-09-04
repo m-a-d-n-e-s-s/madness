@@ -95,7 +95,7 @@ public:
 		return *this;
 	}
 
-	vecfunc operator-(const vecfunc& b) {
+	vecfunc operator-(const vecfunc& b) const {
 		return vecfunc(world, sub(world, x, b.x));
 	}
 
@@ -104,9 +104,17 @@ public:
 		return *this;
 	}
 
-	vecfunc operator*(double a) { // Scale by a constant necessary
-		scale(world, x, a);
-		return *this;
+	vecfunc operator*(double a) const { // Scale by a constant necessary
+
+		PROFILE_BLOCK(Vscale);
+		std::vector<Function<T,NDIM> > result;
+		for (unsigned int i=0; i<x.size(); ++i) {
+			result[i]=mul(a,x[i],false);
+		}
+		world.gop.fence();
+
+//		scale(world, x, a);
+		return result;
 	}
 };
 

@@ -171,7 +171,7 @@ struct root {
     	return *this;
     }
 
-    root operator-(const root& b) {
+    root operator-(const root& b) const {
         return root(world,sub(world,x,b.x));
     }
 
