@@ -332,7 +332,9 @@ namespace madness {
 
             // Construct the task that notifies children to run the operation
             key_type my_key(key, world_.rank());
-            world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<key_type, opT>,
+            typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+                const key_type&, opT&, const ProcessID) const;
+            world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<key_type, opT>),
                     child0_signal, child1_signal, my_key, op, parent_signal,
                     TaskAttributes::hipri());
 
@@ -941,8 +943,10 @@ namespace madness {
 
                 lazy_sync_internal<LazySyncTag>(parent, child0, child1, key, op);
             } else {
+                typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+                    const keyT&, opT&, const ProcessID) const;
                 // There is only one process, so run the sync operation now.
-                world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<keyT, opT>,
+                world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
                         -1, -1, key, op, -1, TaskAttributes::hipri());
             }
         }
@@ -989,7 +993,9 @@ namespace madness {
 
                 lazy_sync_internal<GroupLazySyncTag>(parent, child0, child1, key, op);
             } else {
-                world_.taskq.add(*this, & WorldGopInterface::template lazy_sync_children<keyT, opT>,
+                typedef void (WorldGopInterface::*memfnT)(const ProcessID, const ProcessID,
+                        const keyT&, opT&, const ProcessID) const;
+                world_.taskq.add(*this, memfnT(& WorldGopInterface::template lazy_sync_children<keyT, opT>),
                         -1, -1, key, op, -1, TaskAttributes::hipri());
             }
         }
