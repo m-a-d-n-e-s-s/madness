@@ -108,6 +108,19 @@ int main(int argc, char** argv) {
     apb_ext2.gaxpy_ext<double>(beta, alpha_func, 1.0, 1.0, 1e-06, true);
     END_TIMER("3. alpha_func + beta");
 
+    double norm_apb1 = apb1.norm2();
+    double norm_apb2 = apb2.norm2();
+    double norm_apbext1 = apb_ext1.norm2();
+    double norm_apbext2 = apb_ext2.norm2();
+
+    if (world.rank() == 0) {
+        print("***************************************************************************");
+        print("Test for correctness by comparing the 2-norms.");
+        printf("(1) norm of apb =     %20.16f\n", norm_apb1);
+        printf("(2) norm of apb_ext = %20.16f\n", norm_apbext1);
+        printf("(3) norm of apb =     %20.16f\n", norm_apb2);
+        printf("(4) norm of apb_ext = %20.16f\n", norm_apbext2);
+    }
     /* START_TIMER; */
     /* real_function_3d gamma = real_factory_3d(world).f(gamma_func); */
     /* real_function_3d bpc = real_factory_3d(world); */

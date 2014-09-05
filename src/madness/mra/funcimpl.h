@@ -4930,19 +4930,19 @@ namespace madness {
             // If we haven't yet reached the leaf level, check whether the 
             // current key is a leaf node of left. If so, set below_leaf to 
             // true and continue. If not, make this a parent, recur down, return.
-            if (not below_leaf) {
-                bool left_leaf = left->coeffs.find(key).get()->second.is_leaf();
-                if (left_leaf) {
-                    below_leaf = true;
-                } else {
-                    this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
-                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
-                        const keyT& child = it.key();
-                        gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
-                    }
-                    return None;
-                }
-            }
+            /* if (not below_leaf) { */
+            /*     bool left_leaf = left->coeffs.find(key).get()->second.is_leaf(); */
+            /*     if (left_leaf) { */
+            /*         below_leaf = true; */
+            /*     } else { */
+            /*         this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node */
+            /*         for (KeyChildIterator<NDIM> it(key); it; ++it) { */
+            /*             const keyT& child = it.key(); */
+            /*             gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf); */
+            /*         } */
+            /*         return None; */
+            /*     } */
+            /* } */
 
             tensorT c_child, lc_child;
             c_child = tensorT(cdata.v2k); // tensor of child coeffs
@@ -4953,7 +4953,6 @@ namespace madness {
             if (lc.size() == 0) {
                 literT it = left->coeffs.find(key).get();
                 MADNESS_ASSERT(it != left->coeffs.end());
-                lnorm = it->second.get_norm_tree();
                 if (it->second.has_coeff())
                     lc = it->second.coeff().full_tensor_copy();
             }
