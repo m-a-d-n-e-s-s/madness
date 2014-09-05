@@ -9,15 +9,17 @@ double ttt, sss;
 #define START_TIMER world.gop.fence(); ttt=wall_time(); sss=cpu_time()
 #define END_TIMER(msg) ttt=wall_time()-ttt; sss=cpu_time()-sss; if (world.rank()==0) printf("timer: %-20.20s %8.2fs %8.2fs\n", msg, sss, ttt)
 
+typedef std::shared_ptr< FunctionFunctorInterface<double,3> > functorT;
+
 static const double R = 1.4;    // bond length
 static const double L = 5.0*R;  // box size
 static const long k = 8;        // wavelet order
 static const double thresh = 1e-6; // precision
 
-/* static double alpha_func(const coord_3d& r) { */
-/*     const double x=r[0], y=r[1], z=r[2]; */
-/*     return ((x*x + y*y + z*z) * sin(x*x + y*y + z*z)); */
-/* }; */
+static double alpha_func(const coord_3d& r) {
+    const double x=r[0], y=r[1], z=r[2];
+    return ((x*x + y*y + z*z) * sin(x*x + y*y + z*z));
+};
 
 static double beta_func(const coord_3d& r) {
     const double x=r[0], y=r[1], z=r[2];
@@ -40,18 +42,14 @@ static double gamma_func(const coord_3d& r) {
 /*     return ((x*x + y*y + z*z) * sin(x*x + y*y + z*z) + a * exp(- (x-x0)*(x-x0) - (y-y0)*(y-y0) - (z-z0)*(z-z0))); */
 /* } */
 
-static double beta_p_gamma_func(const coord_3d& r) {
-    const double x=r[0], y=r[1], z=r[2];
-    const double x0=-1.0, y0=-1.0, z0=-1.0;
-    const double x1=2.0, y1=2.0, z1=2.0;
-    const double a=1.0, b=0.5, sig2=0.0625;
-    return (a * exp(- (x-x0)*(x-x0) - (y-y0)*(y-y0) - (z-z0)*(z-z0))
-          + b * exp(- sig2*(x-x1)*(x-x1) - sig2*(y-y1)*(y-y1) - sig2*(z-z1)*(z-z1)));
-}
-
-static double onefn(const coord_3d& r) {
-    return 1.0;
-}
+/* static double beta_p_gamma_func(const coord_3d& r) { */
+/*     const double x=r[0], y=r[1], z=r[2]; */
+/*     const double x0=-1.0, y0=-1.0, z0=-1.0; */
+/*     const double x1=2.0, y1=2.0, z1=2.0; */
+/*     const double a=1.0, b=0.5, sig2=0.0625; */
+/*     return (a * exp(- (x-x0)*(x-x0) - (y-y0)*(y-y0) - (z-z0)*(z-z0)) */
+/*           + b * exp(- sig2*(x-x1)*(x-x1) - sig2*(y-y1)*(y-y1) - sig2*(z-z1)*(z-z1))); */
+/* } */
 
 int main(int argc, char** argv) {
     initialize(argc, argv);
@@ -69,47 +67,95 @@ int main(int argc, char** argv) {
     FunctionDefaults<3>::set_truncate_mode(1);
     FunctionDefaults<3>::set_cubic_cell(-L/2, L/2);
 
-    // Create numerical functions for alpha, beta, gamma
-    // and also for alpha + beta and beta + gamma
-    print("***************************************************");
-    print("Creating madness functions");
-    /* real_function_3d alpha = real_factory_3d(world).f(alpha_func); */
+    real_function_3d alpha1 = real_factory_3d(world).f(alpha_func);
+    /* real_function_3d bpc = real_factory_3d(world).f(beta_p_gamma_func); */
+
+    if (world.rank() == 0) {
+        print("***************************************************************************");
+        print("alpha is a highly oscillatory function (x^2 sin(x^2)).");
+        print("beta is a pretty boring Gaussian.");
+        print("For the first two timers, the cost of computing alpha in");
+        print("the numerical basis is not included.\n");
+    }
+
+    START_TIMER;
     real_function_3d beta = real_factory_3d(world).f(beta_func);
-    real_function_3d gamma = real_factory_3d(world).f(gamma_func);
-    /* real_function_3d apb = real_factory_3d(world).f(alpha_p_beta_func); */
-    real_function_3d bpc = real_factory_3d(world).f(beta_p_gamma_func);
+    real_function_3d apb1 = real_factory_3d(world);
+    apb1 = alpha1 + beta;
+    END_TIMER("1. alpha + beta");
 
-    // Create empty numerical functions to store
-    // the results of gaxpy_ext()
-    print("Creating empty functions to store results.");
-    /* real_function_3d apb_ext = real_factory_3d(world); */
-    real_function_3d bpc_ext = real_factory_3d(world);
+    START_TIMER;
+    real_function_3d apb_ext1 = real_factory_3d(world);
+    apb_ext1.gaxpy_ext<double>(alpha1, beta_func, 1.0, 1.0, 1e-06, true);
+    END_TIMER("2. alpha + beta_func");
 
-    // Create empty numerical functions to store
-    // the results of gaxpy computed with the 
-    // overloaded operators + and *
-    /* real_function_3d apb_gax = real_factory_3d(world); */
-    real_function_3d bpc_gax = real_factory_3d(world);
+    if (world.rank() == 0) {
+        print("***************************************************************************");
+        print("alpha is a highly oscillatory function (x^2 sin(x^2)).");
+        print("beta is a pretty boring Gaussian.");
+        print("For the next two timers, the cost of computing beta in");
+        print("the numerical basis is not included.\n");
+    }
+    
+    START_TIMER;
+    real_function_3d alpha2 = real_factory_3d(world).f(alpha_func);
+    real_function_3d apb2 = real_factory_3d(world);
+    apb2 = alpha2 + beta;
+    END_TIMER("1. alpha + beta");
 
-    print("Adding madness functions using overloaded + and * operators");
-    bpc_gax = beta + gamma;
+    START_TIMER;
+    real_function_3d apb_ext2 = real_factory_3d(world);
+    apb_ext2.gaxpy_ext<double>(beta, alpha_func, 1.0, 1.0, 1e-06, true);
+    END_TIMER("3. alpha_func + beta");
 
-    /* bpc_gax.compress(); */
-    /* bpc_gax.reconstruct(); */
-    /* Translation l1,l2,l3; */
-    /* l1 = 3; */
-    /* l2 = 3; */
-    /* l3 = 2; */
-    /* const Vector<Translation,3> ll=vec(l1,l2,l3); */
-    /* Key<3> test_key(4, ll); */ 
-    /* print(test_key); */
-    /* print(bpc.get_impl().get()->project(test_key)); */
+    /* START_TIMER; */
+    /* real_function_3d gamma = real_factory_3d(world).f(gamma_func); */
+    /* real_function_3d bpc = real_factory_3d(world); */
+    /* bpc = alpha1 + beta; */
+    /* END_TIMER("1. bpc = beta + gamma"); */
 
-    print("Adding using gaxpy_ext_local");
-    bpc_ext.gaxpy_ext_local<double>(beta, gamma_func, 1.0, 1.0, 1e-02);
+    /* START_TIMER; */
+    /* real_function_3d apb_ext1 = real_factory_3d(world); */
+    /* apb_ext1.gaxpy_ext<double>(alpha, beta_func, 1.0, 1.0, 1e-06, true); */
+    /* END_TIMER("2. apb_ext = alpha + beta_func"); */
 
-    bpc_gax.print_tree();
-    bpc_ext.print_tree();
+    /* START_TIMER; */
+    /* real_function_3d apb_ext2 = real_factory_3d(world); */
+    /* apb_ext2.gaxpy_ext<double>(beta, alpha_func, 1.0, 1.0, 1e-06, true); */
+    /* END_TIMER("3. apb_ext = alpha_func + beta"); */
+
+
+
+
+    /* real_function_3d gamma = real_factory_3d(world).f(gamma_func); */
+    /* print("***************************************************"); */
+    /* print("Creating madness function bpc"); */
+
+    /* // Create empty numerical functions to store */
+    /* // the results of gaxpy_ext() */
+    /* world.gop.fence(); */
+    /* print("***************************************************"); */
+    /* print("Creating empty functions to store results."); */
+    /* real_function_3d bpc_ext = real_factory_3d(world); */
+
+    /* // Create empty numerical functions to store */
+    /* // the results of gaxpy computed with the */ 
+    /* // overloaded operators + and * */
+    /* /1* real_function_3d apb_gax = real_factory_3d(world); *1/ */
+    /* /1* real_function_3d bpc_gax = real_factory_3d(world); *1/ */
+
+    /* /1* print("Adding madness functions using overloaded + and * operators"); *1/ */
+    /* /1* bpc_gax = beta + gamma; *1/ */
+
+    /* /1* bpc_gax.reconstruct(); *1/ */
+
+    /* bpc.print_tree(); */
+    /* /1* bpc_gax.print_tree(); *1/ */
+
+    /* print("Adding using gaxpy_ext_local"); */
+    /* bpc_ext.gaxpy_ext<double>(beta, gamma_func, 1.0, 1.0, 1e-06, true); */
+
+    /* bpc_ext.print_tree(); */
 
     /* if (world.rank() == 0) {} */
 

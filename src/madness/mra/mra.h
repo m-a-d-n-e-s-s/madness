@@ -1220,24 +1220,12 @@ namespace madness {
         /// @param[in] beta prefactor for f
         /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
         template <typename L>
-        Void gaxpy_ext_local(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol) const {
-            impl->gaxpy_ext_local(left.get_impl().get(), f, alpha, beta, tol);
+        Void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (left.is_compressed()) left.reconstruct();
+            impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
             return None;
         }
-
-        /// Return the inner product with external function, this*alpha + f*beta ... requires communication.
-        /// @param[in] alpha T type coefficient of this Function
-        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
-        /// @param[in] beta T type coefficient of f
-        /// @return Returns the gaxpy: this*alpha + f*beta
-        //template <typename L>
-        //Void gaxpy_ext(const Function<L,NDIM>* left, T (*f)(const coordT&), T alpha, T beta) const {
-            //T local = impl->gaxpy_ext_local(left.get_impl().get(), f, alpha, beta);
-            //impl->world.gop.sum(local);
-            //impl->world.gop.fence();
-            //return None;
-        //}
-
 
         /// Returns the inner product for one on-demand function
 
