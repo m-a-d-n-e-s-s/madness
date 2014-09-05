@@ -107,7 +107,7 @@ public:
 	vecfunc operator*(double a) const { // Scale by a constant necessary
 
 		PROFILE_BLOCK(Vscale);
-		std::vector<Function<T,NDIM> > result;
+		std::vector<Function<T,NDIM> > result(x.size());
 		for (unsigned int i=0; i<x.size(); ++i) {
 			result[i]=mul(a,x[i],false);
 		}
@@ -317,8 +317,10 @@ private:
 			tensorT fock_offdiag=copy(fock);
 			for (int i=0; i<fock.dim(0); ++i) fock_offdiag(i,i)=0.0;
 			double max_fock_offidag=fock_offdiag.absmax();
-			if (world.rank()==0) print("F max off-diagonal  ",max_fock_offidag);
-			print(fock);
+			if (world.rank()==0) {
+				print("F max off-diagonal  ",max_fock_offidag);
+				print(fock);
+			}
 
 			double oldenergy=energy;
 			energy = compute_energy(psi, mul(world, R, Jnemo),
