@@ -7,12 +7,28 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 #        testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
 #        testqm testunaryop testper
 
-TESTS = testbsh testproj testpdiff testper \
-        testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
-        testsuite
+TESTS = testbsh.mpi testproj.mpi testpdiff.mpi testper.mpi \
+        testdiff1Db.mpi testdiff1D.mpi testdiff2D.mpi testdiff3D.mpi \
+		testgconv.mpi testopdir.mpi testsuite.mpi
+
+TEST_EXTENSIONS = .mpi .seq
+
+# tests run by mpirun
+MPI_LOG_COMPILER = $(MPIRUN)
+AM_MPI_LOG_FLAGS = $(MPIFLAGS)
+
+# sequential tests
+SEQ_LOG_COMPILER = 
+AM_SEQ_LOG_FLAGS =
+
+# default test (= sequential)
+LOG_COMPILER = 
+AM_LOG_FLAGS =
+
+
 
 bin_PROGRAMS = mraplot
-noinst_PROGRAMS =  testperiodic testbc testproj testqm test6 $(TESTS)
+noinst_PROGRAMS =  testperiodic.mpi testbc.mpi testproj.mpi testqm test6 $(TESTS)
 lib_LIBRARIES = libMADmra.a
 
 
@@ -31,29 +47,29 @@ libMADmra_a_SOURCES = mra1.cc mra2.cc mra3.cc mra4.cc mra5.cc mra6.cc \
                       $(thisinclude_HEADERS)
 
 
-testsuite_SOURCES = testsuite.cc test_sepop.cc
-testperiodic_SOURCES = testperiodic.cc
-testper_SOURCES = testper.cc test_sepop.cc
-testbsh_SOURCES = testbsh.cc
+testsuite_mpi_SOURCES = testsuite.cc test_sepop.cc
+testperiodic_mpi_SOURCES = testperiodic.cc
+testper_mpi_SOURCES = testper.cc test_sepop.cc
+testbsh_mpi_SOURCES = testbsh.cc
 test6_SOURCES = test6.cc
 
-testbc_SOURCES = testbc.cc
-testproj_SOURCES = testproj.cc
-testgconv_SOURCES = testgconv.cc
+testbc_mpi_SOURCES = testbc.cc
+testproj_mpi_SOURCES = testproj.cc
+testgconv_mpi_SOURCES = testgconv.cc
 
-testopdir_SOURCES = testopdir.cc
+testopdir_mpi_SOURCES = testopdir.cc
 
 mraplot_SOURCES = mraplot.cc
 
-testpdiff_SOURCES = testpdiff.cc
+testpdiff_mpi_SOURCES = testpdiff.cc
 
-testdiff1D_SOURCES = testdiff1D.cc
+testdiff1D_mpi_SOURCES = testdiff1D.cc
 
-testdiff1Db_SOURCES = testdiff1Db.cc
+testdiff1Db_mpi_SOURCES = testdiff1Db.cc
 
-testdiff2D_SOURCES = testdiff2D.cc
+testdiff2D_mpi_SOURCES = testdiff2D.cc
 
-testdiff3D_SOURCES = testdiff3D.cc
+testdiff3D_mpi_SOURCES = testdiff3D.cc
 
 testqm_SOURCES = testqm.cc
 
