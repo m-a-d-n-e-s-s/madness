@@ -9,7 +9,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
 TESTS = testbsh testproj testpdiff testper \
         testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
-        testsuite
+        testsuite testinnerext testgaxpyext
 
 bin_PROGRAMS = mraplot
 noinst_PROGRAMS =  testperiodic testbc testproj testqm test6 $(TESTS)
