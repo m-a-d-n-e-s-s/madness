@@ -57,6 +57,10 @@ testdiff3D_SOURCES = testdiff3D.cc
 
 testqm_SOURCES = testqm.cc
 
+testinnerext_SOURCES = testinnerext.cc
+
+testgaxpyext_SOURCES = testgaxpyext.cc
+
 #testop2_SOURCES = testop2.cc
 
 
