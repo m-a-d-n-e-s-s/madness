@@ -51,9 +51,15 @@ static double gamma_func(const coord_3d& r) {
 /*           + b * exp(- sig2*(x-x1)*(x-x1) - sig2*(y-y1)*(y-y1) - sig2*(z-z1)*(z-z1))); */
 /* } */
 
+bool is_like(double a, double b, double tol) {
+    return (std::abs((a - b)/a) <= tol);
+}
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
+
+    int success = 0;
 
     startup(world,argc,argv);
     std::cout.precision(6);
@@ -121,6 +127,7 @@ int main(int argc, char** argv) {
         printf("(3) norm of apb =     %20.16f\n", norm_apb2);
         printf("(4) norm of apb_ext = %20.16f\n", norm_apbext2);
     }
+
     /* START_TIMER; */
     /* real_function_3d gamma = real_factory_3d(world).f(gamma_func); */
     /* real_function_3d bpc = real_factory_3d(world); */
@@ -137,43 +144,11 @@ int main(int argc, char** argv) {
     /* apb_ext2.gaxpy_ext<double>(beta, alpha_func, 1.0, 1.0, 1e-06, true); */
     /* END_TIMER("3. apb_ext = alpha_func + beta"); */
 
-
-
-
-    /* real_function_3d gamma = real_factory_3d(world).f(gamma_func); */
-    /* print("***************************************************"); */
-    /* print("Creating madness function bpc"); */
-
-    /* // Create empty numerical functions to store */
-    /* // the results of gaxpy_ext() */
-    /* world.gop.fence(); */
-    /* print("***************************************************"); */
-    /* print("Creating empty functions to store results."); */
-    /* real_function_3d bpc_ext = real_factory_3d(world); */
-
-    /* // Create empty numerical functions to store */
-    /* // the results of gaxpy computed with the */ 
-    /* // overloaded operators + and * */
-    /* /1* real_function_3d apb_gax = real_factory_3d(world); *1/ */
-    /* /1* real_function_3d bpc_gax = real_factory_3d(world); *1/ */
-
-    /* /1* print("Adding madness functions using overloaded + and * operators"); *1/ */
-    /* /1* bpc_gax = beta + gamma; *1/ */
-
-    /* /1* bpc_gax.reconstruct(); *1/ */
-
-    /* bpc.print_tree(); */
-    /* /1* bpc_gax.print_tree(); *1/ */
-
-    /* print("Adding using gaxpy_ext_local"); */
-    /* bpc_ext.gaxpy_ext<double>(beta, gamma_func, 1.0, 1.0, 1e-06, true); */
-
-    /* bpc_ext.print_tree(); */
-
-    /* if (world.rank() == 0) {} */
+    if (not is_like(norm_apb1, norm_apbext1, thresh)) ++success;
+    if (not is_like(norm_apb2, norm_apbext2, thresh)) ++success;
 
     world.gop.fence();
 
     finalize();
-    return 0;
+    return success;
 }
