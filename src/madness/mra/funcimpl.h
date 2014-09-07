@@ -898,8 +898,6 @@ namespace madness {
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     private:
         typedef WorldObject< FunctionImpl<T,NDIM> > woT; ///< Base class world object type
-        tbb::mutex refinePrintMutex;
-        
     public:
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef std::shared_ptr< FunctionImpl<T,NDIM> > pimplT; ///< pointer to this class
