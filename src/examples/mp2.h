@@ -696,6 +696,7 @@ namespace madness {
 //			load_function(constant_term,"GVpair");
 
 			NonlinearSolverND<6> solver(param.maxsub);
+			solver.do_print=(world.rank()==0);
 			// increment iteration counter upon entry
 			for (++result.iteration; result.iteration<20; ++result.iteration) {
 

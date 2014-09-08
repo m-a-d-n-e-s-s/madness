@@ -75,7 +75,7 @@ struct F {
         : x(x), y(y)
     {}
 
-    F operator-(const F& b) {
+    F operator-(const F& b) const {
         return F(x-b.x, y-b.y);
     }
 
@@ -84,7 +84,7 @@ struct F {
         return *this;
     }
 
-    F operator*(double a) { // Scale by a constant necessary
+    F operator*(double a) const { // Scale by a constant necessary
         return F(x*a,y*a);
     }
 };

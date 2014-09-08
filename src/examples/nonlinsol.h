@@ -82,7 +82,6 @@ namespace madness {
 				break;
 			}
 		}
-		//print("subspace solution",c);
 	}
 
 	/// A simple Krylov-subspace nonlinear equation solver
@@ -95,7 +94,9 @@ namespace madness {
 		real_tensor Q;
 
 	public:
-		NonlinearSolverND(unsigned int maxsub = 10) : maxsub(maxsub) {}
+		bool do_print;
+
+		NonlinearSolverND(unsigned int maxsub = 10) : maxsub(maxsub), do_print(false) {}
 
 		/// Computes next trial solution vector
 
@@ -105,11 +106,11 @@ namespace madness {
 		/// @param u Current solution vector
 		/// @param r Corresponding residual
 		/// @return Next trial solution vector
-                /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
-                /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
-                Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r,
-                                             const double rcondtol=1e-8, const double cabsmax=1000.0) {
-			if (maxsub==1) return u;
+		/// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
+		/// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to linear dependence
+		Function<double,NDIM> update(const Function<double,NDIM>& u, const Function<double,NDIM>& r,
+				const double rcondtol=1e-8, const double cabsmax=1000.0) {
+			if (maxsub==1) return u-r;
 			int iter = ulist.size();
 			ulist.push_back(u);
 			rlist.push_back(r);
@@ -124,6 +125,7 @@ namespace madness {
 			Q = Qnew;
 			real_tensor c = KAIN(Q);
 			check_linear_dependence(Q,c,rcondtol,cabsmax);
+			if (do_print) print("subspace solution",c);
 
 			// Form new solution in u
 			Function<double,NDIM> unew = FunctionFactory<double,NDIM>(u.world());
@@ -175,15 +177,18 @@ namespace madness {
         std::vector<T> ulist, rlist; ///< Subspace information
         Tensor<C> Q;
     public:
+        bool do_print;
 
 	XNonlinearSolver(const Alloc& alloc = Alloc())
             : maxsub(10)
             , alloc(alloc)
+    		, do_print(false)
         {}
 
 	XNonlinearSolver(const XNonlinearSolver& other)
             : maxsub(other.maxsub)
             , alloc(other.alloc)
+			, do_print(false)
         {}
 
 
@@ -203,7 +208,7 @@ namespace madness {
         /// @param[in]          rcondtol rcond less than this will cause the subspace to be shrunk due to linear dependence
         /// @param[in]          cabsmax  maximum element of c greater than this will cause the subspace to be shrunk due to li
 	T update(const T& u, const T& r, const double rcondtol=1e-8, const double cabsmax=1000.0) {
-		if (maxsub==1) return u;
+		if (maxsub==1) return u-r;
 		int iter = ulist.size();
 		ulist.push_back(u);
 		rlist.push_back(r);
@@ -219,6 +224,7 @@ namespace madness {
 		Tensor<C> c = KAIN(Q);
 
 		check_linear_dependence(Q,c,rcondtol,cabsmax);
+		if (do_print) print("subspace solution",c);
 
 		// Form new solution in u
 		T unew = alloc();

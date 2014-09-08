@@ -898,7 +898,6 @@ namespace madness {
     class FunctionImpl : public WorldObject< FunctionImpl<T,NDIM> > {
     private:
         typedef WorldObject< FunctionImpl<T,NDIM> > woT; ///< Base class world object type
-        
     public:
         typedef FunctionImpl<T,NDIM> implT; ///< Type of this class (implementation)
         typedef std::shared_ptr< FunctionImpl<T,NDIM> > pimplT; ///< pointer to this class
@@ -4686,13 +4685,12 @@ namespace madness {
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
         /// @return Returns the inner product over the domain of a single function node, no guarantee of accuracy.   
-        T inner_ext_node(keyT key, coeffT c, T (*f)(const coordT&)) const {
+        T inner_ext_node(keyT key, tensorT c, T (*f)(const coordT&)) const {
             tensorT fvals = tensorT(this->cdata.vk);
-            coeffT fc;
             // Compute the value of the external function at the quadrature points.
             fvals = madness::fcube(key, f, this->cdata.quad_x);
             // Convert quadrature point values to scaling coefficients.
-            fc = coeffT(values2coeffs(key, fvals));
+            tensorT fc = tensorT(values2coeffs(key, fvals));
             // Return the inner product of the two functions' scaling coefficients.
             return c.trace_conj(fc);
         } 
@@ -4702,14 +4700,14 @@ namespace madness {
         /// @param[in] c Tensor of coefficients for the function at the function node given by key
         /// @param[in] f Reference to FunctionFunctorInterface. This is the externally provided function
         /// @return Returns the inner product over the domain of a single function node, no guarantee of accuracy.   
-        T inner_ext_node(keyT key, coeffT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
+        T inner_ext_node(keyT key, tensorT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f) const {
             tensorT fvals = tensorT(this->cdata.vk);
             // Compute the value of the external function at the quadrature points.
             fcube(key, *(f), cdata.quad_x, fvals);
             // Convert quadrature point values to scaling coefficients.
-            tensorT fcoeffs = values2coeffs(key, fvals);
+            tensorT fc = tensorT(values2coeffs(key, fvals));
             // Return the inner product of the two functions' scaling coefficients.
-            return c.trace_conj(fcoeffs);
+            return c.trace_conj(fc);
         } 
 
         /// Call inner_ext_node recursively until convergence.
@@ -4719,13 +4717,12 @@ namespace madness {
         /// @param[in] old_inner T type value of the inner product on the parent function node
         /// @return Returns the inner product over the domain of a single function, checks for convergence.
         /// TODO: Add option to turn off recursion
-        T inner_ext_node_recursive(keyT key, coeffT c, T (*f)(const coordT&), T old_inner=0.0) const {
+        T inner_ext_node_recursive(keyT key, tensorT c, T (*f)(const coordT&), T old_inner=0.0) const {
             int i = 0;
-            std::vector<coeffT> c_child;
-            Tensor<T> inner_child; 
+            tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
-            c_child = std::vector<coeffT>(pow(2, NDIM));  // vector of child coefficients
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
             inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
 
             // If old_inner is default value, assume this is the first call and compute inner product on this node.
@@ -4733,24 +4730,36 @@ namespace madness {
                 old_inner = inner_ext_node(key, c, f);
             }
 
+            // We need the scaling coefficients of the numerical function at each of the children nodes.
+            // We can't use project because there is no guarantee that the numerical function will have
+            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
+            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
+            // get the scaling coefficients at the next level.
+            tensorT d = tensorT(cdata.v2k);
+            d = T(0);
+            d(cdata.s0) = copy(c);
+            c_child = unfilter(d);
+
             // Iterate over all children of this compute node, computing the inner product on each child node.
             // new_inner will store the sum of these, yielding a more accurate inner product.
             for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                const keyT& child = it.key();
             	// convert tensorT to coeffT
-            	c_child[i] = coeffT(project(it.key()),thresh,FunctionDefaults<NDIM>::get_tensor_type());
-                inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
+                tensorT cc = tensorT(c_child(child_patch(child)));
+                inner_child(i) = inner_ext_node(child, cc, f);
             }
             new_inner = inner_child.sum();
             
             // Check for convergence. If converged...yay, we're done. If not, call inner_ext_node_recursive on 
             // each child node and accumulate the inner product in result.
             if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
-                // Question: should this use truncate_tol for the current level or the next one down?
                 result = new_inner;
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                    result += inner_ext_node_recursive(it.key(), c_child[i], f, inner_child(i));
+                    const keyT& child = it.key();
+                    tensorT cc = tensorT(c_child(child_patch(child)));
+                    result += inner_ext_node_recursive(child, cc, f, inner_child(i));
                 }
             }
 
@@ -4764,13 +4773,12 @@ namespace madness {
         /// @param[in] old_inner T type value of the inner product on the parent function node
         /// @return Returns the inner product over the domain of a single function, checks for convergence.
         /// TODO: Add option to turn off recursion
-        T inner_ext_node_recursive(keyT key, coeffT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, T old_inner=0.0) const {
+        T inner_ext_node_recursive(keyT key, tensorT c, const std::shared_ptr< FunctionFunctorInterface<T,NDIM> > f, T old_inner=0.0) const {
             int i = 0;
-            std::vector<coeffT> c_child;
-            Tensor<T> inner_child; 
+            tensorT c_child, inner_child;
             T new_inner, result = 0.0;
 
-            c_child = std::vector<coeffT>(pow(2, NDIM));  // vector of child coefficients
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
             inner_child = Tensor<double>(pow(2, NDIM));   // tensor of child inner products
 
             // If old_inner is default value, assume this is the first call and compute inner product on this node.
@@ -4778,24 +4786,36 @@ namespace madness {
                 old_inner = inner_ext_node(key, c, f);
             }
 
+            // We need the scaling coefficients of the numerical function at each of the children nodes.
+            // We can't use project because there is no guarantee that the numerical function will have
+            // a functor.  Instead, since we know we are at or below the leaf nodes, the wavelet 
+            // coefficients are zero (to within the truncate tolerance). Thus, we can use unfilter() to
+            // get the scaling coefficients at the next level.
+            tensorT d = tensorT(cdata.v2k);
+            d = T(0);
+            d(cdata.s0) = copy(c);
+            c_child = unfilter(d);
+
             // Iterate over all children of this compute node, computing the inner product on each child node.
             // new_inner will store the sum of these, yielding a more accurate inner product.
             for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
+                const keyT& child = it.key();
             	// convert tensorT to coeffT
-            	c_child[i] = coeffT(project(it.key()),thresh,FunctionDefaults<NDIM>::get_tensor_type());
-                inner_child(i) = inner_ext_node(it.key(), c_child[i], f);
+                tensorT cc = tensorT(c_child(child_patch(child)));
+                inner_child(i) = inner_ext_node(child, cc, f);
             }
             new_inner = inner_child.sum();
             
             // Check for convergence. If converged...yay, we're done. If not, call inner_ext_node_recursive on 
             // each child node and accumulate the inner product in result.
             if (std::abs(new_inner - old_inner) <= truncate_tol(thresh, key)) { 
-                // Question: should this use truncate_tol for the current level or the next one down?
                 result = new_inner;
             } else {
                 i = 0;
                 for (KeyChildIterator<NDIM> it(key); it; ++it, ++i) {
-                    result += inner_ext_node_recursive(it.key(), c_child[i], f, inner_child(i));
+                    const keyT& child = it.key();
+                    tensorT cc = tensorT(c_child(child_patch(child)));
+                    result += inner_ext_node_recursive(child, cc, f, inner_child(i));
                 }
             }
 
@@ -4810,7 +4830,8 @@ namespace madness {
 
             T operator()(typename dcT::const_iterator& it) const {
                 if (it->second.is_leaf()) {
-                    return impl->inner_ext_node_recursive(it->first, it->second.coeff(), fptr);
+                    tensorT cc = it->second.coeff().full_tensor_copy();
+                    return impl->inner_ext_node_recursive(it->first, cc, fptr);
                 } else {
                     return 0.0;
                 }
@@ -4833,7 +4854,8 @@ namespace madness {
 
             T operator()(typename dcT::const_iterator& it) const {
                 if (it->second.is_leaf()) {
-                    return impl->inner_ext_node_recursive(it->first, it->second.coeff(), fref);
+                    tensorT cc = it->second.coeff().full_tensor_copy();
+                    return impl->inner_ext_node_recursive(it->first, cc, fref);
                 } else {
                     return 0.0;
                 }
@@ -4868,6 +4890,130 @@ namespace madness {
                     do_inner_ext_local_ffi(f, this));
         } 
         
+        /// Return the gaxpy product with an external function on a specified function node.
+        /// @param[in] key Key of the function node on which to compute gaxpy
+        /// @param[in] lc Tensor of coefficients for the function at the function node given by key
+        /// @param[in] f Pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] alpha prefactor of c Tensor for gaxpy
+        /// @param[in] beta prefactor of fcoeffs for gaxpy
+        /// @return Returns coefficient tensor of the gaxpy product at specified key, no guarantee of accuracy.   
+        template <typename L>
+        tensorT gaxpy_ext_node(keyT key, Tensor<L> lc, T (*f)(const coordT&), T alpha, T beta) const {
+            // Compute the value of the external function at the quadrature points.
+            tensorT fvals = madness::fcube(key, f, cdata.quad_x);
+            // Convert quadrature point values to scaling coefficients.
+            tensorT fcoeffs = values2coeffs(key, fvals);
+            // Return the inner product of the two functions' scaling coefficients.
+            tensorT c2 = copy(lc);
+            c2.gaxpy(alpha, fcoeffs, beta);
+            return c2;
+        } 
+
+        /// Return out of place gaxpy using recursive descent. 
+        /// @param[in] key Key of the function node on which to compute gaxpy
+        /// @param[in] left FunctionImpl, left argument of gaxpy
+        /// @param[in] lc coefficients of left at this node
+        /// @param[in] c coefficients of gaxpy product at this node
+        /// @param[in] f pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] alpha prefactor of left argument for gaxpy
+        /// @param[in] beta prefactor of right argument for gaxpy
+        /// @param[in] tol convergence tolerance...when the norm of the gaxpy's difference coefficients is less than tol, we are done.
+        /// @return Return void but populates tree as side-effect
+        template <typename L>
+        Void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left, 
+                                 Tensor<L> lcin, tensorT c, T (*f)(const coordT&), 
+                                 T alpha, T beta, double tol, bool below_leaf) {
+            typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
+
+            // If we haven't yet reached the leaf level, check whether the 
+            // current key is a leaf node of left. If so, set below_leaf to 
+            // true and continue. If not, make this a parent, recur down, return.
+            /* if (not below_leaf) { */
+            /*     bool left_leaf = left->coeffs.find(key).get()->second.is_leaf(); */
+            /*     if (left_leaf) { */
+            /*         below_leaf = true; */
+            /*     } else { */
+            /*         this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node */
+            /*         for (KeyChildIterator<NDIM> it(key); it; ++it) { */
+            /*             const keyT& child = it.key(); */
+            /*             gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf); */
+            /*         } */
+            /*         return None; */
+            /*     } */
+            /* } */
+
+            tensorT c_child, lc_child;
+            c_child = tensorT(cdata.v2k); // tensor of child coeffs
+            lc_child = tensorT(cdata.v2k); // tensor of host Function child coeffs
+            
+            // Compute left's coefficients if not provided
+            Tensor<L> lc = lcin;
+            if (lc.size() == 0) {
+                literT it = left->coeffs.find(key).get();
+                MADNESS_ASSERT(it != left->coeffs.end());
+                if (it->second.has_coeff())
+                    lc = it->second.coeff().full_tensor_copy();
+            }
+            /* if (lc.size() == 0) { */
+            /*     if (left->coeffs.find(key).get()->second.has_coeff()) { */
+            /*         lc = left->coeffs.find(key).get()->second.coeff().full_tensor_copy(); */
+            /*     } else { */
+            /*         lc = left->project(key); */
+            /*     } */
+            /* } */
+
+            // Compute this node's coefficients if not provided in function call
+            if (c.size() == 0) {
+                c = gaxpy_ext_node(key, lc, f, alpha, beta); // this node's coefficients
+            }
+
+            // Iterate over children of this node,
+            // storing the gaxpy coeffs in c_child and left's coeffs in lc_child
+            for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                const keyT& child = it.key();
+                lc_child(child_patch(child)) = left->project(child);
+                tensorT lcoeff = lc_child(child_patch(child));
+                c_child(child_patch(child)) = gaxpy_ext_node(child, lcoeff, f, alpha, beta);
+            }
+            
+            // Compute the difference coefficients to test for convergence.
+            tensorT d = tensorT(cdata.v2k);
+            d = filter(c_child);
+            // Filter returns both s and d coefficients, so set scaling 
+            // coefficient part of d to 0 so that we take only the 
+            // norm of the difference coefficients.
+            d(cdata.s0) = T(0);
+            double dnorm = d.normf();
+
+            // Small d.normf means we've reached a good level of resolution
+            // Store the coefficients and return.
+            if (dnorm <= truncate_tol(tol,key)) {
+                this->coeffs.replace(key, nodeT(coeffT(c,targs), false)); // interior node
+                return None;
+            } else {
+                // Otherwise, make this a parent node and recur down
+                this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
+                
+                for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                    const keyT& child = it.key();
+                    tensorT child_coeff = tensorT(c_child(child_patch(child)));
+                    tensorT left_coeff = tensorT(lc_child(child_patch(child)));
+                    woT::task(left->coeffs.owner(child), &implT:: template gaxpy_ext_recursive<L>, 
+                              child, left, left_coeff, child_coeff, f, alpha, beta, tol, below_leaf);
+                }
+                return None;
+            }
+            /* return None; */
+        }
+
+        template <typename L>
+        void gaxpy_ext(const FunctionImpl<L,NDIM>* left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence) {
+            if (world.rank() == coeffs.owner(cdata.key0))
+                gaxpy_ext_recursive<L> (cdata.key0, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, false);
+            if (fence)
+                world.gop.fence();
+        }
+
         /// project the low-dim function g on the hi-dim function f: result(x) = <this(x,y) | g(y)>
         
         /// invoked by the hi-dim function, a function of NDIM+LDIM

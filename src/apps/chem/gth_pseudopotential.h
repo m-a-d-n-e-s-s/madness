@@ -53,7 +53,7 @@ public:
         double rr = std::sqrt(x*x + y*y + z*z);
         double rs = rr/zi;
         double rs2 = rs*rs; double rs4 = rs2*rs2; double rs6 = rs2*rs4;
-        return -(Zeff/rr)*std::erf(rs/std::sqrt(2.0)) 
+        return -(Zeff/rr)*erf(rs/std::sqrt(2.0))
           + std::exp(-0.5*rs2)*
           (C1 + C2*rs2 + C3*rs4 + C4*rs6);
     }

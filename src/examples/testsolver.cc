@@ -22,7 +22,7 @@ public:
         return *this;
     }
 
-    F operator-(const F& b) { // Operator- necessary
+    F operator-(const F& b) const { // Operator- necessary
         return F(x-b.x);
     }
 
@@ -31,7 +31,7 @@ public:
         return *this;
     }
 
-    F operator*(double a) { // Scale by a constant necessary
+    F operator*(double a) const { // Scale by a constant necessary
         return F(x*a);
     }
 

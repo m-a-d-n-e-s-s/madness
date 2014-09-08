@@ -49,9 +49,15 @@ public:
     }
 };
 
+bool is_like(double a, double b, double tol) {
+    return (std::abs((a - b)/a) <= tol);
+}
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
+
+    int success = 0;
 
     startup(world,argc,argv);
     std::cout.precision(6);
@@ -140,8 +146,32 @@ int main(int argc, char** argv) {
         print("***************************************************************************");
     }
 
+    real_function_3d alphabeta = real_factory_3d(world);
+    alphabeta = alpha + beta;
+    double aba = alphabeta.inner(alpha);
+    double aba_f = alphabeta.inner_ext(alpha_func);
+    double aba_ffi = alphabeta.inner_ext(alpha_ffi);
+
+    if (world.rank() == 0) {
+        print("\nCheck that inner_ext works for Function that lacks a functor");
+        print("***************************************************************************");
+        printf("<a+b|a> (using inner() with Function) =                      %7.10f\n", aba);
+        printf("<a+b|a> (using inner_ext() with external function) =         %7.10f\n", aba_f);
+        printf("<a+b|a> (using inner_ext() with FunctionFunctor Interface) = %7.10f\n", aba_ffi);
+        print("***************************************************************************");
+    }
+
+    if (not is_like(aa, aa_f, thresh)) ++success;
+    if (not is_like(aa, aa_ffi, thresh)) ++success;
+    if (not is_like(bb, bb_f, thresh)) ++success;
+    if (not is_like(bb, bb_ffi, thresh)) ++success;
+    if (not is_like(ab, ab_f, thresh)) ++success;
+    if (not is_like(ab, ab_ffi, thresh)) ++success;
+    if (not is_like(ab, ba_f, thresh)) ++success;
+    if (not is_like(ab, ba_ffi, thresh)) ++success;
+
     world.gop.fence();
 
     finalize();
-    return 0;
+    return success;
 }
