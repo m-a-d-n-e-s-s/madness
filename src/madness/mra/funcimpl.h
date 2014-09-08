@@ -4928,23 +4928,19 @@ namespace madness {
             // If we haven't yet reached the leaf level, check whether the 
             // current key is a leaf node of left. If so, set below_leaf to 
             // true and continue. If not, make this a parent, recur down, return.
-            /* if (not below_leaf) { */
-            /*     bool left_leaf = left->coeffs.find(key).get()->second.is_leaf(); */
-            /*     if (left_leaf) { */
-            /*         below_leaf = true; */
-            /*     } else { */
-            /*         this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node */
-            /*         for (KeyChildIterator<NDIM> it(key); it; ++it) { */
-            /*             const keyT& child = it.key(); */
-            /*             gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf); */
-            /*         } */
-            /*         return None; */
-            /*     } */
-            /* } */
-
-            tensorT c_child, lc_child;
-            c_child = tensorT(cdata.v2k); // tensor of child coeffs
-            lc_child = tensorT(cdata.v2k); // tensor of host Function child coeffs
+            if (not below_leaf) {
+                bool left_leaf = left->coeffs.find(key).get()->second.is_leaf();
+                if (left_leaf) {
+                    below_leaf = true;
+                } else {
+                    this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
+                    for (KeyChildIterator<NDIM> it(key); it; ++it) {
+                        const keyT& child = it.key();
+                        gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
+                    }
+                    return None;
+                }
+            }
             
             // Compute left's coefficients if not provided
             Tensor<L> lc = lcin;
@@ -4954,25 +4950,31 @@ namespace madness {
                 if (it->second.has_coeff())
                     lc = it->second.coeff().full_tensor_copy();
             }
-            /* if (lc.size() == 0) { */
-            /*     if (left->coeffs.find(key).get()->second.has_coeff()) { */
-            /*         lc = left->coeffs.find(key).get()->second.coeff().full_tensor_copy(); */
-            /*     } else { */
-            /*         lc = left->project(key); */
-            /*     } */
-            /* } */
 
             // Compute this node's coefficients if not provided in function call
             if (c.size() == 0) {
-                c = gaxpy_ext_node(key, lc, f, alpha, beta); // this node's coefficients
+                c = gaxpy_ext_node(key, lc, f, alpha, beta);
             }
 
+            // We need the scaling coefficients of the numerical function at 
+            // each of the children nodes. We can't use project because there 
+            // is no guarantee that the numerical function will have a functor.
+            // Instead, since we know we are at or below the leaf nodes, the 
+            // wavelet coefficients are zero (to within the truncate tolerance).
+            // Thus, we can use unfilter() to get the scaling coefficients at 
+            // the next level.
+            Tensor<L> lc_child = Tensor<L>(cdata.v2k); // tensor of host Function child coeffs
+            Tensor<L> ld = Tensor<L>(cdata.v2k);
+            ld = L(0);
+            ld(cdata.s0) = copy(lc);
+            lc_child = unfilter(ld);
+
             // Iterate over children of this node,
-            // storing the gaxpy coeffs in c_child and left's coeffs in lc_child
+            // storing the gaxpy coeffs in c_child
+            tensorT c_child = tensorT(cdata.v2k); // tensor of child coeffs
             for (KeyChildIterator<NDIM> it(key); it; ++it) {
                 const keyT& child = it.key();
-                lc_child(child_patch(child)) = left->project(child);
-                tensorT lcoeff = lc_child(child_patch(child));
+                tensorT lcoeff = tensorT(lc_child(child_patch(child)));
                 c_child(child_patch(child)) = gaxpy_ext_node(child, lcoeff, f, alpha, beta);
             }
             
@@ -4988,7 +4990,7 @@ namespace madness {
             // Small d.normf means we've reached a good level of resolution
             // Store the coefficients and return.
             if (dnorm <= truncate_tol(tol,key)) {
-                this->coeffs.replace(key, nodeT(coeffT(c,targs), false)); // interior node
+                this->coeffs.replace(key, nodeT(coeffT(c,targs), false));
                 return None;
             } else {
                 // Otherwise, make this a parent node and recur down
