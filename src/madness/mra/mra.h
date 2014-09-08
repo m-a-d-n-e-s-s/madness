@@ -1214,6 +1214,19 @@ namespace madness {
             return local;
         }
 
+        /// Return the local part of gaxpy with external function, this*alpha + f*beta ... no communication.
+        /// @param[in] alpha prefactor for this Function
+        /// @param[in] f Pointer to function of type T that take coordT arguments. This is the externally provided function
+        /// @param[in] beta prefactor for f
+        /// @return Returns local part of the gaxpy, i.e. over the domain of all function nodes on this compute node.
+        template <typename L>
+        Void gaxpy_ext(const Function<L,NDIM>& left, T (*f)(const coordT&), T alpha, T beta, double tol, bool fence=true) const {
+            PROFILE_MEMBER_FUNC(Function);
+            if (left.is_compressed()) left.reconstruct();
+            impl->gaxpy_ext(left.get_impl().get(), f, alpha, beta, tol, fence);
+            return None;
+        }
+
         /// Returns the inner product for one on-demand function
 
         /// It does work, but it might not give you the precision you expect.
