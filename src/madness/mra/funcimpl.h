@@ -4890,20 +4890,25 @@ namespace madness {
                     do_inner_ext_local_ffi(f, this));
         } 
         
-        /// Return the gaxpy product with an external function on a specified function node.
+        /// Return the gaxpy product with an external function on a specified
+        /// function node.
         /// @param[in] key Key of the function node on which to compute gaxpy
-        /// @param[in] lc Tensor of coefficients for the function at the function node given by key
-        /// @param[in] f Pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] lc Tensor of coefficients for the function at the
+        ///            function node given by key
+        /// @param[in] f Pointer to function of type T that takes coordT 
+        ///            arguments. This is the externally provided function and 
+        ///            the right argument of gaxpy.
         /// @param[in] alpha prefactor of c Tensor for gaxpy
         /// @param[in] beta prefactor of fcoeffs for gaxpy
-        /// @return Returns coefficient tensor of the gaxpy product at specified key, no guarantee of accuracy.   
+        /// @return Returns coefficient tensor of the gaxpy product at specified
+        ///         key, no guarantee of accuracy.   
         template <typename L>
         tensorT gaxpy_ext_node(keyT key, Tensor<L> lc, T (*f)(const coordT&), T alpha, T beta) const {
-            // Compute the value of the external function at the quadrature points.
+            // Compute the value of external function at the quadrature points.
             tensorT fvals = madness::fcube(key, f, cdata.quad_x);
             // Convert quadrature point values to scaling coefficients.
             tensorT fcoeffs = values2coeffs(key, fvals);
-            // Return the inner product of the two functions' scaling coefficients.
+            // Return the inner product of the two functions' scaling coeffs.
             tensorT c2 = copy(lc);
             c2.gaxpy(alpha, fcoeffs, beta);
             return c2;
@@ -4914,10 +4919,13 @@ namespace madness {
         /// @param[in] left FunctionImpl, left argument of gaxpy
         /// @param[in] lc coefficients of left at this node
         /// @param[in] c coefficients of gaxpy product at this node
-        /// @param[in] f pointer to function of type T that takes coordT arguments. This is the externally provided function and the right argument of gaxpy.
+        /// @param[in] f pointer to function of type T that takes coordT 
+        ///            arguments. This is the externally provided function and
+        ///            the right argument of gaxpy.
         /// @param[in] alpha prefactor of left argument for gaxpy
         /// @param[in] beta prefactor of right argument for gaxpy
-        /// @param[in] tol convergence tolerance...when the norm of the gaxpy's difference coefficients is less than tol, we are done.
+        /// @param[in] tol convergence tolerance...when the norm of the gaxpy's 
+        ///            difference coefficients is less than tol, we are done.
         /// @return Return void but populates tree as side-effect
         template <typename L>
         Void gaxpy_ext_recursive(const keyT& key, const FunctionImpl<L,NDIM>* left, 
@@ -4926,14 +4934,14 @@ namespace madness {
             typedef typename FunctionImpl<L,NDIM>::dcT::const_iterator literT;
 
             // If we haven't yet reached the leaf level, check whether the 
-            // current key is a leaf node of left. If so, set below_leaf to 
-            // true and continue. If not, make this a parent, recur down, return.
+            // current key is a leaf node of left. If so, set below_leaf to true 
+            // and continue. If not, make this a parent, recur down, return.
             if (not below_leaf) {
                 bool left_leaf = left->coeffs.find(key).get()->second.is_leaf();
                 if (left_leaf) {
                     below_leaf = true;
                 } else {
-                    this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
+                    this->coeffs.replace(key, nodeT(coeffT(), true));
                     for (KeyChildIterator<NDIM> it(key); it; ++it) {
                         const keyT& child = it.key();
                         gaxpy_ext_recursive(child, left, Tensor<L>(), tensorT(), f, alpha, beta, tol, below_leaf);
@@ -4963,7 +4971,7 @@ namespace madness {
             // wavelet coefficients are zero (to within the truncate tolerance).
             // Thus, we can use unfilter() to get the scaling coefficients at 
             // the next level.
-            Tensor<L> lc_child = Tensor<L>(cdata.v2k); // tensor of host Function child coeffs
+            Tensor<L> lc_child = Tensor<L>(cdata.v2k); // left's child coeffs
             Tensor<L> ld = Tensor<L>(cdata.v2k);
             ld = L(0);
             ld(cdata.s0) = copy(lc);
@@ -4991,7 +4999,6 @@ namespace madness {
             // Store the coefficients and return.
             if (dnorm <= truncate_tol(tol,key)) {
                 this->coeffs.replace(key, nodeT(coeffT(c,targs), false));
-                return None;
             } else {
                 // Otherwise, make this a parent node and recur down
                 this->coeffs.replace(key, nodeT(coeffT(), true)); // Interior node
@@ -5003,9 +5010,8 @@ namespace madness {
                     woT::task(left->coeffs.owner(child), &implT:: template gaxpy_ext_recursive<L>, 
                               child, left, left_coeff, child_coeff, f, alpha, beta, tol, below_leaf);
                 }
-                return None;
             }
-            /* return None; */
+            return None;
         }
 
         template <typename L>
