@@ -10,7 +10,7 @@ noinst_PROGRAMS = h2dft hedft hello hatom_energy h2 he tdse heat heat2 csqrt \
  sdf_shape_tester test_gmres tdse1d vnucso nonlinschro sininteg functionio \
  dataloadbal hatom_1d binaryop dielectric hehf 3dharmonic testsolver \
  testspectralprop dielectric_external_field mp2 tiny oep h2dynamic newsolver \
- tdhf nemo helium_exact test_inner
+ tdhf nemo helium_exact 
  
 thisincludedir = $(includedir)/examples
 #thisinclude_HEADERS = molecularmask.h  nonlinsol.h spectralprop.h
@@ -90,8 +90,6 @@ csqrt_SOURCES = csqrt.cc
 sdf_shape_tester_SOURCES = sdf_shape_tester.cc
 
 test_gmres_SOURCES = test_gmres.cc
-
-test_inner_SOURCES = test_inner.cc
 
 vnucso_SOURCES = vnucso.cc
 

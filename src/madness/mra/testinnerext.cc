@@ -49,9 +49,15 @@ public:
     }
 };
 
+bool is_like(double a, double b, double tol) {
+    return (std::abs((a - b)/a) <= tol);
+}
+
 int main(int argc, char** argv) {
     initialize(argc, argv);
     World world(SafeMPI::COMM_WORLD);
+
+    int success = 0;
 
     startup(world,argc,argv);
     std::cout.precision(6);
@@ -155,8 +161,17 @@ int main(int argc, char** argv) {
         print("***************************************************************************");
     }
 
+    if (not is_like(aa, aa_f, thresh)) ++success;
+    if (not is_like(aa, aa_ffi, thresh)) ++success;
+    if (not is_like(bb, bb_f, thresh)) ++success;
+    if (not is_like(bb, bb_ffi, thresh)) ++success;
+    if (not is_like(ab, ab_f, thresh)) ++success;
+    if (not is_like(ab, ab_ffi, thresh)) ++success;
+    if (not is_like(ab, ba_f, thresh)) ++success;
+    if (not is_like(ab, ba_ffi, thresh)) ++success;
+
     world.gop.fence();
 
     finalize();
-    return 0;
+    return success;
 }

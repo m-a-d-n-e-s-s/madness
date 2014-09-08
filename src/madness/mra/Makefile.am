@@ -9,7 +9,7 @@ AM_CPPFLAGS += -DMRA_DATA_DIR=\"$(abs_srcdir)\"
 
 TESTS = testbsh testproj testpdiff testper \
         testdiff1Db testdiff1D testdiff2D testdiff3D testgconv testopdir \
-        testsuite
+        testsuite testinnerext testgaxpyext
 
 bin_PROGRAMS = mraplot
 noinst_PROGRAMS =  testperiodic testbc testproj testqm test6 $(TESTS)
@@ -56,6 +56,10 @@ testdiff2D_SOURCES = testdiff2D.cc
 testdiff3D_SOURCES = testdiff3D.cc
 
 testqm_SOURCES = testqm.cc
+
+testinnerext_SOURCES = testinnerext.cc
+
+testgaxpyext_SOURCES = testgaxpyext.cc
 
 #testop2_SOURCES = testop2.cc
 
