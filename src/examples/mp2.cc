@@ -44,7 +44,7 @@
 
 
 //#define WORLD_INSTANTIATE_STATIC_TEMPLATES
-#include "mp2.h"
+#include <chem/mp2.h>
 
 using namespace madness;
 

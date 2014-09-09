@@ -43,7 +43,7 @@
 
 */
 
-#include "mp2.h"
+#include <chem/mp2.h>
 
 #include <madness/mra/operator.h>
 #include <madness/mra/mra.h>
