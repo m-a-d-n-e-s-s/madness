@@ -44,7 +44,7 @@
 
 */
 
-#include "nemo.h"
+#include <chem/nemo.h>
 
 using namespace madness;
 
